@@ -2323,18 +2323,11 @@ type ChatStreamHistoryReset struct {
 	FromMessageID int64 `json:"from_message_id"`
 }
 
-// ChatSnapshotVersionHeader is the response header in which a chat action
-// reports the chat's snapshot_version it committed. A stream checkpoint at
-// or above it reflects the action.
-const ChatSnapshotVersionHeader = "Coder-Chat-Snapshot-Version"
-
 // ChatStreamCheckpoint ends every applied stream sync and reports the chat
 // state the events before it reflect.
 type ChatStreamCheckpoint struct {
-	// SnapshotVersion is the chat's snapshot_version the sync applied. It
-	// reflects every action whose ChatSnapshotVersionHeader is at or below
-	// it. A client reconnects with the value of the last checkpoint it
-	// received.
+	// SnapshotVersion is the chat's snapshot_version the sync applied. A
+	// client reconnects with the value of the last checkpoint it received.
 	SnapshotVersion int64 `json:"snapshot_version"`
 	// Turn is the chat's turn at SnapshotVersion. It replaces the turn the
 	// client holds.

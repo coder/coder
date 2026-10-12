@@ -234,7 +234,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 		return err == nil && updated.Status == database.ChatStatusRequiresAction
 	}, testutil.IntervalFast)
 
-	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: model.ID,
@@ -247,7 +247,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	require.Equal(t, int32(1), postCalls.Load())
 
-	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: model.ID,
@@ -323,7 +323,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 		ToolCallID: "call_dynamic_failure",
 		Output:     json.RawMessage(`{"answer":42}`),
 	}}
-	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: model.ID,
@@ -343,13 +343,12 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	require.Equal(t, int32(1), postCalls.Load())
 
 	failPostToolUse.Store(false)
-	_, err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	require.NoError(t, server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: model.ID,
 		Results:       results,
-	})
-	require.NoError(t, err)
+	}))
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
 	require.JSONEq(t, `{"answer":42}`, string(result.Result))
 	require.Equal(t, int32(2), postCalls.Load())

@@ -1226,7 +1226,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted in the first sync, when the history version changes, when a new generation attempt starts, and when the current generation attempt is retired.
-- `checkpoint`: the last event of every applied sync. It carries the chat's `snapshot_version` and turn: the status, the persisted error while the status is `error`, and the pending retry while the status is `running`. A client that applied the events before it has the chat's state at that `snapshot_version`, including every action whose `Coder-Chat-Snapshot-Version` response header is at or below it, and reconnects with it.
+- `checkpoint`: the last event of every applied sync. It carries the chat's `snapshot_version` and turn: the status, the persisted error while the status is `error`, and the pending retry while the status is `running`. A client that applied the events before it has the chat's state at that `snapshot_version`, and reconnects with it.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it carries `from_message_id`: the client keeps its messages with lower IDs and replaces the rest with the `message` events that follow. On other streams, those events replace the whole history.
 
 Streams opened with `snapshot_version` do not receive `status`, `error`, `action_required`, or `retry`; their `checkpoint` carries the turn.
@@ -1235,7 +1235,7 @@ Streams opened with `snapshot_version` do not receive `status`, `error`, `action
 
 A client loads the newest messages page, `GET /api/v2/chats/{chat}/messages` without `before_id` or `after_id`. The page carries the chat's `snapshot_version` and turn, read from the chat row before the messages and the queue, so a change committed in between is sent again by the stream. The client opens the stream with that `snapshot_version`, and after a disconnect reconnects with the `snapshot_version` of the last `checkpoint` it applied.
 
-The action endpoints (send, edit, delete and promote a queued message, interrupt, compact, clear, reconcile, and tool results) set the `Coder-Chat-Snapshot-Version` response header to the `snapshot_version` they committed. The action's effect reaches every client through the stream, and the first `checkpoint` at or above that version reflects it.
+An action's effect reaches every client, including the one that sent the request, through the stream.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
 ## Endpoint lifecycle
