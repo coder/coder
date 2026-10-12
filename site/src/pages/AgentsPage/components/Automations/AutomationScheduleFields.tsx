@@ -143,12 +143,18 @@ export const matchRepeatShortcut = (
 
 /**
  * Describes a cron string in words when a Repeat shortcut wrote it, such as
- * "Weekdays at 09:00". Other cron strings come back unchanged.
+ * "Weekdays at 09:00", or when it repeats every N minutes. Other cron strings
+ * come back unchanged.
  */
 export const describeSchedule = (cron: string): string => {
 	const shortcut = matchRepeatShortcut(cron);
 	const option = repeatOptions.find(({ value }) => value === shortcut?.repeat);
 	if (!shortcut || !option) {
+		const everyMinutes = /^\*\/([1-9]\d?) \* \* \* \*$/.exec(cron.trim());
+		const minutes = Number(everyMinutes?.[1]);
+		if (everyMinutes && minutes <= 59) {
+			return minutes === 1 ? "Every minute" : `Every ${minutes} minutes`;
+		}
 		return cron.trim();
 	}
 	if (shortcut.minute === undefined) {
