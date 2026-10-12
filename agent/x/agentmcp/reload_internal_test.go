@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -746,4 +747,141 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	// suppress the "signal: killed" error.
 	err = m.Close()
 	assert.NoError(t, err, "Close should not propagate subprocess kill errors")
+}
+
+// A caller that joins an in-flight reload started for other sources
+// must not return before its own sources are applied.
+func TestReloadSources_ConcurrentCallerAppliesItsSources(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, dirA, map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, dirB, map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var hookOnce sync.Once
+	m.mu.Lock()
+	m.connectStartedHook = func() {
+		hookOnce.Do(func() { close(reached) })
+		<-release
+	}
+	m.mu.Unlock()
+
+	// The first reload blocks inside connectAll while holding the
+	// singleflight slot.
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- m.Reload(ctx, []string{pathA}) }()
+	testutil.TryReceive(ctx, t, reached)
+
+	// The second caller joins the in-flight body, which was started for
+	// pathA only.
+	secondDone := make(chan error, 1)
+	go func() { secondDone <- m.Reload(ctx, []string{pathA, pathB}) }()
+
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, firstDone))
+	require.NoError(t, testutil.RequireReceive(ctx, t, secondDone))
+
+	tools := m.connectedTools()
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, tools)
+}
+
+func TestReloadCurrent_ReadsSourcesOnEachAttempt(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	var current atomic.Pointer[[]ConfigSource]
+	current.Store(&[]ConfigSource{{Path: pathA}})
+	m.SetSources(func() []ConfigSource { return *current.Load() })
+
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var hookOnce sync.Once
+	m.mu.Lock()
+	m.connectStartedHook = func() {
+		hookOnce.Do(func() { close(reached) })
+		<-release
+	}
+	m.mu.Unlock()
+
+	done := make(chan error, 1)
+	go func() { done <- m.ReloadCurrent(ctx) }()
+	testutil.TryReceive(ctx, t, reached)
+
+	// The first attempt was started for pathA only.
+	current.Store(&[]ConfigSource{{Path: pathA}, {Path: pathB}})
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, done))
+
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, m.connectedTools())
+}
+
+func TestWatchedConfigChange_UsesRegisteredSources(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	_, entryA := fakeMCPServerConfig(t, "alpha")
+	pathA := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"alpha": entryA})
+	_, entryB := fakeMCPServerConfig(t, "beta")
+	pathB := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"beta": entryB})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	m.SetSources(func() []ConfigSource {
+		return []ConfigSource{{Path: pathA}, {Path: pathB}}
+	})
+
+	// An explicit reload with a stale list records it as the last
+	// sources.
+	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{{Path: pathA}}))
+	require.Equal(t, []catalogTool{{server: "alpha", tool: "echo"}}, m.connectedTools())
+
+	m.handleWatchedConfigChange()
+	require.Equal(t, []catalogTool{
+		{server: "alpha", tool: "echo"},
+		{server: "beta", tool: "echo"},
+	}, m.connectedTools())
 }
