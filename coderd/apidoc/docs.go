@@ -3812,7 +3812,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error and retry events, and sends no action_required events",
+                        "description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events",
                         "name": "snapshot_version",
                         "in": "query"
                     }
@@ -21498,11 +21498,11 @@ const docTemplate = `{
                     }
                 },
                 "snapshot_version": {
-                    "description": "SnapshotVersion is the chat's snapshot_version, read before the\nmessages and queue in this page. The page can hold changes made after\nit; a stream opened with it sends them again. Pass it as the stream's\nsnapshot_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
+                    "description": "SnapshotVersion is the chat's snapshot_version, read before the rest\nof this page. The page can hold changes made after it; a stream opened\nwith it sends them again. Pass it as the stream's snapshot_version\nparameter. It is set only on pages requested without before_id or\nafter_id.",
                     "type": "integer"
                 },
                 "turn": {
-                    "description": "Turn is the chat's turn at SnapshotVersion. It is set only on pages\nrequested without before_id or after_id.",
+                    "description": "Turn is the chat's turn. It is set only on pages requested without\nbefore_id or after_id.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatStreamTurn"
@@ -22519,6 +22519,14 @@ const docTemplate = `{
         "codersdk.ChatStreamTurn": {
             "type": "object",
             "properties": {
+                "action_required": {
+                    "description": "ActionRequired is set while the status is requires_action and lists\nthe dynamic tool calls that wait for results.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamActionRequired"
+                        }
+                    ]
+                },
                 "error": {
                     "description": "Error is set while the status is error.",
                     "allOf": [

@@ -3015,16 +3015,16 @@ export interface ChatMessagesResponse {
 	 */
 	readonly turn_start_id?: number;
 	/**
-	 * SnapshotVersion is the chat's snapshot_version, read before the
-	 * messages and queue in this page. The page can hold changes made after
-	 * it; a stream opened with it sends them again. Pass it as the stream's
-	 * snapshot_version parameter. It is set only on pages requested without
-	 * before_id or after_id.
+	 * SnapshotVersion is the chat's snapshot_version, read before the rest
+	 * of this page. The page can hold changes made after it; a stream opened
+	 * with it sends them again. Pass it as the stream's snapshot_version
+	 * parameter. It is set only on pages requested without before_id or
+	 * after_id.
 	 */
 	readonly snapshot_version?: number;
 	/**
-	 * Turn is the chat's turn at SnapshotVersion. It is set only on pages
-	 * requested without before_id or after_id.
+	 * Turn is the chat's turn. It is set only on pages requested without
+	 * before_id or after_id.
 	 */
 	readonly turn?: ChatStreamTurn;
 }
@@ -3811,6 +3811,11 @@ export interface ChatStreamTurn {
 	 * attempt is pending.
 	 */
 	readonly retry?: ChatStreamRetry;
+	/**
+	 * ActionRequired is set while the status is requires_action and lists
+	 * the dynamic tool calls that wait for results.
+	 */
+	readonly action_required?: ChatStreamActionRequired;
 }
 
 // From codersdk/chats.go
@@ -9691,9 +9696,8 @@ export interface StreamChatOptions {
 	 * stream sends only changes made after it, the server ignores AfterID,
 	 * and history resets carry ChatStreamEvent.HistoryReset. The stream
 	 * then sends no status, error, retry or action_required events: each
-	 * checkpoint carries the turn, which does not include pending dynamic
-	 * tool calls. When it is zero, every connection to a chat with a
-	 * deleted message resends the whole history.
+	 * checkpoint carries the turn. When it is zero, every connection to a
+	 * chat with a deleted message resends the whole history.
 	 */
 	readonly SnapshotVersion: number;
 }

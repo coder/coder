@@ -1192,14 +1192,14 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted in the first sync, when the history version changes, when a new generation attempt starts, and when the current generation attempt is retired.
-- `checkpoint`: the last event of every applied sync. It carries the chat's `snapshot_version` and turn: the status, the persisted error while the status is `error`, and the pending retry while the status is `running`. A client that applied the events before it has the chat's state at that `snapshot_version`, and reconnects with it.
+- `checkpoint`: the last event of every applied sync. It carries the chat's `snapshot_version` and turn: the status, the persisted error while the status is `error`, the pending retry while the status is `running`, and the pending dynamic tool calls while the status is `requires_action`. A client that applied the events before it has the chat's state at that `snapshot_version`, and reconnects with it.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it carries `from_message_id`: the client keeps its messages with lower IDs and replaces the rest with the `message` events that follow. On other streams, those events replace the whole history.
 
 Streams opened with `snapshot_version` do not receive `status`, `error`, `action_required`, or `retry`; their `checkpoint` carries the turn.
 
 ## Client synchronization
 
-A client loads the newest messages page, `GET /api/v2/chats/{chat}/messages` without `before_id` or `after_id`. The page carries the chat's `snapshot_version` and turn, read from the chat row before the messages and the queue, so a change committed in between is sent again by the stream. The client opens the stream with that `snapshot_version`, and after a disconnect reconnects with the `snapshot_version` of the last `checkpoint` it applied.
+A client loads the newest messages page, `GET /api/v2/chats/{chat}/messages` without `before_id` or `after_id`. The page carries the chat's `snapshot_version` and turn. The `snapshot_version` is read before the rest of the page, so a change committed in between is sent again by the stream. The client opens the stream with that `snapshot_version`, and after a disconnect reconnects with the `snapshot_version` of the last `checkpoint` it applied.
 
 An action's effect reaches every client, including the one that sent the request, through the stream.
 
@@ -1303,7 +1303,7 @@ Applying the database result means, in deterministic order:
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
 7. If `db.history_version > local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, `db.status` is neither `running` nor `interrupting`, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed or stopped, so its remaining preview parts are dropped. It stays set if the retry is later cancelled. A chat that stopped running records a new generation attempt before it streams again.
 8. If this is the first sync, `db.history_version > local.history_version`, (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), or step 7 changed `attempt_retired` from false to true, set last accepted preview part `seq = 0` and emit `preview_reset`. The first sync emits it because the client's preview parts came from an earlier connection, and this one relays the current attempt's parts from the start. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
-9. Emit `checkpoint` with `db.snapshot_version` and the turn of the chat row.
+9. Emit `checkpoint` with `db.snapshot_version` and the turn of the chat row, including the pending dynamic tool calls while `db.status = requires_action`.
 10. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 11. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 

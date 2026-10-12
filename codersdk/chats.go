@@ -951,14 +951,14 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
-	// SnapshotVersion is the chat's snapshot_version, read before the
-	// messages and queue in this page. The page can hold changes made after
-	// it; a stream opened with it sends them again. Pass it as the stream's
-	// snapshot_version parameter. It is set only on pages requested without
-	// before_id or after_id.
+	// SnapshotVersion is the chat's snapshot_version, read before the rest
+	// of this page. The page can hold changes made after it; a stream opened
+	// with it sends them again. Pass it as the stream's snapshot_version
+	// parameter. It is set only on pages requested without before_id or
+	// after_id.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
-	// Turn is the chat's turn at SnapshotVersion. It is set only on pages
-	// requested without before_id or after_id.
+	// Turn is the chat's turn. It is set only on pages requested without
+	// before_id or after_id.
 	Turn *ChatStreamTurn `json:"turn,omitempty"`
 }
 
@@ -2215,6 +2215,9 @@ type ChatStreamTurn struct {
 	// Retry is set while the status is running and a retry of the failed
 	// attempt is pending.
 	Retry *ChatStreamRetry `json:"retry,omitempty"`
+	// ActionRequired is set while the status is requires_action and lists
+	// the dynamic tool calls that wait for results.
+	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3143,9 +3146,8 @@ type StreamChatOptions struct {
 	// stream sends only changes made after it, the server ignores AfterID,
 	// and history resets carry ChatStreamEvent.HistoryReset. The stream
 	// then sends no status, error, retry or action_required events: each
-	// checkpoint carries the turn, which does not include pending dynamic
-	// tool calls. When it is zero, every connection to a chat with a
-	// deleted message resends the whole history.
+	// checkpoint carries the turn. When it is zero, every connection to a
+	// chat with a deleted message resends the whole history.
 	SnapshotVersion int64
 }
 

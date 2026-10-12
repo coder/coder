@@ -1847,10 +1847,21 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if beforeID == 0 && afterID == 0 {
 		// Only the newest page reports a snapshot version and turn, since a
 		// cursored page can leave out newer messages. chat was read before the
-		// messages and the queue, so a change committed in between is sent
-		// again by the stream, not lost.
+		// messages, the queue and the pending tool calls, so a change committed
+		// in between is sent again by the stream, not lost.
 		snapshotVersion = chat.SnapshotVersion
-		chatTurn := chatd.StreamTurn(api.Logger, chat)
+		var actionRequired *codersdk.ChatStreamActionRequired
+		if chat.Status == database.ChatStatusRequiresAction {
+			actionRequired, err = chatd.StreamActionRequired(ctx, api.Database, chat)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get pending tool calls.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+		chatTurn := chatd.StreamTurn(api.Logger, chat, actionRequired)
 		turn = &chatTurn
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
@@ -3459,7 +3470,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
-// @Param snapshot_version query int false "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error and retry events, and sends no action_required events"
+// @Param snapshot_version query int false "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
