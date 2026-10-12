@@ -54,7 +54,7 @@ const liveData = (tools: AssistantTools): string =>
 - Use the MCP tools for these reads and for follow-ups: coder_list_chats (limit 100; every chat carries its labels), coder_get_chat (title, status, labels, last_turn_summary), coder_get_chat_messages (use limit 200; page with before_id = next_before_id, continuing through empty pages while has_more, until you have read the user messages; it returns user-facing text only), coder_await_chat, coder_send_chat_message (only when the user asks).
 - coder_get_chat also returns the chat's file list; ignore it.
 - Use the API, with curl from your workspace (CODER_URL and CODER_SESSION_TOKEN are set there; H='Coder-Session-Token: '$CODER_SESSION_TOKEN), only for these gaps: label writes (PATCH), chat title writes, created_at, summary, diff, cost, activity of a running chat, and listing when the board may exceed 100 chats.
-  - Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives created_at, summary, diff_status (PR url, additions, deletions); cost via /cost.
+  - Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives created_at, summary, diff_statuses (every tracked ref: remote_origin, git_branch, and for a PR its url, state, title, additions, deletions; diff_status is only the primary ref, which may be a branch with no PR); cost via /cost.
 ${CURL_LINES}
 - The API transcript (GET /api/v2/chats/<id>/messages) includes tool calls and results; MCP messages are text only. Use the API to see what a running chat is doing now or why a turn failed.
 - If a coder_update_chat tool exists in your catalog, use it for label and title writes instead of curl.
@@ -62,7 +62,7 @@ ${CURL_LINES}
 
 Workspace: create the shared workspace "${WORKSPACE_NAME}" (${CREATE_WORKSPACE}) the first time you need one of the API gaps or gh, not before.`
 		: `Reading live data, from your workspace (CODER_URL and CODER_SESSION_TOKEN are set there; H='Coder-Session-Token: '$CODER_SESSION_TOKEN):
-  - Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives title, status, created_at, summary, last_turn_summary, diff_status (PR url, additions, deletions), labels.
+  - Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives title, status, created_at, summary, last_turn_summary, diff_statuses (every tracked ref: remote_origin, git_branch, and for a PR its url, state, title, additions, deletions; diff_status is only the primary ref, which may be a branch with no PR), labels.
 ${CURL_LINES}
   - GitHub: the gh CLI. PR state comes from the timeline, not from a list (see the verification rules).
 
