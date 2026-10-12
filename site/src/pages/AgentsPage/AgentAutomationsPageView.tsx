@@ -31,6 +31,10 @@ import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { AutomationDeleteDialog } from "./components/Automations/AutomationDeleteDialog";
+import {
+	AutomationOwnerFilter,
+	type AutomationOwnerView,
+} from "./components/Automations/AutomationOwnerFilter";
 import { AutomationRow } from "./components/Automations/AutomationRow";
 import { ChatTitleLink } from "./components/Automations/AutomationStatus";
 import { SectionHeader } from "./components/SectionHeader";
@@ -65,6 +69,10 @@ type AgentAutomationsPageViewProps = {
 	/** True for viewers, such as organization admins, who can delete any automation. */
 	canDeleteAnyAutomation?: boolean;
 	organizationSelector?: React.ReactNode;
+	/** Which owners the list shows. Mine when unset. */
+	ownerView?: AutomationOwnerView;
+	/** Shows the Mine and All switch, for viewers who can read every owner's automations. */
+	onOwnerViewChange?: (view: AutomationOwnerView) => void;
 	automations: readonly ChatAutomation[] | undefined;
 	isLoading: boolean;
 	error: unknown;
@@ -172,6 +180,8 @@ export const AgentAutomationsPageView: React.FC<
 	currentUserId,
 	canDeleteAnyAutomation = false,
 	organizationSelector,
+	ownerView = "mine",
+	onOwnerViewChange,
 	automations,
 	isLoading,
 	error,
@@ -190,13 +200,18 @@ export const AgentAutomationsPageView: React.FC<
 }) => {
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const newAutomationRef = useRef<HTMLButtonElement>(null);
+	const showOwnerColumn = ownerView === "all" && !isMobile;
 	let rows: React.ReactNode;
 	if (isLoading) {
 		rows = <TableLoader />;
 	} else if (!automations || automations.length === 0) {
 		rows = (
 			<TableEmpty
-				message="No automations yet"
+				message={
+					ownerView === "all"
+						? "No automations in this organization"
+						: "You have no automations yet"
+				}
 				description="Create a schedule or webhook that sends a prompt to an agent."
 			/>
 		);
@@ -210,6 +225,7 @@ export const AgentAutomationsPageView: React.FC<
 					automation.owner_id === currentUserId || canDeleteAnyAutomation
 				}
 				compact={isMobile}
+				showOwner={showOwnerColumn}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
 				isAnyRunPending={runningAutomationId !== undefined}
@@ -232,6 +248,12 @@ export const AgentAutomationsPageView: React.FC<
 						badge={<ExperimentalBadge />}
 						action={
 							<div className="flex items-center gap-2">
+								{onOwnerViewChange && (
+									<AutomationOwnerFilter
+										value={ownerView}
+										onChange={onOwnerViewChange}
+									/>
+								)}
 								{organizationSelector}
 								<Button
 									ref={newAutomationRef}
@@ -286,6 +308,7 @@ export const AgentAutomationsPageView: React.FC<
 							<TableHeader>
 								<TableRow>
 									<TableHead>Name</TableHead>
+									{showOwnerColumn && <TableHead>Owner</TableHead>}
 									{!isMobile && (
 										<>
 											<TableHead>Trigger</TableHead>

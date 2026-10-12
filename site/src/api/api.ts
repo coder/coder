@@ -3961,9 +3961,11 @@ class ExperimentalApiMethods {
 
 	getChatAutomations = async (
 		organizationId: string,
+		filter?: TypesGen.ChatAutomationsFilter,
 	): Promise<TypesGen.ChatAutomation[]> => {
 		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
 			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+			{ params: filter?.owner ? { owner: filter.owner } : undefined },
 		);
 		return response.data;
 	};

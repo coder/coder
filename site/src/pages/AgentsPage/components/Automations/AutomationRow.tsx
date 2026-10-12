@@ -7,6 +7,7 @@ import {
 import { memo, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ChatAutomation } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
@@ -41,6 +42,8 @@ type AutomationRowProps = {
 	canDelete: boolean;
 	/** Stacks the row into Name, Enabled and Actions cells for narrow screens. */
 	compact: boolean;
+	/** Adds the Owner cell. Wide layout only. */
+	showOwner?: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
 	/** One run request at a time, so a pending run disables every row. */
@@ -181,10 +184,11 @@ const TargetCell: React.FC<TargetCellProps> = ({ automation, isOwner }) => {
 
 type NameDetailsProps = {
 	automation: ChatAutomation;
-	isOwner: boolean;
+	/** Hides the "Owned by" line, for the owner or when an Owner column says it. */
+	hideOwner: boolean;
 };
 
-const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
+const NameDetails: React.FC<NameDetailsProps> = ({ automation, hideOwner }) => {
 	const owner = automation.owner;
 	return (
 		<>
@@ -195,7 +199,7 @@ const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
 			>
 				{automation.name}
 			</RouterLink>
-			{!isOwner && (
+			{!hideOwner && (
 				<span className="text-xs text-content-secondary">
 					{owner
 						? `Owned by ${owner.name || owner.username}`
@@ -230,6 +234,25 @@ const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
 	);
 };
 
+type OwnerCellProps = {
+	owner: ChatAutomation["owner"];
+};
+
+const OwnerCell: React.FC<OwnerCellProps> = ({ owner }) => {
+	if (!owner) {
+		return (
+			<span className="text-xs text-content-secondary">Owner unavailable</span>
+		);
+	}
+	const ownerName = owner.name || owner.username;
+	return (
+		<span className="flex min-w-0 items-center gap-2">
+			<Avatar size="sm" src={owner.avatar_url} fallback={ownerName} />
+			<span className="truncate">{ownerName}</span>
+		</span>
+	);
+};
+
 // memo() is allowed for list items under the React Compiler; it keeps
 // other rows from re-rendering while one row's mutation is pending.
 export const AutomationRow = memo<AutomationRowProps>(
@@ -238,6 +261,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		isOwner,
 		canDelete,
 		compact,
+		showOwner = false,
 		isUpdating,
 		isRunning,
 		isAnyRunPending,
@@ -334,7 +358,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 				<TableRow>
 					<TableCell className="align-top">
 						<div className="flex flex-col gap-1 wrap-anywhere">
-							<NameDetails automation={automation} isOwner={isOwner} />
+							<NameDetails automation={automation} hideOwner={isOwner} />
 							{/* The Trigger and Runs in headers are hidden in this layout. */}
 							<div>
 								<span className="sr-only">Trigger: </span>
@@ -360,9 +384,17 @@ export const AutomationRow = memo<AutomationRowProps>(
 			<TableRow>
 				<TableCell>
 					<div className="flex flex-col gap-0.5">
-						<NameDetails automation={automation} isOwner={isOwner} />
+						<NameDetails
+							automation={automation}
+							hideOwner={isOwner || showOwner}
+						/>
 					</div>
 				</TableCell>
+				{showOwner && (
+					<TableCell>
+						<OwnerCell owner={automation.owner} />
+					</TableCell>
+				)}
 				<TableCell>
 					<AutomationTriggerSummary automation={automation} />
 				</TableCell>

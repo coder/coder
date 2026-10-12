@@ -15,19 +15,36 @@ import type {
 	ChatAutomationReference,
 	ChatAutomationRunResponse,
 	ChatAutomationSchedulePreviewRequest,
+	ChatAutomationsFilter,
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
 
 const chatAutomationsFamilyKey = ["chat-automations"] as const;
 
-export const chatAutomationsKey = (organizationId: string) =>
-	[...chatAutomationsFamilyKey, organizationId] as const;
+/**
+ * The organization's automation list. Without an owner the key is also the
+ * prefix of every filtered list, so invalidating it refreshes them all.
+ */
+export const chatAutomationsKey = (
+	organizationId: string,
+	filter?: ChatAutomationsFilter,
+) =>
+	filter?.owner
+		? ([
+				...chatAutomationsFamilyKey,
+				organizationId,
+				{ owner: filter.owner },
+			] as const)
+		: ([...chatAutomationsFamilyKey, organizationId] as const);
 
-export const chatAutomations = (organizationId: string) => ({
-	queryKey: chatAutomationsKey(organizationId),
+export const chatAutomations = (
+	organizationId: string,
+	filter?: ChatAutomationsFilter,
+) => ({
+	queryKey: chatAutomationsKey(organizationId, filter),
 	queryFn: (): Promise<ChatAutomation[]> =>
-		API.experimental.getChatAutomations(organizationId),
+		API.experimental.getChatAutomations(organizationId, filter),
 });
 
 /** Automation IDs mapped to their references. Deleted automations are absent. */
@@ -207,8 +224,9 @@ const removeCachedAutomation = (
 	organizationId: string,
 	automationId: string,
 ) =>
-	queryClient.setQueryData<ChatAutomation[]>(
-		chatAutomationsKey(organizationId),
+	// Every list of the organization, filtered or not.
+	queryClient.setQueriesData<ChatAutomation[]>(
+		{ queryKey: chatAutomationsKey(organizationId) },
 		(automations) =>
 			automations?.filter((automation) => automation.id !== automationId),
 	);

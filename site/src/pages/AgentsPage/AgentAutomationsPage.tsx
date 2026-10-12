@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -28,6 +28,7 @@ import {
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { skippedRunMessage } from "./components/Automations/AutomationLastRun";
+import type { AutomationOwnerView } from "./components/Automations/AutomationOwnerFilter";
 import {
 	automationPath,
 	newAutomationPath,
@@ -102,6 +103,9 @@ const AutomationsList: React.FC = () => {
 	const { selectedOrg, selectOrganization } =
 		useSelectedAutomationsOrganization();
 	const organizationId = selectedOrg?.id ?? "";
+	// ?owner=all keeps the All view across reloads and Back.
+	const [searchParams, setSearchParams] = useSearchParams();
+	const wantsAllOwners = searchParams.get("owner") === "all";
 
 	// Holds the organization of the run, so a failure that arrives after the
 	// viewer switched organizations does not show on the new one.
@@ -111,24 +115,18 @@ const AutomationsList: React.FC = () => {
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
 	const [deleteTarget, setDeleteTarget] = useState<ChatAutomation>();
 
-	const automationsQuery = useQuery({
-		...chatAutomations(organizationId),
-		enabled: Boolean(organizationId),
-		// Keeps the server-computed next run current while the page is open.
-		refetchInterval: 60_000,
-	});
-	const chatsQuery = useInfiniteQuery({
-		...automationChats(chatsAutomation?.id ?? ""),
-		enabled: Boolean(chatsAutomation),
-		// Scheduled and webhook runs add chats while the dialog is open. Each
-		// tick refetches every loaded page, which stays small in practice.
-		refetchInterval: 30_000,
-	});
-	// An object with no owner asks whether the viewer may delete any
-	// automation in the organization, which only admins can.
-	const deleteAnyQuery = useQuery({
+	// An object with no owner asks about every automation in the
+	// organization, which only admins can read or delete.
+	const permissionsQuery = useQuery({
 		...checkAuthorization({
 			checks: {
+				canReadAny: {
+					object: {
+						resource_type: "chat_automation",
+						organization_id: organizationId,
+					},
+					action: "read",
+				},
 				canDeleteAny: {
 					object: {
 						resource_type: "chat_automation",
@@ -140,6 +138,29 @@ const AutomationsList: React.FC = () => {
 		}),
 		enabled: Boolean(organizationId),
 	});
+	const canReadAny = Boolean(permissionsQuery.data?.canReadAny);
+	// Waits for the permission check before asking for every owner, so a
+	// member with ?owner=all in the URL gets their own list once.
+	const isCheckingOwnerView =
+		wantsAllOwners && Boolean(organizationId) && !permissionsQuery.isFetched;
+	const ownerView: AutomationOwnerView =
+		wantsAllOwners && canReadAny ? "all" : "mine";
+	const automationsQuery = useQuery({
+		...chatAutomations(
+			organizationId,
+			ownerView === "all" ? undefined : { owner: "me" },
+		),
+		enabled: Boolean(organizationId) && !isCheckingOwnerView,
+		// Keeps the server-computed next run current while the page is open.
+		refetchInterval: 60_000,
+	});
+	const chatsQuery = useInfiniteQuery({
+		...automationChats(chatsAutomation?.id ?? ""),
+		enabled: Boolean(chatsAutomation),
+		// Scheduled and webhook runs add chats while the dialog is open. Each
+		// tick refetches every loaded page, which stays small in practice.
+		refetchInterval: 30_000,
+	});
 	const runMutation = useMutation(
 		runChatAutomation(queryClient, organizationId),
 	);
@@ -149,6 +170,16 @@ const AutomationsList: React.FC = () => {
 	const deleteMutation = useMutation(
 		deleteChatAutomation(queryClient, organizationId),
 	);
+
+	const handleOwnerViewChange = (view: AutomationOwnerView) => {
+		const next = new URLSearchParams(searchParams);
+		if (view === "all") {
+			next.set("owner", "all");
+		} else {
+			next.delete("owner");
+		}
+		setSearchParams(next, { replace: true });
+	};
 
 	const handleOrganizationChange = (organization: Organization) => {
 		selectOrganization(organization);
@@ -222,7 +253,9 @@ const AutomationsList: React.FC = () => {
 		<AgentAutomationsPageView
 			header={<AutomationsPageHeader />}
 			currentUserId={user.id}
-			canDeleteAnyAutomation={Boolean(deleteAnyQuery.data?.canDeleteAny)}
+			canDeleteAnyAutomation={Boolean(permissionsQuery.data?.canDeleteAny)}
+			ownerView={ownerView}
+			onOwnerViewChange={canReadAny ? handleOwnerViewChange : undefined}
 			organizationSelector={
 				showOrganizations && (
 					<CompactOrgSelector
@@ -234,7 +267,7 @@ const AutomationsList: React.FC = () => {
 				)
 			}
 			automations={automationsQuery.data}
-			isLoading={automationsQuery.isLoading}
+			isLoading={automationsQuery.isLoading || isCheckingOwnerView}
 			error={automationsQuery.error}
 			updatingAutomationId={
 				updateMutation.isPending

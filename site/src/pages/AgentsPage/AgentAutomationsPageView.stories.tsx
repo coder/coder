@@ -154,6 +154,15 @@ export const OtherOwner: Story = {
 	},
 };
 
+export const AllOwners: Story = {
+	args: {
+		...OtherOwner.args,
+		ownerView: "all",
+		onOwnerViewChange: fn(),
+		canDeleteAnyAutomation: true,
+	},
+};
+
 export const MobileLayout: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -162,6 +171,10 @@ export const MobileLayout: Story = {
 
 export const Empty: Story = {
 	args: { automations: [] },
+};
+
+export const EmptyAllOwners: Story = {
+	args: { automations: [], ownerView: "all", onOwnerViewChange: fn() },
 };
 
 export const MissingTarget: Story = {

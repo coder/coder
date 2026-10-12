@@ -168,11 +168,11 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET ${automationsPath(MockOrganization2.id)}`,
+				`GET ${automationsPath(MockOrganization2.id)}?owner=me`,
 			);
 		});
 		expect(requestPaths(requests)).not.toContain(
-			`GET ${automationsPath(MockDefaultOrganization.id)}`,
+			`GET ${automationsPath(MockDefaultOrganization.id)}?owner=me`,
 		);
 
 		await user.click(
@@ -187,7 +187,7 @@ describe("AgentAutomationsPage", () => {
 		);
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET ${automationsPath(MockDefaultOrganization.id)}`,
+				`GET ${automationsPath(MockDefaultOrganization.id)}?owner=me`,
 			);
 		});
 		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
@@ -983,6 +983,94 @@ const pickNewChatModel = async (
 };
 
 // Each editor test drives several Radix popovers, which is slow in jsdom.
+describe("AgentAutomationsPage owner filter", () => {
+	const listRequests = (requests: readonly Request[]) =>
+		requests
+			.filter((request) => request.method === "GET")
+			.map((request) => new URL(request.url))
+			.filter(
+				(url) => url.pathname === automationsPath(MockDefaultOrganization.id),
+			)
+			.map((url) => url.searchParams.get("owner"));
+
+	it("shows a member only their automations, with no owner switch", async () => {
+		const { requests } = setup();
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: false, canDeleteAny: false }),
+			),
+		);
+
+		expect(await screen.findByText(mockAutomation.name)).toBeVisible();
+		expect(listRequests(requests)).toEqual(["me"]);
+		expect(screen.queryByRole("group", { name: "Owner" })).toBeNull();
+		expect(screen.queryByRole("columnheader", { name: "Owner" })).toBeNull();
+	});
+
+	it("says a member has no automations yet", async () => {
+		setup({ automations: [] });
+
+		expect(
+			await screen.findByText("You have no automations yet"),
+		).toBeVisible();
+	});
+
+	it("lets an admin list every owner's automations with an Owner column", async () => {
+		const user = userEvent.setup();
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			id: "other-owners-automation",
+			name: "Bob's automation",
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		const { requests, router } = setup({
+			automations: [mockAutomation, otherOwners],
+		});
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
+			),
+		);
+
+		const owner = await screen.findByRole("group", { name: "Owner" });
+		expect(within(owner).getByRole("button", { name: "Mine" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await user.click(within(owner).getByRole("button", { name: "All" }));
+
+		await waitFor(() => {
+			expect(listRequests(requests)).toEqual(["me", null]);
+		});
+		expect(router.state.location.search).toBe("?owner=all");
+		expect(
+			await screen.findByRole("columnheader", { name: "Owner" }),
+		).toBeVisible();
+		const row = screen.getByRole("row", { name: new RegExp(otherOwners.name) });
+		expect(within(row).getByText("Bob")).toBeVisible();
+		// The Owner column names the owner, so the name cell does not repeat it.
+		expect(within(row).queryByText("Owned by Bob")).toBeNull();
+	});
+
+	it("keeps the All view from the URL for an admin", async () => {
+		const { requests } = setup({
+			automations: [],
+			route: "/agents/automations?owner=all",
+		});
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
+			),
+		);
+
+		expect(
+			await screen.findByText("No automations in this organization"),
+		).toBeVisible();
+		expect(listRequests(requests)).toEqual([null]);
+	});
+});
+
 describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 	it("creates an existing chat schedule from the Repeat and Time shortcuts", async () => {
 		const user = userEvent.setup();
