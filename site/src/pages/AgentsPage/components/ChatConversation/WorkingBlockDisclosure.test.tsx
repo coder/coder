@@ -120,7 +120,11 @@ const JumpRow: React.FC = () => {
 	);
 };
 
-const RevealTranscript: React.FC<{ expandedHeight: number }> = ({
+type RevealTranscriptProps = {
+	expandedHeight: number;
+};
+
+const RevealTranscript: React.FC<RevealTranscriptProps> = ({
 	expandedHeight,
 }) => (
 	<>
@@ -196,7 +200,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
 		await user.click(summaryButton());
 		await flushLayout();
-		// Find in page scrolls past the block's end.
+		// Find in page scrolls the view down, leaving the block's end in view.
 		viewport().scrollTop = 1000;
 		fireEvent.scroll(viewport());
 		const before = await visibleRowsAfterLayout();

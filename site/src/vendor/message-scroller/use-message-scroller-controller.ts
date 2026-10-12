@@ -542,6 +542,19 @@ function useMessageScrollerController({
     scrollToEnd,
   ])
 
+  // LOCAL CHANGE: scrollToElement clears revealedItemRef, so the row is
+  // recorded after the scroll.
+  const scrollToItemEnd = React.useCallback(
+    (item: HTMLElement) => {
+      scrollToElement(item, { align: "end", behavior: "smooth" })
+      revealedItemRef.current = {
+        element: item,
+        height: item.getBoundingClientRect().height,
+      }
+    },
+    [scrollToElement]
+  )
+
   const handleResize = React.useCallback(() => {
     if (modeRef.current === "following-bottom" && autoScrollRef.current) {
       scrollToEnd({ behavior: "auto" })
@@ -583,25 +596,20 @@ function useMessageScrollerController({
       return
     }
 
-    // LOCAL CHANGE: until its jump ends, a revealed row that grows its end out
-    // of view (a step's image loading) scrolls it back into view.
+    // LOCAL CHANGE: a revealed row that grows its end out of view (a step's
+    // image loading) scrolls it back into view, until the reader scrolls or
+    // toggles a row, or another scroll command runs.
     const revealed = revealedItemRef.current
 
     if (
       modeRef.current === "settling-jump" &&
       revealed !== null &&
-      revealed.element.isConnected &&
-      viewport !== null
+      viewport !== null &&
+      revealed.element.getBoundingClientRect().height - revealed.height >
+        SCROLL_POSITION_EPSILON &&
+      endsBelowView(revealed.element, viewport)
     ) {
-      const height = revealed.element.getBoundingClientRect().height
-
-      if (
-        height - revealed.height > SCROLL_POSITION_EPSILON &&
-        endsBelowView(revealed.element, viewport)
-      ) {
-        scrollToElement(revealed.element, { align: "end", behavior: "smooth" })
-        revealedItemRef.current = { element: revealed.element, height }
-      }
+      scrollToItemEnd(revealed.element)
     }
 
     scheduleStateCommit()
@@ -610,8 +618,8 @@ function useMessageScrollerController({
     reanchorToAnchoredMessage,
     scheduleStateCommit,
     scheduleVisibilitySync,
-    scrollToElement,
     scrollToEnd,
+    scrollToItemEnd,
   ])
 
   const observeVisibility = React.useCallback(() => {
@@ -781,14 +789,10 @@ function useMessageScrollerController({
 
       if (endsBelowView(item, viewport)) {
         followSuppressedRef.current = false
-        scrollToElement(item, { align: "end", behavior: "smooth" })
-        revealedItemRef.current = {
-          element: item,
-          height: item.getBoundingClientRect().height,
-        }
+        scrollToItemEnd(item)
       }
     },
-    [scrollToElement, scrollToEnd]
+    [scrollToEnd, scrollToItemEnd]
   )
 
   // LOCAL CHANGE
