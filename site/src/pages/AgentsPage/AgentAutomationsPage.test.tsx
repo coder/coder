@@ -1779,6 +1779,54 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		expect(updateBodies).toEqual([]);
 	});
 
+	it("goes from a deleted automation's editor to the list without a not-found screen", async () => {
+		const user = userEvent.setup();
+		const { router } = setupEditor();
+		let deleted = false;
+		let finishRefetch = () => {};
+		const refetchFinished = new Promise<void>((resolve) => {
+			finishRefetch = resolve;
+		});
+		server.use(
+			http.delete(`${automationsPath(":organizationId")}/:automationId`, () => {
+				deleted = true;
+				return new HttpResponse(null, { status: 204 });
+			}),
+			http.get(automationsPath(":organizationId"), async () => {
+				if (!deleted) {
+					return HttpResponse.json([mockAutomation]);
+				}
+				// Holds the refetch after the delete, while the cache no
+				// longer has the automation.
+				await refetchFinished;
+				return HttpResponse.json([]);
+			}),
+		);
+
+		await openRowAction(user, mockAutomation.name, "Edit");
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		// The editor leaves once the cache drops the automation.
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("form", { name: "Edit automation" }),
+			).toBeNull();
+		});
+		expect(screen.queryByText("Automation not found")).toBeNull();
+		finishRefetch();
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents/automations");
+		});
+	});
+
 	it("tells a viewer who turned another owner's automation off that only the owner can undo it", async () => {
 		const user = userEvent.setup();
 		const toastSuccess = vi.spyOn(toast, "success");

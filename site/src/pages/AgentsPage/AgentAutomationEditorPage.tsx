@@ -125,9 +125,15 @@ const AutomationEditorRoute: React.FC = () => {
 	const automation = automationsQuery.data?.find(
 		({ id }) => id === automationId,
 	);
+	// The delete drops the automation from the cache before the editor
+	// navigates away, so this route waits instead of saying "not found".
+	const [deletingId, setDeletingId] = useState<string>();
 
 	let content: React.ReactNode;
-	if (!isCreate && automationsQuery.isLoading) {
+	if (
+		!isCreate &&
+		(automationsQuery.isLoading || (!automation && automationId === deletingId))
+	) {
 		content = <Loader />;
 	} else if (!isCreate && !automation) {
 		content = automationsQuery.error ? (
@@ -155,6 +161,7 @@ const AutomationEditorRoute: React.FC = () => {
 			<AutomationEditor
 				organizationId={organizationId}
 				automation={automation}
+				onDeleting={setDeletingId}
 			/>
 		);
 	}
@@ -175,11 +182,14 @@ const AutomationEditorRoute: React.FC = () => {
 type AutomationEditorProps = {
 	organizationId: string;
 	automation: ChatAutomation | undefined;
+	/** Called with the automation's ID when its delete starts. */
+	onDeleting: (automationId: string) => void;
 };
 
 const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	organizationId,
 	automation,
+	onDeleting,
 }) => {
 	const { buildInfo, experiments } = useDashboard();
 	const { user } = useAuthenticated();
@@ -382,8 +392,9 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			return;
 		}
 		// The delete drops the automation from the cache, so the route renders
-		// "not found" and unmounts this editor before mutate() callbacks run.
+		// a loader and unmounts this editor before mutate() callbacks run.
 		// mutateAsync settles regardless, so the toast and redirect still happen.
+		onDeleting(automation.id);
 		deleteMutation.mutateAsync(automation.id).then(
 			() => {
 				toast.success(`Deleted ${automation.name}.`);
