@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -172,6 +174,126 @@ func TestOnlyDataResources(t *testing.T) {
 			require.Equal(t, string(expected), string(got))
 		})
 	}
+}
+
+func TestRemoveScriptOrderDataSources(t *testing.T) {
+	t.Parallel()
+
+	parameter := &tfjson.StateResource{
+		Address: "data.coder_parameter.region",
+		Mode:    tfjson.DataResourceMode,
+		Type:    "coder_parameter",
+		Name:    "region",
+	}
+	childParameter := &tfjson.StateResource{
+		Address: "module.child.data.coder_parameter.size",
+		Mode:    tfjson.DataResourceMode,
+		Type:    "coder_parameter",
+		Name:    "size",
+	}
+	module := &tfjson.StateModule{
+		Resources: []*tfjson.StateResource{
+			parameter,
+			{
+				Address: "data.coder_script_order.root",
+				Mode:    tfjson.DataResourceMode,
+				Type:    "coder_script_order",
+				Name:    "root",
+			},
+		},
+		ChildModules: []*tfjson.StateModule{{
+			Address: "module.child",
+			Resources: []*tfjson.StateResource{
+				childParameter,
+				{
+					Address: "module.child.data.coder_script_order.child",
+					Mode:    tfjson.DataResourceMode,
+					Type:    "coder_script_order",
+					Name:    "child",
+				},
+			},
+		}},
+	}
+
+	removeScriptOrderDataSources(module)
+	require.Equal(t, []*tfjson.StateResource{parameter}, module.Resources)
+	require.Equal(
+		t,
+		[]*tfjson.StateResource{childParameter},
+		module.ChildModules[0].Resources,
+	)
+}
+
+func TestLogScriptOrderWarnings(t *testing.T) {
+	t.Parallel()
+
+	logger := &mockLogger{}
+	logScriptOrderWarnings(logger, []string{"first warning", "second warning"}, 3)
+	require.Len(t, logger.logs, 3)
+	for _, log := range logger.logs {
+		require.Equal(t, proto.LogLevel_WARN, log.Level)
+	}
+	require.Equal(t, "first warning", logger.logs[0].Output)
+	require.Equal(t, "second warning", logger.logs[1].Output)
+	require.Contains(t, logger.logs[2].Output, "3 additional script order warnings")
+	require.Contains(t, logger.logs[2].Output, "only the first 100 are reported")
+}
+
+func TestCachePlanConfigIgnoresInitialNil(t *testing.T) {
+	t.Parallel()
+
+	s := &server{}
+	sess := &provisionersdk.Session{}
+	s.cachePlanConfig(t.Context(), sess, nil)
+
+	s.planConfigsBySessionMu.Lock()
+	defer s.planConfigsBySessionMu.Unlock()
+	_, ok := s.planConfigsBySession[sess]
+	require.False(t, ok)
+}
+
+func TestCachePlanConfigReusesSessionCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	s := &server{}
+	sess := &provisionersdk.Session{}
+	firstConfig := &tfjson.Config{}
+	secondConfig := &tfjson.Config{}
+	loadConfig := func() (*tfjson.Config, bool) {
+		s.planConfigsBySessionMu.Lock()
+		defer s.planConfigsBySessionMu.Unlock()
+		config, ok := s.planConfigsBySession[sess]
+		return config, ok
+	}
+
+	s.cachePlanConfig(ctx, sess, firstConfig)
+	config, ok := loadConfig()
+	require.True(t, ok)
+	require.Same(t, firstConfig, config)
+
+	s.cachePlanConfig(ctx, sess, secondConfig)
+	config, ok = loadConfig()
+	require.True(t, ok)
+	require.Same(t, secondConfig, config)
+
+	s.cachePlanConfig(ctx, sess, nil)
+	config, ok = loadConfig()
+	require.True(t, ok)
+	require.Nil(t, config)
+	_, ok = s.loadPlanConfig(sess)
+	require.False(t, ok)
+
+	s.cachePlanConfig(ctx, sess, secondConfig)
+	config, ok = loadConfig()
+	require.True(t, ok)
+	require.Same(t, secondConfig, config)
+	cancel()
+	require.Eventually(t, func() bool {
+		_, ok := loadConfig()
+		return !ok
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestChecksumFileCRC32(t *testing.T) {

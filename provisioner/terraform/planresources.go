@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"slices"
+
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
@@ -21,10 +23,24 @@ func planModules(plan *tfjson.Plan) []*tfjson.StateModule {
 		// deleted by a stop.
 
 		filtered := onlyDataResources(*plan.PriorState.Values.RootModule)
+		// Script ordering uses only current planned data source instances.
+		// Retaining a prior instance can preserve rules removed by count or
+		// for_each changes.
+		removeScriptOrderDataSources(&filtered)
 		modules = append(modules, &filtered)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 	return modules
+}
+
+func removeScriptOrderDataSources(module *tfjson.StateModule) {
+	if module == nil {
+		return
+	}
+	module.Resources = slices.DeleteFunc(module.Resources, isScriptOrderDataSource)
+	for _, child := range module.ChildModules {
+		removeScriptOrderDataSources(child)
+	}
 }
 
 // ConvertPlanState consumes a terraform plan json output and produces a thinner
