@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { AutomationLabel } from "./AutomationLabel";
@@ -13,19 +14,21 @@ describe("AutomationLabel", () => {
 		async (variant) => {
 			const user = userEvent.setup();
 			render(
-				<TooltipProvider delayDuration={0}>
-					<AutomationLabel
-						variant={variant}
-						automationId={automationId}
-						inputId={inputId}
-						reference={{
-							id: automationId,
-							name: "CI heartbeat",
-							kind: "schedule",
-						}}
-						nameStatus="settled"
-					/>
-				</TooltipProvider>,
+				<MemoryRouter>
+					<TooltipProvider delayDuration={0}>
+						<AutomationLabel
+							variant={variant}
+							automationId={automationId}
+							inputId={inputId}
+							reference={{
+								id: automationId,
+								name: "CI heartbeat",
+								kind: "schedule",
+							}}
+							nameStatus="settled"
+						/>
+					</TooltipProvider>
+				</MemoryRouter>,
 			);
 
 			const label = screen.getByRole("note", {
@@ -47,14 +50,16 @@ describe("AutomationLabel", () => {
 	it("keeps the UUID out of the label when the references request fails", async () => {
 		const user = userEvent.setup();
 		render(
-			<TooltipProvider delayDuration={0}>
-				<AutomationLabel
-					variant="card"
-					automationId={automationId}
-					inputId={inputId}
-					nameStatus="error"
-				/>
-			</TooltipProvider>,
+			<MemoryRouter>
+				<TooltipProvider delayDuration={0}>
+					<AutomationLabel
+						variant="card"
+						automationId={automationId}
+						inputId={inputId}
+						nameStatus="error"
+					/>
+				</TooltipProvider>
+			</MemoryRouter>,
 		);
 
 		const label = screen.getByRole("note", { name: "Automation run" });
@@ -64,5 +69,45 @@ describe("AutomationLabel", () => {
 		const tooltip = await screen.findByRole("tooltip");
 		expect(tooltip).toHaveTextContent("Could not load the automation name.");
 		expect(tooltip).toHaveTextContent(`Automation ID: ${automationId}`);
+	});
+
+	it("links the card's automation name to the automation's page", () => {
+		render(
+			<MemoryRouter>
+				<TooltipProvider delayDuration={0}>
+					<AutomationLabel
+						variant="card"
+						automationId={automationId}
+						reference={{
+							id: automationId,
+							name: "CI heartbeat",
+							kind: "schedule",
+						}}
+						nameStatus="settled"
+					/>
+				</TooltipProvider>
+			</MemoryRouter>,
+		);
+
+		expect(screen.getByRole("link", { name: "CI heartbeat" })).toHaveAttribute(
+			"href",
+			`/agents/automations/${automationId}`,
+		);
+	});
+
+	it("does not link a deleted automation", () => {
+		render(
+			<MemoryRouter>
+				<TooltipProvider delayDuration={0}>
+					<AutomationLabel
+						variant="card"
+						automationId={automationId}
+						nameStatus="settled"
+					/>
+				</TooltipProvider>
+			</MemoryRouter>,
+		);
+
+		expect(screen.queryByRole("link")).toBeNull();
 	});
 });

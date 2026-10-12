@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { Link as RouterLink } from "react-router";
 import type { ChatAutomationReferenceMap } from "#/api/queries/chatAutomations";
 import type { ChatAutomationReference } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -7,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { automationPath } from "../Automations/automationsFlag";
 import { TimelineNotice } from "./TimelineNotice";
 
 export type ChatAutomationReferences = {
@@ -62,7 +64,22 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 						className="cursor-default break-words focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 					>
 						<span className="font-semibold">Automation run</span>
-						{suffix}
+						{reference ? (
+							<>
+								{labelSeparator}
+								{/* The references API returns only automations the
+								    viewer can read, so the link always opens. */}
+								<RouterLink
+									to={automationPath(automationId)}
+									className="text-content-link no-underline hover:underline"
+								>
+									{reference.name}
+								</RouterLink>
+								{kindSuffix}
+							</>
+						) : (
+							suffix
+						)}
 					</TimelineNotice>
 				) : (
 					<Badge
