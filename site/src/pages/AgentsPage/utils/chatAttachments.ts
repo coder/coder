@@ -181,29 +181,6 @@ export const handleAttachmentDownloadClick = (
 	return shareAttachmentFile(target);
 };
 
-// Filename extensions to list in the file-picker's `accept` attribute
-// alongside the MIME types. Browsers and operating systems do not always
-// map these extensions to a registered MIME type (Markdown is the common
-// offender), so including the extensions keeps the corresponding files
-// selectable. The server still classifies uploads by byte content.
-const chatAttachmentExtraExtensions = [
-	".md",
-	".markdown",
-	".csv",
-	".json",
-	".txt",
-] as const;
-
-/**
- * `accept` attribute for the chat-attachment file input. Mirrors
- * codersdk.AllChatAttachmentMediaTypes so the OS file picker advertises
- * exactly what the server will accept.
- */
-export const chatAttachmentAcceptAttribute = [
-	...ChatAttachmentMediaTypes,
-	...chatAttachmentExtraExtensions,
-].join(",");
-
 /**
  * Returns true for files whose declared MIME type is on the server
  * allowlist. Files whose type is unknown, either as an empty string or
@@ -225,16 +202,6 @@ export const isChatAttachmentFile = (file: File): boolean => {
  */
 export const isRasterImageMediaType = (mediaType: string): boolean =>
 	mediaType.startsWith("image/") && mediaType !== "image/svg+xml";
-
-/**
- * Returns true for files that should stream into the chat's workspace
- * filesystem instead of the attachment pipeline: any file whose
- * declared MIME type is not on the attachment allowlist. Files with an
- * unknown type (empty or application/octet-stream) stay on the
- * attachment path where the server classifies the bytes.
- */
-export const shouldRouteFileToWorkspace = (file: File): boolean =>
-	!isChatAttachmentFile(file);
 
 export const isWorkspaceFileReferencePart = (
 	part: TypesGen.ChatMessagePart,

@@ -23,7 +23,6 @@ const renderChatPageInput = (
 			isInputDisabled={false}
 			isSendPending={false}
 			isInterruptPending={false}
-			hasModelOptions
 			selectedModel="model-config-1"
 			onModelChange={vi.fn()}
 			modelOptions={[

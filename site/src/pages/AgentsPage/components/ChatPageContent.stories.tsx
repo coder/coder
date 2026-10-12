@@ -119,7 +119,6 @@ const StoryChatPageInput: React.FC<{
 			isInputDisabled={false}
 			isSendPending={false}
 			isInterruptPending={false}
-			hasModelOptions
 			selectedModel="model-config-1"
 			onModelChange={fn()}
 			modelOptions={[
@@ -471,7 +470,6 @@ const CompactionChatPageInput: React.FC = () => {
 				isInputDisabled={false}
 				isSendPending={false}
 				isInterruptPending={false}
-				hasModelOptions={false}
 				selectedModel={MockChat.last_model_config_id}
 				onModelChange={fn()}
 				modelOptions={[]}

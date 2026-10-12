@@ -719,10 +719,7 @@ const AgentChatPage: React.FC = () => {
 								initialEditorState: editing.initialEditorState,
 								remountKey: editing.remountKey,
 								onContentChange: editing.handleLoadingDraftChange,
-								// The loading view drops sends, so keep the composer disabled
-								// until the transcript can mount.
 								isDisabled: isInputDisabled || preferencesQuery.isLoading,
-								hasModelOptions,
 							}}
 							model={{
 								selectedModel: effectiveSelectedModel,
@@ -789,7 +786,6 @@ const AgentChatPage: React.FC = () => {
 							isInputDisabled={isInputDisabled}
 							isSendPending={isSubmissionPending}
 							isInterruptPending={isInterruptPending}
-							hasModelOptions={hasModelOptions}
 							canConfigureAgentSetup={permissions.editDeploymentConfig}
 							providerCount={providerCount}
 							modelCount={modelCount}

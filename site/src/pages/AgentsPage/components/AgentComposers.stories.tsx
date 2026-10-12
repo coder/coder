@@ -49,14 +49,22 @@ const defaultModelOptions = [
 
 type ComposerProps = React.ComponentProps<typeof ChatComposer>;
 
+const defaultFiles = {
+	attachments: [],
+	onRemoveAttachment: fn(),
+	uploadStates: new Map<File, UploadState>(),
+	previewUrls: new Map<File, string>(),
+	textContents: new Map<File, string>(),
+	workspaceUploads: { uploads: [], onRemove: fn() },
+} satisfies ComposerProps["bindings"]["files"];
+
 const defaultBindings = {
 	onSend: fn(),
 	onContentChange: fn(),
 	initialValue: "",
 	isDisabled: false,
 	isLoading: false,
-	hasModelOptions: true,
-	files: { attachments: [] },
+	files: defaultFiles,
 } satisfies ComposerProps["bindings"];
 
 const defaultModel = {
@@ -305,8 +313,7 @@ export const NoModelOptions: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			isDisabled: false,
-			hasModelOptions: false,
+			isDisabled: true,
 			initialValue: "Model required",
 		},
 	},
@@ -356,6 +363,7 @@ export const Streaming: Story = {
 			isInterruptPending: false,
 			initialValue: "",
 			files: {
+				...defaultFiles,
 				attachments: [],
 				onAttach: fn(),
 				onRemoveAttachment: fn(),
@@ -371,6 +379,7 @@ const streamingInterruptPendingBindings = {
 	isInterruptPending: true,
 	initialValue: "",
 	files: {
+		...defaultFiles,
 		attachments: [],
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
@@ -417,6 +426,7 @@ export const WithAttachments: Story = {
 			bindings: {
 				...defaultBindings,
 				files: {
+					...defaultFiles,
 					attachments,
 					uploadStates: new Map<File, UploadState>([
 						[file1, { status: "uploaded", fileId: "f1" }],
@@ -442,6 +452,7 @@ export const WithUploadingAttachment: Story = {
 			bindings: {
 				...defaultBindings,
 				files: {
+					...defaultFiles,
 					attachments: [file],
 					uploadStates: new Map<File, UploadState>([
 						[file, { status: "uploading" }],
@@ -463,6 +474,7 @@ export const UploadingDisablesSend: Story = {
 			bindings: {
 				...defaultBindings,
 				files: {
+					...defaultFiles,
 					attachments: [file],
 					uploadStates: new Map<File, UploadState>([
 						[file, { status: "uploading" }],
@@ -496,6 +508,7 @@ export const WithAttachmentError: Story = {
 			bindings: {
 				...defaultBindings,
 				files: {
+					...defaultFiles,
 					attachments: [file],
 					uploadStates: new Map<File, UploadState>([
 						[file, { status: "error", error: "Upload failed: server error" }],
@@ -574,6 +587,7 @@ export const AttachmentsOnly: Story = {
 			bindings: {
 				...defaultBindings,
 				files: {
+					...defaultFiles,
 					attachments: [file],
 					uploadStates: new Map<File, UploadState>([
 						[file, { status: "uploaded", fileId: "f-only" }],
@@ -627,6 +641,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		bindings: {
 			...defaultBindings,
 			files: {
+				...defaultFiles,
 				attachments: [],
 				onAttach: fn(),
 				onRemoveAttachment: fn(),
@@ -666,6 +681,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 		bindings: {
 			...defaultBindings,
 			files: {
+				...defaultFiles,
 				attachments: [],
 				onAttach: fn(),
 				onRemoveAttachment: fn(),
@@ -1073,6 +1089,7 @@ export const PlusMenuOpen: Story = {
 		bindings: {
 			...defaultBindings,
 			files: {
+				...defaultFiles,
 				attachments: [],
 				onAttach: fn(),
 				onRemoveAttachment: fn(),
@@ -1623,6 +1640,7 @@ export const StreamingWithDraftMobile: Story = {
 			isInterruptPending: false,
 			initialValue: "Also update the docs",
 			files: {
+				...defaultFiles,
 				attachments: [],
 				onAttach: fn(),
 				onRemoveAttachment: fn(),
@@ -1914,6 +1932,7 @@ export const DeferredErrorChipKeepsSendEnabled: Story = {
 		bindings: {
 			...defaultBindings,
 			files: {
+				...defaultFiles,
 				attachments: [],
 				workspaceUploads: {
 					uploads: [
@@ -1946,6 +1965,7 @@ export const ErrorChipAloneKeepsSendDisabled: Story = {
 		bindings: {
 			...defaultBindings,
 			files: {
+				...defaultFiles,
 				attachments: [],
 				workspaceUploads: {
 					uploads: [

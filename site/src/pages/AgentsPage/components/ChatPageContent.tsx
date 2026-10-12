@@ -19,7 +19,6 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
-	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
@@ -34,7 +33,7 @@ import {
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 import { ChatComposer } from "./AgentComposers";
-import { isUploadInProgress, type UploadState } from "./AttachmentPreview";
+import type { UploadState } from "./AttachmentPreview";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -294,7 +293,6 @@ type ChatPageInputProps = {
 	isInputDisabled: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
-	hasModelOptions: boolean;
 	selectedModel: string;
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
@@ -349,7 +347,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	isInputDisabled,
 	isSendPending,
 	isInterruptPending,
-	hasModelOptions,
 	selectedModel,
 	onModelChange,
 	modelOptions,
@@ -740,15 +737,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			readOnlyNotice={readOnlyNotice}
 			bindings={{
 				onSend: (message) => {
+					// The composer does not send while uploads are in progress.
 					void (async () => {
-						const hasActiveUploads =
-							attachments.some((file) =>
-								isUploadInProgress(uploadStates.get(file)),
-							) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
-						if (hasActiveUploads) {
-							toast.warning("Wait for file uploads to finish before sending.");
-							return;
-						}
 						// Collect uploaded attachment metadata for the optimistic
 						// transcript builder while keeping the server payload
 						// shape unchanged downstream.
@@ -823,7 +813,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				isDisabled: isInputDisabled,
 				isReadOnly,
 				isLoading: isSendPending,
-				hasModelOptions,
 				inputRef,
 				initialValue,
 				initialEditorState,
