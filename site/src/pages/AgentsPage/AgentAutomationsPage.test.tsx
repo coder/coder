@@ -923,7 +923,7 @@ const pickNewChatModel = async (
 };
 
 // Each editor test drives several Radix popovers, which is slow in jsdom.
-describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
+describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 	it("creates an existing chat schedule from the Repeat and Time shortcuts", async () => {
 		const user = userEvent.setup();
 		const { requests, previewBodies, createBodies } = setupEditor();
