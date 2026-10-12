@@ -63,11 +63,12 @@ export const AutomationSummary: React.FC<AutomationSummaryProps> = ({
 	);
 	return (
 		<div className="flex flex-col gap-6">
-			<SummarySection title="Prompt">
-				<SummaryItem label="Prompt" wide>
-					<span className="whitespace-pre-wrap">{automation.prompt}</span>
-				</SummaryItem>
-			</SummarySection>
+			<section className="flex flex-col gap-3">
+				<h3 className="m-0 text-sm font-medium text-content-primary">Prompt</h3>
+				<p className="m-0 whitespace-pre-wrap rounded-lg border border-solid border-border p-4 text-sm text-content-primary wrap-anywhere">
+					{automation.prompt}
+				</p>
+			</section>
 			<SummarySection title="Trigger">
 				{automation.kind === "schedule" ? (
 					<>

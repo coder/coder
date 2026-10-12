@@ -40,7 +40,10 @@ export const RadioCards = <T extends string>({
 			aria-labelledby={labelledBy}
 			aria-describedby={describedBy}
 			aria-disabled={disabled || undefined}
-			className={cn("grid grid-cols-1 gap-3 sm:grid-cols-2", className)}
+			className={cn(
+				"grid grid-cols-1 items-start gap-3 sm:grid-cols-2",
+				className,
+			)}
 		>
 			{options.map((option) => (
 				<RadioCard
@@ -123,7 +126,7 @@ export const RadioInput: React.FC<React.ComponentProps<"input">> = ({
 			"m-0 mt-0.5 size-4 shrink-0 cursor-pointer appearance-none rounded-full border border-solid border-border bg-surface-primary",
 			"checked:border-[5px] checked:border-surface-invert-primary",
 			"focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
-			"disabled:cursor-not-allowed disabled:opacity-50",
+			"disabled:cursor-not-allowed disabled:opacity-60",
 			className,
 		)}
 		{...props}

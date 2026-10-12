@@ -92,7 +92,10 @@ export const AutomationWebhookFields: React.FC<
 					</span>
 					{/* The ID exists only after saving, so there is nothing to copy. */}
 					<div className="break-all rounded-md border border-solid border-border bg-surface-secondary px-3 py-2.5 font-mono text-xs text-content-secondary">
-						{webhookPublishEndpoint(origin, "<automation-id>")}
+						{/* Decoded so the placeholder reads <automation-id>, not %3C...%3E. */}
+						{decodeURIComponent(
+							webhookPublishEndpoint(origin, "<automation-id>"),
+						)}
 					</div>
 					{endpointHelp}
 				</div>

@@ -448,9 +448,10 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 				isWebhook={form.values.kind === "webhook"}
 			/>
 			{/* Next to the buttons, so a save error such as the per-owner
-			    limit is in view where the user clicked. Sticky, so the
-			    buttons stay in reach in a long form. */}
-			<div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-4 border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
+			    limit is in view where the user clicked. Sticky on wide screens,
+			    so the buttons stay in reach in a long form. On phones the three
+			    stacked buttons would cover too much of the form. */}
+			<div className="sm:sticky bottom-0 z-10 -mx-4 flex flex-col gap-4 border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
 				{showAlert && (
 					<Alert severity="error" prominent>
 						<AlertTitle>
