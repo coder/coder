@@ -2023,12 +2023,13 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
-	var historyVersion int64
+	var snapshotVersion int64
 	if beforeID == 0 && afterID == 0 {
-		// Only the newest page reports a history version, since a cursored page
-		// can leave out newer messages. chat was read before the messages, so a
-		// change committed in between is resent by the stream, not lost.
-		historyVersion = chat.HistoryVersion
+		// Only the newest page reports a snapshot version, since a cursored
+		// page can leave out newer messages. chat was read before the messages
+		// and the queue, so a change committed in between is sent again by the
+		// stream, not lost.
+		snapshotVersion = chat.SnapshotVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2040,11 +2041,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessages(messages),
-		QueuedMessages: convertChatQueuedMessages(queuedMessages),
-		HasMore:        hasMore,
-		TurnStartID:    turnStartID,
-		HistoryVersion: historyVersion,
+		Messages:        convertChatMessages(messages),
+		QueuedMessages:  convertChatQueuedMessages(queuedMessages),
+		HasMore:         hasMore,
+		TurnStartID:     turnStartID,
+		SnapshotVersion: snapshotVersion,
 	})
 }
 
@@ -3679,8 +3680,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is set"
-// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last checkpoint event. Zero is valid"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
+// @Param snapshot_version query int false "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3705,14 +3706,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if v := r.URL.Query().Get("history_version"); v != "" {
+	if v := r.URL.Query().Get("snapshot_version"); v != "" {
 		var err error
-		cursor.HistoryVersion, err = strconv.ParseInt(v, 10, 64)
-		cursor.HasHistoryVersion = true
-		if err != nil || cursor.HistoryVersion < 0 {
+		cursor.SnapshotVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || cursor.SnapshotVersion < 1 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid history_version parameter.",
-				Detail:  "history_version must be a non-negative integer.",
+				Message: "Invalid snapshot_version parameter.",
+				Detail:  "snapshot_version must be a positive integer.",
 			})
 			return
 		}

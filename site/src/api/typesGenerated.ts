@@ -3076,13 +3076,13 @@ export interface ChatMessagesResponse {
 	 */
 	readonly turn_start_id?: number;
 	/**
-	 * HistoryVersion is the chat's history_version, read before the messages
-	 * in this page. The page can hold changes made after that version; a
-	 * stream opened with it resends them. Pass it as the stream's
-	 * history_version parameter. It is set only on pages requested without
+	 * SnapshotVersion is the chat's snapshot_version, read before the
+	 * messages and queue in this page. The page can hold changes made after
+	 * it; a stream opened with it sends them again. Pass it as the stream's
+	 * snapshot_version parameter. It is set only on pages requested without
 	 * before_id or after_id.
 	 */
-	readonly history_version?: number;
+	readonly snapshot_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3788,15 +3788,10 @@ export interface ChatStreamActionRequired {
 export interface ChatStreamCheckpoint {
 	/**
 	 * SnapshotVersion is the chat's snapshot_version the sync applied. Every
-	 * action response with an equal or lower version is reflected.
+	 * action response with an equal or lower version is reflected. A client
+	 * reconnects with the value of the last checkpoint it received.
 	 */
 	readonly snapshot_version: number;
-	/**
-	 * HistoryVersion is the chat's history_version for the message events
-	 * sent so far. It is set only on streams opened with a history_version;
-	 * a client reconnects with the value of the last checkpoint it received.
-	 */
-	readonly history_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3815,7 +3810,7 @@ export interface ChatStreamEvent {
 	readonly action_required?: ChatStreamActionRequired;
 	/**
 	 * HistoryReset is set on history_reset events of streams opened with a
-	 * history_version.
+	 * snapshot_version.
 	 */
 	readonly history_reset?: ChatStreamHistoryReset;
 	/**
@@ -9901,13 +9896,14 @@ export interface StreamChatOptions {
 	 */
 	readonly AfterID: number | null;
 	/**
-	 * HistoryVersion is the history version of the caller's messages, from
-	 * ChatMessagesResponse or ChatStreamCheckpoint. When it is set, zero
-	 * included, the server ignores AfterID and history resets carry
-	 * ChatStreamEvent.HistoryReset. When it is nil, every connection to a
-	 * chat with a deleted message resends the whole history.
+	 * SnapshotVersion is the snapshot version of the caller's state, from
+	 * ChatMessagesResponse or ChatStreamCheckpoint. When it is set, the
+	 * stream sends only changes made after it, the server ignores AfterID,
+	 * and history resets carry ChatStreamEvent.HistoryReset. When it is
+	 * zero, every connection to a chat with a deleted message resends the
+	 * whole history.
 	 */
-	readonly HistoryVersion: number | null;
+	readonly SnapshotVersion: number;
 }
 
 // From codersdk/client.go

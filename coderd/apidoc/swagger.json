@@ -4191,14 +4191,14 @@
 					},
 					{
 						"type": "integer",
-						"description": "Skip snapshot messages with id at or before this cursor. Ignored when history_version is set",
+						"description": "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set",
 						"name": "after_id",
 						"in": "query"
 					},
 					{
 						"type": "integer",
-						"description": "Send only history changed after this history_version, taken from the messages page or the last checkpoint event. Zero is valid",
-						"name": "history_version",
+						"description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event",
+						"name": "snapshot_version",
 						"in": "query"
 					}
 				],
@@ -20337,10 +20337,6 @@
 				"has_more": {
 					"type": "boolean"
 				},
-				"history_version": {
-					"description": "HistoryVersion is the chat's history_version, read before the messages\nin this page. The page can hold changes made after that version; a\nstream opened with it resends them. Pass it as the stream's\nhistory_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
-					"type": "integer"
-				},
 				"messages": {
 					"type": "array",
 					"items": {
@@ -20352,6 +20348,10 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.ChatQueuedMessage"
 					}
+				},
+				"snapshot_version": {
+					"description": "SnapshotVersion is the chat's snapshot_version, read before the\nmessages and queue in this page. The page can hold changes made after\nit; a stream opened with it sends them again. Pass it as the stream's\nsnapshot_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
+					"type": "integer"
 				},
 				"turn_start_id": {
 					"description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
@@ -21314,12 +21314,8 @@
 		"codersdk.ChatStreamCheckpoint": {
 			"type": "object",
 			"properties": {
-				"history_version": {
-					"description": "HistoryVersion is the chat's history_version for the message events\nsent so far. It is set only on streams opened with a history_version;\na client reconnects with the value of the last checkpoint it received.",
-					"type": "integer"
-				},
 				"snapshot_version": {
-					"description": "SnapshotVersion is the chat's snapshot_version the sync applied. Every\naction response with an equal or lower version is reflected.",
+					"description": "SnapshotVersion is the chat's snapshot_version the sync applied. Every\naction response with an equal or lower version is reflected. A client\nreconnects with the value of the last checkpoint it received.",
 					"type": "integer"
 				}
 			}
@@ -21346,7 +21342,7 @@
 					"$ref": "#/definitions/codersdk.ChatError"
 				},
 				"history_reset": {
-					"description": "HistoryReset is set on history_reset events of streams opened with a\nhistory_version.",
+					"description": "HistoryReset is set on history_reset events of streams opened with a\nsnapshot_version.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatStreamHistoryReset"

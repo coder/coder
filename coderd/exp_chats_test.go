@@ -10792,7 +10792,7 @@ func TestStreamChat(t *testing.T) {
 		editedID := lastPromptID(page)
 		edit(editedID, "edited twice")
 		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
-		want := newestPage().HistoryVersion
+		want := newestPage().SnapshotVersion
 		applied = live.applyUntil(ctx, t, events, func(codersdk.ChatStreamEvent) bool {
 			return live.version >= want
 		})
@@ -10812,10 +10812,10 @@ func TestStreamChat(t *testing.T) {
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
 
-		// A client that sends no history version and holds message after_id
+		// A client that sends no snapshot version and holds message after_id
 		// gets no history reset.
 		legacy := newChatTab(newestPage())
-		legacy.withoutHistoryVersion = true
+		legacy.withoutSnapshotVersion = true
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
 		for _, event := range applied {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "a client that holds message after_id got a history reset")
@@ -10853,7 +10853,7 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
 	})
 
-	t.Run("NegativeHistoryVersionReturns400", func(t *testing.T) {
+	t.Run("NonPositiveSnapshotVersionReturns400", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10869,7 +10869,7 @@ func TestStreamChat(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/stream?history_version=-1", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=0", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11307,7 +11307,7 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 			tab := newChatTab(page)
 			_, events := tab.connect(ctx, t, observer, s.chatID)
 			before := tab.sortedIDs()
-			beforeSnapshot := tab.snapshotVersion
+			beforeSnapshot := tab.version
 
 			w := s.act()
 			require.Greater(t, w, beforeSnapshot, "the action must commit a newer snapshot")
@@ -14883,23 +14883,25 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 }
 
 // chatTab models the state a web client tab keeps for one chat: the IDs
-// of the messages it holds, its history version, and the status, queue
-// and snapshot version the stream last reported.
+// of the messages it holds, its snapshot version, and the status and queue
+// the stream last reported.
 type chatTab struct {
 	ids     map[int64]bool
 	version int64
-	// withoutHistoryVersion opens the stream without history_version, as
+	// withoutSnapshotVersion opens the stream without snapshot_version, as
 	// clients that predate it do.
-	withoutHistoryVersion bool
+	withoutSnapshotVersion bool
 
-	status          codersdk.ChatStatus
-	queue           []int64
-	snapshotVersion int64
+	status codersdk.ChatStatus
+	queue  []int64
 }
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
-	tab := &chatTab{ids: map[int64]bool{}, version: page.HistoryVersion}
+	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion, queue: []int64{}}
 	tab.hold(page.Messages...)
+	for _, queued := range page.QueuedMessages {
+		tab.queue = append(tab.queue, queued.ID)
+	}
 	return tab
 }
 
@@ -14913,15 +14915,15 @@ func (tab *chatTab) sortedIDs() []int64 {
 	return slices.Sorted(maps.Keys(tab.ids))
 }
 
-// connect opens the stream with the tab's newest message ID and history
+// connect opens the stream with the tab's newest message ID and snapshot
 // version, and applies events through the checkpoint that ends the initial
 // sync.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
 	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
-	if !tab.withoutHistoryVersion {
-		opts.HistoryVersion = ptr.Ref(tab.version)
+	if !tab.withoutSnapshotVersion {
+		opts.SnapshotVersion = tab.version
 	}
 	events, closer, err := client.StreamChat(ctx, chatID, opts)
 	require.NoError(t, err)
@@ -14942,7 +14944,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 		for _, event := range applied {
 			types = append(types, event.Type)
 		}
-		return fmt.Sprintf("applied %v, history version %d", types, tab.version)
+		return fmt.Sprintf("applied %v, snapshot version %d", types, tab.version)
 	}
 	for {
 		select {
@@ -14970,11 +14972,8 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 					tab.queue = append(tab.queue, queued.ID)
 				}
 			case codersdk.ChatStreamEventTypeCheckpoint:
-				if event.Checkpoint != nil && event.Checkpoint.HistoryVersion != nil {
-					tab.version = *event.Checkpoint.HistoryVersion
-				}
 				if event.Checkpoint != nil {
-					tab.snapshotVersion = event.Checkpoint.SnapshotVersion
+					tab.version = event.Checkpoint.SnapshotVersion
 				}
 			}
 			if done(event) {
@@ -19500,7 +19499,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
-	t.Run("HistoryVersionOnlyOnUncursoredPage", func(t *testing.T) {
+	t.Run("SnapshotVersionOnlyOnUncursoredPage", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -19512,7 +19511,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 
 		newest, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.Positive(t, newest.HistoryVersion)
+		require.Positive(t, newest.SnapshotVersion)
 
 		for name, opts := range map[string]*codersdk.ChatMessagesPaginationOptions{
 			"before_id": {BeforeID: ids[2]},
@@ -19521,7 +19520,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			resp, err := client.GetChatMessages(ctx, chat.ID, opts)
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Messages, name)
-			require.Zero(t, resp.HistoryVersion, "%s page must not carry history_version", name)
+			require.Zero(t, resp.SnapshotVersion, "%s page must not carry snapshot_version", name)
 		}
 	})
 
