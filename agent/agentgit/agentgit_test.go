@@ -120,7 +120,9 @@ func TestSubscribeEmptyPaths(t *testing.T) {
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
-	require.Nil(t, msg, "scan should return nil with no repos")
+	require.NotNil(t, msg, "first scan should report the empty state")
+	require.Empty(t, msg.Repositories)
+	require.Nil(t, h.Scan(ctx), "later scans should return nil with no repos")
 }
 
 func TestScanReturnsRepoChanges(t *testing.T) {
@@ -356,10 +358,10 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 }
 
 // TestScanNoHeartbeatWithoutSubscribedRoots pins that the heartbeat
-// only fires when there is at least one subscribed repo. Before any
-// subscribe call, Scan() must still short-circuit to nil so the
-// WebSocket handler does not spam empty messages to a client that
-// has not registered any paths yet.
+// only fires when there is at least one subscribed repo. The first
+// scan reports the empty state once; after that Scan() short-circuits
+// to nil so the WebSocket handler does not spam empty messages to a
+// client that has not registered any paths yet.
 func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	t.Parallel()
 
@@ -367,6 +369,10 @@ func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	h := agentgit.NewHandler(logger)
 
 	msg := h.Scan(context.Background())
+	require.NotNil(t, msg, "first scan should report the empty state")
+	require.Empty(t, msg.Repositories)
+
+	msg = h.Scan(context.Background())
 	require.Nil(t, msg, "no subscribed roots should mean no heartbeat")
 }
 
@@ -902,6 +908,44 @@ func TestWebSocketRefreshTriggersChanges(t *testing.T) {
 	msg := recvMsg(ctx, t, ch)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg.Type)
 	require.NotEmpty(t, msg.Repositories)
+}
+
+// TestWebSocketRefreshResolvesNewRepo pins that refresh re-resolves
+// the chat's paths, so a repo initialized after its path was recorded
+// appears on refresh just as it would on a new connection.
+func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ps.AddPaths([]uuid.UUID{chatID}, []string{file})
+
+	mClock := quartz.NewMock(t)
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	// The path is not in a repo yet, but the connection still reports
+	// its initial empty state.
+	msg := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg.Type)
+	require.Empty(t, msg.Repositories)
+
+	gitCmd(t, dir, "init")
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
+	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
+	})
+	require.NoError(t, err)
+
+	msg = recvMsg(ctx, t, ch)
+	require.Len(t, msg.Repositories, 1)
+	require.Equal(t, dir, msg.Repositories[0].RepoRoot)
 }
 
 func TestWebSocketUnknownMessageType(t *testing.T) {
