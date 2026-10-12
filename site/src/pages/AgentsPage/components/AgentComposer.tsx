@@ -24,7 +24,7 @@ import {
 	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer/context";
-import { Frame } from "./AgentComposer/Frame";
+import { Frame, FrameEventBoundary } from "./AgentComposer/Frame";
 import { useComposerRuntime } from "./AgentComposer/useComposerRuntime";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { ChatMessageInput } from "./ChatMessageInput/ChatMessageInput";
@@ -106,20 +106,6 @@ type TextPreview = {
 	mediaType: string;
 };
 
-// Preview dialogs portal out of the frame's DOM but still bubble React
-// events through it. Stopping the events the frame handles keeps Escape
-// and file drops inside a preview from cancelling an edit, interrupting
-// the stream, or attaching files.
-const stopFrameEvent = (event: React.SyntheticEvent) => {
-	event.stopPropagation();
-};
-
-const stopFrameEscape = (event: React.KeyboardEvent) => {
-	if (event.key === "Escape") {
-		event.stopPropagation();
-	}
-};
-
 function Attachments({
 	onTextPreview,
 }: {
@@ -169,13 +155,7 @@ function Attachments({
 				/>
 			)}
 			{isPreviewOpen && (
-				<div
-					role="presentation"
-					onKeyDown={stopFrameEscape}
-					onDragOver={stopFrameEvent}
-					onDragLeave={stopFrameEvent}
-					onDrop={stopFrameEvent}
-				>
+				<FrameEventBoundary>
 					{previewImage && (
 						<ImageLightbox
 							src={previewImage}
@@ -188,7 +168,7 @@ function Attachments({
 							onClose={() => setPreviewText(null)}
 						/>
 					)}
-				</div>
+				</FrameEventBoundary>
 			)}
 		</>
 	);

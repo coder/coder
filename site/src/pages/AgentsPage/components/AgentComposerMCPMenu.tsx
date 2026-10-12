@@ -1,0 +1,138 @@
+import { LockIcon, ServerIcon, UnlinkIcon } from "lucide-react";
+import type { MCPServerConfig } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
+
+type MCPOptions = NonNullable<AgentComposerOptionsData["mcp"]>;
+
+/** Servers the deployment has enabled; disabled servers are never offered. */
+export const enabledMcpServers = (
+	mcp: AgentComposerOptionsData["mcp"],
+): MCPServerConfig[] => mcp?.servers.filter((server) => server.enabled) ?? [];
+
+/** Whether the server's tools apply: it is always on or the user selected it. */
+export const isMCPServerSelected = (
+	mcp: Pick<MCPOptions, "selectedServerIds">,
+	server: MCPServerConfig,
+): boolean =>
+	server.availability === "force_on" ||
+	mcp.selectedServerIds.includes(server.id);
+
+/** Whether the server requires the user to complete OAuth before use. */
+export const mcpServerNeedsAuth = (server: MCPServerConfig): boolean =>
+	server.auth_type === "oauth2" && !server.auth_connected;
+
+/**
+ * Updates controlled MCP selection without changing unrelated server IDs.
+ * Does nothing when the caller offers no selection changes.
+ */
+export function setMCPServerSelected(
+	mcp: Pick<MCPOptions, "selectedServerIds" | "onSelectionChange">,
+	serverId: string,
+	checked: boolean,
+) {
+	if (!mcp.onSelectionChange) {
+		return;
+	}
+
+	if (checked) {
+		mcp.onSelectionChange([...mcp.selectedServerIds, serverId]);
+	} else {
+		mcp.onSelectionChange(
+			mcp.selectedServerIds.filter((id) => id !== serverId),
+		);
+	}
+}
+
+type MCPServerMenuItemProps = {
+	server: MCPServerConfig;
+	mcp: MCPOptions;
+	connectingServerId: string | null;
+	isDisabled: boolean;
+	onConnect: (id: string) => void;
+	onDisconnect: (server: MCPServerConfig) => void;
+};
+
+/** MCP authentication actions and controlled selection for one server. */
+export const MCPServerMenuItem = ({
+	server,
+	mcp,
+	connectingServerId,
+	isDisabled,
+	onConnect,
+	onDisconnect,
+}: MCPServerMenuItemProps) => {
+	const isForceOn = server.availability === "force_on";
+	const isSelected = isMCPServerSelected(mcp, server);
+
+	const needsAuth = mcpServerNeedsAuth(server);
+	const isConnecting = connectingServerId === server.id;
+
+	let switchLabel = `${server.display_name} always on`;
+	if (!isForceOn) {
+		const action = isSelected ? "Disable" : "Enable";
+		switchLabel = `${action} ${server.display_name}`;
+	}
+
+	return (
+		<div className="flex items-center gap-1.5 px-1 py-1.5">
+			{server.icon_url ? (
+				<ExternalImage
+					src={server.icon_url}
+					alt=""
+					className="size-3.5 shrink-0 rounded-sm"
+				/>
+			) : (
+				<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+			)}
+			<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+				{server.display_name}
+			</span>
+			{isForceOn && (
+				<LockIcon className="size-3 shrink-0 text-content-secondary" />
+			)}
+			{needsAuth ? (
+				<>
+					{isForceOn && <span className="sr-only">Always on</span>}
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-6 shrink-0 px-2 text-[10px] leading-none"
+						onClick={() => onConnect(server.id)}
+						disabled={isDisabled || connectingServerId !== null}
+					>
+						{isConnecting ? <Spinner loading className="h-2.5 w-2.5" /> : null}
+						Auth
+					</Button>
+				</>
+			) : (
+				<>
+					{server.auth_type === "oauth2" && (
+						<Button
+							variant="subtle"
+							size="icon"
+							className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+							onClick={() => onDisconnect(server)}
+							disabled={isDisabled}
+							aria-label={`Disconnect ${server.display_name}`}
+						>
+							<UnlinkIcon />
+						</Button>
+					)}
+					<Switch
+						size="sm"
+						checked={isSelected}
+						onCheckedChange={(checked) =>
+							setMCPServerSelected(mcp, server.id, checked)
+						}
+						disabled={isDisabled || isForceOn}
+						aria-label={switchLabel}
+					/>
+				</>
+			)}
+		</div>
+	);
+};
