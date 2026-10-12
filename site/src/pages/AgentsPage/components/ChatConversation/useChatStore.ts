@@ -204,12 +204,17 @@ export const useChatStore = (
 				}
 			};
 			let historyReset = false;
+			let queueUpdate = false;
+			let userMessage = false;
 			let turn: TypesGen.ChatStreamTurn | undefined;
 
 			for (const streamEvent of events) {
 				if (streamEvent.type === "message") {
 					if (streamEvent.message) {
 						pendingMessages.push(streamEvent.message);
+						if (streamEvent.message.role === "user") {
+							userMessage = true;
+						}
 					}
 					continue;
 				}
@@ -224,6 +229,7 @@ export const useChatStore = (
 						continue;
 					case "queue_update":
 						store.setQueuedMessages(streamEvent.queued_messages ?? []);
+						queueUpdate = true;
 						continue;
 					case "preview_reset":
 						discardBufferedParts();
@@ -231,7 +237,11 @@ export const useChatStore = (
 						continue;
 					case "checkpoint":
 						if (streamEvent.checkpoint) {
-							store.applyCheckpoint(streamEvent.checkpoint);
+							store.applyCheckpoint(streamEvent.checkpoint, {
+								userMessage,
+								queueUpdate,
+								historyReset,
+							});
 							turn = streamEvent.checkpoint.turn;
 						}
 						continue;
