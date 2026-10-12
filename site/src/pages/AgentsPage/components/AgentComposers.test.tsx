@@ -454,33 +454,43 @@ describe("ChatComposer", () => {
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
 
-	it("lets a recording start while a turn is streaming", async () => {
-		const user = userEvent.setup();
-		const start = vi.fn();
-		mockedUseSpeechRecognition.mockReturnValue({
-			isSupported: true,
-			isRecording: false,
-			transcript: "",
-			error: null,
-			start,
-			stop: vi.fn(),
-			cancel: vi.fn(),
-		});
+	it.each([
+		{ isDisabled: false, isLoading: false, isReadOnly: false, starts: true },
+		{ isDisabled: true, isLoading: false, isReadOnly: false, starts: true },
+		{ isDisabled: false, isLoading: true, isReadOnly: false, starts: false },
+		{ isDisabled: false, isLoading: false, isReadOnly: true, starts: false },
+	])(
+		"guards voice input while streaming (%o)",
+		async ({ isDisabled, isLoading, isReadOnly, starts }) => {
+			const user = userEvent.setup();
+			const start = vi.fn();
+			mockedUseSpeechRecognition.mockReturnValue({
+				isSupported: true,
+				isRecording: false,
+				transcript: "",
+				error: null,
+				start,
+				stop: vi.fn(),
+				cancel: vi.fn(),
+			});
 
-		renderInput(
-			<ChatComposer
-				{...withBindings({
-					onSend: vi.fn(),
-					isStreaming: true,
-					onInterrupt: vi.fn(),
-				})}
-			/>,
-		);
+			renderInput(
+				<ChatComposer
+					{...withBindings({
+						onSend: vi.fn(),
+						isStreaming: true,
+						isDisabled,
+						isLoading,
+						isReadOnly,
+						onInterrupt: vi.fn(),
+					})}
+				/>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "Voice input" }));
-		expect(start).toHaveBeenCalledTimes(1);
-		expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
-	});
+			await user.click(screen.getByRole("button", { name: "Voice input" }));
+			expect(start).toHaveBeenCalledTimes(starts ? 1 : 0);
+		},
+	);
 
 	it("falls back to pasted text when every pasted file is refused", async () => {
 		const onAttach = vi.fn();

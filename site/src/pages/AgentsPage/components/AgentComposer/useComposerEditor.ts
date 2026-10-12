@@ -197,6 +197,10 @@ export function useComposerEditor(
 	};
 
 	const startRecording = () => {
+		if (isReadOnly || isLoading) {
+			return;
+		}
+
 		resetPromptCycle();
 		setPreRecordingValue(editorRef.current?.getValue()?.trim() ?? "");
 		speech.start();
