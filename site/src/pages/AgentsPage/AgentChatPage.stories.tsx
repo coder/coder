@@ -3458,8 +3458,8 @@ export const EditAppliesMCPServerSelection: Story = {
 };
 
 /**
- * The send flow shows the prompt and a waiting turn at submit, before the
- * server accepts the prompt.
+ * The send flow shows the prompt and the live activity slot at submit, while
+ * the request is still pending.
  */
 export const SendShowsPromptAtSubmit: Story = {
 	parameters: {
