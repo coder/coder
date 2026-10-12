@@ -106,17 +106,19 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	retryingAt: retry.retrying_at.trim() || undefined,
 });
 
-const turnError = (turn: TypesGen.ChatStreamTurn): ChatDetailError | null => {
-	if (turn.status !== "error") {
-		return null;
-	}
-	return (
-		normalizeChatErrorPayload(turn.error) ?? {
-			kind: "generic",
-			message: "Chat processing failed.",
-		}
-	);
-};
+const turnState = (
+	turn: TypesGen.ChatStreamTurn | undefined,
+): Pick<ChatStoreState, "chatStatus" | "turnError" | "retryState"> => ({
+	chatStatus: turn?.status ?? null,
+	turnError:
+		turn?.status === "error"
+			? (normalizeChatErrorPayload(turn.error) ?? {
+					kind: "generic",
+					message: "Chat processing failed.",
+				})
+			: null,
+	retryState: turn?.retry ? normalizeRetryState(turn.retry) : null,
+});
 
 /**
  * Whether the agent's turn is still in progress. `requires_action` counts:
@@ -208,8 +210,6 @@ export type ChatStore = {
 		patch: { untilVersion: number; message?: TypesGen.ChatMessage },
 	) => void;
 	removePendingAction: (id: number) => void;
-	hasServerStatus: () => boolean;
-	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
@@ -245,7 +245,6 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
-	let serverStatusReceived = false;
 	let nextPendingActionID = 1;
 	let loadInFlight = false;
 	const listeners = new Set<() => void>();
@@ -451,6 +450,7 @@ export const createChatStore = (): ChatStore => {
 				messagesByID: buildMessageMap(page.messages),
 				orderedMessageIDs: buildOrderedMessageIDs(page.messages),
 				queuedMessages: page.queued_messages,
+				...turnState(page.turn),
 				hasMoreMessages: page.has_more,
 				load: { status: "loaded" },
 			}));
@@ -503,10 +503,8 @@ export const createChatStore = (): ChatStore => {
 			);
 		},
 		applyCheckpoint: ({ snapshot_version, turn }) => {
-			serverStatusReceived = true;
 			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, snapshot_version);
-			const error = turnError(turn);
-			const retry = turn.retry ? normalizeRetryState(turn.retry) : null;
+			const { turnError: error, retryState: retry } = turnState(turn);
 			setState((current) => {
 				const remaining = current.pendingActions.filter(
 					(entry) =>
@@ -583,16 +581,6 @@ export const createChatStore = (): ChatStore => {
 						}
 					: current,
 			);
-		},
-		hasServerStatus: () => serverStatusReceived,
-		setChatStatus: (status) => {
-			if (state.chatStatus === status) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
 		},
 		setStreamState: (streamState) => {
 			if (state.streamState === streamState) {
