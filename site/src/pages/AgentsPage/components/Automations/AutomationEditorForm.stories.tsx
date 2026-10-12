@@ -865,6 +865,13 @@ export const LongCronStaysInsideTheCard: Story = {
 				data: mockModelCatalog,
 			},
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: longCron,
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 	play: async () => {
