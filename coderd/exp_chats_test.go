@@ -11376,9 +11376,8 @@ func TestInterruptChat(t *testing.T) {
 // viewer that did not act. For each case below, a read-only shared viewer
 // has a stream open on the chat while the owner acts over REST. The
 // viewer's stream must deliver the action's state change and a checkpoint
-// whose snapshot_version is at least the one in the action's
-// Coder-Chat-Snapshot-Version header, and the viewer's state at that
-// checkpoint must equal the chat's.
+// at or above the chat's snapshot_version after the action, and the
+// viewer's state at that checkpoint must equal the chat's.
 func TestChatStreamObserverSeesActions(t *testing.T) {
 	t.Parallel()
 
@@ -11454,8 +11453,9 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 		return insertTestChatQueuedMessage(e.ctx, t, e.db, chatID, content, e.model.ID).ID
 	}
 	// do sends an action request for chatID, requires wantStatus, decodes
-	// the body into out when out is not nil, and returns the snapshot
-	// version from the response header.
+	// the body into out when out is not nil, and returns the chat's
+	// snapshot version after the action. The chat worker is disabled, so
+	// nothing else commits in between.
 	do := func(t *testing.T, e env, method string, chatID uuid.UUID, path string, req any, wantStatus int, out any) int64 {
 		t.Helper()
 		res, err := e.client.Request(e.ctx, method, fmt.Sprintf("/api/v2/chats/%s/%s", chatID, path), req)
@@ -11465,9 +11465,9 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 		if out != nil {
 			require.NoError(t, json.NewDecoder(res.Body).Decode(out))
 		}
-		w, err := strconv.ParseInt(res.Header.Get(codersdk.ChatSnapshotVersionHeader), 10, 64)
-		require.NoError(t, err, "the response must carry the snapshot version the action committed")
-		return w
+		chat, err := e.db.GetChatByID(dbauthz.AsSystemRestricted(e.ctx), chatID)
+		require.NoError(t, err)
+		return chat.SnapshotVersion
 	}
 	hasEvent := func(applied []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) bool {
 		return slices.ContainsFunc(applied, func(event codersdk.ChatStreamEvent) bool { return event.Type == eventType })
