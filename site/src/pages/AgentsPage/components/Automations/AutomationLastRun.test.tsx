@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ChatAutomationRunReasons } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
@@ -112,5 +112,34 @@ describe("AutomationLastRun", () => {
 				.getByRole("link", { name: "Open chat of the last run" })
 				.getAttribute("href"),
 		).toBe("/agents/chat-1");
+	});
+});
+
+describe("AutomationLastRun without a fixed time", () => {
+	it("moves the relative time forward while the page stays open", () => {
+		vi.useFakeTimers({ now });
+		try {
+			const router = createMemoryRouter([
+				{
+					path: "/",
+					element: (
+						<TooltipProvider>
+							<AutomationLastRun
+								lastRun={{ at: now.toISOString(), outcome: "accepted" }}
+							/>
+						</TooltipProvider>
+					),
+				},
+			]);
+			render(<RouterProvider router={router} />);
+			expect(screen.getByText("a few seconds ago")).toBeVisible();
+
+			act(() => {
+				vi.advanceTimersByTime(3 * 60_000);
+			});
+			expect(screen.getByText("3 minutes ago")).toBeVisible();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

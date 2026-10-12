@@ -10,6 +10,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useTime } from "#/hooks/useTime";
 import { formatDate, timeFrom } from "#/utils/time";
 
 type ReasonText = {
@@ -147,6 +148,12 @@ export const AutomationLastRun: React.FC<AutomationLastRunProps> = ({
 	showHint = false,
 	className,
 }) => {
+	// Rerenders every 30 s so the relative time keeps moving. The render
+	// still reads Date.now(), so a new last run between ticks is not stale.
+	const tick = useTime(() => Date.now(), {
+		disabled: now !== undefined || !lastRun,
+		interval: 30_000,
+	});
 	if (!lastRun) {
 		return (
 			<span className={cn("text-xs text-content-secondary", className)}>
@@ -169,7 +176,7 @@ export const AutomationLastRun: React.FC<AutomationLastRunProps> = ({
 							type="button"
 							className="cursor-default border-none bg-transparent p-0 text-inherit underline decoration-dotted underline-offset-2"
 						>
-							{timeFrom(lastRun.at, now ?? Date.now())}
+							{timeFrom(lastRun.at, now ?? Math.max(tick, Date.now()))}
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{formatAbsolute(lastRun.at)}</TooltipContent>
