@@ -584,7 +584,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 
 	x11, hasX11 := session.X11()
-	// DOUBLE LOCK: Defensively gate X11 so DISPLAY is never injected if blocked.
+	// DOUBLE CHECK: Defensively gate X11 so DISPLAY is never injected if blocked.
 	if hasX11 && !s.config.BlockX11Forwarding {
 		display, handled := s.x11Forwarder.x11Handler(ctx, session)
 		if !handled {

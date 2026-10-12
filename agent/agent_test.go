@@ -1429,8 +1429,6 @@ func TestAgent_X11ForwardingBlocked(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// 1. Setup agent with our new master switch turned ON
-	//nolint:dogsled
 	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.BlockX11Forwarding = true
 	})
@@ -1439,13 +1437,10 @@ func TestAgent_X11ForwardingBlocked(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
-	// 2. Open an SSH session
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	defer session.Close()
 
-	// 3. Send the X11 request payload
-	// The SSH protocol expects this exact data format when asking for X11.
 	payload := gossh.Marshal(struct {
 		SingleConnection bool
 		AuthProtocol     string
@@ -1458,11 +1453,9 @@ func TestAgent_X11ForwardingBlocked(t *testing.T) {
 		ScreenNumber:     0,
 	})
 
-	// 4. Send the request and ask for a reply (wantReply = true)
 	ok, err := session.SendRequest("x11-req", true, payload)
 
-	// 5. Verify the Bouncer kicked us out
-	require.NoError(t, err) // The network connection itself shouldn't crash
+	require.NoError(t, err)
 	require.False(t, ok, "x11-req should be denied by the server")
 }
 

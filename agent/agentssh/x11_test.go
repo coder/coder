@@ -344,9 +344,6 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 
 func TestServer_X11_Blocked(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("X11 forwarding is only supported on Linux")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
@@ -355,10 +352,9 @@ func TestServer_X11_Blocked(t *testing.T) {
 	// Use in-process networking for X11 forwarding.
 	inproc := testutil.NewInProcNet()
 
-	// 1. THE CONFIGURATION: Turn our master switch ON
 	cfg := &agentssh.Config{
 		X11Net:             inproc,
-		BlockX11Forwarding: true, // This is the field we added!
+		BlockX11Forwarding: true,
 	}
 
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, cfg)
@@ -376,7 +372,6 @@ func TestServer_X11_Blocked(t *testing.T) {
 		_ = s.Serve(ln)
 	}()
 
-	// 2. THE ATTACK: An SSH client tries to request X11
 	c := sshClient(t, ln.Addr().String())
 	sess, err := c.NewSession()
 	require.NoError(t, err)
@@ -388,7 +383,6 @@ func TestServer_X11_Blocked(t *testing.T) {
 		ScreenNumber: 0,
 	}))
 
-	// 3. THE VERIFICATION: The connection survives, but the Bouncer rejects the request
 	require.NoError(t, err)
 	assert.False(t, reply, "x11-req should be denied when BlockX11Forwarding is true")
 
