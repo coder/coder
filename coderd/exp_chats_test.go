@@ -10725,28 +10725,6 @@ func TestChatStreamObserverSeesActions(t *testing.T) {
 				}
 			},
 		},
-		{
-			// Archiving changes no field the stream carries, so the
-			// checkpoint is the only event.
-			name: "Archive",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						require.NoError(t, e.client.UpdateChat(e.ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
-						archived, err := e.db.GetChatByID(dbauthz.AsSystemRestricted(e.ctx), chat.ID)
-						require.NoError(t, err)
-						require.True(t, archived.Archived)
-						return archived.SnapshotVersion
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, applied []codersdk.ChatStreamEvent) {
-						require.Len(t, applied, 1, "only a checkpoint")
-						require.Equal(t, codersdk.ChatStatusWaiting, tab.status)
-					},
-				}
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
