@@ -211,7 +211,11 @@ type ChatAutomation struct {
 // chat-projects experiment, and puts the chats the automation creates into
 // that project.
 type CreateChatAutomationRequest struct {
-	Name                 string                    `json:"name"`
+	Name string `json:"name"`
+	// Enabled creates the automation turned on (true or omitted) or off
+	// (false). An automation created off has no pending schedule run, and
+	// nothing runs until it is turned on.
+	Enabled              *bool                     `json:"enabled,omitempty"`
 	Kind                 ChatAutomationKind        `json:"kind" enums:"webhook,schedule"`
 	TargetMode           ChatAutomationTargetMode  `json:"target_mode" enums:"existing_chat,new_chat"`
 	TargetChatID         *uuid.UUID                `json:"target_chat_id,omitempty" format:"uuid"`

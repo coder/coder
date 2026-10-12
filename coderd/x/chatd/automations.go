@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -120,11 +122,12 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		Name:            name,
 		CreatedByChatID: params.CreatedByChatID,
 		Kind:            kind,
-		Enabled:         true,
-		TargetMode:      targetMode,
-		Prompt:          req.Prompt,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		// Omitted keeps the default of creating the automation turned on.
+		Enabled:    req.Enabled == nil || *req.Enabled,
+		TargetMode: targetMode,
+		Prompt:     req.Prompt,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 		// The kind and target mode below fill the fields they use.
 		TargetChatID:         uuid.NullUUID{},
 		NewChatModelConfigID: uuid.NullUUID{},
@@ -228,7 +231,8 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		if req.NewChatModelConfigID == nil {
 			return database.ChatAutomation{}, "", automationFieldError("new_chat_model_config_id", "is required for new_chat automations")
 		}
-		if err := validateAutomationModelConfig(ctx, p.db, params.OrganizationID, *req.NewChatModelConfigID); err != nil {
+		modelConfig, err := validateAutomationModelConfig(ctx, p.db, params.OrganizationID, *req.NewChatModelConfigID)
+		if err != nil {
 			return database.ChatAutomation{}, "", err
 		}
 		arg.NewChatModelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
@@ -238,6 +242,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 				return database.ChatAutomation{}, "", err
 			}
 			arg.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: effort, Valid: true}
+			if err := validateAutomationEffortForModel(modelConfig, arg.ReasoningEffort); err != nil {
+				return database.ChatAutomation{}, "", err
+			}
 		}
 		if req.ProjectID != nil {
 			// Only an update clears the project with the all-zero UUID.
@@ -273,7 +280,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		// already in the past when the automation is created.
 		lockedNow := dbtime.Time(p.clock.Now())
 		arg.CreatedAt, arg.UpdatedAt = lockedNow, lockedNow
-		if sched != nil {
+		// An automation created off has no pending occurrence; turning it
+		// on computes the next one.
+		if sched != nil && arg.Enabled {
 			arg.ScheduleNextRunAt = sql.NullTime{Time: sched.Next(lockedNow), Valid: true}
 		}
 		automation, err = tx.InsertChatAutomation(ctx, arg)
@@ -348,6 +357,9 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		}
 
 		arg := automationUpdateParams(row, now)
+		// newModelConfig is the model config the request selects, read once
+		// for its validation.
+		var newModelConfig *database.ChatModelConfig
 		// Work computed from an older prompt or schedule is stale once
 		// either changes.
 		invalidatesPendingRuns := false
@@ -438,10 +450,20 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			if row.TargetMode != database.ChatAutomationTargetModeNewChat {
 				return automationFieldError("new_chat_model_config_id", "applies only to new_chat automations")
 			}
-			if err := validateAutomationModelConfig(ctx, tx, row.OrganizationID, *req.NewChatModelConfigID); err != nil {
+			modelConfig, err := validateAutomationModelConfig(ctx, tx, row.OrganizationID, *req.NewChatModelConfigID)
+			if err != nil {
 				return err
 			}
 			arg.NewChatModelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
+			newModelConfig = &modelConfig
+		}
+		// A change to the model or the effort must leave a pair the model
+		// offers. Other edits are not refused when an admin later changes
+		// what the model offers.
+		if req.ReasoningEffort != nil || req.NewChatModelConfigID != nil {
+			if err := validateAutomationEffortChange(ctx, tx, newModelConfig, arg); err != nil {
+				return err
+			}
 		}
 		if req.ProjectID != nil {
 			if row.TargetMode != database.ChatAutomationTargetModeNewChat {
@@ -915,21 +937,63 @@ func validateAutomationTargetChat(ctx context.Context, store database.Store, org
 // validateAutomationModelConfig requires the model config to be readable
 // by the caller, in the automation's organization, and enabled. Deleted
 // configs are not found.
-func validateAutomationModelConfig(ctx context.Context, store database.Store, organizationID, modelConfigID uuid.UUID) error {
+func validateAutomationModelConfig(ctx context.Context, store database.Store, organizationID, modelConfigID uuid.UUID) (database.ChatModelConfig, error) {
 	config, err := store.GetChatModelConfigByID(ctx, modelConfigID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
-			return automationFieldError("new_chat_model_config_id", "model config not found")
+			return database.ChatModelConfig{}, automationFieldError("new_chat_model_config_id", "model config not found")
 		}
-		return xerrors.Errorf("get model config: %w", err)
+		return database.ChatModelConfig{}, xerrors.Errorf("get model config: %w", err)
 	}
 	if config.OrganizationID != organizationID {
-		return automationFieldError("new_chat_model_config_id", "model config is not in the automation's organization")
+		return database.ChatModelConfig{}, automationFieldError("new_chat_model_config_id", "model config is not in the automation's organization")
 	}
 	if !config.Enabled {
-		return automationFieldError("new_chat_model_config_id", "model config is disabled")
+		return database.ChatModelConfig{}, automationFieldError("new_chat_model_config_id", "model config is disabled")
 	}
-	return nil
+	return config, nil
+}
+
+// validateAutomationEffortForModel requires effort, when set, to be one
+// the model offers: the list chatprovider.SelectableReasoningEfforts
+// returns, which the API reports as ChatModel.reasoning_efforts and the
+// editor offers. A model without such a list takes any valid effort, as
+// the editor offers every effort for it.
+func validateAutomationEffortForModel(config database.ChatModelConfig, effort database.NullChatReasoningEffort) error {
+	if !effort.Valid {
+		return nil
+	}
+	callConfig, err := parseModelConfigOptions(config.Options)
+	if err != nil {
+		return xerrors.Errorf("read model reasoning efforts: %w", err)
+	}
+	offered := chatprovider.SelectableReasoningEfforts(callConfig.ReasoningEffort)
+	if len(offered) == 0 || slices.Contains(offered, string(effort.ChatReasoningEffort)) {
+		return nil
+	}
+	return automationFieldError("reasoning_effort", fmt.Sprintf("%q is not offered by the model, which offers %s", effort.ChatReasoningEffort, strings.Join(offered, ", ")))
+}
+
+// validateAutomationEffortChange checks the effort of an update against the
+// model it leaves selected. selected is the newly selected model config,
+// or nil when the model does not change; the stored one is then read as
+// the caller. A stored model the caller can no longer read is not checked:
+// runs are refused for it anyway, as model_unavailable.
+func validateAutomationEffortChange(ctx context.Context, store database.Store, selected *database.ChatModelConfig, arg database.UpdateChatAutomationByIDParams) error {
+	if !arg.ReasoningEffort.Valid || !arg.NewChatModelConfigID.Valid {
+		return nil
+	}
+	if selected == nil {
+		config, err := store.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID)
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get model config: %w", err)
+		}
+		selected = &config
+	}
+	return validateAutomationEffortForModel(*selected, arg.ReasoningEffort)
 }
 
 // validateAutomationProject requires the chat-projects experiment for the

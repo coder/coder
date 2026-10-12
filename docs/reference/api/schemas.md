@@ -6509,6 +6509,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "enabled": true,
   "kind": "webhook",
   "name": "string",
   "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
@@ -6528,6 +6529,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                 |
 |----------------------------|------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`                  | boolean                                                                | false    |              | Enabled creates the automation turned on (true or omitted) or off (false). An automation created off has no pending schedule run, and nothing runs until it is turned on.   |
 | `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                                                                             |
 | `name`                     | string                                                                 | false    |              |                                                                                                                                                                             |
 | `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                                                                             |

@@ -148,8 +148,13 @@ The request takes these fields:
 | `target_chat_id`           | Chat ID                                                       | Required for `existing_chat`.                                                    |
 | `when_busy`                | `queue` or `skip`                                             | `existing_chat` only. Defaults to `queue` for webhooks and `skip` for schedules. |
 | `new_chat_model_config_id` | Model configuration ID                                        | Required for `new_chat`.                                                         |
-| `reasoning_effort`         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` | `new_chat` only. Optional.                                                       |
+| `reasoning_effort`         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` | `new_chat` only. Optional. Must be one the model offers in `reasoning_efforts`.  |
 | `project_id`               | Project ID                                                    | `new_chat` only. Optional. Requires the `chat-projects` experiment.              |
+| `enabled`                  | `true` or `false`                                             | Optional. Defaults to `true`. `false` creates the automation turned off.         |
+
+Send `"enabled": false` to save an automation turned off in one request: nothing runs until you turn it on.
+A `reasoning_effort` that the model doesn't list in its `reasoning_efforts` returns `400` naming `reasoning_effort`, on create and on any update that changes the model or the effort.
+A model without a `reasoning_efforts` list takes any effort.
 
 The response returns `201` with the automation and a `webhook_secret` field.
 The secret starts with `coder_automation_`.

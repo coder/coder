@@ -4490,6 +4490,12 @@ export interface CreateAIProviderRequest {
  */
 export interface CreateChatAutomationRequest {
 	readonly name: string;
+	/**
+	 * Enabled creates the automation turned on (true or omitted) or off
+	 * (false). An automation created off has no pending schedule run, and
+	 * nothing runs until it is turned on.
+	 */
+	readonly enabled?: boolean;
 	readonly kind: ChatAutomationKind;
 	readonly target_mode: ChatAutomationTargetMode;
 	readonly target_chat_id?: string;

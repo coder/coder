@@ -23892,6 +23892,10 @@ const docTemplate = `{
         "codersdk.CreateChatAutomationRequest": {
             "type": "object",
             "properties": {
+                "enabled": {
+                    "description": "Enabled creates the automation turned on (true or omitted) or off\n(false). An automation created off has no pending schedule run, and\nnothing runs until it is turned on.",
+                    "type": "boolean"
+                },
                 "kind": {
                     "enum": [
                         "webhook",
