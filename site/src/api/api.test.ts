@@ -74,6 +74,27 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("chat actions", () => {
+		it("return the snapshot version from the response header", async () => {
+			const headers = { "coder-chat-snapshot-version": "12" };
+			vi.spyOn(axiosInstance, "delete").mockResolvedValueOnce({
+				data: "",
+				headers,
+			});
+			vi.spyOn(axiosInstance, "post").mockResolvedValueOnce({
+				data: { queued: false },
+				headers,
+			});
+
+			await expect(
+				API.experimental.deleteChatQueuedMessage("chat-1", 3),
+			).resolves.toEqual({ snapshotVersion: 12 });
+			await expect(
+				API.experimental.createChatMessage("chat-1", { content: [] }),
+			).resolves.toEqual({ queued: false, snapshotVersion: 12 });
+		});
+	});
+
 	describe("logout", () => {
 		it("should return without erroring", async () => {
 			// given
