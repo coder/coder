@@ -32,7 +32,7 @@ import {
 } from "../../utils/modelOptions";
 import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
-import type { AutomationFormValues } from "./AutomationEditorDialog";
+import type { AutomationFormValues } from "./AutomationEditorForm";
 import { AutomationProjectField } from "./AutomationProjectField";
 import { FixedAtCreationBadge } from "./FixedAtCreationBadge";
 import { RadioOption } from "./RadioOption";
@@ -186,9 +186,9 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 								<ModelSelector
 									// Matches the Select next to it instead of the composer pill.
 									className="h-10 w-full justify-between rounded-md border border-solid border-border bg-transparent px-3 text-sm shadow-xs hover:bg-surface-secondary"
-									// Fits the popover into the viewport below or above the
-									// trigger, and makes it as wide as the trigger.
-									contentClassName="flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[max(18rem,var(--radix-popover-trigger-width))] flex-col"
+									// As wide as the trigger. The list keeps its own fixed
+									// height so Radix can flip it above the trigger.
+									contentClassName="w-[max(18rem,var(--radix-popover-trigger-width))]"
 									triggerAriaLabel="Model"
 									triggerAriaInvalid={modelField.error}
 									triggerAriaDescribedBy={

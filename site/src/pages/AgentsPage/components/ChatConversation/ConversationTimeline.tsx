@@ -246,6 +246,7 @@ const ChatMessageItem = memo<{
 							}
 							onImageClick={setPreviewImage}
 							onTextFileClick={setPreviewText}
+							isAutomationMessage={Boolean(message?.automation_id)}
 						/>
 					) : (
 						<Message className="w-full">

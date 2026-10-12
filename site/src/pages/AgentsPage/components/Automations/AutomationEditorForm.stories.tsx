@@ -20,12 +20,8 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
-import {
-	MockDefaultOrganization,
-	MockUserOwner,
-	mockApiError,
-} from "#/testHelpers/entities";
-import { AutomationEditorDialog } from "./AutomationEditorDialog";
+import { MockDefaultOrganization, mockApiError } from "#/testHelpers/entities";
+import { AutomationEditorForm } from "./AutomationEditorForm";
 
 const organizationId = MockDefaultOrganization.id;
 
@@ -100,29 +96,28 @@ const rejectChat = (status: number) => () => {
 	});
 };
 
-const meta: Meta<typeof AutomationEditorDialog> = {
-	title: "pages/AgentsPage/Automations/AutomationEditorDialog",
-	component: AutomationEditorDialog,
+const meta: Meta<typeof AutomationEditorForm> = {
+	title: "pages/AgentsPage/Automations/AutomationEditorForm",
+	component: AutomationEditorForm,
 	args: {
 		organizationId,
-		currentUserId: MockUserOwner.id,
+		runsAsName: "Admin User",
+		allowLeave: false,
 		projectsEnabled: false,
 		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
 		rotateSecretError: undefined,
 		isRotatingSecret: false,
-		isUpdatingEnabled: false,
-		onToggleEnabled: fn(),
 		onCreate: fn(),
 		onUpdate: fn(),
 		onRotateSecret: fn(),
-		onClose: fn(),
+		onCancel: fn(),
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof AutomationEditorDialog>;
+type Story = StoryObj<typeof AutomationEditorForm>;
 
 export const CreateSchedule: Story = {
 	parameters: {
@@ -667,76 +662,6 @@ export const CreateWebhook: Story = {
 
 export const EditWebhook: Story = {
 	args: { automation: mockWebhookAutomation },
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(organizationId),
-				data: mockModelCatalog,
-			},
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
-		],
-	},
-};
-
-export const ViewWebhookAsNonOwner: Story = {
-	args: {
-		automation: {
-			...mockWebhookAutomation,
-			owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
-		},
-		currentUserId: "another-user",
-	},
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(organizationId),
-				data: mockModelCatalog,
-			},
-			{ key: chatEntityKey(MockChat.id), data: MockChat },
-		],
-	},
-};
-
-export const ViewNewChatAsNonOwner: Story = {
-	args: {
-		automation: {
-			...mockWebhookAutomation,
-			target_mode: "new_chat",
-			target_chat_id: undefined,
-			when_busy: undefined,
-			new_chat_model_config_id: "owner-only-model",
-		},
-		currentUserId: "another-user",
-	},
-	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(organizationId),
-				data: mockModelCatalog,
-			},
-		],
-	},
-};
-
-// An admin can turn off another owner's automation but not turn it back on.
-export const ViewDisabledAsNonOwner: Story = {
-	args: {
-		automation: {
-			...mockAutomation,
-			enabled: false,
-			owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
-			target_chat: { id: MockChat.id, title: MockChat.title, archived: false },
-		},
-		currentUserId: "another-user",
-	},
-	// Focus opens the tooltip that says who can turn it back on.
-	play: async () => {
-		(await screen.findByRole("switch", { name: /Enable/ })).focus();
-	},
-};
-
-export const EditDisabled: Story = {
-	args: { automation: { ...mockAutomation, enabled: false } },
 	parameters: {
 		queries: [
 			{

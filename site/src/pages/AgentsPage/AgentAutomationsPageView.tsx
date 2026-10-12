@@ -62,6 +62,8 @@ type AutomationDeleteDialogState = {
 type AgentAutomationsPageViewProps = {
 	header?: React.ReactNode;
 	currentUserId: string;
+	/** True for viewers, such as organization admins, who can delete any automation. */
+	canDeleteAnyAutomation?: boolean;
 	organizationSelector?: React.ReactNode;
 	automations: readonly ChatAutomation[] | undefined;
 	isLoading: boolean;
@@ -78,9 +80,6 @@ type AgentAutomationsPageViewProps = {
 	onDeleteAutomation: (automation: ChatAutomation) => void;
 	chatsDialog?: AutomationChatsDialogState;
 	deleteDialog?: AutomationDeleteDialogState;
-	editorDialog?: React.ReactNode;
-	webhookSecretDialog?: React.ReactNode;
-	leavePrompt?: React.ReactNode;
 };
 
 type AutomationChatsDialogProps = {
@@ -228,6 +227,7 @@ export const AgentAutomationsPageView: React.FC<
 > = ({
 	header,
 	currentUserId,
+	canDeleteAnyAutomation = false,
 	organizationSelector,
 	automations,
 	isLoading,
@@ -244,9 +244,6 @@ export const AgentAutomationsPageView: React.FC<
 	onDeleteAutomation,
 	chatsDialog,
 	deleteDialog,
-	editorDialog,
-	webhookSecretDialog,
-	leavePrompt,
 }) => {
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const newAutomationRef = useRef<HTMLButtonElement>(null);
@@ -266,6 +263,9 @@ export const AgentAutomationsPageView: React.FC<
 				key={automation.id}
 				automation={automation}
 				isOwner={automation.owner_id === currentUserId}
+				canDelete={
+					automation.owner_id === currentUserId || canDeleteAnyAutomation
+				}
 				compact={isMobile}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
@@ -366,9 +366,6 @@ export const AgentAutomationsPageView: React.FC<
 					fallbackFocusRef={newAutomationRef}
 				/>
 			)}
-			{editorDialog}
-			{webhookSecretDialog}
-			{leavePrompt}
 		</ScrollArea>
 	);
 };

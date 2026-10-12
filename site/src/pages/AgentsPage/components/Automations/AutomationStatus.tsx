@@ -282,7 +282,9 @@ export const AutomationEnabledSwitch: React.FC<
 			aria-disabled={blockedReason !== undefined}
 			aria-describedby={blockedReason ? reasonId : undefined}
 			aria-label={`Enable ${automation.name}`}
-			className="aria-disabled:cursor-not-allowed"
+			// A blocked off switch keeps a visible outline, so the cell does
+			// not look empty on a dark row.
+			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=unchecked]:border-border"
 			onCheckedChange={(enabled) => {
 				if (!blockedReason) {
 					onToggle(enabled);
@@ -294,7 +296,11 @@ export const AutomationEnabledSwitch: React.FC<
 		<span className="inline-flex items-center gap-2">
 			{blockedReason ? (
 				<Tooltip>
-					<TooltipTrigger asChild>{control}</TooltipTrigger>
+					{/* A span trigger: asChild on the switch would replace its
+					    data-state with the tooltip's, which drops the switch colors. */}
+					<TooltipTrigger asChild>
+						<span className="inline-flex">{control}</span>
+					</TooltipTrigger>
 					<TooltipContent>{blockedReason}</TooltipContent>
 				</Tooltip>
 			) : (

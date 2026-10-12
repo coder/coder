@@ -53,7 +53,12 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	const chats = searchQuery.data ?? [];
+	// Chats that automations or API clients created (client type api) list
+	// after the user's own, so a busy new-chat automation cannot crowd them
+	// out. Search still finds every chat.
+	const chats = [...(searchQuery.data ?? [])].sort(
+		(a, b) => Number(a.client_type === "api") - Number(b.client_type === "api"),
+	);
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),
@@ -100,9 +105,10 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 			</ComboboxTrigger>
 			<ComboboxContent
 				shouldFilter={false}
-				// Fits below or above the trigger instead of running under the
-				// dialog footer or past the window.
-				className="max-h-[min(20rem,var(--radix-popover-content-available-height))] w-(--radix-popover-trigger-width)"
+				// A fixed height, not the available height: shrinking to the space
+				// left below the trigger stops Radix from flipping the list above
+				// it, so it opened under the dialog footer.
+				className="max-h-72 w-(--radix-popover-trigger-width)"
 			>
 				<ComboboxInput
 					placeholder="Search chats"

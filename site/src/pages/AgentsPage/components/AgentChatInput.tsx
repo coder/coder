@@ -1857,6 +1857,21 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
+						{manageAutomationsEnabled && onManageAutomationsToggle && (
+							// Shows that the agent can create automations that run as
+							// the user, like the Planning badge shows plan mode.
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+								<ZapIcon className="size-3" />
+								Automations
+								{!isReadOnlyView && (
+									<BadgeDismissButton
+										onClick={() => onManageAutomationsToggle(false)}
+										ariaLabel="Turn off Manage automations"
+										isDisabled={isDisabled}
+									/>
+								)}
+							</span>
+						)}
 						{/* Badges and the +N pill stay mounted for measurement:
 						 * overflowed badges are display:none, the pill merely
 						 * invisible so its width stays readable. */}

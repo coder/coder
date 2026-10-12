@@ -1,5 +1,6 @@
 import { useFormik } from "formik";
-import { useRef, useState } from "react";
+import { TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import type {
@@ -14,27 +15,14 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { NO_PROJECT } from "./AutomationProjectField";
-import {
-	AutomationEnabledSwitch,
-	AutomationPausedBadge,
-} from "./AutomationStatus";
-import { AutomationSummary } from "./AutomationSummary";
 import { AutomationTargetField } from "./AutomationTargetField";
 import { AutomationTriggerField } from "./AutomationTriggerField";
 
@@ -173,60 +161,84 @@ const buildUpdateRequest = (
 	};
 };
 
-type AutomationEditorDialogProps = {
+/** Why leaving the page loses a one-time webhook secret. */
+export type SecretGuard = "pending" | "shown";
+
+const leavePromptCopy: Record<
+	SecretGuard | "unsaved",
+	{ title: string; description: string; confirmText: string }
+> = {
+	shown: {
+		title: "Leave without copying the secret?",
+		description:
+			"The webhook secret is shown only once. If you leave now, you must rotate it to get a new one.",
+		confirmText: "Leave",
+	},
+	pending: {
+		title: "Leave before the secret arrives?",
+		description:
+			"The webhook secret is shown only once. If you leave now, you must rotate it to get a new one.",
+		confirmText: "Leave",
+	},
+	unsaved: {
+		title: "Discard unsaved changes?",
+		description: "Your changes to this automation are not saved.",
+		confirmText: "Discard",
+	},
+};
+
+type AutomationEditorFormProps = {
 	organizationId: string;
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
-	currentUserId: string;
 	/** Shows the Project field for new chat targets. */
 	projectsEnabled: boolean;
 	/** Origin of the webhook publish endpoint. */
 	origin: string;
+	/** The name of the user whose permissions runs use. */
+	runsAsName: string;
 	error: unknown;
 	isSubmitting: boolean;
 	rotateSecretError: unknown;
 	isRotatingSecret: boolean;
-	/** True while the enabled switch's own update is pending. */
-	isUpdatingEnabled: boolean;
-	/** Turns the automation on or off at once, apart from Save. */
-	onToggleEnabled: (enabled: boolean) => void;
-	onCreate: (req: CreateChatAutomationRequest) => void;
+	/** Creates the automation, then turns it off unless `enable` is true. */
+	onCreate: (req: CreateChatAutomationRequest, enable: boolean) => void;
 	onUpdate: (req: UpdateChatAutomationRequest) => void;
 	/** Receives the Rotate secret button so focus can return to it later. */
 	onRotateSecret: (rotateButton: HTMLButtonElement | null) => void;
-	onClose: () => void;
+	onCancel: () => void;
+	/** Set while leaving the page would lose a one-time webhook secret. */
+	secretGuard?: SecretGuard;
+	/** True once the page is about to leave on purpose, after a save. */
+	allowLeave: boolean;
 };
 
-export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
+export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 	organizationId,
 	automation,
-	currentUserId,
 	projectsEnabled,
 	origin,
+	runsAsName,
 	error,
 	isSubmitting,
 	rotateSecretError,
 	isRotatingSecret,
-	isUpdatingEnabled,
-	onToggleEnabled,
 	onCreate,
 	onUpdate,
 	onRotateSecret,
-	onClose,
+	onCancel,
+	secretGuard,
+	allowLeave,
 }) => {
 	const isCreate = !automation;
-	const pointerFocusRef = useRef(false);
-	const isReadOnly = Boolean(
-		automation && automation.owner_id !== currentUserId,
-	);
 	// A user-picked When busy value survives trigger changes.
 	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
-	const restoreFocus = useRestoreFocusOnClose();
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
-	const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+	// Which create button submitted the form.
+	const [enableOnCreate, setEnableOnCreate] = useState(true);
 
-	// Frozen at open, so a list refetch that refreshes `automation` neither
+	// Frozen at mount, so a list refetch that refreshes `automation` neither
 	// resets the user's input nor changes the PATCH baseline.
 	const [initialValues] = useState(() => initialFormValues(automation));
 	const form = useFormik<AutomationFormValues>({
@@ -264,21 +276,29 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			const values = {
 				...normalize(rawValues),
 				// The field unmounts if the experiment turns off while the
-				// dialog is open; never send its hidden value.
+				// page is open; never send its hidden value.
 				...(!projectsEnabled && { project_id: initialValues.project_id }),
 			};
 			if (!automation) {
-				onCreate(buildCreateRequest(values));
+				onCreate(buildCreateRequest(values), enableOnCreate);
 				return;
 			}
 			const req = buildUpdateRequest(automation, initialValues, values);
 			if (Object.keys(req).length === 0) {
-				onClose();
+				onCancel();
 				return;
 			}
 			onUpdate(req);
 		},
 	});
+	const leaveReason =
+		secretGuard ?? (form.dirty && !allowLeave ? "unsaved" : undefined);
+	const leavePrompt = useUnsavedChangesPrompt(
+		leaveReason !== undefined,
+		leaveReason,
+	);
+	const prompt = leaveReason ? leavePromptCopy[leaveReason] : undefined;
+
 	// A server error applies while its field, and the choice that shows the
 	// field, still hold the submitted values.
 	const serverErrorApplies = (field: string) => {
@@ -327,243 +347,192 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			serverErrorApplies(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
-	// Escape, an outside click and Cancel all ask first, so a stray key
-	// does not throw away a long prompt.
-	const requestClose = () => {
-		if (isPending) {
-			return;
-		}
-		if (form.dirty && !isReadOnly) {
-			setConfirmingDiscard(true);
-			return;
-		}
-		onClose();
-	};
-	const ownerName = automation?.owner
-		? automation.owner.name || automation.owner.username
-		: "the owner";
 	const showAlert =
 		Boolean(error) &&
 		(!apiError?.validations?.length || alertValidations.length > 0);
 
 	return (
-		<Dialog
-			open
-			onOpenChange={(open) => {
-				if (!open) {
-					requestClose();
-				}
-			}}
+		<form
+			aria-label={isCreate ? "New automation" : "Edit automation"}
+			className="flex flex-col gap-8"
+			onSubmit={form.handleSubmit}
+			noValidate
 		>
-			<DialogContent
-				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
-				onCloseAutoFocus={restoreFocus}
-				// The enabled switch applies at once, so the first field gets
-				// focus instead of it: a stray Space must not turn the
-				// automation off.
-				onOpenAutoFocus={(event) => {
-					const content = event.currentTarget;
-					const field =
-						content instanceof HTMLElement
-							? content.querySelector<HTMLElement>('input[name="name"]')
-							: null;
-					if (field) {
-						event.preventDefault();
-						field.focus();
-					}
-				}}
+			{/* Radix Select opens on pointerdown, which browsers still send to
+			    fieldset-disabled buttons, so they get pointer-events: none. */}
+			<fieldset
+				disabled={isSubmitting}
+				className="m-0 flex min-w-0 flex-col gap-8 border-0 p-0 [&_button:disabled]:pointer-events-none"
 			>
-				<form
-					className="flex min-h-0 flex-1 flex-col"
-					onSubmit={form.handleSubmit}
-					noValidate
-				>
-					<DialogHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 px-6 pt-6">
-						<div className="flex min-w-0 flex-col gap-1.5">
-							<DialogTitle className="wrap-anywhere">
-								{isCreate
-									? "New automation"
-									: isReadOnly
-										? automation?.name
-										: "Edit automation"}
-							</DialogTitle>
-							<DialogDescription>
-								{isCreate
-									? "Create a schedule or webhook that sends a prompt to an agent."
-									: isReadOnly
-										? `Runs use the permissions of ${ownerName}. Only ${ownerName} can change it or turn it back on. You can turn it off.`
-										: "Runs use your permissions. Changes apply to the next run."}
-							</DialogDescription>
-						</div>
-						{automation && (
-							<div className="flex items-center gap-2">
-								<AutomationPausedBadge automation={automation} />
-								<AutomationEnabledSwitch
-									automation={automation}
-									isOwner={!isReadOnly}
-									isUpdating={isUpdatingEnabled}
-									onToggle={onToggleEnabled}
-									showLabel
-								/>
-							</div>
-						)}
-					</DialogHeader>
-					{/* Browser and Radix constraints on this layout:
-					    - Chrome does not scroll a flex-sized fieldset, so the div scrolls.
-					    - The focus trap wraps Tab with preventScroll, so onFocus scrolls
-					      the wrapped-to field into view. Pointer focus does not scroll:
-					      moving the control between pointerdown and pointerup would
-					      lose the click.
-					    - Radix Select opens on pointerdown, which browsers still send to
-					      fieldset-disabled buttons, so they get pointer-events: none. */}
-					<div
-						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
-						onPointerDown={() => {
-							pointerFocusRef.current = true;
-						}}
-						onPointerUp={() => {
-							pointerFocusRef.current = false;
-						}}
-						onFocus={(event) => {
-							if (pointerFocusRef.current) {
-								pointerFocusRef.current = false;
-								return;
-							}
-							if (event.target instanceof HTMLElement) {
-								// The parent first keeps a field's label in view too.
-								event.target.parentElement?.scrollIntoView({
-									block: "nearest",
-								});
-								event.target.scrollIntoView({ block: "nearest" });
-							}
-						}}
-					>
-						{automation && isReadOnly ? (
-							<AutomationSummary automation={automation} origin={origin} />
-						) : (
-							<fieldset
-								disabled={isSubmitting}
-								className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
-							>
-								{showAlert && (
-									<Alert severity="error" prominent>
-										<AlertTitle>
-											{getErrorMessage(error, "Could not save the automation.")}
-										</AlertTitle>
-										{(apiError?.detail || alertValidations.length > 0) && (
-											<AlertDescription>
-												{apiError?.detail}
-												{alertValidations.map((validation) => (
-													<span key={validation.field} className="block">
-														{SERVER_FIELDS[validation.field]
-															? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
-															: validation.detail}
-													</span>
-												))}
-											</AlertDescription>
-										)}
-									</Alert>
-								)}
-								<FormField
-									field={getFieldHelpers("name")}
-									label="Name"
-									required
-								/>
-								<FormField
-									field={getFieldHelpers("prompt", {
-										helperText: [
-											isSchedule
-												? "Sent as the message for every run."
-												: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
-											// Queued messages keep the prompt they were sent with.
-											!isCreate &&
-												"Changes apply to future runs. Messages already queued keep the previous prompt.",
-										]
-											.filter(Boolean)
-											.join(" "),
-									})}
-									label="Prompt"
-									required
-									control={(props) => (
-										<Textarea
-											{...props}
-											{...form.getFieldProps("prompt")}
-											rows={4}
-										/>
-									)}
-								/>
-								<AutomationTriggerField
-									isCreate={isCreate}
-									kind={form.values.kind}
-									onKindChange={(kind) => {
-										if (!whenBusyChosen) {
-											form.setFieldValue("when_busy", defaultWhenBusy(kind));
-										}
-										form.setFieldValue("kind", kind);
-									}}
-									scheduleFieldsProps={{
-										organizationId,
-										cronField: getFieldHelpers("schedule_cron"),
-										timeZoneField: getFieldHelpers("schedule_time_zone"),
-										onCronChange: (cron) =>
-											form.setFieldValue("schedule_cron", cron),
-										onTimeZoneChange: (timeZone) =>
-											form.setFieldValue("schedule_time_zone", timeZone),
-									}}
-									webhookFieldsProps={{
-										automation,
-										origin,
-										webhookUse: form.values.webhook_use,
-										onWebhookUseChange: (webhookUse) =>
-											form.setFieldValue("webhook_use", webhookUse),
-										rotateSecretError,
-										isRotatingSecret,
-										isSubmitting,
-										canRotateSecret: true,
-										onRotateSecret,
-									}}
-								/>
-								<AutomationTargetField
-									organizationId={organizationId}
-									isCreate={isCreate}
-									form={form}
-									getFieldHelpers={getFieldHelpers}
-									showProjectField={showProjectField}
-									onWhenBusyChange={() => setWhenBusyChosen(true)}
-								/>
-							</fieldset>
-						)}
-					</div>
-					<DialogFooter className="border-0 border-t border-solid border-border px-6 py-4">
-						<Button
-							type="button"
-							variant="outline"
-							disabled={isPending}
-							onClick={requestClose}
-						>
-							{isReadOnly ? "Close" : "Cancel"}
-						</Button>
-						{!isReadOnly && (
-							<Button type="submit" disabled={isPending}>
-								<Spinner loading={isSubmitting} />
-								{isCreate ? "Create" : "Save changes"}
-							</Button>
-						)}
-					</DialogFooter>
-				</form>
-			</DialogContent>
-			<ConfirmDialog
-				open={confirmingDiscard}
-				type="delete"
-				title="Discard unsaved changes?"
-				description="Your changes to this automation are not saved."
-				confirmText="Discard"
-				onClose={() => setConfirmingDiscard(false)}
-				onConfirm={() => {
-					setConfirmingDiscard(false);
-					onClose();
-				}}
+				<FormField
+					field={getFieldHelpers("name")}
+					label="Name"
+					required
+					autoFocus={isCreate}
+				/>
+				<FormField
+					field={getFieldHelpers("prompt", {
+						helperText: [
+							isSchedule
+								? "Sent as the message for every run."
+								: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+							// Queued messages keep the prompt they were sent with.
+							!isCreate &&
+								"Changes apply to future runs. Messages already queued keep the previous prompt.",
+						]
+							.filter(Boolean)
+							.join(" "),
+					})}
+					label="Prompt"
+					required
+					control={(props) => (
+						<Textarea {...props} {...form.getFieldProps("prompt")} rows={4} />
+					)}
+				/>
+				<AutomationTriggerField
+					isCreate={isCreate}
+					kind={form.values.kind}
+					onKindChange={(kind) => {
+						if (!whenBusyChosen) {
+							form.setFieldValue("when_busy", defaultWhenBusy(kind));
+						}
+						form.setFieldValue("kind", kind);
+					}}
+					scheduleFieldsProps={{
+						organizationId,
+						cronField: getFieldHelpers("schedule_cron"),
+						timeZoneField: getFieldHelpers("schedule_time_zone"),
+						onCronChange: (cron) => form.setFieldValue("schedule_cron", cron),
+						onTimeZoneChange: (timeZone) =>
+							form.setFieldValue("schedule_time_zone", timeZone),
+					}}
+					webhookFieldsProps={{
+						automation,
+						origin,
+						webhookUse: form.values.webhook_use,
+						onWebhookUseChange: (webhookUse) =>
+							form.setFieldValue("webhook_use", webhookUse),
+						rotateSecretError,
+						isRotatingSecret,
+						isSubmitting,
+						canRotateSecret: true,
+						onRotateSecret,
+					}}
+				/>
+				<AutomationTargetField
+					organizationId={organizationId}
+					isCreate={isCreate}
+					form={form}
+					getFieldHelpers={getFieldHelpers}
+					showProjectField={showProjectField}
+					onWhenBusyChange={() => setWhenBusyChosen(true)}
+				/>
+			</fieldset>
+			<AutomationRunsAsCard
+				runsAsName={runsAsName}
+				isWebhook={form.values.kind === "webhook"}
 			/>
-		</Dialog>
+			{/* Next to the buttons, so a save error such as the per-owner
+			    limit is in view where the user clicked. */}
+			<div className="flex flex-col gap-4 border-0 border-t border-solid border-border pt-6">
+				{showAlert && (
+					<Alert severity="error" prominent>
+						<AlertTitle>
+							{getErrorMessage(error, "Could not save the automation.")}
+						</AlertTitle>
+						{(apiError?.detail || alertValidations.length > 0) && (
+							<AlertDescription>
+								{apiError?.detail}
+								{alertValidations.map((validation) => (
+									<span key={validation.field} className="block">
+										{SERVER_FIELDS[validation.field]
+											? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
+											: validation.detail}
+									</span>
+								))}
+							</AlertDescription>
+						)}
+					</Alert>
+				)}
+				<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+					<Button
+						type="button"
+						variant="outline"
+						disabled={isPending}
+						onClick={onCancel}
+					>
+						Cancel
+					</Button>
+					{isCreate ? (
+						<>
+							<Button
+								type="submit"
+								variant="outline"
+								disabled={isPending}
+								onClick={() => setEnableOnCreate(false)}
+							>
+								<Spinner loading={isSubmitting && !enableOnCreate} />
+								Save as disabled
+							</Button>
+							<Button
+								type="submit"
+								disabled={isPending}
+								onClick={() => setEnableOnCreate(true)}
+							>
+								<Spinner loading={isSubmitting && enableOnCreate} />
+								Save and enable
+							</Button>
+						</>
+					) : (
+						<Button type="submit" disabled={isPending}>
+							<Spinner loading={isSubmitting} />
+							Save changes
+						</Button>
+					)}
+				</div>
+			</div>
+			<ConfirmDialog
+				open={leavePrompt.isOpen}
+				type="info"
+				hideCancel={false}
+				cancelText="Stay"
+				title={prompt?.title ?? ""}
+				description={prompt?.description}
+				confirmText={prompt?.confirmText ?? "Leave"}
+				onClose={leavePrompt.onCancel}
+				onConfirm={leavePrompt.onConfirm}
+				onCloseAutoFocus={leavePrompt.onCloseAutoFocus}
+			/>
+		</form>
 	);
 };
+
+type AutomationRunsAsCardProps = {
+	runsAsName: string;
+	isWebhook: boolean;
+};
+
+/** The RFC's "Runs as" warning: whose permissions runs use, and what turning it off drops. */
+export const AutomationRunsAsCard: React.FC<AutomationRunsAsCardProps> = ({
+	runsAsName,
+	isWebhook,
+}) => (
+	<div className="flex gap-3 rounded-lg border border-solid border-border bg-surface-secondary p-4">
+		<TriangleAlertIcon
+			aria-hidden
+			className="mt-0.5 size-4 shrink-0 text-content-warning"
+		/>
+		<div className="flex flex-col gap-1 text-sm">
+			<span className="font-medium text-content-primary">
+				Runs as {runsAsName}
+			</span>
+			<span className="text-content-secondary">
+				Runs use {runsAsName}'s Coder permissions and the chat's tools.{" "}
+				{isWebhook &&
+					"Anyone who has the secret can send event data to this agent, but the prompt stays the owner's. "}
+				Turning the automation off blocks new runs and removes prompts it queued
+				that have not started. Work that already started continues.
+			</span>
+		</div>
+	</div>
+);

@@ -34,6 +34,7 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import AgentAutomationEditorPage from "./AgentAutomationEditorPage";
 import AgentAutomationsPage from "./AgentAutomationsPage";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 
@@ -109,7 +110,19 @@ const setup = ({
 		),
 	);
 	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />, {
-		route,
+		path: "/agents/automations",
+		route: route ?? "/agents/automations",
+		extraRoutes: [
+			{
+				path: "/agents/automations/new",
+				element: <AgentAutomationEditorPage />,
+			},
+			{
+				path: "/agents/automations/:automationId",
+				element: <AgentAutomationEditorPage />,
+			},
+			{ path: "/agents", element: <div /> },
+		],
 	});
 	return { requests, queryClient, router };
 };
@@ -120,8 +133,8 @@ const requestPaths = (requests: readonly Request[]) =>
 		return `${request.method} ${url.pathname}${url.search}`;
 	});
 
-// The editor's submit button reads Create for a new automation.
-const saveButtonName = /(Create|Save changes)$/;
+// The editor's submit button reads Save and enable for a new automation.
+const saveButtonName = /(Save and enable|Save changes)$/;
 
 /** Opens a row's More menu and picks Edit, View or Delete. */
 const openRowAction = async (
@@ -203,7 +216,7 @@ describe("AgentAutomationsPage", () => {
 	])(
 		"keeps the sidebar search on the mobile back link when the experiment is $state",
 		async ({ experiments, pageText }) => {
-			setup({ experiments, route: "/?archived=true" });
+			setup({ experiments, route: "/agents/automations?archived=true" });
 
 			await screen.findByText(pageText);
 			expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
@@ -399,6 +412,33 @@ describe("AgentAutomationsPage", () => {
 			expect(requestPaths(requests)).toContain(`POST ${runPath}`);
 		});
 	});
+
+	it.each([
+		{ canDeleteAny: true, menuItems: ["View", "Delete…"] },
+		{ canDeleteAny: false, menuItems: ["View"] },
+	])(
+		"offers Delete on another owner's automation when canDeleteAny is $canDeleteAny",
+		async ({ canDeleteAny, menuItems }) => {
+			const user = userEvent.setup();
+			setup({ automations: [{ ...mockAutomation, owner_id: "another-user" }] });
+			server.use(
+				http.post("/api/v2/authcheck", () =>
+					HttpResponse.json({ canDeleteAny }),
+				),
+			);
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `More actions for ${mockAutomation.name}`,
+				}),
+			);
+
+			await waitFor(async () => {
+				const items = await screen.findAllByRole("menuitem");
+				expect(items.map((item) => item.textContent)).toEqual(menuItems);
+			});
+		},
+	);
 
 	it("deletes an automation after confirmation", async () => {
 		const user = userEvent.setup();
@@ -782,7 +822,7 @@ const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(
 		await screen.findByRole("button", { name: "Create automation" }),
 	);
-	const dialog = await screen.findByRole("dialog");
+	const dialog = await screen.findByRole("form");
 	await user.click(within(dialog).getByLabelText(/^Name/));
 	await user.paste("Standup");
 	await user.click(within(dialog).getByLabelText(/^Prompt/));
@@ -976,7 +1016,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
 		await waitFor(() => expect(project).toBeEnabled());
 		await user.click(project);
@@ -998,7 +1038,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Create automation" }),
 		);
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 
 		await user.click(
 			within(dialog).getByRole("button", { name: saveButtonName }),
@@ -1097,7 +1137,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Create automation" }),
 		);
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		const name = "\u{1F600}".repeat(65) + "x".repeat(63);
 		await user.click(within(dialog).getByLabelText(/^Name/));
 		await user.paste(name);
@@ -1166,7 +1206,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
 		const time = within(dialog).getByLabelText("Time");
 		const cron = within(dialog).getByLabelText(/^Cron expression/);
@@ -1206,7 +1246,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
 		const cron = within(dialog).getByLabelText(/^Cron expression/);
 
@@ -1246,20 +1286,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("scrolls a focused field into view only for keyboard focus", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		const dialog = await openCreateDialog(user);
-		const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
-		scrollIntoView.mockClear();
-
-		// Scrolling between pointerdown and pointerup would lose the click.
-		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
-		expect(scrollIntoView).not.toHaveBeenCalled();
-		await user.tab();
-		expect(scrollIntoView).toHaveBeenCalled();
-	});
-
 	it("defaults to UTC when the browser reports an unknown zone", async () => {
 		const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
 		vi.spyOn(
@@ -1296,7 +1322,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		await waitFor(() => {
 			expect(
 				within(dialog).getByRole("region", { name: "Upcoming runs" }),
@@ -1304,12 +1330,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it.each([
-		{ trigger: "Schedule", warnsOnLeave: false },
-		{ trigger: "Webhook", warnsOnLeave: true },
-	])(
+	it.each([{ trigger: "Schedule" }, { trigger: "Webhook" }])(
 		"keeps the editor open while a $trigger save is pending",
-		async ({ trigger, warnsOnLeave }) => {
+		async ({ trigger }) => {
 			const user = userEvent.setup();
 			setupEditor();
 			let releaseSave = () => {};
@@ -1337,12 +1360,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				).toBeDisabled();
 			});
 			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
-			await user.keyboard("{Escape}");
-			expect(screen.getByRole("dialog")).toBe(dialog);
-			// Only a webhook create carries a one-time secret worth guarding.
-			const unload = new Event("beforeunload", { cancelable: true });
-			window.dispatchEvent(unload);
-			expect(unload.defaultPrevented).toBe(warnsOnLeave);
 			releaseSave();
 		},
 	);
@@ -1362,7 +1379,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		await user.click(
 			await within(dialog).findByRole("combobox", {
 				name: `Model, ${mockModel.display_name}`,
@@ -1378,7 +1395,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).toBeNull();
+			expect(screen.queryByRole("form")).toBeNull();
 		});
 		expect(updateBodies).toEqual([]);
 	});
@@ -1398,7 +1415,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("form");
 		await user.click(
 			await within(dialog).findByRole("combobox", { name: "Reasoning effort" }),
 		);
@@ -1424,7 +1441,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const { updateBodies } = setupEditor({ automations: [automation] });
 
 			await openRowAction(user, automation.name, "Edit");
-			const dialog = await screen.findByRole("dialog");
+			const dialog = await screen.findByRole("form");
 			await pickChat(user, dialog, mockOtherChat.title);
 			await user.click(
 				within(dialog).getByRole("button", { name: saveButtonName }),
@@ -1451,7 +1468,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			);
 
 			await openRowAction(user, MockChatAutomation.name, "Edit");
-			const dialog = await screen.findByRole("dialog");
+			const dialog = await screen.findByRole("form");
 			await waitFor(() => {
 				expect(
 					within(dialog).getByRole("button", { name: "Chat" }),
@@ -1497,7 +1514,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			);
 
 			await openRowAction(user, MockChatAutomation.name, "Edit");
-			const dialog = await screen.findByRole("dialog");
+			const dialog = await screen.findByRole("form");
 			const name = within(dialog).getByLabelText(/^Name/);
 			await user.clear(name);
 			await user.type(name, "Renamed");
@@ -1535,24 +1552,39 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
 			).toBeNull();
 			await openRowAction(user, automation.name, "View");
-			const dialog = await screen.findByRole("dialog", {
-				name: automation.name,
-			});
+			await screen.findByRole("heading", { level: 1, name: automation.name });
 			// The viewer reads a summary, so there is nothing to edit or save.
-			expect(within(dialog).queryByRole("textbox")).toBeNull();
+			expect(screen.queryByRole("form")).toBeNull();
+			expect(screen.queryByRole("textbox")).toBeNull();
 			expect(
-				within(dialog).queryByRole("button", { name: saveButtonName }),
+				screen.queryByRole("button", { name: "Rotate secret" }),
 			).toBeNull();
-			expect(
-				within(dialog).queryByRole("button", { name: "Rotate secret" }),
-			).toBeNull();
-			await user.click(within(dialog).getByRole("button", { name: "Close" }));
-
-			await waitFor(() => {
-				expect(screen.queryByRole("dialog")).toBeNull();
-			});
+			await user.click(
+				screen.getByRole("link", { name: "Back to automations" }),
+			);
+			await screen.findByRole("table", { name: "Automations" });
 			expect(updateBodies).toEqual([]);
 			expect(chatLookups).toEqual([]);
+		},
+	);
+
+	it.each([
+		{ button: "Save and enable", updates: [] },
+		{ button: "Save as disabled", updates: [{ enabled: false }] },
+	])(
+		"creates a schedule with $button and returns to the list",
+		async ({ button, updates }) => {
+			const user = userEvent.setup();
+			const { createBodies, updateBodies, router } = setupEditor();
+			const form = await openCreateDialog(user);
+			await pickChat(user, form, mockTargetChat.title);
+			await user.click(within(form).getByRole("button", { name: button }));
+
+			await waitFor(() => {
+				expect(router.state.location.pathname).toBe("/agents/automations");
+			});
+			expect(createBodies).toHaveLength(1);
+			expect(updateBodies).toEqual(updates);
 		},
 	);
 
@@ -1561,9 +1593,8 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		const { updateBodies } = setupEditor();
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
 		await user.click(
-			within(dialog).getByRole("switch", {
+			await screen.findByRole("switch", {
 				name: `Enable ${MockChatAutomation.name}`,
 			}),
 		);
@@ -1582,48 +1613,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await openRowAction(user, mockAutomation.name, "View");
-		const dialog = await screen.findByRole("dialog");
 		await user.click(
-			within(dialog).getByRole("switch", {
+			await screen.findByRole("switch", {
 				name: `Enable ${mockAutomation.name}`,
 			}),
 		);
 
 		expect(updateBodies).toEqual([]);
-	});
-
-	it("asks before Escape discards an edited form", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-
-		await openRowAction(user, MockChatAutomation.name, "Edit");
-		const dialog = await screen.findByRole("dialog");
-		await user.type(within(dialog).getByLabelText(/^Name/), " v2");
-		await user.keyboard("{Escape}");
-		const confirm = await screen.findByRole("dialog", {
-			name: "Discard unsaved changes?",
-		});
-		await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
-
-		expect(within(dialog).getByLabelText(/^Name/)).toHaveValue(
-			`${MockChatAutomation.name} v2`,
-		);
-	});
-
-	it("returns focus to the button that opened the editor", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		const newButton = await screen.findByRole("button", {
-			name: "Create automation",
-		});
-
-		await user.click(newButton);
-		await screen.findByRole("dialog");
-		await user.keyboard("{Escape}");
-
-		await waitFor(() => {
-			expect(newButton).toHaveFocus();
-		});
 	});
 });
 
@@ -1666,7 +1662,7 @@ const dismissSecret = async (
 
 const openWebhookEditor = async (user: ReturnType<typeof userEvent.setup>) => {
 	await openRowAction(user, mockWebhookAutomation.name, "Edit");
-	return screen.findByRole("dialog");
+	return screen.findByRole("form");
 };
 
 const confirmRotate = async (
@@ -1753,12 +1749,10 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 				within(secretDialog).getByRole("button", { name: "Copy endpoint" }),
 			).toHaveFocus();
 		});
-		expect(router.state.location.pathname).toBe("/");
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
-			expect(
-				screen.getByRole("button", { name: "Create automation" }),
-			).toHaveFocus();
+			expect(router.state.location.pathname).toBe("/agents/automations");
 		});
 	});
 
@@ -1858,10 +1852,6 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 				{ name: "Stay" },
 			),
 		);
-		// Save is disabled, so focus returns to the editor around it.
-		await waitFor(() => {
-			expect(dialog).toHaveFocus();
-		});
 		void router.navigate("/agents");
 		await screen.findByRole("dialog", { name: leaveName });
 		releaseSave();
@@ -1870,7 +1860,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(screen.queryByRole("dialog", { name: leaveName })).toBeNull();
 		});
-		expect(router.state.location.pathname).toBe("/");
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
 	});
 
 	it("re-enables the editor when a webhook create fails while the list refetches", async () => {
@@ -1897,9 +1887,6 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(dialog).getByRole("button", { name: saveButtonName }),
 		).toBeEnabled();
-		const unload = new Event("beforeunload", { cancelable: true });
-		window.dispatchEvent(unload);
-		expect(unload.defaultPrevented).toBe(false);
 	});
 
 	it("follows a list refetch without resetting the user's input", async () => {
@@ -2021,7 +2008,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(rotatingButton).toHaveFocus();
 		});
-		expect(router.state.location.pathname).toBe("/");
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
 		releaseRotate();
 
 		const secretDialog = await screen.findByRole("dialog", {

@@ -35,6 +35,8 @@ import {
 type AutomationRowProps = {
 	automation: ChatAutomation;
 	isOwner: boolean;
+	/** The owner and organization admins can delete an automation. */
+	canDelete: boolean;
 	/** Stacks the row into Name, Enabled and Actions cells for narrow screens. */
 	compact: boolean;
 	isUpdating: boolean;
@@ -194,7 +196,13 @@ const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
 						: "Owner unavailable"}
 				</span>
 			)}
-			{automation.created_by_chat ? (
+			{automation.created_by_chat &&
+			automation.created_by_chat.id === automation.target_chat_id ? (
+				// The Runs in column links the same chat, so name it only once.
+				<span className="text-xs text-content-secondary">
+					Created by the agent in this chat
+				</span>
+			) : automation.created_by_chat ? (
 				// Inline text, not flex, so a long title wraps as one sentence.
 				<span className="text-xs text-content-secondary">
 					Created by the agent in{" "}
@@ -222,6 +230,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 	({
 		automation,
 		isOwner,
+		canDelete,
 		compact,
 		isUpdating,
 		isRunning,
@@ -296,7 +305,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 						>
 							{isOwner ? "Edit" : "View"}
 						</DropdownMenuItem>
-						{isOwner && (
+						{canDelete && (
 							<>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem

@@ -11,6 +11,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
+import { AutomationEventText } from "./AutomationEventText";
 import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
@@ -32,9 +33,14 @@ const renderUserInlineBlock = (
 	inlineParts: readonly InlinePart[],
 	block: UserInlineRenderBlock,
 	index: number,
+	isAutomationMessage: boolean,
 ) => {
 	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
+		return isAutomationMessage ? (
+			<AutomationEventText key={index} text={block.text} />
+		) : (
+			<Fragment key={index}>{block.text}</Fragment>
+		);
 	}
 
 	return (
@@ -51,10 +57,13 @@ const renderUserInlineBlock = (
 	);
 };
 
-const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+const renderUserInlineContent = (
+	blocks: readonly UserInlineRenderBlock[],
+	isAutomationMessage: boolean,
+) => {
 	const inlineParts = getInlineParts(blocks);
 	return blocks.map((block, index) =>
-		renderUserInlineBlock(inlineParts, block, index),
+		renderUserInlineBlock(inlineParts, block, index, isAutomationMessage),
 	);
 };
 
@@ -64,7 +73,16 @@ export const UserMessageContent: React.FC<{
 	isEditing: boolean;
 	onImageClick: (src: string) => void;
 	onTextFileClick: (attachment: PreviewTextAttachment) => void;
-}> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
+	/** Collapses webhook event data in a message an automation sent. */
+	isAutomationMessage?: boolean;
+}> = ({
+	displayState,
+	markdown,
+	isEditing,
+	onImageClick,
+	onTextFileClick,
+	isAutomationMessage = false,
+}) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -79,9 +97,16 @@ export const UserMessageContent: React.FC<{
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
-										: markdown || ""}
+									{displayState.userInlineContent.length > 0 ? (
+										renderUserInlineContent(
+											displayState.userInlineContent,
+											isAutomationMessage,
+										)
+									) : isAutomationMessage ? (
+										<AutomationEventText text={markdown || ""} />
+									) : (
+										markdown || ""
+									)}
 								</span>
 							)}
 						</div>
