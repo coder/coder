@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { ChatMessageInputRef } from "../components/ChatMessageInput/ChatMessageInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";

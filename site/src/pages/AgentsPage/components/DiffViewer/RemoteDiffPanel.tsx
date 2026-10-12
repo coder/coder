@@ -16,7 +16,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
-import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { ChatMessageInputRef } from "../components/ChatMessageInput/ChatMessageInput";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
