@@ -45,8 +45,8 @@ type ManagerOptions struct {
 	// It is ignored when the resolver already has an MCP provider
 	// (e.g. a test injecting one via Resolver).
 	MCPCatalog func() []MCPServerStatus
-	// MCPReconnect, when non-nil, runs at the start of Resync to
-	// reconnect MCP servers that failed or stopped responding.
+	// MCPReconnect runs at the start of Resync to reconnect MCP
+	// servers that failed or stopped responding.
 	MCPReconnect func(context.Context) error
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
