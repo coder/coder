@@ -20,13 +20,31 @@ ALTER TABLE chat_projects ADD COLUMN deleted boolean NOT NULL DEFAULT false;
 
 COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row, and its memories by cascade, once none are left.';
 
--- Sub-chats belong to their root's project, so project_id alone records
--- membership.
+-- Project queries match sub-chats on project_id alone. The trigger also
+-- covers sub-chats inserted by older replicas during a rolling upgrade.
+CREATE FUNCTION set_sub_chat_project_id() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF COALESCE(NEW.root_chat_id, NEW.parent_chat_id) IS NOT NULL THEN
+        SELECT project_id INTO NEW.project_id
+        FROM chats
+        WHERE id = COALESCE(NEW.root_chat_id, NEW.parent_chat_id);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_set_sub_chat_project_id
+    BEFORE INSERT ON chats
+    FOR EACH ROW
+    EXECUTE FUNCTION set_sub_chat_project_id();
+
 UPDATE chats
 SET project_id = root.project_id
 FROM chats root
-WHERE chats.root_chat_id = root.id
+WHERE root.id = COALESCE(chats.root_chat_id, chats.parent_chat_id)
     AND root.project_id IS NOT NULL
     AND chats.project_id IS NULL;
 
-COMMENT ON COLUMN chats.project_id IS 'Project the chat belongs to. Sub-chats carry their root chat''s project.';
+COMMENT ON COLUMN chats.project_id IS 'Sub-chats carry their root chat''s project.';

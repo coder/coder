@@ -2,6 +2,8 @@ package httpmw
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -47,16 +49,16 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 			// removes them.
 			if chat.ProjectID.Valid {
 				//nolint:gocritic // The chat was authorized by the fetch above.
-				inDeletedProject, err := db.IsChatInDeletedChatProject(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				_, err := db.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
+				if errors.Is(err, sql.ErrNoRows) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Internal error fetching chat.",
 						Detail:  err.Error(),
 					})
-					return
-				}
-				if inDeletedProject {
-					httpapi.ResourceNotFound(rw)
 					return
 				}
 			}

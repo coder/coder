@@ -2166,14 +2166,13 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		if parent != nil {
 			seed.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 			seed.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
-			seed.ProjectID = parent.ProjectID
 		}
 		return dbgen.Chat(t, db, seed)
 	}
 	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
 
 	ownerRoot := newChat(owner.ID, inProject, nil)
-	ownerChild := newChat(owner.ID, uuid.NullUUID{}, &ownerRoot)
+	ownerChild := newChat(owner.ID, inProject, &ownerRoot)
 	shareeRoot := newChat(sharee.ID, inProject, nil)
 	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
 	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
@@ -2181,7 +2180,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	projectChatIDs := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
 
-	chats, err := db.GetChatProjectChatFamilies(ctx, project.ID)
+	chats, err := db.GetChatsByProjectID(ctx, project.ID)
 	require.NoError(t, err)
 	ids := make([]uuid.UUID, 0, len(chats))
 	for _, chat := range chats {
@@ -2294,15 +2293,6 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listed)
 	}
 
-	for _, id := range projectChatIDs {
-		inDeleted, err := db.IsChatInDeletedChatProject(ctx, id)
-		require.NoError(t, err)
-		require.True(t, inDeleted)
-	}
-	inDeleted, err := db.IsChatInDeletedChatProject(ctx, unrelated.ID)
-	require.NoError(t, err)
-	require.False(t, inDeleted)
-
 	for _, archived := range []sql.NullBool{{}, {Bool: true, Valid: true}} {
 		rows, err := db.GetChats(ctx, database.GetChatsParams{Archived: archived})
 		require.NoError(t, err)
@@ -2335,9 +2325,9 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	// Retention may delete a root before its sub-chats.
 	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", ownerRoot.ID)
 	require.NoError(t, err)
-	inDeleted, err = db.IsChatInDeletedChatProject(ctx, ownerChild.ID)
+	orphan, err := db.GetChatByID(ctx, ownerChild.ID)
 	require.NoError(t, err)
-	require.True(t, inDeleted, "an orphaned sub-chat stays in its deleted project")
+	require.Equal(t, inProject, orphan.ProjectID, "an orphaned sub-chat stays in its deleted project")
 
 	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
 	require.NoError(t, err)
@@ -2352,9 +2342,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 }
 
 // TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation verifies that a
-// project delete passes the project lock while a sub-chat insert holds the
-// project_id foreign key lock, and that LockChatProjectRootChats waits for
-// the insert holding the root, so the archive includes the committed child.
+// project delete acquires the project lock without waiting while a sub-chat
+// insert holds the project_id foreign key lock, and that
+// LockChatProjectRootChats waits for the insert holding the root, so the
+// archive includes the committed child.
 func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2406,17 +2397,18 @@ func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 			return tx.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 		}, nil)
 	}()
+	var rootWaits, projectWaits int
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		var waiting int
 		err := sqlDB.QueryRowContext(ctx, `
-SELECT COUNT(*)
+SELECT
+	COUNT(*) FILTER (WHERE query LIKE '%-- name: LockChatProjectRootChats%'),
+	COUNT(*) FILTER (WHERE query LIKE '%-- name: GetChatProjectByIDForUpdate%')
 FROM pg_stat_activity
-WHERE datname = current_database()
-	AND wait_event_type = 'Lock'
-	AND query LIKE '%-- name: LockChatProjectRootChats%'
-`).Scan(&waiting)
-		return err == nil && waiting == 1
+WHERE datname = current_database() AND wait_event_type = 'Lock'
+`).Scan(&rootWaits, &projectWaits)
+		return err == nil && (rootWaits == 1 || projectWaits > 0)
 	}, testutil.IntervalFast, "wait for the root lock to block on the child insert")
+	require.Zero(t, projectWaits, "GetChatProjectByIDForUpdate must lock FOR NO KEY UPDATE so it does not wait on the insert's foreign key lock")
 	require.NoError(t, childTx.Commit())
 	require.NoError(t, testutil.TryReceive(ctx, t, deleteErr))
 
