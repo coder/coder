@@ -3084,81 +3084,6 @@ describe("parse errors", () => {
 			{ type: "response", text: "partial response" },
 		]);
 	});
-
-	it("continues processing after parse error", async () => {
-		immediateAnimationFrame();
-
-		const chatID = "chat-parse-recover";
-		const existingMessage = buildMessage(chatID, 1, "user", "hello");
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
-		mockNewestPage(chatID, {
-			messages: [existingMessage],
-			queued_messages: [],
-			has_more: false,
-		});
-		const { result } = renderHook(
-			() => {
-				const { store } = useChatStore({
-					chatID,
-					setChatErrorReason,
-					clearChatErrorReason,
-				});
-				return {
-					streamState: useChatSelector(store, selectStreamState),
-					streamError: useChatSelector(store, selectStreamError),
-				};
-			},
-			{ wrapper },
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 0);
-		});
-
-		// Trigger a parse error first.
-		act(() => {
-			mockSocket.emitParseError();
-		});
-
-		await waitFor(() => {
-			expect(result.current.streamError).toEqual({
-				kind: "generic",
-				message: "Failed to parse chat stream update.",
-			});
-		});
-
-		// Send a valid message_part after the parse error.
-		act(() => {
-			mockSocket.emitData({
-				type: "message_part",
-				chat_id: chatID,
-				message_part: {
-					role: "assistant",
-					part: { type: "text", text: "recovered" },
-				},
-			});
-		});
-
-		// The stream should process the new part normally.
-		await waitFor(() => {
-			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "recovered" },
-			]);
-		});
-
-		// streamError is sticky and is not cleared by valid messages.
-		expect(result.current.streamError).toEqual({
-			kind: "generic",
-			message: "Failed to parse chat stream update.",
-		});
-	});
 });
 
 describe("chat stream syncs", () => {
@@ -3283,6 +3208,56 @@ describe("chat stream syncs", () => {
 			]);
 		});
 		expect(result.current.messageIDs).toEqual([1, 2]);
+	});
+
+	it("resyncs from the last checkpoint when a frame fails to parse", async () => {
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			messages: [buildMessage(chatID, 1, "user", "prompt")],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 4,
+		});
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 2, "assistant", "answer"),
+				},
+			]);
+			sockets[0].emitParseError();
+		});
+		// The lost frame may belong to the same sync, so the client closes
+		// the connection instead of applying the sync without it.
+		expect(sockets[0].close).toHaveBeenCalled();
+		expect(result.current.error).toMatchObject({
+			message: "Failed to parse chat stream update.",
+		});
+		act(() => {
+			sockets[0].emitClose();
+		});
+
+		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+		act(() => {
+			sockets[1].emitOpen();
+			sockets[1].emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 2, "assistant", "answer"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+				checkpoint(5),
+			]);
+		});
+		expect(result.current.messageIDs).toEqual([1, 2]);
+		expect(result.current.error).toBeNull();
 	});
 
 	it("takes the turn from each checkpoint", async () => {
