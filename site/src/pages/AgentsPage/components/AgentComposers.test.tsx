@@ -582,82 +582,92 @@ describe("ChatComposer", () => {
 		);
 	});
 
-	it("refuses workspace files while a send is pending", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+	it.each([
+		{
+			name: "dropped files while a send is pending",
+			isLoading: true,
+			isReadOnly: false,
+			paste: false,
+			message:
+				"Wait for the current message to finish sending, then add the file again.",
+		},
+		{
+			name: "pasted files while a send is pending",
+			isLoading: true,
+			isReadOnly: false,
+			paste: true,
+			message:
+				"Wait for the current message to finish sending, then add the file again.",
+		},
+		{
+			name: "dropped files while read-only",
+			isLoading: false,
+			isReadOnly: true,
+			paste: false,
+			message: undefined,
+		},
+	])(
+		"refuses $name without losing the draft",
+		async ({ isLoading, isReadOnly, paste, message }) => {
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onAttach = vi.fn();
+			const onWorkspaceAttach = vi.fn();
+			const toastError = vi.spyOn(toast, "error").mockClear();
 
-		renderInput(
-			<ChatComposer
-				{...withBindings({
-					onSend: vi.fn(),
-					files: {
-						attachments: [],
-						onAttach,
-						workspaceUploads: {
-							uploads: [],
-							onAttach: onWorkspaceAttach,
-							onRemove: vi.fn(),
+			renderInput(
+				<ChatComposer
+					{...withBindings({
+						files: {
+							attachments: [],
+							onAttach,
+							workspaceUploads: {
+								uploads: [],
+								onAttach: onWorkspaceAttach,
+								onRemove: vi.fn(),
+							},
 						},
-					},
-					isLoading: true,
-				})}
-			/>,
-		);
+						isLoading,
+						isReadOnly,
+						inputRef,
+						initialValue: "Existing draft",
+					})}
+				/>,
+			);
 
-		// The post-send reset would discard the chip after the bytes
-		// already landed, so the drop is refused with a wait message
-		// rather than the "attach a workspace" one.
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-			},
-		});
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Existing draft"),
+			);
+			const textbox = screen.getByRole("textbox", { name: "Chat message" });
+			const files = [
+				createMockFile("dataset.zip", "application/zip"),
+				createMockFile("notes.txt", "text/plain"),
+			];
 
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"Wait for the current message to finish sending, then add the file again.",
-		);
-	});
+			if (paste) {
+				fireEvent.paste(textbox, {
+					clipboardData: { files, types: ["Files"], getData: () => "" },
+				});
+			} else {
+				fireEvent.drop(textbox, { dataTransfer: { files } });
+			}
 
-	it("refuses pasted workspace files while a send is pending", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+			let expectedToasts: string[][] = [];
 
-		renderInput(
-			<ChatComposer
-				{...withBindings({
-					onSend: vi.fn(),
-					files: {
-						attachments: [],
-						onAttach,
-						workspaceUploads: {
-							uploads: [],
-							onAttach: onWorkspaceAttach,
-							onRemove: vi.fn(),
-						},
-					},
-					isLoading: true,
-				})}
-			/>,
-		);
+			if (message !== undefined) {
+				expectedToasts = [[message]];
 
-		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
-			clipboardData: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-				types: ["Files"],
-				getData: () => "",
-			},
-		});
+				// Paste attaches clipboard files one at a time.
+				if (paste) {
+					expectedToasts = files.map(() => [message]);
+				}
+			}
 
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"Wait for the current message to finish sending, then add the file again.",
-		);
-	});
+			expect(onWorkspaceAttach).not.toHaveBeenCalled();
+			expect(onAttach).not.toHaveBeenCalled();
+			expect(toastError.mock.calls).toEqual(expectedToasts);
+			expect(inputRef.current?.getValue()).toBe("Existing draft");
+		},
+	);
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
 		const onAttach = vi.fn();

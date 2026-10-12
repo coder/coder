@@ -166,7 +166,7 @@ export function useComposerRuntime(
 			canSend,
 			showSendButton,
 			showStopButton,
-			canAttachFiles: bindings.files.onAttach !== undefined,
+			canAttachFiles: !isReadOnly && bindings.files.onAttach !== undefined,
 			files: {
 				attachments: bindings.files.attachments,
 				uploadStates: bindings.files.uploadStates,

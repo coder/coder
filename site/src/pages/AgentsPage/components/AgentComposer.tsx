@@ -78,7 +78,7 @@ function Editor({
 			onFilePaste={
 				state.canAttachFiles ? (file) => actions.attachFiles([file]) : undefined
 			}
-			acceptFilePasteWhileDisabled={state.isLoading && !state.isReadOnly}
+			acceptFilePasteWhileDisabled={state.isLoading}
 			onPaste={actions.resetPromptCycle}
 			aria-label="Chat message"
 			aria-describedby={state.warning ? meta.warningId : undefined}

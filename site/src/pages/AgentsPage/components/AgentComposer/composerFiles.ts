@@ -9,7 +9,7 @@ import type { AgentComposerBindings } from "./context";
 
 const workspaceRequiredAttachmentMessage =
 	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
-const workspaceUploadPendingSendMessage =
+const uploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 /** Routes files to their upload owner and computes submission readiness. */
@@ -17,7 +17,7 @@ export function composerFiles(
 	bindings: AgentComposerBindings,
 	resetPromptCycle: () => void,
 ) {
-	const { isDisabled, isLoading = false, files } = bindings;
+	const { isDisabled, isReadOnly, isLoading, files } = bindings;
 	const { attachments, onAttach, uploadStates, workspaceUploads } = files;
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 
@@ -40,14 +40,10 @@ export function composerFiles(
 	});
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
-	// disabled (read-only) composer must not route files to them. The
-	// same holds while a send is pending: the post-send reset would drop
-	// the chip after the bytes already landed in the workspace.
-	const hasWorkspaceAttach = workspaceUploads?.onAttach !== undefined;
-	const workspaceAttachBlockedBySend = isLoading && hasWorkspaceAttach;
+	// disabled composer must not route files to them.
 	let onWorkspaceAttach: ((files: File[]) => void) | undefined;
 
-	if (!isDisabled && !isLoading) {
+	if (!isDisabled) {
 		onWorkspaceAttach = workspaceUploads?.onAttach;
 	}
 
@@ -55,12 +51,23 @@ export function composerFiles(
 	// upload path by declared MIME type. Unknown or octet-stream files
 	// stay on the attachment path where the server classifies bytes.
 	const attachFiles = (incoming: File[]): boolean => {
+		if (isReadOnly) {
+			return false;
+		}
+
+		// The post-send reset clears every chat and workspace file, so files
+		// added while a send is pending would be dropped after uploading.
+		if (isLoading) {
+			toast.error(uploadPendingSendMessage);
+			return false;
+		}
+
 		const attachable: File[] = [];
 		const forWorkspace: File[] = [];
 		const rejected: File[] = [];
 		// Workspace-routable files that arrived while the workspace
 		// upload feature is wired but currently unavailable (no
-		// connected agent, read-only composer, pending send). They need
+		// connected agent, disabled composer). They need
 		// a workspace, not a different file type, so they get their own
 		// toast.
 		const workspaceRequired: File[] = [];
@@ -80,15 +87,10 @@ export function composerFiles(
 		}
 
 		if (workspaceRequired.length > 0) {
-			let message =
+			toast.error(
 				workspaceUploads?.unavailableMessage ??
-				workspaceRequiredAttachmentMessage;
-
-			if (workspaceAttachBlockedBySend) {
-				message = workspaceUploadPendingSendMessage;
-			}
-
-			toast.error(message);
+					workspaceRequiredAttachmentMessage,
+			);
 		}
 
 		if (rejected.length > 0) {
