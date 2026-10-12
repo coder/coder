@@ -168,7 +168,7 @@ Read more about [using Antigravity with your workspace](./antigravity.md).
 ## Claude Desktop
 
 [Claude Desktop](https://claude.com/download) is Anthropic's desktop app for Claude.
-Once the Coder CLI is installed and configured, your running workspaces appear as SSH targets.
+Once the Coder CLI is installed and logged in, your running workspaces appear in Claude Desktop.
 
 Read more about [using Claude Desktop with your workspace](./claude-desktop.md).
 
