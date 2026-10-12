@@ -63,12 +63,19 @@ const (
 	// organization, or not readable by the owner, or its provider is
 	// disabled or deleted. It is not evaluated while the owner is inactive.
 	ChatAutomationPausedReasonModelUnavailable ChatAutomationPausedReason = "model_unavailable"
+	// ChatAutomationPausedReasonOwnerNotMember means the owner is no longer
+	// a member of the automation's organization. It is not reported while
+	// the owner is inactive.
+	ChatAutomationPausedReasonOwnerNotMember ChatAutomationPausedReason = "owner_not_member"
 )
 
 // ChatAutomationChat identifies a chat that a chat automation refers to.
+// Archived lets clients show an archived target, which refuses runs,
+// without reading the chat.
 type ChatAutomationChat struct {
-	ID    uuid.UUID `json:"id" format:"uuid"`
-	Title string    `json:"title"`
+	ID       uuid.UUID `json:"id" format:"uuid"`
+	Title    string    `json:"title"`
+	Archived bool      `json:"archived"`
 }
 
 // ChatAutomation is a webhook or scheduled automation that delivers a
@@ -126,7 +133,7 @@ type ChatAutomation struct {
 	// It is an advisory snapshot: admission stays authoritative, and an
 	// empty list does not guarantee that a run is accepted, because lost
 	// chat permissions, busy chats, and full queues are not reported.
-	PausedReasons []ChatAutomationPausedReason `json:"paused_reasons,omitempty" enums:"owner_inactive,experiment_disabled,target_unavailable,model_unavailable"`
+	PausedReasons []ChatAutomationPausedReason `json:"paused_reasons,omitempty" enums:"owner_inactive,experiment_disabled,target_unavailable,model_unavailable,owner_not_member"`
 	// ScheduleIntervalBelowMinimum is true when the schedule runs more
 	// often than the deployment's minimum interval between runs. Such
 	// automations keep running, but a change to their schedule must meet

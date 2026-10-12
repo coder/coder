@@ -49,6 +49,10 @@ const (
 	// publishes at once, so an occurrence that waits for a lock or a slow
 	// hook does not hold back the others past the grace window.
 	automationScheduleConcurrency = 8
+	// automationScheduleReleaseAttempts bounds the tries of a claim
+	// release. A release that fails leaves the lease in place past the
+	// grace window, so one transient error would miss the occurrence.
+	automationScheduleReleaseAttempts = 3
 )
 
 var (
@@ -310,15 +314,24 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		return
 	}
 	// release drops this call's claim after a publish that did not move
-	// the cursor.
+	// the cursor. The release is guarded and idempotent, so it is retried
+	// while the occurrence is still within the grace window.
 	release := func() {
-		if ctx.Err() != nil {
-			// The server is stopping, so a release would fail. The claim
-			// expires on its own and the occurrence is missed.
-			return
-		}
-		if err := releaseAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedUntil); err != nil {
-			logger.Warn(ctx, "release chat automation schedule occurrence", slog.Error(err))
+		for attempt := 1; ; attempt++ {
+			if ctx.Err() != nil {
+				// The server is stopping, so a release would fail. The
+				// claim expires on its own and the occurrence is missed.
+				return
+			}
+			err := releaseAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedUntil)
+			if err == nil {
+				return
+			}
+			if attempt >= automationScheduleReleaseAttempts || p.clock.Now().Sub(occurrence.cursor) > automationScheduleGrace {
+				logger.Warn(ctx, "release chat automation schedule occurrence", slog.F("attempts", attempt), slog.Error(err))
+				return
+			}
+			logger.Debug(ctx, "retry chat automation schedule occurrence release", slog.F("attempt", attempt), slog.Error(err))
 		}
 	}
 	result, err := p.publishAutomation(ctx, automationPublish{

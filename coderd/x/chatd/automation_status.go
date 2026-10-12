@@ -62,7 +62,9 @@ func (p *Server) AutomationPausedReasons(ctx context.Context, rows []database.Ch
 		targetUnavailable := row.TargetMode == database.ChatAutomationTargetModeExistingChat && !status.TargetAvailable
 
 		modelUnavailable := false
-		if row.TargetMode == database.ChatAutomationTargetModeNewChat && !ownerInactive {
+		// An owner who left the organization cannot read its models
+		// either; owner_not_member is the cause to report.
+		if row.TargetMode == database.ChatAutomationTargetModeNewChat && !ownerInactive && status.OwnerMember {
 			owner, ok := subjects[row.OwnerID]
 			if !ok {
 				owner.subject, err = automationOwnerSubject(ctx, p.db, row.OwnerID)
@@ -107,6 +109,9 @@ func (p *Server) AutomationPausedReasons(ctx context.Context, rows []database.Ch
 		}
 		if modelUnavailable {
 			rowReasons = append(rowReasons, codersdk.ChatAutomationPausedReasonModelUnavailable)
+		}
+		if !ownerInactive && !status.OwnerMember {
+			rowReasons = append(rowReasons, codersdk.ChatAutomationPausedReasonOwnerNotMember)
 		}
 		if len(rowReasons) > 0 {
 			reasons[row.ID] = rowReasons

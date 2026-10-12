@@ -95,7 +95,7 @@ func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAut
 		return nil, xerrors.Errorf("get chat automation chats: %w", err)
 	}
 	for _, chat := range found {
-		chats[chat.ID] = &codersdk.ChatAutomationChat{ID: chat.ID, Title: chat.Title}
+		chats[chat.ID] = &codersdk.ChatAutomationChat{ID: chat.ID, Title: chat.Title, Archived: chat.Archived}
 	}
 	return chats, nil
 }

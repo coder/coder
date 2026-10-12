@@ -2277,10 +2277,13 @@ export interface ChatAutomation {
 // From codersdk/chatautomations.go
 /**
  * ChatAutomationChat identifies a chat that a chat automation refers to.
+ * Archived lets clients show an archived target, which refuses runs,
+ * without reading the chat.
  */
 export interface ChatAutomationChat {
 	readonly id: string;
 	readonly title: string;
+	readonly archived: boolean;
 }
 
 // From codersdk/chatautomations.go
@@ -2307,12 +2310,14 @@ export type ChatAutomationPausedReason =
 	| "experiment_disabled"
 	| "model_unavailable"
 	| "owner_inactive"
+	| "owner_not_member"
 	| "target_unavailable";
 
 export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
 	"experiment_disabled",
 	"model_unavailable",
 	"owner_inactive",
+	"owner_not_member",
 	"target_unavailable",
 ];
 

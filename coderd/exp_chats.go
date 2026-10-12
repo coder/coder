@@ -78,8 +78,9 @@ const (
 	chatStreamBatchSize = 256
 
 	// maxChatRequestBodyBytes is the maximum JSON body size for chat
-	// creation and tool result requests.
-	maxChatRequestBodyBytes = 256 * 1024
+	// creation, tool result, and automation webhook event requests. chatd
+	// caps webhook event data at the same value.
+	maxChatRequestBodyBytes = chatd.MaxChatRequestBodyBytes
 
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window

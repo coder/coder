@@ -81,14 +81,21 @@ FOR UPDATE;
 
 -- name: GetChatAutomationRunStatusesByIDs :many
 -- Returns, for each given automation, whether its owner is active and
--- whether its existing_chat target chat is usable, with the same rules
--- that GetDueChatAutomationSchedules and publishing apply. Missing ids
--- are not returned.
+-- still a member of the automation's organization, and whether its
+-- existing_chat target chat is usable, with the same rules that
+-- GetDueChatAutomationSchedules and publishing apply. Publishing refuses
+-- an owner who left the organization through RBAC: org-scoped chat
+-- permissions require membership. Missing ids are not returned.
 SELECT
     chat_automations.id,
     chat_automations.organization_id,
     chat_automations.owner_id,
     (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    EXISTS (
+        SELECT 1 FROM organization_members
+        WHERE organization_members.user_id = chat_automations.owner_id
+            AND organization_members.organization_id = chat_automations.organization_id
+    )::boolean AS owner_member,
     (
         chat_automations.target_mode <> 'existing_chat'
         OR (

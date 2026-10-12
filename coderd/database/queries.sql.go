@@ -5753,6 +5753,11 @@ SELECT
     chat_automations.organization_id,
     chat_automations.owner_id,
     (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    EXISTS (
+        SELECT 1 FROM organization_members
+        WHERE organization_members.user_id = chat_automations.owner_id
+            AND organization_members.organization_id = chat_automations.organization_id
+    )::boolean AS owner_member,
     (
         chat_automations.target_mode <> 'existing_chat'
         OR (
@@ -5776,13 +5781,16 @@ type GetChatAutomationRunStatusesByIDsRow struct {
 	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
 	OwnerID         uuid.UUID `db:"owner_id" json:"owner_id"`
 	OwnerActive     bool      `db:"owner_active" json:"owner_active"`
+	OwnerMember     bool      `db:"owner_member" json:"owner_member"`
 	TargetAvailable bool      `db:"target_available" json:"target_available"`
 }
 
 // Returns, for each given automation, whether its owner is active and
-// whether its existing_chat target chat is usable, with the same rules
-// that GetDueChatAutomationSchedules and publishing apply. Missing ids
-// are not returned.
+// still a member of the automation's organization, and whether its
+// existing_chat target chat is usable, with the same rules that
+// GetDueChatAutomationSchedules and publishing apply. Publishing refuses
+// an owner who left the organization through RBAC: org-scoped chat
+// permissions require membership. Missing ids are not returned.
 func (q *sqlQuerier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatAutomationRunStatusesByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatAutomationRunStatusesByIDs, pq.Array(ids))
 	if err != nil {
@@ -5797,6 +5805,7 @@ func (q *sqlQuerier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids 
 			&i.OrganizationID,
 			&i.OwnerID,
 			&i.OwnerActive,
+			&i.OwnerMember,
 			&i.TargetAvailable,
 		); err != nil {
 			return nil, err

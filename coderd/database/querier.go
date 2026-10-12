@@ -486,9 +486,11 @@ type sqlcQuerier interface {
 	// deleted automations are absent.
 	GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatAutomationReferencesByChatIDRow, error)
 	// Returns, for each given automation, whether its owner is active and
-	// whether its existing_chat target chat is usable, with the same rules
-	// that GetDueChatAutomationSchedules and publishing apply. Missing ids
-	// are not returned.
+	// still a member of the automation's organization, and whether its
+	// existing_chat target chat is usable, with the same rules that
+	// GetDueChatAutomationSchedules and publishing apply. Publishing refuses
+	// an owner who left the organization through RBAC: org-scoped chat
+	// permissions require membership. Missing ids are not returned.
 	GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatAutomationRunStatusesByIDsRow, error)
 	// Locks the given automations in ascending id order so concurrent
 	// lockers always acquire automation row locks in the same order.

@@ -181,6 +181,7 @@ Coder refuses its scheduled runs, **Run now**, and webhook deliveries until the 
 | `experiment_disabled` | The `chat-automations` experiment is off for the owner.                                                                                       |
 | `target_unavailable`  | The target chat is deleted or archived.                                                                                                       |
 | `model_unavailable`   | The model of a new-chat automation is deleted, turned off, or not available to the owner. Coder doesn't check it while the owner is inactive. |
+| `owner_not_member`    | The owner is no longer a member of the automation's organization. Coder doesn't report it while the owner is inactive.                        |
 
 The field is a snapshot, not a guarantee.
 A response without `paused_reasons` can still be refused, for example when the target chat is busy or its queue is full.

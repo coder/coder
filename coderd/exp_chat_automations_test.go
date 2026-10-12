@@ -612,6 +612,16 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(3), stored.ScheduleRevision)
 
+		// Disabling and re-enabling each start a new revision, so work
+		// observed before the disable is stale after the re-enable.
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
+		require.NoError(t, err)
+		stored, err = env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), schedule.Automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(5), stored.ScheduleRevision)
+
 		// An empty reasoning effort clears the override.
 		withEffort, err := env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{ReasoningEffort: ptr.Ref("high")})
 		require.NoError(t, err)
@@ -1218,6 +1228,13 @@ func TestChatAutomations(t *testing.T) {
 		got, err := env.owner.ChatAutomation(ctx, env.orgID, withCreator.ID)
 		require.NoError(t, err)
 		require.Equal(t, &codersdk.ChatAutomationChat{ID: unreadable.ID, Title: unreadable.Title}, got.TargetChat)
+
+		// An archived target is reported without a chat read.
+		_, err = env.db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), env.memberChat.ID)
+		require.NoError(t, err)
+		got, err = env.member.ChatAutomation(ctx, env.orgID, readable.ID)
+		require.NoError(t, err)
+		require.Equal(t, &codersdk.ChatAutomationChat{ID: env.memberChat.ID, Title: env.memberChat.Title, Archived: true}, got.TargetChat)
 	})
 
 	t.Run("OwnerDisplayData", func(t *testing.T) {
@@ -1283,6 +1300,11 @@ func TestChatAutomations(t *testing.T) {
 		require.Len(t, byID, 3)
 		require.Equal(t, leaver.ID, byID[ofLeaver.ID].OwnerID)
 		require.Nil(t, byID[ofLeaver.ID].Owner)
+		// Runs of an owner who left are refused, and the status says why.
+		require.Contains(t, byID[ofLeaver.ID].PausedReasons, codersdk.ChatAutomationPausedReasonOwnerNotMember)
+		require.Contains(t, byID[ofDeleted.ID].PausedReasons, codersdk.ChatAutomationPausedReasonOwnerInactive)
+		require.NotContains(t, byID[ofDeleted.ID].PausedReasons, codersdk.ChatAutomationPausedReasonOwnerNotMember)
+		require.Empty(t, byID[created.Automation.ID].PausedReasons)
 		require.Equal(t, deleted.ID, byID[ofDeleted.ID].OwnerID)
 		require.Nil(t, byID[ofDeleted.ID].Owner)
 	})

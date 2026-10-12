@@ -21271,7 +21271,8 @@ const docTemplate = `{
                             "owner_inactive",
                             "experiment_disabled",
                             "target_unavailable",
-                            "model_unavailable"
+                            "model_unavailable",
+                            "owner_not_member"
                         ],
                         "$ref": "#/definitions/codersdk.ChatAutomationPausedReason"
                     }
@@ -21362,6 +21363,9 @@ const docTemplate = `{
         "codersdk.ChatAutomationChat": {
             "type": "object",
             "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -21401,13 +21405,15 @@ const docTemplate = `{
                 "owner_inactive",
                 "experiment_disabled",
                 "target_unavailable",
-                "model_unavailable"
+                "model_unavailable",
+                "owner_not_member"
             ],
             "x-enum-varnames": [
                 "ChatAutomationPausedReasonOwnerInactive",
                 "ChatAutomationPausedReasonExperimentDisabled",
                 "ChatAutomationPausedReasonTargetUnavailable",
-                "ChatAutomationPausedReasonModelUnavailable"
+                "ChatAutomationPausedReasonModelUnavailable",
+                "ChatAutomationPausedReasonOwnerNotMember"
             ]
         },
         "codersdk.ChatAutomationReference": {

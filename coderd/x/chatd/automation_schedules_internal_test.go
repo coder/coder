@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -65,6 +66,19 @@ func (s *shiftedCursorStore) GetChatAutomationByID(ctx context.Context, id uuid.
 		row.ScheduleNextRunAt.Time = row.ScheduleNextRunAt.Time.Add(time.Minute)
 	}
 	return row, err
+}
+
+// failingReleaseStore fails the next failures claim releases.
+type failingReleaseStore struct {
+	database.Store
+	failures atomic.Int32
+}
+
+func (s *failingReleaseStore) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg database.ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	if s.failures.Add(-1) >= 0 {
+		return 0, xerrors.New("release failed")
+	}
+	return s.Store.ReleaseChatAutomationScheduleClaim(ctx, arg)
 }
 
 type automationsExperimentStore struct {
@@ -829,6 +843,103 @@ WHERE id = $1`, automation.ID, edited)
 		writes.fail.Store(false)
 		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("TransientReleaseErrorIsRetried", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reads := &shiftedCursorStore{}
+		releases := &failingReleaseStore{}
+		server := f.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+			reads.Store = store
+			releases.Store = reads
+			return releases
+		})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		f.advanceTo(ctx, t, due)
+
+		// The publish sees the claimed occurrence as stale, and the first
+		// two releases fail. The third one drops the claim, so the next
+		// scan within the grace window still accepts the occurrence.
+		row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		releases.failures.Store(automationScheduleReleaseAttempts - 1)
+		reads.shift.Store(true)
+		server.runAutomationOccurrence(ctx, row, f.clock.Now())
+		require.Zero(t, f.inputs(ctx, t))
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
+
+		reads.shift.Store(false)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Equal(t, 1, f.inputs(ctx, t))
+	})
+
+	t.Run("ReEnableInvalidatesInFlightOccurrence", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		// A publish observed this row before the disable.
+		observed, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+
+		// Disable and re-enable before the cursor is due: the re-enable
+		// computes the same cursor, but a new revision.
+		ownerCtx := f.asOwner(ctx, t)
+		_, _, err = server.UpdateAutomation(ownerCtx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+		require.NoError(t, err)
+		_, reEnabled, err := server.UpdateAutomation(ownerCtx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}, nil)
+		require.NoError(t, err)
+		require.True(t, reEnabled.ScheduleNextRunAt.Time.Equal(observed.ScheduleNextRunAt.Time))
+		require.Equal(t, observed.ScheduleRevision+2, reEnabled.ScheduleRevision)
+
+		// The in-flight occurrence cannot claim or publish, so its prompt
+		// hooks do not run a second time.
+		f.advanceTo(ctx, t, observed.ScheduleNextRunAt.Time.UTC())
+		server.runAutomationOccurrence(ctx, observed, f.clock.Now())
+		require.Zero(t, f.inputs(ctx, t))
+		_, err = server.publishAutomation(ctx, automationPublish{
+			automationID: automation.ID,
+			content: func(automation database.ChatAutomation) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{codersdk.ChatMessageText(automation.Prompt)}
+			},
+			occurrence: &automationOccurrence{revision: observed.ScheduleRevision, cursor: observed.ScheduleNextRunAt.Time},
+		})
+		require.ErrorIs(t, err, ErrAutomationScheduleStale)
+
+		// The scan of the current row runs the occurrence once.
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Equal(t, 1, f.inputs(ctx, t))
+	})
+
+	t.Run("OwnerLeftOrganization", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		//nolint:gocritic // Test setup removes the owner from the organization.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		reasons, err := server.AutomationPausedReasons(sysCtx, []database.ChatAutomation{automation})
+		require.NoError(t, err)
+		require.Empty(t, reasons[automation.ID])
+
+		_, err = f.sqlDB.ExecContext(ctx, "DELETE FROM organization_members WHERE user_id = $1 AND organization_id = $2", f.owner.ID, f.org.ID)
+		require.NoError(t, err)
+
+		// Publishing refuses the owner through RBAC, and the status says
+		// why instead of showing an automation that silently never runs.
+		reasons, err = server.AutomationPausedReasons(sysCtx, []database.ChatAutomation{automation})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatAutomationPausedReason{codersdk.ChatAutomationPausedReasonOwnerNotMember}, reasons[automation.ID])
+		_, err = server.RunAutomation(ctx, f.owner.ID, automation.ID, nil)
+		require.ErrorIs(t, err, ErrAutomationForbidden)
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.UTC())
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Zero(t, f.inputs(ctx, t))
 	})
 
 	t.Run("ReleaseAfterDeleteSucceeds", func(t *testing.T) {

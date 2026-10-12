@@ -458,7 +458,13 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 				arg.ProjectID = uuid.NullUUID{UUID: *req.ProjectID, Valid: true}
 			}
 		}
-		if invalidatesPendingRuns && row.Kind == database.ChatAutomationKindSchedule {
+		enabling := req.Enabled != nil && *req.Enabled && !row.Enabled
+		// Every enable-state transition also starts a new revision. A
+		// re-enable can compute the cursor the disable cleared, for example
+		// on a replica whose clock is behind, and a publish that observed
+		// that cursor before the disable must then fail its recheck instead
+		// of running its prompt hooks a second time.
+		if row.Kind == database.ChatAutomationKindSchedule && (invalidatesPendingRuns || disabling || enabling) {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
 		switch {
@@ -471,7 +477,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			// A disabled automation has no pending occurrence; re-enabling
 			// computes the next one.
 			arg.ScheduleNextRunAt = sql.NullTime{}
-		case req.Enabled != nil && *req.Enabled && !row.Enabled:
+		case enabling:
 			arg.Enabled = true
 			if row.Kind == database.ChatAutomationKindSchedule {
 				sched, err := validateAutomationSchedule(arg.ScheduleCron.String, arg.ScheduleTimeZone.String, now)

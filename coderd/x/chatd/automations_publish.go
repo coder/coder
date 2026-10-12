@@ -65,10 +65,14 @@ var (
 	ErrAutomationEventTooLarge = xerrors.New("chat automation event data is too large")
 )
 
+// MaxChatRequestBodyBytes is the request body limit of coderd's chat
+// endpoints, including the automation webhook event endpoint.
+const MaxChatRequestBodyBytes = 256 * 1024
+
 // MaxAutomationEventDataBytes caps the escaped event data a webhook
-// delivery adds to a message. It equals coderd's request body limit, so a
+// delivery adds to a message. It is the chat request body limit, so a
 // webhook never produces a message larger than the body the endpoint reads.
-const MaxAutomationEventDataBytes = 256 * 1024
+const MaxAutomationEventDataBytes = MaxChatRequestBodyBytes
 
 // AutomationEventTooLargeError carries the escaped size of the event data
 // and the cap so HTTP endpoints can include them in their response detail.

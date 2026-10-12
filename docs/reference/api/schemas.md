@@ -2695,6 +2695,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_chat": {
+    "archived": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "title": "string"
   },
@@ -2726,6 +2727,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "schedule_next_run_at": "2019-08-24T14:15:22Z",
   "schedule_time_zone": "string",
   "target_chat": {
+    "archived": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "title": "string"
   },
@@ -2785,6 +2787,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archived": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "title": "string"
 }
@@ -2792,10 +2795,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name    | Type   | Required | Restrictions | Description |
-|---------|--------|----------|--------------|-------------|
-| `id`    | string | false    |              |             |
-| `title` | string | false    |              |             |
+| Name       | Type    | Required | Restrictions | Description |
+|------------|---------|----------|--------------|-------------|
+| `archived` | boolean | false    |              |             |
+| `id`       | string  | false    |              |             |
+| `title`    | string  | false    |              |             |
 
 ## codersdk.ChatAutomationEventResponse
 
@@ -2837,9 +2841,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `experiment_disabled`, `model_unavailable`, `owner_inactive`, `target_unavailable` |
+| Value(s)                                                                                               |
+|--------------------------------------------------------------------------------------------------------|
+| `experiment_disabled`, `model_unavailable`, `owner_inactive`, `owner_not_member`, `target_unavailable` |
 
 ## codersdk.ChatAutomationReference
 
@@ -6484,6 +6488,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "automation": {
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_chat": {
+      "archived": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "title": "string"
     },
@@ -6515,6 +6520,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "schedule_next_run_at": "2019-08-24T14:15:22Z",
     "schedule_time_zone": "string",
     "target_chat": {
+      "archived": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "title": "string"
     },
