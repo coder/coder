@@ -136,7 +136,7 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (message: string) => Promise<void> | void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -684,6 +684,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			insertText: (text) => internalRef.current?.insertText(text),
 			clear: () => internalRef.current?.clear(),
 			focus: () => internalRef.current?.focus(),
+			focusWhenEditable: () => internalRef.current?.focusWhenEditable(),
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
@@ -1096,16 +1097,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasRefs);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
-	const prevIsLoadingRef = useRef(isLoading);
-	useEffect(() => {
-		const wasLoading = prevIsLoadingRef.current;
-		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
-			internalRef.current?.focus();
-		}
-	}, [isLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1168,10 +1159,19 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		const completion = onSend(text);
 		resetPromptCycle();
-		if (!isMobileViewport()) {
-			internalRef.current?.focus();
+
+		const restoreFocus = () => {
+			if (!isMobileViewport()) {
+				internalRef.current?.focusWhenEditable();
+			}
+		};
+
+		if (completion) {
+			void completion.then(restoreFocus, restoreFocus);
+		} else {
+			restoreFocus();
 		}
 	};
 	const handleStartRecording = () => {
