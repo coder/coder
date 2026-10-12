@@ -10,7 +10,6 @@ import {
 	useEffect,
 	useId,
 	useMemo,
-	useRef,
 	useState,
 } from "react";
 import * as RechartsPrimitive from "recharts";
@@ -194,22 +193,10 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	labelClassName,
 }) => {
 	const { config, setAnnouncement } = useChart();
-	const contentRef = useRef<HTMLDivElement>(null);
 	const isActive = Boolean(active && payload?.length);
 
-	// Mirror the rendered tooltip text into the container's live region. React
-	// skips the update when the text is unchanged, so moving within one data
-	// point doesn't repeat the announcement.
-	useEffect(() => {
-		setAnnouncement(
-			isActive && contentRef.current ? getSpokenText(contentRef.current) : "",
-		);
-	});
-
-	// Clear the announcement when the tooltip is removed from the chart.
-	useEffect(() => () => setAnnouncement(""), [setAnnouncement]);
-
-	const tooltipLabel = useMemo(() => {
+	// The label's inner content, or null when no label row is rendered.
+	const labelContent = useMemo((): { node: React.ReactNode } | null => {
 		if (hideLabel || !payload?.length) {
 			return null;
 		}
@@ -223,37 +210,70 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 				: itemConfig?.label;
 
 		if (labelFormatter) {
-			return (
-				<div className={cn("font-medium", labelClassName)}>
-					{labelFormatter(value, payload)}
-				</div>
-			);
+			return { node: labelFormatter(value, payload) };
 		}
 
-		if (!value) {
-			return null;
-		}
+		return value ? { node: value } : null;
+	}, [label, labelFormatter, payload, hideLabel, config, labelKey]);
 
-		return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-	}, [
-		label,
-		labelFormatter,
-		payload,
-		hideLabel,
-		labelClassName,
-		config,
-		labelKey,
-	]);
+	const items = (payload ?? []).map((item, index) => {
+		const key = `${nameKey || item.name || item.dataKey || "value"}`;
+		return {
+			item,
+			itemConfig: getPayloadConfigFromPayload(config, item, key),
+			formatted:
+				formatter && item?.value !== undefined && item.name
+					? {
+							node: formatter(item.value, item.name, item, index, item.payload),
+						}
+					: null,
+		};
+	});
+
+	// Built from the same values the tooltip renders, so screen readers hear
+	// what sighted users see. Non-text nodes (icons, custom elements) are skipped.
+	const announcement = isActive
+		? [
+				labelContent?.node,
+				...items.flatMap(({ item, itemConfig, formatted }) =>
+					formatted
+						? [formatted.node]
+						: [
+								itemConfig?.label || item.name,
+								// Matches the rendered row, which hides falsy values.
+								item.value ? item.value.toLocaleString() : undefined,
+							],
+				),
+			]
+				.filter(
+					(part): part is string | number =>
+						(typeof part === "string" && part !== "") ||
+						typeof part === "number",
+				)
+				.join(" ")
+		: "";
+
+	// The live region lives in ChartContainer, so the text is pushed up after
+	// render. Updating another component's state during render isn't allowed.
+	useEffect(() => {
+		setAnnouncement(announcement);
+	}, [announcement, setAnnouncement]);
+
+	// Clear the announcement when the tooltip is removed from the chart.
+	useEffect(() => () => setAnnouncement(""), [setAnnouncement]);
 
 	if (!isActive || !payload) {
 		return null;
 	}
 
+	const tooltipLabel = labelContent ? (
+		<div className={cn("font-medium", labelClassName)}>{labelContent.node}</div>
+	) : null;
+
 	const nestLabel = payload.length === 1 && indicator !== "dot";
 
 	return (
 		<div
-			ref={contentRef}
 			className={cn(
 				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
@@ -261,9 +281,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 		>
 			{!nestLabel ? tooltipLabel : null}
 			<div className="grid gap-1.5">
-				{payload.map((item, index) => {
-					const key = `${nameKey || item.name || item.dataKey || "value"}`;
-					const itemConfig = getPayloadConfigFromPayload(config, item, key);
+				{items.map(({ item, itemConfig, formatted }) => {
 					const indicatorColor = color || item.payload.fill || item.color;
 
 					return (
@@ -274,8 +292,8 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 								indicator === "dot" && "items-center",
 							)}
 						>
-							{formatter && item?.value !== undefined && item.name ? (
-								formatter(item.value, item.name, item, index, item.payload)
+							{formatted ? (
+								formatted.node
 							) : (
 								<>
 									{itemConfig?.icon ? (
@@ -327,20 +345,6 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 		</div>
 	);
 };
-
-// Joins an element's text nodes with spaces. `textContent` would run adjacent
-// blocks together ("0 usersJuly 26").
-function getSpokenText(element: HTMLElement): string {
-	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-	const parts: string[] = [];
-	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		const text = node.textContent?.trim();
-		if (text) {
-			parts.push(text);
-		}
-	}
-	return parts.join(" ");
-}
 
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
