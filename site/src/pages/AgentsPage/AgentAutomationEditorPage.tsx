@@ -1,13 +1,15 @@
-import { ChevronRightIcon, PlayIcon } from "lucide-react";
+import { ChevronRightIcon, PlayIcon, Trash2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	chatAutomations,
 	createChatAutomation,
+	deleteChatAutomation,
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
@@ -36,6 +38,7 @@ import {
 	AutomationsPageHeader,
 	useSelectedAutomationsOrganization,
 } from "./AgentAutomationsPage";
+import { AutomationDeleteDialog } from "./components/Automations/AutomationDeleteDialog";
 import {
 	AutomationEditorForm,
 	AutomationRunsAsCard,
@@ -153,11 +156,12 @@ const AutomationEditorRoute: React.FC = () => {
 
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-			<AutomationsPageHeader backTo={backToList}>
-				<Breadcrumb current={isCreate ? "New automation" : "Not found"} />
-			</AutomationsPageHeader>
-			<div className="px-4 py-8">
-				<div className="mx-auto w-full max-w-3xl">{content}</div>
+			<AutomationsPageHeader backTo={backToList} />
+			<div className="px-4 pb-8 pt-2 sm:pt-6">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					<Breadcrumb current={isCreate ? "New automation" : "Not found"} />
+					{content}
+				</div>
 			</div>
 		</ScrollArea>
 	);
@@ -194,6 +198,29 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	// Turns the leave prompt off right before a deliberate navigation.
 	const [allowLeave, setAllowLeave] = useState(false);
 	const [runError, setRunError] = useState<unknown>();
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	// The same rule as the list: the owner, or a viewer who may delete any
+	// automation in the organization.
+	const deleteAnyQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canDeleteAny: {
+					object: {
+						resource_type: "chat_automation",
+						organization_id: organizationId,
+					},
+					action: "delete",
+				},
+			},
+		}),
+		enabled: Boolean(automation) && !isOwner && Boolean(organizationId),
+	});
+	const canDelete =
+		Boolean(automation) &&
+		(isOwner || Boolean(deleteAnyQuery.data?.canDeleteAny));
+	const deleteMutation = useMutation(
+		deleteChatAutomation(queryClient, organizationId),
+	);
 
 	// The router's blocker reads the prompt state of the last render, so the
 	// render that turns the prompt off must commit before navigating.
@@ -333,6 +360,25 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 		});
 	};
 
+	const handleDelete = () => {
+		if (!automation) {
+			return;
+		}
+		deleteMutation.mutate(automation.id, {
+			onSuccess: () => {
+				toast.success(`Deleted ${automation.name}.`);
+				leaveToList();
+			},
+			onError: (error) => {
+				// Someone else deleted it first, so there is nothing to retry.
+				if (getErrorStatus(error) === 404) {
+					toast.message(`${automation.name} was already deleted.`);
+					leaveToList();
+				}
+			},
+		});
+	};
+
 	const runNowBlocked = automation ? runNowBlockedReason(automation) : "";
 	const runNowButton = automation &&
 		isOwner &&
@@ -351,12 +397,37 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-			<AutomationsPageHeader backTo={backToList}>
-				<Breadcrumb current={automation?.name ?? "New automation"} />
-				{runNowButton}
-			</AutomationsPageHeader>
-			<div className="px-4 py-8">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+			<AutomationsPageHeader backTo={backToList} />
+			<div className="px-4 pb-8 pt-2 sm:pt-6">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					{/* In the content column, not the top bar, so the breadcrumb and
+					    actions line up with the title at every width. */}
+					<div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+						<Breadcrumb current={automation?.name ?? "New automation"} />
+						{(runNowButton || canDelete) && (
+							<div className="flex items-center gap-2">
+								{runNowButton}
+								{canDelete && automation && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="outline"
+												aria-label={`Delete ${automation.name}`}
+												onClick={() => {
+													deleteMutation.reset();
+													setConfirmingDelete(true);
+												}}
+											>
+												<Trash2Icon />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Delete</TooltipContent>
+									</Tooltip>
+								)}
+							</div>
+						)}
+					</div>
 					<header className="flex flex-wrap items-start justify-between gap-4">
 						<div className="flex min-w-0 flex-col gap-1">
 							<h1 className="m-0 text-xl font-semibold text-content-primary wrap-anywhere">
@@ -385,8 +456,6 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 									onToggle={handleToggle}
 									showLabel
 								/>
-								{/* The top bar holds Run now on wide screens only. */}
-								<span className="sm:hidden">{runNowButton}</span>
 							</div>
 						)}
 					</header>
@@ -459,6 +528,16 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 					)}
 				</div>
 			</div>
+			{automation && confirmingDelete && (
+				<AutomationDeleteDialog
+					automation={automation}
+					isOwner={isOwner}
+					isDeleting={deleteMutation.isPending}
+					error={deleteMutation.error}
+					onConfirm={handleDelete}
+					onClose={() => setConfirmingDelete(false)}
+				/>
+			)}
 			{webhookSecret && (
 				<AutomationWebhookSecretDialog
 					endpoint={webhookPublishEndpoint(origin, webhookSecret.automationId)}

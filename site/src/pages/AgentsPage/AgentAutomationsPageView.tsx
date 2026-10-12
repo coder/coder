@@ -1,5 +1,5 @@
 import { ArchiveIcon, PlusIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -7,7 +7,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -31,6 +30,7 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
+import { AutomationDeleteDialog } from "./components/Automations/AutomationDeleteDialog";
 import { AutomationRow } from "./components/Automations/AutomationRow";
 import { ChatTitleLink } from "./components/Automations/AutomationStatus";
 import { SectionHeader } from "./components/SectionHeader";
@@ -162,63 +162,6 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
-	);
-};
-
-type AutomationDeleteDialogProps = {
-	state: AutomationDeleteDialogState;
-	/** Receives focus when a successful delete removed the opener's row. */
-	fallbackFocusRef: React.RefObject<HTMLButtonElement | null>;
-};
-
-const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
-	state,
-	fallbackFocusRef,
-}) => {
-	// Like the chats dialog, this opens from a row button, so the focused
-	// element at mount is the Delete button to return to on cancel.
-	const [opener] = useState(() => document.activeElement);
-	const { automation } = state;
-	return (
-		<ConfirmDialog
-			open
-			type="delete"
-			title={`Delete ${automation.name}?`}
-			confirmLoading={state.isDeleting}
-			onConfirm={state.onConfirm}
-			// Closing mid-request would hand focus to a row that may vanish.
-			onClose={() => {
-				if (!state.isDeleting) {
-					state.onClose();
-				}
-			}}
-			onCloseAutoFocus={(event) => {
-				const target =
-					opener instanceof HTMLElement && opener.isConnected
-						? opener
-						: fallbackFocusRef.current;
-				if (target) {
-					event.preventDefault();
-					target.focus();
-				}
-			}}
-			description={
-				<>
-					<p>
-						{automation.kind === "schedule"
-							? "Its schedule stops, and no more runs start."
-							: "Its webhook endpoint stops accepting events."}{" "}
-						Messages it queued that have not started yet are removed from their
-						chats. Chats it created and messages it already sent stay.
-					</p>
-					{Boolean(state.error) && (
-						<div className="mt-4">
-							<ErrorAlert error={state.error} />
-						</div>
-					)}
-				</>
-			}
-		/>
 	);
 };
 
@@ -362,7 +305,8 @@ export const AgentAutomationsPageView: React.FC<
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
 			{deleteDialog && (
 				<AutomationDeleteDialog
-					state={deleteDialog}
+					{...deleteDialog}
+					isOwner={deleteDialog.automation.owner_id === currentUserId}
 					fallbackFocusRef={newAutomationRef}
 				/>
 			)}

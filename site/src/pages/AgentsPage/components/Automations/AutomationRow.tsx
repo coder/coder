@@ -32,6 +32,7 @@ import {
 	isTargetMissing,
 	runNowBlockedReason,
 } from "./AutomationStatus";
+import { automationPath } from "./automationsFlag";
 
 type AutomationRowProps = {
 	automation: ChatAutomation;
@@ -187,9 +188,13 @@ const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
 	const owner = automation.owner;
 	return (
 		<>
-			<span className="font-medium text-content-primary wrap-anywhere">
+			{/* A link, so the page opens with a middle-click or in a new tab. */}
+			<RouterLink
+				to={automationPath(automation.id)}
+				className="font-medium text-content-primary no-underline wrap-anywhere hover:underline"
+			>
 				{automation.name}
-			</span>
+			</RouterLink>
 			{!isOwner && (
 				<span className="text-xs text-content-secondary">
 					{owner

@@ -23,10 +23,15 @@ type ReasonText = {
  * Words for every run reason the server sends. Skipped reasons resolve on
  * their own; refused reasons need someone to change something.
  */
-export const runReasonText: Record<ChatAutomationRunReason, ReasonText> = {
+// previous_run_active ships in the next API change; listing it here keeps
+// the map complete once the generated type adds it.
+type KnownRunReason = ChatAutomationRunReason | "previous_run_active";
+
+export const runReasonText: Record<KnownRunReason, ReasonText> = {
 	chat_busy: { label: "chat busy" },
 	queue_full: { label: "queue full" },
 	missed: { label: "missed" },
+	previous_run_active: { label: "previous run still running" },
 	hook_denied: {
 		label: "hook denied",
 		hint: "A hook blocked the run. Check your hook service.",
@@ -77,6 +82,11 @@ export const runReasonText: Record<ChatAutomationRunReason, ReasonText> = {
 	},
 };
 
+/** A last run whose reason can be one this UI does not know yet. */
+export type AutomationLastRunValue = Omit<ChatAutomationLastRun, "reason"> & {
+	reason?: string;
+};
+
 const outcomeLabel: Record<ChatAutomationRunOutcome, string> = {
 	accepted: "Accepted",
 	skipped: "Skipped",
@@ -93,7 +103,7 @@ export const describeRunReason = (reason: string): ReasonText => {
 
 /** "Accepted", "Skipped: chat busy" or "Refused: hook denied". */
 export const describeLastRunOutcome = (
-	lastRun: ChatAutomationLastRun,
+	lastRun: AutomationLastRunValue,
 ): string => {
 	const outcome = outcomeLabel[lastRun.outcome] ?? lastRun.outcome;
 	return lastRun.reason
@@ -114,7 +124,7 @@ const formatAbsolute = (at: string) =>
 	});
 
 type AutomationLastRunProps = {
-	lastRun: ChatAutomationLastRun | null;
+	lastRun: AutomationLastRunValue | null;
 	/** The current time; a prop so stories and tests render the same text. */
 	now?: Date;
 	/** Adds the owner's next step for a refused run. */

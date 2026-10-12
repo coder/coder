@@ -1,13 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
-import {
-	type ChatAutomationLastRun,
-	ChatAutomationRunReasons,
-} from "#/api/typesGenerated";
+import { ChatAutomationRunReasons } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	AutomationLastRun,
+	type AutomationLastRunValue,
 	describeLastRunOutcome,
 	describeRunReason,
 	runReasonText,
@@ -17,9 +15,14 @@ const now = new Date("2026-10-12T12:00:00Z");
 const fiveMinutesAgo = "2026-10-12T11:55:00Z";
 
 // Reasons that resolve without a change; every other reason is a refusal.
-const skippedReasons = ["chat_busy", "queue_full", "missed"];
+const skippedReasons = [
+	"chat_busy",
+	"queue_full",
+	"missed",
+	"previous_run_active",
+];
 
-const renderLastRun = (lastRun: ChatAutomationLastRun | null) => {
+const renderLastRun = (lastRun: AutomationLastRunValue | null) => {
 	const router = createMemoryRouter([
 		{
 			path: "/",
@@ -35,8 +38,9 @@ const renderLastRun = (lastRun: ChatAutomationLastRun | null) => {
 
 describe("runReasonText", () => {
 	it("words every reason the server can send", () => {
+		// previous_run_active is listed ahead of the generated type.
 		expect(Object.keys(runReasonText).sort()).toEqual(
-			[...ChatAutomationRunReasons].sort(),
+			[...new Set([...ChatAutomationRunReasons, "previous_run_active"])].sort(),
 		);
 	});
 
@@ -45,6 +49,10 @@ describe("runReasonText", () => {
 			(reason) =>
 				!skippedReasons.includes(reason) && !runReasonText[reason].hint,
 		);
+		const skippedWithHints = skippedReasons.filter(
+			(reason) => describeRunReason(reason).hint,
+		);
+		expect(skippedWithHints).toEqual([]);
 		expect(missingHints).toEqual([]);
 	});
 
@@ -75,6 +83,15 @@ describe("AutomationLastRun", () => {
 		[
 			{ at: fiveMinutesAgo, outcome: "skipped", reason: "queue_full" },
 			"Last run 5 minutes ago · Skipped: queue full",
+		],
+		[
+			{
+				at: fiveMinutesAgo,
+				outcome: "skipped",
+				reason: "previous_run_active",
+				chat_id: "chat-active",
+			},
+			"Last run 5 minutes ago · Skipped: previous run still running · Open chat",
 		],
 		[
 			{ at: fiveMinutesAgo, outcome: "refused", reason: "model_unavailable" },

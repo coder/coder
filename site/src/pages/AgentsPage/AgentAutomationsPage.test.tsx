@@ -226,6 +226,57 @@ describe("AgentAutomationsPage", () => {
 		},
 	);
 
+	it("opens an automation's page from its name", async () => {
+		const user = userEvent.setup();
+		const { router } = setup();
+
+		await user.click(
+			await screen.findByRole("link", { name: mockAutomation.name }),
+		);
+
+		expect(router.state.location.pathname).toBe(
+			`/agents/automations/${mockAutomation.id}`,
+		);
+	});
+
+	it("lets an admin delete another owner's automation from its page", async () => {
+		const user = userEvent.setup();
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		const { requests } = setup({
+			automations: [otherOwners],
+			route: `/agents/automations/${mockAutomation.id}`,
+		});
+		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canDeleteAny: true }),
+			),
+			http.delete(deletePath, ({ request }) => {
+				requests.push(request);
+				return new HttpResponse(null, { status: 204 });
+			}),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		expect(dialog.textContent).toContain("This automation belongs to Bob.");
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
+		});
+	});
+
 	it("opens the target chat of an existing chat automation", async () => {
 		const user = userEvent.setup();
 		const { router } = setup({
