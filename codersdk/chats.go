@@ -794,9 +794,11 @@ type CreateChatRequest struct {
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
 	// ManageAutomationsEnabled offers the manage_automations tool to the
-	// chat's agent. Enabling it requires the chat-automations experiment
-	// for the chat owner. Experimental.
-	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
+	// chat's agent. Omitted turns it on when the chat-automations
+	// experiment is on for the chat owner, and leaves it off otherwise.
+	// False turns it off. True requires the experiment for the chat owner.
+	// Experimental.
+	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on

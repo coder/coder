@@ -24152,7 +24152,7 @@ const docTemplate = `{
                     }
                 },
                 "manage_automations_enabled": {
-                    "description": "ManageAutomationsEnabled offers the manage_automations tool to the\nchat's agent. Enabling it requires the chat-automations experiment\nfor the chat owner. Experimental.",
+                    "description": "ManageAutomationsEnabled offers the manage_automations tool to the\nchat's agent. Omitted turns it on when the chat-automations\nexperiment is on for the chat owner, and leaves it off otherwise.\nFalse turns it off. True requires the experiment for the chat owner.\nExperimental.",
                     "type": "boolean"
                 },
                 "mcp_server_ids": {

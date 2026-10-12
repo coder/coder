@@ -4652,8 +4652,10 @@ export interface CreateChatRequest {
 	readonly client_type?: ChatClientType;
 	/**
 	 * ManageAutomationsEnabled offers the manage_automations tool to the
-	 * chat's agent. Enabling it requires the chat-automations experiment
-	 * for the chat owner. Experimental.
+	 * chat's agent. Omitted turns it on when the chat-automations
+	 * experiment is on for the chat owner, and leaves it off otherwise.
+	 * False turns it off. True requires the experiment for the chat owner.
+	 * Experimental.
 	 */
 	readonly manage_automations_enabled?: boolean;
 }

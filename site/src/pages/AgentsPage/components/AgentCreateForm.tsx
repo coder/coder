@@ -573,8 +573,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		: undefined;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const automationsExperimentEnabled = useAutomationsEnabled();
-	const [manageAutomationsEnabled, setManageAutomationsEnabled] =
-		useState(false);
+	// Undefined until the user picks, so the default follows the
+	// experiment even when it loads after the first render: new chats
+	// offer the tool when automations are on for the user.
+	const [manageAutomationsChoice, setManageAutomationsEnabled] =
+		useState<boolean>();
+	const manageAutomationsEnabled =
+		automationsExperimentEnabled &&
+		(manageAutomationsChoice ?? automationsExperimentEnabled);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	// Treat the unsettled-organization window as pending so the model selector
@@ -730,9 +736,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
 			// The experiments query refetches while the form stays mounted, so the
-			// experiment can turn off after the user enabled the toggle.
-			manageAutomationsEnabled:
-				automationsExperimentEnabled && manageAutomationsEnabled,
+			// experiment can turn off after the user enabled the toggle;
+			// manageAutomationsEnabled is then false.
+			manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();

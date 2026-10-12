@@ -1454,10 +1454,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The switch belongs to the chat owner, so the experiment is checked
-	// for the owner, not the caller acting through owner_id.
-	if req.ManageAutomationsEnabled && !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, ownerID) {
-		writeManageAutomationsExperimentRequired(ctx, rw)
-		return
+	// for the owner, not the caller acting through owner_id. Omitted turns
+	// the tool on for owners with the experiment, so agents can set up a
+	// heartbeat without a click. An explicit true still requires it.
+	automationsOn := chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, ownerID)
+	manageAutomationsEnabled := automationsOn
+	if req.ManageAutomationsEnabled != nil {
+		manageAutomationsEnabled = *req.ManageAutomationsEnabled
+		if manageAutomationsEnabled && !automationsOn {
+			writeManageAutomationsExperimentRequired(ctx, rw)
+			return
+		}
 	}
 
 	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, req.MCPServerIDs)
@@ -1592,7 +1599,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		DynamicTools:       dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID:             uuid.NullUUID{},
-		ManageAutomationsEnabled: req.ManageAutomationsEnabled,
+		ManageAutomationsEnabled: manageAutomationsEnabled,
 	})
 	if err != nil {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {

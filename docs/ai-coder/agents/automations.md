@@ -460,13 +460,16 @@ When the automation share is full, webhook deliveries and Run now return `429`, 
 ## Let an agent manage automations
 
 An agent can create and manage automations with the `manage_automations` tool.
-Turn it on for each chat:
+The **Manage automations** switch controls the tool for each chat:
 
-- In an existing chat, open the plus menu in the chat input and turn on **Manage automations**.
-- When you start a new chat, turn on **Manage automations** in the same menu before you send the first message.
+- New chats have **Manage automations** on by default when the `chat-automations` experiment is on for you.
+  To start a chat without it, select the **Automations** chip in the chat input before you send the first message, or turn it off in the plus menu.
+  Through the API, send `"manage_automations_enabled": false` when you create the chat.
+- In an existing chat, open the plus menu in the chat input and turn **Manage automations** on or off.
 
-The switch is off by default.
+Without the experiment, the switch is off.
 It's available only on top-level chats, and only the chat owner can change it.
+Chats that an automation creates for each run never have the tool.
 
 The agent receives the tool only when all of these are true:
 
@@ -515,7 +518,7 @@ The dashboard doesn't show the note.
 
 A heartbeat is a schedule automation that an agent creates for its own chat.
 It sends a recurring prompt to the chat, so the agent picks up a task again on a schedule, even while your browser is closed.
-To set one up, turn on **Manage automations** and ask the agent to check in on the task on a schedule, for example every hour.
+To set one up, keep **Manage automations** on and ask the agent to check in on the task on a schedule, for example every hour.
 
 ## Limits
 

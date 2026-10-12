@@ -784,32 +784,54 @@ describe("AgentCreateForm manage automations toggle", () => {
 		dashboard.experiments = [];
 	});
 
-	it("sends the enabled toggle with the create options", async () => {
+	it("turns the tool on by default when the experiment is on", async () => {
 		dashboard.experiments = ["chat-automations"];
 		const { onCreateChat } = renderForm();
 
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
 		await submitMessage("check the nightly build every morning");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
 	});
 
+	it("keeps the tool off by default when the experiment is off", async () => {
+		const { onCreateChat } = renderForm();
+
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
+	});
+
+	it("follows the experiment when it loads after the first render", async () => {
+		const { onCreateChat, rerender } = renderForm();
+		dashboard.experiments = ["chat-automations"];
+		rerender({});
+
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
+	});
+
+	it("sends off after the user turns the chip off", async () => {
+		dashboard.experiments = ["chat-automations"];
+		const { onCreateChat } = renderForm();
+
+		await user().click(
+			await screen.findByRole("button", {
+				name: "Turn off Manage automations",
+			}),
+		);
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
+	});
+
 	it("sends the toggle as off once the chat-automations experiment turns off", async () => {
 		dashboard.experiments = ["chat-automations"];
 		const { onCreateChat, rerender } = renderForm();
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
-		await user().keyboard("{Escape}");
 
 		dashboard.experiments = [];
 		rerender({});

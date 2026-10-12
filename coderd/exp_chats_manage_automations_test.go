@@ -37,7 +37,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	createRequest := func(ownerID *uuid.UUID, enabled bool) codersdk.CreateChatRequest {
+	createRequest := func(ownerID *uuid.UUID, enabled *bool) codersdk.CreateChatRequest {
 		return codersdk.CreateChatRequest{
 			OrganizationID:           first.OrganizationID,
 			OwnerID:                  ownerID,
@@ -56,14 +56,38 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		chat, err := memberClient.CreateChat(ctx, createRequest(nil, false))
+		chat, err := memberClient.CreateChat(ctx, createRequest(nil, ptr.Ref(false)))
 		require.NoError(t, err)
-		require.False(t, switchState(ctx, t, chat.ID), "the switch defaults to off")
+		require.False(t, switchState(ctx, t, chat.ID), "an explicit false keeps the switch off")
 
-		chat, err = memberClient.CreateChat(ctx, createRequest(nil, true))
+		chat, err = memberClient.CreateChat(ctx, createRequest(nil, ptr.Ref(true)))
 		require.NoError(t, err)
 		require.True(t, chat.ManageAutomationsEnabled)
 		require.True(t, switchState(ctx, t, chat.ID))
+	})
+
+	t.Run("CreateDefaultFollowsOwnerExperiment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Omitted turns the switch on when the owner has the experiment.
+		chat, err := memberClient.CreateChat(ctx, createRequest(nil, nil))
+		require.NoError(t, err)
+		require.True(t, chat.ManageAutomationsEnabled)
+		require.True(t, switchState(ctx, t, chat.ID), "the switch defaults to on with the experiment")
+
+		// The owner decides, not the caller acting through owner_id.
+		chat, err = admin.CreateChat(ctx, createRequest(&member.ID, nil))
+		require.NoError(t, err)
+		require.True(t, switchState(ctx, t, chat.ID))
+
+		// Without the experiment, omitted stays off and is not an error.
+		chat, err = offClient.CreateChat(ctx, createRequest(nil, nil))
+		require.NoError(t, err)
+		require.False(t, switchState(ctx, t, chat.ID), "the switch defaults to off without the experiment")
+		chat, err = admin.CreateChat(ctx, createRequest(&off.ID, nil))
+		require.NoError(t, err)
+		require.False(t, switchState(ctx, t, chat.ID))
 	})
 
 	t.Run("CreateChecksOwnerExperiment", func(t *testing.T) {
@@ -71,14 +95,14 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// The caller has the experiment, the owner does not.
-		_, err := admin.CreateChat(ctx, createRequest(&off.ID, true))
+		_, err := admin.CreateChat(ctx, createRequest(&off.ID, ptr.Ref(true)))
 		requireSDKError(t, err, http.StatusBadRequest)
-		_, err = offClient.CreateChat(ctx, createRequest(nil, true))
+		_, err = offClient.CreateChat(ctx, createRequest(nil, ptr.Ref(true)))
 		requireSDKError(t, err, http.StatusBadRequest)
 
 		// A creator acting through owner_id may set it for an owner
 		// who has the experiment.
-		chat, err := admin.CreateChat(ctx, createRequest(&member.ID, true))
+		chat, err := admin.CreateChat(ctx, createRequest(&member.ID, ptr.Ref(true)))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 		require.True(t, switchState(ctx, t, chat.ID))
@@ -88,7 +112,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		chat, err := memberClient.CreateChat(ctx, createRequest(nil, false))
+		chat, err := memberClient.CreateChat(ctx, createRequest(nil, ptr.Ref(false)))
 		require.NoError(t, err)
 
 		// An administrator can update the chat but not this switch,
@@ -125,7 +149,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		parent, err := memberClient.CreateChat(ctx, createRequest(nil, false))
+		parent, err := memberClient.CreateChat(ctx, createRequest(nil, ptr.Ref(false)))
 		require.NoError(t, err)
 		child := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    first.OrganizationID,
