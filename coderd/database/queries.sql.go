@@ -18309,7 +18309,7 @@ WITH
 		GROUP BY
 			was.template_id, was.user_id, family
 	),
-	family_usage AS (
+	app_family_usage AS (
 		SELECT
 			template_id,
 			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
@@ -18339,15 +18339,15 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	family_usage.session_family_usage_seconds
+	app_family_usage.session_family_usage_seconds
 FROM
 	active_users
 JOIN
 	-- Every counted template has at least one family; both sides come from
 	-- insights.
-	family_usage
+	app_family_usage
 ON
-	family_usage.template_id = active_users.template_id
+	app_family_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {

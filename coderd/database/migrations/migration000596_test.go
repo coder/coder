@@ -381,16 +381,20 @@ func TestMigration000596DownOverlap(t *testing.T) {
 		want familyMins
 	}{
 		{
+			// vscode: cursor, vscode
 			name: "same family past the cap",
 			apps: map[string]int64{"cursor": 20, "vscode": 20},
 			want: familyMins{vscode: 30},
 		},
 		{
+			// vscode: cursor, vscode
 			name: "same family under the cap",
 			apps: map[string]int64{"cursor": 5, "vscode": 5},
 			want: familyMins{vscode: 10},
 		},
 		{
+			// ssh: ssh, zed, plus the unlisted some_new_ide, port_forwarding,
+			// overflow, unknown
 			name: "unlisted names count as ssh under the cap",
 			apps: map[string]int64{
 				"ssh": 5, "zed": 6, "some_new_ide": 5, "port_forwarding": 4, "overflow": 3, "unknown": 2,
@@ -398,6 +402,8 @@ func TestMigration000596DownOverlap(t *testing.T) {
 			want: familyMins{ssh: 25},
 		},
 		{
+			// jetbrains: goland, intellij; reconnecting_pty: reconnecting_pty;
+			// sftp: sftp; vscode: kiro
 			name: "families cap separately",
 			apps: map[string]int64{"goland": 25, "intellij": 10, "reconnecting_pty": 12, "sftp": 2, "kiro": 1},
 			want: familyMins{sftp: 2, reconnectingPTY: 12, vscode: 1, jetbrains: 30},

@@ -21,7 +21,7 @@ import (
 
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template. Built-in apps report one series per app family, with an empty slug.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
 	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
 )
 
@@ -236,7 +236,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// Built-in apps, one series per app family.
 	for _, templateRow := range data.templates {
 		orgName := data.organizationNames[templateRow.TemplateID]
-		for _, family := range familySeries {
+		for _, family := range appFamilySeries {
 			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 				float64(templateRow.SessionFamilyUsageSeconds[string(family)]),
 				data.templateNames[templateRow.TemplateID],
@@ -287,8 +287,8 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 	return m
 }
 
-// familySeries lists the app families reported as built-in app series.
-var familySeries = []codersdk.AppFamilyName{
+// appFamilySeries lists the app families reported as built-in app series.
+var appFamilySeries = []codersdk.AppFamilyName{
 	codersdk.AppFamilyVSCode,
 	codersdk.AppFamilyJetBrains,
 	codersdk.AppFamilyReconnectingPTY,
