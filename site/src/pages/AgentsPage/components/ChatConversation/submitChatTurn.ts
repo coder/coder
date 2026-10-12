@@ -118,8 +118,9 @@ const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
 	editedMessageID: number | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
+	// Built-ins only intercept new, text-only sends. A personal, workspace,
+	// or plugin skill with the same name takes precedence at availability
+	// resolution.
 	if (editedMessageID !== undefined || content.length !== 1) {
 		return undefined;
 	}
