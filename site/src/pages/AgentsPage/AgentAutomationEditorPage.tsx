@@ -10,6 +10,7 @@ import {
 	chatAutomations,
 	createChatAutomation,
 	deleteChatAutomation,
+	fetchSkippedRun,
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
@@ -45,7 +46,10 @@ import {
 	AutomationRunsAsCard,
 	type SecretGuard,
 } from "./components/Automations/AutomationEditorForm";
-import { AutomationLastRun } from "./components/Automations/AutomationLastRun";
+import {
+	AutomationLastRun,
+	skippedRunMessage,
+} from "./components/Automations/AutomationLastRun";
 import {
 	AutomationEnabledSwitch,
 	AutomationNextRun,
@@ -356,7 +360,17 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 						onClick: () => navigate(`/agents/${chat_id}`),
 					},
 				}),
-			onError: setRunError,
+			onError: (error) => {
+				void fetchSkippedRun(queryClient, organizationId, automation)
+					.catch(() => undefined)
+					.then((skipped) => {
+						if (skipped) {
+							toast.message(skippedRunMessage(automation.name, skipped));
+							return;
+						}
+						setRunError(error);
+					});
+			},
 		});
 	};
 

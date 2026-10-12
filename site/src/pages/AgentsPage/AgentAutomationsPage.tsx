@@ -13,6 +13,7 @@ import {
 	automationChats,
 	chatAutomations,
 	deleteChatAutomation,
+	fetchSkippedRun,
 	runChatAutomation,
 	updateChatAutomation,
 } from "#/api/queries/chatAutomations";
@@ -26,6 +27,7 @@ import {
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { skippedRunMessage } from "./components/Automations/AutomationLastRun";
 import {
 	automationPath,
 	newAutomationPath,
@@ -203,7 +205,15 @@ const AutomationsList: React.FC = () => {
 				});
 			},
 			onError: (error) => {
-				setRunError({ automation, error, organizationId });
+				void fetchSkippedRun(queryClient, organizationId, automation)
+					.catch(() => undefined)
+					.then((skipped) => {
+						if (skipped) {
+							toast.message(skippedRunMessage(automation.name, skipped));
+							return;
+						}
+						setRunError({ automation, error, organizationId });
+					});
 			},
 		});
 	};

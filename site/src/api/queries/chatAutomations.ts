@@ -11,6 +11,7 @@ import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatAutomation,
+	ChatAutomationLastRun,
 	ChatAutomationReference,
 	ChatAutomationRunResponse,
 	ChatAutomationSchedulePreviewRequest,
@@ -282,6 +283,25 @@ export const automationChats = (automationId: string) =>
 			),
 		select: selectUniqueChats,
 	});
+
+/**
+ * Reads, after a Run now failed, whether the server recorded the attempt as
+ * a skip, such as a busy chat. A skip is the configured behavior, not an
+ * error. Returns the new last run when it is a skip.
+ */
+export const fetchSkippedRun = async (
+	queryClient: QueryClient,
+	organizationId: string,
+	automation: ChatAutomation,
+): Promise<ChatAutomationLastRun | undefined> => {
+	const automations = await queryClient.fetchQuery({
+		...chatAutomations(organizationId),
+		staleTime: 0,
+	});
+	const lastRun = automations.find(({ id }) => id === automation.id)?.last_run;
+	const isNewRun = lastRun && lastRun.at !== automation.last_run?.at;
+	return isNewRun && lastRun.outcome === "skipped" ? lastRun : undefined;
+};
 
 export const runChatAutomation = (
 	queryClient: QueryClient,

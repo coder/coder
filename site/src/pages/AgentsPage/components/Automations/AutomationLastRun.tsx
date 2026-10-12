@@ -107,6 +107,15 @@ export const describeLastRunOutcome = (
 		: outcome;
 };
 
+/** "Release digest skipped the run: chat busy." */
+export const skippedRunMessage = (
+	automationName: string,
+	lastRun: AutomationLastRunValue,
+) =>
+	`${automationName} skipped the run${
+		lastRun.reason ? `: ${describeRunReason(lastRun.reason).label}` : ""
+	}.`;
+
 const formatAbsolute = (at: string) =>
 	formatDate(new Date(at), {
 		locale: "en-US",

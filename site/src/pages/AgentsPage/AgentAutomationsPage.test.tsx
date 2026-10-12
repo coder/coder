@@ -480,6 +480,65 @@ describe("AgentAutomationsPage", () => {
 	});
 
 	it.each([
+		{ outcome: "skipped" as const, toastText: "skipped the run: chat busy." },
+		{ outcome: "refused" as const, toastText: undefined },
+	])(
+		"shows a Run now the server $outcome as a skip only when it was one",
+		async ({ outcome, toastText }) => {
+			const user = userEvent.setup();
+			const toastMessage = vi.spyOn(toast, "message");
+			setup();
+			let ran = false;
+			server.use(
+				http.post(
+					`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
+					() => {
+						ran = true;
+						return HttpResponse.json(
+							{ message: "The target chat is busy." },
+							{ status: 409 },
+						);
+					},
+				),
+				http.get(automationsPath(MockDefaultOrganization.id), () =>
+					HttpResponse.json([
+						{
+							...mockAutomation,
+							last_run: ran
+								? {
+										at: "2026-10-12T12:00:00Z",
+										outcome,
+										reason: outcome === "skipped" ? "chat_busy" : "error",
+									}
+								: null,
+						},
+					]),
+				),
+			);
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Run now ${mockAutomation.name}`,
+				}),
+			);
+
+			if (toastText) {
+				await waitFor(() => {
+					expect(toastMessage).toHaveBeenCalledWith(
+						`${mockAutomation.name} ${toastText}`,
+					);
+				});
+				expect(
+					screen.queryByText(`Could not run ${mockAutomation.name}`),
+				).toBeNull();
+			} else {
+				await screen.findByText(`Could not run ${mockAutomation.name}`);
+				expect(toastMessage).not.toHaveBeenCalled();
+			}
+		},
+	);
+
+	it.each([
 		{ canDeleteAny: true, menuItems: ["View", "Delete…"] },
 		{ canDeleteAny: false, menuItems: ["View"] },
 	])(
