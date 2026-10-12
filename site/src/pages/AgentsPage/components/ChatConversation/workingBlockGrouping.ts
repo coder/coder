@@ -1,3 +1,4 @@
+import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
 import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
@@ -193,6 +194,13 @@ const getPartTimestamps = (entry: ParsedMessageEntry): string[] =>
 		})
 		.filter((timestamp) => timestamp !== undefined);
 
+/**
+ * Results, not calls: a step can end with a provider call unanswered, and the
+ * next step issues that call again.
+ */
+const countProviderResults = (message: TypesGen.ChatMessage): number =>
+	(message.content ?? []).filter(isProviderToolResult).length;
+
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
@@ -286,9 +294,9 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	// Entries and drafts are both in ascending message ID order, so one cursor
-	// walks the entries once.
-	let entryIndex = 0;
+	// Each span starts where the previous one ended, so no entry counts toward
+	// two blocks.
+	let spanStartId = Number.NEGATIVE_INFINITY;
 	const blocks: WorkingBlock[] = [];
 
 	for (const draft of drafts) {
@@ -311,29 +319,23 @@ export const groupWorkingBlocks = (
 			...(firstRowIndex > 0 ? rowMessageIds(rows[firstRowIndex - 1]) : []),
 		);
 
-		const spanTimestamps: string[] = [];
-		// Until the step persists, one flag stands in for its searches.
-		let searches =
-			draft.containsLiveRow && options.streamState?.providerToolRan ? 1 : 0;
-		while (
-			entryIndex < entries.length &&
-			entries[entryIndex].message.id < toId
-		) {
-			const entry = entries[entryIndex];
-			entryIndex++;
-			// Results, not calls: a step can end with a provider call unanswered,
-			// and the next step issues that call again.
-			const results = (entry.message.content ?? []).filter(
-				isProviderToolResult,
-			).length;
-			const { id } = entry.message;
-			if (id < fromId && (results === 0 || id <= previousRowId)) {
-				continue;
+		const spanEntries = entries.filter(({ message }) => {
+			const { id } = message;
+			if (id < spanStartId || id >= toId) {
+				return false;
 			}
+			return (
+				id >= fromId ||
+				(id > previousRowId && countProviderResults(message) > 0)
+			);
+		});
+		spanStartId = toId;
 
-			spanTimestamps.push(...getPartTimestamps(entry));
-			searches += results;
-		}
+		// Until the step persists, one flag stands in for its searches.
+		const searches = spanEntries.reduce(
+			(count, { message }) => count + countProviderResults(message),
+			draft.containsLiveRow && options.streamState?.providerToolRan ? 1 : 0,
+		);
 
 		// Source blocks count as searches only when no provider result does:
 		// some providers cite without a search, and an interrupt commits a
@@ -352,11 +354,12 @@ export const groupWorkingBlocks = (
 		}
 
 		const streamStartedAt = options.streamState?.startedAt;
-		if (draft.containsLiveRow && streamStartedAt !== undefined) {
-			spanTimestamps.push(streamStartedAt);
-		}
-
-		const times = spanTimestamps.map((timestamp) => Date.parse(timestamp));
+		const times = [
+			...spanEntries.flatMap(getPartTimestamps),
+			...(draft.containsLiveRow && streamStartedAt !== undefined
+				? [streamStartedAt]
+				: []),
+		].map((timestamp) => Date.parse(timestamp));
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;

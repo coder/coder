@@ -386,6 +386,30 @@ describe("groupWorkingBlocks", () => {
 		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
 	});
 
+	it("counts a search between two blocks once", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const interlude = message("assistant", [
+			reasoning("Halfway"),
+			text("Halfway there."),
+		]);
+		const search = [
+			message("assistant", [searchCall("s", at(3))]),
+			message("tool", [searchResult("s", at(4))]),
+		];
+		const second = step("b", 5, 6);
+		const { blocks } = group([
+			prompt,
+			...first,
+			interlude,
+			...search,
+			...second,
+		]);
+
+		expect(blocks).toHaveLength(2);
+		expect(blocks.reduce((total, block) => total + block.stepCount, 0)).toBe(3);
+	});
+
 	it("splits a turn at an interleaved answer row", () => {
 		const prompt = user("Go");
 		const first = step("a", 1, 2);
