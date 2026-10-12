@@ -228,11 +228,15 @@ const mergeTime = (time: string, next: Partial<Time> | undefined) => {
 	});
 };
 
-const formatRunTimeIn = (value: string, timeZone: string): string =>
+const formatRunTimeIn = (
+	value: string,
+	timeZone: string,
+	timeZoneName: "short" | undefined,
+): string =>
 	formatDate(new Date(value), {
 		locale: "en-US",
 		timeZone,
-		timeZoneName: "short",
+		timeZoneName,
 		weekday: "short",
 		month: "short",
 		day: "numeric",
@@ -242,15 +246,26 @@ const formatRunTimeIn = (value: string, timeZone: string): string =>
 		second: undefined,
 	});
 
-// The server's tzdata can know zones that this browser's Intl rejects.
-const formatRunTime = (value: string, timeZone: string): string => {
+// The line shows this many runs, as many as fit on one line.
+const PREVIEW_RUN_COUNT = 3;
+
+/**
+ * Lists run times in the chosen zone, named once at the end as the user
+ * picked it ("Asia/Kolkata", not "GMT+5:30"). The server's tzdata can know
+ * zones that this browser's Intl rejects; those times show in UTC.
+ */
+const formatRunTimes = (values: readonly string[], timeZone: string) => {
 	try {
-		return formatRunTimeIn(value, timeZone);
+		return `${values
+			.map((value) => formatRunTimeIn(value, timeZone, undefined))
+			.join(" · ")} (${timeZone})`;
 	} catch (error) {
 		if (!(error instanceof RangeError)) {
 			throw error;
 		}
-		return formatRunTimeIn(value, "UTC");
+		return values
+			.map((value) => formatRunTimeIn(value, "UTC", "short"))
+			.join(" · ");
 	}
 };
 
@@ -317,16 +332,24 @@ export const AutomationScheduleFields: React.FC<
 			? getValidationErrorMessage(previewQuery.error) ||
 				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 			: undefined;
+	// The preview describes the debounced cron. While the field holds
+	// another one, its times and errors would describe the wrong schedule.
+	const isPreviewCurrent =
+		cron === debouncedCron && timeZone === debouncedTimeZone;
 	const rawCronError = cronField.error
 		? cronField.helperText
-		: cronPreviewError;
+		: isPreviewCurrent
+			? cronPreviewError
+			: undefined;
 	const cronError = rawCronError
 		? (describeCronProblem(cron) ?? rawCronError)
 		: undefined;
 	// Only the run list renders the warning, so the cron input refers to it
 	// only when that list is shown.
 	const intervalWarning =
-		!previewQuery.isError && previewQuery.data?.next_run_times.length
+		isPreviewCurrent &&
+		!previewQuery.isError &&
+		previewQuery.data?.next_run_times.length
 			? previewQuery.data.interval_warning
 			: undefined;
 	const timeZoneError = timeZoneField.error
@@ -376,9 +399,12 @@ export const AutomationScheduleFields: React.FC<
 			: undefined;
 
 	let preview: React.ReactNode;
-	if (!debouncedCron) {
+	if (!cron && (minuteError || timeError)) {
+		// The shortcut cleared the cron because its own field is invalid.
+		preview = "Upcoming runs appear when the schedule is valid.";
+	} else if (!cron) {
 		preview = "Enter a cron expression to see upcoming runs.";
-	} else if (previewQuery.isLoading) {
+	} else if (!isPreviewCurrent || previewQuery.isLoading) {
 		preview = (
 			<span className="inline-flex items-center gap-2">
 				<Spinner loading size="sm" />
@@ -393,15 +419,17 @@ export const AutomationScheduleFields: React.FC<
 		preview = (
 			<>
 				Next:{" "}
-				{previewQuery.data.next_run_times
-					.map((runTime) => formatRunTime(runTime, debouncedTimeZone))
-					.join(" · ")}
+				{formatRunTimes(
+					previewQuery.data.next_run_times.slice(0, PREVIEW_RUN_COUNT),
+					debouncedTimeZone,
+				)}
 			</>
 		);
 	}
-	const clockChangeNote = previewQuery.isError
-		? undefined
-		: previewQuery.data?.clock_change_note;
+	const clockChangeNote =
+		isPreviewCurrent && !previewQuery.isError
+			? previewQuery.data?.clock_change_note
+			: undefined;
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -467,8 +495,9 @@ export const AutomationScheduleFields: React.FC<
 						<Input
 							id={timeId}
 							type="time"
-							// Custom and every-N-minutes schedules have no single time.
-							value={repeatOption?.usesTime ? time : ""}
+							// Custom and every-N-minutes schedules have no single
+							// time, so the last time stays, disabled.
+							value={time}
 							disabled={!repeatOption?.usesTime}
 							aria-invalid={Boolean(timeError)}
 							aria-describedby={timeError ? timeErrorId : undefined}
@@ -549,6 +578,9 @@ export const AutomationScheduleFields: React.FC<
 					<InfoTooltip size="small" ariaLabel="About Cron expression">
 						The schedule that is saved. Repeat and Time fill it in. Five fields:
 						minute, hour, day of month, month, day of week.
+						{clockChangeNote && (
+							<span className="mt-2 block">{clockChangeNote}</span>
+						)}
 					</InfoTooltip>
 				</span>
 				<section
@@ -575,9 +607,6 @@ export const AutomationScheduleFields: React.FC<
 					<p id={intervalWarningId} className="m-0 text-content-warning">
 						{intervalWarning}
 					</p>
-				)}
-				{clockChangeNote && (
-					<p className="m-0 text-content-secondary">{clockChangeNote}</p>
 				)}
 			</div>
 		</div>

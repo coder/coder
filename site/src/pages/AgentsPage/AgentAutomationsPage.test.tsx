@@ -1399,6 +1399,125 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		);
 	});
 
+	it("shows Next and cron errors only for the cron in the field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(
+				`${automationsPath(":organizationId")}/schedule-preview`,
+				async ({ request }) => {
+					const { schedule_cron } = (await request.json()) as {
+						schedule_cron: string;
+					};
+					return schedule_cron.startsWith("61")
+						? validationError(
+								"schedule_cron",
+								"parse schedule: end of range (61) above maximum (59): 61",
+							)
+						: HttpResponse.json({ next_run_times: ["2026-10-01T09:30:00Z"] });
+				},
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+		await waitFor(() => {
+			expect(upcoming).toHaveTextContent(/9:30 AM/);
+		});
+
+		// The old times describe another cron, so they go at once.
+		await user.clear(cron);
+		await user.type(cron, "61 * * * *");
+		expect(upcoming).not.toHaveTextContent(/9:30 AM/);
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Minute must be 0-59."),
+			);
+		});
+
+		// The server's error is about the old cron, so it goes at once too.
+		await user.clear(cron);
+		await user.type(cron, "1 * * * *");
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("parse schedule"),
+		);
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("Minute must be"),
+		);
+	});
+
+	it("says the schedule is invalid, not empty, for an hourly minute out of range", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		await user.clear(minute);
+		await user.type(minute, "75");
+
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+		expect(upcoming).toHaveTextContent(
+			"Upcoming runs appear when the schedule is valid.",
+		);
+		expect(upcoming).not.toHaveTextContent("Enter a cron expression");
+	});
+
+	it("shows at most three upcoming runs with the chosen time zone", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				HttpResponse.json({
+					next_run_times: [
+						"2026-10-01T09:00:00Z",
+						"2026-10-02T09:00:00Z",
+						"2026-10-03T09:00:00Z",
+						"2026-10-04T09:00:00Z",
+						"2026-10-05T09:00:00Z",
+					],
+					clock_change_note: "Clocks change on Oct 25.",
+				}),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+
+		await waitFor(() => {
+			expect(upcoming).toHaveTextContent(/Oct 3/);
+		});
+		expect(upcoming).not.toHaveTextContent(/Oct 4/);
+		expect(upcoming).toHaveTextContent(`(${browserTimeZone})`);
+		// The clock-change note moves into the cron's info tooltip.
+		expect(within(dialog).queryByText("Clocks change on Oct 25.")).toBeNull();
+		await user.hover(
+			within(dialog).getByRole("button", { name: "About Cron expression" }),
+		);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Clocks change on Oct 25.",
+		);
+	});
+
+	it("shows the time disabled for a schedule that has no single time", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+		await user.click(
+			await screen.findByRole("option", { name: "Every 5 minutes" }),
+		);
+
+		const time = within(dialog).getByLabelText("Time");
+		expect(time).toBeDisabled();
+		expect(time).toHaveValue("09:00");
+	});
+
 	it("asks the server for chats from the automation's organization", async () => {
 		const user = userEvent.setup();
 		// A non-default organization, so the term cannot come from a default.
