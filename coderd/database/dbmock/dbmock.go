@@ -3506,21 +3506,6 @@ func (mr *MockStoreMockRecorder) GetChatProjectByIDForUpdate(ctx, id any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatProjectByIDForUpdate), ctx, id)
 }
 
-// GetChatProjectChatFamilies mocks base method.
-func (m *MockStore) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectChatFamilies", ctx, projectID)
-	ret0, _ := ret[0].([]database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectChatFamilies indicates an expected call of GetChatProjectChatFamilies.
-func (mr *MockStoreMockRecorder) GetChatProjectChatFamilies(ctx, projectID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectChatFamilies", reflect.TypeOf((*MockStore)(nil).GetChatProjectChatFamilies), ctx, projectID)
-}
-
 // GetChatProjectMemoriesByProjectID mocks base method.
 func (m *MockStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	m.ctrl.T.Helper()
@@ -3864,6 +3849,21 @@ func (m *MockStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.U
 func (mr *MockStoreMockRecorder) GetChatsByIDsForRunnerSync(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDsForRunnerSync", reflect.TypeOf((*MockStore)(nil).GetChatsByIDsForRunnerSync), ctx, ids)
+}
+
+// GetChatsByProjectID mocks base method.
+func (m *MockStore) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsByProjectID", ctx, projectID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsByProjectID indicates an expected call of GetChatsByProjectID.
+func (mr *MockStoreMockRecorder) GetChatsByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByProjectID", reflect.TypeOf((*MockStore)(nil).GetChatsByProjectID), ctx, projectID)
 }
 
 // GetChatsByWorkspaceIDs mocks base method.
@@ -9262,21 +9262,6 @@ func (m *MockStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsCha
 func (mr *MockStoreMockRecorder) IsChatHeartbeatStale(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatHeartbeatStale", reflect.TypeOf((*MockStore)(nil).IsChatHeartbeatStale), ctx, arg)
-}
-
-// IsChatInDeletedChatProject mocks base method.
-func (m *MockStore) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsChatInDeletedChatProject", ctx, chatID)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsChatInDeletedChatProject indicates an expected call of IsChatInDeletedChatProject.
-func (mr *MockStoreMockRecorder) IsChatInDeletedChatProject(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatInDeletedChatProject", reflect.TypeOf((*MockStore)(nil).IsChatInDeletedChatProject), ctx, chatID)
 }
 
 // IsChatProjectAccessibleByUserID mocks base method.

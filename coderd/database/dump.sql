@@ -1508,6 +1508,19 @@ $$;
 
 COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
+CREATE FUNCTION set_sub_chat_project_id() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF COALESCE(NEW.root_chat_id, NEW.parent_chat_id) IS NOT NULL THEN
+        SELECT project_id INTO NEW.project_id
+        FROM chats
+        WHERE id = COALESCE(NEW.root_chat_id, NEW.parent_chat_id);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2343,7 +2356,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.project_id IS 'Project the chat belongs to. Sub-chats carry their root chat''s project.';
+COMMENT ON COLUMN chats.project_id IS 'Sub-chats carry their root chat''s project.';
 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
@@ -5227,6 +5240,8 @@ CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati A
 CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
+
+CREATE TRIGGER trigger_set_sub_chat_project_id BEFORE INSERT ON chats FOR EACH ROW EXECUTE FUNCTION set_sub_chat_project_id();
 
 CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
 

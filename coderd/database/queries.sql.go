@@ -7933,9 +7933,10 @@ WHERE id = $1::uuid AND NOT deleted
 FOR NO KEY UPDATE
 `
 
-// NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
-// foreign key lock. A project delete holding this lock while a sub-chat
-// insert holds its root would otherwise deadlock.
+// Locks FOR NO KEY UPDATE so a sub-chat insert can take the FOR KEY SHARE
+// lock its project_id foreign key check needs. With FOR UPDATE, a project
+// delete waiting at LockChatProjectRootChats on the insert's root deadlocks
+// with it.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
 	var i ChatProject
@@ -7955,16 +7956,79 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 	return i, err
 }
 
-const getChatProjectChatFamilies = `-- name: GetChatProjectChatFamilies :many
+const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.deleted
+FROM chat_projects
+WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = $1::uuid
+    OR (
+        (
+            chat_projects.user_acl ? ($1::uuid)::text
+            OR chat_projects.group_acl ?| ARRAY(
+                SELECT group_members.group_id::text
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                UNION ALL
+                SELECT organization_members.organization_id::text
+                FROM organization_members
+                WHERE organization_members.user_id = $1::uuid
+            )
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_projects.organization_id
+        )
+    ))
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+// Entries match regardless of the actions they grant, so callers must
+// authorize each row.
+func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByProjectID = `-- name: GetChatsByProjectID :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
 FROM chats_expanded
 WHERE project_id = $1::uuid
 ORDER BY id
 `
 
-// Sub-chats carry their root's project_id, so this returns whole families.
-func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectChatFamilies, projectID)
+func (q *sqlQuerier) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByProjectID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -8037,70 +8101,6 @@ func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID u
 	return items, nil
 }
 
-const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.deleted
-FROM chat_projects
-WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = $1::uuid
-    OR (
-        (
-            chat_projects.user_acl ? ($1::uuid)::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = $1::uuid
-                UNION ALL
-                SELECT organization_members.organization_id::text
-                FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-            )
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
-                AND organization_members.organization_id = chat_projects.organization_id
-        )
-    ))
-ORDER BY lower(chat_projects.name), chat_projects.id
-`
-
-// Entries match regardless of the actions they grant, so callers must
-// authorize each row.
-func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProject
-	for rows.Next() {
-		var i ChatProject
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.OwnerID,
-			&i.Name,
-			&i.Description,
-			&i.Icon,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.Deleted,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertChatProject = `-- name: InsertChatProject :one
 INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
 VALUES (
@@ -8147,22 +8147,6 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Deleted,
 	)
 	return i, err
-}
-
-const isChatInDeletedChatProject = `-- name: IsChatInDeletedChatProject :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chats c
-    JOIN chat_projects ON chat_projects.id = c.project_id
-    WHERE c.id = $1::uuid AND chat_projects.deleted
-)::boolean
-`
-
-func (q *sqlQuerier) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, isChatInDeletedChatProject, chatID)
-	var column_1 bool
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const isChatProjectAccessibleByUserID = `-- name: IsChatProjectAccessibleByUserID :one

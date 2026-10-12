@@ -3739,15 +3739,6 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
-// The project delete must see every family member, so a caller that cannot
-// read every chat fails instead of getting a partial list.
-func (q *querier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatProjectChatFamilies(ctx, projectID)
-}
-
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return nil, err
@@ -3943,6 +3934,15 @@ func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUI
 		return nil, err
 	}
 	return q.db.GetChatsByIDsForRunnerSync(ctx, ids)
+}
+
+// The project delete must see every chat in the project, so a caller that
+// cannot read every chat fails instead of getting a partial list.
+func (q *querier) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatsByProjectID(ctx, projectID)
 }
 
 func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -7071,15 +7071,6 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 		return false, err
 	}
 	return q.db.IsChatHeartbeatStale(ctx, arg)
-}
-
-// Callers check a chat they already authorized, so this requires reading
-// every chat instead of fetching it again.
-func (q *querier) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return false, err
-	}
-	return q.db.IsChatInDeletedChatProject(ctx, chatID)
 }
 
 // IsChatProjectAccessibleByUserID answers for another user, so it requires

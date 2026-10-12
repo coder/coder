@@ -7,7 +7,9 @@ WHERE chats.project_id = chat_projects.id AND chat_projects.deleted;
 DELETE FROM chat_projects WHERE deleted;
 
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
-UPDATE chats SET project_id = NULL WHERE parent_chat_id IS NOT NULL;
+DROP TRIGGER IF EXISTS trigger_set_sub_chat_project_id ON chats;
+DROP FUNCTION IF EXISTS set_sub_chat_project_id();
+UPDATE chats SET project_id = NULL WHERE root_chat_id IS NOT NULL OR parent_chat_id IS NOT NULL;
 ALTER TABLE chat_projects DROP COLUMN deleted;
 
 DROP INDEX IF EXISTS idx_chat_projects_group_acl;

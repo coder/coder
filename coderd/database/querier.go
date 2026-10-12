@@ -561,12 +561,11 @@ type sqlcQuerier interface {
 	// so a concurrent project delete either archives the new chat or makes
 	// this return no rows.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
-	// foreign key lock. A project delete holding this lock while a sub-chat
-	// insert holds its root would otherwise deadlock.
+	// Locks FOR NO KEY UPDATE so a sub-chat insert can take the FOR KEY SHARE
+	// lock its project_id foreign key check needs. With FOR UPDATE, a project
+	// delete waiting at LockChatProjectRootChats on the insert's root deadlocks
+	// with it.
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Sub-chats carry their root's project_id, so this returns whole families.
-	GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
@@ -627,6 +626,7 @@ type sqlcQuerier interface {
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
+	GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
@@ -1326,7 +1326,6 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error)
 	IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the

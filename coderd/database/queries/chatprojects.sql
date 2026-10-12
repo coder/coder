@@ -16,9 +16,10 @@ FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForUpdate :one
--- NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
--- foreign key lock. A project delete holding this lock while a sub-chat
--- insert holds its root would otherwise deadlock.
+-- Locks FOR NO KEY UPDATE so a sub-chat insert can take the FOR KEY SHARE
+-- lock its project_id foreign key check needs. With FOR UPDATE, a project
+-- delete waiting at LockChatProjectRootChats on the insert's root deadlocks
+-- with it.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted
@@ -128,8 +129,7 @@ FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted
 FOR SHARE;
 
--- name: GetChatProjectChatFamilies :many
--- Sub-chats carry their root's project_id, so this returns whole families.
+-- name: GetChatsByProjectID :many
 SELECT *
 FROM chats_expanded
 WHERE project_id = @project_id::uuid
@@ -182,13 +182,6 @@ WHERE chat_id IN (
     WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
 );
 
--- name: IsChatInDeletedChatProject :one
-SELECT EXISTS (
-    SELECT 1
-    FROM chats c
-    JOIN chat_projects ON chat_projects.id = c.project_id
-    WHERE c.id = @chat_id::uuid AND chat_projects.deleted
-)::boolean;
 
 -- name: DeleteEmptyDeletedChatProjects :execrows
 -- Memories cascade with the row, so they follow chat retention too; nothing
