@@ -1,7 +1,11 @@
 import isEqual from "lodash/isEqual";
 import { useSyncExternalStore } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+	normalizeChatErrorPayload,
+} from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -60,12 +64,12 @@ const chatQueuedMessagesEqualByID = (
 
 const retryStatesEqual = (
 	left: RetryState | null,
-	right: RetryState,
+	right: RetryState | null,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left) {
+	if (!left || !right) {
 		return false;
 	}
 	return (
@@ -91,6 +95,26 @@ const reconnectStatesEqual = (
 		left.attempt === right.attempt &&
 		left.delayMs === right.delayMs &&
 		left.retryingAt === right.retryingAt
+	);
+};
+
+const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
+	attempt: Math.max(1, retry.attempt),
+	error: retry.error.trim() || "Retrying request shortly.",
+	kind: retry.kind ?? "generic",
+	provider: retry.provider?.trim() || undefined,
+	retryingAt: retry.retrying_at.trim() || undefined,
+});
+
+const turnError = (turn: TypesGen.ChatStreamTurn): ChatDetailError | null => {
+	if (turn.status !== "error") {
+		return null;
+	}
+	return (
+		normalizeChatErrorPayload(turn.error) ?? {
+			kind: "generic",
+			message: "Chat processing failed.",
+		}
 	);
 };
 
@@ -130,9 +154,12 @@ export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
+	// The turn the server reported last: status, error and pending retry.
 	chatStatus: TypesGen.ChatStatus | null;
-	streamError: ChatDetailError | null;
+	turnError: ChatDetailError | null;
 	retryState: RetryState | null;
+	// A failure of this client, such as a rejected request.
+	streamError: ChatDetailError | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
@@ -171,7 +198,7 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	applyCheckpoint: (snapshotVersion: number) => void;
+	applyCheckpoint: (checkpoint: TypesGen.ChatStreamCheckpoint) => void;
 	// The snapshot version of the last applied page or checkpoint.
 	getSyncedSnapshotVersion: () => number;
 	// Adds nothing when the stream already synced past untilVersion.
@@ -182,13 +209,10 @@ export type ChatStore = {
 	) => void;
 	removePendingAction: (id: number) => void;
 	hasServerStatus: () => boolean;
-	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
-	setRetryState: (state: RetryState) => void;
-	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState) => void;
 	clearReconnectState: () => void;
 	clearStreamState: () => void;
@@ -205,8 +229,9 @@ const createInitialState = (): ChatStoreState => ({
 	orderedMessageIDs: [],
 	streamState: null,
 	chatStatus: null,
-	streamError: null,
+	turnError: null,
 	retryState: null,
+	streamError: null,
 	reconnectState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
@@ -477,17 +502,36 @@ export const createChatStore = (): ChatStore => {
 					: { ...current, hasMoreMessages: hasMore },
 			);
 		},
-		applyCheckpoint: (snapshotVersion) => {
-			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, snapshotVersion);
+		applyCheckpoint: ({ snapshot_version, turn }) => {
+			serverStatusReceived = true;
+			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, snapshot_version);
+			const error = turnError(turn);
+			const retry = turn.retry ? normalizeRetryState(turn.retry) : null;
 			setState((current) => {
 				const remaining = current.pendingActions.filter(
 					(entry) =>
 						entry.untilVersion === undefined ||
 						entry.untilVersion > syncedSnapshotVersion,
 				);
-				return remaining.length === current.pendingActions.length
-					? current
-					: { ...current, pendingActions: remaining };
+				if (
+					remaining.length === current.pendingActions.length &&
+					current.chatStatus === turn.status &&
+					chatDetailErrorsEqual(current.turnError, error) &&
+					retryStatesEqual(current.retryState, retry)
+				) {
+					return current;
+				}
+				return {
+					...current,
+					pendingActions: remaining,
+					chatStatus: turn.status,
+					turnError: chatDetailErrorsEqual(current.turnError, error)
+						? current.turnError
+						: error,
+					retryState: retryStatesEqual(current.retryState, retry)
+						? current.retryState
+						: retry,
+				};
 			});
 		},
 		getSyncedSnapshotVersion: () => syncedSnapshotVersion,
@@ -550,16 +594,6 @@ export const createChatStore = (): ChatStore => {
 				chatStatus: status,
 			}));
 		},
-		applyServerChatStatus: (status) => {
-			serverStatusReceived = true;
-			if (state.chatStatus === status) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				chatStatus: status,
-			}));
-		},
 		setStreamState: (streamState) => {
 			if (state.streamState === streamState) {
 				return;
@@ -592,26 +626,6 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamError: null,
-			}));
-		},
-		setRetryState: (retryState) => {
-			setState((current) => {
-				if (retryStatesEqual(current.retryState, retryState)) {
-					return current;
-				}
-				return {
-					...current,
-					retryState,
-				};
-			});
-		},
-		clearRetryState: () => {
-			if (state.retryState === null) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				retryState: null,
 			}));
 		},
 		setReconnectState: (reconnectState) => {
@@ -675,7 +689,6 @@ export const createChatStore = (): ChatStore => {
 			if (
 				state.streamState === null &&
 				state.streamError === null &&
-				state.retryState === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
@@ -685,7 +698,6 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				streamState: null,
 				streamError: null,
-				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));
@@ -702,6 +714,7 @@ type ChatView = Pick<
 	| "queuedMessages"
 	| "streamState"
 	| "streamError"
+	| "turnError"
 	| "retryState"
 >;
 
@@ -823,6 +836,7 @@ const selectView = (state: ChatStoreState): ChatView => {
 		chatStatus: turnStarts ? "running" : chatStatus,
 		streamState: turnStarts ? null : state.streamState,
 		streamError: turnStarts ? null : state.streamError,
+		turnError: turnStarts ? null : state.turnError,
 		retryState: turnStarts ? null : state.retryState,
 	};
 	views.set(state, view);
@@ -839,8 +853,11 @@ export const selectHasStreamState = (state: ChatStoreState) =>
 	selectView(state).streamState !== null;
 export const selectChatStatus = (state: ChatStoreState) =>
 	selectView(state).chatStatus;
-export const selectStreamError = (state: ChatStoreState) =>
-	selectView(state).streamError;
+// A failure of this client, or else the error the chat's turn ended with.
+export const selectStreamError = (state: ChatStoreState) => {
+	const view = selectView(state);
+	return view.streamError ?? view.turnError;
+};
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	selectView(state).queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
