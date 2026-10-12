@@ -330,6 +330,10 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !validateMCPOAuth2ResourceRequest(ctx, rw, req.OAuth2Resource) {
+		return
+	}
+
 	configID := uuid.New()
 
 	// Validate auth-type-dependent fields.
@@ -414,6 +418,9 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			req.OAuth2AuthURL = result.authURL
 			req.OAuth2TokenURL = result.tokenURL
 			req.OAuth2RevocationURL = oauth2RevocationURL
+			if strings.TrimSpace(req.OAuth2Resource) == "" {
+				req.OAuth2Resource = result.resource
+			}
 			req.OAuth2Scopes = oauth2Scopes
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
@@ -463,6 +470,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
 		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
 		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
+		OAuth2Resource:          strings.TrimSpace(req.OAuth2Resource),
 		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
 		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
@@ -666,6 +674,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.OAuth2Resource != nil && !validateMCPOAuth2ResourceRequest(ctx, rw, *req.OAuth2Resource) {
+		return
+	}
+
 	// Pre-validate custom headers before entering the transaction.
 	var customHeadersJSON string
 	if req.CustomHeaders != nil {
@@ -762,6 +774,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			oauth2RevocationURL = strings.TrimSpace(*req.OAuth2RevocationURL)
 		}
 
+		oauth2Resource := existing.OAuth2Resource
+		if req.OAuth2Resource != nil {
+			oauth2Resource = strings.TrimSpace(*req.OAuth2Resource)
+		}
+
 		oauth2Scopes := existing.OAuth2Scopes
 		if req.OAuth2Scopes != nil {
 			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
@@ -841,6 +858,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -860,6 +878,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
@@ -870,6 +889,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -884,6 +904,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -898,11 +919,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// User grants are bound to the destination, auth flow, token and revocation
-		// endpoints, and OAuth client. Invalidate them when any of these change so
-		// stored tokens cannot be sent to another endpoint or client.
+		// endpoints, OAuth client, and resource indicator. Invalidate them when any
+		// of these change so stored tokens cannot be sent to another endpoint,
+		// client, or resource.
 		if serverURL != existing.Url || authType != existing.AuthType ||
 			oauth2TokenURL != existing.OAuth2TokenURL || oauth2RevocationURL != existing.OAuth2RevocationURL ||
-			oauth2ClientID != existing.OAuth2ClientID {
+			oauth2ClientID != existing.OAuth2ClientID || oauth2Resource != existing.OAuth2Resource {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}
@@ -922,6 +944,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			OAuth2AuthURL:           oauth2AuthURL,
 			OAuth2TokenURL:          oauth2TokenURL,
 			OAuth2RevocationURL:     oauth2RevocationURL,
+			OAuth2Resource:          oauth2Resource,
 			OAuth2Scopes:            oauth2Scopes,
 			APIKeyHeader:            apiKeyHeader,
 			APIKeyValue:             apiKeyValue,
@@ -1129,7 +1152,11 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
 	oauth2Config.Scopes = scopes
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	authOpts := []oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier)}
+	if config.OAuth2Resource != "" {
+		authOpts = append(authOpts, oauth2.SetAuthURLParam("resource", config.OAuth2Resource))
+	}
+	authURL := oauth2Config.AuthCodeURL(state, authOpts...)
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -1240,6 +1267,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if verifierCookie, err := r.Cookie("mcp_oauth2_verifier_" + config.ID.String()); err == nil {
 		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifierCookie.Value))
 	}
+	if config.OAuth2Resource != "" {
+		exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("resource", config.OAuth2Resource))
+	}
 	// Clear the verifier cookie regardless of whether it was present.
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
@@ -1302,7 +1332,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		}
 		if current.Url != config.Url || current.AuthType != config.AuthType ||
 			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2RevocationURL != config.OAuth2RevocationURL ||
-			current.OAuth2ClientID != config.OAuth2ClientID {
+			current.OAuth2ClientID != config.OAuth2ClientID || current.OAuth2Resource != config.OAuth2Resource {
 			return errMCPConfigSupersededDuringAuth
 		}
 		_, err = tx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
@@ -1629,6 +1659,7 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		OAuth2AuthURL:       config.OAuth2AuthURL,
 		OAuth2TokenURL:      config.OAuth2TokenURL,
 		OAuth2RevocationURL: config.OAuth2RevocationURL,
+		OAuth2Resource:      config.OAuth2Resource,
 		OAuth2Scopes:        config.OAuth2Scopes,
 
 		APIKeyHeader: config.APIKeyHeader,
@@ -1666,6 +1697,7 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2AuthURL = ""
 	c.OAuth2TokenURL = ""
 	c.OAuth2RevocationURL = ""
+	c.OAuth2Resource = ""
 	c.OAuth2Scopes = ""
 	c.APIKeyHeader = ""
 	return c
@@ -1709,6 +1741,89 @@ func coalesceStringSlice(ss []string) []string {
 	return ss
 }
 
+// validateMCPOAuth2Resource checks a non-empty RFC 8707 resource
+// indicator: an absolute URI without a fragment (RFC 8707 section 2).
+func validateMCPOAuth2Resource(resource string) error {
+	if strings.Contains(resource, "#") {
+		return xerrors.New("oauth2_resource must not contain a fragment")
+	}
+	parsed, err := url.Parse(resource)
+	if err != nil {
+		return xerrors.New("oauth2_resource must be a valid URI")
+	}
+	if !parsed.IsAbs() {
+		return xerrors.New("oauth2_resource must be an absolute URI")
+	}
+	return nil
+}
+
+// validateMCPOAuth2ResourceRequest writes a 400 response and returns
+// false when a non-empty oauth2_resource is invalid. An empty value is
+// valid because it means no resource parameter is sent.
+func validateMCPOAuth2ResourceRequest(ctx context.Context, rw http.ResponseWriter, resource string) bool {
+	trimmed := strings.TrimSpace(resource)
+	if trimmed == "" {
+		return true
+	}
+	if err := validateMCPOAuth2Resource(trimmed); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid OAuth2 resource.",
+			Detail:  err.Error(),
+		})
+		return false
+	}
+	return true
+}
+
+// mcpOAuth2ResourceIndicator picks the RFC 8707 resource indicator for
+// an MCP server: the most specific advertised Protected Resource
+// Metadata resource that covers the server URL, stored verbatim, else
+// the server URL in canonical form. This matches the MCP Python SDK.
+func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
+	serverPath := withTrailingSlash(serverURL.Path)
+	best := ""
+	bestPathLen := -1
+	for _, raw := range advertised {
+		candidate := strings.TrimSpace(raw)
+		if candidate == "" || validateMCPOAuth2Resource(candidate) != nil {
+			continue
+		}
+		parsed, err := url.Parse(candidate)
+		if err != nil {
+			continue
+		}
+		if !strings.EqualFold(parsed.Scheme, serverURL.Scheme) || !strings.EqualFold(parsed.Host, serverURL.Host) {
+			continue
+		}
+		entryPath := withTrailingSlash(parsed.Path)
+		if !strings.HasPrefix(serverPath, entryPath) {
+			continue
+		}
+		if len(entryPath) > bestPathLen {
+			best = candidate
+			bestPathLen = len(entryPath)
+		}
+	}
+	if best != "" {
+		return best
+	}
+
+	canonical := *serverURL
+	canonical.Scheme = strings.ToLower(canonical.Scheme)
+	canonical.Host = strings.ToLower(canonical.Host)
+	canonical.User = nil
+	canonical.Fragment = ""
+	canonical.RawFragment = ""
+	return canonical.String()
+}
+
+func withTrailingSlash(path string) string {
+	if strings.HasSuffix(path, "/") {
+		return path
+	}
+	return path + "/"
+}
+
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
 // and Dynamic Client Registration.
 type mcpOAuth2Discovery struct {
@@ -1717,6 +1832,7 @@ type mcpOAuth2Discovery struct {
 	authURL       string
 	tokenURL      string
 	revocationURL string
+	resource      string // RFC 8707 resource indicator
 	scopes        string // space-separated
 }
 
@@ -2081,6 +2197,7 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 		authURL:       asMeta.AuthorizationEndpoint,
 		tokenURL:      asMeta.TokenEndpoint,
 		revocationURL: asMeta.RevocationEndpoint,
+		resource:      mcpOAuth2ResourceIndicator(parsed, prm.Resource),
 		scopes:        scopes,
 	}, nil
 }

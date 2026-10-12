@@ -88,9 +88,16 @@ Optional fields:
 | `oauth2_client_secret`  | OAuth2 client secret.                     |
 | `oauth2_scopes`         | Space-separated list of scopes.           |
 | `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
+| `oauth2_resource`       | Resource indicator URI (RFC 8707).        |
 
 The revocation endpoint must use HTTPS.
 Loopback URLs may use HTTP for local development and tests.
+
+When `oauth2_resource` is set, Coder sends it as the RFC 8707 `resource`
+parameter on authorization, token, and refresh requests. The value must be an
+absolute URI without a fragment. A manual configuration sends no `resource`
+parameter unless you set this field. Leave it empty for providers that reject
+the parameter, such as Microsoft Entra ID.
 
 **Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
@@ -100,8 +107,13 @@ Loopback URLs may use HTTP for local development and tests.
 1. RFC 7591 — Dynamic Client Registration
 
 Auto-discovery also records the provider's `revocation_endpoint` from the
-RFC 8414 metadata when advertised. An explicit `oauth2_revocation_url` in
-the request takes precedence over the discovered value.
+RFC 8414 metadata when advertised, and sets `oauth2_resource` to the
+Protected Resource Metadata `resource` that matches the MCP server URL, or to
+the server URL when none matches. Explicit `oauth2_revocation_url` and
+`oauth2_resource` values in the request take precedence over the discovered
+values. Discovery runs only when a configuration is created, so to add a
+resource indicator to an existing configuration, set `oauth2_resource` on it
+or re-create the server.
 
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically. Users can disconnect

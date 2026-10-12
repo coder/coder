@@ -6893,6 +6893,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
   "oauth2_client_secret": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -6911,33 +6912,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
-| `icon_url`              | string          | false    |              |                                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
-| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
-| `slug`                  | string          | true     |              |                                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                                        |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                      |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                  |
+| `api_key_header`        | string          | false    |              |                                                                                                                                                                  |
+| `api_key_value`         | string          | false    |              |                                                                                                                                                                  |
+| `auth_type`             | string          | true     |              |                                                                                                                                                                  |
+| `availability`          | string          | true     |              |                                                                                                                                                                  |
+| `custom_headers`        | object          | false    |              |                                                                                                                                                                  |
+| » `[any property]`      | string          | false    |              |                                                                                                                                                                  |
+| `description`           | string          | false    |              |                                                                                                                                                                  |
+| `display_name`          | string          | true     |              |                                                                                                                                                                  |
+| `enabled`               | boolean         | false    |              |                                                                                                                                                                  |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                                             |
+| `icon_url`              | string          | false    |              |                                                                                                                                                                  |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                                                  |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                  |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                                                                  |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                                                  |
+| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on authorization, token, and refresh requests when set; auto-populated by OAuth2 discovery when omitted. |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                                           |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                  |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                  |
+| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned.                           |
+| `slug`                  | string          | true     |              |                                                                                                                                                                  |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                                                                  |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                  |
+| `transport`             | string          | true     |              |                                                                                                                                                                  |
+| `url`                   | string          | true     |              |                                                                                                                                                                  |
 
 #### Enumerated Values
 
@@ -10779,6 +10781,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -10819,6 +10822,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_resource`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -16688,6 +16692,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
   "oauth2_client_secret": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -16724,6 +16729,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
 | `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
 | `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
+| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator; a pointer to "" clears it.                                          |
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                         |

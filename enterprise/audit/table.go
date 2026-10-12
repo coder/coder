@@ -578,6 +578,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"group_acl":                   ActionTrack,
 		"user_acl":                    ActionTrack,
 		"oauth2_revocation_url":       ActionTrack,
+		"oauth2_resource":             ActionTrack,
 		"organization_id":             ActionIgnore,
 	},
 	&database.UserSkill{}: {

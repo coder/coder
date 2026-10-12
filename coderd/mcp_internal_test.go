@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -264,6 +265,88 @@ func TestProtectedResourceMetadataResourceUnmarshal(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.want, meta.Resource)
+		})
+	}
+}
+
+func TestMCPOAuth2ResourceIndicator(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		serverURL  string
+		advertised []string
+		want       string
+	}{
+		{
+			name:       "ExactMatch",
+			serverURL:  "https://mcp.agent.dagster.cloud/mcp",
+			advertised: []string{"https://mcp.agent.dagster.cloud/mcp"},
+			want:       "https://mcp.agent.dagster.cloud/mcp",
+		},
+		{
+			name:       "OriginCoversPath",
+			serverURL:  "https://mcp.example.com/v1/mcp",
+			advertised: []string{"https://mcp.example.com"},
+			want:       "https://mcp.example.com",
+		},
+		{
+			name:       "CaseInsensitiveOriginKeptVerbatim",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"HTTPS://MCP.Example.com/mcp"},
+			want:       "HTTPS://MCP.Example.com/mcp",
+		},
+		{
+			name:       "PathCoversSubpath",
+			serverURL:  "https://mcp.example.com/mcp/x",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "PathPrefixIsNotSegment",
+			serverURL:  "https://mcp.example.com/mcp2",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp2",
+		},
+		{
+			name:       "OtherOriginFallsBack",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://other.example.com/mcp", "http://mcp.example.com/mcp", "https://mcp.example.com:8443/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "MostSpecificWins",
+			serverURL: "https://mcp.example.com/a/b/c",
+			advertised: []string{
+				"https://mcp.example.com/",
+				"https://mcp.example.com/a/b",
+				"https://mcp.example.com/a",
+			},
+			want: "https://mcp.example.com/a/b",
+		},
+		{
+			name:      "NoEntriesFallsBack",
+			serverURL: "https://mcp.example.com/mcp",
+			want:      "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "FallbackIsCanonical",
+			serverURL: "HTTPS://user:pass@MCP.Example.COM:8443/Path/MCP?tenant=Acme#frag",
+			want:      "https://mcp.example.com:8443/Path/MCP?tenant=Acme",
+		},
+		{
+			name:       "InvalidEntriesIgnored",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/#frag", "/mcp", "", "  "},
+			want:       "https://mcp.example.com/mcp",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			serverURL, err := url.Parse(tc.serverURL)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, mcpOAuth2ResourceIndicator(serverURL, tc.advertised))
 		})
 	}
 }

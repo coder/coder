@@ -479,6 +479,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_revocation_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_scopes</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_token_url</code></td><td>Yes</td></tr>

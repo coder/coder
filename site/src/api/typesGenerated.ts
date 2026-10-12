@@ -4329,6 +4329,12 @@ export interface CreateMCPServerConfigRequest {
 	 * endpoint; auto-populated by OAuth2 discovery when omitted.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator sent on
+	 * authorization, token, and refresh requests when set;
+	 * auto-populated by OAuth2 discovery when omitted.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -6530,6 +6536,7 @@ export interface MCPServerConfig {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	readonly oauth2_revocation_url?: string;
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	/**
 	 * API key fields (only populated for admins).
@@ -10751,6 +10758,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * validate tag would reject the pointer to "" that clears it.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator; a pointer
+	 * to "" clears it.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
