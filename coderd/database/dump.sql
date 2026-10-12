@@ -1512,10 +1512,10 @@ CREATE FUNCTION set_sub_chat_project_id() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF COALESCE(NEW.root_chat_id, NEW.parent_chat_id) IS NOT NULL THEN
+    IF NEW.root_chat_id IS NOT NULL THEN
         SELECT project_id INTO NEW.project_id
         FROM chats
-        WHERE id = COALESCE(NEW.root_chat_id, NEW.parent_chat_id);
+        WHERE id = NEW.root_chat_id;
     END IF;
     RETURN NEW;
 END;
@@ -2356,7 +2356,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.project_id IS 'Sub-chats carry their root chat''s project.';
+COMMENT ON COLUMN chats.project_id IS 'Sub-chats carry their root chat''s project; an insert trigger sets it and replaces any passed value.';
 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 

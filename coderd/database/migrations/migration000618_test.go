@@ -70,8 +70,8 @@ func TestMigration000618SubChatProjectID(t *testing.T) {
 
 	migrate("000618_chat_project_sharing.up.sql")
 	inProject := nullID(projectID)
-	for _, id := range []uuid.UUID{root, child, grandchild, orphan} {
-		require.Equal(t, inProject, projectOf(id))
+	for name, id := range map[string]uuid.UUID{"root": root, "child": child, "grandchild": grandchild, "orphan": orphan} {
+		require.Equal(t, inProject, projectOf(id), name)
 	}
 	require.False(t, projectOf(unrelatedChild).Valid)
 
@@ -82,8 +82,8 @@ func TestMigration000618SubChatProjectID(t *testing.T) {
 
 	migrate("000618_chat_project_sharing.down.sql")
 	require.Equal(t, inProject, projectOf(root))
-	for _, id := range []uuid.UUID{child, grandchild, orphan, insertedChild} {
-		require.False(t, projectOf(id).Valid)
+	for name, id := range map[string]uuid.UUID{"child": child, "grandchild": grandchild, "orphan": orphan, "insertedChild": insertedChild} {
+		require.False(t, projectOf(id).Valid, name)
 	}
 	insertedAfterDown := insertChat(uuid.Nil, root, root)
 	require.False(t, projectOf(insertedAfterDown).Valid, "the down migration drops the trigger")

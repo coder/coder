@@ -45,10 +45,10 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			// Chats of a deleted project stay archived until chat retention
-			// removes them.
+			// GetChatProjectByID returns no rows for a deleted project, whose
+			// archived chats stay until chat retention removes them.
 			if chat.ProjectID.Valid {
-				//nolint:gocritic // The chat was authorized by the fetch above.
+				//nolint:gocritic // The caller may not be able to read the project; only whether it is deleted is used.
 				_, err := db.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
@@ -56,7 +56,7 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				}
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Internal error fetching chat.",
+						Message: "Internal error fetching chat project.",
 						Detail:  err.Error(),
 					})
 					return
