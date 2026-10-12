@@ -885,7 +885,7 @@ describe("useFileAttachments processResizes", () => {
 		});
 
 		// Upload state must be "processing" (not "uploaded" or
-		// undefined). The AgentChatInput send gate treats this the
+		// undefined). The composer send gate treats this the
 		// same as "uploading" and blocks dispatch.
 		expect(result.current.uploadStates.get(file)?.status).toBe("processing");
 		unmount();

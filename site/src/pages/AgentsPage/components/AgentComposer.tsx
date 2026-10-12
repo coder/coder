@@ -106,16 +106,7 @@ type TextPreview = {
 	mediaType: string;
 };
 
-function Attachments({
-	onTextPreview,
-}: {
-	/** Replaces the built-in text preview dialog. */
-	onTextPreview?: (
-		content: string,
-		fileName: string,
-		mediaType: string,
-	) => void;
-}) {
+function Attachments() {
 	const { state, actions } = useAgentComposer();
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<TextPreview | null>(null);
@@ -127,11 +118,7 @@ function Attachments({
 		fileName: string,
 		mediaType: string,
 	) => {
-		if (onTextPreview) {
-			onTextPreview(content, fileName, mediaType);
-		} else {
-			setPreviewText({ content, fileName, mediaType });
-		}
+		setPreviewText({ content, fileName, mediaType });
 	};
 
 	return (

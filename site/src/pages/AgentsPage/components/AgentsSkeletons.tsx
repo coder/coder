@@ -135,7 +135,7 @@ export const RightPanelSkeleton: React.FC = () => (
 
 /**
  * Skeleton placeholder for the chat input area. Matches the layout of
- * the real AgentChatInput so the transition from Suspense fallback to
+ * the real chat composer so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
 const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (

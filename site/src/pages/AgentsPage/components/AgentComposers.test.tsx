@@ -6,6 +6,7 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type React from "react";
 import { createRef } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { AgentChatInput } from "./AgentChatInput";
+import { ChatComposer } from "./AgentComposers";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -55,22 +56,44 @@ const modelOptions = [
 	},
 ] as const;
 
+type ComposerProps = React.ComponentProps<typeof ChatComposer>;
+
 const inputProps = {
-	onSend: vi.fn(),
-	isDisabled: false,
-	isLoading: false,
-	selectedModel: modelOptions[0].id,
-	onModelChange: vi.fn(),
-	modelOptions,
-	modelSelectorPlaceholder: "Select model",
-	hasModelOptions: true,
-	canConfigureAgentSetup: false,
-	initialValue: "",
-	onContentChange: vi.fn(),
-	planModeEnabled: false,
-	onPlanModeToggle: vi.fn(),
-	isModelCatalogLoading: false,
-} satisfies React.ComponentProps<typeof AgentChatInput>;
+	bindings: {
+		onSend: vi.fn(),
+		isDisabled: false,
+		isLoading: false,
+		hasModelOptions: true,
+		initialValue: "",
+		onContentChange: vi.fn(),
+		files: { attachments: [] },
+	},
+	model: {
+		selectedModel: modelOptions[0].id,
+		onModelChange: vi.fn(),
+		modelOptions,
+		modelSelectorPlaceholder: "Select model",
+		isModelCatalogLoading: false,
+	},
+	tools: {
+		planning: { enabled: false, onChange: vi.fn() },
+	},
+	setup: { canConfigureAgentSetup: false },
+} satisfies ComposerProps;
+
+const withBindings = (
+	bindings: Partial<ComposerProps["bindings"]>,
+): ComposerProps => ({
+	...inputProps,
+	bindings: { ...inputProps.bindings, ...bindings },
+});
+
+const withMCP = (
+	mcp: NonNullable<ComposerProps["tools"]["mcp"]>,
+): ComposerProps => ({
+	...inputProps,
+	tools: { ...inputProps.tools, mcp },
+});
 
 const mockSentryMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
@@ -130,17 +153,17 @@ afterEach(() => {
 	mockedUseSpeechRecognition.mockReset();
 });
 
-describe("AgentChatInput", () => {
+describe("ChatComposer", () => {
 	it("fills its container when the page column sets the width", () => {
 		localStorage.removeItem("agents.chat-full-width");
-		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const { rerender } = renderInput(<ChatComposer {...inputProps} />);
 		const column = screen.getByTestId("chat-composer").parentElement;
 
 		expect(column).toHaveClass("max-w-3xl");
 
 		rerender(
 			<AppProviders>
-				<AgentChatInput {...inputProps} fillWidth />
+				<ChatComposer {...inputProps} fillWidth />
 			</AppProviders>,
 		);
 
@@ -155,22 +178,8 @@ describe("AgentChatInput", () => {
 		const onSend = vi.fn();
 
 		renderInput(
-			<AgentChatInput
-				onSend={onSend}
-				inputRef={inputRef}
-				isDisabled
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({ onSend, inputRef, isDisabled: true })}
 			/>,
 		);
 
@@ -188,23 +197,8 @@ describe("AgentChatInput", () => {
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({ files: { attachments: [], onAttach } })}
 			/>,
 		);
 
@@ -224,11 +218,12 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={mockMCPServers}
-				selectedMCPServerIds={mockSelectedMCPServerIds}
-				onMCPSelectionChange={onMCPSelectionChange}
+			<ChatComposer
+				{...withMCP({
+					servers: mockMCPServers,
+					selectedServerIds: mockSelectedMCPServerIds,
+					onSelectionChange: onMCPSelectionChange,
+				})}
 			/>,
 		);
 
@@ -248,11 +243,12 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={[...mockMCPServers, mockNotionMCP]}
-				selectedMCPServerIds={mockSelectedMCPServerIds}
-				onMCPSelectionChange={onMCPSelectionChange}
+			<ChatComposer
+				{...withMCP({
+					servers: [...mockMCPServers, mockNotionMCP],
+					selectedServerIds: mockSelectedMCPServerIds,
+					onSelectionChange: onMCPSelectionChange,
+				})}
 			/>,
 		);
 
@@ -272,11 +268,12 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={[mockLinearMCP, mockGitHubMCP]}
-				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
-				onMCPSelectionChange={onMCPSelectionChange}
+			<ChatComposer
+				{...withMCP({
+					servers: [mockLinearMCP, mockGitHubMCP],
+					selectedServerIds: [mockLinearMCP.id, mockGitHubMCP.id],
+					onSelectionChange: onMCPSelectionChange,
+				})}
 			/>,
 		);
 
@@ -288,15 +285,16 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={[mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth]}
-				selectedMCPServerIds={[
-					mockSentryMCP.id,
-					mockLinearMCP.id,
-					mockGitHubMCPNeedingAuth.id,
-				]}
-				onMCPSelectionChange={onMCPSelectionChange}
+			<ChatComposer
+				{...withMCP({
+					servers: [mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth],
+					selectedServerIds: [
+						mockSentryMCP.id,
+						mockLinearMCP.id,
+						mockGitHubMCPNeedingAuth.id,
+					],
+					onSelectionChange: onMCPSelectionChange,
+				})}
 			/>,
 		);
 
@@ -311,12 +309,13 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				isDisabled
-				mcpServers={mockMCPServers}
-				selectedMCPServerIds={mockSelectedMCPServerIds}
-				onMCPSelectionChange={onMCPSelectionChange}
+			<ChatComposer
+				{...withMCP({
+					servers: mockMCPServers,
+					selectedServerIds: mockSelectedMCPServerIds,
+					onSelectionChange: onMCPSelectionChange,
+				})}
+				bindings={{ ...inputProps.bindings, isDisabled: true }}
 			/>,
 		);
 
@@ -336,24 +335,13 @@ describe("AgentChatInput", () => {
 		const onInterrupt = vi.fn();
 
 		renderInput(
-			<AgentChatInput
-				onSend={onSend}
-				inputRef={inputRef}
-				isDisabled={false}
-				isLoading={false}
-				isStreaming
-				onInterrupt={onInterrupt}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend,
+					inputRef,
+					isStreaming: true,
+					onInterrupt,
+				})}
 			/>,
 		);
 
@@ -388,24 +376,15 @@ describe("AgentChatInput", () => {
 		const onSend = vi.fn();
 
 		renderInput(
-			<AgentChatInput
-				onSend={onSend}
-				isDisabled={false}
-				isLoading
-				isStreaming
-				isInterruptPending
-				onInterrupt={vi.fn()}
-				initialValue="Also update the docs"
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend,
+					isLoading: true,
+					isStreaming: true,
+					isInterruptPending: true,
+					onInterrupt: vi.fn(),
+					initialValue: "Also update the docs",
+				})}
 			/>,
 		);
 
@@ -417,27 +396,15 @@ describe("AgentChatInput", () => {
 	});
 
 	it("advertises the Enter send shortcut only on desktop viewports", () => {
-		const props = {
+		const props = withBindings({
 			onSend: vi.fn(),
-			isDisabled: false,
-			isLoading: false,
 			isStreaming: true,
 			onInterrupt: vi.fn(),
 			initialValue: "Also update the docs",
-			selectedModel: modelOptions[0].id,
-			onModelChange: vi.fn(),
-			modelOptions,
-			modelSelectorPlaceholder: "Select model",
-			hasModelOptions: true,
-			canConfigureAgentSetup: false,
-			onContentChange: vi.fn(),
-			planModeEnabled: false,
-			onPlanModeToggle: vi.fn(),
-			isModelCatalogLoading: false,
-		};
+		});
 
 		stubViewport(false);
-		const desktop = renderInput(<AgentChatInput {...props} />);
+		const desktop = renderInput(<ChatComposer {...props} />);
 		expect(
 			screen
 				.getByRole("button", { name: "Queue" })
@@ -446,7 +413,7 @@ describe("AgentChatInput", () => {
 		desktop.unmount();
 
 		stubViewport(true);
-		renderInput(<AgentChatInput {...props} />);
+		renderInput(<ChatComposer {...props} />);
 		expect(screen.getByRole("button", { name: "Queue" })).not.toHaveAttribute(
 			"aria-keyshortcuts",
 		);
@@ -467,23 +434,12 @@ describe("AgentChatInput", () => {
 		});
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				isDisabled={false}
-				isLoading={false}
-				isStreaming
-				onInterrupt={vi.fn()}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					isStreaming: true,
+					onInterrupt: vi.fn(),
+				})}
 			/>,
 		);
 
@@ -512,23 +468,12 @@ describe("AgentChatInput", () => {
 		});
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				isDisabled={false}
-				isLoading={false}
-				isStreaming
-				onInterrupt={vi.fn()}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					isStreaming: true,
+					onInterrupt: vi.fn(),
+				})}
 			/>,
 		);
 
@@ -542,24 +487,12 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 
 		renderInput(
-			<AgentChatInput
-				inputRef={inputRef}
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					inputRef,
+					onSend: vi.fn(),
+					files: { attachments: [], onAttach },
+				})}
 			/>,
 		);
 
@@ -588,28 +521,19 @@ describe("AgentChatInput", () => {
 		const onWorkspaceAttach = vi.fn();
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					files: {
+						attachments: [],
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
+					},
+				})}
 			/>,
 		);
 
@@ -628,28 +552,20 @@ describe("AgentChatInput", () => {
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					files: {
+						attachments: [],
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
+					},
+					isDisabled: true,
+				})}
 			/>,
 		);
 
@@ -672,28 +588,20 @@ describe("AgentChatInput", () => {
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					files: {
+						attachments: [],
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
+					},
+					isLoading: true,
+				})}
 			/>,
 		);
 
@@ -719,28 +627,20 @@ describe("AgentChatInput", () => {
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					files: {
+						attachments: [],
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
+					},
+					isLoading: true,
+				})}
 			/>,
 		);
 
@@ -764,28 +664,19 @@ describe("AgentChatInput", () => {
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: undefined,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-				initialValue=""
-				onContentChange={vi.fn()}
-				planModeEnabled={false}
-				onPlanModeToggle={vi.fn()}
-				isModelCatalogLoading={false}
+			<ChatComposer
+				{...withBindings({
+					onSend: vi.fn(),
+					files: {
+						attachments: [],
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: undefined,
+							onRemove: vi.fn(),
+						},
+					},
+				})}
 			/>,
 		);
 
