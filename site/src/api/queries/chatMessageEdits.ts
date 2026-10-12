@@ -1,16 +1,16 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
-const buildOptimisticEditedContent = ({
+const buildEagerContent = ({
 	requestContent,
-	originalMessage,
+	baseMessage,
 	attachmentMediaTypes,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
-	originalMessage: TypesGen.ChatMessage;
+	baseMessage: TypesGen.ChatMessage;
 	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): readonly TypesGen.ChatMessagePart[] => {
 	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
-	for (const part of originalMessage.content ?? []) {
+	for (const part of baseMessage.content ?? []) {
 		if (part.type === "file" && part.file_id) {
 			existingFilePartsByID.set(part.file_id, part);
 		}
@@ -58,19 +58,23 @@ const buildOptimisticEditedContent = ({
 	});
 };
 
-export const buildOptimisticEditedMessage = ({
+/**
+ * Returns baseMessage with the content a send or edit request stores, for
+ * display until the stream reports the stored message.
+ */
+export const buildEagerUserMessage = ({
 	requestContent,
-	originalMessage,
+	baseMessage,
 	attachmentMediaTypes,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
-	originalMessage: TypesGen.ChatMessage;
+	baseMessage: TypesGen.ChatMessage;
 	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): TypesGen.ChatMessage => ({
-	...originalMessage,
-	content: buildOptimisticEditedContent({
+	...baseMessage,
+	content: buildEagerContent({
 		requestContent,
-		originalMessage,
+		baseMessage,
 		attachmentMediaTypes,
 	}),
 });
