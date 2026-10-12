@@ -1841,6 +1841,23 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		},
 	);
 
+	it("keeps only radios focusable in the Runs in group", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		const runsIn = within(dialog).getByRole("radiogroup", { name: "Runs in" });
+
+		// Any other focusable control inside a Radix radio group traps
+		// Shift+Tab: it lands on the group, which refocuses the checked
+		// radio. jsdom cannot model that hand-off, so this checks the cause.
+		expect(within(runsIn).queryAllByRole("button")).toEqual([]);
+		expect(
+			within(runsIn).getByRole("radio", { name: "New chat each run" }),
+		).toHaveAccessibleDescription(
+			"Each run starts a new chat with the model below.",
+		);
+	});
+
 	it("shows the server's reasoning effort error on the effort field", async () => {
 		const user = userEvent.setup();
 		setupEditor();

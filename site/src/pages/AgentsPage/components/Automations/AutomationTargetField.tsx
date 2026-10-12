@@ -134,12 +134,12 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 				<RadioOption
 					value="existing_chat"
 					label="Existing chat"
-					tooltip="Each run sends the prompt to the chosen chat."
+					description="Each run sends the prompt to the chosen chat."
 				/>
 				<RadioOption
 					value="new_chat"
 					label="New chat each run"
-					tooltip="Each run starts a new chat with the model below."
+					description="Each run starts a new chat with the model below."
 				/>
 			</RadioGroup>
 			{form.values.target_mode === "existing_chat" ? (
