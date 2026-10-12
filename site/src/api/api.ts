@@ -70,12 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	afterMessageId?: number,
+	historyVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	if (afterMessageId !== undefined && afterMessageId > 0) {
-		params.set("after_id", afterMessageId.toString());
-	}
+	params.set("history_version", historyVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
@@ -3568,17 +3566,21 @@ class ExperimentalApiMethods {
 	deleteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<void> => {
-		await this.axios.delete(`/api/v2/chats/${chatId}/queue/${queuedMessageId}`);
+	): Promise<TypesGen.ChatActionResponse> => {
+		const response = await this.axios.delete<TypesGen.ChatActionResponse>(
+			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
+		);
+		return response.data;
 	};
 
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<void> => {
-		await this.axios.post(
+	): Promise<TypesGen.ChatActionResponse> => {
+		const response = await this.axios.post<TypesGen.ChatActionResponse>(
 			`/api/v2/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
+		return response.data;
 	};
 
 	getChatDiffContents = async (

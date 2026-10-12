@@ -1,24 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
-	chatProjectSkills,
-	chatProjectUsability,
-	usableChatProjectSkills,
-} from "#/api/queries/chatProjectSkills";
-import { chatProject } from "#/api/queries/chatProjects";
-import {
-	chatMessagesForInfiniteScroll,
 	chatModels,
-	chatQueueConvergence,
+	chatNewestMessages,
 	clearChat,
 	compactChat,
 	createChatMessage,
@@ -53,42 +41,49 @@ import {
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
-import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
+import {
+	AgentChatPageLoadingView,
+	AgentChatPageNotFoundView,
+	AgentChatPageView,
+} from "./AgentChatPageView";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
-} from "../components/ChatConversation/chatError";
-import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
+} from "./components/ChatConversation/chatError";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
+	type PendingAction,
 	selectChatStatus,
+	selectHasMoreMessages,
 	useChatSelector,
 	useChatStore,
-} from "../components/ChatConversation/chatStore";
-import { submitChatTurn } from "../components/ChatConversation/submitChatTurn";
-import { useChatToolInvalidations } from "../components/ChatConversation/useChatToolInvalidations";
-import { useWorkspaceWatch } from "../components/ChatConversation/useWorkspaceWatch";
-import { isChatAgentBindingUnresolved } from "../components/ChatConversation/watchedWorkspace";
-import { workspaceSkillsFromChat } from "../components/ChatPageContent";
-import { getModelSelectorHelp } from "../components/ModelSelectorHelp";
-import { useAgentChatPanelPreference } from "../components/RightPanel/useAgentChatPanelPreference";
+} from "./components/ChatConversation/chatStore";
+import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
+import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
+import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
+import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
+import { workspaceSkillsFromChat } from "./components/ChatPageContent";
+import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
+import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
-} from "../hooks/useConversationEditingState";
-import { useGitWatcher } from "../hooks/useGitWatcher";
+} from "./hooks/useConversationEditingState";
+import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
-} from "../utils/draftStorage";
+} from "./utils/draftStorage";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	saveMCPSelection,
-} from "../utils/mcpSelection";
+} from "./utils/mcpSelection";
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
@@ -98,14 +93,8 @@ import {
 	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
-} from "../utils/modelOptions";
-import { pickReasoningEffort } from "../utils/reasoningEffort";
-import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
-import {
-	AgentChatPageLoadingView,
-	AgentChatPageNotFoundView,
-	AgentChatPageView,
-} from "./AgentChatPageView";
+} from "./utils/modelOptions";
+import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
@@ -159,9 +148,7 @@ const AgentChatPage: React.FC = () => {
 		refetchIntervalInBackground: false,
 	});
 	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
-	const chatMessagesQuery = useInfiniteQuery(
-		chatMessagesForInfiniteScroll(agentId),
-	);
+	const chatMessagesQuery = useQuery(chatNewestMessages(agentId));
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -270,38 +257,10 @@ const AgentChatPage: React.FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID as a defense
-		// against cross-page duplicates. Cache upserts fan the same
-		// fresh value out to every page containing an ID, so any
-		// surviving duplicates are value-identical and either
-		// occurrence is safe to render.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
-
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
-				}
-			: undefined;
+	// The newest page seeds the chat's store; the API returns it newest first.
+	const chatMessagesData = chatMessagesQuery.data;
+	const chatMessagesList = chatMessagesData?.messages.toReversed();
+	const chatQueuedMessages = chatMessagesData?.queued_messages;
 	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -332,23 +291,6 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const chatProjectId = experiments.includes("chat-projects")
-		? chatQuery.data?.project_id
-		: undefined;
-	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
-	const projectSkillsQuery = useQuery({
-		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
-		enabled: hasChatProject,
-		staleTime: 60_000,
-	});
-	const chatProjectQuery = useQuery({
-		...chatProject(chatProjectId),
-		enabled: hasChatProject,
-	});
-	const projectUsability = chatProjectUsability(
-		chatProjectQuery,
-		projectSkillsQuery.error,
-	);
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -398,10 +340,9 @@ const AgentChatPage: React.FC = () => {
 	const {
 		store,
 		isHydratingMessages,
-		acceptServerChatStatus,
-		setCacheQueuedMessages,
-		getCacheQueuedMessages,
-		upsertCacheMessages,
+		loadOlderMessages,
+		isLoadingOlderMessages,
+		hasLoadOlderMessagesError,
 	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -415,6 +356,7 @@ const AgentChatPage: React.FC = () => {
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
+	const hasMoreMessages = useChatSelector(store, selectHasMoreMessages);
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord: chat,
@@ -571,28 +513,39 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
+	// The stream delivers the queue change; the pending action shows it until
+	// the stream has synced past the response's snapshot version.
+	const runQueueAction = async (
+		action: PendingAction,
+		request: () => Promise<TypesGen.ChatActionResponse>,
+	) => {
+		const pendingID = store.addPendingAction(action);
 		try {
-			await deleteQueuedMessage(id);
+			const updated = await request();
+			store.updatePendingAction(pendingID, {
+				untilVersion: updated.snapshot_version,
+			});
 		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
+			store.removePendingAction(pendingID);
 			throw error;
 		}
 	};
 
-	const handlePromoteQueuedMessage = (id: number) =>
-		runPromoteQueuedMessage({
-			id,
-			store,
-			promoteQueuedMessage,
-			agentId,
-			clearChatErrorReason,
-			onError: handleRequestError,
-		});
+	const handleDeleteQueuedMessage = (id: number) =>
+		runQueueAction({ kind: "deleteQueued", queuedMessageID: id }, () =>
+			deleteQueuedMessage(id),
+		);
+
+	const handlePromoteQueuedMessage = async (id: number) => {
+		try {
+			await runQueueAction({ kind: "promoteQueued", queuedMessageID: id }, () =>
+				promoteQueuedMessage(id),
+			);
+		} catch (error) {
+			handleRequestError(error);
+			throw error;
+		}
+	};
 
 	const editing = useConversationEditingState({
 		chatID: agentId,
@@ -617,25 +570,13 @@ const AgentChatPage: React.FC = () => {
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
-		) {
+		if (chatReadyFiredRef.current === agentId || isHydratingMessages) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, isHydratingMessages, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -660,23 +601,12 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		// Unlike the lists above, losing the use of the project means no
-		// project skills, even if some loaded earlier, because chatd then
-		// runs turns without them.
-		projectSkills: hasChatProject
-			? usableChatProjectSkills(
-					projectUsability,
-					projectSkillsQuery.data?.filter((skill) => skill.enabled),
-				)
-			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,
 		store,
 		agentId,
 		clearChatErrorReason,
-		acceptServerChatStatus,
-		chatMessages: chatMessagesList,
 		effectiveSelectedModel,
 		modelOptions,
 		effectiveReasoningEffort,
@@ -688,11 +618,6 @@ const AgentChatPage: React.FC = () => {
 			void invalidateChatEntity(queryClient, chatId);
 		},
 		scrollToEnd,
-		upsertCacheMessages,
-		getCacheQueuedMessages,
-		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
 		setCachedChatPlanMode,
 	};
 
@@ -730,7 +655,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		!chatMessagesQuery.isLoadingError;
+		!(isHydratingMessages && chatMessagesQuery.isLoadingError);
 
 	return (
 		<>
@@ -738,7 +663,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			chatMessagesQuery.isLoading ||
+			(isHydratingMessages && !chatMessagesQuery.isLoadingError) ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -759,7 +684,8 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
+			) : chatQuery.isLoadingError ||
+				(isHydratingMessages && chatMessagesQuery.isLoadingError) ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
@@ -779,7 +705,7 @@ const AgentChatPage: React.FC = () => {
 						}}
 					/>
 				)
-			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
+			) : !chat ? (
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
@@ -832,11 +758,11 @@ const AgentChatPage: React.FC = () => {
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
-					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
-					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isLoadingOlderMessages}
 					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
-					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+					hasFetchMoreError={hasLoadOlderMessagesError}
+					onFetchMoreMessages={loadOlderMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
