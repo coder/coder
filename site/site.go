@@ -274,6 +274,13 @@ type htmlState struct {
 	UserSecretFilePathEnabled string
 	Permissions               string
 	Organizations             string
+
+	// HTML escaped appearance settings, rendered as data attributes on
+	// <html> so index.css can pick the theme colors for the first paint.
+	ThemeMode       string
+	ThemePreference string
+	ThemeLight      string
+	ThemeDark       string
 }
 
 type csrfState struct {
@@ -476,6 +483,10 @@ func (h *Handler) populateHTMLState(
 	userAppearance codersdk.UserAppearanceSettings,
 ) {
 	var wg sync.WaitGroup
+	state.ThemeMode = html.EscapeString(string(userAppearance.ThemeMode))
+	state.ThemePreference = html.EscapeString(userAppearance.ThemePreference)
+	state.ThemeLight = html.EscapeString(userAppearance.ThemeLight)
+	state.ThemeDark = html.EscapeString(userAppearance.ThemeDark)
 	wg.Go(func() {
 		data, err := json.Marshal(db2sdk.User(user, orgIDs))
 		if err == nil {
