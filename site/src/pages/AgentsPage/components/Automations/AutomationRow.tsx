@@ -57,8 +57,25 @@ type AutomationRowProps = {
 
 type AutomationChatsButtonProps = {
 	automation: ChatAutomation;
+	/** Shows only the icon, with the label in a tooltip. */
+	iconOnly: boolean;
 	onViewChats: (automation: ChatAutomation) => void;
 };
+
+/** Puts an icon-only button's label in a tooltip. */
+const withLabelTooltip = (
+	button: React.ReactElement,
+	label: string,
+	iconOnly: boolean,
+) =>
+	iconOnly ? (
+		<Tooltip>
+			<TooltipTrigger asChild>{button}</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
+	) : (
+		button
+	);
 
 /**
  * An existing-chat automation always writes to one chat, so it links straight
@@ -66,42 +83,50 @@ type AutomationChatsButtonProps = {
  */
 const AutomationChatsButton: React.FC<AutomationChatsButtonProps> = ({
 	automation,
+	iconOnly,
 	onViewChats,
 }) => {
+	const size = iconOnly ? "icon" : "sm";
 	if (automation.target_mode === "existing_chat") {
 		const targetChat = automation.target_chat;
 		if (!targetChat || isTargetMissing(automation)) {
 			return null;
 		}
-		return (
+		return withLabelTooltip(
 			<Button
 				asChild
-				size="sm"
+				size={size}
 				variant="outline"
 				aria-label={`Open chat of ${automation.name}`}
 			>
 				<RouterLink to={`/agents/${targetChat.id}`}>
 					<MessageSquareIcon />
-					Open chat
+					{!iconOnly && "Open chat"}
 				</RouterLink>
-			</Button>
+			</Button>,
+			"Open chat",
+			iconOnly,
 		);
 	}
-	return (
+	return withLabelTooltip(
 		<Button
-			size="sm"
+			size={size}
 			variant="outline"
 			aria-label={`View chats of ${automation.name}`}
 			onClick={() => onViewChats(automation)}
 		>
 			<MessagesSquareIcon />
-			View chats
-		</Button>
+			{!iconOnly && "View chats"}
+		</Button>,
+		"View chats",
+		iconOnly,
 	);
 };
 
 type RunNowButtonProps = {
 	automation: ChatAutomation;
+	/** Shows only the icon, with the label in a tooltip. */
+	iconOnly: boolean;
 	isRunning: boolean;
 	isAnyRunPending: boolean;
 	onRunNow: (automation: ChatAutomation) => void;
@@ -113,6 +138,7 @@ type RunNowButtonProps = {
  */
 const RunNowButton: React.FC<RunNowButtonProps> = ({
 	automation,
+	iconOnly,
 	isRunning,
 	isAnyRunPending,
 	onRunNow,
@@ -120,7 +146,7 @@ const RunNowButton: React.FC<RunNowButtonProps> = ({
 	const blockedReason = runNowBlockedReason(automation);
 	const button = (
 		<Button
-			size="sm"
+			size={iconOnly ? "icon" : "sm"}
 			variant="outline"
 			disabled={isAnyRunPending}
 			aria-disabled={blockedReason !== undefined}
@@ -135,11 +161,11 @@ const RunNowButton: React.FC<RunNowButtonProps> = ({
 			<Spinner loading={isRunning}>
 				<PlayIcon />
 			</Spinner>
-			Run now
+			{!iconOnly && "Run now"}
 		</Button>
 	);
 	if (!blockedReason) {
-		return button;
+		return withLabelTooltip(button, "Run now", iconOnly);
 	}
 	return (
 		<Tooltip>
@@ -246,9 +272,11 @@ const OwnerCell: React.FC<OwnerCellProps> = ({ owner }) => {
 	}
 	const ownerName = owner.name || owner.username;
 	return (
-		<span className="flex min-w-0 items-center gap-2">
+		<span className="flex min-w-0 max-w-40 items-center gap-2">
 			<Avatar size="sm" src={owner.avatar_url} fallback={ownerName} />
-			<span className="truncate">{ownerName}</span>
+			<span className="truncate" title={ownerName}>
+				{ownerName}
+			</span>
 		</span>
 	);
 };
@@ -294,6 +322,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 				{automation.kind === "schedule" && isOwner && (
 					<RunNowButton
 						automation={automation}
+						iconOnly={showOwner}
 						isRunning={isRunning}
 						isAnyRunPending={isAnyRunPending}
 						onRunNow={onRunNow}
@@ -302,6 +331,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 				{isOwner && (
 					<AutomationChatsButton
 						automation={automation}
+						iconOnly={showOwner}
 						onViewChats={onViewChats}
 					/>
 				)}
@@ -382,7 +412,9 @@ export const AutomationRow = memo<AutomationRowProps>(
 
 		return (
 			<TableRow>
-				<TableCell>
+				{/* A minimum width, so a narrow table does not break the name
+				    every few characters. */}
+				<TableCell className="min-w-32">
 					<div className="flex flex-col gap-0.5">
 						<NameDetails
 							automation={automation}

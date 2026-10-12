@@ -156,7 +156,28 @@ export const OtherOwner: Story = {
 
 export const AllOwners: Story = {
 	args: {
-		...OtherOwner.args,
+		// The viewer's own rows carry Run now and chat buttons, which share
+		// the width with the Owner column.
+		automations: [
+			{
+				...mockHeartbeatAutomation,
+				name: "Hello heartbeat (every 5 min)",
+				owner: { id: MockUserOwner.id, username: "admin", name: "Admin User" },
+			},
+			{
+				...mockScheduleAutomation,
+				owner_id: "another-user-id",
+				owner: {
+					id: "another-user-id",
+					username: "bb-seed",
+					name: "Bug bash bb-seed",
+				},
+			},
+			{
+				...mockDigestAutomation,
+				owner: { id: MockUserOwner.id, username: "admin", name: "Admin User" },
+			},
+		],
 		ownerView: "all",
 		onOwnerViewChange: fn(),
 		canDeleteAnyAutomation: true,

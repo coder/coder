@@ -1090,6 +1090,17 @@ describe("AgentAutomationsPage owner filter", () => {
 		expect(within(row).getByText("Bob")).toBeVisible();
 		// The Owner column names the owner, so the name cell does not repeat it.
 		expect(within(row).queryByText("Owned by Bob")).toBeNull();
+		// The Owner column takes the width of the button labels, so the
+		// viewer's own row keeps only the icons and names them in tooltips.
+		const ownRow = screen.getByRole("row", {
+			name: new RegExp(mockAutomation.name),
+		});
+		const runNow = within(ownRow).getByRole("button", {
+			name: `Run now ${mockAutomation.name}`,
+		});
+		expect(runNow).not.toHaveTextContent("Run now");
+		await user.hover(runNow);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("Run now");
 	});
 
 	it("keeps the All view from the URL for an admin", async () => {
