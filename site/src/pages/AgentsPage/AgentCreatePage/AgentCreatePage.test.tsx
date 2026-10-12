@@ -880,7 +880,7 @@ describe("AgentCreatePage workspace uploads", () => {
 		vi.spyOn(API.experimental, "createChatMessage").mockImplementation(
 			async () => {
 				events.push("send");
-				return { snapshot_version: 1, queued: false };
+				return { snapshotVersion: 1, queued: false };
 			},
 		);
 		vi.spyOn(API.experimental, "updateChat").mockImplementation(async () => {
