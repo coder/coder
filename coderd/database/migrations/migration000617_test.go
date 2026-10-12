@@ -14,19 +14,19 @@ import (
 )
 
 const (
-	insertConnectionLog000613 = `INSERT INTO connection_logs (id, connect_time, organization_id,
+	insertConnectionLog000616 = `INSERT INTO connection_logs (id, connect_time, organization_id,
 		workspace_owner_id, workspace_id, workspace_name, agent_name, type, slug_or_port)
 		VALUES ($1, now(), $2, $3, $4, $5, 'main', $6, $7)`
-	insertConnectionLog000614 = `INSERT INTO connection_logs (id, connect_time, organization_id,
+	insertConnectionLog000617 = `INSERT INTO connection_logs (id, connect_time, organization_id,
 		workspace_owner_id, workspace_id, workspace_name, agent_name, connection_method, app_name_or_port)
 		VALUES ($1, now(), $2, $3, $4, $5, 'main', $6, $7)`
-	selectConnectionLog000613 = `SELECT type::text, slug_or_port FROM connection_logs WHERE id = $1`
-	selectConnectionLog000614 = `SELECT connection_method::text, app_name_or_port FROM connection_logs WHERE id = $1`
+	selectConnectionLog000616 = `SELECT type::text, slug_or_port FROM connection_logs WHERE id = $1`
+	selectConnectionLog000617 = `SELECT connection_method::text, app_name_or_port FROM connection_logs WHERE id = $1`
 )
 
 // A pending migration batch can add tunnel to the old enum and then replace
 // that enum. Comparisons must not materialize its uncommitted new value.
-func TestMigration000614ConnectionLogsMethodInSingleTxn(t *testing.T) {
+func TestMigration000617ConnectionLogsMethodInSingleTxn(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -56,27 +56,27 @@ func TestMigration000614ConnectionLogsMethodInSingleTxn(t *testing.T) {
 	`, workspaceID, ownerID, orgID, templateID)
 	require.NoError(t, err)
 	id := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, insertConnectionLog000613, id, orgID, ownerID, workspaceID, "migration-workspace", "vscode", nil)
+	_, err = sqlDB.ExecContext(ctx, insertConnectionLog000616, id, orgID, ownerID, workspaceID, "migration-workspace", "vscode", nil)
 	require.NoError(t, err)
 
-	applyMigrationsInTxn(ctx, t, sqlDB, 557, 614)
+	applyMigrationsInTxn(ctx, t, sqlDB, 557, 617)
 	var method string
 	var appName sql.NullString
-	require.NoError(t, sqlDB.QueryRowContext(ctx, selectConnectionLog000614, id).Scan(&method, &appName))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, selectConnectionLog000617, id).Scan(&method, &appName))
 	require.Equal(t, "ssh", method)
 	require.Equal(t, sql.NullString{String: "vscode", Valid: true}, appName)
 }
 
 // The up migration splits each connection type into a method and an app name,
 // and the down migration folds app names back into types.
-func TestMigration000614ConnectionLogsMethod(t *testing.T) {
+func TestMigration000617ConnectionLogsMethod(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 613)
+	stepTo(t, sqlDB, 616)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
@@ -85,7 +85,7 @@ func TestMigration000614ConnectionLogsMethod(t *testing.T) {
 	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: tpl.ID})
 
-	// row is (type, slug_or_port) before 000614 and
+	// row is (type, slug_or_port) before 000617 and
 	// (connection_method, app_name_or_port) after it.
 	type row struct {
 		kind          string
@@ -120,11 +120,11 @@ func TestMigration000614ConnectionLogsMethod(t *testing.T) {
 		{"tunnel", sql.NullString{}}:           {"tunnel", sql.NullString{}},
 	}
 	for old := range converted {
-		insert(insertConnectionLog000613, old)
+		insert(insertConnectionLog000616, old)
 	}
-	migrate("000614_connection_logs_method_app_name.up.sql")
+	migrate("000617_connection_logs_method_app_name.up.sql")
 	for old, want := range converted {
-		require.Equal(t, want, read(selectConnectionLog000614, old), old.kind)
+		require.Equal(t, want, read(selectConnectionLog000617, old), old.kind)
 	}
 
 	// App names only newer servers write. The down migration folds them into
@@ -138,13 +138,13 @@ func TestMigration000614ConnectionLogsMethod(t *testing.T) {
 		{"reconnecting_pty", app("cursor")}: {"reconnecting_pty", sql.NullString{}},
 	}
 	for current := range folded {
-		insert(insertConnectionLog000614, current)
+		insert(insertConnectionLog000617, current)
 	}
-	migrate("000614_connection_logs_method_app_name.down.sql")
+	migrate("000617_connection_logs_method_app_name.down.sql")
 	for old := range converted {
-		require.Equal(t, old, read(selectConnectionLog000613, old), old.kind)
+		require.Equal(t, old, read(selectConnectionLog000616, old), old.kind)
 	}
 	for current, want := range folded {
-		require.Equal(t, want, read(selectConnectionLog000613, current), current.kind+" "+current.appNameOrPort.String)
+		require.Equal(t, want, read(selectConnectionLog000616, current), current.kind+" "+current.appNameOrPort.String)
 	}
 }
