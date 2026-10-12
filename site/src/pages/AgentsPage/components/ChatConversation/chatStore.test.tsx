@@ -1561,7 +1561,6 @@ describe("useChatStore", () => {
 		},
 	);
 
-
 	it("closes old WebSocket and resets state when chatID changes", async () => {
 		immediateAnimationFrame();
 
@@ -5307,7 +5306,6 @@ describe("chat stream syncs", () => {
 			() => {
 				const { store } = useChatStore({
 					chatID,
-					chatRecord: buildChat(chatID),
 					setChatErrorReason: errorReasons.set,
 					clearChatErrorReason: errorReasons.clear,
 				});
@@ -5352,7 +5350,10 @@ describe("chat stream syncs", () => {
 				},
 			]);
 		});
-		expect(result.current).toMatchObject({ messageIDs: [1, 2], queuedIDs: [10] });
+		expect(result.current).toMatchObject({
+			messageIDs: [1, 2],
+			queuedIDs: [10],
+		});
 
 		act(() => {
 			sockets[0].emitDataBatch([
@@ -5468,5 +5469,25 @@ describe("chat stream syncs", () => {
 			retry: null,
 		});
 		expect(errorReasons.clear).toHaveBeenLastCalledWith(chatID);
+	});
+
+	it("takes the turn from the newest page before the stream connects", async () => {
+		mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			messages: [buildMessage(chatID, 1, "user", "prompt")],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 4,
+			turn: {
+				status: "error",
+				error: { message: "provider down", kind: "generic" },
+			},
+		});
+
+		await waitFor(() => expect(result.current.messageIDs).toEqual([1]));
+		expect(result.current).toMatchObject({
+			status: "error",
+			error: { message: "provider down" },
+		});
 	});
 });
