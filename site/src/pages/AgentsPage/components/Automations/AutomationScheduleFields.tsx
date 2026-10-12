@@ -152,6 +152,9 @@ export const describeSchedule = (cron: string): string => {
 	const shortcut = matchRepeatShortcut(cron);
 	const option = repeatOptions.find(({ value }) => value === shortcut?.repeat);
 	if (!shortcut || !option) {
+		if (/^\*( \*){4}$/.test(cron.trim())) {
+			return "Every minute";
+		}
 		const everyMinutes = /^\*\/([1-9]\d?) \* \* \* \*$/.exec(cron.trim());
 		const minutes = Number(everyMinutes?.[1]);
 		if (everyMinutes && minutes <= 59) {

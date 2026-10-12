@@ -45,6 +45,8 @@ describe("describeSchedule", () => {
 		{ cron: "*/10 * * * *", expected: "Every 10 minutes" },
 		{ cron: " */45 * * * * ", expected: "Every 45 minutes" },
 		{ cron: "*/1 * * * *", expected: "Every minute" },
+		{ cron: "* * * * *", expected: "Every minute" },
+		{ cron: "* * * * 1", expected: "* * * * 1" },
 		{ cron: "30 9 * * 1-5", expected: "Weekdays at 09:30" },
 		{ cron: "*/60 * * * *", expected: "*/60 * * * *" },
 		{ cron: "*/10 9 * * *", expected: "*/10 9 * * *" },
