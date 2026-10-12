@@ -2609,6 +2609,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `snapshot_version`      | integer                                                         | false    |              | Snapshot version is the chat's state version, bumped once by every committed action. A stream checkpoint with an equal or higher snapshot_version has applied this state.                                                                                                  |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3490,7 +3491,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "has_more": true,
-  "history_version": 0,
   "messages": [
     {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -3643,19 +3643,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
   ],
+  "snapshot_version": 0,
   "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                        |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                    |
-| `history_version` | integer                                                           | false    |              | History version is the chat's history_version, read before the messages in this page. The page can hold changes made after that version; a stream opened with it resends them. Pass it as the stream's history_version parameter. It is set only on pages requested without before_id or after_id. |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                    |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                    |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                             |
+| Name               | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                               |
+|--------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`         | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                           |
+| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                           |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                           |
+| `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot_version, read before the messages and queue in this page. The page can hold changes made after it; a stream opened with it sends them again. Pass it as the stream's snapshot_version parameter. It is set only on pages requested without before_id or after_id. |
+| `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                    |
 
 ## codersdk.ChatModel
 
@@ -5103,17 +5104,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "history_version": 0,
   "snapshot_version": 0
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                                                       |
-|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `history_version`  | integer | false    |              | History version is the chat's history_version for the message events sent so far. It is set only on streams opened with a history_version; a client reconnects with the value of the last checkpoint it received. |
-| `snapshot_version` | integer | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected.                                                                              |
+| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                                                 |
+|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `snapshot_version` | integer | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected. A client reconnects with the value of the last checkpoint it received. |
 
 ## codersdk.ChatStreamEvent
 
@@ -5130,7 +5129,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "checkpoint": {
-    "history_version": 0,
     "snapshot_version": 0
   },
   "error": {
@@ -5378,19 +5376,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                            |
-|-------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                        |
-| `chat_id`         | string                                                                 | false    |              |                                                                                        |
-| `checkpoint`      | [codersdk.ChatStreamCheckpoint](#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                        |
-| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a history_version. |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                        |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                        |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                        |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                        |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                        |
+| Name              | Type                                                                   | Required | Restrictions | Description                                                                             |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                         |
+| `chat_id`         | string                                                                 | false    |              |                                                                                         |
+| `checkpoint`      | [codersdk.ChatStreamCheckpoint](#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                 |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                         |
+| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version. |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                         |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                         |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                         |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                         |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                         |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                         |
 
 ## codersdk.ChatStreamEventType
 

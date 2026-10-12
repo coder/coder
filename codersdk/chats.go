@@ -969,12 +969,12 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
-	// HistoryVersion is the chat's history_version, read before the messages
-	// in this page. The page can hold changes made after that version; a
-	// stream opened with it resends them. Pass it as the stream's
-	// history_version parameter. It is set only on pages requested without
+	// SnapshotVersion is the chat's snapshot_version, read before the
+	// messages and queue in this page. The page can hold changes made after
+	// it; a stream opened with it sends them again. Pass it as the stream's
+	// snapshot_version parameter. It is set only on pages requested without
 	// before_id or after_id.
-	HistoryVersion int64 `json:"history_version,omitempty"`
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -2197,7 +2197,7 @@ type ChatStreamEvent struct {
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 	// HistoryReset is set on history_reset events of streams opened with a
-	// history_version.
+	// snapshot_version.
 	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
 	// Checkpoint is set on checkpoint events.
 	Checkpoint *ChatStreamCheckpoint `json:"checkpoint,omitempty"`
@@ -2216,12 +2216,9 @@ type ChatStreamHistoryReset struct {
 // state the events before it reflect.
 type ChatStreamCheckpoint struct {
 	// SnapshotVersion is the chat's snapshot_version the sync applied. Every
-	// action response with an equal or lower version is reflected.
+	// action response with an equal or lower version is reflected. A client
+	// reconnects with the value of the last checkpoint it received.
 	SnapshotVersion int64 `json:"snapshot_version"`
-	// HistoryVersion is the chat's history_version for the message events
-	// sent so far. It is set only on streams opened with a history_version;
-	// a client reconnects with the value of the last checkpoint it received.
-	HistoryVersion *int64 `json:"history_version,omitempty"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3145,12 +3142,13 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
-	// HistoryVersion is the history version of the caller's messages, from
-	// ChatMessagesResponse or ChatStreamCheckpoint. When it is set, zero
-	// included, the server ignores AfterID and history resets carry
-	// ChatStreamEvent.HistoryReset. When it is nil, every connection to a
-	// chat with a deleted message resends the whole history.
-	HistoryVersion *int64
+	// SnapshotVersion is the snapshot version of the caller's state, from
+	// ChatMessagesResponse or ChatStreamCheckpoint. When it is set, the
+	// stream sends only changes made after it, the server ignores AfterID,
+	// and history resets carry ChatStreamEvent.HistoryReset. When it is
+	// zero, every connection to a chat with a deleted message resends the
+	// whole history.
+	SnapshotVersion int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -3165,8 +3163,8 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 		if opts.AfterID != nil {
 			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
 		}
-		if opts.HistoryVersion != nil {
-			query.Set("history_version", strconv.FormatInt(*opts.HistoryVersion, 10))
+		if opts.SnapshotVersion > 0 {
+			query.Set("snapshot_version", strconv.FormatInt(opts.SnapshotVersion, 10))
 		}
 		if len(query) > 0 {
 			path += "?" + query.Encode()
