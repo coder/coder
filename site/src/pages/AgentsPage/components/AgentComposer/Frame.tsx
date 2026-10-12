@@ -220,6 +220,11 @@ export function Frame({
 		}
 
 		if (state.isEditingHistoryMessage) {
+			// A pending save owns the edit until it settles.
+			if (state.isLoading) {
+				return;
+			}
+
 			event.preventDefault();
 			actions.cancelHistoryEdit?.();
 		} else if (

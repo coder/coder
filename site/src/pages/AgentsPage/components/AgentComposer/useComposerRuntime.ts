@@ -117,8 +117,13 @@ export function useComposerRuntime(
 			return;
 		}
 
-		// An empty draft promotes the first queued message instead.
+		// An empty draft promotes the first queued message instead. A history
+		// edit owns the composer, so it never promotes from the queue.
 		if (!hasSubmissionContent) {
+			if (isEditingHistoryMessage) {
+				return;
+			}
+
 			const nextMessage = queuedMessages[0];
 
 			if (nextMessage && onPromoteQueuedMessage) {
@@ -129,6 +134,12 @@ export function useComposerRuntime(
 		}
 
 		if (!hasModelOptions) {
+			return;
+		}
+
+		// A streaming turn hides the history edit's save button, so the
+		// keyboard must not save the edit either.
+		if (isEditingHistoryMessage && !showSendButton) {
 			return;
 		}
 

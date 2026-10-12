@@ -12,7 +12,10 @@ import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -191,6 +194,61 @@ describe("ChatComposer", () => {
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		{ isStreaming: false, isLoading: false, draft: "", key: "Enter" },
+		{ isStreaming: true, isLoading: false, draft: "Edited", key: "Enter" },
+		{ isStreaming: false, isLoading: true, draft: "Edited", key: "Escape" },
+	])(
+		"leaves the queue and a blocked history edit alone (%o)",
+		async ({ isStreaming, isLoading, draft, key }) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onSend = vi.fn();
+			const onPromote = vi.fn();
+			const onCancelHistoryEdit = vi.fn();
+
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						onSend,
+						inputRef,
+						isStreaming,
+						isLoading,
+						isEditingHistoryMessage: true,
+						onCancelHistoryEdit,
+						initialValue: draft,
+					}}
+					queue={{
+						messages: [MockChatQueuedMessage],
+						onDelete: vi.fn(),
+						onPromote,
+					}}
+				/>,
+			);
+
+			await waitFor(() => {
+				expect(inputRef.current?.getValue()).toBe(draft);
+			});
+			const textbox = screen.getByRole("textbox", { name: "Chat message" });
+
+			// A pending send makes the editor non-editable, so it cannot take
+			// focus and the key is dispatched on it directly.
+			if (isLoading) {
+				fireEvent.keyDown(textbox, { key });
+			} else {
+				await user.click(textbox);
+				await user.keyboard(`{${key}}`);
+			}
+
+			expect(onSend).not.toHaveBeenCalled();
+			expect(onPromote).not.toHaveBeenCalled();
+			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe(draft);
+		},
+	);
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
