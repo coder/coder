@@ -23,6 +23,7 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { NO_PROJECT } from "./AutomationProjectField";
+import { scheduleInactiveNotice } from "./AutomationStatus";
 import { AutomationTargetField } from "./AutomationTargetField";
 import { AutomationTriggerField } from "./AutomationTriggerField";
 
@@ -405,6 +406,9 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 						onCronChange: (cron) => form.setFieldValue("schedule_cron", cron),
 						onTimeZoneChange: (timeZone) =>
 							form.setFieldValue("schedule_time_zone", timeZone),
+						inactiveNotice: automation
+							? scheduleInactiveNotice(automation)
+							: undefined,
 					}}
 					webhookFieldsProps={{
 						automation,

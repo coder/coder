@@ -79,6 +79,24 @@ export const runNowBlockedReason = (
 	return undefined;
 };
 
+/**
+ * Why the upcoming runs of a saved schedule will not happen, or undefined
+ * when they will. The switch keeps the owner's choice, so a paused
+ * automation still reads Enabled; this notice says the runs do not start.
+ */
+export const scheduleInactiveNotice = (
+	automation: ChatAutomation,
+): string | undefined => {
+	if (!automation.enabled) {
+		return "The automation is off, so these runs will not happen until it is turned on.";
+	}
+	const reasons = pausedReasons(automation);
+	if (reasons.length > 0) {
+		return `The automation is paused, so these runs will not happen. ${reasons.join(" ")}`;
+	}
+	return undefined;
+};
+
 type AutomationPausedBadgeProps = {
 	automation: ChatAutomation;
 };

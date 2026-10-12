@@ -213,6 +213,8 @@ type AutomationScheduleFieldsProps = {
 	timeZoneField: FormHelpers;
 	onCronChange: (cron: string) => void;
 	onTimeZoneChange: (timeZone: string) => void;
+	/** Says why the previewed runs will not happen, for a saved automation that is off or paused. */
+	inactiveNotice?: string;
 };
 
 /** The cron field is the stored value; upcoming runs come only from the server. */
@@ -224,6 +226,7 @@ export const AutomationScheduleFields: React.FC<
 	timeZoneField,
 	onCronChange,
 	onTimeZoneChange,
+	inactiveNotice,
 }) => {
 	const repeatId = useId();
 	const timeId = useId();
@@ -507,6 +510,9 @@ export const AutomationScheduleFields: React.FC<
 				<h3 className="m-0 text-sm font-medium text-content-primary">
 					Upcoming runs
 				</h3>
+				{inactiveNotice && (
+					<p className="m-0 text-sm text-content-warning">{inactiveNotice}</p>
+				)}
 				<div className="text-sm text-content-secondary">{preview}</div>
 			</section>
 		</div>
