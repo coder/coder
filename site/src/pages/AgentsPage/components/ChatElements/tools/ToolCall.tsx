@@ -117,11 +117,7 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCallAriaLabel;
-	/**
-	 * Scrolls the chat transcript so the end of the row is in view when it
-	 * expands. At the end of the transcript it also lets the view follow new
-	 * output again.
-	 */
+	/** At the transcript's end, expanding also resumes following new output. */
 	revealEndOnExpand?: boolean;
 };
 

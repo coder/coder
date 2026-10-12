@@ -23,14 +23,14 @@ import {
 const ControlledDisclosure = (
 	props: Partial<React.ComponentProps<typeof WorkingBlockDisclosure>>,
 ) => {
-	const [expanded, setExpanded] = useState(props.expanded ?? false);
+	const [uncontrolledExpanded, setUncontrolledExpanded] = useState(false);
 	return (
 		<WorkingBlockDisclosure
 			block={MockWorkingBlock}
 			{...props}
-			expanded={expanded}
+			expanded={props.expanded ?? uncontrolledExpanded}
 			onExpandedChange={(next) => {
-				setExpanded(next);
+				setUncontrolledExpanded(next);
 				props.onExpandedChange?.(next);
 			}}
 		>
@@ -99,14 +99,14 @@ const BlockRow: React.FC<BlockRowProps> = ({
 			data-height={expanded ? expandedHeight : 40}
 		>
 			<ControlledDisclosure
-				expanded={defaultExpanded}
+				expanded={expanded}
 				onExpandedChange={setExpanded}
 			/>
 		</MessageScroller.Item>
 	);
 };
 
-const summary = () =>
+const summaryButton = () =>
 	screen.getByRole("button", { name: "Worked for 12s (2 steps)" });
 
 describe("WorkingBlockDisclosure in a MessageScroller", () => {
@@ -120,7 +120,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 			row("answer", 100),
 		]);
 
-		await user.click(summary());
+		await user.click(summaryButton());
 
 		expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
 	});
@@ -136,7 +136,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		viewport().scrollTop = 900;
 		fireEvent.scroll(viewport());
 
-		await user.click(summary());
+		await user.click(summaryButton());
 
 		expect(await visibleRowsAfterLayout()).toEqual([
 			"history-9",
@@ -151,7 +151,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		const blockRow = <BlockRow key="block" expandedHeight={600} />;
 		await update([history, prompt, blockRow]);
 
-		await user.click(summary());
+		await user.click(summaryButton());
 		await update([history, prompt, blockRow, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toContain("next");
@@ -162,8 +162,10 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		const update = renderTranscript([history]);
 		const blockRow = <BlockRow key="block" expandedHeight={200} />;
 		await update([history, prompt, blockRow]);
+		const before = await visibleRowsAfterLayout();
 
-		await user.click(summary());
+		await user.click(summaryButton());
+		expect(await visibleRowsAfterLayout()).toEqual(before);
 		// The turn grows past the tail spacer but stays in the handoff band.
 		const reply = row("reply", 140);
 		await update([history, prompt, blockRow, reply]);
@@ -180,7 +182,7 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		);
 		const update = renderTranscript([history, blockRow]);
 
-		await user.click(summary());
+		await user.click(summaryButton());
 		await update([history, blockRow, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).not.toContain("next");

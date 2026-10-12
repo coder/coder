@@ -170,6 +170,8 @@ type MessageScrollerRegisterMessage = (
 
 // LOCAL CHANGE
 type MessageScrollerUserLayoutIntentOptions = {
+  // Once the toggle commits, brings the end of the toggled row into view. At
+  // the last row it also lets the view follow new output again.
   revealEnd: boolean
 }
 
