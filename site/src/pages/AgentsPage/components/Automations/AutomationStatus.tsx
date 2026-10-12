@@ -39,14 +39,79 @@ export const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
 
 const pausedReasonText: Record<ChatAutomationPausedReason, string> = {
 	experiment_disabled: "The owner no longer has the automations experiment.",
-	model_unavailable: "Its model is no longer available.",
+	model_unavailable:
+		"Its model is no longer available. The owner must choose another model.",
 	owner_inactive: "Its owner is suspended or inactive.",
-	target_unavailable: "Its chat is archived or deleted.",
+	owner_not_member: "Its owner left the organization.",
+	target_unavailable:
+		"Its chat is archived or deleted. Unarchive the chat, or create a new automation.",
 };
 
-export const isUsedSingleUseWebhook = (automation: ChatAutomation) =>
+/** Why the server refuses to run this automation, one sentence per reason. */
+const pausedReasons = (automation: ChatAutomation): string[] =>
+	(automation.paused_reasons ?? []).map((reason) => pausedReasonText[reason]);
+
+const isUsedSingleUseWebhook = (automation: ChatAutomation) =>
 	automation.webhook_use === "single" &&
 	Boolean(automation.webhook_consumed_at);
+
+/** True when an existing-chat automation has no chat it can run in. */
+export const isTargetMissing = (automation: ChatAutomation) =>
+	automation.target_mode === "existing_chat" &&
+	(!automation.target_chat_id ||
+		Boolean(automation.target_chat?.archived) ||
+		Boolean(automation.paused_reasons?.includes("target_unavailable")));
+
+/** Why Run now cannot start a run, or undefined when it can. */
+export const runNowBlockedReason = (
+	automation: ChatAutomation,
+): string | undefined => {
+	if (!automation.enabled) {
+		return "Turn the automation on to run it.";
+	}
+	const reasons = pausedReasons(automation);
+	if (reasons.length > 0) {
+		return reasons.join(" ");
+	}
+	if (isTargetMissing(automation)) {
+		return pausedReasonText.target_unavailable;
+	}
+	return undefined;
+};
+
+type AutomationPausedBadgeProps = {
+	automation: ChatAutomation;
+};
+
+/** A Paused badge whose tooltip says why the server refuses runs. */
+export const AutomationPausedBadge: React.FC<AutomationPausedBadgeProps> = ({
+	automation,
+}) => {
+	const reasons = pausedReasons(automation);
+	if (reasons.length === 0) {
+		return null;
+	}
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Badge
+					variant="warning"
+					size="sm"
+					tabIndex={0}
+					role="note"
+					aria-label={`Paused: ${reasons.join(" ")}`}
+				>
+					Paused
+				</Badge>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				{reasons.map((reason) => (
+					<div key={reason}>{reason}</div>
+				))}
+			</TooltipContent>
+		</Tooltip>
+	);
+};
 
 type AutomationTriggerSummaryProps = {
 	automation: ChatAutomation;
@@ -153,33 +218,29 @@ export const AutomationNextRun: React.FC<AutomationNextRunProps> = ({
 	automation,
 }) => {
 	if (isUsedSingleUseWebhook(automation)) {
-		return <span className="text-content-secondary">Used</span>;
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						aria-label="Used. A single-use webhook accepts one event. Create a new automation to receive another."
+						className="cursor-default border-none bg-transparent p-0 text-content-secondary"
+					>
+						Used
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-xs">
+					A single-use webhook accepts one event. Create a new automation to
+					receive another.
+				</TooltipContent>
+			</Tooltip>
+		);
 	}
 	if (!automation.enabled) {
 		return <span className="text-content-secondary">Disabled</span>;
 	}
-	const pausedReasons = automation.paused_reasons ?? [];
-	if (pausedReasons.length > 0) {
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Badge
-						variant="warning"
-						size="sm"
-						tabIndex={0}
-						role="note"
-						aria-label={`Paused: ${pausedReasons.map((reason) => pausedReasonText[reason]).join(" ")}`}
-					>
-						Paused
-					</Badge>
-				</TooltipTrigger>
-				<TooltipContent className="max-w-xs">
-					{pausedReasons.map((reason) => (
-						<div key={reason}>{pausedReasonText[reason]}</div>
-					))}
-				</TooltipContent>
-			</Tooltip>
-		);
+	if (pausedReasons(automation).length > 0) {
+		return <AutomationPausedBadge automation={automation} />;
 	}
 	if (automation.kind === "webhook") {
 		return <span className="text-content-primary">Listening</span>;
@@ -205,11 +266,11 @@ export const AutomationEnabledSwitch: React.FC<
 	AutomationEnabledSwitchProps
 > = ({ automation, isOwner, isUpdating, onToggle, showLabel = false }) => {
 	const reasonId = useId();
-	const isUsed = isUsedSingleUseWebhook(automation);
-	// A used single-use webhook rejects every delivery, so it shows as off.
-	const checked = automation.enabled && !isUsed;
+	// The switch shows the server's enabled flag. A used single-use webhook
+	// stays on and its Next run reads Used; turning it back on cannot re-arm it.
+	const checked = automation.enabled;
 	let blockedReason: string | undefined;
-	if (isUsed) {
+	if (isUsedSingleUseWebhook(automation) && !automation.enabled) {
 		blockedReason = "A used single-use webhook cannot run again.";
 	} else if (!isOwner && !automation.enabled) {
 		blockedReason = "Only the owner can turn this automation back on.";
@@ -221,7 +282,7 @@ export const AutomationEnabledSwitch: React.FC<
 			aria-disabled={blockedReason !== undefined}
 			aria-describedby={blockedReason ? reasonId : undefined}
 			aria-label={`Enable ${automation.name}`}
-			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
+			className="aria-disabled:cursor-not-allowed"
 			onCheckedChange={(enabled) => {
 				if (!blockedReason) {
 					onToggle(enabled);

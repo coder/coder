@@ -19,10 +19,17 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import {
 	AutomationEnabledSwitch,
 	AutomationNextRun,
 	AutomationTriggerSummary,
 	ChatTitleLink,
+	isTargetMissing,
+	runNowBlockedReason,
 } from "./AutomationStatus";
 
 type AutomationRowProps = {
@@ -41,12 +48,6 @@ type AutomationRowProps = {
 	onDelete: (automation: ChatAutomation) => void;
 };
 
-/** True when an existing-chat automation has no chat it can run in. */
-export const isTargetMissing = (automation: ChatAutomation) =>
-	automation.target_mode === "existing_chat" &&
-	(!automation.target_chat_id ||
-		Boolean(automation.paused_reasons?.includes("target_unavailable")));
-
 type AutomationChatsButtonProps = {
 	automation: ChatAutomation;
 	onViewChats: (automation: ChatAutomation) => void;
@@ -56,7 +57,7 @@ type AutomationChatsButtonProps = {
  * An existing-chat automation always writes to one chat, so it links straight
  * to that chat. A new-chat automation creates many, so it opens their list.
  */
-export const AutomationChatsButton: React.FC<AutomationChatsButtonProps> = ({
+const AutomationChatsButton: React.FC<AutomationChatsButtonProps> = ({
 	automation,
 	onViewChats,
 }) => {
@@ -92,6 +93,55 @@ export const AutomationChatsButton: React.FC<AutomationChatsButtonProps> = ({
 	);
 };
 
+type RunNowButtonProps = {
+	automation: ChatAutomation;
+	isRunning: boolean;
+	isAnyRunPending: boolean;
+	onRunNow: (automation: ChatAutomation) => void;
+};
+
+/**
+ * Stays focusable while blocked, so keyboard users can read the tooltip
+ * that says why the server would refuse the run.
+ */
+const RunNowButton: React.FC<RunNowButtonProps> = ({
+	automation,
+	isRunning,
+	isAnyRunPending,
+	onRunNow,
+}) => {
+	const blockedReason = runNowBlockedReason(automation);
+	const button = (
+		<Button
+			size="sm"
+			variant="outline"
+			disabled={isAnyRunPending}
+			aria-disabled={blockedReason !== undefined}
+			aria-label={`Run now ${automation.name}`}
+			className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+			onClick={() => {
+				if (!blockedReason) {
+					onRunNow(automation);
+				}
+			}}
+		>
+			<Spinner loading={isRunning}>
+				<PlayIcon />
+			</Spinner>
+			Run now
+		</Button>
+	);
+	if (!blockedReason) {
+		return button;
+	}
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{button}</TooltipTrigger>
+			<TooltipContent className="max-w-xs">{blockedReason}</TooltipContent>
+		</Tooltip>
+	);
+};
+
 type TargetCellProps = {
 	automation: ChatAutomation;
 	isOwner: boolean;
@@ -112,7 +162,7 @@ const TargetCell: React.FC<TargetCellProps> = ({ automation, isOwner }) => {
 	if (!automation.target_chat) {
 		return (
 			<span className="text-content-secondary">
-				{isOwner ? "Unavailable chat" : "Existing chat"}
+				{isOwner ? "Unavailable chat" : "A chat you cannot open"}
 			</span>
 		);
 	}
@@ -203,23 +253,12 @@ export const AutomationRow = memo<AutomationRowProps>(
 				}
 			>
 				{automation.kind === "schedule" && isOwner && (
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={
-							!automation.enabled ||
-							Boolean(automation.paused_reasons?.length) ||
-							isTargetMissing(automation) ||
-							isAnyRunPending
-						}
-						aria-label={`Run now ${automation.name}`}
-						onClick={() => onRunNow(automation)}
-					>
-						<Spinner loading={isRunning}>
-							<PlayIcon />
-						</Spinner>
-						Run now
-					</Button>
+					<RunNowButton
+						automation={automation}
+						isRunning={isRunning}
+						isAnyRunPending={isAnyRunPending}
+						onRunNow={onRunNow}
+					/>
 				)}
 				{isOwner && (
 					<AutomationChatsButton

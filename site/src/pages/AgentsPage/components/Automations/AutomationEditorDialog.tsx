@@ -30,7 +30,10 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { NO_PROJECT } from "./AutomationProjectField";
-import { AutomationEnabledSwitch } from "./AutomationStatus";
+import {
+	AutomationEnabledSwitch,
+	AutomationPausedBadge,
+} from "./AutomationStatus";
 import { AutomationSummary } from "./AutomationSummary";
 import { AutomationTargetField } from "./AutomationTargetField";
 import { AutomationTriggerField } from "./AutomationTriggerField";
@@ -293,11 +296,17 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const getFieldHelpers = (
 		name: keyof AutomationFormValues,
 		options?: { helperText?: React.ReactNode },
-	) =>
-		getFormHelpers(form, serverErrorApplies(name) ? error : undefined)(
-			name,
-			options,
-		);
+	) => {
+		const serverError = serverErrorApplies(name) ? error : undefined;
+		const helpers = getFormHelpers(form, serverError)(name, options);
+		// Formik validates every field on each change, so an untouched empty
+		// Name would turn red as soon as another field changes. Client
+		// errors wait for the first Save; server errors show at once.
+		if (form.submitCount === 0 && !serverError) {
+			return { ...helpers, error: false, helperText: options?.helperText };
+		}
+		return helpers;
+	};
 	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
 	const showProjectField = projectsEnabled && !isExistingChat;
@@ -356,9 +365,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					const content = event.currentTarget;
 					const field =
 						content instanceof HTMLElement
-							? content.querySelector<HTMLElement>(
-									"input:not([type=hidden]), textarea",
-								)
+							? content.querySelector<HTMLElement>('input[name="name"]')
 							: null;
 					if (field) {
 						event.preventDefault();
@@ -389,13 +396,16 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							</DialogDescription>
 						</div>
 						{automation && (
-							<AutomationEnabledSwitch
-								automation={automation}
-								isOwner={!isReadOnly}
-								isUpdating={isUpdatingEnabled}
-								onToggle={onToggleEnabled}
-								showLabel
-							/>
+							<div className="flex items-center gap-2">
+								<AutomationPausedBadge automation={automation} />
+								<AutomationEnabledSwitch
+									automation={automation}
+									isOwner={!isReadOnly}
+									isUpdating={isUpdatingEnabled}
+									onToggle={onToggleEnabled}
+									showLabel
+								/>
+							</div>
 						)}
 					</DialogHeader>
 					{/* Browser and Radix constraints on this layout:

@@ -27,7 +27,11 @@ const mockScheduleAutomation: ChatAutomation = {
 	id: "automation-schedule",
 	name: "Nightly build check",
 	target_chat_id: mockTargetChat.id,
-	target_chat: { id: mockTargetChat.id, title: mockTargetChat.title },
+	target_chat: {
+		id: mockTargetChat.id,
+		title: mockTargetChat.title,
+		archived: false,
+	},
 	schedule_cron: "0 9 * * 1-5",
 	schedule_time_zone: "Europe/Berlin",
 	// The first entry has passed, so the row shows the second one.
@@ -38,9 +42,17 @@ const mockHeartbeatAutomation: ChatAutomation = {
 	id: "automation-heartbeat",
 	name: "CI heartbeat",
 	created_by_chat_id: mockCreatingChat.id,
-	created_by_chat: { id: mockCreatingChat.id, title: mockCreatingChat.title },
+	created_by_chat: {
+		id: mockCreatingChat.id,
+		title: mockCreatingChat.title,
+		archived: false,
+	},
 	target_chat_id: mockCreatingChat.id,
-	target_chat: { id: mockCreatingChat.id, title: mockCreatingChat.title },
+	target_chat: {
+		id: mockCreatingChat.id,
+		title: mockCreatingChat.title,
+		archived: false,
+	},
 	schedule_cron: "*/5 * * * *",
 	schedule_time_zone: "UTC",
 	next_run_times: ["2099-09-30T12:05:00Z"],
@@ -50,7 +62,8 @@ const mockWebhookAutomation: ChatAutomation = {
 	id: "automation-webhook",
 	name: "Deploy finished",
 	kind: "webhook",
-	enabled: false,
+	// The server keeps a used single-use webhook enabled.
+	enabled: true,
 	target_mode: "new_chat",
 	target_chat_id: undefined,
 	when_busy: undefined,
@@ -75,7 +88,6 @@ const mockListeningWebhook: ChatAutomation = {
 	...mockWebhookAutomation,
 	id: "automation-listening",
 	name: "PR opened",
-	enabled: true,
 	webhook_use: "multi",
 	webhook_consumed_at: undefined,
 };
@@ -167,7 +179,11 @@ export const MissingTarget: Story = {
 				id: "automation-archived-target",
 				name: "Archived target",
 				target_chat_id: mockArchivedChat.id,
-				target_chat: { id: mockArchivedChat.id, title: mockArchivedChat.title },
+				target_chat: {
+					id: mockArchivedChat.id,
+					title: mockArchivedChat.title,
+					archived: true,
+				},
 				paused_reasons: ["target_unavailable"],
 				next_run_times: [],
 			},

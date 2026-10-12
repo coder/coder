@@ -2,6 +2,14 @@ import type { FormikContextType } from "formik";
 import { useId } from "react";
 import { useQuery } from "react-query";
 import { chatModels } from "#/api/queries/chats";
+import {
+	ChatModelReasoningEffortHigh,
+	ChatModelReasoningEffortLow,
+	ChatModelReasoningEffortMax,
+	ChatModelReasoningEffortMedium,
+	ChatModelReasoningEffortMinimal,
+	ChatModelReasoningEffortNone,
+} from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
@@ -31,6 +39,17 @@ import { RadioOption } from "./RadioOption";
 
 // Radix Select rejects an empty item value, so Model default has its own.
 const MODEL_DEFAULT_EFFORT = "model-default";
+
+// The server accepts any of these for a new_chat automation, whatever the
+// model lists, so a model that lists none still offers all of them.
+const ALL_REASONING_EFFORTS = [
+	ChatModelReasoningEffortNone,
+	ChatModelReasoningEffortMinimal,
+	ChatModelReasoningEffortLow,
+	ChatModelReasoningEffortMedium,
+	ChatModelReasoningEffortHigh,
+	ChatModelReasoningEffortMax,
+];
 
 type AutomationTargetFieldProps = {
 	organizationId: string;
@@ -73,8 +92,18 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
+	// A saved model the catalog no longer lists, for example a disabled one.
+	const isSavedModelUnavailable =
+		!isModelCatalogLoading &&
+		!modelsQuery.isError &&
+		form.values.new_chat_model_config_id !== "" &&
+		!selectedModel;
 	const reasoningEffort = form.values.reasoning_effort;
-	const efforts = selectedModel?.reasoningEfforts ?? [];
+	const listedEfforts = selectedModel?.reasoningEfforts ?? [];
+	const efforts =
+		selectedModel && listedEfforts.length === 0
+			? ALL_REASONING_EFFORTS
+			: listedEfforts;
 	// Keeps a stored effort visible after the model stops listing it.
 	const effortOptions =
 		reasoningEffort && !efforts.includes(reasoningEffort)
@@ -165,12 +194,16 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 									triggerAriaDescribedBy={
 										modelField.error ? modelErrorId : undefined
 									}
-									placeholder={getModelSelectorPlaceholder(
-										modelOptions,
-										isModelCatalogLoading,
-										hasConfiguredModels,
-										modelCatalog,
-									)}
+									placeholder={
+										isSavedModelUnavailable
+											? "Unavailable model"
+											: getModelSelectorPlaceholder(
+													modelOptions,
+													isModelCatalogLoading,
+													hasConfiguredModels,
+													modelCatalog,
+												)
+									}
 									options={modelOptions}
 									value={form.values.new_chat_model_config_id}
 									onValueChange={(modelId) => {
@@ -240,6 +273,18 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 							)}
 						</div>
 					</div>
+					{isSavedModelUnavailable && (
+						<span className="text-xs text-content-warning">
+							The saved model is disabled or was removed, so runs are paused.
+							Choose another model and save.
+						</span>
+					)}
+					{selectedModel && listedEfforts.length === 0 && (
+						<span className="text-xs text-content-secondary">
+							This model does not list its reasoning efforts. The provider can
+							ignore or reject a value you choose.
+						</span>
+					)}
 					{modelSelectorHelp && (
 						<span className="text-xs text-content-secondary">
 							{modelSelectorHelp}

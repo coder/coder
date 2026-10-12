@@ -36,14 +36,13 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	variant,
 }) => {
 	const showNameLoading = !reference && nameStatus === "loading";
-	// A failed request shows the generic label, not the UUID: the full ID is
-	// in the tooltip. A settled request without the automation means it was
-	// deleted, so the ID is the only name left.
-	const hideId = showNameLoading || nameStatus === "error";
-	const nameOrId = reference?.name ?? (hideId ? "" : automationId);
+	// A failed request shows the generic label. A settled request without the
+	// automation means it was deleted. The full ID is in the tooltip.
+	const hideName = showNameLoading || nameStatus === "error";
+	const nameOrId = reference?.name ?? (hideName ? "" : "deleted automation");
 	const kindSuffix = reference ? ` (${reference.kind})` : "";
 	const suffix = nameOrId ? `${labelSeparator}${nameOrId}${kindSuffix}` : "";
-	let statusText = "Automation name unavailable.";
+	let statusText = "The automation was deleted.";
 	if (reference) {
 		statusText = `Automation: ${nameOrId}${kindSuffix}`;
 	} else if (showNameLoading) {

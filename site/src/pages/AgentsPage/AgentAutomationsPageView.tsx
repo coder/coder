@@ -287,7 +287,6 @@ export const AgentAutomationsPageView: React.FC<
 					<SectionHeader
 						label="Automations"
 						badge={<ExperimentalBadge />}
-						description="Run agents in the background on a schedule or when an event arrives. Runs happen on your Coder deployment, so your browser and devices can be closed."
 						action={
 							<div className="flex items-center gap-2">
 								{organizationSelector}
@@ -302,6 +301,13 @@ export const AgentAutomationsPageView: React.FC<
 							</div>
 						}
 					/>
+					{/* Below the header, not inside it, so on phones the text uses the
+					    full width instead of a column beside the buttons. */}
+					<p className="-mt-4 m-0 text-sm text-content-secondary">
+						Run agents in the background on a schedule or when an event arrives.
+						Runs happen on your Coder deployment, so your browser and devices
+						can be closed.
+					</p>
 					{runError && (
 						<Alert
 							severity="error"

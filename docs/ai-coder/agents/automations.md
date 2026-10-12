@@ -96,8 +96,8 @@ You can create an automation on the **Automations** page or with the API.
 ### Create it in the dashboard
 
 1. On the **Agents** page, select **Automations** in the sidebar.
-1. If you belong to several organizations, select the organization next to **New automation**.
-1. Select **New automation**.
+1. If you belong to several organizations, select the organization next to **Create automation**.
+1. Select **Create automation**.
 1. Enter a **Name**.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Webhook**.
@@ -174,6 +174,7 @@ To remove those messages, turn the automation off or delete it.
 
 List and get responses include `paused_reasons` when a condition stops an automation from running while it's turned on.
 Coder refuses its scheduled runs, **Run now**, and webhook deliveries until the condition clears.
+The Automations page shows a **Paused** badge with the reason, and **Run now** explains why it can't run.
 
 | Value                 | Meaning                                                                                                                                       |
 |-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -223,7 +224,7 @@ It doesn't mean the agent has run the turn yet.
 The chat receives the saved prompt, then a separate text part that wraps the body as untrusted event data.
 An **Automation run** card above the message shows the automation name and its trigger kind, for example `Deploy hook (webhook)`.
 Anyone who can read the chat sees the name, even without access to the automation.
-If the automation was deleted, the card shows its ID instead of the name and trigger kind.
+If the automation was deleted, the card reads **deleted automation**. Its ID stays in the tooltip.
 
 ### Webhook responses
 
@@ -250,6 +251,7 @@ If a sender retries after a timeout, the chat can receive the same event twice.
 A multi-use webhook accepts events until you turn the automation off.
 A single-use webhook accepts one event.
 Later deliveries return `409`, and the automation stays turned on.
+In the list, its switch stays on and **Next run** reads **Used**. To receive another event, create a new automation.
 A delivery that Coder refuses doesn't use up a single-use webhook.
 You choose single use or multi use when you create the webhook and can't change it later.
 An update request that includes `webhook_use` doesn't fail, but Coder ignores the field.
@@ -272,8 +274,8 @@ Create a new automation instead.
 ## Create a schedule automation
 
 1. On the **Agents** page, select **Automations** in the sidebar.
-1. If you belong to several organizations, select the organization next to **New automation**.
-1. Select **New automation**.
+1. If you belong to several organizations, select the organization next to **Create automation**.
+1. Select **Create automation**.
 1. Enter a **Name**.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Schedule**.
@@ -384,7 +386,7 @@ Coder creates the chat without a project, and the run still happens, in these ca
   The automation keeps the project and uses it again when the experiment is on.
 - The owner can no longer use the project.
 
-To find the chats an automation created or sent messages to, select **View chats** on its row.
+To open what an automation wrote, use its row. An existing chat automation shows **Open chat**, which opens its one chat. A new chat automation shows **View chats**, which lists every chat it created. **Edit** and **Delete** are in the row's **More** menu.
 
 If an existing chat target is deleted or archived, the row shows **Missing target**.
 Webhook deliveries return `409` and the schedule doesn't run.

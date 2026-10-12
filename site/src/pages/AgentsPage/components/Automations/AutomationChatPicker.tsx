@@ -100,7 +100,9 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 			</ComboboxTrigger>
 			<ComboboxContent
 				shouldFilter={false}
-				className="w-(--radix-popover-trigger-width)"
+				// Fits below or above the trigger instead of running under the
+				// dialog footer or past the window.
+				className="max-h-[min(20rem,var(--radix-popover-content-available-height))] w-(--radix-popover-trigger-width)"
 			>
 				<ComboboxInput
 					placeholder="Search chats"

@@ -725,7 +725,7 @@ export const ViewDisabledAsNonOwner: Story = {
 			...mockAutomation,
 			enabled: false,
 			owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
-			target_chat: { id: MockChat.id, title: MockChat.title },
+			target_chat: { id: MockChat.id, title: MockChat.title, archived: false },
 		},
 		currentUserId: "another-user",
 	},
@@ -771,6 +771,27 @@ export const NewChatModelPopover: Story = {
 		await userEvent.click(
 			await screen.findByRole("combobox", { name: /^Model,/ }),
 		);
+	},
+};
+
+// The saved model was disabled, so the server pauses the automation.
+export const EditModelUnavailable: Story = {
+	args: {
+		automation: {
+			...mockNewChatAutomation,
+			new_chat_model_config_id: "disabled-model",
+			paused_reasons: ["model_unavailable"],
+			next_run_times: [],
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+		],
 	},
 };
 

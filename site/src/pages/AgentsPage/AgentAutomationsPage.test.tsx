@@ -219,7 +219,11 @@ describe("AgentAutomationsPage", () => {
 			automations: [
 				{
 					...mockAutomation,
-					target_chat: { id: MockChat.id, title: MockChat.title },
+					target_chat: {
+						id: MockChat.id,
+						title: MockChat.title,
+						archived: false,
+					},
 				},
 			],
 		});
@@ -258,14 +262,14 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
-	it("does not update a used single-use webhook from its switch", async () => {
+	it("does not turn a used single-use webhook back on from its switch", async () => {
 		const user = userEvent.setup();
 		const mockUsedWebhook: ChatAutomation = {
 			...mockAutomation,
 			kind: "webhook",
 			webhook_use: "single",
 			webhook_consumed_at: "2026-09-29T10:00:00Z",
-			enabled: true,
+			enabled: false,
 		};
 		const mockSecondAutomation: ChatAutomation = {
 			...mockAutomation,
@@ -350,6 +354,25 @@ describe("AgentAutomationsPage", () => {
 				expect.anything(),
 			);
 		});
+	});
+
+	it("does not send Run now for a paused automation", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup({
+			automations: [
+				{ ...mockAutomation, paused_reasons: ["model_unavailable"] },
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
+
+		expect(
+			requestPaths(requests).filter((path) => path.endsWith("/runs")),
+		).toEqual([]);
 	});
 
 	it("sends the Run now request", async () => {
