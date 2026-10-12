@@ -364,6 +364,36 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "https://mcp.example.com/mcp%2Ftenant",
 		},
 		{
+			name:       "EscapeHexCaseIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp%2ftenant",
+			advertised: []string{"https://mcp.example.com/mcp%2Ftenant"},
+			want:       "https://mcp.example.com/mcp%2Ftenant",
+		},
+		{
+			name:       "EscapedUnreservedIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/%6Dcp"},
+			want:       "https://mcp.example.com/%6Dcp",
+		},
+		{
+			name:       "EscapedQueryIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp?tenant=%61",
+			advertised: []string{"https://mcp.example.com/mcp?tenant=a"},
+			want:       "https://mcp.example.com/mcp?tenant=a",
+		},
+		{
+			name:       "DotSegmentsAreRemoved",
+			serverURL:  "https://mcp.example.com/a/../mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "IPLiteralHost",
+			serverURL:  "https://[::1]:8443/mcp",
+			advertised: []string{"https://[::1]:8443/"},
+			want:       "https://[::1]:8443/",
+		},
+		{
 			name:      "NoEntriesFallsBack",
 			serverURL: "https://mcp.example.com/mcp",
 			want:      "https://mcp.example.com/mcp",

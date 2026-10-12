@@ -1791,8 +1791,19 @@ func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 	if err != nil {
 		return nil, xerrors.New("oauth2_resource must be a valid URI")
 	}
+	// url.Parse validates an IP literal host, but it also accepts "[" and
+	// "]" elsewhere, where RFC 3986 does not allow them.
+	if strings.ContainsAny(parsed.Opaque+parsed.EscapedPath()+parsed.RawQuery, "[]") ||
+		(!strings.HasPrefix(parsed.Host, "[") && strings.ContainsAny(parsed.Host, "[]")) {
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
+	}
 	if !parsed.IsAbs() {
 		return nil, xerrors.New("oauth2_resource must be an absolute URI")
+	}
+	// A resource indicator names a resource for the authorization server,
+	// so it must not carry credentials.
+	if parsed.User != nil {
+		return nil, xerrors.New("oauth2_resource must not contain user information")
 	}
 	return parsed, nil
 }
@@ -1802,23 +1813,59 @@ func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 // alone accepts spaces and other characters a URI cannot contain.
 func isURIText(s string) bool {
 	for i := 0; i < len(s); i++ {
-		switch c := s[i]; {
+		c := s[i]
+		switch {
 		case c == '%':
 			if i+2 >= len(s) || !isHexDigit(s[i+1]) || !isHexDigit(s[i+2]) {
 				return false
 			}
 			i += 2
-		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
-		case strings.IndexByte("-._~:/?#[]@!$&'()*+,;=", c) >= 0:
-		default:
+		case !isUnreserved(c) && strings.IndexByte(":/?#[]@!$&'()*+,;=", c) < 0:
 			return false
 		}
 	}
 	return true
 }
 
+// normalizePercentEncoding decodes percent-encoded unreserved characters
+// and uppercases the hex digits of the remaining percent-encodings (RFC
+// 3986 sections 6.2.2.1 and 6.2.2.2). Invalid escapes are left as they are.
+func normalizePercentEncoding(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) && isHexDigit(s[i+1]) && isHexDigit(s[i+2]) {
+			if c := unhex(s[i+1])<<4 | unhex(s[i+2]); isUnreserved(c) {
+				out = append(out, c)
+			} else {
+				out = append(out, strings.ToUpper(s[i:i+3])...)
+			}
+			i += 2
+			continue
+		}
+		out = append(out, s[i])
+	}
+	return string(out)
+}
+
+func isUnreserved(c byte) bool {
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') ||
+		c == '-' || c == '.' || c == '_' || c == '~'
+}
+
 func isHexDigit(c byte) bool {
 	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+// unhex returns the value of a hex digit that isHexDigit accepted.
+func unhex(c byte) byte {
+	switch {
+	case c >= 'a':
+		return c - 'a' + 10
+	case c >= 'A':
+		return c - 'A' + 10
+	default:
+		return c - '0'
+	}
 }
 
 // validateMCPOAuth2ResourceRequest writes a 400 response and returns
@@ -1855,11 +1902,13 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // an MCP server: the most specific advertised Protected Resource
 // Metadata resource that covers the server URL, stored verbatim, else
 // the server URL in canonical form. As in the MCP Python SDK, a resource
-// covers URLs on its origin under its escaped path, so "%2F" does not
-// end a segment. Unlike the SDK, a resource with a query covers only
-// URLs with the same query, which can select a tenant.
+// covers URLs on its origin under its path. Paths and queries compare in
+// RFC 3986 normal form, where "%2F" does not end a segment. Unlike the
+// SDK, a resource with a query covers only URLs with the same query,
+// which can select a tenant.
 func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
-	serverPath := withTrailingSlash(serverURL.EscapedPath())
+	serverPath := withTrailingSlash(comparableURIPath(serverURL))
+	serverQuery := normalizePercentEncoding(serverURL.RawQuery)
 	best := ""
 	bestPathLen := -1
 	bestHasQuery := false
@@ -1872,11 +1921,12 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if !sameOrigin(parsed, serverURL) {
 			continue
 		}
-		hasQuery := parsed.RawQuery != ""
-		if hasQuery && parsed.RawQuery != serverURL.RawQuery {
+		query := normalizePercentEncoding(parsed.RawQuery)
+		hasQuery := query != ""
+		if hasQuery && query != serverQuery {
 			continue
 		}
-		entryPath := withTrailingSlash(parsed.EscapedPath())
+		entryPath := withTrailingSlash(comparableURIPath(parsed))
 		if !strings.HasPrefix(serverPath, entryPath) {
 			continue
 		}
@@ -1897,6 +1947,13 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 	canonical.Fragment = ""
 	canonical.RawFragment = ""
 	return canonical.String()
+}
+
+// comparableURIPath returns u's escaped path with dot segments removed
+// and percent-encodings normalized.
+func comparableURIPath(u *url.URL) string {
+	// Resolving u against itself removes dot segments and keeps escapes.
+	return normalizePercentEncoding(u.ResolveReference(u).EscapedPath())
 }
 
 // sameOrigin reports whether two URLs have the same scheme, host, and

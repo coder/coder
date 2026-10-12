@@ -1375,6 +1375,9 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 		"/v1/mcp",
 		"https://mcp.example.com/a b",
 		"https://mcp.example.com/mcp?tenant=%zz",
+		"https://mcp.example.com/a[b]",
+		"https://a]b.example.com/mcp",
+		"https://user@mcp.example.com/mcp",
 	} {
 		_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 			OAuth2Resource: &invalidResource,
