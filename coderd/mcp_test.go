@@ -1362,23 +1362,28 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
 	// RFC 8707 resource indicators must be absolute URIs without a
-	// fragment, on both create and update.
+	// fragment, on both create and update. Create rejects them before
+	// auto-discovery so an invalid value causes no client registration.
+	var discoveryRequests atomic.Int64
+	discoveryProbe := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		discoveryRequests.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(discoveryProbe.Close)
 	for _, invalidResource := range []string{"https://mcp.example.com/v1#frag", "/v1/mcp"} {
 		_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 			OAuth2Resource: &invalidResource,
 		})
 		require.ErrorAs(t, err, &sdkErr, invalidResource)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode(), invalidResource)
+		require.Equal(t, "Invalid OAuth2 resource.", sdkErr.Message, invalidResource)
 
 		_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "Invalid Resource",
 			Slug:           "invalid-resource",
 			Transport:      "streamable_http",
-			URL:            "https://mcp.example.com/invalid-resource",
+			URL:            discoveryProbe.URL + "/mcp",
 			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2AuthURL:  "https://auth.example.com/authorize",
-			OAuth2TokenURL: "https://auth.example.com/token",
 			OAuth2Resource: invalidResource,
 			Availability:   "default_on",
 			Enabled:        true,
@@ -1387,7 +1392,9 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 		})
 		require.ErrorAs(t, err, &sdkErr, invalidResource)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode(), invalidResource)
+		require.Equal(t, "Invalid OAuth2 resource.", sdkErr.Message, invalidResource)
 	}
+	require.Zero(t, discoveryRequests.Load(), "invalid resource must be rejected before discovery")
 
 	emptyResource := ""
 	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
@@ -1397,8 +1404,9 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.OAuth2Resource)
 
 	newResource := "https://mcp.example.com/v2"
+	paddedResource := " " + newResource + " "
 	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
-		OAuth2Resource: &newResource,
+		OAuth2Resource: &paddedResource,
 	})
 	require.NoError(t, err)
 	require.Equal(t, newResource, updated.OAuth2Resource)
@@ -1419,6 +1427,60 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.OAuth2Resource)
 	require.Empty(t, updated.OAuth2Scopes)
 	require.Empty(t, updated.APIKeyHeader)
+}
+
+// TestMCPServerConfigsAuthTypeChangeClearsOAuth2Resource covers the
+// non-OIDC auth types; TestMCPServerConfigsUserOIDCClearsFields covers
+// user_oidc.
+func TestMCPServerConfigsAuthTypeChangeClearsOAuth2Resource(t *testing.T) {
+	t.Parallel()
+
+	client := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	header := "X-Api-Key"
+	value := "api-key-value"
+	customHeaders := map[string]string{"X-Custom": "custom-value"}
+	cases := []struct {
+		authType string
+		req      codersdk.UpdateMCPServerConfigRequest
+	}{
+		{authType: "none"},
+		{authType: "api_key", req: codersdk.UpdateMCPServerConfigRequest{APIKeyHeader: &header, APIKeyValue: &value}},
+		{authType: "custom_headers", req: codersdk.UpdateMCPServerConfigRequest{CustomHeaders: &customHeaders}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.authType, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			slug := "clear-resource-" + strings.ReplaceAll(tc.authType, "_", "-")
+			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:    "Clear Resource " + tc.authType,
+				Slug:           slug,
+				Transport:      "streamable_http",
+				URL:            "https://mcp.example.com/" + slug,
+				AuthType:       "oauth2",
+				OAuth2ClientID: "cid",
+				OAuth2AuthURL:  "https://auth.example.com/authorize",
+				OAuth2TokenURL: "https://auth.example.com/token",
+				OAuth2Resource: "https://mcp.example.com/" + slug,
+				Availability:   "default_off",
+				Enabled:        true,
+				ToolAllowList:  []string{},
+				ToolDenyList:   []string{},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, created.OAuth2Resource)
+
+			req := tc.req
+			req.AuthType = &tc.authType
+			updated, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, req)
+			require.NoError(t, err)
+			require.Equal(t, tc.authType, updated.AuthType)
+			require.Empty(t, updated.OAuth2Resource)
+		})
+	}
 }
 
 func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
@@ -3175,7 +3237,6 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	}
 }
 
-// nolint:bodyclose
 // TestMCPServerOAuth2ResourceIndicator runs the connect and callback flow
 // against an authorization server that, like Dagster+, rejects requests
 // without the expected RFC 8707 resource parameter.
@@ -3304,6 +3365,7 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestMCPServerOAuth2PKCE(t *testing.T) {
 	t.Parallel()
 
