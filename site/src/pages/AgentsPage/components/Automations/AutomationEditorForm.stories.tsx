@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, screen, spyOn, userEvent } from "storybook/test";
+import { expect, fn, screen, spyOn, userEvent, waitFor } from "storybook/test";
 import { API } from "#/api/api";
 import { chatAutomationSchedulePreviewKey } from "#/api/queries/chatAutomations";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
@@ -633,7 +633,9 @@ export const SaveValidationError: Story = {
 	},
 	// Server errors show once the values they apply to were submitted.
 	play: async () => {
-		await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Save changes" }),
+		);
 	},
 };
 
@@ -821,5 +823,52 @@ export const RotateSecretConflict: Story = {
 			},
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
+	},
+};
+
+// The cron line shows a whole five-field cron, and a long one stays inside
+// the Trigger card. Pixel tests miss a clipped input, so the play checks it.
+const expectCronFits = async (expected: string) => {
+	const cron = await screen.findByRole("textbox", {
+		name: "Cron expression (required)",
+	});
+	await waitFor(() => expect(cron).toHaveValue(expected));
+	const card = cron.closest("section")?.querySelector(":scope > .rounded-lg");
+	if (!(card instanceof HTMLElement)) {
+		throw new Error("The cron input is not inside the Trigger card.");
+	}
+	const input = cron.getBoundingClientRect();
+	const cardBox = card.getBoundingClientRect();
+	expect(input.right).toBeLessThanOrEqual(cardBox.right);
+	expect(input.left).toBeGreaterThanOrEqual(cardBox.left);
+	return cron as HTMLInputElement;
+};
+
+export const CronFitsItsValue: Story = {
+	args: { automation: mockAutomation },
+	parameters: Edit.parameters,
+	play: async () => {
+		const cron = await expectCronFits("0 9 * * *");
+		// Nothing of a short cron is cut off.
+		expect(cron.scrollWidth).toBeLessThanOrEqual(cron.clientWidth);
+	},
+};
+
+const longCron = `${Array.from({ length: 60 }, (_, minute) => minute).join(",")} 0,2,4,6,8,10,12,14,16,18,20,22 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 * 1-5`;
+
+export const LongCronStaysInsideTheCard: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: longCron } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+	play: async () => {
+		expect(longCron.length).toBeGreaterThan(200);
+		await expectCronFits(longCron);
 	},
 };
