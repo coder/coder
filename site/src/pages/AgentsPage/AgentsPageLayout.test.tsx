@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import {
 	type InfiniteData,
 	InfiniteQueryObserver,
+	QueryObserver,
 	useQuery,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
@@ -11,6 +12,7 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import {
 	chat as chatById,
+	chatDiffContents,
 	chatEntityKey,
 	chatListFamilyKey,
 	infiniteChats,
@@ -130,7 +132,7 @@ describe("AgentsPageLayout New chat", () => {
 });
 
 describe("AgentsPageLayout chat watch reconnect", () => {
-	it("refetches the open chat when the chat watch socket opens", async () => {
+	it("refetches the open chat and its diff contents when the chat watch socket opens", async () => {
 		let chatWatchServer: MockWebSocketServer | undefined;
 		vi.spyOn(apiModule, "watchChats").mockImplementation(
 			() =>
@@ -147,16 +149,36 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 		const getChat = vi
 			.spyOn(API.experimental, "getChat")
 			.mockResolvedValue(MockChat);
+		const getChatDiffContents = vi
+			.spyOn(API.experimental, "getChatDiffContents")
+			.mockResolvedValue({ chat_id: MockChat.id });
 
-		renderLayout(`/agents/${MockChat.id}`);
-		await waitFor(() => expect(getChat).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(chatWatchServer).toBeDefined());
+		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
+		// Stands in for an open diff panel, which this page does not
+		// render.
+		const diffObserver = new QueryObserver(
+			queryClient,
+			chatDiffContents(MockChat.id),
+		);
+		const unsubscribe = diffObserver.subscribe(() => {});
+		try {
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(1));
+			// Wait for the first diff request so the reconnect's refetch
+			// cannot be deduplicated into it.
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(chatWatchServer).toBeDefined());
 
-		// Events missed while disconnected are only recovered by a
-		// refetch, so every (re)connect must refetch the open chat.
-		act(() => chatWatchServer?.publishOpen(new Event("open")));
-		await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
-		expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
+			// Events missed while disconnected are only recovered by a
+			// refetch, so every (re)connect must refetch the open chat
+			// and its diff contents.
+			act(() => chatWatchServer?.publishOpen(new Event("open")));
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
+			expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(2));
+			expect(getChatDiffContents.mock.lastCall?.[0]).toBe(MockChat.id);
+		} finally {
+			unsubscribe();
+		}
 	});
 });
 
