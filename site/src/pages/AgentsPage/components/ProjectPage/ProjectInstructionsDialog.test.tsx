@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MockChatProjectInstructions } from "#/testHelpers/entities";
@@ -98,7 +98,7 @@ describe("ProjectInstructionsDialog", () => {
 		expect(props.onDelete).toHaveBeenCalledTimes(1);
 	});
 
-	it("closes the delete confirmation when the saved instructions change", async () => {
+	it("moves focus to Load latest when the saved instructions change during the delete confirmation", async () => {
 		const { user, props, rerenderWithInstructions } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,
 		});
@@ -106,9 +106,9 @@ describe("ProjectInstructionsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 		rerenderWithInstructions("Edited in another tab.");
 
-		expect(
-			screen.queryByRole("button", { name: "Delete instructions" }),
-		).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Load latest" })).toHaveFocus(),
+		);
 		expect(props.onDelete).not.toHaveBeenCalled();
 	});
 });

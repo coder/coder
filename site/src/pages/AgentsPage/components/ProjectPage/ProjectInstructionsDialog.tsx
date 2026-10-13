@@ -75,6 +75,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 }) => {
 	const textareaId = useId();
 	const deleteButtonRef = useRef<HTMLButtonElement>(null);
+	const loadLatestButtonRef = useRef<HTMLButtonElement>(null);
 	const [baseInstructions, setBaseInstructions] = useState(instructions);
 	const [draft, setDraft] = useState(baseInstructions);
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -149,6 +150,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 									Keep my draft
 								</Button>
 								<Button
+									ref={loadLatestButtonRef}
 									type="button"
 									size="sm"
 									disabled={isBusy}
@@ -217,7 +219,12 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				}}
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
-					deleteButtonRef.current?.focus();
+					// A conflict closes the confirmation and disables Delete, so
+					// focus the conflict's primary action instead.
+					const focusTarget = hasConflict
+						? loadLatestButtonRef.current
+						: deleteButtonRef.current;
+					focusTarget?.focus();
 				}}
 			/>
 		</>

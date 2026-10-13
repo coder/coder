@@ -116,3 +116,16 @@ export const Conflict: Story = {
 		serverInstructions.set("Edited in another tab.");
 	},
 };
+
+/**
+ * The conflict arrives while the delete confirmation is open, which closes
+ * the confirmation so the conflict warning is visible.
+ */
+export const ConflictDuringDeleteConfirmation: Story = {
+	...Conflict,
+	play: async () => {
+		await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+		await screen.findByRole("button", { name: "Delete instructions" });
+		serverInstructions.set("Edited in another tab.");
+	},
+};
