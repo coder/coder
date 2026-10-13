@@ -196,7 +196,7 @@ describe("applyServerChatStatus", () => {
 		expect(selectStreamError(store.getSnapshot())).toBeNull();
 	});
 
-	it("does not notify when the status is unchanged", () => {
+	it("does not notify when setting the same status", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
 
