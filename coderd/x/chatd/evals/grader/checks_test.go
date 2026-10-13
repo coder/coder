@@ -19,6 +19,8 @@ func TestChecks(t *testing.T) {
 		"--- a/inventory/report.py\n+++ b/inventory/report.py\n@@ -1 +1 @@\n-a\n+b\n"
 	const testsDiff = "diff --git a/tests/test_report.py b/tests/test_report.py\n" +
 		"deleted file mode 100644\n--- a/tests/test_report.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-a\n"
+	const testsEditDiff = "diff --git a/tests/test_report.py b/tests/test_report.py\n" +
+		"--- a/tests/test_report.py\n+++ b/tests/test_report.py\n@@ -1 +1,2 @@\n a\n+b\n"
 	cases := []struct {
 		name       string
 		transcript string
@@ -73,6 +75,8 @@ func TestChecks(t *testing.T) {
 		{"python bytecode is not an edit", "plan-ask", "", map[string]string{"tests/__pycache__/test_report.cpython-312.pyc": "x", "report.pyc": "x"}, `{"type":"no_edits"}`, true},
 		{"allowed files", "shell-good", editDiff, nil, `{"type":"changed_files","allow":["inventory/report.py","tests/"],"require":["inventory/report.py"]}`, true},
 		{"deleted tests", "shell-good", testsDiff, nil, `{"type":"changed_files","deny":["tests/"]}`, false},
+		{"kept tests edited", "shell-good", testsEditDiff, nil, `{"type":"changed_files","keep":["tests/"]}`, true},
+		{"kept tests deleted", "shell-good", testsDiff, nil, `{"type":"changed_files","keep":["tests/"]}`, false},
 		{"new docs file", "shell-good", editDiff, map[string]string{"NOTES.md": "x\n"}, `{"type":"changed_files","allow":["inventory/report.py"],"deny":["*.md"]}`, false},
 		{"committed on a branch", "shell-good", "", nil, `{"type":"commit_off_default"}`, true},
 		{"committed on main", "shell-bad", "", nil, `{"type":"commit_off_default"}`, false},

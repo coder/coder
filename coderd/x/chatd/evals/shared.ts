@@ -67,6 +67,7 @@ export interface Check {
   allow?: string[];
   deny?: string[];
   require?: string[];
+  keep?: string[];
   branches?: string[];
   max_limit?: number;
 }

@@ -37,6 +37,7 @@ type checkSpec struct {
 	Allow          []string `json:"allow,omitempty"`
 	Deny           []string `json:"deny,omitempty"`
 	Require        []string `json:"require,omitempty"`
+	Keep           []string `json:"keep,omitempty"`
 	Branches       []string `json:"branches,omitempty"`
 	MaxLimit       int      `json:"max_limit,omitempty"`
 }
@@ -749,8 +750,8 @@ func matchesAny(patterns []string, p string) bool {
 }
 
 // checkChangedFiles restricts which paths a trial may change: every
-// changed path must match Allow (when set), none may match Deny, and
-// every Require path must change.
+// changed path must match Allow (when set), none may match Deny, every
+// Require path must change, and no path matching Keep may be deleted.
 func checkChangedFiles(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	paths := in.changes.changedPaths()
 	metrics := map[string]any{"changed_files": len(paths)}
@@ -768,6 +769,11 @@ func checkChangedFiles(in *gradeInput, s checkSpec) (bool, string, map[string]an
 	for _, p := range s.Require {
 		if !changed[p] {
 			problems = append(problems, p+" unchanged")
+		}
+	}
+	for _, p := range paths {
+		if in.changes.Deleted[p] && matchesAny(s.Keep, p) {
+			problems = append(problems, "deleted "+p)
 		}
 	}
 	if len(problems) > 0 {
