@@ -61,7 +61,7 @@ export const OverviewPageView: React.FC<OverviewPageViewProps> = ({
 							</Link>
 						}
 					>
-						<AlertTitle>Some experiments aren't recognized</AlertTitle>
+						<AlertTitle>Invalid experiments in use</AlertTitle>
 						<AlertDescription>
 							These experiments have no effect:{" "}
 							{invalidExperiments.map((it, index) => (

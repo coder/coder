@@ -434,8 +434,8 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 						>
 							<AlertTitle>This change can block new authorizations</AlertTitle>
 							<AlertDescription>
-								If a self-registered application requests every available scope,
-								new authorizations fail once this list is narrower. Existing
+								If this application requests every available scope, limiting its
+								allowed scopes makes all new authorizations fail. Existing
 								tokens keep their scopes.
 							</AlertDescription>
 						</Alert>
