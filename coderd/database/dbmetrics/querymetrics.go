@@ -5480,14 +5480,6 @@ func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, ar
 	return r0
 }
 
-func (m queryMetricsStore) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.SoftDeleteContextFileMessages(ctx, chatID)
-	m.queryLatencies.WithLabelValues("SoftDeleteContextFileMessages").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteContextFileMessages").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	start := time.Now()
 	r0 := m.s.SoftDeletePriorWorkspaceAgents(ctx, arg)

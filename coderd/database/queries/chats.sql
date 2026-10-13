@@ -2531,12 +2531,6 @@ WHERE agent_id = @agent_id::uuid
     AND status IN ('waiting', 'running', 'requires_action')
 ORDER BY updated_at DESC;
 
--- name: SoftDeleteContextFileMessages :exec
-UPDATE chat_messages SET deleted = true
-WHERE chat_id = @chat_id::uuid
-    AND deleted = false
-    AND content::jsonb @> '[{"type": "context-file"}]';
-
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
 -- Within each pool, interrupting chats finish active work first, and

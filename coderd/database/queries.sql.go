@@ -13310,18 +13310,6 @@ func (q *sqlQuerier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg Soft
 	return err
 }
 
-const softDeleteContextFileMessages = `-- name: SoftDeleteContextFileMessages :exec
-UPDATE chat_messages SET deleted = true
-WHERE chat_id = $1::uuid
-    AND deleted = false
-    AND content::jsonb @> '[{"type": "context-file"}]'
-`
-
-func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
-	return err
-}
-
 const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
 WITH agent_mcp AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
