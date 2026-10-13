@@ -3162,7 +3162,6 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
 			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
 		});
-		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
 	},
 };
 
@@ -3244,12 +3243,26 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 				expect(sendSpy).toHaveBeenCalledTimes(1);
 			});
 
-			// The prompt shows at submit, while the gated POST is still pending,
-			// and the scroller re-anchors to it with a single non-smooth scroll.
+			// The prompt shows at submit, while the gated POST is still pending.
+			// Once the stream reports it and the running turn, the scroller
+			// re-anchors to it with a single non-smooth scroll.
 			const timeline = within(
 				await canvas.findByTestId("conversation-timeline"),
 			);
 			await timeline.findByText("Follow-up question.");
+			const store = loadedChatStore(CHAT_ID);
+			store?.batch(() => {
+				store.upsertDurableMessages([
+					{
+						id: 41,
+						chat_id: CHAT_ID,
+						created_at: new Date().toISOString(),
+						role: "user",
+						content: [{ type: "text", text: "Follow-up question." }],
+					},
+				]);
+				store.applyServerChatStatus("running");
+			});
 			await waitFor(() => {
 				expect(scrollToMock).toHaveBeenCalledTimes(1);
 				// The anchor re-position is a non-smooth scroll; a smooth call here
@@ -3467,8 +3480,8 @@ export const EditAppliesMCPServerSelection: Story = {
 };
 
 /**
- * The send flow shows the prompt and the live activity slot at submit, while
- * the request is still pending.
+ * The send flow shows the prompt at submit, while the request is still
+ * pending.
  */
 export const SendShowsPromptAtSubmit: Story = {
 	parameters: {
@@ -3515,7 +3528,6 @@ export const SendShowsPromptAtSubmit: Story = {
 
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		expect(await timeline.findByText("Durable prompt")).toBeVisible();
-		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
 		releaseSend?.();
 	},
 };

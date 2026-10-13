@@ -779,11 +779,6 @@ const visible = (store: ChatStore) => {
 	};
 };
 
-const chatError = {
-	message: "provider failed",
-	kind: "generic",
-} as const;
-
 // A user message as submitChatTurn builds it at the click.
 const eagerSend = (text: string): PendingAction => ({
 	kind: "send",
@@ -798,28 +793,25 @@ const eagerSend = (text: string): PendingAction => ({
 
 describe("pending actions", () => {
 	it.each(["error", "requires_action"] as const)(
-		"promote from %s shows the row as the next prompt of a running turn",
+		"promote from %s shows the row as the next prompt",
 		(status) => {
 			const store = seededStore(
 				[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
 				[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
 				status,
 			);
-			store.setStreamError(chatError);
 
 			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
 
-			expect(visible(store)).toEqual({
+			expect(visible(store)).toMatchObject({
 				transcript: ["user:first", "assistant:a", "user:q11"],
 				queue: ["q10"],
-				status: "running",
-				error: null,
 			});
 		},
 	);
 
 	it.each(["running", "interrupting"] as const)(
-		"promote from %s moves the row to the head and shows the turn stopping",
+		"promote from %s moves the row to the head",
 		(status) => {
 			const store = seededStore(
 				[makeMessage(1, "user", "first")],
@@ -829,44 +821,12 @@ describe("pending actions", () => {
 
 			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
 
-			expect(visible(store)).toEqual({
+			expect(visible(store)).toMatchObject({
 				transcript: ["user:first"],
 				queue: ["q11", "q10"],
-				status: "interrupting",
-				error: null,
 			});
 		},
 	);
-
-	it("places a promote by the status an earlier pending action shows", () => {
-		const store = seededStore(
-			[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
-			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
-			"error",
-		);
-		store.addPendingAction({ kind: "compact" });
-
-		// The compaction turn runs when the promote reaches the server.
-		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
-
-		expect(visible(store)).toMatchObject({
-			transcript: ["user:first", "assistant:a"],
-			queue: ["q11", "q10"],
-			status: "interrupting",
-		});
-	});
-
-	it("queues a send made while an earlier send is pending", () => {
-		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
-
-		store.addPendingAction(eagerSend("second"));
-		store.addPendingAction(eagerSend("third"));
-
-		expect(visible(store)).toMatchObject({
-			transcript: ["user:first", "user:second"],
-			queue: ["third"],
-		});
-	});
 
 	it("keeps a pending message through stream updates without user messages", () => {
 		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
@@ -887,7 +847,7 @@ describe("pending actions", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first"), makeMessage(2, "user", "old")],
 			[],
-			"waiting",
+			"running",
 		);
 		store.addPendingAction({
 			kind: "edit",
@@ -910,7 +870,7 @@ describe("pending actions", () => {
 		).toEqual([true]);
 	});
 
-	it("shows the turn stopping when a running chat's head is promoted", () => {
+	it("keeps the queue when a running chat's head is promoted", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
@@ -918,14 +878,9 @@ describe("pending actions", () => {
 		);
 
 		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 10 });
-		expect(visible(store)).toMatchObject({
-			queue: ["q10", "q11"],
-			status: "interrupting",
-		});
 
-		// The head does not move, so the commit sends only a status.
-		store.applyServerChatStatus("interrupting");
-		expect(store.getSnapshot().pendingActions).toEqual([]);
+		// The head does not move, so the commit sends no queue update.
+		expect(visible(store).queue).toEqual(["q10", "q11"]);
 	});
 
 	it("removes a failed action's overlay", () => {
@@ -1056,15 +1011,6 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		statusAfter: "interrupting",
 	},
 	{
-		name: "compact",
-		messages: [makeMessage(1, "user", "first")],
-		queue: [],
-		status: "waiting",
-		action: { kind: "compact" },
-		stream: () => {},
-		statusAfter: "running",
-	},
-	{
 		name: "another tab's message replaces the pending one",
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
@@ -1115,9 +1061,13 @@ describe("pending actions converge with the stream", () => {
 
 		expect(actor.getSnapshot().pendingActions).toEqual([]);
 		expect(visible(actor)).toEqual(visible(observer));
-		// The action showed the committed state, so nothing moves when it ends.
+		// The action showed the committed messages and queue, so nothing moves
+		// when it ends. The status only ever comes from the stream.
 		if (!scenario.unpredictable) {
-			expect(shownBeforeStream).toEqual(visible(observer));
+			expect({ ...shownBeforeStream, status: null }).toEqual({
+				...visible(observer),
+				status: null,
+			});
 		}
 	});
 });
@@ -1180,17 +1130,6 @@ const partEndScenarios: {
 			store.applyServerChatStatus("running");
 		},
 		end: (store) => store.resetHistoryFrom(1),
-	},
-	{
-		name: "a status at the next status",
-		status: "waiting",
-		action: { kind: "compact" },
-		others: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
-			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
-			store.resetHistoryFrom(99);
-		},
-		end: (store) => store.applyServerChatStatus("running"),
 	},
 ];
 
