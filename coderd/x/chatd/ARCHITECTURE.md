@@ -57,7 +57,7 @@ Eviction means that a persisted message may reference a file that no longer exis
 
 TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
 
-TODO (#30349): projects can now hold instructions (`chat_project_instructions`, at most one row per project, organization-scoped, with `updated_by`). They are metadata reached through the project binding, and subagent chats, which carry no `project_id`, use their root chat's project. Describe this here.
+Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -1072,7 +1072,7 @@ Root chats in a project share durable memory; other chats have none. The agent s
 
 <!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
 
-TODO (#30349): project instructions are loaded on every turn in the parallel prep phase of the generation preparer, gated on the `chat-projects` experiment, sanitized again on read, and added by `buildSystemPrompt` as a `<project-instructions>` block after the memory guidance and before the user prompt. Subagents resolve them through their root chat. A load error other than no rows is logged and the turn continues without them. Because they are read per turn rather than snapshotted at chat creation, edits apply to existing chats on their next turn. Describe this here.
+Project instructions are loaded on every turn, so edits show up in existing chats on their next turn. They're loaded alongside the rest of the turn setup, sanitized again, and added to the system prompt by `buildSystemPrompt` as a `<project-instructions>` block, after the memory guidance and before the user prompt. Subagents get them from their root chat.
 
 ##### Reasoning effort
 
