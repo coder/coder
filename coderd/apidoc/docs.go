@@ -3812,7 +3812,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events",
+                        "description": "Send the changes made at or after this snapshot_version, taken from the newest messages page or the highest snapshot_version among the stream's events. The message, queue_update and history_reset events then carry snapshot_version, and history_reset carries from_message_id",
                         "name": "snapshot_version",
                         "in": "query"
                     }
@@ -21501,14 +21501,6 @@ const docTemplate = `{
                     "description": "SnapshotVersion is the chat's snapshot_version, read before the rest\nof this page. The page can hold changes made after it; a stream opened\nwith it sends them again. Pass it as the stream's snapshot_version\nparameter. It is set only on pages requested without before_id or\nafter_id.",
                     "type": "integer"
                 },
-                "turn": {
-                    "description": "Turn is the chat's turn. It is set only on pages requested without\nbefore_id or after_id.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamTurn"
-                        }
-                    ]
-                },
                 "turn_start_id": {
                     "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
                     "type": "integer"
@@ -22331,23 +22323,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatStreamCheckpoint": {
-            "type": "object",
-            "properties": {
-                "snapshot_version": {
-                    "description": "SnapshotVersion is the chat's snapshot_version the sync applied. A\nclient reconnects with the value of the last checkpoint it received.",
-                    "type": "integer"
-                },
-                "turn": {
-                    "description": "Turn is the chat's turn at SnapshotVersion. It replaces the turn the\nclient holds.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamTurn"
-                        }
-                    ]
-                }
-            }
-        },
         "codersdk.ChatStreamEvent": {
             "type": "object",
             "properties": {
@@ -22357,14 +22332,6 @@ const docTemplate = `{
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "checkpoint": {
-                    "description": "Checkpoint is set on checkpoint events.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamCheckpoint"
-                        }
-                    ]
                 },
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
@@ -22392,6 +22359,10 @@ const docTemplate = `{
                 "retry": {
                     "$ref": "#/definitions/codersdk.ChatStreamRetry"
                 },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is set on the message, queue_update and history_reset\nevents of streams opened with a snapshot_version. It is the snapshot\nversion of the commit that made the change. A client reconnects with\nthe highest one it has received.",
+                    "type": "integer"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStreamStatus"
                 },
@@ -22411,8 +22382,7 @@ const docTemplate = `{
                 "retry",
                 "action_required",
                 "preview_reset",
-                "history_reset",
-                "checkpoint"
+                "history_reset"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -22423,15 +22393,14 @@ const docTemplate = `{
                 "ChatStreamEventTypeRetry",
                 "ChatStreamEventTypeActionRequired",
                 "ChatStreamEventTypePreviewReset",
-                "ChatStreamEventTypeHistoryReset",
-                "ChatStreamEventTypeCheckpoint"
+                "ChatStreamEventTypeHistoryReset"
             ]
         },
         "codersdk.ChatStreamHistoryReset": {
             "type": "object",
             "properties": {
                 "from_message_id": {
-                    "description": "FromMessageID is the lowest message ID the reset replaces. The client\nkeeps its messages with lower IDs and replaces the rest with the\nmessage events that follow.",
+                    "description": "FromMessageID is the lowest message ID the edit removed. The client\ndrops its messages with this ID or higher. Only messages written by\nthe edit or a later commit follow.",
                     "type": "integer"
                 }
             }
@@ -22513,38 +22482,6 @@ const docTemplate = `{
                 },
                 "tool_name": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.ChatStreamTurn": {
-            "type": "object",
-            "properties": {
-                "action_required": {
-                    "description": "ActionRequired is set while the status is requires_action and lists\nthe dynamic tool calls that wait for results.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamActionRequired"
-                        }
-                    ]
-                },
-                "error": {
-                    "description": "Error is set while the status is error.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatError"
-                        }
-                    ]
-                },
-                "retry": {
-                    "description": "Retry is set while the status is running and a retry of the failed\nattempt is pending.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamRetry"
-                        }
-                    ]
-                },
-                "status": {
-                    "$ref": "#/definitions/codersdk.ChatStatus"
                 }
             }
         },

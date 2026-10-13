@@ -1840,29 +1840,13 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
-	var (
-		snapshotVersion int64
-		turn            *codersdk.ChatStreamTurn
-	)
+	var snapshotVersion int64
 	if beforeID == 0 && afterID == 0 {
-		// Only the newest page reports a snapshot version and turn, since a
-		// cursored page can leave out newer messages. chat was read before the
-		// messages, the queue and the pending tool calls, so a change committed
-		// in between is sent again by the stream, not lost.
+		// Only the newest page reports a snapshot version, since a cursored
+		// page can leave out newer messages. chat was read before the
+		// messages and the queue, so a change committed in between is sent
+		// again by the stream, not lost.
 		snapshotVersion = chat.SnapshotVersion
-		var actionRequired *codersdk.ChatStreamActionRequired
-		if chat.Status == database.ChatStatusRequiresAction {
-			actionRequired, err = chatd.StreamActionRequired(ctx, api.Database, chat)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get pending tool calls.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		}
-		chatTurn := chatd.StreamTurn(api.Logger, chat, actionRequired)
-		turn = &chatTurn
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1879,7 +1863,6 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		HasMore:         hasMore,
 		TurnStartID:     turnStartID,
 		SnapshotVersion: snapshotVersion,
-		Turn:            turn,
 	})
 }
 
@@ -3470,7 +3453,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
-// @Param snapshot_version query int false "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events"
+// @Param snapshot_version query int false "Send the changes made at or after this snapshot_version, taken from the newest messages page or the highest snapshot_version among the stream's events. The message, queue_update and history_reset events then carry snapshot_version, and history_reset carries from_message_id"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {

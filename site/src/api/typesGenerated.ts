@@ -3022,11 +3022,6 @@ export interface ChatMessagesResponse {
 	 * after_id.
 	 */
 	readonly snapshot_version?: number;
-	/**
-	 * Turn is the chat's turn. It is set only on pages requested without
-	 * before_id or after_id.
-	 */
-	readonly turn?: ChatStreamTurn;
 }
 
 // From codersdk/chats.go
@@ -3649,24 +3644,6 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
- * ChatStreamCheckpoint ends every applied stream sync and reports the chat
- * state the events before it reflect.
- */
-export interface ChatStreamCheckpoint {
-	/**
-	 * SnapshotVersion is the chat's snapshot_version the sync applied. A
-	 * client reconnects with the value of the last checkpoint it received.
-	 */
-	readonly snapshot_version: number;
-	/**
-	 * Turn is the chat's turn at SnapshotVersion. It replaces the turn the
-	 * client holds.
-	 */
-	readonly turn: ChatStreamTurn;
-}
-
-// From codersdk/chats.go
-/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -3691,16 +3668,11 @@ export interface ChatStreamEvent {
 	 * the highest one it has received.
 	 */
 	readonly snapshot_version?: number;
-	/**
-	 * Checkpoint is set on checkpoint events.
-	 */
-	readonly checkpoint?: ChatStreamCheckpoint;
 }
 
 // From codersdk/chats.go
 export type ChatStreamEventType =
 	| "action_required"
-	| "checkpoint"
 	| "error"
 	| "history_reset"
 	| "message"
@@ -3712,7 +3684,6 @@ export type ChatStreamEventType =
 
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
-	"checkpoint",
 	"error",
 	"history_reset",
 	"message",
@@ -3725,13 +3696,13 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 
 // From codersdk/chats.go
 /**
- * ChatStreamHistoryReset describes which messages a history_reset replaces.
+ * ChatStreamHistoryReset describes which messages a history_reset removes.
  */
 export interface ChatStreamHistoryReset {
 	/**
-	 * FromMessageID is the lowest message ID the reset replaces. The client
-	 * keeps its messages with lower IDs and replaces the rest with the
-	 * message events that follow.
+	 * FromMessageID is the lowest message ID the edit removed. The client
+	 * drops its messages with this ID or higher. Only messages written by
+	 * the edit or a later commit follow.
 	 */
 	readonly from_message_id: number;
 }
@@ -3801,28 +3772,6 @@ export interface ChatStreamToolCall {
 	readonly tool_call_id: string;
 	readonly tool_name: string;
 	readonly args: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatStreamTurn is the state of a chat's turn.
- */
-export interface ChatStreamTurn {
-	readonly status: ChatStatus;
-	/**
-	 * Error is set while the status is error.
-	 */
-	readonly error?: ChatError;
-	/**
-	 * Retry is set while the status is running and a retry of the failed
-	 * attempt is pending.
-	 */
-	readonly retry?: ChatStreamRetry;
-	/**
-	 * ActionRequired is set while the status is requires_action and lists
-	 * the dynamic tool calls that wait for results.
-	 */
-	readonly action_required?: ChatStreamActionRequired;
 }
 
 // From codersdk/chats.go
@@ -9698,13 +9647,13 @@ export interface StreamChatOptions {
 	 */
 	readonly AfterID: number | null;
 	/**
-	 * SnapshotVersion is the snapshot version of the caller's state, from
-	 * ChatMessagesResponse or ChatStreamCheckpoint. When it is set, the
-	 * stream sends only changes made after it, the server ignores AfterID,
-	 * and history resets carry ChatStreamEvent.HistoryReset. The stream
-	 * then sends no status, error, retry or action_required events: each
-	 * checkpoint carries the turn. When it is zero, every connection to a
-	 * chat with a deleted message resends the whole history.
+	 * SnapshotVersion is the snapshot version of the caller's state: the
+	 * one from ChatMessagesResponse, or the highest one from the stream's
+	 * events. When it is set, the stream sends the changes made at or after
+	 * it, the server ignores AfterID, and message, queue_update and
+	 * history_reset events carry ChatStreamEvent.SnapshotVersion. When it is
+	 * zero, every connection to a chat with a deleted message resends the
+	 * whole history.
 	 */
 	readonly SnapshotVersion: number;
 }

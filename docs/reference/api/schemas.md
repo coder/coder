@@ -3627,35 +3627,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "snapshot_version": 0,
-  "turn": {
-    "action_required": {
-      "tool_calls": [
-        {
-          "args": "string",
-          "tool_call_id": "string",
-          "tool_name": "string"
-        }
-      ]
-    },
-    "error": {
-      "detail": "string",
-      "kind": "generic",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
-    "retry": {
-      "attempt": 0,
-      "delay_ms": 0,
-      "error": "string",
-      "kind": "generic",
-      "provider": "string",
-      "retrying_at": "2019-08-24T14:15:22Z",
-      "status_code": 0
-    },
-    "status": "waiting"
-  },
   "turn_start_id": 0
 }
 ```
@@ -3668,7 +3639,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                             |
 | `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                             |
 | `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot_version, read before the rest of this page. The page can hold changes made after it; a stream opened with it sends them again. Pass it as the stream's snapshot_version parameter. It is set only on pages requested without before_id or after_id. |
-| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn)                | false    |              | Turn is the chat's turn. It is set only on pages requested without before_id or after_id.                                                                                                                                                                                                   |
 | `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                      |
 
 ## codersdk.ChatModel
@@ -5113,50 +5083,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
 
-## codersdk.ChatStreamCheckpoint
-
-```json
-{
-  "snapshot_version": 0,
-  "turn": {
-    "action_required": {
-      "tool_calls": [
-        {
-          "args": "string",
-          "tool_call_id": "string",
-          "tool_name": "string"
-        }
-      ]
-    },
-    "error": {
-      "detail": "string",
-      "kind": "generic",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
-    "retry": {
-      "attempt": 0,
-      "delay_ms": 0,
-      "error": "string",
-      "kind": "generic",
-      "provider": "string",
-      "retrying_at": "2019-08-24T14:15:22Z",
-      "status_code": 0
-    },
-    "status": "waiting"
-  }
-}
-```
-
-### Properties
-
-| Name               | Type                                               | Required | Restrictions | Description                                                                                                                              |
-|--------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `snapshot_version` | integer                                            | false    |              | Snapshot version is the chat's snapshot_version the sync applied. A client reconnects with the value of the last checkpoint it received. |
-| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn) | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                       |
-
 ## codersdk.ChatStreamEvent
 
 ```json
@@ -5171,38 +5097,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   },
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "checkpoint": {
-    "snapshot_version": 0,
-    "turn": {
-      "action_required": {
-        "tool_calls": [
-          {
-            "args": "string",
-            "tool_call_id": "string",
-            "tool_name": "string"
-          }
-        ]
-      },
-      "error": {
-        "detail": "string",
-        "kind": "generic",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
-      "retry": {
-        "attempt": 0,
-        "delay_ms": 0,
-        "error": "string",
-        "kind": "generic",
-        "provider": "string",
-        "retrying_at": "2019-08-24T14:15:22Z",
-        "status_code": 0
-      },
-      "status": "waiting"
-    }
-  },
   "error": {
     "detail": "string",
     "kind": "generic",
@@ -5439,6 +5333,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
   },
+  "snapshot_version": 0,
   "status": {
     "status": "waiting"
   },
@@ -5448,19 +5343,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                             |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                         |
-| `chat_id`         | string                                                                 | false    |              |                                                                                         |
-| `checkpoint`      | [codersdk.ChatStreamCheckpoint](#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                 |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                         |
-| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version. |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                         |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                         |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                         |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                         |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                         |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                         |
+| Name               | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                       |
+|--------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`  | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                   |
+| `chat_id`          | string                                                                 | false    |              |                                                                                                                                                                                                                                                   |
+| `error`            | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                   |
+| `history_reset`    | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                           |
+| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                   |
+| `message_part`     | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                   |
+| `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                                                                                                                                                                                   |
+| `retry`            | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                   |
+| `snapshot_version` | integer                                                                | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the snapshot version of the commit that made the change. A client reconnects with the highest one it has received. |
+| `status`           | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                   |
+| `type`             | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                   |
 
 ## codersdk.ChatStreamEventType
 
@@ -5472,9 +5367,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `checkpoint`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
 ## codersdk.ChatStreamHistoryReset
 
@@ -5486,9 +5381,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                          |
-|-------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                  |
+|-------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the edit removed. The client drops its messages with this ID or higher. Only messages written by the edit or a later commit follow. |
 
 ## codersdk.ChatStreamMessagePart
 
@@ -5628,49 +5523,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
-
-## codersdk.ChatStreamTurn
-
-```json
-{
-  "action_required": {
-    "tool_calls": [
-      {
-        "args": "string",
-        "tool_call_id": "string",
-        "tool_name": "string"
-      }
-    ]
-  },
-  "error": {
-    "detail": "string",
-    "kind": "generic",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
-  "retry": {
-    "attempt": 0,
-    "delay_ms": 0,
-    "error": "string",
-    "kind": "generic",
-    "provider": "string",
-    "retrying_at": "2019-08-24T14:15:22Z",
-    "status_code": 0
-  },
-  "status": "waiting"
-}
-```
-
-### Properties
-
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                                        |
-|-------------------|------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              | Action required is set while the status is requires_action and lists the dynamic tool calls that wait for results. |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              | Error is set while the status is error.                                                                            |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              | Retry is set while the status is running and a retry of the failed attempt is pending.                             |
-| `status`          | [codersdk.ChatStatus](#codersdkchatstatus)                             | false    |              |                                                                                                                    |
 
 ## codersdk.ChatSystemPromptResponse
 

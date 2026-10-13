@@ -957,9 +957,6 @@ type ChatMessagesResponse struct {
 	// parameter. It is set only on pages requested without before_id or
 	// after_id.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
-	// Turn is the chat's turn. It is set only on pages requested without
-	// before_id or after_id.
-	Turn *ChatStreamTurn `json:"turn,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -1945,7 +1942,6 @@ const (
 	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
 	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
 	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
-	ChatStreamEventTypeCheckpoint     ChatStreamEventType = "checkpoint"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -2189,40 +2185,14 @@ type ChatStreamEvent struct {
 	// version of the commit that made the change. A client reconnects with
 	// the highest one it has received.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
-	// Checkpoint is set on checkpoint events.
-	Checkpoint *ChatStreamCheckpoint `json:"checkpoint,omitempty"`
 }
 
-// ChatStreamHistoryReset describes which messages a history_reset replaces.
+// ChatStreamHistoryReset describes which messages a history_reset removes.
 type ChatStreamHistoryReset struct {
-	// FromMessageID is the lowest message ID the reset replaces. The client
-	// keeps its messages with lower IDs and replaces the rest with the
-	// message events that follow.
+	// FromMessageID is the lowest message ID the edit removed. The client
+	// drops its messages with this ID or higher. Only messages written by
+	// the edit or a later commit follow.
 	FromMessageID int64 `json:"from_message_id"`
-}
-
-// ChatStreamCheckpoint ends every applied stream sync and reports the chat
-// state the events before it reflect.
-type ChatStreamCheckpoint struct {
-	// SnapshotVersion is the chat's snapshot_version the sync applied. A
-	// client reconnects with the value of the last checkpoint it received.
-	SnapshotVersion int64 `json:"snapshot_version"`
-	// Turn is the chat's turn at SnapshotVersion. It replaces the turn the
-	// client holds.
-	Turn ChatStreamTurn `json:"turn"`
-}
-
-// ChatStreamTurn is the state of a chat's turn.
-type ChatStreamTurn struct {
-	Status ChatStatus `json:"status"`
-	// Error is set while the status is error.
-	Error *ChatError `json:"error,omitempty"`
-	// Retry is set while the status is running and a retry of the failed
-	// attempt is pending.
-	Retry *ChatStreamRetry `json:"retry,omitempty"`
-	// ActionRequired is set while the status is requires_action and lists
-	// the dynamic tool calls that wait for results.
-	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3146,13 +3116,13 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
-	// SnapshotVersion is the snapshot version of the caller's state, from
-	// ChatMessagesResponse or ChatStreamCheckpoint. When it is set, the
-	// stream sends only changes made after it, the server ignores AfterID,
-	// and history resets carry ChatStreamEvent.HistoryReset. The stream
-	// then sends no status, error, retry or action_required events: each
-	// checkpoint carries the turn. When it is zero, every connection to a
-	// chat with a deleted message resends the whole history.
+	// SnapshotVersion is the snapshot version of the caller's state: the
+	// one from ChatMessagesResponse, or the highest one from the stream's
+	// events. When it is set, the stream sends the changes made at or after
+	// it, the server ignores AfterID, and message, queue_update and
+	// history_reset events carry ChatStreamEvent.SnapshotVersion. When it is
+	// zero, every connection to a chat with a deleted message resends the
+	// whole history.
 	SnapshotVersion int64
 }
 
