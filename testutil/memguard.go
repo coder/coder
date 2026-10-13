@@ -4,18 +4,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
 	"runtime/pprof"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 // MemoryLimit is twice the peak of the largest test package in CI (cli,
 // about 3 GiB) and a third of the smallest runner (macOS, 17 GiB).
 const MemoryLimit uint64 = 6 << 30
 
+// heapProfileGCTimeout bounds the forced collection that precedes the
+// second heap profile. A runaway test keeps allocating while the
+// collection runs, and the process must fail before the runner starts
+// swapping, so the second profile is skipped when the collection takes
+// longer than this.
+const heapProfileGCTimeout = 5 * time.Second
+
 // StartMemoryGuard ends the test process once its memory use passes
-// limit. It writes a heap profile first, then panics with a dump of
+// limit. It writes heap profiles first, then panics with a dump of
 // every goroutine the way a test timeout does. Without it a runaway
 // allocation pushes the runner into swap and the process dies before
 // the test timeout can produce a dump, see coder/internal#1365. Call
@@ -26,13 +36,19 @@ func StartMemoryGuard(limit uint64) func() {
 		if dir == "" {
 			dir = os.TempDir()
 		}
-		path, err := writeHeapProfile(dir)
-		if err != nil {
-			path = "not written: " + err.Error()
+		immediate, collected, err := writeHeapProfiles(dir, heapProfileGCTimeout)
+		report := "heap profile: " + immediate
+		switch {
+		case err != nil:
+			report += "; " + err.Error()
+		case collected == "":
+			report += fmt.Sprintf("; no profile after collection, it did not finish within %s", heapProfileGCTimeout)
+		default:
+			report += "; heap profile after collection: " + collected
 		}
 		debug.SetTraceback("all")
-		panic(fmt.Sprintf("memory guard: test process uses %d MiB, over the %d MiB limit; heap profile: %s",
-			total>>20, limit>>20, path))
+		panic(fmt.Sprintf("memory guard: test process uses %d MiB, over the %d MiB limit; %s",
+			total>>20, limit>>20, report))
 	})
 }
 
@@ -65,12 +81,48 @@ func watchMemory(limit uint64, exceeded func(total uint64)) func() {
 	}
 }
 
-// writeHeapProfile does not run a collection first. The collector may be
-// stuck when memory is this high, and allocation sites are sampled as
-// they happen regardless.
-func writeHeapProfile(dir string) (string, error) {
-	name := fmt.Sprintf("heap-%s-%s.pprof",
-		filepath.Base(os.Args[0]), time.Now().UTC().Format("20060102T150405Z"))
+// writeHeapProfiles writes a heap profile at once and a second one after
+// a forced collection, and returns the path of each. The runtime
+// publishes allocation samples only after the second mark termination
+// that follows them (see memRecord in runtime/mprof.go), so the first
+// profile can miss the burst that tripped the guard even in its
+// alloc_space view. The collection may run long or never finish when
+// memory is this high, so collected is empty when it does not finish
+// within gcTimeout. The immediate profile is kept in that case.
+func writeHeapProfiles(dir string, gcTimeout time.Duration) (immediate, collected string, err error) {
+	immediate, err = writeHeapProfile(dir, "")
+	if err != nil {
+		return "", "", xerrors.Errorf("write heap profile: %w", err)
+	}
+	if !collectWithin(gcTimeout) {
+		return immediate, "", nil
+	}
+	collected, err = writeHeapProfile(dir, "-after-gc")
+	if err != nil {
+		return immediate, "", xerrors.Errorf("write heap profile after collection: %w", err)
+	}
+	return immediate, collected, nil
+}
+
+// collectWithin runs a garbage collection and reports whether it
+// finished within timeout. The collection keeps running otherwise.
+func collectWithin(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runtime.GC()
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+func writeHeapProfile(dir, suffix string) (string, error) {
+	name := fmt.Sprintf("heap-%s-%s%s.pprof",
+		filepath.Base(os.Args[0]), time.Now().UTC().Format("20060102T150405Z"), suffix)
 	path := filepath.Join(dir, name)
 	f, err := os.Create(path)
 	if err != nil {

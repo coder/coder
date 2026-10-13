@@ -3,9 +3,14 @@ package testutil_test
 import (
 	"math"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/pprof/profile"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
@@ -50,13 +55,115 @@ func TestStartMemoryGuard(t *testing.T) {
 	})
 }
 
+// memoryGuardSubprocessEnv marks the re-executed test binary that runs
+// the guard until it trips.
+const memoryGuardSubprocessEnv = "CODER_TEST_MEMORY_GUARD_SUBPROCESS"
+
+func TestStartMemoryGuardTrips(t *testing.T) {
+	if os.Getenv(memoryGuardSubprocessEnv) == "1" {
+		testutil.StartMemoryGuard(1)
+		<-time.After(testutil.WaitLong)
+		t.Fatal("memory guard did not trip")
+	}
+	t.Parallel()
+
+	dir := t.TempDir()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:gosec // Test-controlled arguments.
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
+	cmd.Env = append(os.Environ(), memoryGuardSubprocessEnv+"=1", "RUNNER_TEMP="+dir)
+	out, err := cmd.CombinedOutput()
+	t.Logf("subprocess output:\n%s", out)
+
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr, "subprocess did not fail")
+	require.Equal(t, 2, exitErr.ExitCode(), "subprocess did not exit from a panic")
+	require.Contains(t, string(out), "panic: memory guard: test process uses")
+	require.Contains(t, string(out), "over the 0 MiB limit")
+	require.Contains(t, string(out), "heap profile after collection:")
+	// The test goroutine is not the one that panics, so its presence
+	// shows the dump covers every goroutine.
+	require.Contains(t, string(out), t.Name()+"(")
+
+	profiles, err := filepath.Glob(filepath.Join(dir, "heap-*.pprof"))
+	require.NoError(t, err)
+	require.Len(t, profiles, 2, "expected an immediate and a post-collection profile")
+	for _, path := range profiles {
+		f, err := os.Open(path)
+		require.NoError(t, err)
+		prof, err := profile.Parse(f)
+		_ = f.Close()
+		require.NoError(t, err, "profile %s is not readable", path)
+		require.NotEmpty(t, prof.Sample, "profile %s has no samples", path)
+	}
+}
+
 func TestWriteHeapProfile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	path, err := testutil.WriteHeapProfile(dir)
+	path, err := testutil.WriteHeapProfile(dir, "")
 	require.NoError(t, err)
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	require.NotZero(t, info.Size())
+}
+
+func TestWriteHeapProfiles(t *testing.T) {
+	t.Parallel()
+
+	// Two collections publish everything allocated so far. The burst
+	// below then sits in an unpublished profile cycle, as it would when
+	// the guard trips, until the forced collection in WriteHeapProfiles
+	// publishes it. The allocation is large enough that the profiler
+	// cannot skip it at the default sampling rate.
+	runtime.GC() //nolint:revive // Two collections publish everything allocated so far.
+	runtime.GC() //nolint:revive // See above.
+	burst := allocateBurst()
+
+	immediate, collected, err := testutil.WriteHeapProfiles(t.TempDir(), testutil.WaitLong)
+	require.NoError(t, err)
+	require.FileExists(t, immediate)
+	require.NotEmpty(t, collected, "collection did not finish")
+	require.True(t, allocatedIn(t, collected, "allocateBurst"),
+		"profile after collection misses the burst")
+	runtime.KeepAlive(burst)
+}
+
+//go:noinline
+func allocateBurst() []byte {
+	return make([]byte, 32<<20)
+}
+
+// allocatedIn reports whether the heap profile at path attributes
+// allocated space to a function with the given name.
+func allocatedIn(t *testing.T, path, function string) bool {
+	t.Helper()
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+	prof, err := profile.Parse(f)
+	require.NoError(t, err)
+
+	allocSpace := -1
+	for i, st := range prof.SampleType {
+		if st.Type == "alloc_space" {
+			allocSpace = i
+		}
+	}
+	require.NotEqual(t, -1, allocSpace, "profile has no alloc_space samples")
+
+	for _, s := range prof.Sample {
+		if s.Value[allocSpace] == 0 {
+			continue
+		}
+		for _, loc := range s.Location {
+			for _, line := range loc.Line {
+				if strings.HasSuffix(line.Function.Name, "."+function) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
