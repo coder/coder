@@ -1,16 +1,20 @@
 # Reviewer prompt
 
 Fill the four placeholders and send the result as the whole prompt to one
-read-only sub-agent per role. Spawn all eight in parallel.
+read-only sub-agent per role. Run as many at once as the harness allows and
+queue the rest.
 
 Placeholders:
 
 - {ROLE_FILE}: path to the role file, for example
   `.claude/skills/frontend-deep-review/roles/comments-and-docs.md`
-- {TARGET}: how to get the diff (a commit range such as `$BASE..HEAD`,
-  `origin/main...HEAD`, or `gh pr diff <n>`), plus the checkout path
-  when the sub-agent shares this checkout
-- {FILES}: the changed file list under site/ (one path per line)
+- {TARGET}: the exact command that prints the diff, plus the checkout path
+  when the sub-agent shares this checkout. In self-review, use
+  `git diff <sha> -- site/` with the concrete merge-base SHA: it includes
+  staged and unstaged edits, and a sub-agent's shell has no `$BASE`. For
+  someone else's PR, use `gh pr diff <n>`.
+- {FILES}: the changed file list under site/ (one path per line), with
+  untracked new files marked `(new, untracked)` because the diff omits them
 - {PURPOSE}: the PR title and description, or the user's one-paragraph summary
 
 ---
@@ -34,11 +38,13 @@ Do this, in order:
    frontend diff.
 2. Read the FE rule summary in `site/AGENTS.md` of the checkout under review
    (and `.claude/docs/FRONTEND_PATTERNS.md` for examples) once, so you know
-   the FE rule each checkpoint expands. Where they disagree with the role
-   file, the role file wins.
-3. Get the diff for the target, restricted to site/. Follow the role file's
-   "Reading order": open whole files, sibling folders, existing components,
-   or stories when the diff alone cannot answer a checkpoint. Read-only: do
+   the FE rule each checkpoint expands. These files outrank the role file:
+   where a checkpoint contradicts them, apply the repository rule and list
+   the checkpoint under "Conflicts with repository rules".
+3. Get the diff for the target, restricted to site/, and read every file
+   marked `(new, untracked)` in full. Follow the role file's "Reading
+   order": open whole files, sibling folders, existing components, or
+   stories when the diff alone cannot answer a checkpoint. Read-only: do
    not edit, format, or create files, and do not run the app.
 4. Walk every hunk against every checkpoint. For each hit, record the
    checkpoint ID, the severity (the role file's default unless the
@@ -68,6 +74,12 @@ diff contains nothing the checkpoint could apply to)
 ## Outside my role
 
 - <prefix that owns it> <file:line> <one sentence>
+(or "none")
+
+## Conflicts with repository rules
+
+- <ID> <one sentence: the rule in site/AGENTS.md or FRONTEND_PATTERNS.md
+  that the checkpoint contradicts>
 (or "none")
 
 If nothing failed, the findings section reads "No findings." and every

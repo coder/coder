@@ -12,9 +12,9 @@ Reading order: grep the diff for added comment lines (`^\+\s*//`, `^\+\s*\*`, `{
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 24 comments across 15 PRs
 
 Look for:
+
 - A JSDoc line on a prop, field, or method that paraphrases its name: `/** Read the stored value */ get`, `/** Remove the persisted value */ remove`, `/** Accessible label for the icon */ iconLabel`.
 - A comment directly above a condition, ternary, or JSX branch that narrates what the condition or branch renders ("Single-item trigger: flat text, no button chrome").
 - A doc block on a function or story whose sentences map one to one onto the statements or the export name beneath it (numbered "1. 2. 3." step lists, "Splits X into Y and Z" above a function named for exactly that).
@@ -26,9 +26,9 @@ Fix: delete the comment. If one clause carried a non-obvious constraint, keep on
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 46 comments across 25 PRs
 
 Look for:
+
 - A "why" comment above an ordinary call: a cache invalidation, a useState, a className, a navigate, an event listener, a story export. Ask whether a reader of the surrounding code would have wondered; if not, the comment is noise even when every word is true.
 - Comments that record PR history or authoring context: "moved here because", "intentionally not ported", "matching the behavior of the Provider form", "Generated once per mount via lazy state init". That belongs in the PR description or commit message.
 - Prop and field comments that explain one caller's situation or a backend condition ("This can be true even when providers/models exist in the DB catalog"), and banner or divider comments (`// -----`) between declarations.
@@ -40,9 +40,9 @@ Fix: delete the comment outright; do not shorten it. Move any genuinely needed c
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 28 comments across 18 PRs
 
 Look for:
+
 - Any added comment of four or more lines, or a JSDoc block longer than the declaration it documents. Count lines per hunk; reviewers react to length before content.
 - Comments that explain second-order effects, harmlessness of an edge case, or how another module will react ("the resulting over-invalidation is harmless", "anchors the in-flight cycle so a refetch can't shift").
 - The same fact stated twice in different words inside one comment, or two adjacent comments that overlap.
@@ -55,9 +55,9 @@ Fix: rewrite to 1 to 3 lines holding only the invariant, external constraint, or
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 12 comments across 11 PRs
 
 Look for:
+
 - A comment that states a fact the adjacent code disproves: "doesn't query the story canvas" above `within(canvasElement).getByRole`, a doc block above a predicate whose first branch does the opposite, "passing null removes the key" on a setter typed `(value: T)`.
 - Sentences that make no sense when read literally ("Reused as the confirm handler when omitted"), or that label a live option as "legacy".
 - Comments that pin a number, an experiment name, a Tailwind class arithmetic, or a backend rule ("The server enforces a maximum of 2000", "when the experiment goes stable", "h-7 matches one input row") that another PR can change without touching this file.
@@ -69,9 +69,9 @@ Fix: correct the sentence so it matches the code, or delete it; for stale-prone 
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 10 comments across 5 PRs
 
 Look for:
+
 - JSDoc tags with no consumer in this repo (`@public`, "Consumed by ... in a higher stack layer"); the reviewers drop them on sight.
 - A type or interface doc block that describes what each method does instead of the method's own JSDoc doing it; a call-site comment in a test or page that explains a helper's behavior instead of sitting on the helper's definition.
 - Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere.
@@ -83,9 +83,9 @@ Fix: move the sentence to the declaration it describes and delete the original; 
 
 Default severity: should-fix
 FE parent: FE4
-Evidence: 4 comments across 4 PRs
 
 Look for:
+
 - A useEffect, manual useMemo, migration call, or other pattern the FE rules discourage that ships with no comment, or with a one-liner a reader cannot connect to the code ("Generated X is alphabetical, not display order").
 - A justification that names a mechanism without the reason ("external to the compiler's static analysis"); if a reviewer would have to ask "why does that matter here?", it is not a justification yet.
 - A component or helper whose props (`text`, `query`) cannot be understood from the signature and whose comment does not say how they are used.

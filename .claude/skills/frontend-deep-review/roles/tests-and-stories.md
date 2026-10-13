@@ -12,9 +12,9 @@ Reading order: open every *.stories.tsx and *.test.tsx in the diff first, and re
 
 Default severity: should-fix
 FE parent: FE1
-Evidence: 31 comments across 13 PRs
 
 Look for:
+
 - A play function whose last statements are `expect(...).toBeVisible()`, `toBeInTheDocument()`, `not.toBeInTheDocument()`, `toBeNull()`, or `toHaveAttribute` on rendered content: the snapshot already captures this, so the assertions are noise.
 - A play that drives the UI into a state, asserts it, then drives it into a second state: split it into one story per state.
 - A story whose play only checks presence and performs no interaction, or a `findBy*` used as a disguised content assertion after the setup step.
@@ -26,9 +26,9 @@ Fix: keep the interactions (click, type, open) that put the component in the sta
 
 Default severity: should-fix
 FE parent: FE10
-Evidence: 11 comments across 7 PRs
 
 Look for:
+
 - `tagName`, `getBoundingClientRect`, `scrollWidth`/`clientWidth`, `getAllByRole(...).toHaveLength`, or a storage key exported from the component so a test can read it: these test the implementation, not what the user sees.
 - `within(canvasElement.ownerDocument.body)` or `within(document.body)` to reach portal content: import and use `screen`.
 - `waitFor(() => expect(x.getByText(...)).toBeVisible())` replacing an existing `await findByText(...)`: same assertion dressed up, no behavior change.
@@ -40,9 +40,9 @@ Fix: query by role and accessible name with `screen` or `canvas`, use `findBy*` 
 
 Default severity: should-fix
 FE parent: FE9
-Evidence: 23 comments across 13 PRs
 
 Look for:
+
 - A local entity constant in a story or test named without the `mock` prefix (`defaultChat`, `parentChat`, `secondTemplate`, `slackMCPAlwaysOnNeedingAuth`): rename to `mockX`. Pre-existing unprefixed neighbours in the same file (`sentryMCP`, `linearMCP`) do not excuse the new one; flag only the new fixture and do not ask for the old ones to be renamed.
 - A factory function (`makeCostControl(overrides)`, `buildMCPServer(...)`, `memberWithSpend(...)`) where a `mockX` constant plus `{ ...mockX, field: value }` at the call site would do.
 - A local fixture that duplicates an existing `Mock*` from site/src/testHelpers with no meaningful difference: use the shared one.
@@ -54,9 +54,9 @@ Fix: define one `mockX` constant per entity (spreading the shared `MockX` when o
 
 Default severity: should-fix
 FE parent: FE1
-Evidence: 17 comments across 10 PRs
 
 Look for:
+
 - Helper or stateful wrapper components defined inside a *.stories.tsx, especially ones that re-create an existing Input, Select, or Label.
 - Test helpers built from regexes, derived class lists, or `JSON.parse(JSON.stringify(...))` where a hard-coded value or `structuredClone` reads plainly.
 - Single-use constants in a story file (`const chatId = MockChat.id`) and tests that only move in the diff without changing.
@@ -68,9 +68,9 @@ Fix: render the real components with args, hard-code test inputs, inline single-
 
 Default severity: should-fix
 FE parent: FE1
-Evidence: 9 comments across 6 PRs
 
 Look for:
+
 - `expect(onX).toHaveBeenCalledWith(...)`, `mockClear()`, or `navigator.clipboard.writeText` spies inside a story play: this is a behavior test, not a visual baseline.
 - A story that exists only to check an attribute or a non-visual side effect (`data-bwignore`, a persisted value).
 - A *.test.tsx that renders a component and asserts on rendered text or presence: the visual state belongs in a story.
@@ -81,9 +81,9 @@ Fix: move callback and side-effect assertions into a Vitest test of the handler 
 
 Default severity: should-fix
 FE parent: FE9
-Evidence: 15 comments across 11 PRs
 
 Look for:
+
 - A shared pre-wired query object or helper (`spawnModelConfigsQuery`, `aiSpendQuery(overrides)`) instead of a `mockX` data constant plus an inline `{ key, data }` in each story's `parameters.queries`.
 - A key built as a string literal (`["chat-model-configs"]`) or by constructing query options only to read `.queryKey` (`mcpServerConfigs(id).queryKey`): import the exported key constant.
 - `spyOn(API, ...)` where `parameters.queries` covers the same data, and a module-level `let capturedQueryClient` or similar used to reach into the cache from a story.
@@ -95,9 +95,9 @@ Fix: share the entity fixture, wire `{ key: exportedKey, data: mockX }` inline p
 
 Default severity: should-fix
 FE parent: FE1
-Evidence: 4 comments across 3 PRs
 
 Look for:
+
 - A story whose mocked data cannot occur in production (an authorization combination the backend never returns).
 - A new story that adds no state the existing stories do not already show.
 - A missing story for a reachable branch the component handles (filtered results empty while data exists, error, disabled, mobile).
@@ -109,6 +109,6 @@ Fix: add one story per reachable meaningful state, remove impossible and duplica
 
 - Exporting a query key constant or key helper from api/queries so tests can import it: DF owns the export; TS only flags the story that re-types or rebuilds the key.
 - Story files that re-create Input, Select, or Label components the repo already has: RO owns the "we already have this" finding.
-- Single-use constants in story files: SD owns inlining; TS keeps them only as story hygiene evidence.
+- Single-use constants in story files: SD owns inlining; TS4 flags them only as part of story hygiene.
 - Whether the no-permission empty state should take priority over the filter empty state: DF owns the state-matrix decision; TS only asks for the story.
 - A tiny production wrapper exported for tests: SD owns removing the wrapper; TS owns the pointless test around it.

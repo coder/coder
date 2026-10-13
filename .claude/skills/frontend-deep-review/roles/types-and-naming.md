@@ -12,9 +12,9 @@ Reading order: Open new and changed component files (`*.tsx`) first and read eac
 
 Default severity: should-fix
 FE parent: FE2
-Evidence: 8 comments across 8 PRs
 
 Look for:
+
 - Every new `?:` in a props type and every `| undefined` or `| null` in a function signature: grep the call sites; if every caller passes the value, drop the `?` or the union.
 - Signatures that accept `| null | undefined` on several parameters at once; this usually means the caller has not narrowed its data, so ask for the narrowing upstream.
 - Doc comments that promise behaviour the type does not allow (for example "passing null removes the key" on `set: (value: T)`).
@@ -26,9 +26,9 @@ Fix: Make the prop or parameter required, or narrow at the call site and pass a 
 
 Default severity: should-fix
 FE parent: FE2
-Evidence: 12 comments across 9 PRs
 
 Look for:
+
 - `!!x` in new code: the codebase preference is `Boolean(x)`.
 - `String(x)` or `x === undefined ? undefined : String(x)` where `x` is already `string | undefined`; check the declared type before accepting the cast.
 - `?? ""`, `|| "fallback"`, `?? otherValue`, and `"" satisfies T` sentinels: ask under what scenario the left side is missing and whether the fallback is reachable; a hardcoded literal that duplicates an existing default constant must reference the constant.
@@ -40,9 +40,9 @@ Fix: Delete the coercion and let the declared type carry the value; when a fallb
 
 Default severity: should-fix
 FE parent: FE2
-Evidence: 7 comments across 5 PRs
 
 Look for:
+
 - New `type X = { id: string; name: string; ... }` or `interface` blocks describing API data: search `api/typesGenerated.ts` for the same fields.
 - Hand-written callback or option shapes (`onSuccess?: () => void; onError?: () => void`) that mirror a React Query, React, or other library type.
 - Inline unions (`"info" | "warning"`) that repeat a union already declared in a sibling file: export the existing type and import it.
@@ -54,9 +54,9 @@ Fix: Import the generated or library type; when a local union already exists, ex
 
 Default severity: should-fix
 FE parent: none
-Evidence: 15 comments across 12 PRs
 
 Look for:
+
 - Components declared as `({ a, b }: Props) =>` with no `React.FC`, or as `FC<{ inline: string }>` with the props shape inlined: every component gets a named `XProps` type and `React.FC<XProps>`.
 - `interface XProps` for props, and diffs that swap `React.FC` for a bare `FC` import: the convention is `type` and the `React` namespace; treat a change away from it as a regression.
 - Generics narrowed to `string` (or another concrete type) when the implementation does not depend on it, and multi-line `NonNullable<ComponentPropsWithRef<...>[...]>` gymnastics to express a simple requirement.
@@ -68,9 +68,9 @@ Fix: Declare `type XProps = { ... }` and `export const X: React.FC<XProps> = (..
 
 Default severity: should-fix
 FE parent: none
-Evidence: 12 comments across 10 PRs
 
 Look for:
+
 - Names that describe one case of the value (`hasFileReferences` for any chip content, `NON_LIGHT_THEME_CLASSES` that still includes light colorblind themes, `showClassicParameterFlow` for a compatibility-mode alert).
 - `is*` and `has*` functions that do not return `boolean`.
 - Props, helpers, and constants a consumer cannot read at a glance (`text` and `query`, `cacheKeyFor`, `host`): ask what it is and how it is used; the answer should be the name.
@@ -82,9 +82,9 @@ Fix: Rename to the general meaning, return a boolean from `is*` functions, and r
 
 Default severity: should-fix
 FE parent: none
-Evidence: 5 comments across 5 PRs
 
 Look for:
+
 - Diff lines that change only the case of existing UI text ("AI Gateway Keys" to "AI Gateway keys"): confirm it is intentional and matches neighbouring labels.
 - Rewritten descriptions that now mention a feature or concept the original never did, especially in a removal PR.
 - Count-based messages that drop the noun ("1 template" becoming a bare display name): keep the entity word in the sentence.
@@ -99,5 +99,5 @@ Fix: Revert unintended copy changes, keep the entity noun in messages, align new
 - Real domains in test fixtures (`"*.coder.com"` instead of `"*.example.com"`): TS. TN only keeps the `HOST` naming suggestion.
 - The `mock` prefix on story and test fixtures: TS3, even when older fixtures in the same file lack it.
 - A `?? organization` fallback that exists because the query is gated on a possibly missing organization: the query shape and enablement belong to DF.
-- Where a shared `MutationCallbacks` type should live if it survives (`AgentsPage/types.ts`): RO.
+- Where a shared type such as `MutationCallbacks` should live: RO.
 - `as const` consistency on query keys across `api/queries/*` overlaps with DF's query key discipline.

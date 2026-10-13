@@ -6,28 +6,23 @@ description: Parallel multi-reviewer audit of a frontend diff under site/ agains
 # Frontend Deep Review
 
 Reviews a `site/` diff the way this repository's frontend maintainers do.
-Every checkpoint in `roles/` exists because maintainers flagged the pattern
-in code review, usually many times; the Evidence line on each checkpoint
-records how often. The goal is to catch and fix those findings before a
-human reviewer posts them.
+Every checkpoint in `roles/` is a pattern maintainers flagged in code
+review. The goal is to catch and fix those findings before a human reviewer
+posts them.
 
 The review is split into eight reviewer roles so it can run as parallel
 sub-agents. Each role owns a numbered checkpoint set:
 
-| Role file | Prefix | Owns | Comments |
-|---|---|---|---|
-| `roles/simplicity-and-dead-code.md` | SD | single-use constants, wrappers, dead code, hand-rolled primitives, readability | 149, the largest group |
-| `roles/comments-and-docs.md` | CD | comment quality, doc placement, missing explanations | 124 |
-| `roles/tests-and-stories.md` | TS | Storybook `play`, Vitest assertions, fixtures, test hygiene | 110 |
-| `roles/react-patterns.md` | RP | effects, refs, hooks, memoization, render helpers, component size, forms | 91 |
-| `roles/reuse-and-organization.md` | RO | reuse before building, duplication, file placement, PR scope and size | 73 |
-| `roles/styling-and-accessibility.md` | SA | Tailwind discipline, layout correctness, abstraction level, a11y | 63 |
-| `roles/types-and-naming.md` | TN | optionality, coercions, generated types, type conventions, names, copy | 59 |
-| `roles/data-flow.md` | DF | React Query, mutations, query keys, UI states, browser storage | 50 |
-
-Counts are top-level inline review comments on `site/` paths from April to
-September 2026 (671 comments across 187 PRs). A comment counts toward two
-roles when it makes two points.
+| Role file | Prefix | Owns |
+|---|---|---|
+| `roles/simplicity-and-dead-code.md` | SD | single-use constants, wrappers, dead code, hand-rolled primitives, readability |
+| `roles/comments-and-docs.md` | CD | comment quality, doc placement, missing explanations |
+| `roles/tests-and-stories.md` | TS | Storybook `play`, Vitest assertions, fixtures, test hygiene |
+| `roles/react-patterns.md` | RP | effects, refs, hooks, memoization, render helpers, component size, forms |
+| `roles/reuse-and-organization.md` | RO | reuse before building, duplication, file placement, PR scope and size |
+| `roles/styling-and-accessibility.md` | SA | Tailwind discipline, layout correctness, abstraction level, a11y |
+| `roles/types-and-naming.md` | TN | optionality, coercions, generated types, type conventions, names, copy |
+| `roles/data-flow.md` | DF | React Query, mutations, query keys, UI states, browser storage |
 
 ## When to run
 
@@ -42,18 +37,9 @@ short canonical contract; these checkpoints are the long tail of what
 reviewers actually post. `pnpm check`, `pnpm lint`, `pnpm format`, and the
 affected tests still run separately (see `site/AGENTS.md`).
 
-Where the checkpoints and the FE text disagree, the checkpoints follow the
-reviewers:
-
-- TS1 and TS5: a story's `play` only drives the component into the state the
-  visual snapshot captures; assertions belong in Vitest, as FE1 in
-  `site/AGENTS.md` states.
-- DF3: reviewers are split on `mutate` with callbacks versus
-  `await mutateAsync()`; the checkpoint asks for one style per file rather
-  than enforcing FE7's preference.
-- TS3 over TN4 on fixture names: a new `mockX` fixture beside pre-existing
-  unprefixed ones is the convention arriving, not a second style. Ask for
-  the prefix on the new fixture only.
+`site/AGENTS.md` and `FRONTEND_PATTERNS.md` outrank the checkpoints. When a
+checkpoint contradicts them, the repository rule wins: reviewers apply it
+and report the conflict so the role file can be corrected.
 
 ## Workflow
 
@@ -61,9 +47,16 @@ reviewers:
 
 ```sh
 BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)
+echo "$BASE"
 git diff --stat "$BASE" -- site/ | tail -1
 git diff --name-only "$BASE" -- site/
+git ls-files --others --exclude-standard -- site/
 ```
+
+`git diff <commit>` compares that commit with the working tree, so it
+includes staged and unstaged edits, but not untracked files. Add the files
+the `git ls-files` line prints to the changed file list, marked
+`(new, untracked)`, so reviewers read them whole.
 
 For a PR authored by someone else, use `gh pr diff <n> --name-only` and
 `gh pr diff <n>` instead, and check out the head branch so reviewers can
@@ -71,25 +64,31 @@ read whole files.
 
 Record three things every reviewer needs:
 
-- the review target (branch, commit range, or PR number),
+- the review target: the exact command that prints the diff, such as
+  `git diff <sha> -- site/` with the SHA that `echo "$BASE"` printed (a
+  sub-agent's shell does not have `$BASE`), or `gh pr diff <n>`,
 - the changed file list,
 - the PR's stated purpose (title and description, or the user's summary).
 
-If the diff is over roughly 1000 added lines, note it now: RO6 will fail and
-the fix is to split the PR, which changes how the rest of the review is
-reported.
+A diff over roughly 1000 added lines is a reason to check RO6 closely, not
+a verdict. RO6 fails when the diff mixes concerns that could ship
+separately (infrastructure, its consumers, refactors, bug fixes). It passes
+when the change is cohesive, or when generated types, fixtures, and stories
+account for most of the size.
 
 ### 2. Spawn the reviewers
 
-Spawn all eight roles in parallel as read-only sub-agents that share this
-checkout. Use the prompt in `reviewer-prompt.md`, filling in the role file,
-the target, and the file list. Every role runs on every frontend diff; a
-role with nothing to flag reports "No findings" quickly. If your harness
-cannot spawn sub-agents, work through the role files one at a time using the
-same prompt.
+Run the eight roles as read-only sub-agents that share this checkout, as
+many at once as the harness allows. Queue the rest and start each one when
+a slot frees. Use the prompt in `reviewer-prompt.md`, filling in the role
+file, the target, and the file list. Every role runs on every frontend
+diff; a role with nothing to flag reports "No findings" quickly. If your
+harness cannot spawn sub-agents, work through the role files one at a time
+using the same prompt.
 
 Each reviewer returns its findings in its final message. Do not ask
 read-only reviewers to write files.
+
 ### 3. Collect and cross-check
 
 Read each reviewer's report one at a time and build a single finding list.
@@ -102,6 +101,9 @@ Then:
   JSX extracted while SD7 calls the extraction premature, or TN4 reads a new
   `mockX` fixture as a second naming style while TS3 requires the prefix),
   decide using the role text and record the decision.
+- Copy each reviewer's "Conflicts with repository rules" entries below the
+  verdict table: each one names a checkpoint whose role file needs
+  correcting.
 - Drop findings without `file:line` evidence, and findings about untouched
   pre-existing code unless the PR is a refactor of exactly that code.
 
@@ -114,7 +116,7 @@ CD1 FAIL  site/src/pages/FooPage/FooPage.tsx:42   comment restates the assignmen
 CD2 PASS
 CD3 N/A
 ...
-RO6 FAIL  (whole PR)                                +1420/-80 lines; split frontend from backend
+RO6 FAIL  (whole PR)                                new storage module ships with its consumers and a bug fix; split by concern
 ```
 
 FAIL lines carry every finding (repeat the ID for multiple findings) with
@@ -123,8 +125,10 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
 ### 5. Fix or post
 
 - Own branch (self-review mode): fix every `blocking` and `should-fix`
-  finding with the smallest correct change, then re-run only the roles that
-  failed. Fix `nit` findings when the fix is trivial; otherwise list them.
+  finding with the smallest correct change, then re-run every role that
+  failed and every role whose checkpoints cover code the fixes changed (an
+  extraction for RO3 can add TN or RP findings). When unsure, re-run all
+  eight. Fix `nit` findings when the fix is trivial; otherwise list them.
   Stop when the table is all PASS or N/A, or every remaining FAIL has a
   one-line justification that will go in the PR description.
 - Someone else's PR (report mode): post findings as inline review comments
