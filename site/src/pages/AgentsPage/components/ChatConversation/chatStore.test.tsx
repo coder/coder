@@ -3179,6 +3179,59 @@ describe("chat stream contract", () => {
 		expect(result.current.error).toBeNull();
 	});
 
+	it("handles a versioned event without a version like a parse failure", async () => {
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		// A replica older than this client sends the event without one.
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitDataBatch([
+				message(2, "assistant", 5),
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 3, "user", "unversioned"),
+				},
+			]);
+		});
+		expect(sockets[0].close).toHaveBeenCalled();
+		expect(result.current.messageIDs).toEqual([1]);
+		expect(result.current.error).toMatchObject({
+			message: "Failed to parse chat stream update.",
+		});
+		act(() => {
+			sockets[0].emitClose();
+		});
+
+		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+	});
+
+	it("fails the load of a newest page without a version", async () => {
+		mockWatchChatWithFreshSockets();
+		mockNewestPage(chatID, {
+			...page([buildMessage(chatID, 1, "user", "prompt")]),
+			snapshot_version: undefined,
+		});
+		const { result } = renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+
+		await waitFor(() => expect(result.current.load.status).toBe("failed"));
+		expect(watchChat).not.toHaveBeenCalled();
+	});
+
 	it("keeps an error while the status is error", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const errorReasons = { set: vi.fn(), clear: vi.fn() };
