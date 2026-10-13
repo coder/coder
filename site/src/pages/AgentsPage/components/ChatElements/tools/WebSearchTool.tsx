@@ -53,7 +53,7 @@ export const getWebSearchState = ({
 	return result === undefined ? "unfinished" : "finished";
 };
 
-export const getWebSearchLabel = (
+const getWebSearchLabel = (
 	action: WebSearchAction,
 	state: WebSearchState,
 ): string => {

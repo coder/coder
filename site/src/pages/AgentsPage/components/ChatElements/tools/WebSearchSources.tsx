@@ -53,7 +53,7 @@ const WebSearchSources: React.FC<WebSearchSourcesProps> = ({ sources }) => {
  * href is set only for http and https URLs, because provider URLs with
  * other schemes must not become links.
  */
-export const getSourcePillDisplay = (
+const getSourcePillDisplay = (
 	source: SourceLink,
 ): { label: string; href: string | undefined; hostname: string } => {
 	let url: URL | undefined;

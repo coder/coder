@@ -10544,19 +10544,6 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantFound:  found,
 		},
 		{
-			name:       "DeprecatedQuery",
-			webSearch:  chattest.OpenAIWebSearchCall{Query: "tokyo population"},
-			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
-			wantResult: `{}`,
-			wantFound:  found,
-		},
-		{
-			name:       "NoQueries",
-			wantArgs:   `{"type":"search"}`,
-			wantResult: `{}`,
-			wantFound:  found,
-		},
-		{
 			name: "Failed",
 			webSearch: chattest.OpenAIWebSearchCall{
 				Queries: []string{"tokyo population"},
