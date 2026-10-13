@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,24 +66,30 @@ type workspaceChanges struct {
 	Untracked map[string][]byte
 }
 
-// changedPaths lists every path the trial created, modified, or deleted.
+// changedPaths lists every path the trial created, modified, or deleted,
+// except interpreter caches: running the tests leaves Python bytecode
+// behind, which is not an edit.
 func (w *workspaceChanges) changedPaths() []string {
 	seen := map[string]bool{}
 	var out []string
 	for p := range w.Diff {
-		if !seen[p] {
+		if !seen[p] && !interpreterCache(p) {
 			seen[p] = true
 			out = append(out, p)
 		}
 	}
 	for p := range w.Untracked {
-		if !seen[p] {
+		if !seen[p] && !interpreterCache(p) {
 			seen[p] = true
 			out = append(out, p)
 		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+func interpreterCache(p string) bool {
+	return strings.HasSuffix(p, ".pyc") || slices.Contains(strings.Split(p, "/"), "__pycache__")
 }
 
 func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {

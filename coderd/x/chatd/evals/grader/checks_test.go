@@ -70,6 +70,7 @@ func TestChecks(t *testing.T) {
 		{"no edits", "plan-ask", "", nil, `{"type":"no_edits"}`, true},
 		{"edited tracked file", "plan-ask", editDiff, nil, `{"type":"no_edits"}`, false},
 		{"untracked file is an edit", "plan-ask", "", map[string]string{"PLAN.md": "plan\n"}, `{"type":"no_edits"}`, false},
+		{"python bytecode is not an edit", "plan-ask", "", map[string]string{"tests/__pycache__/test_report.cpython-312.pyc": "x", "report.pyc": "x"}, `{"type":"no_edits"}`, true},
 		{"allowed files", "shell-good", editDiff, nil, `{"type":"changed_files","allow":["inventory/report.py","tests/"],"require":["inventory/report.py"]}`, true},
 		{"deleted tests", "shell-good", testsDiff, nil, `{"type":"changed_files","deny":["tests/"]}`, false},
 		{"new docs file", "shell-good", editDiff, map[string]string{"NOTES.md": "x\n"}, `{"type":"changed_files","allow":["inventory/report.py"],"deny":["*.md"]}`, false},
