@@ -236,6 +236,50 @@ export const LoadingACL: Story = {
 	},
 };
 
+export const AutocompleteGroupLogos: Story = {
+	beforeEach: () => {
+		const cleanup = mockDialogRequests();
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([
+			{
+				...MockGroup,
+				id: "group-k8s",
+				name: "platform",
+				display_name: "Platform",
+				avatar_url: "/icon/k8s.svg",
+			},
+			{
+				...MockGroup,
+				id: "group-banana",
+				name: "design",
+				display_name: "Design",
+				avatar_url: "/emojis/1f34c.png",
+			},
+			{
+				...MockGroup,
+				id: "group-code",
+				name: "editors",
+				display_name: "Editors",
+				avatar_url: "/icon/code.svg",
+			},
+			{
+				...MockGroup,
+				id: "group-jupyter",
+				name: "data",
+				display_name: "Data",
+				avatar_url: "/icon/jupyter.svg",
+			},
+		]);
+		return cleanup;
+	},
+	play: async ({ canvasElement }) => {
+		const body = await openChatSharing(canvasElement);
+		await userEvent.click(
+			await body.findByRole("button", { name: "Search for user or group" }),
+		);
+		await body.findByRole("option", { name: /Design/ });
+	},
+};
+
 export const ErrorACL: Story = {
 	beforeEach: () =>
 		mockDialogRequests({ aclError: new Error("Chat sharing is disabled") }),

@@ -10,6 +10,7 @@ import type {
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
+import { useBuiltinImageAlt } from "#/utils/builtinImageAlt";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
 type AutocompleteOption = OrganizationMember | Group;
@@ -60,18 +61,24 @@ export const UserOrGroupAutocomplete: React.FC<
 		placeholderData: keepPreviousData,
 	});
 
+	const groupAvatarAlt = useBuiltinImageAlt(
+		groupsQuery.data?.map((group) => group.avatar_url) ?? [],
+		open,
+	);
+
 	const filterValue = inputValue.trim().toLowerCase();
 
 	// Filter groups by search input (client-side filtering).
-	const groupOptions = groupsQuery.data
-		? groupsQuery.data.filter((group) => {
-				if (!filterValue) {
-					return true;
-				}
-				const haystack = `${group.display_name ?? ""} ${group.name}`.trim();
-				return haystack.toLowerCase().includes(filterValue);
-			})
-		: [];
+	const groupOptions =
+		groupsQuery.data && !groupAvatarAlt.isLoading
+			? groupsQuery.data.filter((group) => {
+					if (!filterValue) {
+						return true;
+					}
+					const haystack = `${group.display_name ?? ""} ${group.name}`.trim();
+					return haystack.toLowerCase().includes(filterValue);
+				})
+			: [];
 
 	// Filter members by search input (client-side filtering since org members
 	// endpoint doesn't support search params).
@@ -119,6 +126,9 @@ export const UserOrGroupAutocomplete: React.FC<
 						}
 						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
 						src={option.avatar_url}
+						alt={
+							isGroup(option) ? groupAvatarAlt.getAlt(option.avatar_url) : ""
+						}
 					/>
 					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>
@@ -127,7 +137,11 @@ export const UserOrGroupAutocomplete: React.FC<
 			onOpenChange={handleOpenChange}
 			inputValue={inputValue}
 			onInputChange={setInputValue}
-			loading={membersQuery.isFetching || groupsQuery.isFetching}
+			loading={
+				membersQuery.isFetching ||
+				groupsQuery.isFetching ||
+				groupAvatarAlt.isLoading
+			}
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
 			className={className}

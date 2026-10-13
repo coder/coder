@@ -46,6 +46,7 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
+import { useBuiltinImageAlt } from "#/utils/builtinImageAlt";
 
 type ChatShareButtonProps = {
 	chatId: string;
@@ -127,23 +128,28 @@ type MemberIdentityProps =
 	| { kind: "group"; group: TypesGen.ChatGroup }
 	| { kind: "user"; user: TypesGen.ChatUser };
 
+const GroupIdentity: React.FC<{ group: TypesGen.ChatGroup }> = ({ group }) => {
+	const avatarAlt = useBuiltinImageAlt([group.avatar_url]);
+	return (
+		<AvatarData
+			title={group.display_name || group.name}
+			subtitle={getGroupSubtitle(group)}
+			src={group.avatar_url}
+			avatar={
+				<Avatar
+					src={group.avatar_url}
+					alt={avatarAlt.getAlt(group.avatar_url)}
+					fallback={group.display_name || group.name}
+					variant="icon"
+				/>
+			}
+		/>
+	);
+};
+
 const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
 	if (props.kind === "group") {
-		const { group } = props;
-		return (
-			<AvatarData
-				title={group.display_name || group.name}
-				subtitle={getGroupSubtitle(group)}
-				src={group.avatar_url}
-				avatar={
-					<Avatar
-						src={group.avatar_url}
-						fallback={group.display_name || group.name}
-						variant="icon"
-					/>
-				}
-			/>
-		);
+		return <GroupIdentity group={props.group} />;
 	}
 
 	const { user } = props;
