@@ -44,30 +44,33 @@ const originalModel = buildOption("original-model");
 
 const buildParams = (
 	overrides: Partial<SubmitChatTurnParams> = {},
-): SubmitChatTurnParams => ({
-	message: "hello",
-	isSubmissionPending: false,
-	hasModelOptions: true,
-	isEditReasoningEffortDirtyRef: { current: false },
-	personalSkills: [],
-	workspaceSkills: [],
-	compact: vi.fn().mockResolvedValue(undefined),
-	clearChatContext: vi.fn().mockResolvedValue(undefined),
-	store: createChatStore(),
-	agentId: "chat-1",
-	clearChatErrorReason: vi.fn(),
-	effectiveSelectedModel: pickerModel.id,
-	modelOptions: [pickerModel],
-	effectiveReasoningEffort: undefined,
-	mcpServerIds: ["mcp-1"],
-	editMessage: vi.fn().mockResolvedValue({ message: MockChatMessage }),
-	sendMessage: vi.fn().mockResolvedValue({ queued: false }),
-	onRequestError: vi.fn(),
-	invalidateChat: vi.fn(),
-	scrollToEnd: vi.fn(),
-	setCachedChatPlanMode: vi.fn(),
-	...overrides,
-});
+): SubmitChatTurnParams => {
+	const store = overrides.store ?? createChatStore();
+	return {
+		message: "hello",
+		isSubmissionPending: false,
+		hasModelOptions: true,
+		isEditReasoningEffortDirtyRef: { current: false },
+		personalSkills: [],
+		workspaceSkills: [],
+		compact: vi.fn().mockResolvedValue(undefined),
+		clearChatContext: vi.fn().mockResolvedValue(undefined),
+		store,
+		agentId: "chat-1",
+		clearChatErrorReason: vi.fn(),
+		effectiveSelectedModel: pickerModel.id,
+		modelOptions: [pickerModel],
+		effectiveReasoningEffort: undefined,
+		mcpServerIds: ["mcp-1"],
+		editMessage: vi.fn().mockResolvedValue(undefined),
+		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
+		onRequestError: vi.fn(),
+		invalidateChat: vi.fn(),
+		scrollToEnd: vi.fn(),
+		setCachedChatPlanMode: vi.fn(),
+		...overrides,
+	};
+};
 
 const textMessage = (
 	id: number,
@@ -235,30 +238,34 @@ describe("submitChatTurn", () => {
 	});
 
 	it("reports a failed compaction without sending", async () => {
-		const store = seededStore([]);
+		const store = createChatStore();
 		const compact = vi.fn().mockRejectedValue(new Error("compact failed"));
 		const sendMessage = vi.fn();
 
 		await expect(
 			submitChatTurn(
-				buildParams({ message: "/compact", store, compact, sendMessage }),
+				buildParams({
+					message: "/compact",
+					store,
+					compact,
+					sendMessage,
+				}),
 			),
 		).rejects.toThrow("compact failed");
 
+		expect(compact).toHaveBeenCalledTimes(1);
 		expect(sendMessage).not.toHaveBeenCalled();
 		expect(toast.error).toHaveBeenCalled();
 	});
 
 	it("edits with a recovered model and scrolls to the end", async () => {
-		const store = seededStore([
-			{
-				...textMessage(5, "user", "old"),
-				model_config_id: "stale-model",
-			},
-		]);
-		const editMessage = vi.fn().mockResolvedValue({
-			message: textMessage(5, "user", "new text"),
-		});
+		const originalMessage: ChatMessage = {
+			...MockChatMessage,
+			id: 5,
+			model_config_id: "stale-model",
+			content: [{ type: "text", text: "old" }],
+		};
+		const editMessage = vi.fn().mockResolvedValue(undefined);
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
@@ -266,7 +273,7 @@ describe("submitChatTurn", () => {
 			buildParams({
 				message: "new text",
 				editedMessageID: 5,
-				store,
+				store: seededStore([originalMessage]),
 				editMessage,
 				scrollToEnd,
 				sendMessage,
@@ -286,17 +293,17 @@ describe("submitChatTurn", () => {
 	});
 
 	it("omits reasoning effort on edit until the picker is dirty", async () => {
-		const store = seededStore([
-			{ ...textMessage(5, "user", "old"), model_config_id: pickerModel.id },
-		]);
-		const editMessage = vi.fn().mockResolvedValue({
-			message: textMessage(5, "user", "new text"),
-		});
+		const originalMessage = {
+			...MockChatMessage,
+			id: 5,
+			model_config_id: pickerModel.id,
+		};
+		const editMessage = vi.fn().mockResolvedValue(undefined);
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
 				editedMessageID: 5,
-				store,
+				store: seededStore([originalMessage]),
 				effectiveReasoningEffort: "high",
 				isEditReasoningEffortDirtyRef: { current: false },
 				editMessage,
@@ -310,6 +317,29 @@ describe("submitChatTurn", () => {
 				}),
 			}),
 		);
+	});
+
+	it("reports send failures and invalidates the chat", async () => {
+		const store = seededStore([textMessage(1, "user", "first")]);
+		const error = new Error("send failed");
+		const sendMessage = vi.fn().mockRejectedValue(error);
+		const onRequestError = vi.fn();
+		const invalidateChat = vi.fn();
+
+		await expect(
+			submitChatTurn(
+				buildParams({
+					store,
+					sendMessage,
+					onRequestError,
+					invalidateChat,
+				}),
+			),
+		).rejects.toThrow("send failed");
+
+		expect(visibleTexts(store)).toEqual(["first"]);
+		expect(onRequestError).toHaveBeenCalledWith(error);
+		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
 	});
 
 	it("shows an edit from submit until the stream reaches it", async () => {
@@ -378,24 +408,6 @@ describe("submitChatTurn", () => {
 
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(visibleTexts(store)).toEqual(["first", "answer"]);
-	});
-
-	it("removes a failed send and reports it", async () => {
-		const store = seededStore([textMessage(1, "user", "first")]);
-		const error = new Error("send failed");
-		const sendMessage = vi.fn().mockRejectedValue(error);
-		const onRequestError = vi.fn();
-		const invalidateChat = vi.fn();
-
-		await expect(
-			submitChatTurn(
-				buildParams({ store, sendMessage, onRequestError, invalidateChat }),
-			),
-		).rejects.toThrow("send failed");
-
-		expect(visibleTexts(store)).toEqual(["first"]);
-		expect(onRequestError).toHaveBeenCalledWith(error);
-		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
 	});
 
 	it("shows a sent message from submit until the stream reports it", async () => {
@@ -467,8 +479,8 @@ describe("submitChatTurn", () => {
 	});
 
 	it("clears plan mode when implementing the plan", async () => {
-		const setCachedChatPlanMode = vi.fn();
 		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		const setCachedChatPlanMode = vi.fn();
 
 		await submitChatTurn(
 			buildParams({
@@ -486,8 +498,8 @@ describe("submitChatTurn", () => {
 	});
 
 	it("leaves plan mode untouched on an ordinary send", async () => {
-		const setCachedChatPlanMode = vi.fn();
 		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		const setCachedChatPlanMode = vi.fn();
 
 		await submitChatTurn(buildParams({ sendMessage, setCachedChatPlanMode }));
 
