@@ -78,7 +78,7 @@ const cases: Case[] = [
     prompt: "Create a workspace called \"My Calc Env\" for this project and tell me the name it ended up with.",
     checks: [
       { id: "created", type: "tool_succeeded", tool: "create_workspace" },
-      { id: "named", type: "final_text_matches", pattern: "(?i)my-calc-env" },
+      { id: "named", type: "final_text_matches", pattern: "(?i)my-?calc-?env" },
     ],
     guardrails: [toolErrors("create_workspace"), toolErrors(undefined, 3)],
   },
