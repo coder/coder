@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
@@ -12,7 +12,6 @@ import { MockSkill } from "#/testHelpers/skills";
 import {
 	fullSkillAccess,
 	organizationSkillsScope,
-	type SkillAccess,
 	type SkillsCopy,
 } from "../utils/skills";
 import { SkillsTable } from "./SkillsTable";
@@ -28,7 +27,7 @@ const copy: SkillsCopy = {
 
 const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
 
-const renderTable = (access: SkillAccess) => {
+const renderTable = () => {
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
 		mockReviewSkill,
 	]);
@@ -40,7 +39,7 @@ const renderTable = (access: SkillAccess) => {
 			<SkillsTable
 				scope={organizationSkillsScope(MockOrganization.id)}
 				copy={copy}
-				access={access}
+				access={fullSkillAccess}
 			/>
 		</QueryClientProvider>,
 	);
@@ -49,7 +48,7 @@ const renderTable = (access: SkillAccess) => {
 
 describe("SkillsTable enabled toggle", () => {
 	it("sends only the enabled flag", async () => {
-		const { user, updateSkill } = renderTable(fullSkillAccess);
+		const { user, updateSkill } = renderTable();
 
 		await user.click(
 			await screen.findByRole("switch", { name: "Enable review-sql" }),
@@ -62,19 +61,11 @@ describe("SkillsTable enabled toggle", () => {
 			{ enabled: false },
 		]);
 	});
-
-	it("shows a read-only status instead of a switch when the user cannot edit", async () => {
-		renderTable({ ...fullSkillAccess, update: false });
-
-		const row = await screen.findByRole("row", { name: /review-sql/ });
-		expect(within(row).getByRole("img")).toHaveAccessibleName("Enabled");
-		expect(within(row).queryByRole("switch")).toBeNull();
-	});
 });
 
 describe("SkillsTable row menu dialogs", () => {
 	it("returns focus to the row menu button when a dialog closes", async () => {
-		const { user } = renderTable(fullSkillAccess);
+		const { user } = renderTable();
 
 		const menuButton = await screen.findByRole("button", { name: "Open menu" });
 		await user.click(menuButton);

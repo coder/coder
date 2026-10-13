@@ -68,5 +68,22 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 
 	await user.click(screen.getByRole("button", { name: "Open menu" }));
 	await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-	await screen.findByRole("dialog", { name: "Edit organization skill" });
+	await waitFor(() =>
+		expect(screen.getByRole("textbox", { name: "Body" })).toHaveValue("Body"),
+	);
+	await user.type(
+		screen.getByRole("textbox", { name: "Description" }),
+		"Review SQL changes.",
+	);
+	await user.click(screen.getByRole("button", { name: "Save skill" }));
+	await waitFor(() =>
+		expect(updateSkill).toHaveBeenLastCalledWith(
+			MockOrganization.id,
+			"review-sql",
+			{
+				content:
+					'---\nname: review-sql\ndescription: "Review SQL changes."\n---\nBody\n',
+			},
+		),
+	);
 });
