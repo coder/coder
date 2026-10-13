@@ -92,7 +92,6 @@ export const FilteredByCategory: Story = {
 	},
 };
 
-// Verifies that the category filter counts reflect the active search.
 // Searching "code" matches only code-server (IDE) and Claude Code (AI), so
 // those counts drop while non-matching categories fall to zero but stay
 // visible.
