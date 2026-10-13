@@ -636,7 +636,13 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 	if last < 0 {
 		return false, "no edits", nil
 	}
-	for _, c := range in.tr.Calls[last+1:] {
+	// An execute call that writes files (a scratch test, a temp copy) and
+	// runs the tests in the same command has verified its own edit.
+	from := last + 1
+	if in.tr.Calls[last].Name == "execute" {
+		from = last
+	}
+	for _, c := range in.tr.Calls[from:] {
 		if c.Name == "execute" && re.MatchString(c.command()) {
 			return true, "", nil
 		}

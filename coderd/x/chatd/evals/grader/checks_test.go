@@ -65,6 +65,7 @@ func TestChecks(t *testing.T) {
 		{"workspace still running", "detached-good", "", nil, `{"type":"final_workspaces","count":1,"transition":"stop"}`, false},
 		{"tested after edit", "shell-good", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
 		{"no test after edit", "detached-good", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, false},
+		{"tested in the editing command", "edit-and-test", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
 		{"shell background is not run_in_background", "shell-bad", "", nil, `{"type":"execute_matches","pattern":"server\\.py","background":true}`, false},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},
