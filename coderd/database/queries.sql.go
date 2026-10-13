@@ -22694,6 +22694,51 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const lockOrganizationMembersByUserIDsForShare = `-- name: LockOrganizationMembersByUserIDsForShare :many
+SELECT
+    user_id
+FROM
+    organization_members
+WHERE
+    organization_id = $1
+    AND user_id = ANY($2 :: uuid [ ])
+ORDER BY
+    user_id
+FOR KEY SHARE
+`
+
+type LockOrganizationMembersByUserIDsForShareParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+}
+
+// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
+// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
+// cannot be removed until the transaction ends, and a removal committed
+// earlier is observed as a missing row.
+func (q *sqlQuerier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockOrganizationMembersByUserIDsForShare, arg.OrganizationID, pq.Array(arg.UserIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
@@ -28509,6 +28554,33 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 	return i, err
 }
 
+const getOrganizationSkillByIDForUpdate = `-- name: GetOrganizationSkillByIDForUpdate :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE id = $1::uuid AND organization_id IS NOT NULL
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationSkillByIDForUpdate, id)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
 SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 FROM skills
@@ -28708,7 +28780,7 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 
 const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
 SELECT
-    id, user_id, name, description, created_at, updated_at
+    id, user_id, name, description, enabled, created_at, updated_at
 FROM skills
 WHERE user_id = $1::uuid
 ORDER BY name ASC
@@ -28719,6 +28791,7 @@ type ListUserSkillMetadataByUserIDRow struct {
 	UserID      uuid.NullUUID `db:"user_id" json:"user_id"`
 	Name        string        `db:"name" json:"name"`
 	Description string        `db:"description" json:"description"`
+	Enabled     bool          `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
 }
@@ -28737,6 +28810,7 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 			&i.UserID,
 			&i.Name,
 			&i.Description,
+			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -28751,6 +28825,42 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateOrganizationSkillACLByID = `-- name: UpdateOrganizationSkillACLByID :one
+UPDATE skills
+SET
+    group_acl  = $1,
+    user_acl   = $2,
+    updated_at = now()
+WHERE id = $3::uuid AND organization_id IS NOT NULL
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type UpdateOrganizationSkillACLByIDParams struct {
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationSkillACLByID(ctx context.Context, arg UpdateOrganizationSkillACLByIDParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationSkillACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
 }
 
 const updateOrganizationSkillByOrganizationIDAndName = `-- name: UpdateOrganizationSkillByOrganizationIDAndName :one
@@ -28801,24 +28911,27 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 const updateUserSkillByUserIDAndName = `-- name: UpdateUserSkillByUserIDAndName :one
 UPDATE skills
 SET
-    description = $1,
-    content     = $2,
+    description = COALESCE($1::text, description),
+    content     = COALESCE($2::text, content),
+    enabled     = COALESCE($3::boolean, enabled),
     updated_at  = now()
-WHERE user_id = $3::uuid AND name = $4
+WHERE user_id = $4::uuid AND name = $5
 RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
+	Description sql.NullString `db:"description" json:"description"`
+	Content     sql.NullString `db:"content" json:"content"`
+	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, updateUserSkillByUserIDAndName,
 		arg.Description,
 		arg.Content,
+		arg.Enabled,
 		arg.UserID,
 		arg.Name,
 	)

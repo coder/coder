@@ -12,21 +12,15 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-
-type SkillSource = "personal" | "workspace";
+import type { SkillTrigger } from "../../utils/skillAliases";
 
 export type SkillMetadata = {
 	name: string;
 	description: string;
 };
 
-export type SkillMenuItem = SkillMetadata & {
-	source: SkillSource | "command";
-	triggerText: string;
-	// The qualified alias stays searchable even when the displayed
-	// trigger is bare, so a typed qualified query keeps matching after
-	// collision state changes mid-trigger.
-	altTriggerText: string;
+export type SkillMenuItem = Omit<SkillTrigger, "source"> & {
+	source: SkillTrigger["source"] | "command";
 };
 
 // Built-in commands (e.g. /compact) share the menu item shape so the
@@ -42,20 +36,6 @@ export const createCommandMenuItem = (
 	altTriggerText: `/${command.name}`,
 });
 
-export const createSkillMenuItem = (
-	source: SkillSource,
-	skill: SkillMetadata,
-	// Bare personal names are ambiguous to read_skill when a workspace
-	// skill shares the name, so colliding triggers must stay qualified.
-	qualifyTrigger = source === "workspace",
-): SkillMenuItem => ({
-	name: skill.name,
-	description: skill.description,
-	source,
-	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
-	altTriggerText: `/${source}/${skill.name}`,
-});
-
 type SkillsTriggerMenuProps = {
 	open: boolean;
 	// The composer box the menu is pinned above and sized to match.
@@ -63,10 +43,14 @@ type SkillsTriggerMenuProps = {
 	query: string;
 	commands: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
+	organizationSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
+	organizationSkillsEnabled: boolean;
 	workspaceSkillsEnabled: boolean;
 	isPersonalLoading: boolean;
 	isPersonalError: boolean;
+	isOrganizationLoading: boolean;
+	isOrganizationError: boolean;
 	isWorkspaceLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
@@ -78,15 +62,24 @@ type SkillsTriggerMenuProps = {
 	onEscapeKeyDown: (event: KeyboardEvent) => void;
 };
 
-const getEmptyMessage = (query: string, workspaceSkillsEnabled: boolean) => {
+const getEmptyMessage = (
+	query: string,
+	organizationSkillsEnabled: boolean,
+	workspaceSkillsEnabled: boolean,
+) => {
 	if (query) {
-		return workspaceSkillsEnabled
+		return organizationSkillsEnabled || workspaceSkillsEnabled
 			? "No skills match that query."
 			: "No personal skills match that query.";
 	}
-	return workspaceSkillsEnabled
-		? "No personal or workspace skills found."
-		: "No personal skills found.";
+	const sources = ["personal"];
+	if (organizationSkillsEnabled) {
+		sources.push("organization");
+	}
+	if (workspaceSkillsEnabled) {
+		sources.push("workspace");
+	}
+	return `No ${new Intl.ListFormat("en-US", { type: "disjunction" }).format(sources)} skills found.`;
 };
 
 const SkillCommandItem = ({
@@ -160,10 +153,14 @@ export const SkillsTriggerMenu = ({
 	query,
 	commands,
 	personalSkills,
+	organizationSkills,
 	workspaceSkills,
+	organizationSkillsEnabled,
 	workspaceSkillsEnabled,
 	isPersonalLoading,
 	isPersonalError,
+	isOrganizationLoading,
+	isOrganizationError,
 	isWorkspaceLoading,
 	selectedIndex,
 	onSelectedIndexChange,
@@ -171,13 +168,24 @@ export const SkillsTriggerMenu = ({
 	onClose,
 	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
-	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
+	const allSkills = [
+		...commands,
+		...personalSkills,
+		...organizationSkills,
+		...workspaceSkills,
+	];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
 			: undefined,
 		isPersonalError && personalSkills.length === 0
 			? "Could not load personal skills. Close and type / again to retry."
+			: undefined,
+		isOrganizationLoading && organizationSkills.length === 0
+			? "Loading organization skills..."
+			: undefined,
+		isOrganizationError && organizationSkills.length === 0
+			? "Could not load organization skills. Close and type / again to retry."
 			: undefined,
 		isWorkspaceLoading && workspaceSkills.length === 0
 			? "Loading workspace skills..."
@@ -258,12 +266,25 @@ export const SkillsTriggerMenu = ({
 								)}
 							</CommandGroup>
 						)}
+						{organizationSkills.length > 0 && (
+							<CommandGroup heading="Organization skills">
+								{organizationSkills.map((skill, index) =>
+									renderSkill(
+										skill,
+										commands.length + personalSkills.length + index,
+									),
+								)}
+							</CommandGroup>
+						)}
 						{workspaceSkills.length > 0 && (
 							<CommandGroup heading="Workspace skills">
 								{workspaceSkills.map((skill, index) =>
 									renderSkill(
 										skill,
-										commands.length + personalSkills.length + index,
+										commands.length +
+											personalSkills.length +
+											organizationSkills.length +
+											index,
 									),
 								)}
 							</CommandGroup>
@@ -275,7 +296,11 @@ export const SkillsTriggerMenu = ({
 						))}
 						{shouldShowEmpty && (
 							<CommandEmpty>
-								{getEmptyMessage(query, workspaceSkillsEnabled)}
+								{getEmptyMessage(
+									query,
+									organizationSkillsEnabled,
+									workspaceSkillsEnabled,
+								)}
 							</CommandEmpty>
 						)}
 					</CommandList>

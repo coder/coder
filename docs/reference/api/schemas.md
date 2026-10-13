@@ -7028,6 +7028,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.CreateSkillRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+
 ## codersdk.CreateTemplateRequest
 
 ```json
@@ -7340,20 +7354,6 @@ This is required on creation to enable a user-flow of validating a template work
 | `file_path`   | string  | false    |              |             |
 | `name`        | string  | false    |              |             |
 | `value`       | string  | false    |              |             |
-
-## codersdk.CreateUserSkillRequest
-
-```json
-{
-  "content": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
@@ -12629,6 +12629,159 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|-----------------------|
 | `status` | `active`, `suspended` |
 
+## codersdk.OrganizationSkillACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                        | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.OrganizationSkillGroup](#codersdkorganizationskillgroup) | false    |              |             |
+| `users`  | array of [codersdk.OrganizationSkillUser](#codersdkorganizationskilluser)   | false    |              |             |
+
+## codersdk.OrganizationSkillGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                             | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                           | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                           | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                           | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser)            | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                           | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                                          | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)                     | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                                          | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.OrganizationSkillRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
+## codersdk.OrganizationSkillUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                             | Required | Restrictions | Description |
+|--------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                                           | false    |              |             |
+| `id`         | string                                                           | true     |              |             |
+| `name`       | string                                                           | false    |              |             |
+| `role`       | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+| `username`   | string                                                           | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
 ## codersdk.OrganizationSyncSettings
 
 ```json
@@ -14527,6 +14680,56 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)        |
 |-----------------|
 | `group`, `user` |
+
+## codersdk.Skill
+
+```json
+{
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `content`     | string  | false    |              |             |
+| `created_at`  | string  | false    |              |             |
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `id`          | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `updated_at`  | string  | false    |              |             |
+
+## codersdk.SkillMetadata
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `created_at`  | string  | false    |              |             |
+| `description` | string  | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `id`          | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `updated_at`  | string  | false    |              |             |
 
 ## codersdk.SlimRole
 
@@ -16843,6 +17046,30 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `icon`                     | string          | false    |              |                                                                                 |
 | `name`                     | string          | false    |              |                                                                                 |
 
+## codersdk.UpdateOrganizationSkillACLRequest
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                                           | false    |              |             |
+| » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+| `user_roles`       | object                                                           | false    |              |             |
+| » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+
 ## codersdk.UpdateRoles
 
 ```json
@@ -16858,6 +17085,22 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | Name    | Type            | Required | Restrictions | Description |
 |---------|-----------------|----------|--------------|-------------|
 | `roles` | array of string | false    |              |             |
+
+## codersdk.UpdateSkillRequest
+
+```json
+{
+  "content": "string",
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `enabled` | boolean | false    |              |                                                                                                                                                                       |
 
 ## codersdk.UpdateTemplateACL
 
@@ -17159,20 +17402,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `env_name`    | string  | false    |              |             |
 | `file_path`   | string  | false    |              |             |
 | `value`       | string  | false    |              |             |
-
-## codersdk.UpdateUserSkillRequest
-
-```json
-{
-  "content": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
 ## codersdk.UpdateWorkspaceACL
 
@@ -18041,52 +18270,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                         | Type    | Required | Restrictions | Description                                                                                                                       |
 |------------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `file_path_delivery_enabled` | boolean | false    |              | File path delivery enabled reports whether Coder writes stored file paths into workspaces. Stored paths are preserved either way. |
-
-## codersdk.UserSkill
-
-```json
-{
-  "content": "string",
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `content`     | string | false    |              |             |
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
-
-## codersdk.UserSkillMetadata
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `description` | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
 
 ## codersdk.UserStatus
 
