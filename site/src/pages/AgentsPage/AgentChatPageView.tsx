@@ -115,7 +115,7 @@ type AgentChatPageViewProps = {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
@@ -130,7 +130,6 @@ type AgentChatPageViewProps = {
 	hasModelOptions: boolean;
 	isModelCatalogLoading: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
-	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -278,7 +277,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
-	models,
+	modelCatalog,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -293,7 +292,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading,
 	onPlanModeToggle,
-	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -929,7 +927,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
-										models={models}
+										modelCatalog={modelCatalog}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -953,7 +951,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										reasoningEffort={reasoningEffort}
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
-										onManageAutomationsToggle={onManageAutomationsToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}

@@ -24,7 +24,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
@@ -39,6 +38,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -52,10 +52,6 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import {
-	AutomationsMobileLink,
-	AutomationsNavItem,
-} from "../../Automations/AutomationsNavItem";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -447,7 +443,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<SearchIcon />
 						</Button>
 					)}
-					<AutomationsMobileLink />
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
@@ -553,7 +548,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
-				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				{!chatProjectsEnabled && chatsHeader}

@@ -3,7 +3,6 @@ import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { agentLogs, buildLogs } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
@@ -13,6 +12,7 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
