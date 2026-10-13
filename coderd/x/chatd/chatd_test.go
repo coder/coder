@@ -2059,34 +2059,35 @@ func TestArchivedChatRejectsMutations(t *testing.T) {
 	require.NoError(t, err)
 
 	content := []codersdk.ChatMessagePart{codersdk.ChatMessageText("after archive")}
-	for name, call := range map[string]func() error{
-		"SendMessage": func() error {
+	for name, call := range map[string]func(context.Context) error{
+		"SendMessage": func(ctx context.Context) error {
 			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content})
 			return err
 		},
-		"EditMessage": func() error {
+		"EditMessage": func(ctx context.Context) error {
 			_, err := server.EditMessage(ctx, chatd.EditMessageOptions{ChatID: chat.ID, EditedMessageID: message.ID, Content: content})
 			return err
 		},
-		"PromoteQueued": func() error {
+		"PromoteQueued": func(ctx context.Context) error {
 			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
 			return err
 		},
-		"SubmitToolResults": func() error {
+		"SubmitToolResults": func(ctx context.Context) error {
 			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
 		},
-		"CompactChat": func() error {
+		"CompactChat": func(ctx context.Context) error {
 			_, err := server.CompactChat(ctx, chat)
 			return err
 		},
-		"ClearChat": func() error {
+		"ClearChat": func(ctx context.Context) error {
 			_, err := server.ClearChat(ctx, chat)
 			return err
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.ErrorIs(t, call(), chatd.ErrChatArchived)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			require.ErrorIs(t, call(ctx), chatd.ErrChatArchived)
 		})
 	}
 }
