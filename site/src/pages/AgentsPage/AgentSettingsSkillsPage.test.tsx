@@ -52,45 +52,56 @@ describe("AgentSettingsSkillsPage", () => {
 			MockOrganization3,
 		]);
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-		vi.spyOn(API.experimental, "getOrganizationSkills").mockImplementation(
-			async (organizationId) => [
-				{
-					...MockSkill,
-					name:
-						organizationId === MockOrganization2.id
-							? "second-skill"
-							: "default-skill",
-				},
-			],
-		);
+		const skillName = (organizationId: string) =>
+			organizationId === MockOrganization2.id
+				? "second-skill"
+				: "default-skill";
+		const getOrganizationSkills = vi
+			.spyOn(API.experimental, "getOrganizationSkills")
+			.mockImplementation(async (organizationId) => [
+				{ ...MockSkill, name: skillName(organizationId) },
+			]);
+		const getOrganizationSkillByName = vi
+			.spyOn(API.experimental, "getOrganizationSkillByName")
+			.mockImplementation(async (_organizationId, name) => ({
+				...MockSkill,
+				name,
+				content: `---\nname: ${name}\n---\nBody\n`,
+			}));
+		const viewSkill = async (organizationName: string) => {
+			const table = await screen.findByRole("table", {
+				name: organizationName,
+			});
+			await user.click(
+				await within(table).findByRole("button", { name: "Open menu" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: /View/ }));
+			await user.click(await screen.findByRole("button", { name: "Close" }));
+		};
 
 		renderWithAuth(<AgentSettingsSkillsPage />);
 
-		await within(
-			await screen.findByRole("table", {
-				name: MockDefaultOrganization.display_name,
-			}),
-		).findByText("default-skill");
+		await viewSkill(MockDefaultOrganization.display_name);
+		expect(getOrganizationSkillByName).toHaveBeenLastCalledWith(
+			MockDefaultOrganization.id,
+			"default-skill",
+		);
+
 		await user.click(
 			screen.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
-		screen.getByRole("option", { name: /My Organization$/ });
-		screen.getByRole("option", { name: /My Organization 2/ });
-		expect(
-			screen.queryByRole("option", { name: /My Organization 3/ }),
-		).toBeNull();
 		await user.click(screen.getByRole("option", { name: /My Organization 2/ }));
-		await within(
-			await screen.findByRole("table", {
-				name: MockOrganization2.display_name,
-			}),
-		).findByText("second-skill");
+		await viewSkill(MockOrganization2.display_name);
+		expect(getOrganizationSkillByName).toHaveBeenLastCalledWith(
+			MockOrganization2.id,
+			"second-skill",
+		);
 		expect(
-			screen.queryByRole("table", {
-				name: MockDefaultOrganization.display_name,
-			}),
-		).toBeNull();
+			getOrganizationSkills.mock.calls.map(
+				([organizationId]) => organizationId,
+			),
+		).not.toContain(MockOrganization3.id);
 	});
 });
