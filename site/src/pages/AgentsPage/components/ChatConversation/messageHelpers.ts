@@ -55,7 +55,7 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
-export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && part.provider_executed === true;
 
 const isProviderToolResultOnlyMessage = (
