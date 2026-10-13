@@ -259,6 +259,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			return nil
 		}()
 		if err != nil {
+			// Upstream accepted the prompt even if relaying the response
+			// failed, such as when the client aborted mid-stream.
+			if promptFound && firstResponseID != "" {
+				i.recordUserPrompt(ctx, firstResponseID, prompt)
+			}
 			return err
 		}
 
