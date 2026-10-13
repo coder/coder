@@ -109,6 +109,8 @@
 		"require-yield": "error",
 		"rules-of-hooks": "error",
 		"refs": "error",
+		"erasing-op": "error",
+		"no-unused-expressions": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",

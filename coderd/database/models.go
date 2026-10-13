@@ -539,6 +539,12 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeOrganizationSkill                   APIKeyScope = "organization_skill:*"
+	ApiKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	ApiKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
+	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -829,7 +835,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare:
 		return true
 	}
 	return false
@@ -1089,6 +1101,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
 	}
 }
 
@@ -3755,6 +3773,8 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
+	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3838,7 +3858,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill:
 		return true
 	}
 	return false
@@ -3891,6 +3913,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
 	}
 }
 
@@ -5389,6 +5413,16 @@ type ChatProject struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
+type ChatProjectInstruction struct {
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Instructions   string        `db:"instructions" json:"instructions"`
+	UpdatedBy      uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
 type ChatProjectMemory struct {
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -6061,6 +6095,21 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
+type Skill struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Content        string        `db:"content" json:"content"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+}
+
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
 type TailnetCoordinator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
@@ -6482,16 +6531,6 @@ type UserSecret struct {
 	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
-type UserSkill struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-}
-
 // Tracks the history of user status changes
 type UserStatusChange struct {
 	ID        uuid.UUID  `db:"id" json:"id"`
@@ -6705,18 +6744,20 @@ type WorkspaceAgentPortShare struct {
 }
 
 type WorkspaceAgentScript struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          string    `db:"log_path" json:"log_path"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Script           string    `db:"script" json:"script"`
-	Cron             string    `db:"cron" json:"cron"`
-	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	ID               uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID uuid.UUID       `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID       `db:"log_source_id" json:"log_source_id"`
+	LogPath          string          `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	Script           string          `db:"script" json:"script"`
+	Cron             string          `db:"cron" json:"cron"`
+	StartBlocksLogin bool            `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool            `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool            `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32           `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string          `db:"display_name" json:"display_name"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	ResourceAddress  string          `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage `db:"dependencies" json:"dependencies"`
 }
 
 type WorkspaceAgentScriptTiming struct {
