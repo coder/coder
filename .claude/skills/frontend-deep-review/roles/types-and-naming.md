@@ -20,7 +20,7 @@ Look for:
 - Doc comments that promise behaviour the type does not allow (for example "passing null removes the key" on `set: (value: T)`).
 - Optional booleans (`showX?: boolean`) added to an existing component with no caller relying on the default.
 
-Fix: Make the prop or parameter required, or narrow at the call site and pass a definite value; if the optional case is real, state the justification at the declaration.
+Fix: Make the prop or parameter required, or narrow at the call site and pass a definite value. A prop that some caller really omits stays optional and is not a finding.
 
 ### TN2: Remove coercions and fallbacks that hide the real type
 
@@ -34,7 +34,7 @@ Look for:
 - `?? ""`, `|| "fallback"`, `?? otherValue`, and `"" satisfies T` sentinels: ask under what scenario the left side is missing and whether the fallback is reachable. A visible fallback such as "N/A" or "Unknown" for nullable display text is required by FE5, so keep it. A hardcoded literal that duplicates an existing default constant must reference the constant.
 - `x === false` or `x !== false` on a `boolean`: write `!x` or `x`.
 
-Fix: Delete the coercion and let the declared type carry the value; when a fallback is genuinely needed, make the source non-nullable or name the default as a constant and reference it.
+Fix: Delete the coercion when the declared type already rules out the missing case. When the fallback is reachable, keep the visible fallback FE5 requires for display text; otherwise make the source non-nullable, or name the default as a constant and reference it.
 
 ### TN3: Reuse generated and library types instead of re-declaring them
 
@@ -88,9 +88,9 @@ Look for:
 - Diff lines that change only the case of existing UI text ("AI Gateway Keys" to "AI Gateway keys"): confirm it is intentional and matches neighbouring labels.
 - Rewritten descriptions that now mention a feature or concept the original never did, especially in a removal PR.
 - Count-based messages that drop the noun ("1 template" becoming a bare display name): keep the entity word in the sentence.
-- New filter and label names that do not use the product term already used elsewhere in the diff ("compatibility mode" versus "classic parameters"), and escaped characters (`"\u2014"`) whose only purpose is to get a literal past a lint rule.
+- New filter and label names that do not use the product term already used elsewhere in the diff ("compatibility mode" versus "classic parameters"), and escaped characters (`"\u2014"`) that put punctuation the lint rule bans into copy. An escaped dash shown alone as the placeholder for a missing value is not punctuation and is fine (`CoderAgentsProductCard.tsx`).
 
-Fix: Revert unintended copy changes, keep the entity noun in messages, align new labels with the vocabulary used nearby, and never encode a character to dodge lint.
+Fix: Revert unintended copy changes, keep the entity noun in messages, align new labels with the vocabulary used nearby, and rewrite sentences instead of encoding banned punctuation.
 
 ## Not this role
 

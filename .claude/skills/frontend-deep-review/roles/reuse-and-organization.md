@@ -4,7 +4,7 @@ Lens: does this diff build, copy, or misplace something the codebase already has
 
 Boundaries: type shape and casts belong to TN, dead code and needless wrappers to SD, comment quality to CD, query and storage handling to DF, effects, rendering, and DOM behavior to RP, stories and tests to TS, styling and accessibility to SA. RO judges only whether code should exist here at all, whether it exists somewhere already, and whether it belongs in this PR.
 
-Reading order: start with the PR description and `git diff --stat` to see size and spread. Open added files first (`git diff --diff-filter=A --name-only site/src`): for each new component, hook, util, constant, or regex, grep `site/src/components/`, `site/src/hooks/`, `site/src/utils/`, and the sibling feature folder for the same name or behavior before reading the implementation. Then read every changed file that lives outside the feature folder the PR is about (`site/src/components/`, `site/src/utils/`, `site/src/testHelpers/`, `site/.storybook/`, `site/vite.config.mts`, `site/package.json`) in full and ask what in the PR needs it. For placement calls, list the destination folder and read the sibling files, not just the hunk.
+Reading order: start with the PR description and the review target's diff stat to see size and spread (add `--stat` to a `git diff <sha>` target, or count the file list for a `gh pr diff` target). Open added files first: the ones `git diff --diff-filter=A --name-only <sha> -- site/src` prints for a `git diff <sha>` target, the ones the diff shows as `new file` for a `gh pr diff` target, and every file the list marks `(new, untracked)`. A bare `git diff` shows only uncommitted edits, so always pass the target's commit. For each new component, hook, util, constant, or regex, grep `site/src/components/`, `site/src/hooks/`, `site/src/utils/`, and the sibling feature folder for the same name or behavior before reading the implementation. Then read every changed file that lives outside the feature folder the PR is about (`site/src/components/`, `site/src/utils/`, `site/src/testHelpers/`, `site/.storybook/`, `site/vite.config.mts`, `site/package.json`) in full and ask what in the PR needs it. For placement calls, list the destination folder and read the sibling files, not just the hunk.
 
 ## Checkpoints
 
@@ -18,7 +18,7 @@ Look for:
 - Hand-rolled snippets whose job an existing helper already does: `error instanceof Error ? error.message : ...` (`getErrorMessage`), `crypto.randomUUID()` (`generateUUID` in `site/src/utils/random.ts`), `navigator.clipboard.writeText` (`useClipboard`), and `typeof x === "string" && ...` type guards where a yup schema already describes the shape.
 - A direct `navigator.clipboard.readText()` call: suggest `readFromClipboard` from `useClipboard` only when its fallback to the last in-app copy on insecure origins is wanted. A read with its own permission handling stays direct (`useDesktopConnection.ts`).
 - New local constants that already exist elsewhere (`NIL_UUID`, `"me"`, page limits); grep the literal value across `site/src` before accepting the definition.
-- JSX that assembles a dialog, copy button, lightbox, alert, or list scrolling by hand when `ConfirmDialog`, `CopyButton`, `Lightbox`, `ErrorAlert`, or the primitive's native behavior already covers it.
+- JSX that assembles a dialog, copy button, lightbox, alert, or list scrolling by hand when `ConfirmDialog`, `CopyButton`, `Lightbox` (in `pages/AgentsPage/components/`), `ErrorAlert`, or the primitive's native behavior already covers it.
 - New entries in `site/package.json`: ask whether an existing dependency already serves the purpose.
 
 Fix: delete the local version and import the existing one; if the existing helper is missing a capability, extend it (the way `readFromClipboard` was added to `useClipboard`) rather than writing a second one. A helper used in one place is inlined, not exported.
@@ -35,7 +35,7 @@ Look for:
 - A second parser, validator, or regex for a format the repo already handles (front matter, integer strings); grep for the regex literal and for the format name.
 - A new `Field`-style wrapper that re-implements `FormField`'s label, helper text, or error layout: the reviewers reject those on sight. A wrapper that renders `FormField` and adds behavior is fine (`PasswordField.tsx` adds a debounced password check).
 
-Fix: delete the copy and import the original. If the original lacks an option, add the option to the original in the same PR and explain it, instead of forking it.
+Fix: delete the copy and import the original. If the original lacks an option, add it to the original instead of forking it: in this PR when the option leaves current callers unchanged, and in its own PR when it changes the original's behavior (RO5).
 
 ### RO3: Extract what the PR repeats
 
@@ -49,7 +49,7 @@ Look for:
 - Repeated JSX structure with a hardcoded style list (`<p className="m-0 mb-1 font-semibold ...">` title plus message) in several tooltips or popovers.
 - An exported `className` constant, or a re-typed union (`"info" | "warning"`) that mirrors a type another component already declares.
 
-Fix: create one shared component (or a variant prop on the existing primitive) and use it everywhere the PR repeated it; export and import the type instead of retyping it. Sharing a `className` constant is not the fix; either accept two maintained copies or build the component.
+Fix: create one shared component (or a variant prop on the existing primitive) and use it everywhere the PR repeated it; export and import the type instead of retyping it. Sharing a `className` constant is not the fix: build the component, or leave the class string alone when it appears in only two places.
 
 ### RO4: Put code next to its consumer, in a module that matches its name
 
@@ -63,7 +63,7 @@ Look for:
 - Central registries (every storage key for the whole app in one file) instead of definitions next to the component that reads the state.
 - New top-level or config files: do they match the format and location of their siblings (`.jsonc`), and could the contents go in an existing file (`theme/index.ts`, `components/Badge/Badge.tsx`)?
 
-Fix: move the code next to the component that uses it, or into the existing module whose name already covers it; delete the new file when that empties it. When the move would bloat the PR, reviewers accept a stated follow-up.
+Fix: move the code next to the component that uses it, or into the existing module whose name already covers it; delete the new file when that empties it.
 
 ### RO5: Keep unrelated changes out of the PR
 
@@ -74,10 +74,10 @@ Look for:
 
 - Hunks in files the PR title does not explain: `site/.storybook/preview.tsx`, `site/vite.config.mts`, `site/src/testHelpers/handlers.ts`, `site/src/theme/index.ts`, import rewrites (`import React from "react"` replacing `import { StrictMode }`), removed dependencies. Ask of each: what in this PR breaks without it?
 - Whole-file deletions and blocks moved within a file with no mention in the description.
-- Edits to shared components under `site/src/components/` from a feature PR: separate additive props (`ariaLabel`, `disabled`) from logic or visual changes, and require a stated justification for the latter.
+- Edits to shared components under `site/src/components/` from a feature PR: additive props (`ariaLabel`, `disabled`) that leave current callers unchanged are fine, but logic or visual changes belong in their own PR.
 - New pages or routes that render nothing yet, added ahead of the feature that needs them.
 
-Fix: revert the hunk (reviewers post an empty suggestion to do it) or move it to its own PR; explain any deletion or move that stays. Shared component behavior changes get their own PR and a design check.
+Fix: revert the hunk (reviewers post an empty suggestion to do it) or move it to its own PR; shared component behavior changes get their own PR and a design check. When the PR does need a deletion or move, add the missing line to the PR description saying why.
 
 ### RO6: Split PRs that are too large to review
 
@@ -88,7 +88,7 @@ Look for:
 
 - A new module in the hundreds of lines (`@@ -0,0 +1,678 @@`) landing with its first consumers and a bug fix in one diff; ask whether the design is the simplest that meets the stated need and whether an existing dependency covers part of it.
 - Bug fixes or behavior changes buried inside a large refactor diff (see RO5); on a big diff the reviewers refuse to review them in place.
-- Split stacks that leave exports unused in the current PR and suppress the lint (`site/.knip.jsonc` exclusions with "staged in PR n" comments): each slice should be self-contained or the suppression called out to the human reviewer.
+- Split stacks that leave exports unused in the current PR and suppress the lint (`site/.knip.jsonc` exclusions with "staged in PR n" comments): each slice should be self-contained, so move the export into the slice that first uses it instead of suppressing the lint.
 
 Fix: split by concern (infrastructure, consumers, fixes) into a stack of PRs each reviewable on its own, with no lint exclusions carrying dead exports between slices.
 

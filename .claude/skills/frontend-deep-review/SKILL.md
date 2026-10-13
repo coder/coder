@@ -132,8 +132,9 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   finding with the smallest correct change, then re-run every role that
   failed and every role whose checkpoints cover code the fixes changed (an
   extraction for RO3 can add TN or RP findings). When unsure, re-run all
-  eight. When the fixes touch `site/src/`, also re-run `frontend-review`,
-  because these roles do not check FE1 to FE10 on their own. Fix `nit`
+  eight. When the fixes touch `site/src/`, also re-run the `frontend-review`
+  audit, because these roles do not check FE1 to FE10 on their own; skip
+  its closing handoff back to this skill. Fix `nit`
   findings when the fix is trivial; otherwise list them.
   Stop when no `blocking` or `should-fix` FAIL remains, as `site/AGENTS.md`
   requires. A finding you judge wrong is not a FAIL to justify: drop it,

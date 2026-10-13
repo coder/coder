@@ -18,7 +18,7 @@ Look for:
 - A module-level or function-level const (className string, copy string, tooltip text, ternary result, fixture id) referenced exactly once. Grep the identifier: one hit means inline it, unless the name carries meaning the literal does not (a limit, a unit, a protocol value), which site/AGENTS.md allows.
 - Tailwind class strings hoisted into `const xClassName = "..."`, `*_CLASS_NAME`, or `*Classes` constants, especially when a comment or the identifier is the only justification.
 - A variable that names a sub-expression (`const foo = a ? b : c`) used once on the next few lines, or destructured aliases (`const agentId = chat.id`) that replace a single property access.
-- Exported constants (copy strings, flags) consumed in exactly one file.
+- Exported constants (copy strings, flags) consumed in exactly one file: inline the value when the name adds nothing; when the name carries meaning, RO4 moves the constant next to its consumer instead.
 
 Fix: inline the value at the point of use. If the constant exists to avoid duplicating a class string across elements, the reviewers want a component, not a shared string.
 
@@ -31,7 +31,7 @@ Look for:
 
 - One-line functions whose body is a single call, property access, or comparison (`const getX = (c) => c.getQueryData(key(id))`, `const stop = (e) => e.stopPropagation()`, `(v) => v === "a" || v === "b"`). Ask what the name adds over the expression.
 - A helper left behind after a refactor whose body collapsed to `return option.displayName` or `return stored`.
-- Custom hooks that only call another hook and return its result, and helpers exported solely so a test can import them. A reset export that clears module-private state for tests stays, because no other file can reach that state (`_resetForTesting` in `chime.ts`).
+- Custom hooks that only call another hook and return its result, unless the hook owns arguments every caller would otherwise repeat (the module-private subscribe and snapshot functions `usePreferredColorScheme.ts` passes to `useSyncExternalStore`), and helpers exported solely so a test can import them. A reset export that clears module-private state for tests stays, because no other file can reach that state (`_resetForTesting` in `chime.ts`).
 - Fragment or `<div className="flex">` wrappers around a single child, and `asChild` applied to an element the primitive would already render.
 - A single-purpose re-export or rename (`const fooKey = (id) => getFooKey(id)`), or a family of local helpers that a new shared primitive already covers.
 
@@ -60,7 +60,7 @@ FE parent: FE3
 Look for:
 
 - `typeof window === "undefined"` checks anywhere under `site/src/`: the app is a SPA and the branch never runs.
-- Guards whose false branch is already the natural result: `if (value.length === 0) return value` before `.map`, a `String(x)` on a value already typed `string | undefined`, a cleanup that cannot register because of an earlier return, `process.exit(0)` as the last statement.
+- Guards whose false branch is already the natural result: `if (value.length === 0) return value` before `.map` when no caller relies on getting the same reference back (cache updaters return their input to mean no change, as `upsertMessagesAcrossPages` in `api/queries/chats.ts` does), a `String(x)` on a value already typed `string | undefined`, a cleanup that cannot register because of an earlier return, `process.exit(0)` as the last statement.
 - Props accepted but never read (`condensed: _condensed`), props added with no caller, empty story parameters (`queries: []` under a meta that seeds no queries; see TS6), aliased imports (`x as xPath`) that only rename, and knip exclusions that hide unused exports.
 - Backward-compat redirects and legacy-format branches for routes or data that are not stable or are about to be dropped; try/catch around reads that cannot throw in supported browsers (storage access can: `localStorage` throws a `SecurityError` when the browser denies storage, as `reasoningEffort.test.ts` simulates); lint suppressions where the fix is smaller than the comment.
 
@@ -105,7 +105,7 @@ Look for:
 - Module-level mutable state or builders in stories that exist only to share setup between two stories.
 - A refactor of working code in the same PR as a feature, with no second caller motivating it.
 
-Fix: revert the extraction and keep the logic where it is used. For a large new module, ask for a written justification of the design against current needs and for an existing dependency that could replace it before accepting it.
+Fix: revert the extraction and keep the logic where it is used. Cut a large new module down to what the product needs now, or replace it with an existing dependency that covers it.
 
 ## Not this role
 

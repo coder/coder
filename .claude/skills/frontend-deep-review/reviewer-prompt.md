@@ -56,9 +56,9 @@ Do this, in order:
    file (or `(whole PR)` for a PR-scope checkpoint such as RO6), what is
    wrong in one sentence, and the fix in one sentence.
 5. Skip findings you cannot pin to a line in the diff, except PR-scope
-   findings such as RO6. Skip pre-existing code unless the PR is a refactor
-   of exactly that code. Skip anything a linter or formatter already
-   reports.
+   findings such as RO6. Skip pre-existing code the diff does not touch,
+   unless the PR is a refactor of exactly that code. Skip anything a
+   linter or formatter already reports.
 
 Your final message is the deliverable. Use exactly this layout:
 

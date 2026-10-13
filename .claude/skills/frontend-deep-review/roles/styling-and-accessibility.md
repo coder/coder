@@ -20,7 +20,7 @@ Look for:
 - Variant order that changes meaning (`after:hover:` vs `hover:after:`), paired `data-[state=open]`/`data-[state=closed]` classes out of order, and classes whose purpose the reviewer cannot state (`scroll-mt-44`).
 - Codemod or upgrade diffs that replace a composable class with a longer arbitrary one.
 
-Fix: use the nearest scale value or named utility, delete classes that do nothing on that element, drop leftover `!`, and restore the shorter composable form; if an off-scale value is intentional, say why in the PR.
+Fix: use the nearest scale value or named utility, delete classes that have no effect on that element (check what each one changes, including where `scrollIntoView` lands), ask the author about a class whose purpose you cannot state, drop leftover `!`, and restore the shorter composable form. An off-scale value derived from a fixed size the layout must match (a card height, an image) is not a finding; the PR description should say what it is derived from.
 
 ### SA2: Put shared styling in a component or variant, not a className string
 
@@ -43,9 +43,9 @@ FE parent: none
 Look for:
 
 - New `style={{ ... }}` props whose values are static and have a utility equivalent, including `style` used only to read a CSS variable (`height: "var(--header-height)"`). Inline `style` stays for values computed at runtime (a percentage from data, a user-chosen color, a virtualizer's row position), because Tailwind only generates classes it finds in the source.
-- `css={...}` or `@mui` imports in changed files, and `useTheme` or `theme.palette.*` reads whose value ends up in a class or style a Tailwind token covers. The in-repo `useTheme` from `#/theme/context` is correct for a library that takes a JS value, such as Mermaid's `theme` option (`MermaidDiagram.tsx`); `site/src/theme/palette.ts` lists those consumers.
+- `css={...}` or `@mui` imports in changed files, and `useTheme` or `theme.palette.*` reads whose value ends up in a class or style a Tailwind token covers. The in-repo `useTheme` from `#/theme/context` is correct for a library that takes a JS value, such as Mermaid's `theme` option (`MermaidDiagram.tsx`); `site/src/theme/palette.ts` names others (Monaco, charts, confetti, color pickers).
 - New entries in `site/src/theme/roles.ts` or other theme color objects.
-- Edits to `site/src/index.css`, new global class names consumed from components, and JS that writes `document.documentElement.style` properties.
+- Edits to `site/src/index.css`, new global class names consumed from components, and JS that writes static values to `document.documentElement.style`. A value measured at runtime stays in JS (`AgentChatInput.tsx` sets `--mobile-dropdown-bottom` from the composer's position).
 
 Fix: express static styles as Tailwind classes on the element (arbitrary-value classes are acceptable for CSS variables) and leave runtime values in `style`; keep colors in Tailwind tokens; keep global CSS untouched unless the change is meant to cascade site-wide, and say so.
 
@@ -84,7 +84,7 @@ FE parent: FE6
 
 Look for:
 
-- `<div role="button" tabIndex={0} onKeyDown=...>` or `<div role="radiogroup" aria-label=...>` where `<button>`, `<fieldset>` with `<legend>`, or an existing primitive gives the role, name, and keyboard handling for free. Do not suggest `<button>` for a control inside another interactive element, such as the clear control inside the `Autocomplete.tsx` trigger: nested buttons are invalid HTML.
+- `<div role="button" tabIndex={0} onKeyDown=...>` where `<button>` gives the role, name, and keyboard handling for free, and a hand-built `role="radiogroup"` where the `RadioGroup` primitive (`site/src/components/RadioGroup/`) or a `<fieldset>` with `<legend>` around native radio inputs does. Do not suggest `<button>` for a control inside another interactive element, such as the clear control inside the `Autocomplete.tsx` trigger: nested buttons are invalid HTML.
 - `aria-label` values that replace rather than contain the visible label; `aria-*` props on primitives (cmdk) that overwrite them.
 - Interactive elements reachable only by pointer, and dialogs or route changes that drop focus.
 - Visually hidden interactive elements still in the tab order.

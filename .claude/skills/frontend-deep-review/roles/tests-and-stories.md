@@ -20,7 +20,7 @@ Look for:
 - A story whose play only checks presence and performs no interaction, or a `findBy*` used as a disguised content assertion after the setup step.
 - The changed behavior has no story at all, or the story renders the closed or default state without opening the popover, submitting the form, or paginating.
 
-Fix: keep the interactions (click, type, open) that put the component in the state to snapshot, delete the assertions, and add a separate story for each additional state. If the play only asserted presence, remove the play entirely.
+Fix: keep the interactions (click, type, open) that put the component in the state to snapshot, delete the assertions, and add a separate story for each additional state. If the play only asserted presence, remove the play entirely, except a `findBy*` that waits for async data the snapshot needs (`EditOAuth2AppPageView.stories.tsx` waits for its query before Pixel captures).
 
 ### TS2: Assertions target observable behavior through standard queries
 
@@ -59,7 +59,7 @@ Look for:
 
 - Helper or stateful wrapper components defined inside a *.stories.tsx, especially ones that re-create an existing Input, Select, or Label. A wrapper that only holds the value a controlled component needs for its play to work is fine (`StatefulProvisionerTagsField` in `ProvisionerTagsField.stories.tsx`).
 - Test helpers built from regexes, derived class lists, or `JSON.parse(JSON.stringify(...))` where a hard-coded value or `structuredClone` reads plainly.
-- Single-use constants in a story file (`const chatId = MockChat.id`) and tests that only move in the diff without changing.
+- Single-use constants in a story file that only alias a value (`const chatId = MockChat.id`), and unchanged tests that only move in the diff while their subject stays put. A named fixture variant is what FE9 asks for (TS3) even when one story uses it, and a test that moves with its renamed or relocated subject is fine.
 - A tiny wrapper exported from the implementation module solely for tests, and tests that exercise that helper or a library (DOMPurify, backend filtering) rather than frontend behavior. A reset export that clears module-private state stays (`_resetForTesting` in `chime.ts`), as SD2 says.
 
 Fix: render the real components with args, hard-code test inputs, inline single-use values, move test-only helpers that touch no module state into a separate test-support file or delete them, and delete tests that have no frontend behavior to check.
@@ -86,10 +86,10 @@ Look for:
 
 - A shared pre-wired query object or helper (`spawnModelConfigsQuery`, `aiSpendQuery(overrides)`) instead of a `mockX` data constant plus an inline `{ key, data }` in each story's `parameters.queries`.
 - A key built as a string literal (`["chat-model-configs"]`) or by constructing query options only to read `.queryKey` (`mcpServerConfigs(id).queryKey`): import the exported key constant.
-- `spyOn(API, ...)` where `parameters.queries` covers the same data, and a module-level `let capturedQueryClient` or similar used to reach into the cache from a story.
+- `spyOn(API, ...)` where `parameters.queries` covers the same data, and a module-level `let capturedQueryClient` or similar used to reach into the cache from a story when `parameters.queries` could seed the same state. A play that must trigger a refetch mid-story needs the client (`AgentCreateForm.stories.tsx` calls `refetchQueries`).
 - Empty wiring left behind (`queries: []`) when the meta seeds no `parameters.queries`. Storybook replaces array parameters instead of merging them, so under a meta that seeds queries an empty array clears them on purpose (`OrganizationModelsLayout.stories.tsx`).
 
-Fix: share the entity fixture, wire `{ key: exportedKey, data: mockX }` inline per story, delete cache-capturing module state, and prefer `parameters.queries` over spies unless the story needs a pending or failing request.
+Fix: share the entity fixture, wire `{ key: exportedKey, data: mockX }` inline per story, delete cache-capturing module state that `parameters.queries` can replace, and prefer `parameters.queries` over spies unless the story needs a pending or failing request.
 
 ### TS7: Stories model the real state space, one story per reachable state
 
@@ -101,9 +101,9 @@ Look for:
 - A story whose mocked data cannot occur in production (an authorization combination the backend never returns).
 - A new story that adds no state the existing stories do not already show.
 - A missing story for a reachable branch the component handles (filtered results empty while data exists, error, disabled, mobile).
-- Stories for a code path the PR series is about to delete.
+- New stories for a code path that a later PR in the same stack deletes.
 
-Fix: add one story per reachable meaningful state, remove impossible and duplicate stories, and skip stories for behavior scheduled for removal.
+Fix: add one story per reachable meaningful state, remove impossible and duplicate stories, and skip new stories for behavior a later PR in the same stack removes.
 
 ## Not this role
 

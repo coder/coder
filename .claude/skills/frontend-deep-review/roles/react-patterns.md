@@ -32,9 +32,9 @@ Look for:
 - An effect that persists state (localStorage.setItem, save*) whenever the state changes, usually guarded by a lastPersistedRef. The write belongs in the event handler or setter that changes the state.
 - An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or mutation callback should own that step. `useQuery` has no `onSuccess` (TanStack Query v5 removed query callbacks), so never suggest one.
 - An effect that runs a migration or one-off transform on every render where query data exists, with a ref to make it run once.
-- Any effect the author could not explain in one sentence. The reviewers asked for the justification in the PR or in a comment, and mostly got a rewrite.
+- Any effect the author could not explain in one sentence: ask which user action or mutation callback should own it.
 
-Fix: call the side effect from the handler that changes the value, or from the mutation callback that produces it; derive values from query data in render or in the query's `select`; if the effect stays, document why the external-system case applies.
+Fix: call the side effect from the handler that changes the value, or from the mutation callback that produces it; derive values from query data in render or in the query's `select`. An effect that only synchronizes with an external system is FE8's one allowed case, so it is not an RP2 finding.
 
 ### RP3: Audit dependencies and refs on effects that own listeners, observers, fetches, or DOM
 
@@ -46,7 +46,7 @@ Look for:
 - A suppression of the exhaustive-deps lint rule, whichever linter the checkout enables it in: oxlint's `react/exhaustive-deps` (`site/.oxlintrc.jsonc`) or Biome's `lint/correctness/useExhaustiveDependencies`. If the value is stable, add it; if it is not, the effect is wrong.
 - An effect that only copies state or a prop into a ref (widthRef.current = width, formValuesRef, dragged.current = true). Ask who reads the ref; usually it exists to dodge a dependency array. Use useEffectEvent or read the value directly.
 - addEventListener, ResizeObserver, or a popup's message listener or close polling set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource. The `window.open` call itself belongs in the click handler: browsers block popups opened outside a user gesture (`useMCPOAuthFlow.ts`).
-- Helper functions declared inside the effect body that capture no props or state: hoist them to module level. A helper that reads props or state stays inside the effect, as React recommends.
+- Helper functions declared inside the effect body that capture nothing from the component or the effect: hoist them to module level. A helper that reads props, state, or a resource the effect creates (a socket, observer, or timer) stays inside the effect, as React recommends.
 - An element the component renders itself found via querySelector instead of a ref: attach a ref or ref callback. Nodes a library creates (cmdk group headings, a noVNC canvas) cannot take a ref, so querying them from a ref on the nearest element the component owns is correct.
 
 Fix: make the dependency list honest, delete ref-sync effects, keep setup and cleanup in the same effect, and use a ref callback for measurements that only need the mounted element.
@@ -62,10 +62,9 @@ Look for:
 - A new useCallback, useMemo, or memo() outside those directories with no stated reason: ask for one. Nothing memoizes these files automatically, so do not ask to remove memoization that has a reason.
 - memo() on a child whose parent passes a new function or object on every render: the memo never hits.
 - useMemo(() => generateId(), []) used for a stable identity. useMemo is a performance hint React may discard; use useState with an initialiser, or React.useId() for DOM and ARIA ids (FE6).
-- In a compiled directory, a component or hook whose `try` statement has a `finally` clause, or whose `try` block itself contains a `? :`, `&&`, `||`, `??`, or `?.` expression: the compiler skips the whole function, and `pnpm lint:compiler` reports it. The same operators outside the `try` block, and `if` statements inside it, compile fine.
 - Functions that capture no component variables defined inside the component. Hoist them to module level.
 
-Fix: in a compiled directory, remove the memoization (except memo() on list items) and restructure the `try` (for example as `.then().catch().finally()`); elsewhere, keep memoization only with a short comment saying why. Anywhere, use useState for values that must never change and hoist functions that capture nothing.
+Fix: in a compiled directory, remove the memoization (except memo() on list items); elsewhere, keep memoization only with a short comment saying why. Anywhere, use useState for values that must never change and hoist functions that capture nothing. `pnpm lint` already fails when the compiler skips a function in a compiled directory, for example over a `try` with a `finally` clause or with a `? :`, `&&`, `||`, `??`, or `?.` expression inside the `try` block; restructure such a `try` as `.then().catch().finally()`.
 
 ### RP5: Do not add a hook that a plain function or an existing hook already covers
 
@@ -78,9 +77,9 @@ Look for:
 - A hook that wraps a single useQuery or useMutation, or that re-fetches data the caller already holds.
 - A hook that returns JSX or a render function. That is a component.
 - A hook or context provider introduced to avoid passing one value through a few props. Ask whether the value can be computed once at a higher level instead.
-- A hook whose only job is one storage flag. Ask whether the component can hold the state and call plain get and set functions from a module next to the feature code (as site/src/pages/AgentsPage/utils/*Storage.ts do).
+- A hook whose only job is one storage flag that one component reads. Ask whether the component can hold the state and call plain get and set functions from a module next to the feature code (as site/src/pages/AgentsPage/utils/*Storage.ts do). A storage hook that keeps several components or tabs in sync through a subscription stays (`useChatFullWidth.ts` uses `useSyncExternalStore`).
 
-Fix: replace with a function that takes the already-fetched data or mutations as arguments, or inline it at the call site. Keep a hook that owns React state or an effect even when one component calls it (`useMCPOAuthFlow.ts` keeps its message listener out of `AgentChatInput.tsx`), except the single storage flag above.
+Fix: replace with a function that takes the already-fetched data or mutations as arguments, or inline it at the call site. Keep a hook that owns React state or an effect even when one component calls it (`useMCPOAuthFlow.ts` keeps its message listener out of `AgentChatInput.tsx`), except the single-reader storage flag above.
 
 ### RP6: Split components that have grown past one screen of logic or markup
 
@@ -94,7 +93,7 @@ Look for:
 - Nested div.flex trees where no element has a name that says what it is.
 - Large page components accumulating request queues, refs, and editing logic that belong in a hook or child component.
 
-Fix: extract named sub-components for each visual block and move non-render logic into helpers or a hook; do it in the PR that adds the growth, or file the split as an explicit follow-up.
+Fix: put what the PR adds into named sub-components for each visual block and move its non-render logic into helpers or a hook, in this PR. Splitting the code that was already there is a separate refactor (RO5), not part of this finding.
 
 ### RP7: Forms use formik and mutations, not hand-rolled draft and submitting state
 
@@ -104,7 +103,7 @@ FE parent: none
 Look for:
 
 - Several useState calls holding a draft, a toggled flag, and a "local edit" per field, with a save handler that clears them on success. That is a form; use formik.
-- setIsSubmitting(true/false) or an inFlight ref around an API call. useMutation already tracks pending state.
+- setIsSubmitting(true/false) or an inFlight ref around a direct API call. useMutation already tracks pending state. A ref that ignores repeated events while a mutation is in flight is correct (DF2).
 - Submit logic that conditionally calls submitForm or setFieldValue from an onChange handler with no comment. Ask what the branch is for.
 - A settings panel with one input and one save button. Still a form; the reviewers accepted skipping formik only for the smallest toggles.
 
