@@ -5,23 +5,24 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // runnerAgentConn holds a chat runner's connection to one workspace agent,
-// and that workspace agent's home directory, across generation steps. Steps
-// dial through it, so they reuse the connection instead of acquiring one per
-// step.
+// and that workspace agent's home directory, across generation steps.
 //
-// It releases no connection before close, including connections it stopped
-// holding: a step may still use them, and the runner calls close only after
-// its steps have ended.
+// mu is held while acquiring a connection, so concurrent dials share one
+// acquisition, and forget and close wait for it. No connection is released
+// before close, including connections it stopped holding: a step may still
+// use them, and the runner calls close only after its steps have ended.
 type runnerAgentConn struct {
 	mu       sync.Mutex
+	closed   bool
 	agentID  uuid.UUID
 	conn     workspacesdk.AgentConn // Nil if none is held.
-	home     string                 // Of agentID; empty until read.
+	home     string                 // Read through conn; empty until read.
 	releases []func()               // Of every connection acquired.
 }
 
@@ -30,35 +31,24 @@ type runnerAgentConn struct {
 // server and holds it. The release it returns does nothing.
 func (r *runnerAgentConn) dial(ctx context.Context, server *Server, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	r.mu.Lock()
-	conn := r.conn
-	if r.agentID != agentID {
-		conn = nil
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil, nil, xerrors.New("chat runner closed its workspace agent connections")
 	}
-	r.mu.Unlock()
-	if conn != nil {
-		if !server.workspaceAgentDisconnected(ctx, agentID) {
-			return conn, func() {}, nil
-		}
-		r.forget(agentID)
+	if r.conn != nil && r.agentID == agentID && !server.workspaceAgentDisconnected(ctx, agentID) {
+		return r.conn, func() {}, nil
 	}
-
 	conn, release, err := server.agentConnFn(ctx, agentID)
 	if err != nil {
 		return nil, nil, err
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	if release != nil {
 		r.releases = append(r.releases, release)
 	}
-	r.agentID = agentID
-	r.conn = conn
-	r.home = ""
+	r.agentID, r.conn, r.home = agentID, conn, ""
 	return conn, func() {}, nil
 }
 
-// forget stops holding the connection to agentID, so the next dial to it
-// acquires a new one.
 func (r *runnerAgentConn) forget(agentID uuid.UUID) {
 	if r == nil {
 		return
@@ -66,48 +56,40 @@ func (r *runnerAgentConn) forget(agentID uuid.UUID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.agentID == agentID {
-		r.agentID = uuid.Nil
-		r.conn = nil
-		r.home = ""
+		r.agentID, r.conn, r.home = uuid.Nil, nil, ""
 	}
 }
 
-// homeOf returns the home directory of agentID if it holds a connection to
-// agentID and has read it.
-func (r *runnerAgentConn) homeOf(agentID uuid.UUID) (string, bool) {
+func (r *runnerAgentConn) homeOf(conn workspacesdk.AgentConn) (string, bool) {
 	if r == nil {
 		return "", false
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.agentID != agentID || r.home == "" {
+	if r.conn != conn || r.home == "" {
 		return "", false
 	}
 	return r.home, true
 }
 
-// setHome records the home directory read through conn, if conn is the held
-// connection.
 func (r *runnerAgentConn) setHome(conn workspacesdk.AgentConn, home string) {
 	if r == nil {
 		return
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.conn != nil && r.conn == conn {
+	if r.conn == conn {
 		r.home = home
 	}
 }
 
-// close releases every connection it acquired. Call it only after every step
-// has ended.
+// close releases every connection it acquired, and later dials fail. Call
+// it only after every step has ended.
 func (r *runnerAgentConn) close() {
 	r.mu.Lock()
 	releases := r.releases
-	r.releases = nil
-	r.agentID = uuid.Nil
-	r.conn = nil
-	r.home = ""
+	r.closed = true
+	r.agentID, r.conn, r.home, r.releases = uuid.Nil, nil, "", nil
 	r.mu.Unlock()
 	for _, release := range releases {
 		release()
