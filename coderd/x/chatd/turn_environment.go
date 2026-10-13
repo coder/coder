@@ -189,20 +189,17 @@ func (p *Server) buildTurnEnvironment(
 			return err
 		})
 	}
-	var (
-		internalMCPServers  []mcpclient.InProcessServer
-		internalMCPFailures []mcpclient.ConnectSummary
-	)
+	var internalMCPServers []mcpclient.InProcessServer
 	if usesMCPServers && len(p.internalMCPServers) > 0 {
 		g.Go(func() error {
-			internalMCPServers, internalMCPFailures = p.internalMCPServersForChat(ctx, chat)
-			return nil
+			var err error
+			internalMCPServers, err = p.internalMCPServersForChat(ctx, chat)
+			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return turnEnvironment{}, err
 	}
-	mcpLoadFailures = append(mcpLoadFailures, internalMCPFailures...)
 
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {

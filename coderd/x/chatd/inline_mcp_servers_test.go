@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -306,6 +307,46 @@ func TestChatInlineMCPServers(t *testing.T) {
 		for _, id := range gotChatIDs {
 			require.Equal(t, chat.ID, id)
 		}
+	})
+
+	t.Run("InternalServerError", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		model := newChatInlineMCPModel(t, "")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		var calls atomic.Int32
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			withoutMCPToolSearch(cfg)
+			cfg.InternalMCPServers = []chatd.InternalMCPServer{{
+				Slug: "bot",
+				ServerForChat: func(context.Context, database.Chat) (*mcp.Server, error) {
+					calls.Add(1)
+					return nil, xerrors.New("bot unavailable")
+				},
+			}}
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "internal-mcp-error",
+			ModelConfigID:      modelConfig.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
+		})
+		require.NoError(t, err)
+
+		failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+		require.Equal(t, codersdk.ChatError{
+			Message:   "An internal MCP server failed.",
+			Kind:      codersdk.ChatErrorKindGeneric,
+			Retryable: false,
+		}, requireChatLastErrorPayload(t, failed.LastError))
+		require.NotContains(t, string(failed.LastError.RawMessage), "bot unavailable")
+		require.NotZero(t, calls.Load())
+		require.Zero(t, model.callCount.Load(), "the turn must fail before the model call")
 	})
 
 	t.Run("InternalToolWinsNameCollision", func(t *testing.T) {

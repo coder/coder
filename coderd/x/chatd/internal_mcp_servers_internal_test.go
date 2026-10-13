@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
@@ -28,31 +27,30 @@ func TestInternalMCPServersForChat(t *testing.T) {
 		}
 	}
 	attached := InternalMCPServer{Slug: "attached", ServerForChat: serverFor(mcpServer, nil)}
-	server := &Server{
-		logger: slogtest.Make(t, nil),
-		internalMCPServers: []InternalMCPServer{
-			attached,
-			{Slug: "absent", ServerForChat: serverFor(nil, nil)},
-			{Slug: "broken", ServerForChat: serverFor(nil, xerrors.New("secret detail"))},
-		},
-	}
+	absent := InternalMCPServer{Slug: "absent", ServerForChat: serverFor(nil, nil)}
+	server := &Server{internalMCPServers: []InternalMCPServer{attached, absent}}
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	servers, failures := server.internalMCPServersForChat(testutil.Context(t, testutil.WaitShort), chat)
-
-	require.Equal(t, []uuid.UUID{chat.ID, chat.ID, chat.ID}, gotChatIDs)
+	servers, err := server.internalMCPServersForChat(ctx, chat)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chat.ID, chat.ID}, gotChatIDs)
 	require.Equal(t, []mcpclient.InProcessServer{{
 		ID:     attached.id(),
 		Slug:   "attached",
 		Server: mcpServer,
 	}}, servers)
-	require.Equal(t, []mcpclient.ConnectSummary{{
-		ConfigID: InternalMCPServer{Slug: "broken"}.id(),
-		Slug:     "broken",
-		Outcome:  mcpclient.ConnectOutcomeError,
-		Error:    "failed to attach internal MCP server",
-	}}, failures)
 	require.NotEqual(t, uuid.Nil, attached.id())
-	require.NotEqual(t, attached.id(), failures[0].ConfigID)
+	require.NotEqual(t, attached.id(), absent.id())
+
+	errBroken := xerrors.New("broken")
+	server.internalMCPServers = append(server.internalMCPServers, InternalMCPServer{
+		Slug:          "broken",
+		ServerForChat: serverFor(nil, errBroken),
+	})
+	servers, err = server.internalMCPServersForChat(ctx, chat)
+	require.ErrorIs(t, err, errBroken)
+	require.ErrorContains(t, err, `"broken"`)
+	require.Nil(t, servers)
 }
 
 func TestValidateInternalMCPServers(t *testing.T) {
