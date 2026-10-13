@@ -216,7 +216,7 @@ func TestServerTailnet_DERPConnects(t *testing.T) {
 }
 
 // TestServerTailnet_KeepAliveAgentConn checks that a connection from
-// keepAliveAgentConn reuses an idle API connection until released, and a
+// keepAliveAgentConn reuses its API connection until released, and that a
 // connection from AgentConn does not.
 func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 	t.Parallel()
@@ -224,32 +224,46 @@ func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	agents, serverTailnet := setupServerTailnetAgent(t, 1)
 	agentID := agents[0].id
-	reused := func(conn workspacesdk.AgentConn) bool {
+	reused := func(conn workspacesdk.AgentConn) (bool, error) {
 		var reused atomic.Bool
 		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
 			GotConn: func(info httptrace.GotConnInfo) {
-				if info.Reused {
-					reused.Store(true)
-				}
+				reused.Store(info.Reused)
 			},
 		})
 		_, err := conn.ListeningPorts(traceCtx)
-		require.NoError(t, err)
-		return reused.Load()
+		return reused.Load(), err
 	}
 
 	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
 	require.NoError(t, err)
-	require.False(t, reused(conn))
-	require.False(t, reused(conn), "AgentConn keeps no idle API connection")
+	for range 2 {
+		r, err := reused(conn)
+		require.NoError(t, err)
+		require.False(t, r, "AgentConn keeps no API connection")
+	}
 	release()
 
 	conn, release, err = coderd.ServerTailnetKeepAliveAgentConn(serverTailnet, ctx, agentID)
 	require.NoError(t, err)
-	require.False(t, reused(conn))
-	require.True(t, reused(conn), "the connection reuses the idle API connection")
+	r, err := reused(conn)
+	require.NoError(t, err)
+	require.False(t, r)
+	r, err = reused(conn)
+	require.NoError(t, err)
+	require.True(t, r, "the connection reuses its API connection")
 	release()
-	require.False(t, reused(conn), "release closes the idle API connection")
+	_, err = reused(conn)
+	require.Error(t, err, "release closes the connection")
+}
+
+// TestServerTailnet_KeepAliveAPIIdleConnTimeout checks that coderd closes an
+// idle API connection before the workspace agent does. A POST sent on a
+// connection the workspace agent closed returns an error.
+func TestServerTailnet_KeepAliveAPIIdleConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	require.Less(t, coderd.KeepAliveAPIIdleConnTimeout, workspacesdk.AgentHTTPAPIServerIdleTimeout)
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
