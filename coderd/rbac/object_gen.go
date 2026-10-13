@@ -128,16 +128,6 @@ var (
 		Type: "chat",
 	}
 
-	// ResourceChatAutomation
-	// Valid Actions
-	//  - "ActionCreate" :: create a new chat automation
-	//  - "ActionDelete" :: delete a chat automation
-	//  - "ActionRead" :: read chat automations
-	//  - "ActionUpdate" :: update a chat automation
-	ResourceChatAutomation = Object{
-		Type: "chat_automation",
-	}
-
 	// ResourceChatModelConfig
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat model config
@@ -343,6 +333,17 @@ var (
 	//  - "ActionUpdate" :: update an organization member
 	ResourceOrganizationMember = Object{
 		Type: "organization_member",
+	}
+
+	// ResourceOrganizationSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create an organization skill
+	//  - "ActionDelete" :: delete an organization skill
+	//  - "ActionRead" :: read organization skill metadata and content
+	//  - "ActionShare" :: share an organization skill with other users or groups
+	//  - "ActionUpdate" :: update an organization skill
+	ResourceOrganizationSkill = Object{
+		Type: "organization_skill",
 	}
 
 	// ResourcePrebuiltWorkspace
@@ -552,7 +553,6 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
-		ResourceChatAutomation,
 		ResourceChatModelConfig,
 		ResourceChatProject,
 		ResourceChatProjectMemory,
@@ -576,6 +576,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourceOrganizationSkill,
 		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,

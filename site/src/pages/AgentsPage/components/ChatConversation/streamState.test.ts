@@ -95,6 +95,22 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBeNull();
 	});
 
+	it.each([
+		{ partType: "text", blockType: "response" },
+		{ partType: "reasoning", blockType: "thinking" },
+	] as const)(
+		"keeps whitespace-only $partType deltas between paragraphs",
+		({ partType, blockType }) => {
+			let state: StreamState | null = null;
+			for (const text of ["writing.", "\n\n", "Like this"]) {
+				state = applyMessagePartToStreamState(state, { type: partType, text });
+			}
+			expect(state?.blocks).toEqual([
+				{ type: blockType, text: "writing.\n\nLike this" },
+			]);
+		},
+	);
+
 	it("returns prev for workspace file reference parts", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
@@ -716,17 +732,20 @@ describe("applyMessagePartToStreamState", () => {
 		expect(prev.toolCalls).toEqual({});
 	});
 
-	it("skips provider_executed tool-result parts", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
+	it("records a provider_executed tool-result part without a tool card", () => {
+		const part: ChatMessagePart = {
 			type: "tool-result",
 			tool_name: "web_search",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 			result: { output: "search results" },
+		};
+		const state = applyMessagePartToStreamState(null, part);
+		expect(state).toEqual({
+			...createEmptyStreamState(),
+			providerToolRan: true,
 		});
-		expect(result).toBe(prev);
-		expect(prev.toolResults).toEqual({});
+		expect(applyMessagePartToStreamState(state, part)).toBe(state);
 	});
 
 	it("adds a file block from a file part with data", () => {

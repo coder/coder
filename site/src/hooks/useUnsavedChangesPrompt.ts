@@ -34,14 +34,6 @@ export const useUnsavedChangesPrompt = (
 		({ currentLocation, nextLocation }) =>
 			enabled && currentLocation.pathname !== nextLocation.pathname,
 	);
-	// A prompt opened while enabled must not outlive the reason for it.
-	const isBlocked = blocker.state === "blocked";
-	const resetBlocker = blocker.reset;
-	useEffect(() => {
-		if (!enabled && isBlocked) {
-			resetBlocker?.();
-		}
-	}, [enabled, isBlocked, resetBlocker]);
 
 	return {
 		isOpen: blocker.state === "blocked",

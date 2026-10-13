@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import {
@@ -46,6 +45,7 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { aiBudgetRangeError, maxAIBudgetDollars } from "#/modules/groups";
 import {
 	dollarsToMicros,

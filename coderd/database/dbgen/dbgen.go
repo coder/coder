@@ -142,70 +142,9 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		Labels:            labels,
 		DynamicTools:      seed.DynamicTools,
 		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
-
-		ManageAutomationsEnabled: seed.ManageAutomationsEnabled,
 	})
 	require.NoError(t, err, "insert chat")
 	return chat
-}
-
-// ChatAutomation inserts a chat automation. It defaults to a multi-use
-// webhook that targets an existing chat and queues when busy, and fills
-// the shape-required columns for whichever kind and target mode the seed
-// selects. Callers must supply OrganizationID and OwnerID, and
-// NewChatModelConfigID for new_chat targets.
-func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomation) database.ChatAutomation {
-	t.Helper()
-
-	kind := takeFirst(seed.Kind, database.ChatAutomationKindWebhook)
-	webhookUse := seed.WebhookUse
-	scheduleCron := seed.ScheduleCron
-	scheduleTimeZone := seed.ScheduleTimeZone
-	switch kind {
-	case database.ChatAutomationKindWebhook:
-		if !webhookUse.Valid {
-			webhookUse = database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseMulti, Valid: true}
-		}
-	case database.ChatAutomationKindSchedule:
-		if !scheduleCron.Valid {
-			scheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
-		}
-		if !scheduleTimeZone.Valid {
-			scheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
-		}
-	}
-
-	targetMode := takeFirst(seed.TargetMode, database.ChatAutomationTargetModeExistingChat)
-	whenBusy := seed.WhenBusy
-	if targetMode == database.ChatAutomationTargetModeExistingChat && !whenBusy.Valid {
-		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
-	}
-
-	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
-		ID:                   takeFirst(seed.ID, uuid.New()),
-		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
-		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
-		Name:                 takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedByChatID:      seed.CreatedByChatID,
-		Kind:                 kind,
-		Enabled:              seed.Enabled,
-		TargetMode:           targetMode,
-		TargetChatID:         seed.TargetChatID,
-		NewChatModelConfigID: seed.NewChatModelConfigID,
-		ReasoningEffort:      seed.ReasoningEffort,
-		WhenBusy:             whenBusy,
-		WebhookUse:           webhookUse,
-		WebhookSecretHash:    seed.WebhookSecretHash,
-		WebhookSecretVersion: seed.WebhookSecretVersion,
-		Prompt:               takeFirst(seed.Prompt, "Summarize the latest activity."),
-		ScheduleCron:         scheduleCron,
-		ScheduleTimeZone:     scheduleTimeZone,
-		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
-		CreatedAt:            takeFirst(seed.CreatedAt, dbtime.Now()),
-		UpdatedAt:            takeFirst(seed.UpdatedAt, dbtime.Now()),
-	})
-	require.NoError(t, err, "insert chat automation")
-	return automation
 }
 
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
@@ -237,8 +176,6 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
-		AutomationID:        []uuid.UUID{seed.AutomationID.UUID},
-		InputID:             []uuid.UUID{seed.InputID.UUID},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -552,7 +489,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		ConnectionMethod: takeFirst(seed.ConnectionMethod, database.ConnectionLogMethodSSH),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
@@ -572,9 +509,9 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
 			Valid: takeFirst(seed.UserID.Valid, false),
 		},
-		SlugOrPort: sql.NullString{
-			String: takeFirst(seed.SlugOrPort.String, ""),
-			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		AppNameOrPort: sql.NullString{
+			String: takeFirst(seed.AppNameOrPort.String, ""),
+			Valid:  takeFirst(seed.AppNameOrPort.Valid, false),
 		},
 		ConnectionID: uuid.NullUUID{
 			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
@@ -604,13 +541,13 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
 		WorkspaceName:    []string{arg.WorkspaceName},
 		AgentName:        []string{arg.AgentName},
-		Type:             []database.ConnectionType{arg.Type},
+		ConnectionMethod: []database.ConnectionLogMethod{arg.ConnectionMethod},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
 		Ip:               []pqtype.Inet{arg.IP},
 		UserAgent:        []string{arg.UserAgent.String},
 		UserID:           []uuid.UUID{arg.UserID.UUID},
-		SlugOrPort:       []string{arg.SlugOrPort.String},
+		AppNameOrPort:    []string{arg.AppNameOrPort.String},
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
@@ -891,6 +828,12 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	// Casting an empty string to jsonb is a Postgres error, not an empty
+	// list, so the default has to be written out.
+	dependencies := orig.Dependencies
+	if len(dependencies) == 0 {
+		dependencies = json.RawMessage(`[]`)
+	}
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -904,6 +847,8 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
 		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		ResourceAddress:  []string{takeFirst(orig.ResourceAddress, "")},
+		Dependencies:     []string{string(dependencies)},
 	})
 	require.NoError(t, err, "insert workspace agent script")
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
@@ -1228,6 +1173,27 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}
 
 	return org
+}
+
+// OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
+// required. Inserted skills are enabled.
+func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
+	t.Helper()
+
+	require.True(t, seed.OrganizationID.Valid, "organization skill requires an organization ID")
+	name := takeFirst(seed.Name, "skill-"+uuid.NewString())
+	description := takeFirst(seed.Description, "Organization skill fixture.")
+	skill, err := db.InsertOrganizationSkill(genCtx, database.InsertOrganizationSkillParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		OrganizationID: seed.OrganizationID.UUID,
+		Name:           name,
+		Description:    description,
+		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		GroupACL:       seed.GroupACL,
+		UserACL:        seed.UserACL,
+	})
+	require.NoError(t, err, "insert organization skill")
+	return skill
 }
 
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
