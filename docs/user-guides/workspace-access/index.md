@@ -142,7 +142,7 @@ You can develop in your Coder workspace remotely with
 [VS Code](https://code.visualstudio.com/download).
 We support connecting with the desktop client and VS Code in the browser with [code-server](#code-server).
 
-![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
+![Demo](https://github.com/coder/vscode-coder/raw/main/media/demo.gif?raw=true)
 
 Read more details on [using VS Code in your workspace](./vscode.md).
 
@@ -164,6 +164,13 @@ Devin Desktop connects using the Coder extension.
 Antigravity connects using the Coder extension.
 
 Read more about [using Antigravity with your workspace](./antigravity.md).
+
+## Claude Desktop
+
+[Claude Desktop](https://claude.com/download) is Anthropic's desktop app for Claude.
+Once the Coder CLI is installed and logged in, your running workspaces appear in Claude Desktop.
+
+Read more about [using Claude Desktop with your workspace](./claude-desktop.md).
 
 ## JetBrains IDEs
 

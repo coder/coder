@@ -697,7 +697,9 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Type,
+		arg.ConnectionMethod,
+		pq.Array(arg.AppNames),
+		pq.Array(arg.ExcludedAppNames),
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,
@@ -724,12 +726,12 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.WorkspaceID,
 			&i.ConnectionLog.WorkspaceName,
 			&i.ConnectionLog.AgentName,
-			&i.ConnectionLog.Type,
+			&i.ConnectionLog.ConnectionMethod,
 			&i.ConnectionLog.Ip,
 			&i.ConnectionLog.Code,
 			&i.ConnectionLog.UserAgent,
 			&i.ConnectionLog.UserID,
-			&i.ConnectionLog.SlugOrPort,
+			&i.ConnectionLog.AppNameOrPort,
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
@@ -782,7 +784,9 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Type,
+		arg.ConnectionMethod,
+		pq.Array(arg.AppNames),
+		pq.Array(arg.ExcludedAppNames),
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,
@@ -858,7 +862,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.RepoQuery,
 		arg.PrTitleQuery,
 		arg.Search,
-		arg.AutomationID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -920,8 +923,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.CompactionRequestedAt,
 			&i.Chat.TitleSource,
 			&i.Chat.TitleUpdatedAt,
-			&i.Chat.AutomationID,
-			&i.Chat.ManageAutomationsEnabled,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -1006,9 +1007,7 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextError,
 			&i.CompactionRequestedAt,
 			&i.TitleSource,
-			&i.TitleUpdatedAt,
-			&i.AutomationID,
-			&i.ManageAutomationsEnabled); err != nil {
+			&i.TitleUpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

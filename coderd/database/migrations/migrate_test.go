@@ -405,7 +405,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
-		{"Migration000615Skills", 615, testMigration000615Skills},
+		{"Migration000619Skills", 619, testMigration000619Skills},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1842,8 +1842,8 @@ func testMigration000606ChatDiffStatusOriginCredentials(t *testing.T, sqlDB *sql
 	}
 }
 
-func testMigration000615Skills(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
-	const migrationVersion = 615
+func testMigration000619Skills(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 619
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	insertUser := func() uuid.UUID {
@@ -1984,7 +1984,7 @@ func testMigration000615Skills(t *testing.T, sqlDB *sql.DB, next migrationSteppe
 		orgSkillID, org)
 	require.NoError(t, err)
 
-	downSQL, err := os.ReadFile("000615_skills.down.sql")
+	downSQL, err := os.ReadFile("000619_skills.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -1995,7 +1995,7 @@ func testMigration000615Skills(t *testing.T, sqlDB *sql.DB, next migrationSteppe
 	require.False(t, skillExists(userSkillsTable, orgSkillID))
 	softDeleteRemovesSkills(userSkillsTable)
 
-	upSQL, err := os.ReadFile("000615_skills.up.sql")
+	upSQL, err := os.ReadFile("000619_skills.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
@@ -4294,13 +4294,6 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	downSQL, err := os.ReadFile("000583_chat_model_override_org_scope.down.sql")
 	require.NoError(t, err)
 
-	// This test replays 583 on the fully migrated schema. Migration 609 adds
-	// a foreign key on (organization_id, id) that depends on the unique
-	// constraint 583 creates, so drop it first and restore it at the end.
-	const automationModelFKey = "chat_automations_new_chat_model_config_fkey"
-	_, err = db.ExecContext(ctx, "ALTER TABLE chat_automations DROP CONSTRAINT "+automationModelFKey)
-	require.NoError(t, err)
-
 	_, err = db.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 
@@ -4401,10 +4394,6 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	_, err = db.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, string(upSQL))
-	require.NoError(t, err)
-
-	_, err = db.ExecContext(ctx, "ALTER TABLE chat_automations ADD CONSTRAINT "+automationModelFKey+
-		" FOREIGN KEY (organization_id, new_chat_model_config_id) REFERENCES chat_model_configs (organization_id, id)")
 	require.NoError(t, err)
 }
 

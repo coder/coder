@@ -16,7 +16,6 @@ import {
 	ServerIcon,
 	TerminalIcon,
 	WrenchIcon,
-	ZapIcon,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -51,7 +50,6 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	advisor: CompassIcon,
 	computer: MonitorIcon,
 	find_tools: SearchIcon,
-	manage_automations: ZapIcon,
 };
 
 export const ToolIcon: React.FC<{
