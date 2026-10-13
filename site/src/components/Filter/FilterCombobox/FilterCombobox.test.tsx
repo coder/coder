@@ -8,7 +8,7 @@ import {
 	FilterCombobox,
 	SEARCHABLE_OPTION_COUNT,
 } from "./FilterCombobox";
-import { SEARCH_DEBOUNCE_MS } from "./queries";
+import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
 	optionsLoadErrorMessage,
@@ -113,10 +113,12 @@ function FilterComboboxHarness({
 	categories,
 	initialValue,
 	onChange,
+	queryScope,
 }: {
 	categories: readonly FilterCategory[];
 	initialValue: string;
 	onChange: (value: string) => void;
+	queryScope?: string;
 }) {
 	const [value, setValue] = useState(initialValue);
 
@@ -128,6 +130,7 @@ function FilterComboboxHarness({
 				setValue(nextValue);
 			}}
 			categories={categories}
+			queryScope={queryScope}
 			placeholder="Search and filter"
 		/>
 	);
@@ -200,6 +203,85 @@ describe("FilterCombobox", () => {
 		await user.hover(screen.getByRole("option", { name: "Owner" }));
 		await flushTimers();
 	};
+
+	it("isolates category option caches by scope and shares them within a scope", async () => {
+		const templateOptions = vi.fn(async () => [
+			{ label: "Docker", value: "docker" },
+			{ label: "Kubernetes", value: "kubernetes" },
+		]);
+		const workspaceOptions = vi.fn(async () => [
+			{ label: "Alice", value: "alice" },
+			{ label: "Bob", value: "bob" },
+		]);
+		const onWorkspaceChange = vi.fn();
+		const { queryClient } = render(
+			<>
+				{[0, 1].map((index) => (
+					<FilterComboboxHarness
+						key={index}
+						queryScope="templates"
+						categories={[
+							{
+								key: "owner",
+								label: "Owner",
+								hideWhenSingleOption: true,
+								getOptions: templateOptions,
+							},
+						]}
+						initialValue=""
+						onChange={vi.fn()}
+					/>
+				))}
+				<FilterComboboxHarness
+					queryScope="workspaces"
+					categories={[
+						{
+							key: "owner",
+							label: "Owner",
+							hideWhenSingleOption: true,
+							getOptions: workspaceOptions,
+						},
+					]}
+					initialValue=""
+					onChange={onWorkspaceChange}
+				/>
+			</>,
+		);
+		await waitFor(() => {
+			expect(templateOptions).toHaveBeenCalledTimes(1);
+			expect(workspaceOptions).toHaveBeenCalledTimes(1);
+		});
+		const templateKey = filterComboboxOptions(
+			"templates",
+			"owner",
+			templateOptions,
+			"",
+			true,
+		).queryKey;
+		const workspaceKey = filterComboboxOptions(
+			"workspaces",
+			"owner",
+			workspaceOptions,
+			"",
+			true,
+		).queryKey;
+		await waitFor(() => {
+			expect(queryClient.getQueryData(templateKey)).toEqual([
+				{ label: "Docker", value: "docker" },
+				{ label: "Kubernetes", value: "kubernetes" },
+			]);
+			expect(queryClient.getQueryData(workspaceKey)).toEqual([
+				{ label: "Alice", value: "alice" },
+				{ label: "Bob", value: "bob" },
+			]);
+		});
+
+		const user = userEvent.setup();
+		await user.click(screen.getAllByRole("button", { name: "Filters" })[2]);
+		await user.keyboard("{Home}{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "Bob" }));
+		expect(onWorkspaceChange).toHaveBeenLastCalledWith("owner:bob");
+	});
 
 	it("fetches hideable categories before the menu opens and skips others", async () => {
 		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);

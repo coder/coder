@@ -91,6 +91,8 @@ type FilterComboboxProps = Readonly<{
 	 * query). When set, the input is marked invalid and linked to the message.
 	 */
 	errorMessage?: string;
+	/** Use the same scope only when instances should share option data. */
+	queryScope?: string;
 }>;
 
 /**
@@ -107,7 +109,10 @@ export function FilterCombobox({
 	placeholder = "Search and filter…",
 	className,
 	errorMessage,
+	queryScope,
 }: FilterComboboxProps) {
+	const instanceId = useId();
+	const optionsScope = queryScope ?? instanceId;
 	const {
 		open,
 		inputValue,
@@ -141,6 +146,7 @@ export function FilterCombobox({
 		value,
 		onChange,
 		categories,
+		queryScope: optionsScope,
 	});
 	const { setInputRef } = actions;
 
@@ -268,6 +274,7 @@ export function FilterCombobox({
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		actions.retryUnfilteredOptions,
+		optionsScope,
 	);
 	// Toggling clears the text that matched the scope phrase, so pin the flyout.
 	const toggleFlyoutScope = (categoryKey: string) => {
@@ -1102,6 +1109,7 @@ const useFlyoutOptions = (
 	optionsByKey: ReadonlyMap<string, readonly FilterOption[]>,
 	erroredKeys: ReadonlySet<string>,
 	retryOptions: (categoryKey: string) => void,
+	queryScope: string,
 ) => {
 	const categoryKey = category?.key;
 	// Showing another flyout, or none, clears the search.
@@ -1123,6 +1131,7 @@ const useFlyoutOptions = (
 	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
+			queryScope,
 			categoryKey ?? "",
 			category?.getOptions,
 			debouncedQuery,
