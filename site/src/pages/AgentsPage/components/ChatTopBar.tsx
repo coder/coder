@@ -360,7 +360,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && canShareChat && chat && (
+				{!isEmbedded && canShareChat && canManage && chat && (
 					<ChatSharingTopBarButton
 						chatId={chat.id}
 						organizationId={chat.organization_id}
