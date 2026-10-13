@@ -24,6 +24,3 @@ var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
 
 // ServerTailnetKeepAliveAgentConn exposes keepAliveAgentConn for tests.
 var ServerTailnetKeepAliveAgentConn = (*ServerTailnet).keepAliveAgentConn
-
-// KeepAliveAPIIdleConnTimeout exposes keepAliveAPIIdleConnTimeout for tests.
-const KeepAliveAPIIdleConnTimeout = keepAliveAPIIdleConnTimeout
