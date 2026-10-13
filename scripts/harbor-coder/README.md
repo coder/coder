@@ -31,11 +31,34 @@ runs automatically.
 - **On a PR:** comment `/coder-agents-eval`. The PR branch is the candidate,
   `main` is the baseline, and the comparison is posted back as a PR comment.
   Optional args on the same line: `model=`, `attempts=`, `concurrency=`,
-  `baseline=` (for example `/coder-agents-eval model=claude-sonnet-4-5 attempts=3`).
-  The commenter needs push access and the PR must be from this repository.
+  `baseline=`, `suite=`, `exclude=`. The commenter needs push access and the
+  PR must be from this repository.
 - **Manually:** `workflow_dispatch` with the same options; the result goes to
   the step summary. Set `candidate_ref` equal to `baseline_ref` once to
   measure the noise floor before trusting small deltas.
+
+## Which tasks
+
+`suite=local` (default) runs `tasks/` in this directory. Any dataset in the
+[Harbor registry](https://hub.harborframework.com/datasets) also works, since
+the Coder environment runs unmodified Harbor tasks: `suite=terminal-bench-sample@2.0`,
+`suite=terminal-bench@2.0`, `suite=swebench-verified@1.0`, `suite=humanevalfix@1.0`,
+and so on. `exclude=` takes comma-separated name globs for tasks known to be
+broken upstream.
+
+Measured on `terminal-bench-sample@2.0` with haiku: the oracle passes 7 of 10
+(the two `qemu-*` tasks and `build-cython-ext` have bit-rotted upstream and
+fail under Harbor's own Docker environment too), and Coder Agents passes 3 of
+those 7 at about $2.20 and 6.5 minutes per arm. That is the discriminating
+range a prompt A/B needs; the local tasks are easier and mostly saturate.
+
+```
+/coder-agents-eval suite=terminal-bench-sample@2.0 exclude=qemu-*,build-cython-ext attempts=2
+```
+
+Requirements a task must meet to run on the Coder environment: the image has
+`bash` and `tar`, can run as root, and does not set `network_mode = "no-network"`
+or need a GPU.
 
 Model calls go through dogfood's AI gateway, authenticated with a Coder API
 key (`HARBOR_CODER_UPSTREAM_TOKEN`; the `EVAL_CODER_SESSION_TOKEN` secret in

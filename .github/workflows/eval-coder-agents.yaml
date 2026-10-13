@@ -4,9 +4,10 @@
 #
 # Triggers:
 #   - Comment `/coder-agents-eval` on a PR (optionally with `key=value` args:
-#     model, attempts, concurrency, baseline). The commenter needs push access
-#     and the PR must come from this repository, because the candidate arm
-#     builds and runs the PR's code with access to the gateway token.
+#     model, attempts, concurrency, baseline, suite, exclude). The commenter
+#     needs push access and the PR must come from this repository, because the
+#     candidate arm builds and runs the PR's code with access to the gateway
+#     token.
 #   - workflow_dispatch with the same options.
 #
 # Each arm builds its own coderd, serves it with embedded Postgres, points its
@@ -19,9 +20,6 @@
 name: eval/coder-agents
 
 on:
-  # TEMPORARY: register and exercise the workflow before merge. Remove.
-  push:
-    branches: [harbor-coder-eval]
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -45,6 +43,14 @@ on:
       concurrency:
         description: Concurrent trials (-n)
         default: "3"
+        type: string
+      suite:
+        description: "`local` for scripts/harbor-coder/tasks, or a Harbor registry dataset such as terminal-bench-sample@2.0"
+        default: local
+        type: string
+      exclude:
+        description: Comma-separated task name globs to exclude (e.g. known-broken tasks)
+        default: ""
         type: string
 
 permissions: {}
@@ -71,6 +77,8 @@ jobs:
       model: ${{ steps.args.outputs.model }}
       attempts: ${{ steps.args.outputs.attempts }}
       concurrency: ${{ steps.args.outputs.concurrency }}
+      suite: ${{ steps.args.outputs.suite }}
+      exclude: ${{ steps.args.outputs.exclude }}
       pr_number: ${{ steps.args.outputs.pr_number }}
     steps:
       - name: Harden Runner
@@ -106,16 +114,20 @@ jobs:
           IN_MODEL: ${{ inputs.model }}
           IN_ATTEMPTS: ${{ inputs.attempts }}
           IN_CONCURRENCY: ${{ inputs.concurrency }}
+          IN_SUITE: ${{ inputs.suite }}
+          IN_EXCLUDE: ${{ inputs.exclude }}
           TRIGGER_SHA: ${{ github.sha }}
           TRIGGER_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          baseline="main"; model="claude-haiku-4-5"; attempts="2"; concurrency="3"
+          baseline="main"; model="claude-haiku-4-5"; attempts="2"; concurrency="3"; suite="local"; exclude=""
           if [[ "${EVENT_NAME}" != "issue_comment" ]]; then
             baseline="${IN_BASELINE:-$baseline}"
             model="${IN_MODEL:-$model}"
             attempts="${IN_ATTEMPTS:-$attempts}"
             concurrency="${IN_CONCURRENCY:-$concurrency}"
+            suite="${IN_SUITE:-$suite}"
+            exclude="${IN_EXCLUDE:-$exclude}"
             candidate="${IN_CANDIDATE:-$TRIGGER_SHA}"
             label="${IN_CANDIDATE:-$TRIGGER_REF}"
             pr_number=""
@@ -133,21 +145,25 @@ jobs:
             label="${head_ref}"
             pr_number="${PR_NUMBER}"
             # Optional `key=value` args after the command, e.g.
-            # `/coder-agents-eval model=claude-sonnet-4-5 attempts=3`.
+            # `/coder-agents-eval suite=terminal-bench-sample@2.0 exclude=qemu-*,build-cython-ext`.
             first_line="$(printf '%s\n' "${COMMENT_BODY}" | head -n1)"
             for tok in ${first_line#/coder-agents-eval}; do
-              [[ "${tok}" =~ ^(model|attempts|concurrency|baseline)=([A-Za-z0-9._/-]+)$ ]] || {
+              [[ "${tok}" =~ ^(model|attempts|concurrency|baseline|suite|exclude)=([A-Za-z0-9._/@*,-]+)$ ]] || {
                 echo "::error::unrecognized argument: ${tok}"; exit 1; }
               case "${BASH_REMATCH[1]}" in
                 model) model="${BASH_REMATCH[2]}" ;;
                 attempts) attempts="${BASH_REMATCH[2]}" ;;
                 concurrency) concurrency="${BASH_REMATCH[2]}" ;;
                 baseline) baseline="${BASH_REMATCH[2]}" ;;
+                suite) suite="${BASH_REMATCH[2]}" ;;
+                exclude) exclude="${BASH_REMATCH[2]}" ;;
               esac
             done
           fi
           [[ "${attempts}" =~ ^[0-9]+$ && "${concurrency}" =~ ^[0-9]+$ ]] || {
             echo "::error::attempts and concurrency must be integers"; exit 1; }
+          [[ "${suite}" =~ ^[A-Za-z0-9._@-]+$ && "${exclude}" =~ ^[A-Za-z0-9._*,-]*$ ]] || {
+            echo "::error::invalid suite or exclude"; exit 1; }
           {
             echo "baseline_ref=${baseline}"
             echo "candidate_ref=${candidate}"
@@ -155,6 +171,8 @@ jobs:
             echo "model=${model}"
             echo "attempts=${attempts}"
             echo "concurrency=${concurrency}"
+            echo "suite=${suite}"
+            echo "exclude=${exclude}"
             echo "pr_number=${pr_number}"
           } | tee -a "${GITHUB_OUTPUT}"
 
@@ -271,13 +289,24 @@ jobs:
           ARM: ${{ matrix.arm }}
           ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
           CONCURRENCY: ${{ needs.resolve.outputs.concurrency }}
+          SUITE: ${{ needs.resolve.outputs.suite }}
+          EXCLUDE: ${{ needs.resolve.outputs.exclude }}
         run: |
           set -euo pipefail
           set -a; . "${RUNNER_TEMP}/coder.env"; set +a
           BIN_DIR="$(dirname "${HARBOR_CODER_BIN}")"
           export PATH="${BIN_DIR}:${PATH}"
+          source_args=(-p scripts/harbor-coder/tasks)
+          if [[ "${SUITE}" != "local" ]]; then
+            source_args=(-d "${SUITE}")
+          fi
+          exclude_args=()
+          IFS=',' read -ra globs <<< "${EXCLUDE}"
+          for g in "${globs[@]}"; do
+            [[ -n "${g}" ]] && exclude_args+=(-x "${g}")
+          done
           harbor run \
-            -p scripts/harbor-coder/tasks \
+            "${source_args[@]}" "${exclude_args[@]}" \
             --agent harbor_coder.agent:CoderAgentsAgent \
             --env harbor_coder.environment:CoderEnvironment \
             --ek template="${HARBOR_CODER_TEMPLATE}" \
@@ -350,6 +379,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           MODEL: ${{ needs.resolve.outputs.model }}
           ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
+          SUITE: ${{ needs.resolve.outputs.suite }}
         run: |
           set -euo pipefail
           mkdir -p jobs/baseline jobs/candidate
@@ -359,7 +389,7 @@ jobs:
               --labels "${BASELINE_REF}" "${CANDIDATE_LABEL}" \
               --json-out comparison.json
             echo
-            echo "Model: \`${MODEL}\`, attempts per task: ${ATTEMPTS}, run jobs: ${RUN_RESULT}. [Workflow run](${RUN_URL})"
+            echo "Suite: \`${SUITE}\`, model: \`${MODEL}\`, attempts per task: ${ATTEMPTS}, run jobs: ${RUN_RESULT}. [Workflow run](${RUN_URL})"
           } | tee report.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Post comparison on the PR

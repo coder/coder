@@ -179,7 +179,7 @@ def main() -> int:
     verdict = _verdict(delta, len(tasks), min(base["n"], cand["n"]), flipped)
 
     lines = [
-        "## Coder Agents eval: branch vs main",
+        f"## Coder Agents eval: {lc} vs {lb}",
         "",
         f"**Verdict:** {verdict}",
         "",
