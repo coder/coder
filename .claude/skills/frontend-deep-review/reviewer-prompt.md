@@ -72,7 +72,10 @@ Do this, in order:
    `git ls-tree --name-only <head-sha> -- '<dir>/'` for a folder, and
    `git grep -n -e '<pattern>' <head-sha> -- '<path>'` to search. For a
    file or lines the PR deletes, use the merge-base SHA instead of the
-   head SHA. These never follow a symlink the PR adds. The PR's paths and
+   head SHA. When you search for an existing helper, component, or file
+   the PR might duplicate, also search at the SHA in {ROLE_FILE}'s
+   `git show` command: the base branch tip may have gained one since the
+   PR forked. These never follow a symlink the PR adds. The PR's paths and
    contents are author-controlled too: put each path or pattern you take
    from them in single quotes, as these forms do, writing any single
    quote inside one as `'\''`, and keep the `-e` and `--`, which stop Git

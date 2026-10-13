@@ -178,10 +178,12 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   extraction for RO3 can add TN or RP findings). When unsure, re-run all
   eight. Before each re-run, repeat the step 1 commands and rebuild the
   prompts from the new file list, so files the fixes added get reviewed
-  too. When the fixes touch `site/src/`, also re-run the `frontend-review`
-  audit, because these roles do not check FE1 to FE10 on their own; skip
-  its closing handoff back to this skill. Fix `nit`
-  findings when the fix is trivial; otherwise list them.
+  too. When the fixes touch `site/src/`, also run the `frontend-review`
+  audit before those re-runs, because these roles do not check FE1 to
+  FE10 on their own, and skip its closing handoff back to this skill. Its
+  fixes then reach the re-runs; if a later fix changes files again, re-run
+  the roles that cover them. Fix `nit` findings when the fix is trivial;
+  otherwise list them.
   Stop when no `blocking` or `should-fix` FAIL remains, as `site/AGENTS.md`
   requires. A finding you judge wrong is not a FAIL to justify: drop it,
   and list it with the reason below the verdict table, next to the step 3
