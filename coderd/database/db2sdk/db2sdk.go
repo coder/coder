@@ -768,7 +768,31 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
-func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+// WorkspaceAgentScript converts a script row to the SDK type. It fails on a
+// dependencies column that cannot be decoded or that holds an entry the SDK
+// cannot represent, so a caller never receives a partial list. The write
+// path already rejects such rows, so one here means a bug or a manual edit
+// of the database.
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) (codersdk.WorkspaceAgentScript, error) {
+	var dependencies []codersdk.WorkspaceAgentScriptDependency
+	if len(dbScript.Dependencies) > 0 {
+		if err := json.Unmarshal(dbScript.Dependencies, &dependencies); err != nil {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("decode dependencies: %w", err)
+		}
+	}
+	if len(dependencies) == 0 {
+		// nil rather than an empty slice so omitempty leaves the key out.
+		dependencies = nil
+	}
+	for i, dependency := range dependencies {
+		if dependency.PrerequisiteResourceAddress == "" {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		if !dependency.Requirement.Valid() {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has unsupported requirement %q", i, dependency.Requirement)
+		}
+	}
+
 	script := codersdk.WorkspaceAgentScript{
 		ID:               dbScript.ID,
 		LogPath:          dbScript.LogPath,
@@ -780,13 +804,15 @@ func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRo
 		StartBlocksLogin: dbScript.StartBlocksLogin,
 		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
 		DisplayName:      dbScript.DisplayName,
+		ResourceAddress:  dbScript.ResourceAddress,
+		Dependencies:     dependencies,
 		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
 	}
 	if dbScript.Status.Valid {
 		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
 		script.Status = &status
 	}
-	return script
+	return script, nil
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {

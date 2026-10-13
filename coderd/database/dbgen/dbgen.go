@@ -828,6 +828,12 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	// Casting an empty string to jsonb is a Postgres error, not an empty
+	// list, so the default has to be written out.
+	dependencies := orig.Dependencies
+	if len(dependencies) == 0 {
+		dependencies = json.RawMessage(`[]`)
+	}
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -841,6 +847,8 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
 		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		ResourceAddress:  []string{takeFirst(orig.ResourceAddress, "")},
+		Dependencies:     []string{string(dependencies)},
 	})
 	require.NoError(t, err, "insert workspace agent script")
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")

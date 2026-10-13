@@ -33284,6 +33284,13 @@ const docTemplate = `{
                 "cron": {
                     "type": "string"
                 },
+                "dependencies": {
+                    "description": "Dependencies lists the scripts this one waits for, as the\nprovisioner resolved them. It is omitted when empty.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependency"
+                    }
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -33300,6 +33307,10 @@ const docTemplate = `{
                 "log_source_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "resource_address": {
+                    "description": "ResourceAddress is the full Terraform address of the coder_script\nresource, for example \"module.git_clone.coder_script.clone\". It is\nempty for scripts that are not coder_script resources.",
+                    "type": "string"
                 },
                 "run_on_start": {
                     "type": "boolean"
@@ -33320,6 +33331,28 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptDependency": {
+            "type": "object",
+            "properties": {
+                "prerequisite_resource_address": {
+                    "type": "string"
+                },
+                "requirement": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependencyRequirement"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentScriptDependencyRequirement": {
+            "type": "string",
+            "enum": [
+                "success",
+                "completion"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptDependencyRequirementSuccess",
+                "WorkspaceAgentScriptDependencyRequirementCompletion"
+            ]
         },
         "codersdk.WorkspaceAgentScriptStatus": {
             "type": "string",
