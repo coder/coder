@@ -48,7 +48,10 @@ const (
 	maxHeight     = 1200
 	minSize       = 200
 
-	captureTimeout   = 15 * time.Second
+	captureTimeout = 15 * time.Second
+	// launchTimeout is generous because Chrome's first start in a fresh
+	// workspace builds its font cache, which took over 25s on CI runners.
+	launchTimeout    = 2 * time.Minute
 	viewerQueueSize  = 64
 	inputQueueSize   = 256
 	defaultIdleClose = 5 * time.Minute
@@ -518,7 +521,7 @@ func (b *Browser) launch(ctx context.Context, width, height int) (*session, erro
 	}()
 	go s.inputLoop()
 
-	setupCtx, setupCancel := context.WithTimeout(ctx, 30*time.Second)
+	setupCtx, setupCancel := context.WithTimeout(ctx, launchTimeout)
 	defer setupCancel()
 	if err := s.setup(setupCtx, width, height); err != nil {
 		s.close()

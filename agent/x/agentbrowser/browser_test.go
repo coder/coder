@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,9 @@ import (
 
 func findChrome(t *testing.T) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the workspace browser is not supported on Windows")
+	}
 	for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
 		if _, err := exec.LookPath(name); err == nil {
 			return
@@ -66,7 +70,8 @@ func TestBrowserStream(t *testing.T) {
 	t.Parallel()
 	findChrome(t)
 
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	// A cold Chrome start builds its font cache, which is slow on CI.
+	ctx := testutil.Context(t, 3*time.Minute)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	site := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

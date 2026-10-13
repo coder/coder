@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -4400,6 +4401,9 @@ func TestWorkspaceAgentBrowser(t *testing.T) {
 	t.Run("Stream", func(t *testing.T) {
 		t.Parallel()
 		hasChrome := false
+		if runtime.GOOS == "windows" {
+			t.Skip("the workspace browser is not supported on Windows")
+		}
 		for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
 			if _, err := exec.LookPath(name); err == nil {
 				hasChrome = true
@@ -4409,7 +4413,8 @@ func TestWorkspaceAgentBrowser(t *testing.T) {
 			t.Skip("Chrome is not installed")
 		}
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		// A cold Chrome start builds its font cache, which is slow on CI.
+		ctx := testutil.Context(t, 3*time.Minute)
 		conn, res, err := dial(ctx, client)
 		require.NoError(t, err)
 		if res.Body != nil {
