@@ -1,6 +1,6 @@
 import { QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
-import type { Skill, SkillMetadata } from "#/api/typesGenerated";
+import type { Skill } from "#/api/typesGenerated";
 import {
 	deleteOrganizationSkill,
 	organizationSkill,
@@ -22,24 +22,17 @@ const createTestQueryClient = (): QueryClient =>
 		},
 	});
 
-const makeSkill = (name: string): Skill => ({
-	id: `${name}-id`,
-	name,
-	description: `${name} description`,
+const mockAlphaSkill: Skill = {
+	id: "alpha-id",
+	name: "alpha",
+	description: "alpha description",
 	enabled: true,
-	content: `---\nname: ${name}\n---\nBody\n`,
+	content: "---\nname: alpha\n---\nBody\n",
 	created_at: "2026-05-21T00:00:00Z",
 	updated_at: "2026-05-21T00:00:00Z",
-});
+};
 
-const toMetadata = (skill: Skill): SkillMetadata => ({
-	id: skill.id,
-	name: skill.name,
-	description: skill.description,
-	enabled: skill.enabled,
-	created_at: skill.created_at,
-	updated_at: skill.updated_at,
-});
+const { content: _content, ...mockAlphaSkillMetadata } = mockAlphaSkill;
 
 describe("organization skill ACL queries", () => {
 	it("removes a deleted skill's ACL caches", async () => {
@@ -49,7 +42,7 @@ describe("organization skill ACL queries", () => {
 			q: "",
 		}).queryKey;
 		queryClient.setQueryData(organizationSkills("org").queryKey, [
-			toMetadata(makeSkill("alpha")),
+			mockAlphaSkillMetadata,
 		]);
 		queryClient.setQueryData(aclKey, { users: [], groups: [] });
 		queryClient.setQueryData(availableKey, { users: [], groups: [] });
@@ -69,11 +62,13 @@ describe("organization skill ACL queries", () => {
 
 	it("invalidates the skill list and detail after saving the ACL", async () => {
 		const queryClient = createTestQueryClient();
-		const alpha = makeSkill("alpha");
 		queryClient.setQueryData(organizationSkills("org").queryKey, [
-			toMetadata(alpha),
+			mockAlphaSkillMetadata,
 		]);
-		queryClient.setQueryData(organizationSkill("org", "alpha").queryKey, alpha);
+		queryClient.setQueryData(
+			organizationSkill("org", "alpha").queryKey,
+			mockAlphaSkill,
+		);
 
 		await updateOrganizationSkillACL(queryClient).onSuccess(undefined, {
 			organizationId: "org",

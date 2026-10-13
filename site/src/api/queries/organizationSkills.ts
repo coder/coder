@@ -102,8 +102,8 @@ export const updateOrganizationSkill = (
 ) => ({
 	mutationFn: ({ name, req }: UpdateOrganizationSkillArgs) =>
 		API.experimental.updateOrganizationSkill(organizationId, name, req),
-	// The detail query is inactive once the editor closes, so invalidating it
-	// would not refetch it and the next open would show the old content.
+	// Invalidation refetches only active queries, so write the PATCH response
+	// to keep a cached detail no editor observes from showing old content.
 	onSuccess: (skill: TypesGen.Skill, { name }: UpdateOrganizationSkillArgs) => {
 		queryClient.setQueryData(organizationSkillKey(organizationId, name), skill);
 	},

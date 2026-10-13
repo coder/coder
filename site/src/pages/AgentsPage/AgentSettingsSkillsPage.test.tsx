@@ -76,7 +76,8 @@ describe("AgentSettingsSkillsPage", () => {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
-		expect(screen.getAllByRole("option")).toHaveLength(2);
+		screen.getByRole("option", { name: /My Organization$/ });
+		screen.getByRole("option", { name: /My Organization 2/ });
 		expect(
 			screen.queryByRole("option", { name: /My Organization 3/ }),
 		).toBeNull();
@@ -86,6 +87,10 @@ describe("AgentSettingsSkillsPage", () => {
 				name: MockOrganization2.display_name,
 			}),
 		).findByText("second-skill");
-		expect(screen.getAllByRole("table")).toHaveLength(2);
+		expect(
+			screen.queryByRole("table", {
+				name: MockDefaultOrganization.display_name,
+			}),
+		).toBeNull();
 	});
 });

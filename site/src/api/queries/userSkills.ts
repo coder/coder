@@ -37,8 +37,8 @@ type UpdateUserSkillArgs = {
 export const updateUserSkill = (queryClient: QueryClient, user = "me") => ({
 	mutationFn: ({ name, req }: UpdateUserSkillArgs) =>
 		API.experimental.updateUserSkill(user, name, req),
-	// The detail query is inactive once the editor closes, so invalidating it
-	// would not refetch it and the next open would show the old content.
+	// Invalidation refetches only active queries, so write the PATCH response
+	// to keep a cached detail no editor observes from showing old content.
 	onSuccess: (skill: TypesGen.Skill, { name }: UpdateUserSkillArgs) => {
 		queryClient.setQueryData(userSkillKey(name, user), skill);
 	},

@@ -272,7 +272,6 @@ type SkillsQuery<TData> = {
 	queryFn: () => Promise<TData>;
 };
 
-/** The queries and mutations for the skills of one user or organization. */
 export type SkillsScope = {
 	list: SkillsQuery<SkillMetadata[]>;
 	detail: (name: string) => SkillsQuery<Skill>;
