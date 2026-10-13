@@ -339,7 +339,9 @@ export const useFilterCombobox = ({
 	const isBrowsing = mode === "browsing";
 
 	const lastEmittedRef = useRef(value);
-	const prevChipKeysRef = useRef(chipKeys);
+	// Compared by content, so an equivalent chipKeys array with a new identity
+	// does not reconcile and drop pending typed text.
+	const prevChipKeysSignatureRef = useRef(chipKeys.join("\0"));
 	const highlightRef = useRef<FilterComboboxHighlight | null>(null);
 	const getHighlightedValue = () => highlightRef.current?.get() ?? "";
 	const setHighlightedValue = (value: string) => {
@@ -397,8 +399,10 @@ export const useFilterCombobox = ({
 	// the self-emit guard. It runs during the commit, so a key handled before
 	// passive effects flush already reads the caller's value.
 	useLayoutEffect(() => {
-		const chipKeysChanged = prevChipKeysRef.current !== chipKeys;
-		prevChipKeysRef.current = chipKeys;
+		const chipKeysSignature = chipKeys.join("\0");
+		const chipKeysChanged =
+			prevChipKeysSignatureRef.current !== chipKeysSignature;
+		prevChipKeysSignatureRef.current = chipKeysSignature;
 		const isExternal = value !== lastEmittedRef.current;
 		if (!isExternal && !chipKeysChanged) {
 			return;

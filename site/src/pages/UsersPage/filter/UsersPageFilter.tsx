@@ -44,8 +44,6 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	// A new categories identity makes the combobox reconcile its input with
-	// `value`, which would drop uncommitted typed text on every render.
 	const categories = useMemo(
 		(): FilterCategory[] => [
 			{
