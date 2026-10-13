@@ -1529,7 +1529,8 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// A message event with a mismatched chat_id is ignored.
+		// A message event with a mismatched chat_id should be ignored
+		// and should NOT trigger scheduleStreamReset.
 		const mismatchedMessage = buildMessage(
 			"chat-2",
 			99,
@@ -1539,21 +1540,22 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
-				snapshot_version: 1,
 				chat_id: "chat-2",
 				message: mismatchedMessage,
+				snapshot_version: 1,
 			});
 		});
 
-		// The mismatched event did not touch the stream state.
+		// Stream state should still be present — the mismatched event
+		// was filtered and did not trigger a stream reset.
 		await waitFor(() => {
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "streaming" },
 			]);
 		});
 
-		// The chat's own sync applies, including the preview_reset the server
-		// sends after a commit.
+		// A message event with the correct chat_id should be processed
+		// and trigger scheduleStreamReset, clearing stream state.
 		const matchingMessage = buildMessage(
 			chatID,
 			2,
@@ -1561,15 +1563,12 @@ describe("useChatStore", () => {
 			"correct chat",
 		);
 		act(() => {
-			mockSocket.emitDataBatch([
-				{
-					type: "message",
-					snapshot_version: 1,
-					chat_id: chatID,
-					message: matchingMessage,
-				},
-				{ type: "preview_reset", chat_id: chatID },
-			]);
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: matchingMessage,
+				snapshot_version: 1,
+			});
 		});
 
 		await waitFor(() => {
@@ -2560,11 +2559,6 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2865,11 +2859,6 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -3032,14 +3021,11 @@ describe("useChatStore", () => {
 
 		// Set an error via an error stream event first.
 		act(() => {
-			mockSocket.emitDataBatch([
-				statusEvent(chatID, "error"),
-				{
-					type: "error",
-					chat_id: chatID,
-					error: { message: "Rate limit exceeded", retryable: false },
-				},
-			]);
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "Rate limit exceeded", retryable: false },
+			});
 		});
 
 		await waitFor(() => {
@@ -3081,11 +3067,6 @@ describe("useChatStore", () => {
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -3151,7 +3132,7 @@ describe("useChatStore", () => {
 			timeout: 3_000,
 		});
 
-		// Second disconnect: reconnect after 2s.
+		// Second disconnect — reconnect after 2s.
 		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
@@ -3729,7 +3710,11 @@ describe("thinking indicator event ordering", () => {
 		// Server sends status:running BEFORE message_part (the "good" order).
 		act(() => {
 			mockSocket.emitDataBatch([
-				statusEvent(chatID),
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
 				{
 					type: "message_part",
 					chat_id: chatID,
@@ -3740,7 +3725,7 @@ describe("thinking indicator event ordering", () => {
 			]);
 		});
 
-		// The status applies at once; the parts flush later.
+		// Same contract: status set, parts deferred.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 			expect(result.current.streamState).toBeNull();
@@ -3950,7 +3935,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 	});
 
-	it("updates sidebar chat status to error on an error status", async () => {
+	it("updates sidebar chat status to error on error stream event", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-sidebar-error";
@@ -3991,14 +3976,11 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		act(() => {
-			mockSocket.emitDataBatch([
-				statusEvent(chatID, "error"),
-				{
-					type: "error",
-					chat_id: chatID,
-					error: { message: "something went wrong", retryable: false },
-				},
-			]);
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "something went wrong", retryable: false },
+			});
 		});
 
 		await waitFor(() => {
@@ -4231,14 +4213,11 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		act(() => {
-			mockSocket.emitDataBatch([
-				statusEvent(chatID, "error"),
-				{
-					type: "error",
-					chat_id: chatID,
-					error: { message: "something broke", retryable: false },
-				},
-			]);
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "something broke", retryable: false },
+			});
 		});
 
 		await waitFor(() => {
@@ -4304,18 +4283,18 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			]);
 		});
 
-		// Commit the assistant message as durable. The server ends the
-		// attempt's live output with a preview_reset in the same sync.
+		// Commit the assistant message as durable. With the old
+		// code, streamState stayed non-null here because
+		// clearStreamState was deferred to a rAF. Both the
+		// durable message and the stream content coexisted,
+		// causing duplicate rendering.
 		act(() => {
-			mockSocket.emitDataBatch([
-				{
-					type: "message",
-					snapshot_version: 1,
-					chat_id: chatID,
-					message: buildMessage(chatID, 2, "assistant", "response"),
-				},
-				{ type: "preview_reset", chat_id: chatID },
-			]);
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "response"),
+				snapshot_version: 1,
+			});
 		});
 
 		// The durable message must be present AND streamState
@@ -4395,15 +4374,12 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		snapshots.length = 0;
 
 		act(() => {
-			mockSocket.emitDataBatch([
-				{
-					type: "message",
-					snapshot_version: 1,
-					chat_id: chatID,
-					message: buildMessage(chatID, 2, "assistant", "hello"),
-				},
-				{ type: "preview_reset", chat_id: chatID },
-			]);
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "hello"),
+				snapshot_version: 1,
+			});
 		});
 
 		await waitFor(() => {
