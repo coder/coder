@@ -1640,11 +1640,19 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
 	dbErr := xerrors.New("database offline")
 	tests := []struct {
 		name         string
+		noWorkspace  bool
 		boundAgent   bool
 		setup        func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID)
 		wantErr      error
 		wantNoUsable bool
 	}{
+		{
+			name:         "NoWorkspace",
+			noWorkspace:  true,
+			setup:        func(*dbmock.MockStore, uuid.UUID, uuid.UUID) {},
+			wantErr:      errChatHasNoWorkspace,
+			wantNoUsable: true,
+		},
 		{
 			name: "WorkspaceRowMissing",
 			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
@@ -1691,6 +1699,17 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
 			wantNoUsable: true,
 		},
 		{
+			name: "NoEligibleAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{
+					{ID: uuid.New(), ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+				}, nil)
+			},
+			wantErr:      agentselect.ErrNoEligibleAgents,
+			wantNoUsable: true,
+		},
+		{
 			name: "BindingWriteFails",
 			setup: func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID) {
 				expectLiveWorkspace(db, workspaceID)
@@ -1714,7 +1733,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
 
 			chat := database.Chat{
 				ID:          uuid.New(),
-				WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+				WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: !tc.noWorkspace},
 				AgentID:     uuid.NullUUID{UUID: agentID, Valid: tc.boundAgent},
 			}
 			workspaceCtx := turnWorkspaceContext{

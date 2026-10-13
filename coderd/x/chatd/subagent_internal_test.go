@@ -2836,6 +2836,30 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 	))
 }
 
+type computerUseProviderErrorStore struct {
+	database.Store
+}
+
+func (computerUseProviderErrorStore) GetChatComputerUseProvider(context.Context) (string, error) {
+	return "", sql.ErrConnDone
+}
+
+func TestSpawnAgent_ComputerUseProviderReadErrorFails(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	server := newInternalTestServer(t, computerUseProviderErrorStore{Store: db}, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-computer-use-provider-read-error",
+	)
+
+	_, err := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.ErrorIs(t, err, sql.ErrConnDone)
+}
+
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 	t.Parallel()
 
