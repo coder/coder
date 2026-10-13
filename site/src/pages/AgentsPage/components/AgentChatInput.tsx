@@ -1374,7 +1374,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[[contenteditable]:focus]:ring-2 has-[[contenteditable]:focus]:ring-content-link",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingHistoryMessage || warning) &&
