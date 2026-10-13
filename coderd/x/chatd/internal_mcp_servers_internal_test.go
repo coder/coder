@@ -40,10 +40,10 @@ func TestInternalMCPServersForChat(t *testing.T) {
 	servers, failures := server.internalMCPServersForChat(testutil.Context(t, testutil.WaitShort), chat)
 
 	require.Equal(t, []uuid.UUID{chat.ID, chat.ID, chat.ID}, gotChatIDs)
-	require.Equal(t, []mcpclient.Server{{
-		ID:        attached.id(),
-		Slug:      "attached",
-		InProcess: mcpServer,
+	require.Equal(t, []mcpclient.InProcessServer{{
+		ID:     attached.id(),
+		Slug:   "attached",
+		Server: mcpServer,
 	}}, servers)
 	require.Equal(t, []mcpclient.ConnectSummary{{
 		ConfigID: InternalMCPServer{Slug: "broken"}.id(),

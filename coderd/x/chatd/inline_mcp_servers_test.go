@@ -308,6 +308,61 @@ func TestChatInlineMCPServers(t *testing.T) {
 		}
 	})
 
+	t.Run("InternalToolWinsNameCollision", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		admin := newChatInlineMCPServer(t, "admin", "Admin echo")
+		caller := newChatInlineMCPServer(t, "caller", "Caller echo")
+		model := newChatInlineMCPModel(t, "bot__echo")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		adminConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			Slug:           "bot",
+			Url:            admin.url,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		bot := newChatInlineEchoServer("bot", "Internal echo")
+		// MCP tool search stays on, so the test also checks that the
+		// admin tool that lost the collision is not deferred.
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.InternalMCPServers = []chatd.InternalMCPServer{{
+				Slug: "bot",
+				ServerForChat: func(context.Context, database.Chat) (*mcp.Server, error) {
+					return bot, nil
+				},
+			}}
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "internal-mcp-collision",
+			ModelConfigID:      modelConfig.ID,
+			MCPServerIDs:       []uuid.UUID{adminConfig.ID},
+			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: caller.url}},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+		chatResult, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
+
+		tools, rawBody := model.first()
+		require.Contains(t, tools, "bot__echo")
+		require.Contains(t, rawBody, "Internal echo")
+		require.NotContains(t, rawBody, "Admin echo")
+		require.NotContains(t, rawBody, "Caller echo")
+		require.True(t, model.sawResult.Load(), "tool result must reach the second model call")
+		require.NotEmpty(t, admin.snapshot(), "chatd must connect to the admin server")
+		require.NotEmpty(t, caller.snapshot(), "chatd must connect to the caller server")
+	})
+
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
