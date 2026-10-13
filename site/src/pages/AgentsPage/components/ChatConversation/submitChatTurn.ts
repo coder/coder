@@ -117,22 +117,18 @@ const findBuiltInChatCommand = (
 
 const runBuiltInChatCommand = async ({
 	command,
-	store,
 	compact,
 	clearChatContext,
 }: {
 	command: (typeof CHAT_SLASH_COMMANDS)[number];
-	store: ChatStore;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 }): Promise<void> => {
 	switch (command.name) {
 		case COMPACT_SLASH_COMMAND.name: {
-			const pendingID = store.addPendingAction({ kind: "compact" });
 			try {
 				await compact();
 			} catch (error) {
-				store.removePendingAction(pendingID);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
@@ -211,7 +207,6 @@ export async function submitChatTurn(
 	if (builtInCommandResolution === "available" && builtInCommand) {
 		await runBuiltInChatCommand({
 			command: builtInCommand,
-			store,
 			compact,
 			clearChatContext,
 		});
