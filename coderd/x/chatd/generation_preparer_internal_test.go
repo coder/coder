@@ -13,9 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -883,4 +885,77 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, configs)
 	})
+}
+
+// TestPrepareGenerationWorkspaceMCPToolsByMode verifies that plan-mode
+// turns, root and delegated, get workspace MCP tools like execute, and that
+// Explore subagents still do not.
+func TestPrepareGenerationWorkspaceMCPToolsByMode(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	ws, build, agent := seedWorkspaceBinding(t, db, user.ID)
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: ws.OrganizationID})
+	dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+	model := insertInternalChatModelConfig(t, db, ws.OrganizationID, "gpt-4o-mini", true)
+
+	now := dbtime.Now()
+	_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: agent.ID, Version: 1, AggregateHash: []byte("workspace-mcp"),
+		ReceivedAt: now, McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+	})
+	require.NoError(t, err)
+	body := mustMarshalContextBody(t, &agentproto.MCPServerBody{ServerName: "ws", Tools: []*agentproto.MCPTool{{Name: "echo"}}})
+	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+		WorkspaceAgentID: agent.ID, Source: "ws", BodyKind: database.WorkspaceAgentContextBodyKindMcpServer,
+		Body: body, ContentHash: []byte("ws"), SizeBytes: int64(len(body)),
+		Status: database.WorkspaceAgentContextResourceStatusOk, Now: now,
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
+	planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	newChat := func(parentID uuid.NullUUID, planMode database.NullChatPlanMode, mode database.NullChatMode) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OwnerID: user.ID, OrganizationID: ws.OrganizationID, LastModelConfigID: model.ID,
+			ParentChatID: parentID, RootChatID: parentID, PlanMode: planMode, Mode: mode,
+			WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+			BuildID:     uuid.NullUUID{UUID: build.ID, Valid: true},
+			AgentID:     uuid.NullUUID{UUID: agent.ID, Valid: true},
+		})
+	}
+	root := newChat(uuid.NullUUID{}, planMode, database.NullChatMode{})
+	parentID := uuid.NullUUID{UUID: root.ID, Valid: true}
+	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
+
+	for _, tc := range []struct {
+		name string
+		chat database.Chat
+		want bool
+	}{
+		{name: "RootPlanMode", chat: root, want: true},
+		{name: "PlanModeSubagent", chat: newChat(parentID, planMode, database.NullChatMode{}), want: true},
+		{name: "ExploreSubagent", chat: newChat(parentID, database.NullChatPlanMode{}, explore), want: false},
+		{name: "ExploreSubagentInPlanMode", chat: newChat(parentID, planMode, explore), want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := chatdTestContext(t)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: tc.chat})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			toolNames := make([]string, 0, len(prepared.Tools))
+			for _, tool := range prepared.Tools {
+				toolNames = append(toolNames, tool.Info().Name)
+			}
+			if tc.want {
+				require.Contains(t, toolNames, "ws__echo")
+				return
+			}
+			require.NotContains(t, toolNames, "ws__echo")
+		})
+	}
 }

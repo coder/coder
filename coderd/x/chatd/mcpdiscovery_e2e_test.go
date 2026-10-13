@@ -140,10 +140,10 @@ func (s *mcpDiscoveryStore) UpsertWorkspaceAgentContextSnapshot(ctx context.Cont
 // TestMCPDiscoveryGate_EndToEnd drives a real agent with a real HTTP MCP
 // fixture through the chat's first turn: pinned-pending and unpinned
 // chats, create/start workspace hooks (including same-batch find_tools),
-// autostart, an agent process restart whose previous-run tools must be
-// withheld, hung or failed registrations that must fail open within the
-// shared budget, and a hung server whose healthy sibling must still be
-// usable on that first turn.
+// autostart, plan-mode turns, an agent process restart whose previous-run
+// tools must be withheld, hung or failed registrations that must fail open
+// within the agent run's discovery limit, and a hung server whose healthy
+// sibling must still be usable on that first turn.
 func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -159,8 +159,8 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 		{name: "HungSiblingKeepsHealthyServerUsable", unavailable: "hung", sibling: true},
 		{name: "HungCreateWorkspace", tool: "create_workspace", unavailable: "hung"},
 		{name: "HungStartWorkspace", tool: "start_workspace", stopped: true, unavailable: "hung"},
-		{name: "PlanCreateWorkspace", tool: "create_workspace", unavailable: "hung", plan: true},
-		{name: "PlanStartWorkspace", tool: "start_workspace", stopped: true, unavailable: "hung", plan: true},
+		{name: "Plan_Attached", plan: true},
+		{name: "PlanCreateWorkspace", tool: "create_workspace", plan: true},
 		{name: "Attached_UnpinnedMissing", missing: true},
 		{name: "Autostart", stopped: true, autostart: true},
 		{name: "CreateWorkspace", tool: "create_workspace"},
@@ -425,31 +425,14 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 				}
 				require.Equal(t, wantCalls, calls.Load(), "generation must proceed even without usable MCP tools")
 				require.False(t, ctrl.invoked.Load())
-				if tc.plan {
-					messages, err := exp.GetChatMessages(ctx, chatID, nil)
-					require.NoError(t, err)
-					var found bool
-					for _, msg := range messages.Messages {
-						for _, part := range msg.Content {
-							if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == tc.tool {
-								var result map[string]any
-								require.NoError(t, json.Unmarshal(part.Result, &result))
-								require.NotContains(t, result, "mcp_discovery", "plan-mode lifecycle tools must not wait for discovery")
-								found = true
-							}
-						}
-					}
-					require.True(t, found, "lifecycle tool must execute")
-					return
-				}
 				if tc.unavailable == "hung" {
-					require.Less(t, time.Since(started), 30*time.Second, "lifecycle tools and preparation must share one initialization budget")
+					require.Less(t, time.Since(started), 30*time.Second, "lifecycle tools and preparation must share the run's discovery limit")
 					nextCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 					defer cancel()
 					_, err := client.CreateChatMessage(nextCtx, chatID, codersdk.CreateChatMessageRequest{Content: input})
 					require.NoError(t, err)
 					waitForChatStatus(nextCtx, t, rawDB, chatID, database.ChatStatusWaiting)
-					require.Equal(t, wantCalls+1, calls.Load(), "a later user turn must not spend another initialization budget")
+					require.Equal(t, wantCalls+1, calls.Load(), "a later user turn must not wait again once the run's limit passed")
 				}
 				return
 			}

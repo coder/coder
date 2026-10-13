@@ -31,7 +31,7 @@ type StartWorkspaceOptions struct {
 	AgentConnFn   AgentConnFunc
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
-	// WaitForMCPDiscovery shares the turn's discovery attempt.
+	// WaitForMCPDiscovery waits within the agent run's discovery limit.
 	// Nil skips discovery for turns that do not expose workspace MCP tools.
 	WaitForMCPDiscovery MCPDiscoveryWaiter
 	Logger              slog.Logger

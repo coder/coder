@@ -70,7 +70,7 @@ type CreateWorkspaceOptions struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
-	// WaitForMCPDiscovery shares the turn's discovery attempt.
+	// WaitForMCPDiscovery waits within the agent run's discovery limit.
 	// Nil skips discovery for turns that do not expose workspace MCP tools.
 	WaitForMCPDiscovery MCPDiscoveryWaiter
 	Logger              slog.Logger
@@ -99,9 +99,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"request. Readiness does not guarantee skills, MCP tools, or "+
 			"context have finished loading; use capabilities actually exposed "+
 			"and continue with workspace file and shell tools where possible. "+
-			"Do not recreate the workspace to retry discovery. In Plan Mode, "+
-			"workspace MCP tools remain unavailable; "+
-			"do not create a workspace solely to access them. Prefer existing "+
+			"Do not recreate the workspace to retry discovery. Prefer existing "+
 			"tools and context when they are sufficient. Requires a "+
 			"template_id from list_templates; follow its "+NextStepField+" "+
 			"before calling. Optionally provide a name (one is generated if "+
@@ -620,7 +618,7 @@ func externalAgentReadyError(
 
 // waitForAgentReady waits for the workspace agent to become
 // reachable and for its startup scripts to finish, then for the agent's
-// workspace MCP discovery within its own bounded budget. It returns
+// workspace MCP discovery within the agent run's discovery limit. It returns
 // status fields suitable for merging into a tool response; a ready agent
 // reports its discovery outcome under "mcp_discovery" so the model can
 // explain an incomplete initialization. The discovery wait is skipped

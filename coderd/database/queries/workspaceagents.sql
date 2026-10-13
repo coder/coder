@@ -139,7 +139,8 @@ UPDATE
 SET
 	lifecycle_state = $2,
 	started_at = $3,
-	ready_at = $4
+	ready_at = $4,
+	mcp_discovery_started_at = $5
 WHERE
 	id = $1;
 

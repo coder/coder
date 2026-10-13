@@ -288,7 +288,7 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 		deferredTestAgentTool: deferredTestAgentTool{info: fantasy.ToolInfo{Name: "linear__create_issue"}},
 		configID:              unapprovedID,
 	}
-	workspace := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "everything__echo"}}
+	workspace := chattool.NewWorkspaceMCPTools([]workspacesdk.MCPToolInfo{{Name: "everything__echo"}}, nil)[0]
 	input := deferredMCPCandidateInput{
 		mcpTools:              []fantasy.AgentTool{external, unapproved},
 		workspaceMCPTools:     []fantasy.AgentTool{workspace},
@@ -312,8 +312,13 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 
 	planInput := input
 	planInput.planMode = database.NullChatPlanMode{Valid: true, ChatPlanMode: database.ChatPlanModePlan}
-	require.Equal(t, []string{"github__create_issue"}, names(collectDeferredMCPCandidates(planInput)),
-		"plan mode keeps only approved external tools, matching filterToolsForTurn")
+	require.Equal(t, []string{"github__create_issue", "everything__echo"}, names(collectDeferredMCPCandidates(planInput)),
+		"plan mode keeps approved external tools and workspace tools, matching filterToolsForTurn")
+	planSubagentInput := planInput
+	planSubagentInput.parentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+	planSubagentInput.approvedMCPConfigIDs = map[uuid.UUID]struct{}{}
+	require.Equal(t, []string{"everything__echo"}, names(collectDeferredMCPCandidates(planSubagentInput)),
+		"plan-mode subagents keep workspace tools but no external tools")
 
 	noWorkspace := input
 	noWorkspace.includeWorkspaceTools = false

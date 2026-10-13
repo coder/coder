@@ -1321,8 +1321,8 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		"root plan mode should keep allowlisted tools from approved MCP servers")
 	require.NotContains(t, planTools, "plan-filtered-mcp__hidden",
 		"root plan mode should still respect MCP tool allowlists")
-	require.NotContains(t, planTools, workspaceToolName,
-		"root plan mode should exclude workspace MCP tools")
+	require.Contains(t, planTools, workspaceToolName,
+		"root plan mode should expose workspace MCP tools")
 
 	require.Contains(t, askTools, "plan-approved-mcp__echo",
 		"ask mode should keep approved external MCP tools")
@@ -1850,7 +1850,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(recorded[0], "The only intentional authored workspace artifact is the plan file"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
-	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "workspace MCP tools are available for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {

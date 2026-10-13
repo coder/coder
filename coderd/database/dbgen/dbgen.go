@@ -702,10 +702,11 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	// If the lifecycle state is "ready", update the agent with the corresponding timestamps
 	if orig.LifecycleState == database.WorkspaceAgentLifecycleStateReady && orig.StartedAt.Valid && orig.ReadyAt.Valid {
 		err := db.UpdateWorkspaceAgentLifecycleStateByID(genCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-			ID:             agt.ID,
-			LifecycleState: orig.LifecycleState,
-			StartedAt:      orig.StartedAt,
-			ReadyAt:        orig.ReadyAt,
+			ID:                    agt.ID,
+			LifecycleState:        orig.LifecycleState,
+			StartedAt:             orig.StartedAt,
+			ReadyAt:               orig.ReadyAt,
+			McpDiscoveryStartedAt: orig.McpDiscoveryStartedAt,
 		})
 		require.NoError(t, err, "update workspace agent lifecycle state")
 	}

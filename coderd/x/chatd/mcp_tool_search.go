@@ -115,8 +115,8 @@ type mcpToolSearchInput struct {
 	experimentEnabled bool
 	// allowEmpty keeps find_tools available with no candidates so a
 	// workspace created or started later in the turn can still have its
-	// tools discovered in the same batch. Only regular root execution
-	// turns qualify.
+	// tools discovered in the same batch. Only root turns outside Explore
+	// mode qualify.
 	allowEmpty       bool
 	candidates       []deferredMCPTool
 	dynamicToolNames map[string]bool
