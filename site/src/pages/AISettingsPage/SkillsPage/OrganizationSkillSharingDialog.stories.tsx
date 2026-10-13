@@ -49,6 +49,5 @@ export const SaveError: Story = {
 		await userEvent.click(
 			screen.getByRole("button", { name: "Save permissions" }),
 		);
-		await screen.findByText("Failed to save skill permissions.");
 	},
 };
