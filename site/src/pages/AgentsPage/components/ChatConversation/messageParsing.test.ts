@@ -618,6 +618,27 @@ describe("parseMessageContent", () => {
 		expect(entry.parsed.sources).toEqual(citations);
 	});
 
+	it("keeps narration apart from the answer whose citation sits between them", () => {
+		// OpenAI ends the narration, then cites while the answer streams.
+		const result = parseMessageContent([
+			{ type: "text", text: "Checking the release notes.", narration: true },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "Go 1.27 is out." },
+		]);
+		expect(result.blocks).toEqual([
+			{
+				type: "response",
+				text: "Checking the release notes.",
+				narration: true,
+			},
+			{ type: "response", text: "Go 1.27 is out." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+	});
+
 	it("puts a tagged source without a matching call in the source row", () => {
 		const result = parseMessageContent([
 			{
