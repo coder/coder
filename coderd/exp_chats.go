@@ -1652,23 +1652,7 @@ func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req code
 	}
 
 	chat, sdkChat, err := api.createChat(ctx, userID, req)
-	// As with postChats, there is no audit entry when no chat was inserted.
-	if chat.ID != uuid.Nil {
-		status := http.StatusCreated
-		if err != nil {
-			status = httperror.StatusCode(err)
-		}
-		audit.BackgroundAudit(context.WithoutCancel(ctx), &audit.BackgroundAuditParams[database.Chat]{
-			Audit:          *api.Auditor.Load(),
-			Log:            api.Logger,
-			UserID:         userID,
-			OrganizationID: chat.OrganizationID,
-			Action:         database.AuditActionCreate,
-			New:            chat,
-			Status:         status,
-			RequestID:      uuid.New(),
-		})
-	}
+	api.auditChatAsUser(ctx, userID, database.AuditActionCreate, database.Chat{}, chat, http.StatusCreated, err)
 	return sdkChat, err
 }
 
@@ -1737,6 +1721,44 @@ func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Contex
 		})
 	}
 	return dbauthz.As(ctx, actor), nil
+}
+
+// auditChatAsUser writes the audit entry of a chat action by userID, as
+// audit.InitRequest writes it for the HTTP endpoint. status is the status of
+// the endpoint on success, and err replaces it with the status of err. As
+// with audit.InitRequest, there is no entry when oldChat and newChat are
+// both zero, and no diff when the action failed.
+func (api *API) auditChatAsUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	action database.AuditAction,
+	oldChat, newChat database.Chat,
+	status int,
+	err error,
+) {
+	if oldChat.ID == uuid.Nil && newChat.ID == uuid.Nil {
+		return
+	}
+	if err != nil {
+		status = httperror.StatusCode(err)
+	}
+	if status >= http.StatusBadRequest {
+		if newChat.ID == uuid.Nil {
+			newChat = oldChat
+		}
+		oldChat = newChat
+	}
+	audit.BackgroundAudit(context.WithoutCancel(ctx), &audit.BackgroundAuditParams[database.Chat]{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		UserID:         userID,
+		OrganizationID: newChat.OrganizationID,
+		Action:         action,
+		Old:            oldChat,
+		New:            newChat,
+		Status:         status,
+		RequestID:      uuid.New(),
+	})
 }
 
 // createChatError maps an error from chatd.Server.CreateChat to the
