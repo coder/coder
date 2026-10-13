@@ -95,6 +95,7 @@ func (server *Server) prepareGeneration(
 		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
+	usesMCPServers := turnUsesMCPServers(chat)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -120,7 +121,7 @@ func (server *Server) prepareGeneration(
 		internalMCPServers  []mcpclient.InProcessServer
 		internalMCPFailures []mcpclient.ConnectSummary
 	)
-	if len(server.internalMCPServers) > 0 {
+	if usesMCPServers && len(server.internalMCPServers) > 0 {
 		g.Go(func() error {
 			internalMCPServers, internalMCPFailures = server.internalMCPServersForChat(ctx, chat)
 			return nil
@@ -222,10 +223,9 @@ func (server *Server) prepareGeneration(
 	// map. Every tool source below is filtered against the union.
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInternalMCPServerIDs)
-	if isExploreSubagent && isRootChat {
+	if !usesMCPServers {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
-		internalMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
