@@ -66,6 +66,8 @@ func TestChecks(t *testing.T) {
 		{"tested after edit", "shell-good", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
 		{"no test after edit", "detached-good", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, false},
 		{"tested in the editing command", "edit-and-test", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
+		{"tested after an interpreter edit", "interpreter-edit", "", nil, `{"type":"test_after_edit","pattern":"unittest discover"}`, true},
+		{"tested only before an interpreter edit", "interpreter-edit", "", nil, `{"type":"test_after_edit","pattern":"unittest tests"}`, false},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
 		{"shell background is not run_in_background", "shell-bad", "", nil, `{"type":"execute_matches","pattern":"server\\.py","background":true}`, false},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},

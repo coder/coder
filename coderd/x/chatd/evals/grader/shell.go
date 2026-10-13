@@ -2,6 +2,7 @@ package main
 
 import (
 	"path"
+	"regexp"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -11,6 +12,12 @@ import (
 // words resolved. Words that need expansion are empty strings.
 type shellCommand struct {
 	Args []string
+	// Source holds each argument's source text, including quotes and
+	// expansions.
+	Source []string
+	// Stdin holds the source text of here-documents and here-strings fed
+	// to the command.
+	Stdin []string
 }
 
 func (c shellCommand) program() string {
@@ -37,30 +44,59 @@ func parseShell(src string) (shellScript, bool) {
 	if f == nil || err != nil {
 		return out, false
 	}
+	stdin := map[*syntax.CallExpr][]string{}
 	syntax.Walk(f, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
 				out.Backgrounded = true
 			}
+			call, _ := n.Cmd.(*syntax.CallExpr)
 			for _, r := range n.Redirs {
 				if target, ok := outputRedirectTarget(r); ok {
 					out.OutputFiles = append(out.OutputFiles, target)
+				}
+				if call == nil {
+					continue
+				}
+				switch r.Op {
+				case syntax.Hdoc, syntax.DashHdoc:
+					stdin[call] = append(stdin[call], wordSource(r.Hdoc))
+				case syntax.WordHdoc:
+					stdin[call] = append(stdin[call], wordSource(r.Word))
 				}
 			}
 		case *syntax.CallExpr:
 			if len(n.Args) == 0 {
 				return true
 			}
-			cmd := shellCommand{Args: make([]string, 0, len(n.Args))}
+			cmd := shellCommand{
+				Args:   make([]string, 0, len(n.Args)),
+				Source: make([]string, 0, len(n.Args)),
+				Stdin:  stdin[n],
+			}
 			for _, w := range n.Args {
 				cmd.Args = append(cmd.Args, literalWord(w))
+				cmd.Source = append(cmd.Source, wordSource(w))
 			}
 			out.Commands = append(out.Commands, cmd)
 		}
 		return true
 	})
 	return out, true
+}
+
+// wordSource returns w as shell source text, quotes and expansions
+// included.
+func wordSource(w *syntax.Word) string {
+	if w == nil {
+		return ""
+	}
+	var sb strings.Builder
+	if err := syntax.NewPrinter().Print(&sb, w); err != nil {
+		return ""
+	}
+	return sb.String()
 }
 
 // outputRedirectTarget returns the file an output redirection writes.
@@ -166,6 +202,40 @@ func fileIOFindings(s shellScript) []string {
 				if (a == "-i" || a == "--include") && i+2 < len(c.Args) && c.Args[i+2] == "inplace" {
 					out = append(out, prog+" -i inplace edits files")
 				}
+			}
+		}
+	}
+	return out
+}
+
+var (
+	interpreterProgram = regexp.MustCompile(`^(python[0-9.]*|node|nodejs|ruby|perl|php)$`)
+	// Writes to the process's own output streams are not file edits.
+	streamWrite = regexp.MustCompile(`(?i)std(out|err)\.write`)
+	fileWrite   = regexp.MustCompile(`(?i)write|truncate|unlink|rename|os\.replace|shutil\.(move|copy)`)
+)
+
+// interpreterEditFindings reports interpreters that run inline code (a
+// here-document, a here-string, or a -c or -e argument) that writes files,
+// such as python3 - <<'EOF' ... open(p, "w").write(...) ... EOF. The
+// grader never sees these edits as file paths, only as program text.
+func interpreterEditFindings(s shellScript) []string {
+	var out []string
+	for _, c := range s.Commands {
+		prog := c.program()
+		if !interpreterProgram.MatchString(prog) {
+			continue
+		}
+		code := append([]string{}, c.Stdin...)
+		for i := 1; i+1 < len(c.Args); i++ {
+			if c.Args[i] == "-c" || c.Args[i] == "-e" {
+				code = append(code, c.Source[i+1])
+			}
+		}
+		for _, src := range code {
+			if fileWrite.MatchString(streamWrite.ReplaceAllString(src, "")) {
+				out = append(out, prog+" inline code writes files")
+				break
 			}
 		}
 	}

@@ -621,6 +621,7 @@ func isEdit(c toolCall) bool {
 				return true
 			}
 		}
+		return len(interpreterEditFindings(script)) > 0
 	}
 	return false
 }
