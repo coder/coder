@@ -2362,74 +2362,6 @@ export const WebSearchQueriesAndFoundPages: Story = {
 	},
 };
 
-export const WebSearchNoQueries: Story = {
-	args: {
-		name: "web_search",
-		providerExecuted: true,
-		status: "completed",
-		args: { type: "search" },
-		result: {},
-	},
-};
-
-// Anthropic keeps the query in the call args and titles its found pages.
-// A single query is listed too because the header truncates long ones.
-export const WebSearchAnthropicQuery: Story = {
-	args: {
-		name: "web_search",
-		providerExecuted: true,
-		status: "completed",
-		args: { query: "coder workspace templates" },
-		result: {},
-		foundPages: [
-			{
-				url: "https://coder.com/docs/admin/templates",
-				title: "Templates | Coder Docs",
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /searched for coder workspace/i }),
-		);
-	},
-};
-
-export const WebSearchOpenPage: Story = {
-	args: {
-		name: "web_search",
-		providerExecuted: true,
-		status: "completed",
-		args: { type: "open_page", url: "https://coder.com/docs" },
-		result: {},
-	},
-};
-
-export const WebSearchFindInPage: Story = {
-	args: {
-		name: "web_search",
-		providerExecuted: true,
-		status: "completed",
-		args: {
-			type: "find_in_page",
-			url: "https://coder.com/docs",
-			pattern: "templates",
-		},
-		result: {},
-	},
-};
-
-// The message stopped streaming before the search sent its result.
-export const WebSearchUnfinished: Story = {
-	args: {
-		name: "web_search",
-		providerExecuted: true,
-		status: "completed",
-		args: { type: "search", queries: ["coder release notes"] },
-	},
-};
-
 export const WebSearchError: Story = {
 	args: {
 		name: "web_search",
@@ -2438,17 +2370,6 @@ export const WebSearchError: Story = {
 		isError: true,
 		args: { type: "search", queries: ["coder release notes"] },
 		result: { error: "web search failed: upstream timeout" },
-	},
-};
-
-// A client dynamic tool may share the name; only provider-executed calls
-// get the web search row.
-export const WebSearchClientTool: Story = {
-	args: {
-		name: "web_search",
-		status: "completed",
-		args: { query: "coder workspace templates" },
-		result: { results: [] },
 	},
 };
 

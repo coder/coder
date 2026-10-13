@@ -13,18 +13,124 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { getToolRenderer, Tool, toolRenderers } from "./Tool";
+import { Tool } from "./Tool";
 
 afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe("getToolRenderer", () => {
-	it("uses the web search renderer only for provider-executed web_search calls", () => {
-		const genericRenderer = getToolRenderer("unregistered_tool", undefined);
-		expect(getToolRenderer("web_search", true)).toBe(toolRenderers.web_search);
-		expect(getToolRenderer("web_search", false)).toBe(genericRenderer);
-		expect(getToolRenderer("web_search", undefined)).toBe(genericRenderer);
+const renderWebSearch = (
+	props: Partial<React.ComponentProps<typeof Tool>> = {},
+) =>
+	renderComponent(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<Tool
+				name="web_search"
+				providerExecuted
+				status="completed"
+				result={{}}
+				organizationId="organization-id"
+				mcpServers={[]}
+				isError={false}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
+				{...props}
+			/>
+		</QueryClientProvider>,
+	);
+
+describe("Tool web search rows", () => {
+	const queries = { type: "search", queries: [" q1 ", "q2", "q2", ""] };
+	const openPage = { type: "open_page", url: "https://coder.com/docs" };
+	const findInPage = { ...openPage, type: "find_in_page", pattern: "tpl" };
+
+	it.each<{
+		case: string;
+		props: Partial<React.ComponentProps<typeof Tool>>;
+		label: string;
+	}>([
+		{
+			case: "OpenAI queries, trimmed and deduplicated",
+			props: { args: queries },
+			label: "Searched for q1, q2",
+		},
+		{
+			case: "Anthropic query",
+			props: { args: { query: "coder templates" } },
+			label: "Searched for coder templates",
+		},
+		{
+			case: "no queries",
+			props: { args: { type: "search" } },
+			label: "Searched the web",
+		},
+		{
+			case: "open_page",
+			props: { args: openPage },
+			label: "Opened https://coder.com/docs",
+		},
+		{
+			case: "find_in_page",
+			props: { args: findInPage },
+			label: "Searched https://coder.com/docs for tpl",
+		},
+		{
+			case: "running",
+			props: { args: queries, status: "running", result: undefined },
+			label: "Searching for q1, q2",
+		},
+		{
+			case: "failed",
+			props: {
+				args: openPage,
+				status: "error",
+				isError: true,
+				result: { error: "web search failed" },
+			},
+			label: "Failed to open https://coder.com/docs",
+		},
+		{
+			case: "message ended without a result",
+			props: { args: queries, result: undefined },
+			label: "Did not finish searching for q1, q2",
+		},
+	])("labels $case", ({ props, label }) => {
+		renderWebSearch(props);
+		expect(screen.getByText(label)).toBeInTheDocument();
+	});
+
+	it("uses the generic row for a client tool named web_search", () => {
+		renderWebSearch({
+			providerExecuted: false,
+			args: { query: "coder templates" },
+		});
+		expect(screen.getByRole("button")).toHaveAccessibleName("web_search");
+	});
+
+	it("links found pages only for http and https URLs", async () => {
+		renderWebSearch({
+			args: queries,
+			foundPages: [
+				{ url: "https://coder.com/docs/ai", title: "" },
+				{ url: "http://coder.com/", title: "Coder" },
+				{ url: "ftp://example.com/release.txt", title: "" },
+				{ url: "data:text/html,unsafe", title: "" },
+			],
+		});
+		await userEvent.click(screen.getByRole("button", { expanded: false }));
+
+		const links = screen.getAllByRole("link");
+		expect(links.map((link) => link.getAttribute("href"))).toEqual([
+			"https://coder.com/docs/ai",
+			"http://coder.com/",
+		]);
+		// Untitled pages show hostname and path; titled pages their title.
+		expect(links[0]).toHaveTextContent("coder.com/docs/ai");
+		expect(links[1]).toHaveTextContent("Coder");
+		expect(screen.getByText("example.com/release.txt")).toBeInTheDocument();
+		expect(screen.getByText("data:text/html,unsafe")).toBeInTheDocument();
 	});
 });
 

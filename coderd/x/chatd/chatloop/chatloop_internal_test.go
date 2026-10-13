@@ -7,7 +7,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -178,13 +177,6 @@ func TestProcessStepStreamProviderWebSearch(t *testing.T) {
 				fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{ErrorCode: "max_uses_exceeded"},
 			},
 			wantError: "web search failed: max_uses_exceeded",
-		},
-		{
-			name: "OpenAIFailedStatus",
-			metadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.WebSearchCallMetadata{ItemID: "ws_1", Status: "failed"},
-			},
-			wantError: "web search failed",
 		},
 	}
 	for _, tt := range tests {

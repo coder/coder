@@ -552,123 +552,9 @@ describe("parseMessageContent", () => {
 		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
 	});
 
-	it("groups tagged sources under their web_search call, untagged ones in the source row", () => {
-		const [entry] = parseMessagesWithMergedTools([
-			{
-				id: 1,
-				chat_id: "chat-1",
-				created_at: "2026-04-21T00:00:00.000Z",
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						tool_name: "web_search",
-						tool_call_id: "ws-1",
-						args: { type: "search", queries: JSON.stringify(["coder"]) },
-						provider_executed: true,
-					},
-					{
-						type: "source",
-						tool_call_id: "ws-1",
-						url: "https://coder.com/changelog",
-					},
-					{
-						type: "source",
-						tool_call_id: "ws-1",
-						url: "https://coder.com/blog",
-						title: "Coder blog",
-					},
-					{
-						type: "tool-result",
-						tool_name: "web_search",
-						tool_call_id: "ws-1",
-						provider_executed: true,
-						result: {},
-					},
-					{ type: "text", text: "The latest release is out." },
-					{
-						type: "source",
-						url: "https://coder.com/changelog",
-						title: "Coder changelog",
-					},
-				],
-			},
-		]);
-		expect(entry.parsed.tools).toEqual([
-			expect.objectContaining({
-				id: "ws-1",
-				name: "web_search",
-				result: {},
-				status: "completed",
-				providerExecuted: true,
-				foundPages: [
-					{ url: "https://coder.com/changelog", title: "" },
-					{ url: "https://coder.com/blog", title: "Coder blog" },
-				],
-			}),
-		]);
-		expect(entry.parsed.blocks).toEqual([
-			{ type: "tool", id: "ws-1" },
-			{ type: "response", text: "The latest release is out." },
-			{
-				type: "sources",
-				sources: [
-					{ url: "https://coder.com/changelog", title: "Coder changelog" },
-				],
-			},
-		]);
-		expect(entry.parsed.sources).toEqual([
-			{ url: "https://coder.com/changelog", title: "Coder changelog" },
-		]);
-	});
-
-	it("keeps each Anthropic search's found pages under its own call", () => {
-		const result = parseMessageContent([
-			{
-				type: "tool-call",
-				tool_name: "web_search",
-				tool_call_id: "ws-1",
-				args: { query: "first" },
-				provider_executed: true,
-			},
-			{
-				type: "source",
-				tool_call_id: "ws-1",
-				url: "https://a.example.com",
-				title: "A",
-			},
-			{
-				type: "tool-call",
-				tool_name: "web_search",
-				tool_call_id: "ws-2",
-				args: { query: "second" },
-				provider_executed: true,
-			},
-			{
-				type: "source",
-				tool_call_id: "ws-2",
-				url: "https://b.example.com",
-				title: "B",
-			},
-		]);
-		expect(
-			result.toolCalls.map(({ id, foundPages }) => ({ id, foundPages })),
-		).toEqual([
-			{
-				id: "ws-1",
-				foundPages: [{ url: "https://a.example.com", title: "A" }],
-			},
-			{
-				id: "ws-2",
-				foundPages: [{ url: "https://b.example.com", title: "B" }],
-			},
-		]);
-		expect(result.sources).toEqual([]);
-	});
-
-	it("places citations after the text they cite", () => {
-		// chatd stores a citation when it arrives, before the text that
-		// was streaming, so the persisted order is citation, then text.
+	it("groups each search's found pages under it and puts citations after the text", () => {
+		// Stored order: chatd saves a citation when it arrives, before the
+		// text that was streaming.
 		const [entry] = parseMessagesWithMergedTools([
 			{
 				id: 1,
@@ -692,22 +578,62 @@ describe("parseMessageContent", () => {
 						result: {},
 					},
 					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						args: { query: "go 1.27 notes" },
+						provider_executed: true,
+					},
+					{
 						type: "source",
+						tool_call_id: "srvtoolu-2",
 						url: "https://go.dev/doc/go1.27",
 						title: "Go 1.27",
+					},
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "source",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27 Release Notes",
 					},
 					{ type: "text", text: "Go 1.27 is out." },
 				],
 			},
 		]);
-		expect(entry.parsed.blocks).toEqual([
-			{ type: "tool", id: "ws-1" },
-			{ type: "response", text: "Go 1.27 is out." },
+		expect(
+			entry.parsed.tools.map(({ id, status, foundPages }) => ({
+				id,
+				status,
+				foundPages,
+			})),
+		).toEqual([
 			{
-				type: "sources",
-				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+				id: "ws-1",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/dl/", title: "" }],
+			},
+			{
+				id: "srvtoolu-2",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
 			},
 		]);
+		const citations = [
+			{ url: "https://go.dev/doc/go1.27", title: "Go 1.27 Release Notes" },
+		];
+		expect(entry.parsed.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{ type: "tool", id: "srvtoolu-2" },
+			{ type: "response", text: "Go 1.27 is out." },
+			{ type: "sources", sources: citations },
+		]);
+		expect(entry.parsed.sources).toEqual(citations);
 	});
 
 	it("puts a tagged source without a matching call in the source row", () => {
