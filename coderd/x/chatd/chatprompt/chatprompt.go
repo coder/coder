@@ -1495,7 +1495,9 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" &&
+				!chatsanitize.HasAnthropicSignedReasoningOptions(opts) &&
+				!chatsanitize.HasOpenAIReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
@@ -1913,6 +1915,9 @@ var partNulFields = []partNulField{
 	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
 	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
 	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},
+	{name: "ProviderIdentity", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderIdentity }},
+	{name: "ProviderModel", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderModel }},
+	{name: "ProviderCredential", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderCredential }},
 	{name: "SourceID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SourceID }},
 	{name: "URL", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.URL }},
 	{name: "MediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.MediaType }},

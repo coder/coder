@@ -139,6 +139,7 @@ func (server *Server) prepareGeneration(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
+	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -175,6 +176,11 @@ func (server *Server) prepareGeneration(
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
+	reasoningSource := reasoningProvenance{
+		ProviderIdentity: providerIdentity,
+		Model:            model.ModelID(),
+		Credential:       reasoningCredential(resolved.route.ProviderAuth),
+	}
 	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
@@ -233,7 +239,10 @@ func (server *Server) prepareGeneration(
 		if advisorRuntime == nil {
 			return
 		}
-		advisorPromptSnapshot = slices.Clone(msgs)
+		// The advisor reads the transcript as text. Replayed OpenAI
+		// reasoning can be foreign to the advisor model, and textualized
+		// tool calls would leave it without its required following item.
+		advisorPromptSnapshot = dropOpenAIReasoningParts(ctx, logger, msgs)
 	}
 
 	currentChat := chat
@@ -327,11 +336,13 @@ func (server *Server) prepareGeneration(
 		planPathBlock       string
 	)
 
-	// Drop provider-executed tool history produced by a different provider
-	// before building the prompt. A provider that shares another's wire format
-	// (e.g. Bedrock and Anthropic) can still reject the other's
-	// provider-executed blocks, so a mid-chat provider switch must not replay
-	// them.
+	// Drop provider-executed tool history produced by a different provider,
+	// and OpenAI reasoning state produced by a different provider, model,
+	// or credential, or before the latest rejection of that source's
+	// encrypted reasoning, before building the prompt. A provider
+	// that shares another's wire format (e.g. Bedrock and Anthropic) can
+	// still reject the other's provider-specific blocks, so a mid-chat
+	// provider switch must not replay them.
 	//
 	// The pending-user segment (trailing user rows the assistant has not
 	// answered yet) is handled separately from here through prompt
@@ -344,7 +355,8 @@ func (server *Server) prepareGeneration(
 	// sanitizing everything, since the tail is user-only and the
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
-	sanitizedHead, err := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], reasoningSource)
+	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -921,6 +933,8 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		ReasoningProvenance:  reasoningSource,
+		ReasoningRejected:    resolved.reasoningRejected,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),

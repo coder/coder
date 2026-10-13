@@ -18,33 +18,34 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":                     {codersdk.AuditActionCreate},
-	"Template":                      {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":                {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AISeatState":                   {codersdk.AuditActionCreate},
-	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
-	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Skill":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AuditableOrganizationSkill":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
-	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
-	"ChatOrganizationSystemPrompt":  {codersdk.AuditActionWrite},
-	"ExperimentRule":                {codersdk.AuditActionWrite},
+	"GitSSHKey":                        {codersdk.AuditActionCreate},
+	"Template":                         {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":                        {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":                   {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":                            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":                           {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"License":                          {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AISeatState":                      {codersdk.AuditActionCreate},
+	"AIProvider":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AIProviderKey":                    {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AIGatewayKey":                     {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AuditableGroupAIBudget":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableUserAIBudgetOverride":    {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Chat":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserSecret":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Skill":                            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableOrganizationSkill":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatInstructionSettings":          {codersdk.AuditActionWrite},
+	"ChatOperationalSettings":          {codersdk.AuditActionWrite},
+	"ChatOrganizationSystemPrompt":     {codersdk.AuditActionWrite},
+	"ExperimentRule":                   {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -522,6 +523,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"body":            ActionTrack,
 		"created_by":      ActionTrack,
 		"created_at":      ActionIgnore,
+	},
+	&database.AuditableChatProjectInstructions{}: {
+		"project_id":      ActionIgnore, // Conveyed by resource_id.
+		"organization_id": ActionIgnore, // Conveyed by the audit log's organization_id.
+		"project_name":    ActionIgnore, // Conveyed by resource_target.
+		"instructions":    ActionTrack,
+		"updated_by":      ActionIgnore, // The audit log records the acting user.
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
