@@ -454,6 +454,17 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 	return addIDs, nil
 }
 
+// PartitionOutInvalidSettings splits the expected groups for an organization
+// into three disjoint lists. Inside holds entries whose GroupID is a group in
+// orgID, plus entries that carry only a name, since names are resolved within
+// the organization by HandleMissingGroups. Outside holds entries whose GroupID
+// is a group in some other organization. Missing holds entries whose GroupID
+// matches no group at all, whether deleted or never created. Only Inside is
+// safe to sync; Outside and Missing come from invalid sync settings.
+func PartitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID uuid.UUID, expected []ExpectedGroup) (inside, outside, missing []ExpectedGroup, err error) {
+	return nil, nil, nil, xerrors.New("not implemented")
+}
+
 func ConvertAllowList(allowList []string) map[string]struct{} {
 	allowMap := make(map[string]struct{}, len(allowList))
 	for _, group := range allowList {
