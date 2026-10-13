@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http, type PathParams } from "msw";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type { UpdateOrganizationSkillACLRequest } from "#/api/typesGenerated";
 import {
 	MockGroup,
@@ -10,6 +11,7 @@ import {
 	MockOrganization,
 	MockOrganizationSkillACL,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -80,5 +82,45 @@ describe("OrganizationSkillSharingDialog", () => {
 				},
 			},
 		]);
+	});
+
+	it("keeps the dialog open when saving fails", async () => {
+		server.use(
+			http.get(aclPath, () => HttpResponse.json(MockOrganizationSkillACL)),
+		);
+		const updateACL = vi
+			.spyOn(API.experimental, "updateOrganizationSkillACL")
+			.mockRejectedValue(
+				mockApiError({ message: "Failed to save skill permissions." }),
+			);
+		const queryClient = createTestQueryClient();
+		const onClose = vi.fn();
+		const user = userEvent.setup();
+		renderComponent(
+			<QueryClientProvider client={queryClient}>
+				<OrganizationSkillSharingDialog
+					organizationId={MockOrganization.id}
+					skillName="review-sql"
+					onClose={onClose}
+				/>
+			</QueryClientProvider>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Remove ${MockGroup.display_name}`,
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Save permissions" }));
+
+		await waitFor(() =>
+			expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
+				"error",
+			),
+		);
+		expect(updateACL).toHaveBeenCalledWith(MockOrganization.id, "review-sql", {
+			group_roles: { [MockGroup.id]: "" },
+		});
+		expect(onClose).not.toHaveBeenCalled();
 	});
 });
