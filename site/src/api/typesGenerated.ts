@@ -383,6 +383,18 @@ export interface AIModelPrice {
 }
 
 // From codersdk/aimodelprices.go
+export type AIModelPriceScope =
+	| "organization_provider"
+	| "organization_provider_type"
+	| "site";
+
+export const AIModelPriceScopes: AIModelPriceScope[] = [
+	"organization_provider",
+	"organization_provider_type",
+	"site",
+];
+
+// From codersdk/aimodelprices.go
 export type AIModelPriceSource = "custom" | "default";
 
 export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
@@ -7717,6 +7729,59 @@ export interface Organization extends MinimalOrganization {
 	readonly default_org_member_roles: readonly string[];
 }
 
+// From codersdk/aimodelprices.go
+/**
+ * OrganizationAIModelPrice is a model price that applies to an organization:
+ * one of its own prices or a site-wide price. Prices follow the units of
+ * AIModelPrice.
+ */
+export interface OrganizationAIModelPrice {
+	readonly scope: AIModelPriceScope;
+	/**
+	 * OrganizationID is set for the organization's own prices.
+	 */
+	readonly organization_id?: string;
+	/**
+	 * ProviderID and ProviderName are set for prices for one configured
+	 * provider.
+	 */
+	readonly provider_id?: string;
+	readonly provider_name?: string;
+	/**
+	 * Provider is the provider type the price applies to.
+	 */
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	/**
+	 * Source is custom for the organization's own prices.
+	 */
+	readonly source: AIModelPriceSource;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * OrganizationAIModelPriceUpsert is one model's prices in an organization
+ * upsert request. Set ProviderID to price one configured provider, or only
+ * Provider to price every provider of that type. When both are set, Provider
+ * must be the configured provider's type. openai-compat providers can only be
+ * priced by ProviderID.
+ */
+export interface OrganizationAIModelPriceUpsert {
+	readonly provider_id?: string;
+	readonly provider?: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
@@ -11347,6 +11412,15 @@ export interface UpsertGroupAIBudgetRequest {
 	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
 	 */
 	readonly spend_limit_micros: number;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * UpsertOrganizationAIModelPricesRequest sets an organization's prices for the
+ * listed models. Prices absent from the request are left untouched.
+ */
+export interface UpsertOrganizationAIModelPricesRequest {
+	readonly prices: readonly OrganizationAIModelPriceUpsert[];
 }
 
 // From codersdk/aibridge.go

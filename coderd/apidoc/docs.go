@@ -357,6 +357,162 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/model-prices": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization AI model prices",
+                "operationId": "list-organization-ai-model-prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only return prices for this provider type",
+                        "name": "provider",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only return prices for this model",
+                        "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "default",
+                            "custom",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "Only return prices from this source, or all to return every price that applies",
+                        "name": "source",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OrganizationAIModelPrice"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert organization AI model prices",
+                "operationId": "upsert-organization-ai-model-prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Prices to set",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertOrganizationAIModelPricesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete organization AI model price",
+                "operationId": "delete-organization-ai-model-price",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Configured provider of the price to delete",
+                        "name": "provider_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider type of the price to delete",
+                        "name": "provider",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model of the price to delete",
+                        "name": "model",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/ai/spend/users": {
             "get": {
                 "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -19471,6 +19627,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIModelPriceScope": {
+            "type": "string",
+            "enum": [
+                "organization_provider",
+                "organization_provider_type",
+                "site"
+            ],
+            "x-enum-varnames": [
+                "AIModelPriceScopeOrganizationProvider",
+                "AIModelPriceScopeOrganizationProviderType",
+                "AIModelPriceScopeSite"
+            ]
+        },
         "codersdk.AIModelPriceSource": {
             "type": "string",
             "enum": [
@@ -27813,6 +27982,89 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationAIModelPrice": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "description": "OrganizationID is set for the organization's own prices.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "description": "Provider is the provider type the price applies to.",
+                    "type": "string"
+                },
+                "provider_id": {
+                    "description": "ProviderID and ProviderName are set for prices for one configured\nprovider.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "$ref": "#/definitions/codersdk.AIModelPriceScope"
+                },
+                "source": {
+                    "description": "Source is custom for the organization's own prices.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIModelPriceSource"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAIModelPriceUpsert": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.OrganizationAISpendReport": {
             "type": "object",
             "properties": {
@@ -32580,6 +32832,17 @@ const docTemplate = `{
                     "description": "SpendLimitMicros must not exceed MaxAISpendLimitMicros.",
                     "type": "integer",
                     "minimum": 0
+                }
+            }
+        },
+        "codersdk.UpsertOrganizationAIModelPricesRequest": {
+            "type": "object",
+            "properties": {
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAIModelPriceUpsert"
+                    }
                 }
             }
         },

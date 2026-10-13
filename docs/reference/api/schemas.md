@@ -1154,6 +1154,20 @@ title: Schemas
 | `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
 | `updated_at`        | string                                                     | false    |              |             |
 
+## codersdk.AIModelPriceScope
+
+```json
+"organization_provider"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                      |
+|---------------------------------------------------------------|
+| `organization_provider`, `organization_provider_type`, `site` |
+
 ## codersdk.AIModelPriceSource
 
 ```json
@@ -12176,6 +12190,70 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAIModelPrice
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "input_price": 0,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "output_price": 0,
+  "provider": "string",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "provider_name": "string",
+  "scope": "organization_provider",
+  "source": "default",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type                                                       | Required | Restrictions | Description                                                                  |
+|---------------------|------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------|
+| `cache_read_price`  | integer                                                    | false    |              |                                                                              |
+| `cache_write_price` | integer                                                    | false    |              |                                                                              |
+| `created_at`        | string                                                     | false    |              |                                                                              |
+| `input_price`       | integer                                                    | false    |              |                                                                              |
+| `model`             | string                                                     | false    |              |                                                                              |
+| `organization_id`   | string                                                     | false    |              | Organization ID is set for the organization's own prices.                    |
+| `output_price`      | integer                                                    | false    |              |                                                                              |
+| `provider`          | string                                                     | false    |              | Provider is the provider type the price applies to.                          |
+| `provider_id`       | string                                                     | false    |              | Provider ID and ProviderName are set for prices for one configured provider. |
+| `provider_name`     | string                                                     | false    |              |                                                                              |
+| `scope`             | [codersdk.AIModelPriceScope](#codersdkaimodelpricescope)   | false    |              |                                                                              |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              | Source is custom for the organization's own prices.                          |
+| `updated_at`        | string                                                     | false    |              |                                                                              |
+
+## codersdk.OrganizationAIModelPriceUpsert
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+| `provider_id`       | string  | false    |              |             |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -17627,6 +17705,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description                                               |
 |----------------------|---------|----------|--------------|-----------------------------------------------------------|
 | `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros. |
+
+## codersdk.UpsertOrganizationAIModelPricesRequest
+
+```json
+{
+  "prices": [
+    {
+      "cache_read_price": 0,
+      "cache_write_price": 0,
+      "input_price": 0,
+      "model": "string",
+      "output_price": 0,
+      "provider": "string",
+      "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                                        | Required | Restrictions | Description |
+|----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `prices` | array of [codersdk.OrganizationAIModelPriceUpsert](#codersdkorganizationaimodelpriceupsert) | false    |              |             |
 
 ## codersdk.UpsertUserAIBudgetOverrideRequest
 
