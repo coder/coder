@@ -31,8 +31,8 @@ const (
 	// These names are raised by trigger functions with USING CONSTRAINT.
 	// They are not table CHECK constraints, so dbgen does not emit them in
 	// check_constraint.go.
-	userSkillsPerUserLimitConstraint database.CheckConstraint = "user_skills_per_user_limit"
-	userSkillUserDeletedConstraint   database.CheckConstraint = "user_skill_user_deleted"
+	skillsPerUserLimitConstraint   database.CheckConstraint = "skills_per_user_limit"
+	userSkillUserDeletedConstraint database.CheckConstraint = "user_skill_user_deleted"
 )
 
 // @Summary Create a user skill
@@ -51,7 +51,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -92,11 +92,11 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if database.IsCheckViolation(err, userSkillsPerUserLimitConstraint) {
+		if database.IsCheckViolation(err, skillsPerUserLimitConstraint) {
 			writeUserSkillLimitReached(ctx, rw)
 			return
 		}
-		if database.IsUniqueViolation(err, database.UniqueUserSkillsUserIDNameIndex) {
+		if database.IsUniqueViolation(err, database.UniqueSkillsUserIDNameIndex) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "A skill with that name already exists.",
 				Detail:  err.Error(),
@@ -186,7 +186,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		name              = chi.URLParam(r, "skillName")
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -221,8 +221,8 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		skill    database.UserSkill
-		oldSkill database.UserSkill
+		skill    database.Skill
+		oldSkill database.Skill
 	)
 	err = api.Database.InTx(func(tx database.Store) error {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
@@ -281,7 +281,7 @@ func (api *API) deleteUserSkill(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		name              = chi.URLParam(r, "skillName")
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
