@@ -122,37 +122,80 @@ type chatDiffReference struct {
 	RepositoryRef  *chatRepositoryRef
 }
 
-// Avoid returning raw dispatch errors, which may expose deployment internals.
+// writeChatError writes err as the response of a chat endpoint. A lifecycle
+// hook denial or dispatch failure keeps its kind in the body. Every other
+// error is written by httperror.WriteResponseError.
+func writeChatError(ctx context.Context, rw http.ResponseWriter, err error) {
+	responseErr, ok := httperror.IsResponder(err)
+	if !ok {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+	status, resp := responseErr.Response()
+	var (
+		denied      *chathooks.UserPromptDeniedError
+		dispatchErr *dispatch.Error
+	)
+	switch {
+	case errors.As(err, &denied):
+		httpapi.Write(ctx, rw, status, codersdk.ChatHookDeniedResponse{
+			Response: resp,
+			Kind:     codersdk.ChatErrorKindHookDenied,
+		})
+	case errors.As(err, &dispatchErr):
+		httpapi.Write(ctx, rw, status, codersdk.ChatHookDispatchFailedResponse{
+			Response: resp,
+			Kind:     codersdk.ChatErrorKindHookDispatchFailed,
+		})
+	default:
+		httperror.WriteResponseError(ctx, rw, err)
+	}
+}
+
+// maybeWriteChatError writes err with writeChatError when err is not nil,
+// and reports whether it wrote a response.
+func maybeWriteChatError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	if err == nil {
+		return false
+	}
+	writeChatError(ctx, rw, err)
+	return true
+}
+
+// chatHookDispatchFailedError returns the response error for a lifecycle
+// hook dispatch failure in err, or nil when err has none. Avoid returning
+// raw dispatch errors, which may expose deployment internals.
+func chatHookDispatchFailedError(err error) error {
+	hookErr, ok := errors.AsType[*dispatch.Error](err)
+	if !ok {
+		return nil
+	}
+	return httperror.WrapResponseError(http.StatusBadGateway, codersdk.Response{
+		Message: "Chat lifecycle hook dispatch failed.",
+		Detail:  fmt.Sprintf("Lifecycle hook dispatch %s failed (%s).", hookErr.DispatchID, hookErr.Class),
+	}, err)
+}
+
 func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, hookErr *dispatch.Error) {
-	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.ChatHookDispatchFailedResponse{
-		Response: codersdk.Response{
-			Message: "Chat lifecycle hook dispatch failed.",
-			Detail:  fmt.Sprintf("Lifecycle hook dispatch %s failed (%s).", hookErr.DispatchID, hookErr.Class),
-		},
-		Kind: codersdk.ChatErrorKindHookDispatchFailed,
-	})
+	writeChatError(ctx, rw, chatHookDispatchFailedError(hookErr))
+}
+
+// chatHookError returns the response error for a lifecycle hook denial or
+// dispatch failure in err, or nil when err is neither. The fallback message
+// is used when the hook denies without a user message.
+func chatHookError(err error, deniedFallback string) error {
+	if denied, ok := errors.AsType[*chathooks.UserPromptDeniedError](err); ok {
+		return httperror.WrapResponseError(http.StatusForbidden, codersdk.Response{
+			Message: cmp.Or(denied.UserMessage, deniedFallback),
+		}, err)
+	}
+	return chatHookDispatchFailedError(err)
 }
 
 // writeChatHookErr writes the response for lifecycle hook denials and
-// dispatch failures, reporting whether it handled the error. The fallback
-// message is used when the hook denies without a user message.
+// dispatch failures, reporting whether it handled the error.
 func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, deniedFallback string) bool {
-	if denied, ok := errors.AsType[*chathooks.UserPromptDeniedError](err); ok {
-		message := denied.UserMessage
-		if message == "" {
-			message = deniedFallback
-		}
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.ChatHookDeniedResponse{
-			Response: codersdk.Response{Message: message},
-			Kind:     codersdk.ChatErrorKindHookDenied,
-		})
-		return true
-	}
-	if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {
-		writeChatHookDispatchFailed(ctx, rw, hookErr)
-		return true
-	}
-	return false
+	return maybeWriteChatError(ctx, rw, chatHookError(err, deniedFallback))
 }
 
 // AI Gateway budget rejections and provider quota failures classify as usage
@@ -1264,7 +1307,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.createChat(ctx, aReq, apiKey.UserID, req)
 	if err != nil {
-		api.writeCreateChatError(ctx, rw, err)
+		writeChatError(ctx, rw, err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, chat)
@@ -1272,8 +1315,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 // createChat validates req and creates a root chat for the caller or for
 // req.OwnerID. ctx must carry the RBAC actor of callerID (dbauthz.As).
-// Validation failures are httperror.Responder errors. Errors from
-// chatd.Server.CreateChat are returned as is; writeCreateChatError maps them.
+// Every error implements httperror.Responder with the response of
+// POST /api/v2/chats and unwraps to its cause; write it with writeChatError.
 func (api *API) createChat(
 	ctx context.Context,
 	aReq *audit.Request[database.Chat],
@@ -1562,7 +1605,7 @@ func (api *API) createChat(
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
-		return codersdk.Chat{}, err
+		return codersdk.Chat{}, api.createChatError(err)
 	}
 
 	aReq.New = chat
@@ -1596,8 +1639,9 @@ func (api *API) createChat(
 // CreateChatAsUser creates a root chat as userID with the validation, the
 // errors, and the audit entry of POST /api/v2/chats. It is for in-process
 // callers that act for a user without an HTTP request. ctx does not need an
-// RBAC actor. Errors from the checks and from the chat daemon implement
-// httperror.Responder with the status and response of the HTTP endpoint.
+// RBAC actor. Errors implement httperror.Responder with the status and
+// response of the HTTP endpoint. A lifecycle hook denial or dispatch failure
+// unwraps to *chathooks.UserPromptDeniedError or *dispatch.Error.
 func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req codersdk.CreateChatRequest) (codersdk.Chat, error) {
 	if api.chatDaemon == nil {
 		return codersdk.Chat{}, httperror.NewResponseError(http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
@@ -1637,8 +1681,8 @@ func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req code
 
 	chat, err := api.createChat(ctx, aReq, userID, req)
 	if err != nil {
-		api.writeCreateChatError(ctx, sw, err)
-		return codersdk.Chat{}, recordedChatError(rw, err)
+		sw.WriteHeader(httperror.StatusCode(err))
+		return codersdk.Chat{}, err
 	}
 	sw.WriteHeader(http.StatusCreated)
 	return chat, nil
@@ -1693,74 +1737,32 @@ func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Contex
 	return dbauthz.As(ctx, actor), nil
 }
 
-// chatResponseError is an error from an in-process chat helper. It carries
-// the response that the matching HTTP endpoint sends for the error and
-// unwraps to the cause.
-type chatResponseError struct {
-	status   int
-	response codersdk.Response
-	err      error
-}
-
-var _ httperror.Responder = (*chatResponseError)(nil)
-
-func (e *chatResponseError) Error() string { return e.err.Error() }
-
-func (e *chatResponseError) Unwrap() error { return e.err }
-
-func (e *chatResponseError) Response() (int, codersdk.Response) { return e.status, e.response }
-
-// recordedChatError returns err with the response that rec recorded for
-// it, so that in-process callers can classify err by HTTP status.
-func recordedChatError(rec *httptest.ResponseRecorder, err error) error {
-	if _, ok := httperror.IsResponder(err); ok {
-		return err
+// createChatError maps an error from chatd.Server.CreateChat to the
+// response error of POST /api/v2/chats.
+func (api *API) createChatError(err error) error {
+	if hookErr := chatHookError(err, "Chat creation denied by lifecycle hook."); hookErr != nil {
+		return hookErr
 	}
-	var resp codersdk.Response
-	if json.Unmarshal(rec.Body.Bytes(), &resp) != nil {
-		return err
+	if fileErr := api.chatFileError(err); fileErr != nil {
+		return fileErr
 	}
-	return &chatResponseError{status: rec.Code, response: resp, err: err}
-}
-
-// writeCreateChatError writes the HTTP response for an error from createChat.
-func (api *API) writeCreateChatError(ctx context.Context, rw http.ResponseWriter, err error) {
-	if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
-		return
-	}
-	if api.writeChatFileError(ctx, rw, err) {
-		return
-	}
-	if _, ok := httperror.IsResponder(err); ok {
-		httperror.WriteResponseError(ctx, rw, err)
-		return
-	}
-	if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid model config ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if database.IsForeignKeyViolation(
+	if xerrors.Is(err, chatd.ErrInvalidModelConfigID) || database.IsForeignKeyViolation(
 		err,
 		database.ForeignKeyChatsLastModelConfigID,
 		database.ForeignKeyChatMessagesModelConfigID,
 	) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid model config ID.",
 			Detail:  err.Error(),
-		})
-		return
+		}, err)
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
-		httpapi.Forbidden(rw)
-		return
+		return httperror.WrapResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse, err)
 	}
-	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	return httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
 		Message: "Failed to create chat.",
 		Detail:  err.Error(),
-	})
+	}, err)
 }
 
 // @Summary Get chat by ID
@@ -2921,17 +2923,23 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// chatInvalidStateError returns the shared invalid-state response error
+// for chatstate.ErrInvalidState across every chat mutation endpoint, or nil
+// for any other error.
+func chatInvalidStateError(err error) error {
+	if !errors.Is(err, chatstate.ErrInvalidState) {
+		return nil
+	}
+	return httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
+		Message: "Chat is in an invalid state.",
+	}, err)
+}
+
 // writeChatInvalidState writes the shared invalid-state response for
 // chatstate.ErrInvalidState across every chat mutation endpoint.
 // Returns true when a response has been written.
 func writeChatInvalidState(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	if !errors.Is(err, chatstate.ErrInvalidState) {
-		return false
-	}
-	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-		Message: "Chat is in an invalid state.",
-	})
-	return true
+	return maybeWriteChatError(ctx, rw, chatInvalidStateError(err))
 }
 
 func noLocalChatModelResponse() *codersdk.Response {
@@ -2945,25 +2953,27 @@ func writeNoLocalChatModelResponse(ctx context.Context, rw http.ResponseWriter) 
 	httpapi.Write(ctx, rw, http.StatusBadRequest, *noLocalChatModelResponse())
 }
 
+// commonChatMutationError returns the response errors shared by chat
+// mutation endpoints, or nil for any other error.
+func commonChatMutationError(err error, archivedMessage string) error {
+	if xerrors.Is(err, chatd.ErrChatArchived) {
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: cmp.Or(archivedMessage, "Cannot mutate an archived chat."),
+		}, err)
+	}
+	if invalidStateErr := chatInvalidStateError(err); invalidStateErr != nil {
+		return invalidStateErr
+	}
+	if errors.Is(err, chatstate.ErrChatNotFound) || httpapi.Is404Error(err) {
+		return httperror.WrapResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse, err)
+	}
+	return nil
+}
+
 // writeCommonChatMutationError writes responses shared by chat
 // mutation endpoints. Returns true when a response has been written.
 func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, err error, archivedMessage string) bool {
-	switch {
-	case xerrors.Is(err, chatd.ErrChatArchived):
-		if archivedMessage == "" {
-			archivedMessage = "Cannot mutate an archived chat."
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: archivedMessage,
-		})
-	case writeChatInvalidState(ctx, rw, err):
-		// response already written
-	case errors.Is(err, chatstate.ErrChatNotFound), httpapi.Is404Error(err):
-		httpapi.ResourceNotFound(rw)
-	default:
-		return false
-	}
-	return true
+	return maybeWriteChatError(ctx, rw, commonChatMutationError(err, archivedMessage))
 }
 
 // @Summary Send chat message
@@ -3047,15 +3057,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 		if len(*req.InlineMCPServers) > 0 {
 			if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
-				httperror.WriteResponseError(ctx, rw, chatCallerSuppliedToolsDisabledError())
+				writeChatCallerSuppliedToolsDisabled(ctx, rw)
 				return
 			}
 			if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
-				httperror.WriteResponseError(ctx, rw, inlineMCPServersExperimentRequiredError())
+				writeInlineMCPServersExperimentRequired(ctx, rw)
 				return
 			}
 			if validations := validateInlineMCPServers(*req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
-				httperror.WriteResponseError(ctx, rw, inlineMCPServersInvalidError(validations))
+				writeInlineMCPServersInvalid(ctx, rw, validations)
 				return
 			}
 		}
@@ -7782,22 +7792,27 @@ func (api *API) maxPromptRequestBodyBytes() int64 {
 	return max(maxChatRequestBodyBytes, 2*int64(api.chatLimits.MaxPromptBytes))
 }
 
-func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+// chatFileError returns the response error for a chat attachment error in
+// err, or nil when err has none.
+func (api *API) chatFileError(err error) error {
 	switch {
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
 			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", api.chatLimits.MaxAttachmentsPerChat),
-		})
+		}, err)
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment unavailable.",
 			Detail:  "An attachment is no longer available. Upload it again and retry.",
-		})
+		}, err)
 	default:
-		return false
+		return nil
 	}
-	return true
+}
+
+func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	return maybeWriteChatError(ctx, rw, api.chatFileError(err))
 }
 
 // fetchChatFileMetadata returns metadata for all files linked to

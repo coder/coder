@@ -53,10 +53,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
@@ -2048,6 +2050,41 @@ func TestCreateChatAsUser(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, status)
 		require.Equal(t, "Chat attachment unavailable.", resp.Message)
 		require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
+	})
+
+	t.Run("HookDenied", func(t *testing.T) {
+		t.Parallel()
+
+		const hookSecret = "test-hook-secret-32-bytes-minimum!!"
+		consumer := newHookConsumer(t, hookSecret, agenthooks.Hooks{
+			UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+				return agenthooks.Response{
+					Permission:  &agenthooks.Permission{Decision: agenthooks.PermissionDeny},
+					UserMessage: "blocked by policy",
+				}, nil
+			},
+		})
+		t.Cleanup(consumer.Close)
+		hookClient, hookAPI := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+			opts.ChatWorkerDisabled = true
+			require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+			opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(hookSecret)
+			opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(testutil.WaitShort)
+			opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+		})
+		hookUser := coderdtest.CreateFirstUser(t, hookClient.Client)
+		createChatModel(t, hookClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := hookAPI.CreateChatAsUser(ctx, hookUser.UserID, helloRequest(hookUser.OrganizationID))
+		responder, ok := httperror.IsResponder(err)
+		require.True(t, ok, "want a responder error, got %v", err)
+		status, resp := responder.Response()
+		require.Equal(t, http.StatusForbidden, status)
+		require.Equal(t, "blocked by policy", resp.Message)
+		denied, ok := stderrors.AsType[*chathooks.UserPromptDeniedError](err)
+		require.True(t, ok, "want a hook denial, got %v", err)
+		require.Equal(t, "blocked by policy", denied.UserMessage)
 	})
 }
 
