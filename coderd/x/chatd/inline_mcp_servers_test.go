@@ -363,6 +363,92 @@ func TestChatInlineMCPServers(t *testing.T) {
 		require.NotEmpty(t, caller.snapshot(), "chatd must connect to the caller server")
 	})
 
+	t.Run("InternalServerByChatKind", func(t *testing.T) {
+		t.Parallel()
+
+		planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+		for _, tc := range []struct {
+			name     string
+			planMode database.NullChatPlanMode
+			chatMode database.NullChatMode
+			child    bool
+			wantTool bool
+		}{
+			{name: "PlanModeRoot", planMode: planMode, wantTool: true},
+			{name: "PlanModeChild", planMode: planMode, child: true},
+			{name: "ExploreRoot", chatMode: database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				db, ps := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				toolName := ""
+				if tc.wantTool {
+					toolName = "bot__echo"
+				}
+				model := newChatInlineMCPModel(t, toolName)
+				user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+				bot := newChatInlineEchoServer("bot", "Echoes the input")
+				var (
+					mu         sync.Mutex
+					gotChatIDs []uuid.UUID
+				)
+				server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+					withoutMCPToolSearch(cfg)
+					cfg.InternalMCPServers = []chatd.InternalMCPServer{{
+						Slug: "bot",
+						ServerForChat: func(_ context.Context, chat database.Chat) (*mcp.Server, error) {
+							mu.Lock()
+							defer mu.Unlock()
+							gotChatIDs = append(gotChatIDs, chat.ID)
+							return bot, nil
+						},
+					}}
+					cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+				})
+
+				opts := chatd.CreateOptions{
+					OrganizationID:     org.ID,
+					OwnerID:            user.ID,
+					Title:              "internal-mcp-" + tc.name,
+					ModelConfigID:      modelConfig.ID,
+					PlanMode:           tc.planMode,
+					ChatMode:           tc.chatMode,
+					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Use the bot tool.")},
+				}
+				if tc.child {
+					root := dbgen.Chat(t, db, database.Chat{
+						OrganizationID:    org.ID,
+						OwnerID:           user.ID,
+						LastModelConfigID: modelConfig.ID,
+					})
+					opts.ParentChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
+					opts.RootChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
+				}
+				chat, err := server.CreateChat(ctx, opts)
+				require.NoError(t, err)
+				waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+				chatResult, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
+
+				tools, _ := model.first()
+				mu.Lock()
+				defer mu.Unlock()
+				if !tc.wantTool {
+					require.NotContains(t, tools, "bot__echo")
+					require.Empty(t, gotChatIDs, "chatd must not ask for a server the chat does not use")
+					return
+				}
+				require.Contains(t, tools, "bot__echo")
+				require.True(t, model.sawResult.Load(), "internal tools must be active in root plan-mode chats")
+				require.NotEmpty(t, gotChatIDs)
+			})
+		}
+	})
+
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 

@@ -167,6 +167,7 @@ func (p *Server) buildTurnEnvironment(
 		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
+	usesMCPServers := turnUsesMCPServers(chat)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -192,7 +193,7 @@ func (p *Server) buildTurnEnvironment(
 		internalMCPServers  []mcpclient.InProcessServer
 		internalMCPFailures []mcpclient.ConnectSummary
 	)
-	if len(p.internalMCPServers) > 0 {
+	if usesMCPServers && len(p.internalMCPServers) > 0 {
 		g.Go(func() error {
 			internalMCPServers, internalMCPFailures = p.internalMCPServersForChat(ctx, chat)
 			return nil
@@ -294,10 +295,9 @@ func (p *Server) buildTurnEnvironment(
 	// map. Every tool source below is filtered against the union.
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInternalMCPServerIDs)
-	if isExploreSubagent && isRootChat {
+	if !usesMCPServers {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
-		internalMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
@@ -2001,6 +2001,17 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) bool {
+	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
+}
+
+// turnUsesMCPServers reports whether a turn of chat can use MCP servers.
+// Plan-mode subagents and explore-mode root chats use none.
+func turnUsesMCPServers(chat database.Chat) bool {
+	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
+	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
+}
+
 // filterMCPServersForTurn returns the external MCP servers visible on the
 // current turn and the set of their IDs. Outside plan mode every server is
 // visible and the set is nil. Plan-mode subagents see none: their trust
@@ -2012,13 +2023,13 @@ func filterMCPServersForTurn[T any](
 	parentChatID uuid.NullUUID,
 	policy func(T) (id uuid.UUID, allowInPlanMode bool),
 ) ([]T, map[uuid.UUID]struct{}) {
+	if isPlanModeSubagentTurn(mode, parentChatID) {
+		return nil, map[uuid.UUID]struct{}{}
+	}
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return servers, nil
 	}
 	approved := map[uuid.UUID]struct{}{}
-	if parentChatID.Valid {
-		return nil, approved
-	}
 	filtered := make([]T, 0, len(servers))
 	for _, srv := range servers {
 		id, allowInPlanMode := policy(srv)
