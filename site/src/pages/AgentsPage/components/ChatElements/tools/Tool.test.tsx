@@ -41,66 +41,8 @@ const renderWebSearch = (
 		</QueryClientProvider>,
 	);
 
+// Labels and pills are visual states covered by the web search stories.
 describe("Tool web search rows", () => {
-	const queries = { type: "search", queries: [" q1 ", "q2", "q2", ""] };
-	const openPage = { type: "open_page", url: "https://coder.com/docs" };
-	const findInPage = { ...openPage, type: "find_in_page", pattern: "tpl" };
-
-	it.each<{
-		case: string;
-		props: Partial<React.ComponentProps<typeof Tool>>;
-		label: string;
-	}>([
-		{
-			case: "OpenAI queries, trimmed and deduplicated",
-			props: { args: queries },
-			label: "Searched for q1, q2",
-		},
-		{
-			case: "Anthropic query",
-			props: { args: { query: "coder templates" } },
-			label: "Searched for coder templates",
-		},
-		{
-			case: "no queries",
-			props: { args: { type: "search" } },
-			label: "Searched the web",
-		},
-		{
-			case: "open_page",
-			props: { args: openPage },
-			label: "Opened https://coder.com/docs",
-		},
-		{
-			case: "find_in_page",
-			props: { args: findInPage },
-			label: "Searched https://coder.com/docs for tpl",
-		},
-		{
-			case: "running",
-			props: { args: queries, status: "running", result: undefined },
-			label: "Searching for q1, q2",
-		},
-		{
-			case: "failed",
-			props: {
-				args: openPage,
-				status: "error",
-				isError: true,
-				result: { error: "web search failed" },
-			},
-			label: "Failed to open https://coder.com/docs",
-		},
-		{
-			case: "message ended without a result",
-			props: { args: queries, result: undefined },
-			label: "Did not finish searching for q1, q2",
-		},
-	])("labels $case", ({ props, label }) => {
-		renderWebSearch(props);
-		expect(screen.getByText(label)).toBeInTheDocument();
-	});
-
 	it("uses the generic row for a client tool named web_search", () => {
 		renderWebSearch({
 			providerExecuted: false,
@@ -111,7 +53,7 @@ describe("Tool web search rows", () => {
 
 	it("links found pages only for http and https URLs", async () => {
 		renderWebSearch({
-			args: queries,
+			args: { type: "search", queries: ["coder"] },
 			foundPages: [
 				{ url: "https://coder.com/docs/ai", title: "" },
 				{ url: "http://coder.com/", title: "Coder" },
@@ -121,16 +63,9 @@ describe("Tool web search rows", () => {
 		});
 		await userEvent.click(screen.getByRole("button", { expanded: false }));
 
-		const links = screen.getAllByRole("link");
-		expect(links.map((link) => link.getAttribute("href"))).toEqual([
-			"https://coder.com/docs/ai",
-			"http://coder.com/",
-		]);
-		// Untitled pages show hostname and path; titled pages their title.
-		expect(links[0]).toHaveTextContent("coder.com/docs/ai");
-		expect(links[1]).toHaveTextContent("Coder");
-		expect(screen.getByText("example.com/release.txt")).toBeInTheDocument();
-		expect(screen.getByText("data:text/html,unsafe")).toBeInTheDocument();
+		expect(
+			screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+		).toEqual(["https://coder.com/docs/ai", "http://coder.com/"]);
 	});
 });
 

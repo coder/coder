@@ -2337,7 +2337,8 @@ export const WebSearchRunning: Story = {
 };
 
 // OpenAI found pages carry no titles, so pills show hostname plus path. The
-// ftp page renders as text, not a link.
+// ftp page renders as text, not a link. Padded, repeated, and empty queries
+// are each listed once or not at all.
 export const WebSearchQueriesAndFoundPages: Story = {
 	args: {
 		name: "web_search",
@@ -2345,7 +2346,12 @@ export const WebSearchQueriesAndFoundPages: Story = {
 		status: "completed",
 		args: {
 			type: "search",
-			queries: ["coder agents release notes", "coder ai gateway docs"],
+			queries: [
+				"coder agents release notes",
+				" coder ai gateway docs ",
+				"coder ai gateway docs",
+				"",
+			],
 		},
 		result: {},
 		foundPages: [
@@ -2359,6 +2365,74 @@ export const WebSearchQueriesAndFoundPages: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /searched for coder agents/i }),
 		);
+	},
+};
+
+export const WebSearchNoQueries: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search" },
+		result: {},
+	},
+};
+
+// Anthropic keeps the query in the call args and titles its found pages.
+// A single query is listed too because the header truncates long ones.
+export const WebSearchAnthropicQuery: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { query: "coder workspace templates" },
+		result: {},
+		foundPages: [
+			{
+				url: "https://coder.com/docs/admin/templates",
+				title: "Templates | Coder Docs",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder workspace/i }),
+		);
+	},
+};
+
+export const WebSearchOpenPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: {},
+	},
+};
+
+export const WebSearchFindInPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "find_in_page",
+			url: "https://coder.com/docs",
+			pattern: "templates",
+		},
+		result: {},
+	},
+};
+
+// The message stopped streaming before the search sent its result.
+export const WebSearchUnfinished: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search", queries: ["coder release notes"] },
 	},
 };
 
