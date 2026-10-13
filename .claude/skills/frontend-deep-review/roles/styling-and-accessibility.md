@@ -16,7 +16,7 @@ FE parent: none
 Look for:
 
 - Arbitrary values (`gap-[0.15rem]`, `py-[0.35rem]`, `md:w-[18rem]`, `[overflow-wrap:anywhere]`, `[filter:drop-shadow(...)]`) where a scale step or named utility exists (`gap-0.5`, `py-1.5`, `md:w-72`, `wrap-anywhere`, `drop-shadow-md`).
-- Classes added "everywhere" with no effect on that element (`min-w-0` on a non-flex-child, a second `w-3.5 h-3.5` pair that `size-3.5` covers) and `!` modifiers that only existed to beat MUI styles.
+- Classes added "everywhere" with no effect on that element (`min-w-0` on an element that is neither a flex item nor a grid item, a second `w-3.5 h-3.5` pair that `size-3.5` covers) and `!` modifiers that only existed to beat MUI styles.
 - Variant order that changes meaning (`after:hover:` vs `hover:after:`), paired `data-[state=open]`/`data-[state=closed]` classes out of order, and classes whose purpose the reviewer cannot state (`scroll-mt-44`).
 - Codemod or upgrade diffs that replace a composable class with a longer arbitrary one.
 
@@ -71,11 +71,11 @@ FE parent: none
 Look for:
 
 - `invert`, color, or filter classes that suit only one theme, especially on `ExternalImage`, which already adapts icons to the theme through `site/src/theme/externalImages.ts`. Ask for a semantic theme token or that mechanism; site/AGENTS.md forbids the `dark:` prefix, so never ask for one.
-- New icons in `site/src/theme/icons.json` without a matching entry in `site/src/theme/externalImages.ts`.
+- A new icon in `site/src/theme/icons.json` that does not look right in every theme in the default full-color mode (a black or single-color logo) and has no entry in `defaultParametersForBuiltinIcons` in `site/src/theme/externalImages.ts`. Icons that look right everywhere need no entry; most existing icons have none.
 - New theme variants that redefine every variable instead of overriding only the values that differ, and any change that removes or renames the `auto` theme option.
 - Hardcoded `fontFamily` or color strings passed to third-party renderers (Mermaid, terminals) when a Tailwind or CSS variable could be inherited.
 
-Fix: use the semantic token or the theme-aware primitive instead of a fixed color or filter; register icons in externalImages.ts; base new themes on an existing one; read fonts and colors from CSS variables where the library allows.
+Fix: use the semantic token or the theme-aware primitive instead of a fixed color or filter; register icons that need a non-default mode in externalImages.ts; base new themes on an existing one; read fonts and colors from CSS variables where the library allows.
 
 ### SA6: Use semantic elements and correct accessible names, keyboard paths, and focus
 

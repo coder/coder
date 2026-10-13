@@ -15,7 +15,7 @@ FE parent: FE3
 
 Look for:
 
-- A module-level or function-level const (className string, copy string, tooltip text, ternary result, fixture id) referenced exactly once. Grep the identifier: one hit means inline it.
+- A module-level or function-level const (className string, copy string, tooltip text, ternary result, fixture id) referenced exactly once. Grep the identifier: one hit means inline it, unless the name carries meaning the literal does not (a limit, a unit, a protocol value), which site/AGENTS.md allows.
 - Tailwind class strings hoisted into `const xClassName = "..."`, `*_CLASS_NAME`, or `*Classes` constants, especially when a comment or the identifier is the only justification.
 - A variable that names a sub-expression (`const foo = a ? b : c`) used once on the next few lines, or destructured aliases (`const agentId = chat.id`) that replace a single property access.
 - Exported constants (copy strings, flags) consumed in exactly one file.

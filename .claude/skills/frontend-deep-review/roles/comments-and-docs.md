@@ -72,12 +72,12 @@ FE parent: FE4
 
 Look for:
 
-- JSDoc tags with no consumer in this repo (`@public`, "Consumed by ... in a higher stack layer"); the reviewers drop them on sight.
+- A `@public` tag or a "Consumed by ... in a higher stack layer" note on an export that nothing outside the PR stack uses. knip skips exports tagged `@public`, so the tag hides dead code. Keep `@public` where a named external consumer needs the export, as in `site/src/api/api.ts`.
 - A type or interface doc block that describes what each method does instead of the method's own JSDoc doing it; a call-site comment in a test or page that explains a helper's behavior instead of sitting on the helper's definition.
 - Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere.
 - Module-level or config-file prose placed away from the section it governs (a cleanup note at the top of a file whose cleanup section sits at the bottom, a one-line policy at line 1 of a 300-line module).
 
-Fix: move the sentence to the declaration it describes and delete the original; drop stack-layer and visibility annotations entirely.
+Fix: move the sentence to the declaration it describes and delete the original; drop stack-layer notes, and keep `@public` only on exports with a named external consumer.
 
 ### CD6: Explain the non-obvious decision, or make the existing explanation readable
 
@@ -86,7 +86,7 @@ FE parent: FE4
 
 Look for:
 
-- A useEffect, manual useMemo, migration call, or other pattern the FE rules discourage that ships with no comment, or with a one-liner a reader cannot connect to the code ("Generated X is alphabetical, not display order").
+- A useEffect, a migration call, memoization in a React Compiler directory, or another pattern the FE rules discourage that ships with no comment, or with a one-liner a reader cannot connect to the code ("Generated X is alphabetical, not display order").
 - A justification that names a mechanism without the reason ("external to the compiler's static analysis"); if a reviewer would have to ask "why does that matter here?", it is not a justification yet.
 - A component or helper whose props (`text`, `query`) cannot be understood from the signature and whose comment does not say how they are used.
 

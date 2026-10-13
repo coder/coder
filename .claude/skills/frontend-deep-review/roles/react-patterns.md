@@ -17,7 +17,7 @@ Look for:
 
 - An effect whose body is only setState calls, keyed on a prop or another piece of state (open, chatId, selected key, org id). Ask: can the value be read directly, or computed inline, on each render?
 - A "reset when X changes" effect, often paired with a previousXRef to detect the change. That is the setter-during-render pattern or a keyed remount, not an effect.
-- useState initialised from a prop and never set again. Use the prop.
+- useState initialised from a prop and never set again, in a component that should follow later changes to the prop. Use the prop. Keeping only the first value on purpose is fine when the prop name says so (`initialX`, `defaultX`).
 - An effect that runs to "sync" one state into another with an inequality guard. Delete one of the two.
 
 Fix: read the source value directly or compute the derived value in render; when a prop change must reset local state, compare against the previous value during render or remount the subtree with a key derived from the changed id (FE5 forbids `key={String(booleanState)}`).
@@ -45,7 +45,7 @@ Look for:
 
 - A suppression of oxlint's `react/exhaustive-deps` rule. If the value is stable, add it; if it is not, the effect is wrong.
 - An effect that only copies state or a prop into a ref (widthRef.current = width, formValuesRef, dragged.current = true). Ask who reads the ref; usually it exists to dodge a dependency array. Use useEffectEvent or read the value directly.
-- addEventListener, ResizeObserver, popup windows, or fetchNextPage set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource.
+- addEventListener, ResizeObserver, or popup windows set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource.
 - Helper functions declared inside the effect body that capture no props or state: hoist them to module level. A helper that reads props or state stays inside the effect, as React recommends.
 - DOM found via querySelector instead of a ref: attach a ref or ref callback instead.
 
@@ -117,7 +117,7 @@ FE parent: none
 
 Look for:
 
-- const renderX = (...) => (<...>) declared inside a component body, or any lowercase function returning ReactNode.
+- const renderX = (...) => (<...>) declared inside a component body, or any other lowercase function returning ReactNode. Exception: a render callback that a component prop expects, such as `renderOption` on `Autocomplete`.
 - The same markup block repeated twice with a shared className constant instead of a small component.
 - Helpers that take a "tab" or "message" argument and return a fragment; these are components with props.
 
