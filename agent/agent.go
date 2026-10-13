@@ -1857,6 +1857,16 @@ func (a *agent) createTailnet(
 	}()
 
 	if err = a.trackGoroutine(func() {
+		// The SSH server should close all listeners passed into it, but we are
+		// seeing cases in CI where the upgrade listener is never closed during
+		// tests.  For now, ensure it is closed as a precaution.
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = sshUpgradeListener.Close()
+		}()
 		_ = a.sshServer.Serve(sshUpgradeListener)
 	}); err != nil {
 		return nil, err
@@ -1868,7 +1878,6 @@ func (a *agent) createTailnet(
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
-			_ = sshUpgradeListener.Close()
 			_ = ptyUpgradeListener.Close()
 		}()
 		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)

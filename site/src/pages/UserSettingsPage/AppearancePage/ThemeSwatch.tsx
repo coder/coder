@@ -37,7 +37,7 @@ export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 						"inline-flex rounded-full size-8 p-0 border-2 border-solid cursor-pointer",
 						"transition-[outline] outline-solid outline-2 outline-offset-2",
 						selected ? "outline-content-link" : "outline-transparent",
-						"border-border-default",
+						"border-border",
 						"has-[input:focus-visible]:outline-content-link has-[input:focus-visible]:outline-offset-2",
 					)}
 					onMouseEnter={onPreview}

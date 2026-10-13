@@ -176,6 +176,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	renderTemplateParametersFn     chattool.RenderTemplateParametersFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	hooks                          *chathooks.Trigger
@@ -205,7 +206,6 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
-	authorizer               rbac.Authorizer
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -215,15 +215,6 @@ type Server struct {
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
 	chatLimits             Limits
-}
-
-func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
-	cfg, err := p.configCache.AdvisorConfig(ctx)
-	if err != nil {
-		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
-		return advisorRuntimeConfig{}
-	}
-	return cfg
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
@@ -260,12 +251,10 @@ func (p *Server) resolveAdvisorModelOverride(
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         advisorOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeSoft,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeHard,
+		context:             advisorOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfNoProviderKey: true,
 	})
 	if err != nil {
 		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -374,27 +363,6 @@ func (p *Server) newAdvisorRuntime(
 		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
 	return rt, nil
-}
-
-// resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
-// the chat's pinned context snapshot (chat_context_resources). The agent
-// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
-// rows, or one whose workspace advertises no MCP servers, contributes no
-// workspace MCP tools. A read failure is logged and yields no tools rather
-// than aborting the turn.
-func (p *Server) resolveWorkspaceMCPTools(
-	ctx context.Context,
-	logger slog.Logger,
-	chat database.Chat,
-	workspaceCtx *turnWorkspaceContext,
-) []fantasy.AgentTool {
-	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
-	if err != nil {
-		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil
-	}
-	return tools
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
@@ -1107,9 +1075,6 @@ type CreateOptions struct {
 	PlanMode        database.NullChatPlanMode
 	ClientType      database.ChatClientType
 	SystemPrompt    string
-	// ManageAutomationsEnabled offers the manage_automations tool. Callers
-	// check the chat-automations experiment before setting it.
-	ManageAutomationsEnabled bool
 	// InitialUserContent is the first user message. When empty, the
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
@@ -1118,10 +1083,6 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
-	// AdmitInTx, when set, admits InitialUserContent as an automation
-	// message inside the creation transaction. See
-	// [chatstate.CreateChatInput.AdmitInTx].
-	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1149,10 +1110,6 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
-	// AdmitInTx, when set, admits Content as an automation message
-	// inside the send transaction. See
-	// [chatstate.SendMessageInput.AdmitInTx].
-	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1330,8 +1287,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
-	organizationPrompt := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
+	deploymentPrompt, err := p.resolveDeploymentSystemPrompt(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1455,9 +1418,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
-		AdmitInTx:       opts.AdmitInTx,
-
-		ManageAutomationsEnabled: opts.ManageAutomationsEnabled,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1557,8 +1517,6 @@ func (p *Server) SendMessage(
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// Update may rerun this callback after a deadlock abort.
-		result = SendMessageResult{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1623,7 +1581,6 @@ func (p *Server) SendMessage(
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
-			AdmitInTx:    opts.AdmitInTx,
 		})
 		if err != nil {
 			return err
@@ -2223,13 +2180,8 @@ func (p *Server) PromoteQueued(
 		refreshChat      database.Chat
 		promotedQueuedAt time.Time
 	)
-	rejected := false
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// Update may rerun this callback after a deadlock abort.
-		result = PromoteQueuedResult{}
-		rejected = false
-		promotedQueuedAt = time.Time{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2243,12 +2195,6 @@ func (p *Server) PromoteQueued(
 		})
 		if err != nil {
 			return err
-		}
-		if promoteResult.Rejected {
-			// Commit the guard's delete of the stale row, then
-			// report it as not found. The status is unchanged.
-			rejected = true
-			return nil
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
@@ -2266,9 +2212,6 @@ func (p *Server) PromoteQueued(
 	})
 	if updateErr != nil {
 		return PromoteQueuedResult{}, updateErr
-	}
-	if rejected {
-		return PromoteQueuedResult{}, chatstate.ErrQueuedMessageNotFound
 	}
 
 	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
@@ -2992,6 +2935,7 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
+	RenderTemplateParameters       chattool.RenderTemplateParametersFn
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
@@ -3008,9 +2952,6 @@ type Config struct {
 	ExperimentEvaluator *experiments.Evaluator
 	PrometheusRegistry  prometheus.Registerer
 	TracerProvider      trace.TracerProvider
-	// Authorizer checks the permissions of an automation owner when an
-	// automation publishes. Publishing fails closed when it is nil.
-	Authorizer rbac.Authorizer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3108,6 +3049,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
+		renderTemplateParametersFn:     cfg.RenderTemplateParameters,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
@@ -3133,7 +3075,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		experimentEvaluator:      cfg.ExperimentEvaluator,
-		authorizer:               cfg.Authorizer,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -3801,10 +3742,9 @@ type rootChatToolsOptions struct {
 func (p *Server) loadPlanModeInstructions(
 	ctx context.Context,
 	mode database.NullChatPlanMode,
-	logger slog.Logger,
-) string {
+) (string, error) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return ""
+		return "", nil
 	}
 
 	// Plan-mode instructions live in deployment config, but chat workers do
@@ -3813,14 +3753,9 @@ func (p *Server) loadPlanModeInstructions(
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
-		logger.Warn(ctx,
-			"failed to fetch plan mode instructions",
-			slog.Error(err),
-		)
-		return ""
+		return "", xerrors.Errorf("get plan mode instructions: %w", err)
 	}
-
-	return fetched
+	return fetched, nil
 }
 
 func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
@@ -3844,18 +3779,10 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 func (p *Server) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
-	logger slog.Logger,
-) []skillspkg.Skill {
+) ([]skillspkg.Skill, error) {
 	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
-	// See package coderd/x/skills (doc.go) for why metadata fetch failures
-	// intentionally degrade to an empty personal-skill list instead of
-	// failing the chat turn.
 	if err != nil {
-		logger.Warn(ctx, "failed to load personal skill metadata",
-			slog.F("owner_id", userID),
-			slog.Error(err),
-		)
-		return nil
+		return nil, xerrors.Errorf("list personal skill metadata: %w", err)
 	}
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
@@ -3866,7 +3793,7 @@ func (p *Server) fetchPersonalSkillMetadata(
 			Source:      skillspkg.SourcePersonal,
 		})
 	}
-	return personalSkills
+	return personalSkills, nil
 }
 
 func (p *Server) loadPersonalSkillBody(
@@ -3924,7 +3851,9 @@ func (p *Server) appendRootChatTools(
 			Clock:   p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID: opts.chat.OwnerID,
+			OwnerID:          opts.chat.OwnerID,
+			RenderParameters: p.renderTemplateParametersFn,
+			Logger:           p.logger,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
@@ -4362,41 +4291,33 @@ func refreshChatWorkspaceSnapshot(
 // resolveUserCompactionThreshold looks up the user's per-model
 // compaction threshold override. Returns the override value and
 // true if one exists and is valid, or 0 and false otherwise.
-func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
+func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool, error) {
 	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
 		UserID: userID,
 		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false
+		return 0, false, nil
 	}
 	if err != nil {
-		p.logger.Warn(ctx, "failed to fetch compaction threshold override",
-			slog.F("user_id", userID),
-			slog.F("model_config_id", modelConfigID),
-			slog.Error(err),
-		)
-		return 0, false
+		return 0, false, xerrors.Errorf("get user compaction threshold: %w", err)
 	}
 	// Range 0..100 must stay in sync with handler validation in
 	// coderd/chats.go.
 	val, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || val < 0 || val > 100 {
-		return 0, false
+		return 0, false, nil
 	}
-	return int32(val), true
+	return int32(val), true, nil
 }
 
 // resolveDeploymentSystemPrompt builds the deployment-level system
 // prompt from the built-in default and the admin-configured custom
 // prompt stored in site_configs.
-func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
+func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) (string, error) {
 	config, err := p.db.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		// Fail open: use the built-in default so chats always have
-		// some system guidance.
-		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
-		return DefaultSystemPrompt
+		return "", xerrors.Errorf("get chat system prompt config: %w", err)
 	}
 
 	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
@@ -4415,39 +4336,36 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 	if result == "" {
 		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
 	}
-	return result
+	return result, nil
 }
 
 // resolveOrganizationSystemPrompt returns the sanitized system prompt
 // configured for the organization, or an empty string when none is set.
-func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) string {
+func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	//nolint:gocritic // Chat creators cannot read organization config, so chatd reads it.
 	row, err := p.db.GetChatOrganizationSystemPrompt(dbauthz.AsChatd(ctx), organizationID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			// Fail open: the deployment prompt still applies.
-			p.logger.Warn(ctx, "failed to fetch organization chat system prompt, omitting it",
-				slog.F("organization_id", organizationID), slog.Error(err))
-		}
-		return ""
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
 	}
-	return codersdk.SanitizePromptText(row.SystemPrompt)
+	if err != nil {
+		return "", xerrors.Errorf("get organization chat system prompt: %w", err)
+	}
+	return codersdk.SanitizePromptText(row.SystemPrompt), nil
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the
 // database and wraps it in <user-instructions> tags. Returns empty
 // string if no prompt is set.
-func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
+func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
 	raw, err := p.configCache.UserPrompt(ctx, userID)
 	if err != nil {
-		// sql.ErrNoRows is the normal "not set" case.
-		return ""
+		return "", xerrors.Errorf("get user chat prompt: %w", err)
 	}
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
-	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>", nil
 }
 
 // renderPlanPathPrompt fills the plan-path placeholder when it is

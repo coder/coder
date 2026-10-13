@@ -25,6 +25,11 @@ func TestBodyOpensWithContentBanner(t *testing.T) {
 		{"LaterInBody", "# Title\n\n" + banner + "\n", false},
 		{"UnclosedFrontMatter", "---\ntitle: x\n" + banner + "\n", false},
 		{"Empty", "", false},
+		// A Windows checkout with core.autocrlf converts the committed pages
+		// to CRLF line endings.
+		{"CRLFAfterFrontMatter", "---\r\ntitle: x\r\n---\r\n\r\n" + banner + "\r\n\r\nBody\r\n", true},
+		{"CRLFNoFrontMatter", banner + "\r\n# Title\r\n", true},
+		{"CRLFInCodeBlock", "---\r\ntitle: x\r\n---\r\n\r\n```markdown\r\n" + banner + "\r\n```\r\n", false},
 		// The preamble the API generator writes, so a layout change there
 		// fails here.
 		{"GeneratedHeader", docgenenv.GeneratedHeader(docgenenv.Route{Title: "x", Description: "y"}) + "Body\n", true},

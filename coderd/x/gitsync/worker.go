@@ -71,6 +71,7 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
+	GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error)
 	GetChatsByWorkspaceIDs(
 		ctx context.Context, ids []uuid.UUID,
 	) ([]database.Chat, error)
@@ -291,7 +292,8 @@ type MarkStaleParams struct {
 	WorkspaceID uuid.UUID
 	Branch      string
 	Origin      string
-	// ChatID, when set, targets a single chat.
+	// ChatID, when set, targets a single chat. Subagent chats are
+	// resolved to their root chat, which owns the git refs and PRs.
 	ChatID uuid.UUID
 }
 
@@ -314,7 +316,14 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 	// chatd via the agent (trusted data flow), but differs from
 	// the broadcast path which filters by workspace.
 	if p.ChatID != uuid.Nil {
-		w.markStaleSingle(ctx, p.ChatID, p.Branch, p.Origin)
+		chat, err := w.store.GetChatByID(ctx, p.ChatID)
+		if err != nil {
+			w.logger.Warn(ctx, "get chat for git ref storage",
+				slog.F("chat_id", p.ChatID),
+				slog.Error(err))
+			return
+		}
+		w.markStaleSingle(ctx, rootChatID(chat), p.Branch, p.Origin)
 		return
 	}
 
@@ -357,6 +366,19 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 
 		w.markStaleSingle(ctx, status.ChatID, p.Branch, p.Origin)
 	}
+}
+
+// rootChatID returns the ID of the root chat in chat's subagent tree.
+// Git refs and PRs belong to the root chat so that work done by
+// subagents shows up on the chat the user interacts with.
+func rootChatID(chat database.Chat) uuid.UUID {
+	if chat.RootChatID.Valid {
+		return chat.RootChatID.UUID
+	}
+	if chat.ParentChatID.Valid {
+		return chat.ParentChatID.UUID
+	}
+	return chat.ID
 }
 
 // originCredentials matches the user and password in an HTTP(S) remote

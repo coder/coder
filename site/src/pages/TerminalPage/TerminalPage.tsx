@@ -62,16 +62,19 @@ const TerminalPage: React.FC = () => {
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
 
-	// Resolve the ?app= slug to a command from the agent's app list.
-	// These commands are admin-configured in the template and trusted,
-	// so they skip the confirmation dialog.
-	const appCommand = useMemo(() => {
+	// Resolve the ?app= slug to a command app from the agent's app list.
+	// Only command apps run in this terminal, so other apps don't label
+	// the page. The command is admin-configured in the template and
+	// trusted, so it skips the confirmation dialog.
+	const app = useMemo(() => {
 		if (!appSlug || !workspaceAgent) {
 			return undefined;
 		}
-		const app = workspaceAgent.apps.find((a) => a.slug === appSlug);
-		return app?.command || undefined;
+		return workspaceAgent.apps.find(
+			(a) => a.slug === appSlug && Boolean(a.command),
+		);
 	}, [appSlug, workspaceAgent]);
+	const appCommand = app?.command || undefined;
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
@@ -150,12 +153,37 @@ const TerminalPage: React.FC = () => {
 		);
 	}, [navigate, reconnectionToken, searchParams]);
 
+	// Use the app's icon as the page icon, so a PWA installed from an
+	// app's terminal page carries the app's icon. Chrome keeps using the
+	// static icons from index.html over an icon added later, so take them
+	// out while the app's icon is shown and put them back on cleanup.
+	const appIcon = app?.icon;
+	useEffect(() => {
+		if (!appIcon) {
+			return;
+		}
+		const staticIcons = Array.from(
+			document.head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]'),
+		);
+		for (const link of staticIcons) {
+			link.remove();
+		}
+		const icon = document.createElement("link");
+		icon.rel = "icon";
+		icon.href = appIcon;
+		document.head.append(icon);
+		return () => {
+			icon.remove();
+			document.head.append(...staticIcons);
+		};
+	}, [appIcon]);
+
 	return (
 		<ThemeOverride theme={theme}>
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						"Terminal",
+						app?.display_name || "Terminal",
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>

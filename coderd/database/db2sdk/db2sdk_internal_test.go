@@ -12,6 +12,80 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestWorkspaceAgentScriptDependencies(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		dependencies string
+		want         []codersdk.WorkspaceAgentScriptDependency
+		wantErr      string
+	}{
+		{
+			name:         "EmptyArrayIsNil",
+			dependencies: `[]`,
+			want:         nil,
+		},
+		{
+			name:         "EmptyColumnIsNil",
+			dependencies: ``,
+			want:         nil,
+		},
+		{
+			// A hand-written literal, so the column format is a tested
+			// contract rather than whatever the encoder produces.
+			name: "DecodesLiteral",
+			dependencies: `[{"prerequisite_resource_address":"coder_script.clone_repo","requirement":"success"},` +
+				`{"prerequisite_resource_address":"coder_script.warm_cache","requirement":"completion"}]`,
+			want: []codersdk.WorkspaceAgentScriptDependency{
+				{
+					PrerequisiteResourceAddress: "coder_script.clone_repo",
+					Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+				},
+				{
+					PrerequisiteResourceAddress: "coder_script.warm_cache",
+					Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementCompletion,
+				},
+			},
+		},
+		{
+			name:         "MalformedJSON",
+			dependencies: `[`,
+			wantErr:      "decode dependencies",
+		},
+		{
+			name:         "EmptyAddress",
+			dependencies: `[{"requirement":"success"}]`,
+			wantErr:      "dependency 0 has an empty prerequisite resource address",
+		},
+		{
+			name:         "UnknownRequirement",
+			dependencies: `[{"prerequisite_resource_address":"coder_script.clone_repo","requirement":"eventually"}]`,
+			wantErr:      `dependency 0 has unsupported requirement "eventually"`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := WorkspaceAgentScript(database.GetWorkspaceAgentScriptsByAgentIDsRow{
+				ID:              uuid.New(),
+				DisplayName:     "Install tools",
+				ResourceAddress: "coder_script.install_tools",
+				Dependencies:    json.RawMessage(tc.dependencies),
+			})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "coder_script.install_tools", got.ResourceAddress)
+			require.Equal(t, tc.want, got.Dependencies)
+		})
+	}
+}
+
 func TestAggregateTokenMetadata(t *testing.T) {
 	t.Parallel()
 

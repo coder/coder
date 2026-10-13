@@ -602,56 +602,92 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
 	fix := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
-	events := bytes.SplitAfter(fix.Streaming(), []byte("\n\n"))
-	require.Greater(t, len(events), 2)
-	head := bytes.Join(events[:2], nil)
-	tail := bytes.Join(events[2:], nil)
+	lf := bytes.ReplaceAll(fix.Streaming(), []byte("\r\n"), []byte("\n"))
+	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
 
-	release := make(chan struct{})
-	var releaseOnce sync.Once
-	releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+	// SSE allows LF and CRLF line endings, so the relay is exercised with
+	// both forms of the fixture stream.
+	for _, tc := range []struct {
+		name   string
+		stream []byte
+	}{
+		{name: "LF", stream: lf},
+		{name: "CRLF", stream: crlf},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(head)
-		w.(http.Flusher).Flush()
-		select {
-		case <-release:
-		case <-r.Context().Done():
-			return
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			events := splitSSEEvents(tc.stream)
+			require.Greater(t, len(events), 2)
+			head := bytes.Join(events[:2], nil)
+			tail := bytes.Join(events[2:], nil)
+
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(head)
+				w.(http.Flusher).Flush()
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+				_, _ = w.Write(tail)
+			}))
+			t.Cleanup(upstream.Close)
+			t.Cleanup(releaseUpstream)
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+			// Bound the wait with ctx: a buffered bridge never sends headers while
+			// upstream is held back.
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+			got := make([]byte, len(head))
+			_, err = io.ReadFull(resp.Body, got)
+			require.NoError(t, err)
+			require.Equal(t, string(head), string(got))
+
+			releaseUpstream()
+			rest, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, string(tc.stream), string(got)+string(rest))
+		})
+	}
+}
+
+// splitSSEEvents splits an SSE stream after each blank line, accepting LF and
+// CRLF line endings. Each event keeps its original bytes, so joining the
+// events reproduces the input exactly.
+func splitSSEEvents(stream []byte) [][]byte {
+	var events [][]byte
+	start, offset := 0, 0
+	for _, line := range bytes.SplitAfter(stream, []byte("\n")) {
+		offset += len(line)
+		if len(line) > 0 && len(bytes.TrimRight(line, "\r\n")) == 0 {
+			events = append(events, stream[start:offset])
+			start = offset
 		}
-		_, _ = w.Write(tail)
-	}))
-	t.Cleanup(upstream.Close)
-	t.Cleanup(releaseUpstream)
-
-	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
-
-	// Bound the wait with ctx: a buffered bridge never sends headers while
-	// upstream is held back.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
-
-	got := make([]byte, len(head))
-	_, err = io.ReadFull(resp.Body, got)
-	require.NoError(t, err)
-	require.Equal(t, string(head), string(got))
-
-	releaseUpstream()
-	rest, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, string(fix.Streaming()), string(got)+string(rest))
+	}
+	if start < len(stream) {
+		events = append(events, stream[start:])
+	}
+	return events
 }
 
 // Upstream accepts the stream but drops the connection before a complete

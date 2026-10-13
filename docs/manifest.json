@@ -375,6 +375,11 @@
 							"title": "Antigravity",
 							"description": "Access your Coder workspace with the Antigravity agentic code editor over SSH.",
 							"path": "./user-guides/workspace-access/antigravity.md"
+						},
+						{
+							"title": "Claude Desktop",
+							"description": "Let Claude Desktop access your Coder workspaces.",
+							"path": "./user-guides/workspace-access/claude-desktop.md"
 						}
 					]
 				},
@@ -1131,12 +1136,6 @@
 							"title": "Chat sharing",
 							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
 							"path": "./ai-coder/agents/chat-sharing.md"
-						},
-						{
-							"title": "Automations",
-							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
-							"path": "./ai-coder/agents/automations.md",
-							"state": ["early access"]
 						},
 						{
 							"title": "Conversation search syntax",

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -107,36 +108,42 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 	rows []database.ChatMessage,
 	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
-) []database.ChatMessage {
+) ([]database.ChatMessage, error) {
 	targetCfg, targetProvider, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
+	if err != nil && !modelConfigUnavailable(err) {
+		return nil, xerrors.Errorf("resolve target model config: %w", err)
+	}
 	if err != nil || targetProvider == "" {
 		logger.Debug(ctx, "skipping provider-switch sanitization: target provider unresolved",
 			slog.F("model_config_id", modelConfigID),
 			slog.Error(err),
 		)
-		return rows
+		return rows, nil
 	}
 	targetIdentity := modelConfigProviderIdentity(targetCfg, targetProvider)
 
-	cache := make(map[uuid.UUID]string)
+	// An unavailable origin config maps to "", so its rows are foreign.
+	origins := make(map[uuid.UUID]string)
+	for _, row := range rows {
+		id := row.ModelConfigID
+		if row.Role != database.ChatMessageRoleAssistant || !id.Valid {
+			continue
+		}
+		if _, seen := origins[id.UUID]; seen {
+			continue
+		}
+		originCfg, provider, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
+		switch {
+		case err == nil:
+			origins[id.UUID] = modelConfigProviderIdentity(originCfg, provider)
+		case modelConfigUnavailable(err):
+			origins[id.UUID] = ""
+		default:
+			return nil, xerrors.Errorf("resolve origin model config %s: %w", id.UUID, err)
+		}
+	}
 	originProvider := func(id uuid.NullUUID) (string, bool) {
-		if !id.Valid {
-			return "", false
-		}
-		if identity, seen := cache[id.UUID]; seen {
-			return identity, identity != ""
-		}
-		originCfg, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
-		if rErr != nil {
-			logger.Debug(ctx, "provider-switch sanitization: origin provider unresolved, treating as foreign",
-				slog.F("model_config_id", id.UUID),
-				slog.Error(rErr),
-			)
-			cache[id.UUID] = ""
-			return "", false
-		}
-		identity := modelConfigProviderIdentity(originCfg, provider)
-		cache[id.UUID] = identity
+		identity := origins[id.UUID]
 		return identity, identity != ""
 	}
 
@@ -150,5 +157,5 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 			slog.F("dropped_messages", stats.DroppedMessages),
 		)
 	}
-	return sanitized
+	return sanitized, nil
 }

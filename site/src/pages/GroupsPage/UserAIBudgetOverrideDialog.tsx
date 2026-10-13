@@ -146,7 +146,7 @@ export const UserAIBudgetOverrideDialog: React.FC<
 				}
 			}}
 		>
-			<DialogContent className="max-w-md gap-5 border-border-default bg-surface-primary p-8 text-content-primary">
+			<DialogContent className="max-w-md gap-5 border-border bg-surface-primary p-8 text-content-primary">
 				<div className="flex items-start justify-between gap-4">
 					<DialogTitle className="font-semibold text-content-primary">
 						AI Budget

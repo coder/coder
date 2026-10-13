@@ -131,7 +131,7 @@ func TestSSH(t *testing.T) {
 			// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 			stdin.WriteLine("exit")
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionLogMethodSSH, tc.id)
 		})
 	}
 
@@ -1884,7 +1884,7 @@ func TestSSH_Stdio(t *testing.T) {
 			_ = clientOutput.Close()
 
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionLogMethodSSH, tc.id)
 		})
 	}
 }
@@ -2319,7 +2319,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 			_ = clientOutput.Close()
 
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionLogMethodSSH, tc.id)
 		})
 	}
 
@@ -2762,7 +2762,7 @@ func TestSSH_Completion(t *testing.T) {
 func assertConnLog(t *testing.T,
 	connLogger *connectionlog.FakeConnectionLogger,
 	workspace database.WorkspaceTable,
-	expectedType database.ConnectionType,
+	expectedMethod database.ConnectionLogMethod,
 	clientSessionID string,
 ) {
 	t.Helper()
@@ -2770,7 +2770,7 @@ func assertConnLog(t *testing.T,
 	var logs []database.UpsertConnectionLogParams
 	require.Eventually(t, func() bool {
 		for _, log := range connLogger.ConnectionLogs() {
-			if log.Type == expectedType &&
+			if log.ConnectionMethod == expectedMethod &&
 				log.WorkspaceID == workspace.ID {
 				logs = append(logs, log)
 			}

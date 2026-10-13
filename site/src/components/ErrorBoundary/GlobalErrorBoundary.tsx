@@ -95,7 +95,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 type ErrorStackProps = Readonly<{ error: Error | ErrorResponse }>;
 const ErrorStack: React.FC<ErrorStackProps> = ({ error }) => {
 	return (
-		<aside className="p-4 text-left rounded-md border border-content-tertiary border-solid">
+		<aside className="p-4 text-left rounded-md border border-border border-solid">
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">

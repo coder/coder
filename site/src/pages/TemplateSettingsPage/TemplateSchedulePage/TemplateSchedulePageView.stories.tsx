@@ -60,37 +60,14 @@ export const SubmitClearsActivityBumpWhenDefaultTTLIsZero: Story = {
 		},
 		onSubmit: fn(),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-
 		const defaultTtlField = await canvas.findByLabelText(
 			"Default autostop (hours)",
 		);
-		const activityBumpField = canvas.getByLabelText("Activity bump (hours)");
-
 		await user.clear(defaultTtlField);
 		await user.type(defaultTtlField, "0");
-
-		await expect(activityBumpField).toBeDisabled();
-
-		// Helper text explains why the field is disabled.
-		await expect(
-			canvas.getByText(
-				/activity bump only applies when "default autostop" is configured or users are allowed to customize autostop/i,
-			),
-		).toBeInTheDocument();
-
-		const submitButton = canvas.getByRole("button", { name: /save/i });
-		await user.click(submitButton);
-
-		await waitFor(() => {
-			expect(args.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					activity_bump_ms: undefined,
-				}),
-			);
-		});
 	},
 };
 

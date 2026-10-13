@@ -13,6 +13,7 @@
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
 import { toast } from "sonner";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,
@@ -214,6 +215,63 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 		expect(result.current.showCopiedSuccess).toBe(false);
 	});
+
+	it("Does not schedule a success timer when a pending copy finishes after unmount", async () => {
+		const write = createDeferred<undefined>();
+		vi.spyOn(mockClipboard, "writeText").mockReturnValueOnce(write.promise);
+		const { result, unmount } = renderUseClipboard();
+		const copy = result.current.copyToClipboard("cats");
+
+		unmount();
+		await act(async () => {
+			write.resolve(undefined);
+			await copy;
+		});
+
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it.each([false, true])(
+		"Finishes the fallback after unmount without leaking timers (failure: %s)",
+		async (shouldFail) => {
+			const write = createDeferred<undefined>();
+			vi.spyOn(mockClipboard, "writeText").mockReturnValueOnce(write.promise);
+			const onError = vi.fn();
+			const { result, unmount } = renderUseClipboard({ onError });
+			setSimulateFailure(shouldFail);
+			const copy = result.current.copyToClipboard("cats");
+
+			unmount();
+			await act(async () => {
+				write.reject(new Error("Clipboard unavailable"));
+				await copy;
+			});
+
+			expect(getClipboardText()).toBe(shouldFail ? "" : "cats");
+			expect(onError).toHaveBeenCalledTimes(shouldFail ? 1 : 0);
+			// Flush jsdom's zero-delay select events from the fallback input.
+			act(() => vi.advanceTimersByTime(0));
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
+
+	it.each(["cats", "dogs"])(
+		"Restarts feedback when copying %s after cats and clears its timer on unmount",
+		async (text) => {
+			const { result, unmount } = renderUseClipboard();
+			await act(() => result.current.copyToClipboard("cats"));
+			act(() => vi.advanceTimersByTime(500));
+			await act(() => result.current.copyToClipboard(text));
+
+			act(() => vi.advanceTimersByTime(500));
+			expect(result.current.showCopiedSuccess).toBe(true);
+			expect(getClipboardText()).toBe(text);
+			expect(vi.getTimerCount()).toBe(1);
+
+			unmount();
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
 
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";

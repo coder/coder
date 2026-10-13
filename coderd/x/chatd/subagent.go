@@ -204,31 +204,21 @@ func (p *Server) resolvePersonalModelOverride(
 ) (database.ChatModelConfig, bool, error) {
 	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
 	if err != nil {
-		switch {
-		case xerrors.Is(err, sql.ErrNoRows):
-			p.logger.Debug(ctx,
-				"personal model override is unavailable, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-			)
-		case errors.Is(err, errInvalidModelOverrideMetadata):
-			p.logger.Debug(ctx,
-				"personal model override metadata is invalid, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-				slog.Error(err),
-			)
-		default:
-			p.logger.Warn(ctx,
-				"failed to resolve personal model override, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-				slog.Error(err),
+		if !modelConfigUnavailable(err) {
+			return database.ChatModelConfig{}, false, xerrors.Errorf(
+				"resolve %s personal model override %s: %w",
+				subagentModelOverrideLogLabel(overrideContext),
+				modelConfigID,
+				err,
 			)
 		}
+		p.logger.Debug(ctx,
+			"personal model override is unavailable, using deployment default",
+			slog.F("override_context", overrideContext),
+			slog.F("owner_id", ownerID),
+			slog.F("model_config_id", modelConfigID),
+			slog.Error(err),
+		)
 		return database.ChatModelConfig{}, false, nil
 	}
 	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
@@ -286,12 +276,9 @@ func (p *Server) resolveSubagentModelConfigID(
 	}
 
 	resolved, err := p.resolveModelOverride(chatdCtx, modelOverrideSpec{
-		context:         string(overrideContext),
-		ownerID:         ownerID,
-		organizationID:  organizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeSoft,
+		context:        string(overrideContext),
+		ownerID:        ownerID,
+		organizationID: organizationID,
 	})
 	if err != nil {
 		return uuid.Nil, nil, err
@@ -1070,11 +1057,17 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	deploymentPrompt, err := p.resolveDeploymentSystemPrompt(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// Delegated chats cannot call list_agents or message_agent, so
 	// strip the root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
-	organizationPrompt := p.resolveOrganizationSystemPrompt(ctx, parent.OrganizationID)
+	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, parent.OrganizationID)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()

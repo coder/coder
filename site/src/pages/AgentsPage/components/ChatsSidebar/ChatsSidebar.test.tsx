@@ -12,12 +12,13 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
@@ -136,13 +137,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelConfigs: [],
-	onArchiveAgent: vi.fn(),
-	onUnarchiveAgent: vi.fn(),
-	onArchiveAndDeleteWorkspace: vi.fn(),
-	onPinAgent: vi.fn(),
-	onUnpinAgent: vi.fn(),
-	onMarkChatRead: vi.fn(),
-	onMarkChatUnread: vi.fn(),
+	navigateAfterArchive: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -790,6 +785,46 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+describe("ChatsSidebar pin actions", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action updates the chat",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "pin-chat",
+								title: "Pin chat",
+								pin_order: pinOrder,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", { name: "Open actions for Pin chat" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("pin-chat", {
+					pin_order: expectedOrder,
+				}),
+			);
+		},
+	);
+});
+
 describe("ChatsSidebar pinned reordering", () => {
 	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;
@@ -816,51 +851,62 @@ describe("ChatsSidebar pinned reordering", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("reorders only the viewer's own pinned chats", async () => {
-		const user = userEvent.setup();
-		const onReorderPinnedAgent = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					onReorderPinnedAgent={onReorderPinnedAgent}
-					chats={[
-						buildChat({
-							id: "shared-chat-pinned-by-owner",
-							title: "Shared chat pinned by its owner",
-							owner_id: "sharing-user-id",
-							shared: true,
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-first",
-							title: "Own first pinned chat",
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-second",
-							title: "Own second pinned chat",
-							pin_order: 2,
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
+	it.each([false, true])(
+		"reorders only the viewer's own pinned chats (failure: %s)",
+		async (fails) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Reorder rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "shared-chat-pinned-by-owner",
+								title: "Shared chat pinned by its owner",
+								owner_id: "sharing-user-id",
+								shared: true,
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-first",
+								title: "Own first pinned chat",
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-second",
+								title: "Own second pinned chat",
+								pin_order: 2,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
 
-		const sortableRows = layoutSortableRows();
-		expect(sortableRows.map((row) => row.textContent)).toEqual([
-			expect.stringContaining("Own first pinned chat"),
-			expect.stringContaining("Own second pinned chat"),
-		]);
+			const sortableRows = layoutSortableRows();
 
-		sortableRows[0].focus();
-		await user.keyboard("[Space]");
-		await user.keyboard("[ArrowDown]");
-		await user.keyboard("[Space]");
+			sortableRows[0].focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowDown]");
+			await user.keyboard("[Space]");
 
-		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
-		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
-	});
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("own-first", { pin_order: 2 }),
+			);
+			expect(update).toHaveBeenCalledTimes(1);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Reorder rejected"),
+				);
+			}
+		},
+	);
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;
@@ -1379,6 +1425,192 @@ describe("ChatsSidebar load-more behavior", () => {
 	});
 });
 
+describe("ChatsSidebar pull requests", () => {
+	const mockMultiPRChat = buildChat({
+		id: "multi-pr",
+		title: "Multiple pull requests",
+		diff_statuses: [
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/one",
+				url: "https://github.com/coder/coder/pull/1",
+				pr_number: 1,
+				pull_request_state: "open",
+				pull_request_title: "feat: add login page",
+			},
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/two",
+				url: "https://github.com/coder/coder/pull/2",
+				pr_number: 2,
+				pull_request_state: "merged",
+				pull_request_title: "feat: add login tests",
+			},
+		],
+	});
+
+	it("announces the pull request state when the chat tracks one pull request", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "one-pr",
+									url: "https://github.com/coder/coder/pull/1",
+									pull_request_state: "open",
+									pull_request_title: "",
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("Pull request open");
+	});
+
+	it("announces the tracked pull request count when the chat tracks several", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		// The count and the glyph are one named image, so the link
+		// does not announce the count twice.
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("2 pull requests");
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		expect(link).toHaveAccessibleName(
+			/Multiple pull requests.*2 pull requests/,
+		);
+		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
+	});
+
+	it("links every pull request from the actions menu of a multi-PR chat", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Multiple pull requests",
+			}),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "2 PRs" }));
+
+		const links = await screen.findAllByRole("menuitem", { name: /PR #/ });
+		expect(links.map((link) => link.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/1",
+			"https://github.com/coder/coder/pull/2",
+		]);
+		expect(links[1]).toHaveAccessibleName(/Pull request merged/);
+	});
+
+	it("leaves pull requests without a URL out of the actions menu", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unlinked-pr",
+							title: "Unlinked pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/one",
+									url: "https://github.com/coder/coder/pull/1",
+									pr_number: 1,
+								},
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/two",
+									url: "",
+									pr_number: 2,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Unlinked pull request",
+			}),
+		);
+
+		// One linkable PR is left, so the menu links it directly.
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #1/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/1");
+	});
+
+	it("links the pull request for viewers of a shared chat", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-pr",
+							title: "Shared pull request",
+							owner_id: "sharing-user",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "shared-pr",
+									url: "https://github.com/coder/coder/pull/7",
+									pr_number: 7,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Shared pull request",
+			}),
+		);
+
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #7/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/7");
+	});
+});
+
 describe("ChatsSidebar subtitles", () => {
 	const modelConfigs: TypesGen.ChatModel[] = [
 		{
@@ -1483,65 +1715,54 @@ describe("ChatsSidebar subtitles", () => {
 });
 
 describe("ChatsSidebar read state actions", () => {
-	const openActionsMenu = async (title: string) => {
-		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", { name: `Open actions for ${title}` }),
-		);
-		return user;
-	};
+	afterEach(() => vi.restoreAllMocks());
 
-	it("marks a read chat as unread", async () => {
-		const onMarkChatUnread = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "read-chat",
-							title: "Read chat",
-							has_unread: false,
-						}),
-					]}
-					onMarkChatUnread={onMarkChatUnread}
-				/>
-			</Wrapper>,
-		);
-
-		const user = await openActionsMenu("Read chat");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as unread" }),
-		);
-
-		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
-	});
-
-	it("marks an unread chat as read", async () => {
-		const onMarkChatRead = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
-						}),
-					]}
-					onMarkChatRead={onMarkChatRead}
-				/>
-			</Wrapper>,
-		);
-
-		const user = await openActionsMenu("Unread chat");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as read" }),
-		);
-
-		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
-	});
+	it.each([
+		{ action: "Mark as read", read: true, fails: false },
+		{ action: "Mark as unread", read: false, fails: false },
+		{ action: "Mark as read", read: true, fails: true },
+		{ action: "Mark as unread", read: false, fails: true },
+	])(
+		"$action persists the read state (failure: $fails)",
+		async ({ action, read, fails }) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Read state rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "read-state-chat",
+								title: "Read state chat",
+								has_unread: read,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", {
+					name: "Open actions for Read state chat",
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("read-state-chat", { read }),
+			);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Read state rejected"),
+				);
+			}
+		},
+	);
 });
 
 describe("ChatsSidebar copy actions", () => {

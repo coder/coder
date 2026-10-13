@@ -77,7 +77,7 @@ export const EditFilesTool: React.FC<{
 							<ScrollArea
 								key={files[i].path}
 								data-testid="edit-file-diff"
-								className="rounded-md border border-solid border-border-default text-2xs"
+								className="rounded-md border border-solid border-border text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
 										? "max-h-[80vh]"
