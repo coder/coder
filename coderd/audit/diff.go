@@ -46,7 +46,7 @@ type Auditable interface {
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
-		database.UserSkill |
+		database.Skill |
 		database.ChatInstructionSettings |
 		database.ChatOperationalSettings |
 		database.ChatOrganizationSystemPrompt |
