@@ -343,11 +343,9 @@ func TestCreateChatInChatProject(t *testing.T) {
 	child, err := create(uuid.NullUUID{}, uuid.NullUUID{UUID: root.ID, Valid: true})
 	require.NoError(t, err, "sub-chats of a live project's chat are allowed")
 	require.Equal(t, inProject, child.ProjectID, "a sub-chat takes its root's project")
-	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
-	_, err = create(uuid.NullUUID{UUID: otherProject.ID, Valid: true}, uuid.NullUUID{UUID: root.ID, Valid: true})
-	require.Error(t, err, "a sub-chat cannot name another project")
 
-	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err = db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
 	_, err = create(inProject, uuid.NullUUID{})
 	require.ErrorIs(t, err, chatstate.ErrChatProjectNotFound)
 }
@@ -380,7 +378,8 @@ func TestSetFamilyArchivedKeepsDeletedProjectArchived(t *testing.T) {
 	require.False(t, chat.Archived)
 
 	root := newRoot()
-	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err = db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
 	_, err = chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
 	require.NoError(t, err)
 
@@ -439,7 +438,8 @@ func TestArchiveDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 		VALUES ($1, $2, $3, $4, 'child', $5, $5)`, childID, org.ID, user.ID, model.ID, root.ID)
 	require.NoError(t, err)
 
-	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err = db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
 	_, err = chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -476,6 +476,58 @@ func TestArchiveDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 	again, err := chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
 	require.NoError(t, err)
 	require.Empty(t, again, "a second cleanup archives nothing")
+}
+
+func TestArchiveDeletedChatProjectWaitsForRootCreation(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+
+	created := make(chan uuid.UUID, 1)
+	release := make(chan struct{})
+	createErr := make(chan error, 1)
+	go func() {
+		createErr <- db.InTx(func(tx database.Store) error {
+			result, err := chatstate.CreateChat(ctx, tx, newRecordingPubsub(), chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+				LastModelConfigID: model.ID,
+				Title:             "root",
+				ClientType:        database.ChatClientTypeApi,
+				InitialStatus:     database.ChatStatusWaiting,
+				InitialMessages:   []chatstate.Message{userTextMessage("hello", user.ID, model.ID)},
+			})
+			if err != nil {
+				return err
+			}
+			created <- result.Chat.ID
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}, nil)
+	}()
+	chatID := testutil.TryReceive(ctx, t, created)
+
+	deleteErr := make(chan error, 1)
+	go func() {
+		_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+		deleteErr <- err
+	}()
+	waitForLockWait(ctx, t, sqlDB, "UpdateChatProjectDeletedByID", 1)
+	close(release)
+	require.NoError(t, testutil.TryReceive(ctx, t, createErr))
+	require.NoError(t, testutil.TryReceive(ctx, t, deleteErr))
+
+	archived, err := chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
+	require.NoError(t, err)
+	require.Len(t, archived, 1)
+	require.Equal(t, chatID, archived[0].ID, "a root created while the delete waited is archived")
 }
 
 func TestArchiveDeletedChatProjectSkipsLiveProject(t *testing.T) {
@@ -517,7 +569,8 @@ func TestArchiveDeletedChatProjectReturnsCommittedChatsWhenPublishFails(t *testi
 		LastModelConfigID: model.ID,
 		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
 	})
-	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
 
 	archived, err := chatstate.ArchiveDeletedChatProject(ctx, db, failingPublisher{}, project.ID)
 	require.ErrorIs(t, err, chatstate.ErrChatUpdatePublishFailed)

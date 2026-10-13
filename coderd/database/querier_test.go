@@ -858,20 +858,33 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: startTime,
-		EndTime:   endTime,
-	})
+	// Apps of one family open in the same minute count that minute once.
+	overlapTemplateID := uuid.New()
+	overlapUserID := uuid.New()
+	insertStat(5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 1, map[string]int64{"vscode": 1, "cursor": 1, "zed": 1, "ssh": 1})
+	insertStat(10*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 0, map[string]int64{"port_forwarding": 1, "some_new_ide": 1, "overflow": 1})
+	insertStat(time.Minute+5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 0, map[string]int64{"cursor": 1})
+
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, startTime, endTime))
 	require.NoError(t, err)
 	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Len(t, byTemplate, 2)
+	require.Len(t, byTemplate, 3)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionFamilyUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds)
+	require.EqualValues(t, 1, byTemplate[overlapTemplateID].ActiveUsers)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "ssh": 60, "port_forwarding": 60, "unknown": 60}, byTemplate[overlapTemplateID].SessionFamilyUsageSeconds)
+}
+
+func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time) database.GetTemplateInsightsByTemplateParams {
+	t.Helper()
+	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
+	require.NoError(t, err)
+	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime, AppFamilies: appFamilies}
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -2229,7 +2242,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	archivedIDs, err := db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 	require.NoError(t, err)
 	require.Empty(t, archivedIDs, "a live project's chats are not archived")
-	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, project.ID))
+	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
+		ChatIds:   projectChatIDs,
+		ProjectID: project.ID,
+	}))
 	pending, err := db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, pending, "a live project needs no cleanup")
@@ -2239,7 +2255,15 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		require.EqualValues(t, 1, queued, "a live project's queues are kept")
 	}
 
-	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: project.OrganizationID, CreatedBy: project.OwnerID})
+	deletedID, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, project.ID, deletedID)
+	_, err = db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "a second delete matches no project")
+	memories, err := db.GetChatProjectMemoriesByProjectID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Empty(t, memories, "the tombstone deletes the project's memories")
 	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{project.ID}, pending)
@@ -2247,7 +2271,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	archivedIDs, err = db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, projectChatIDs, archivedIDs)
-	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, project.ID))
+	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
+		ChatIds:   archivedIDs,
+		ProjectID: project.ID,
+	}))
 	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, pending, "a cleaned up project is not returned again")
@@ -2350,12 +2377,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.NoError(t, err, "a live project with no chats is not purged")
 }
 
-// TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation verifies that
-// the project lock and tombstone do not wait while a sub-chat insert holds
-// the project_id foreign key lock, and that LockChatProjectRootChats waits
-// for the insert holding the root, so the cleanup archives the committed
-// child.
-func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
+// TestChatProjectLocksSkipChildInsertForeignKeyLock verifies that
+// GetChatProjectByIDForUpdate and the tombstone do not wait while a sub-chat
+// insert holds the project_id foreign key lock.
+func TestChatProjectLocksSkipChildInsertForeignKeyLock(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -2397,35 +2422,8 @@ func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 		_, err := tx.GetChatProjectByIDForUpdate(shortCtx, project.ID)
 		return err
 	}, nil), "GetChatProjectByIDForUpdate must lock FOR NO KEY UPDATE")
-	require.NoError(t, db.UpdateChatProjectDeletedByID(shortCtx, project.ID))
-
-	cleanupErr := make(chan error, 1)
-	go func() {
-		cleanupErr <- db.InTx(func(tx database.Store) error {
-			if err := tx.LockChatProjectRootChats(ctx, project.ID); err != nil {
-				return err
-			}
-			_, err := tx.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
-			return err
-		}, nil)
-	}()
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		var waiting int
-		err := sqlDB.QueryRowContext(ctx, `
-SELECT COUNT(*)
-FROM pg_stat_activity
-WHERE datname = current_database()
-	AND wait_event_type = 'Lock'
-	AND query LIKE '%-- name: LockChatProjectRootChats%'
-`).Scan(&waiting)
-		return err == nil && waiting == 1
-	}, testutil.IntervalFast, "wait for the root lock to block on the child insert")
-	require.NoError(t, childTx.Commit())
-	require.NoError(t, testutil.TryReceive(ctx, t, cleanupErr))
-
-	child, err := db.GetChatByID(ctx, childID)
+	_, err = db.UpdateChatProjectDeletedByID(shortCtx, project.ID)
 	require.NoError(t, err)
-	require.True(t, child.Archived, "a child committed during the root lock wait is archived")
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -19876,24 +19874,21 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
 
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: dbtime.Now().Add(-time.Hour),
-		EndTime:   dbtime.Now().Add(time.Hour),
-	})
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, dbtime.Now().Add(-time.Hour), dbtime.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Equal(t, database.StringMapOfInt{"cursor": 60}, byTemplate[cursorTemplate].SessionAppUsageSeconds)
-	require.Equal(t, database.StringMapOfInt{"zed": 60}, byTemplate[zedTemplate].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60}, byTemplate[cursorTemplate].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"ssh": 60}, byTemplate[zedTemplate].SessionFamilyUsageSeconds)
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"some_new_ide": 60}, unknown.SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"unknown": 60}, unknown.SessionFamilyUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the

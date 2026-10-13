@@ -97,17 +97,26 @@ SET
 WHERE id = @id::uuid AND NOT deleted
 RETURNING *;
 
--- name: UpdateChatProjectDeletedByID :exec
--- Irreversible. Its row lock waits for root chat creations holding
--- GetChatProjectByIDForShare, and later ones find no project. The project's
--- chats keep running until a cleanup transaction, at READ COMMITTED, runs
--- LockChatProjectRootChats, ArchiveChatsOfDeletedChatProject, and
--- DeleteChatQueuedMessagesOfDeletedChatProject in that order.
--- GetDeletedChatProjectIDsWithUnarchivedChats finds projects that still
--- need it.
-UPDATE chat_projects
-SET deleted = true, updated_at = now()
-WHERE id = @id::uuid AND NOT deleted;
+-- name: UpdateChatProjectDeletedByID :one
+-- Irreversible. Waits for root chat creations holding
+-- GetChatProjectByIDForShare. Deletes the project's memories and
+-- instructions; its chats keep running until
+-- chatstate.ArchiveDeletedChatProject archives them.
+WITH project AS (
+    UPDATE chat_projects
+    SET deleted = true, updated_at = now()
+    WHERE id = @id::uuid AND NOT deleted
+    RETURNING id
+),
+memories AS (
+    DELETE FROM chat_project_memories
+    WHERE project_id IN (SELECT id FROM project)
+),
+instructions AS (
+    DELETE FROM chat_project_instructions
+    WHERE project_id IN (SELECT id FROM project)
+)
+SELECT id FROM project;
 
 -- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
@@ -129,26 +138,28 @@ FROM chats_expanded
 WHERE project_id = @project_id::uuid
 ORDER BY id;
 
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[])
+ORDER BY id;
+
 -- name: LockChatProjectRootChats :exec
 -- Sub-chat creation holds its root FOR SHARE, so this waits for it. At
 -- READ COMMITTED, the default isolation, a later statement then sees every
 -- child committed during the wait.
 SELECT id
 FROM chats
-WHERE project_id = @project_id::uuid AND parent_chat_id IS NULL
+WHERE project_id = @project_id::uuid AND parent_chat_id IS NULL AND NOT archived
 ORDER BY id
 FOR UPDATE;
 
 -- name: ArchiveChatsOfDeletedChatProject :many
--- Execution-state transition outside the chatstate machine: moves every
--- unarchived chat of a deleted project to archived waiting, or archived
--- error from error, and returns their IDs; once the queue is cleared these
--- are StateXW and StateXE0.
--- It publishes nothing, so callers publish chat:update per chat. Clearing
--- the runner makes heartbeat renewal stop matching, so workers stop;
--- archived roots refuse new sub-chats. Run it before clearing the queue, so
--- a send waiting on a chat lock reads the archived state and is refused.
--- Keep the SET list in sync with UpdateChatExecutionState.
+-- Execution-state transition outside the chatstate machine; keep the SET
+-- list in sync with UpdateChatExecutionState. Publishes nothing, so callers
+-- publish chat:update per chat. Run it before
+-- DeleteChatQueuedMessagesOfDeletedChatProject so a send waiting on a chat
+-- lock reads the archived state and is refused.
 UPDATE chats
 SET
     archived = true,
@@ -169,15 +180,14 @@ WHERE chats.project_id = @project_id::uuid
 RETURNING chats.id;
 
 -- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
--- Lives here rather than with the other queue queries because it is a step
--- of the project delete cleanup; see UpdateChatProjectDeletedByID.
 DELETE FROM chat_queued_messages
-WHERE chat_id IN (
-    SELECT chats.id
-    FROM chats
-    JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
-);
+WHERE chat_id = ANY(@chat_ids::uuid[])
+    AND chat_id IN (
+        SELECT chats.id
+        FROM chats
+        JOIN chat_projects ON chat_projects.id = chats.project_id
+        WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
+    );
 
 -- name: GetDeletedChatProjectIDsWithUnarchivedChats :many
 SELECT chat_projects.id
@@ -192,8 +202,6 @@ ORDER BY chat_projects.updated_at, chat_projects.id
 LIMIT @limit_count::int;
 
 -- name: DeleteEmptyDeletedChatProjects :execrows
--- Memories cascade with the row, so they follow chat retention too; nothing
--- can read them after the tombstone.
 WITH empty AS (
     SELECT chat_projects.id
     FROM chat_projects

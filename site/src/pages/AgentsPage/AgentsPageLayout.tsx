@@ -14,14 +14,13 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
-	applyWatchedChatRemoved,
+	applyWatchedChatProjectDeleted,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
@@ -43,6 +42,7 @@ import {
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -344,15 +344,16 @@ const AgentsPageLayout: React.FC = () => {
 						);
 					}
 
-					if (chatEvent.kind === "removed") {
-						applyWatchedChatRemoved(queryClient, updatedChat.id);
+					if (chatEvent.kind === "project_deleted") {
+						applyWatchedChatProjectDeleted(queryClient, updatedChat.id);
 						return;
 					}
 					if (chatEvent.kind === "deleted") {
-						// The server publishes `deleted` when a chat is
-						// archived (one event per family member). Patch archive state in
-						// place so an open route stays mounted and flips to
-						// its read-only state.
+						// The server publishes `deleted` when a user or
+						// auto-archive archives a chat (one event per family
+						// member); a project delete sends `project_deleted`.
+						// Patch archive state in place so an open route stays
+						// mounted and flips to its read-only state.
 						applyWatchedChatArchived(queryClient, updatedChat);
 						return;
 					}

@@ -3758,6 +3758,7 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3841,7 +3842,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions:
 		return true
 	}
 	return false
@@ -3894,6 +3896,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
 	}
 }
 
@@ -5394,8 +5397,18 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
-	// Irreversible. The project's archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row, and its memories by cascade, once none are left.
+	// Irreversible. Its memories and instructions are deleted with the tombstone. The project's archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.
 	Deleted bool `db:"deleted" json:"deleted"`
+}
+
+// Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
+type ChatProjectInstruction struct {
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Instructions   string        `db:"instructions" json:"instructions"`
+	UpdatedBy      uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
@@ -6714,18 +6727,20 @@ type WorkspaceAgentPortShare struct {
 }
 
 type WorkspaceAgentScript struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          string    `db:"log_path" json:"log_path"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Script           string    `db:"script" json:"script"`
-	Cron             string    `db:"cron" json:"cron"`
-	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	ID               uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID uuid.UUID       `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID       `db:"log_source_id" json:"log_source_id"`
+	LogPath          string          `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	Script           string          `db:"script" json:"script"`
+	Cron             string          `db:"cron" json:"cron"`
+	StartBlocksLogin bool            `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool            `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool            `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32           `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string          `db:"display_name" json:"display_name"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	ResourceAddress  string          `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage `db:"dependencies" json:"dependencies"`
 }
 
 type WorkspaceAgentScriptTiming struct {

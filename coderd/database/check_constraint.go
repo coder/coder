@@ -28,6 +28,7 @@ const (
 	CheckChatModelConfigsGroupAclIsObject                    CheckConstraint = "chat_model_configs_group_acl_is_object"                    // chat_model_configs
 	CheckChatModelConfigsUserAclIsObject                     CheckConstraint = "chat_model_configs_user_acl_is_object"                     // chat_model_configs
 	CheckChatOrganizationModelOverridesContextCheck          CheckConstraint = "chat_organization_model_overrides_context_check"           // chat_organization_model_overrides
+	CheckChatProjectInstructionsNotBlank                     CheckConstraint = "chat_project_instructions_not_blank"                       // chat_project_instructions
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
@@ -78,6 +79,7 @@ const (
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
 	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
 	CheckUserSkillsNameSize                                  CheckConstraint = "user_skills_name_size"                                     // user_skills
+	CheckWorkspaceAgentScriptsDependenciesIsArray            CheckConstraint = "workspace_agent_scripts_dependencies_is_array"             // workspace_agent_scripts
 	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
 	CheckSubsystemsNotNone                                   CheckConstraint = "subsystems_not_none"                                       // workspace_agents
 	CheckWorkspaceBuildOrchestrationsAttemptCountCheck       CheckConstraint = "workspace_build_orchestrations_attempt_count_check"        // workspace_build_orchestrations

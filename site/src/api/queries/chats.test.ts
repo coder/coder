@@ -34,7 +34,7 @@ import {
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
-	applyWatchedChatRemoved,
+	applyWatchedChatProjectDeleted,
 	archiveAndDeleteChat,
 	archiveChat,
 	type ChatListInput,
@@ -69,6 +69,7 @@ import {
 	chatProjectsKey,
 	chatPromptsKey,
 	chatSearch,
+	chatSearchFamilyKey,
 	chatsByWorkspace,
 	createChat,
 	createChatMessage,
@@ -4650,7 +4651,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
-			removed: false,
+			project_deleted: false,
 			diff_status_change: false,
 			status_change: true,
 			summary_change: false,
@@ -4730,7 +4731,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
-			removed: false,
+			project_deleted: false,
 			diff_status_change: true,
 			status_change: true,
 			summary_change: false,
@@ -5481,7 +5482,7 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 	});
 });
 
-describe("applyWatchedChatRemoved", () => {
+describe("applyWatchedChatProjectDeleted", () => {
 	it("evicts the chat from every list, archived ones included", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatProjectsKey, []);
@@ -5497,7 +5498,7 @@ describe("applyWatchedChatRemoved", () => {
 		});
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 
-		applyWatchedChatRemoved(queryClient, chatId);
+		applyWatchedChatProjectDeleted(queryClient, chatId);
 
 		expect(readInfiniteChats(queryClient)?.map((c) => c.id)).toEqual([
 			other.id,
@@ -5515,12 +5516,16 @@ describe("applyWatchedChatRemoved", () => {
 		);
 	});
 
-	it("refetches the project list once for a burst of events", async () => {
+	it.each([
+		["project list", chatProjectsKey],
+		["chat list", [...chatListFamilyKey, "burst"]],
+		["chat search", [...chatSearchFamilyKey, "burst"]],
+	])("refetches the %s once for a burst of events", async (_, queryKey) => {
 		const queryClient = createTestQueryClient();
 		let fetches = 0;
-		const refetch = createDeferred<TypesGen.ChatProject[]>();
+		const refetch = createDeferred<unknown[]>();
 		const observer = new QueryObserver(queryClient, {
-			queryKey: chatProjectsKey,
+			queryKey,
 			queryFn: () => {
 				fetches++;
 				return fetches === 1 ? [] : refetch.promise;
@@ -5532,7 +5537,7 @@ describe("applyWatchedChatRemoved", () => {
 		);
 
 		for (const chatId of ["chat-1", "chat-2", "chat-3"]) {
-			applyWatchedChatRemoved(queryClient, chatId);
+			applyWatchedChatProjectDeleted(queryClient, chatId);
 		}
 		refetch.resolve([]);
 		await vi.waitFor(() =>
@@ -5560,7 +5565,7 @@ describe("applyWatchedChatRemoved", () => {
 		});
 		const unsubscribe = observer.subscribe(() => {});
 
-		applyWatchedChatRemoved(queryClient, chatId);
+		applyWatchedChatProjectDeleted(queryClient, chatId);
 		first.resolve(makeChat(chatId));
 		await vi.waitFor(() =>
 			expect(observer.getCurrentResult().isError).toBe(true),

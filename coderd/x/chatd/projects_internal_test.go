@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Uses unexported chatworker helpers.
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -27,7 +30,8 @@ func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 	worker := startWorker(t, testOptions(t, f, starter))
 	generation := starter.waitCall(t, taskKindGeneration, chat.ID)
 
-	require.NoError(t, f.db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err = f.db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
 	running, err := f.db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.True(t, running.RunnerID.Valid, "the tombstone alone leaves the chat running until the cleanup")
@@ -41,7 +45,7 @@ func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 		t.Fatal("the runner of a deleted chat must stop generating")
 	}
 
-	// A worker holding a candidate list read before the delete must not
+	// A worker holding a candidate list read before the cleanup must not
 	// acquire the chat.
 	worker.mu.Lock()
 	manager := worker.manager
@@ -75,13 +79,26 @@ func TestDeletedChatProjectCleanupSucceedsWhenPublishFails(t *testing.T) {
 		LastModelConfigID: f.model.ID,
 		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
 	})
-	require.NoError(t, f.db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	_, err := f.db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
+	events := make(chan codersdk.ChatWatchEvent, 1)
+	cancel, err := f.pubsub.SubscribeWithErr(coderdpubsub.ChatWatchEventChannel(f.user.ID), coderdpubsub.HandleChatWatchEvent(
+		func(_ context.Context, event codersdk.ChatWatchEvent, err error) {
+			if err == nil {
+				events <- event
+			}
+		}))
+	require.NoError(t, err)
+	defer cancel()
 
 	server := newUnstartedServer(t, chatUpdateFailingPubsub{Pubsub: f.pubsub}, f.db)
 	require.NoError(t, server.cleanupDeletedChatProject(ctx, project.ID), "a committed cleanup succeeds even if chat:update fails")
 	archived, err := f.db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.True(t, archived.Archived)
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, codersdk.ChatWatchEventKindProjectDeleted, event.Kind)
+	require.Equal(t, chat.ID, event.Chat.ID)
 }
 
 func TestSweepDeletedChatProjects(t *testing.T) {
@@ -100,7 +117,8 @@ func TestSweepDeletedChatProjects(t *testing.T) {
 	}
 	deleted, deletedChat := newProjectChat()
 	_, liveChat := newProjectChat()
-	require.NoError(t, f.db.UpdateChatProjectDeletedByID(ctx, deleted.ID))
+	_, err := f.db.UpdateChatProjectDeletedByID(ctx, deleted.ID)
+	require.NoError(t, err)
 
 	worker := startWorker(t, testOptions(t, f, nil))
 	worker.sweepDeletedChatProjects(ctx)

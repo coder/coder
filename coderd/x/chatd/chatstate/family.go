@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -20,7 +19,8 @@ import (
 type SetFamilyArchivedInput struct {
 	// RootID identifies the family root. SetFamilyArchived rejects
 	// calls for child chats with [ErrChatNotRoot] and unknown chats
-	// with [ErrChatNotFound].
+	// with [ErrChatNotFound]. Unarchiving a root whose project is
+	// deleted also returns [ErrChatNotFound].
 	RootID uuid.UUID
 	// Archived is the desired post-call archived value for every
 	// family member.
@@ -88,8 +88,9 @@ func SetFamilyArchived(
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
 		}
-		// A family archived by its project delete must stay archived; the
-		// root lock serializes this check with that delete.
+		// A family archived by its project delete must stay archived. The
+		// root lock serializes this check with the project cleanup, which
+		// re-archives a family unarchived before the tombstone committed.
 		if !input.Archived && root.ProjectID.Valid {
 			//nolint:gocritic // The caller authorized the root chat, not its project.
 			_, err := tx.GetChatProjectByID(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
@@ -173,8 +174,8 @@ func SetFamilyArchived(
 // execution state to [StateXW], or [StateXE0] from error, with no worker or
 // runner and an empty queue. A chat:update per chat is published after
 // commit so its runner stops; if that fails, the committed chats are
-// returned with [ErrChatUpdatePublishFailed], and the runners stop at their
-// next heartbeat renewal. A live project archives nothing.
+// returned with [ErrChatUpdatePublishFailed]. A live project archives
+// nothing.
 func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) ([]database.Chat, error) {
 	if store == nil {
 		return nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil store")
@@ -196,18 +197,17 @@ func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publis
 		if len(ids) == 0 {
 			return nil
 		}
-		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID); err != nil {
+		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
+			ChatIds:   ids,
+			ProjectID: projectID,
+		}); err != nil {
 			return xerrors.Errorf("clear project chat queues: %w", err)
 		}
-		chats, err := tx.GetChatsByProjectID(ctx, projectID)
+		archived, err = tx.GetChatsByIDs(ctx, ids)
 		if err != nil {
-			return xerrors.Errorf("reload project chats: %w", err)
+			return xerrors.Errorf("reload archived project chats: %w", err)
 		}
-		for _, chat := range chats {
-			if !slices.Contains(ids, chat.ID) {
-				continue
-			}
-			archived = append(archived, chat)
+		for _, chat := range archived {
 			if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
 				return xerrors.Errorf("buffer chat update: %w", err)
 			}

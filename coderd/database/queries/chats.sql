@@ -2315,7 +2315,7 @@ WHERE
         FROM chat_file_links
         WHERE file_id = @file_id::uuid
     )
-    -- Chats of a deleted project stay archived until chat retention removes them.
+    -- A deleted project's chats keep their rows until chat retention removes them.
     AND NOT EXISTS (
         SELECT 1
         FROM chat_projects
@@ -2438,6 +2438,11 @@ SELECT *
 FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY(@ids::uuid[])
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+  )
 ORDER BY workspace_id, updated_at DESC;
 
 -- name: UpdateChatLastReadMessageID :exec

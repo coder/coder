@@ -31,20 +31,23 @@ func (p *Server) ScheduleDeletedChatProjectCleanup(ctx context.Context, projectI
 	}
 }
 
-// cleanupDeletedChatProject runs [chatstate.ArchiveDeletedChatProject],
-// publishes a removed watch event per archived chat, and schedules their
-// debug-data cleanup.
 func (p *Server) cleanupDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	//nolint:gocritic // The cleanup archives every user's chats in the project.
-	chats, err := chatstate.ArchiveDeletedChatProject(dbauthz.AsChatd(ctx), p.db, p.pubsub, projectID)
+	chatdCtx := dbauthz.AsChatd(ctx)
+	archived, err := chatstate.ArchiveDeletedChatProject(chatdCtx, p.db, p.pubsub, projectID)
 	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
 		p.logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
 			slog.F("project_id", projectID), slog.Error(err))
 	} else if err != nil {
 		return err
 	}
-	p.publishChatPubsubEvents(chats, codersdk.ChatWatchEventKindRemoved)
-	p.scheduleArchiveDebugCleanup(ctx, chats)
+	p.scheduleArchiveDebugCleanup(ctx, archived)
+	// Chats archived before the delete need the event too.
+	chats, err := p.db.GetChatsByProjectID(chatdCtx, projectID)
+	if err != nil {
+		return xerrors.Errorf("list deleted project chats: %w", err)
+	}
+	p.publishChatPubsubEvents(chats, codersdk.ChatWatchEventKindProjectDeleted)
 	return nil
 }
 

@@ -576,6 +576,14 @@ func (m queryMetricsStore) DeleteChatOrganizationModelOverride(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatProjectInstructionsByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("DeleteChatProjectInstructionsByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectInstructionsByProjectID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProjectMemoryByID(ctx, id)
@@ -608,9 +616,9 @@ func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+func (m queryMetricsStore) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg database.DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
 	start := time.Now()
-	r0 := m.s.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID)
+	r0 := m.s.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessagesOfDeletedChatProject").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessagesOfDeletedChatProject").Inc()
 	return r0
@@ -1872,6 +1880,14 @@ func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectInstructionsByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetChatProjectInstructionsByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectInstructionsByProjectID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectMemoriesByProjectID(ctx, projectID)
@@ -2045,6 +2061,14 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	r0, r1 := m.s.GetChatsByChatFileID(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetChatsByChatFileID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByChatFileID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
 	return r0, r1
 }
 
@@ -5633,12 +5657,12 @@ func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.UpdateChatProjectDeletedByID(ctx, id)
+	r0, r1 := m.s.UpdateChatProjectDeletedByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UpdateChatProjectDeletedByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectDeletedByID").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -6687,6 +6711,14 @@ func (m queryMetricsStore) UpsertChatPlanModeInstructions(ctx context.Context, v
 	m.queryLatencies.WithLabelValues("UpsertChatPlanModeInstructions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatPlanModeInstructions").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatProjectInstructions(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatProjectInstructions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatProjectInstructions").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

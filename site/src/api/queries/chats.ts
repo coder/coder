@@ -560,11 +560,10 @@ export const applyWatchedChatArchived = (
  * Evicts the chat from every list, archived lists included, and resets its
  * entity so an open route refetches and gets 404.
  */
-export const applyWatchedChatRemoved = (
+export const applyWatchedChatProjectDeleted = (
 	queryClient: QueryClient,
 	chatId: string,
 ) => {
-	void cancelChatListRefetches(queryClient);
 	removeChildFromParentInCache(queryClient, chatId);
 	const withoutChat = (page: TypesGen.Chat[]) => {
 		const next = page.filter((row) => row.id !== chatId);
@@ -581,15 +580,17 @@ export const applyWatchedChatRemoved = (
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});
-	void invalidateChatListQueries(queryClient);
-	void invalidateChatsByWorkspace(queryClient);
-	void invalidateChatSearches(queryClient);
-	// The chat's project may be gone. A project delete sends one event per
-	// chat, so an in-flight refetch is kept.
-	void queryClient.invalidateQueries(
-		{ queryKey: chatProjectsKey },
-		{ cancelRefetch: false },
-	);
+	// A project delete sends one event per chat, so in-flight refetches,
+	// which already exclude these chats, are kept.
+	for (const queryKey of [
+		chatListFamilyKey,
+		chatProjectListFamilyKey,
+		chatsByWorkspaceFamilyKey,
+		chatSearchFamilyKey,
+		chatProjectsKey,
+	]) {
+		void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+	}
 };
 
 /**

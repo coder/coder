@@ -637,7 +637,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project',
     'chat_automation',
     'chat_project_memory',
-    'chat_organization_system_prompt'
+    'chat_organization_system_prompt',
+    'chat_project_instructions'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2172,6 +2173,18 @@ CREATE TABLE chat_organization_system_prompts (
 
 COMMENT ON TABLE chat_organization_system_prompts IS 'Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.';
 
+CREATE TABLE chat_project_instructions (
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    instructions text NOT NULL,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_instructions_not_blank CHECK ((length(btrim(instructions)) > 0))
+);
+
+COMMENT ON TABLE chat_project_instructions IS 'Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.';
+
 CREATE TABLE chat_project_memories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     project_id uuid NOT NULL,
@@ -2216,7 +2229,7 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row, and its memories by cascade, once none are left.';
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Its memories and instructions are deleted with the tombstone. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -3802,7 +3815,10 @@ CREATE TABLE workspace_agent_scripts (
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
     display_name text NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    resource_address text DEFAULT ''::text NOT NULL,
+    dependencies jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT workspace_agent_scripts_dependencies_is_array CHECK ((jsonb_typeof(dependencies) = 'array'::text))
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -4462,6 +4478,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 ALTER TABLE ONLY chat_organization_system_prompts
     ADD CONSTRAINT chat_organization_system_prompts_pkey PRIMARY KEY (organization_id);
 
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_pkey PRIMARY KEY (project_id);
+
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
@@ -4983,6 +5002,8 @@ CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
+CREATE INDEX idx_chats_project_id_unarchived ON chats USING btree (project_id) WHERE (NOT archived);
+
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
 CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
@@ -5357,6 +5378,15 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_system_prompts
     ADD CONSTRAINT chat_organization_system_prompts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;

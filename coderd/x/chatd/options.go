@@ -248,13 +248,11 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval     time.Duration
-	CapacityMetricsInterval time.Duration
-	AcquisitionBatchSize    int32
-	ArchiveInterval         time.Duration
-	ArchiveBatchSize        int32
-	// DeletedChatProjectSweepInterval and DeletedChatProjectSweepBatchSize
-	// pace the sweep that archives the chats of deleted projects.
+	AcquisitionInterval              time.Duration
+	CapacityMetricsInterval          time.Duration
+	AcquisitionBatchSize             int32
+	ArchiveInterval                  time.Duration
+	ArchiveBatchSize                 int32
 	DeletedChatProjectSweepInterval  time.Duration
 	DeletedChatProjectSweepBatchSize int32
 	RunnerSyncInterval               time.Duration

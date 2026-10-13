@@ -2978,8 +2978,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					})
 				}
 				deleteProject := func(project database.ChatProject, archivedAt time.Time) {
-					require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
-					_, err := db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
+					_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+					require.NoError(t, err)
+					_, err = db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 					require.NoError(t, err)
 					_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $2 WHERE project_id = $1", project.ID, archivedAt)
 					require.NoError(t, err)

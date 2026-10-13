@@ -23,7 +23,7 @@ import (
 type CreateChatInput struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
-	// For sub-chats, ProjectID must be unset or equal the root's project.
+	// Ignored for sub-chats; the insert trigger sets their root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -75,8 +75,6 @@ type CreateChatResult struct {
 //   - When RootChatID is unset and ProjectID is set, the project must
 //     exist and must not be deleted; otherwise CreateChat returns
 //     [ErrChatProjectNotFound].
-//   - When RootChatID is set, ProjectID must be unset or equal the
-//     root's project; the insert trigger sets the sub-chat's project.
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -155,19 +153,11 @@ func insertChat(
 			if root.Archived {
 				return ErrChatFamilyArchived
 			}
-			// The insert trigger gives the child its root's project. A
-			// deleted project's cleanup locks every root in the project FOR
-			// UPDATE, which waits for this FOR SHARE lock. Either the
-			// cleanup ran first and the archived check above refuses the
-			// child, or the cleanup archives the child after this commit,
-			// so no project lock is needed.
-			if input.ProjectID.Valid && input.ProjectID != root.ProjectID {
-				return xerrors.New("chatstate: CreateChat called with a sub-chat ProjectID that differs from its root's")
-			}
+			// No project lock: the project cleanup locks this root FOR
+			// UPDATE, so it either archived the root first (refused above)
+			// or archives this child after commit.
 		} else if input.ProjectID.Valid {
-			// Held until commit so a concurrent project delete waits for
-			// this chat, which its cleanup then archives, or is seen here as
-			// a missing project.
+			// Held until commit; see GetChatProjectByIDForShare.
 			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return ErrChatProjectNotFound

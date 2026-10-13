@@ -4,7 +4,6 @@ import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
 import { QueryClient } from "react-query";
 import { MemoryRouter } from "react-router";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -24,6 +23,7 @@ import {
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,

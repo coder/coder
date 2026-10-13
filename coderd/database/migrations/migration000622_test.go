@@ -14,14 +14,14 @@ import (
 
 // The up migration gives existing and newly inserted sub-chats their root's
 // project, and the down migration clears it.
-func TestMigration000618SubChatProjectID(t *testing.T) {
+func TestMigration000622SubChatProjectID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 617)
+	stepTo(t, sqlDB, 621)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
@@ -68,7 +68,7 @@ func TestMigration000618SubChatProjectID(t *testing.T) {
 	unrelated := insertChat(uuid.Nil, uuid.Nil, uuid.Nil)
 	unrelatedChild := insertChat(uuid.Nil, unrelated, unrelated)
 
-	migrate("000618_chat_project_sharing.up.sql")
+	migrate("000622_chat_project_deletion.up.sql")
 	inProject := nullID(projectID)
 	for name, id := range map[string]uuid.UUID{"root": root, "child": child, "grandchild": grandchild, "orphan": orphan} {
 		require.Equal(t, inProject, projectOf(id), name)
@@ -80,7 +80,7 @@ func TestMigration000618SubChatProjectID(t *testing.T) {
 	insertedUnrelatedChild := insertChat(projectID, unrelated, unrelated)
 	require.False(t, projectOf(insertedUnrelatedChild).Valid, "a sub-chat cannot join a project its root is not in")
 
-	migrate("000618_chat_project_sharing.down.sql")
+	migrate("000622_chat_project_deletion.down.sql")
 	require.Equal(t, inProject, projectOf(root))
 	for name, id := range map[string]uuid.UUID{"child": child, "grandchild": grandchild, "orphan": orphan, "insertedChild": insertedChild} {
 		require.False(t, projectOf(id).Valid, name)

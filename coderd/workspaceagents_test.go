@@ -97,6 +97,48 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
+	t.Run("ScriptDependencies", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Scripts = []*proto.Script{
+				{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+				{
+					DisplayName:     "Install tools",
+					ResourceAddress: "coder_script.install_tools",
+					Dependencies: []*proto.ScriptDependency{{
+						PrerequisiteResourceAddress: "coder_script.clone_repo",
+						Requirement:                 proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+					}},
+				},
+			}
+			return agents
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+
+		require.Len(t, agent.Scripts, 2)
+		byName := make(map[string]codersdk.WorkspaceAgentScript, len(agent.Scripts))
+		for _, script := range agent.Scripts {
+			byName[script.DisplayName] = script
+		}
+		require.Equal(t, "coder_script.clone_repo", byName["Clone repo"].ResourceAddress)
+		require.Empty(t, byName["Clone repo"].Dependencies)
+		require.Equal(t, "coder_script.install_tools", byName["Install tools"].ResourceAddress)
+		require.Equal(t, []codersdk.WorkspaceAgentScriptDependency{{
+			PrerequisiteResourceAddress: "coder_script.clone_repo",
+			Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+		}}, byName["Install tools"].Dependencies)
+	})
 	t.Run("HasFallbackTroubleshootingURL", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)

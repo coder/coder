@@ -195,7 +195,8 @@ func TestChatParam(t *testing.T) {
 		require.Equal(t, http.StatusOK, status(child.ID))
 
 		// Hidden before the cleanup archives the chats.
-		require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+		_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
+		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, status(root.ID))
 		require.Equal(t, http.StatusNotFound, status(child.ID))
 	})

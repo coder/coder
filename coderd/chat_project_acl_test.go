@@ -361,12 +361,23 @@ func TestChatProjectSharing(t *testing.T) {
 
 		_, err = db.InsertChatQueuedMessage(sysCtx, database.InsertChatQueuedMessageParams{ChatID: shareeChild.ID, Content: json.RawMessage(`[]`)})
 		require.NoError(t, err)
+		archivedChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    project.OrganizationID,
+			OwnerID:           shareeUser.ID,
+			LastModelConfigID: shareeChat.LastModelConfigID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			Archived:          true,
+		})
+		dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: project.OrganizationID, CreatedBy: firstUser.UserID})
 
 		events, closer, err := sharee.WatchChats(ctx)
 		require.NoError(t, err)
 		defer closer.Close()
 		mAudit.ResetLogs()
 		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
+		var memories int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_project_memories WHERE project_id = $1", project.ID).Scan(&memories))
+		require.Zero(t, memories, "the tombstone deletes the project's memories")
 
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID, shareeChild.ID} {
 			_, err := client.GetChat(ctx, id)
@@ -399,21 +410,19 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 
-		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
-			require.True(t, mAudit.Contains(t, database.AuditLog{
-				Action:       database.AuditActionDelete,
-				ResourceType: database.ResourceTypeChat,
-				ResourceID:   id,
-				UserID:       firstUser.UserID,
-			}))
-		}
-		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: shareeChild.ID}))
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:       database.AuditActionDelete,
+			ResourceType: database.ResourceTypeChatProject,
+			ResourceID:   project.ID,
+			UserID:       firstUser.UserID,
+		}))
+		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat}))
 
-		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true}
+		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true, archivedChat.ID: true}
 		for len(pending) > 0 {
 			select {
 			case event := <-events:
-				if event.Kind == codersdk.ChatWatchEventKindRemoved {
+				if event.Kind == codersdk.ChatWatchEventKindProjectDeleted {
 					delete(pending, event.Chat.ID)
 				}
 			case <-ctx.Done():
@@ -434,16 +443,24 @@ func TestChatProjectSharing(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		project := createChatProject(t, client, firstUser.OrganizationID, "No Gateway Project")
 		modelConfig := dbgen.ChatModelConfig(t, api.Database, database.ChatModelConfig{})
+		ws := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
 		chat := dbgen.Chat(t, api.Database, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			WorkspaceID:       uuid.NullUUID{UUID: ws.Workspace.ID, Valid: true},
 		})
 
 		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
 		_, err := client.GetChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+		byWorkspace, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, byWorkspace, "the tombstone hides chats before any cleanup runs")
 	})
 
 	t.Run("AdministratorCannotBindUnsharedProject", func(t *testing.T) {

@@ -912,7 +912,7 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
-export const RemovedWatchEventRemovesOpenChat: Story = {
+export const ProjectDeletedWatchEventRemovesOpenChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats")
@@ -924,15 +924,11 @@ export const RemovedWatchEventRemovesOpenChat: Story = {
 		return mockAgentChatPageAPIs();
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("removed", watchedChat()),
+		chatWatchEvent("project_deleted", watchedChat()),
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			if (canvas.queryByText("Watched agent")) {
-				throw new Error("removed chat is still shown");
-			}
-		});
+		await canvas.findByText("Chat not found");
 	},
 };
 

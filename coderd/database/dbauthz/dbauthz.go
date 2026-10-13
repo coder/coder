@@ -1788,6 +1788,18 @@ func (q *querier) authorizeChatProjectMemories(ctx context.Context, action polic
 	return project, nil
 }
 
+// authorizeChatProjectInstructions authorizes an action on a project's
+// instructions. Instructions are part of the project's configuration, so
+// reading them requires reading the project and changing them requires
+// updating the project.
+func (q *querier) authorizeChatProjectInstructions(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, project.RBACObject())
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -2310,6 +2322,13 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
 }
 
+func (q *querier) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, projectID); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectInstructionsByProjectID(ctx, projectID)
+}
+
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
 	if err != nil {
@@ -2356,11 +2375,11 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 }
 
 // Project chats can belong to sharees, so update is checked on all chats.
-func (q *querier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+func (q *querier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg database.DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID)
+	return q.db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, arg)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -3739,6 +3758,13 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
+func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
+		return database.GetChatProjectInstructionsByProjectIDRow{}, err
+	}
+	return q.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
+}
+
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return nil, err
@@ -3929,6 +3955,13 @@ func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
 }
 
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatsByIDs(ctx, ids)
+}
+
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
@@ -3936,9 +3969,8 @@ func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUI
 	return q.db.GetChatsByIDsForRunnerSync(ctx, ids)
 }
 
-// The project delete cleanup must see every chat in the project, so a
-// caller that cannot read every chat fails instead of getting a partial
-// list.
+// Callers need every chat in the project, so a caller that cannot read all
+// chats fails instead of getting a partial list.
 func (q *querier) GetChatsByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err
@@ -7912,8 +7944,15 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
 }
 
-func (q *querier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.UpdateChatProjectDeletedByID)(ctx, id)
+func (q *querier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	project, err := q.db.GetChatProjectByID(ctx, id)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, project); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.UpdateChatProjectDeletedByID(ctx, id)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -9389,6 +9428,13 @@ func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatPlanModeInstructions(ctx, value)
+}
+
+func (q *querier) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.ChatProjectInstruction{}, err
+	}
+	return q.db.UpsertChatProjectInstructions(ctx, arg)
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

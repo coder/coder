@@ -45,8 +45,8 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			// GetChatProjectByID returns no rows for a deleted project, whose
-			// archived chats stay until chat retention removes them.
+			// GetChatProjectByID returns no rows for a deleted project. A deleted
+			// project's chats keep their rows until chat retention removes them.
 			if chat.ProjectID.Valid {
 				//nolint:gocritic // The caller may not be able to read the project; only whether it is deleted is used.
 				_, err := db.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)

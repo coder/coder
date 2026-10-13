@@ -7565,6 +7565,97 @@ func (q *sqlQuerier) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg
 	return i, err
 }
 
+const deleteChatProjectInstructionsByProjectID = `-- name: DeleteChatProjectInstructionsByProjectID :exec
+DELETE FROM chat_project_instructions
+WHERE project_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectInstructionsByProjectID, projectID)
+	return err
+}
+
+const getChatProjectInstructionsByProjectID = `-- name: GetChatProjectInstructionsByProjectID :one
+SELECT
+    chat_project_instructions.project_id, chat_project_instructions.organization_id, chat_project_instructions.instructions, chat_project_instructions.updated_by, chat_project_instructions.created_at, chat_project_instructions.updated_at,
+    users.username AS updated_by_username,
+    users.name AS updated_by_name,
+    users.avatar_url AS updated_by_avatar_url
+FROM chat_project_instructions
+LEFT JOIN users ON users.id = chat_project_instructions.updated_by
+    AND users.deleted = false
+WHERE chat_project_instructions.project_id = $1::uuid
+`
+
+type GetChatProjectInstructionsByProjectIDRow struct {
+	ChatProjectInstruction ChatProjectInstruction `db:"chat_project_instruction" json:"chat_project_instruction"`
+	UpdatedByUsername      sql.NullString         `db:"updated_by_username" json:"updated_by_username"`
+	UpdatedByName          sql.NullString         `db:"updated_by_name" json:"updated_by_name"`
+	UpdatedByAvatarUrl     sql.NullString         `db:"updated_by_avatar_url" json:"updated_by_avatar_url"`
+}
+
+// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
+// Excluding deleted users here reports their edits as anonymous.
+func (q *sqlQuerier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectInstructionsByProjectID, projectID)
+	var i GetChatProjectInstructionsByProjectIDRow
+	err := row.Scan(
+		&i.ChatProjectInstruction.ProjectID,
+		&i.ChatProjectInstruction.OrganizationID,
+		&i.ChatProjectInstruction.Instructions,
+		&i.ChatProjectInstruction.UpdatedBy,
+		&i.ChatProjectInstruction.CreatedAt,
+		&i.ChatProjectInstruction.UpdatedAt,
+		&i.UpdatedByUsername,
+		&i.UpdatedByName,
+		&i.UpdatedByAvatarUrl,
+	)
+	return i, err
+}
+
+const upsertChatProjectInstructions = `-- name: UpsertChatProjectInstructions :one
+INSERT INTO chat_project_instructions (
+    project_id,
+    organization_id,
+    instructions,
+    updated_by
+)
+SELECT
+    chat_projects.id,
+    chat_projects.organization_id,
+    $1::text,
+    $2::uuid
+FROM chat_projects
+WHERE chat_projects.id = $3::uuid
+ON CONFLICT (project_id) DO UPDATE SET
+    instructions = EXCLUDED.instructions,
+    updated_by = EXCLUDED.updated_by,
+    updated_at = now()
+RETURNING project_id, organization_id, instructions, updated_by, created_at, updated_at
+`
+
+type UpsertChatProjectInstructionsParams struct {
+	Instructions string    `db:"instructions" json:"instructions"`
+	UpdatedBy    uuid.UUID `db:"updated_by" json:"updated_by"`
+	ProjectID    uuid.UUID `db:"project_id" json:"project_id"`
+}
+
+// The organization comes from the project row, so the stored scope always
+// matches the project's organization.
+func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions, arg.Instructions, arg.UpdatedBy, arg.ProjectID)
+	var i ChatProjectInstruction
+	err := row.Scan(
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Instructions,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories
@@ -7809,15 +7900,11 @@ WHERE chats.project_id = $1::uuid
 RETURNING chats.id
 `
 
-// Execution-state transition outside the chatstate machine: moves every
-// unarchived chat of a deleted project to archived waiting, or archived
-// error from error, and returns their IDs; once the queue is cleared these
-// are StateXW and StateXE0.
-// It publishes nothing, so callers publish chat:update per chat. Clearing
-// the runner makes heartbeat renewal stop matching, so workers stop;
-// archived roots refuse new sub-chats. Run it before clearing the queue, so
-// a send waiting on a chat lock reads the archived state and is refused.
-// Keep the SET list in sync with UpdateChatExecutionState.
+// Execution-state transition outside the chatstate machine; keep the SET
+// list in sync with UpdateChatExecutionState. Publishes nothing, so callers
+// publish chat:update per chat. Run it before
+// DeleteChatQueuedMessagesOfDeletedChatProject so a send waiting on a chat
+// lock reads the archived state and is refused.
 func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, archiveChatsOfDeletedChatProject, projectID)
 	if err != nil {
@@ -7856,18 +7943,22 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 
 const deleteChatQueuedMessagesOfDeletedChatProject = `-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
 DELETE FROM chat_queued_messages
-WHERE chat_id IN (
-    SELECT chats.id
-    FROM chats
-    JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
-)
+WHERE chat_id = ANY($1::uuid[])
+    AND chat_id IN (
+        SELECT chats.id
+        FROM chats
+        JOIN chat_projects ON chat_projects.id = chats.project_id
+        WHERE chat_projects.id = $2::uuid AND chat_projects.deleted
+    )
 `
 
-// Lives here rather than with the other queue queries because it is a step
-// of the project delete cleanup; see UpdateChatProjectDeletedByID.
-func (q *sqlQuerier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesOfDeletedChatProject, projectID)
+type DeleteChatQueuedMessagesOfDeletedChatProjectParams struct {
+	ChatIds   []uuid.UUID `db:"chat_ids" json:"chat_ids"`
+	ProjectID uuid.UUID   `db:"project_id" json:"project_id"`
+}
+
+func (q *sqlQuerier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesOfDeletedChatProject, pq.Array(arg.ChatIds), arg.ProjectID)
 	return err
 }
 
@@ -7883,8 +7974,6 @@ DELETE FROM chat_projects
 WHERE id IN (SELECT id FROM empty)
 `
 
-// Memories cascade with the row, so they follow chat retention too; nothing
-// can read them after the tombstone.
 func (q *sqlQuerier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteEmptyDeletedChatProjects, limitCount)
 	if err != nil {
@@ -8025,6 +8114,87 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UserACL,
 			&i.GroupACL,
 			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -8249,7 +8419,7 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 const lockChatProjectRootChats = `-- name: LockChatProjectRootChats :exec
 SELECT id
 FROM chats
-WHERE project_id = $1::uuid AND parent_chat_id IS NULL
+WHERE project_id = $1::uuid AND parent_chat_id IS NULL AND NOT archived
 ORDER BY id
 FOR UPDATE
 `
@@ -8323,22 +8493,33 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 	return i, err
 }
 
-const updateChatProjectDeletedByID = `-- name: UpdateChatProjectDeletedByID :exec
-UPDATE chat_projects
-SET deleted = true, updated_at = now()
-WHERE id = $1::uuid AND NOT deleted
+const updateChatProjectDeletedByID = `-- name: UpdateChatProjectDeletedByID :one
+WITH project AS (
+    UPDATE chat_projects
+    SET deleted = true, updated_at = now()
+    WHERE id = $1::uuid AND NOT deleted
+    RETURNING id
+),
+memories AS (
+    DELETE FROM chat_project_memories
+    WHERE project_id IN (SELECT id FROM project)
+),
+instructions AS (
+    DELETE FROM chat_project_instructions
+    WHERE project_id IN (SELECT id FROM project)
+)
+SELECT id FROM project
 `
 
-// Irreversible. Its row lock waits for root chat creations holding
-// GetChatProjectByIDForShare, and later ones find no project. The project's
-// chats keep running until a cleanup transaction, at READ COMMITTED, runs
-// LockChatProjectRootChats, ArchiveChatsOfDeletedChatProject, and
-// DeleteChatQueuedMessagesOfDeletedChatProject in that order.
-// GetDeletedChatProjectIDsWithUnarchivedChats finds projects that still
-// need it.
-func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, updateChatProjectDeletedByID, id)
-	return err
+// Irreversible. Waits for root chat creations holding
+// GetChatProjectByIDForShare. Deletes the project's memories and
+// instructions; its chats keep running until
+// chatstate.ArchiveDeletedChatProject archives them.
+func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProjectDeletedByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
@@ -11464,7 +11645,7 @@ WHERE
         FROM chat_file_links
         WHERE file_id = $1::uuid
     )
-    -- Chats of a deleted project stay archived until chat retention removes them.
+    -- A deleted project's chats keep their rows until chat retention removes them.
     AND NOT EXISTS (
         SELECT 1
         FROM chat_projects
@@ -11634,6 +11815,11 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+  )
 ORDER BY workspace_id, updated_at DESC
 `
 
@@ -18680,14 +18866,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per app however many of its sessions were open,
-		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- A minute counts once per family, however many of its apps were
+		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			app_name,
+			COALESCE($3::jsonb ->> app_name, 'unknown') AS family,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -18703,22 +18889,22 @@ WITH
 			AND was.created_at < $2::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, app_name
+			was.template_id, was.user_id, family
 	),
-	app_usage AS (
+	app_family_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
+			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				app_name,
+				family,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, app_name
-		) AS app_seconds
+				template_id, family
+		) AS family_seconds
 		GROUP BY
 			template_id
 	),
@@ -18735,35 +18921,38 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_usage.session_app_usage_seconds
+	app_family_usage.session_family_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one app; both sides come from
+	-- Every counted template has at least one family; both sides come from
 	-- insights.
-	app_usage
+	app_family_usage
 ON
-	app_usage.template_id = active_users.template_id
+	app_family_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
+	StartTime   time.Time       `db:"start_time" json:"start_time"`
+	EndTime     time.Time       `db:"end_time" json:"end_time"`
+	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
-	ActiveUsers            int64          `db:"active_users" json:"active_users"`
-	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	TemplateID                uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers               int64          `db:"active_users" json:"active_users"`
+	SessionFamilyUsageSeconds StringMapOfInt `db:"session_family_usage_seconds" json:"session_family_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 //
-// Session usage comes out per app name, as in GetTemplateInsights, so either
-// query reports the same family totals once the names are grouped.
+// Session usage is reported per app family. It reads the raw agent stats
+// because the rollup stores minutes per app, which can't show whether two
+// apps of one family were open in the same minute. @app_families maps each
+// app name to its family; names missing from the map count as unknown.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime, arg.AppFamilies)
 	if err != nil {
 		return nil, err
 	}
@@ -18771,7 +18960,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionFamilyUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -42624,7 +42813,7 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
 SELECT
-	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id, workspace_agent_scripts.resource_address, workspace_agent_scripts.dependencies,
 	workspace_agent_script_timings.exit_code,
 	workspace_agent_script_timings.status
 	FROM workspace_agent_scripts
@@ -42648,6 +42837,8 @@ type GetWorkspaceAgentScriptsByAgentIDsRow struct {
 	TimeoutSeconds   int32                                `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string                               `db:"display_name" json:"display_name"`
 	ID               uuid.UUID                            `db:"id" json:"id"`
+	ResourceAddress  string                               `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage                      `db:"dependencies" json:"dependencies"`
 	ExitCode         sql.NullInt32                        `db:"exit_code" json:"exit_code"`
 	Status           NullWorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
@@ -42674,6 +42865,8 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ResourceAddress,
+			&i.Dependencies,
 			&i.ExitCode,
 			&i.Status,
 		); err != nil {
@@ -42692,7 +42885,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id)
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id, resource_address, dependencies)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	$2 :: timestamptz AS created_at,
@@ -42705,8 +42898,12 @@ SELECT
 	unnest($9 :: boolean [ ]) AS run_on_stop,
 	unnest($10 :: integer [ ]) AS timeout_seconds,
 	unnest($11 :: text [ ]) AS display_name,
-	unnest($12 :: uuid [ ]) AS id
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id
+	unnest($12 :: uuid [ ]) AS id,
+	unnest($13 :: text [ ]) AS resource_address,
+	-- The driver accepts a text array more reliably than a jsonb array,
+	-- so each element is cast to jsonb inside the query.
+	unnest($14 :: text [ ]) :: jsonb AS dependencies
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id, workspace_agent_scripts.resource_address, workspace_agent_scripts.dependencies
 `
 
 type InsertWorkspaceAgentScriptsParams struct {
@@ -42722,6 +42919,8 @@ type InsertWorkspaceAgentScriptsParams struct {
 	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      []string    `db:"display_name" json:"display_name"`
 	ID               []uuid.UUID `db:"id" json:"id"`
+	ResourceAddress  []string    `db:"resource_address" json:"resource_address"`
+	Dependencies     []string    `db:"dependencies" json:"dependencies"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
@@ -42738,6 +42937,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		pq.Array(arg.TimeoutSeconds),
 		pq.Array(arg.DisplayName),
 		pq.Array(arg.ID),
+		pq.Array(arg.ResourceAddress),
+		pq.Array(arg.Dependencies),
 	)
 	if err != nil {
 		return nil, err
@@ -42759,6 +42960,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ResourceAddress,
+			&i.Dependencies,
 		); err != nil {
 			return nil, err
 		}
