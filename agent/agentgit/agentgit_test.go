@@ -917,7 +917,7 @@ func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	dir := t.TempDir()
+	dir := testutil.TempDirResolved(t)
 	file := filepath.Join(dir, "main.go")
 	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
 
