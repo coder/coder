@@ -27,13 +27,31 @@ export const collectBoardGroups = (chats: readonly Chat[]): BoardGroups => {
 };
 
 /**
+ * The latest `updated_at` among a chat and its group members, so a group
+ * sits where its most recent activity is.
+ */
+export const groupUpdatedAt = (chat: Chat, groups: BoardGroups): string =>
+	(groups.get(chat.id) ?? []).reduce(
+		(latest, member) =>
+			Date.parse(member.updated_at) > Date.parse(latest)
+				? member.updated_at
+				: latest,
+		chat.updated_at,
+	);
+
+/**
  * What the sidebar lists: members leave their own slot and render inside
- * their primary's entry.
+ * their primary's entry, ordered by `groupUpdatedAt`.
  */
 export const boardSidebarChats = (
 	chats: readonly Chat[],
 ): { chats: readonly Chat[]; groups: BoardGroups } => {
 	const groups = collectBoardGroups(chats);
 	const memberIds = new Set([...groups.values()].flat().map((chat) => chat.id));
-	return { chats: chats.filter((chat) => !memberIds.has(chat.id)), groups };
+	const listed = chats
+		.filter((chat) => !memberIds.has(chat.id))
+		.map((chat) => ({ chat, at: Date.parse(groupUpdatedAt(chat, groups)) }))
+		.sort((a, b) => b.at - a.at)
+		.map(({ chat }) => chat);
+	return { chats: listed, groups };
 };
