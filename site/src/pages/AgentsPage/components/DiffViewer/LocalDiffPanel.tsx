@@ -1,5 +1,5 @@
 import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";

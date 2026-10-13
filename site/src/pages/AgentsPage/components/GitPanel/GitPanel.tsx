@@ -34,7 +34,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { originRepoLabel } from "../../utils/originRepoLabel";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,

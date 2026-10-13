@@ -16,7 +16,8 @@ import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import { AgentChatInput } from "./AgentChatInput";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ organizations: [] }),

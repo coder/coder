@@ -53,7 +53,6 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -71,6 +70,7 @@ import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
+import type { ChatMessageInputRef } from "./components/ChatMessageInput/ChatMessageInput";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
