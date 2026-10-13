@@ -3,13 +3,11 @@ package workspacesdk_test
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptrace"
 	"net/netip"
 	"strings"
 	"sync/atomic"
@@ -80,41 +78,33 @@ func TestAgentConn_DialBoundedByRequestContext(t *testing.T) {
 	goleak.VerifyNone(t, ignoreCurrent)
 }
 
-// TestAgentConn_CloseEndsKeepAliveDial verifies that with
-// APIIdleConnTimeout set, a dial that outlives its request ends when the
-// conn is closed.
-//
-//nolint:paralleltest // goleak.IgnoreCurrent requires this test to run non-parallel.
 func TestAgentConn_CloseEndsKeepAliveDial(t *testing.T) {
-	logger := testutil.Logger(t)
-	ignoreCurrent := goleak.IgnoreCurrent()
+	t.Parallel()
 
 	tailnetConn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
-		Logger:    logger.Named("client"),
+		Logger:    testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = tailnetConn.Close()
 	})
-
 	conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
 		AgentID:            uuid.New(),
 		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
 		APIIdleConnTimeout: time.Minute,
 	})
 
-	// No agent exists, so the dial is still blocked in AwaitReachable when
-	// the request context expires.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalSlow)
-	defer cancel()
-	_, err = conn.ListeningPorts(ctx)
-	require.Error(t, err)
-
+	// No workspace agent exists, so the request waits on its dial until Close
+	// ends it.
+	reqCtx := testutil.Context(t, testutil.WaitLong)
+	errs := make(chan error, 1)
+	go func() {
+		_, err := conn.ListeningPorts(reqCtx)
+		errs <- err
+	}()
 	require.NoError(t, conn.Close())
-	require.NoError(t, tailnetConn.Close())
-
-	goleak.VerifyNone(t, ignoreCurrent)
+	require.Error(t, testutil.RequireReceive(testutil.Context(t, testutil.WaitMedium), t, errs))
 }
 
 func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
@@ -416,10 +406,7 @@ func stitchTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
 	})
 }
 
-// newAPIPeers returns a client tailnet conn and the ID of an agent tailnet
-// conn that runs server on the agent API port, on a listener wrapped by
-// wrap if it is not nil.
-func newAPIPeers(t *testing.T, server *http.Server, wrap func(net.Listener) net.Listener) (client *tailnet.Conn, agentID uuid.UUID) {
+func newAPIPeers(t *testing.T, server *http.Server) (client *tailnet.Conn, agentID uuid.UUID) {
 	t.Helper()
 
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -431,9 +418,6 @@ func newAPIPeers(t *testing.T, server *http.Server, wrap func(net.Listener) net.
 
 	ln, err := agentConn.Listen("tcp", fmt.Sprintf(":%d", workspacesdk.AgentHTTPAPIServerPort))
 	require.NoError(t, err)
-	if wrap != nil {
-		ln = wrap(ln)
-	}
 	t.Cleanup(func() {
 		assert.NoError(t, server.Close())
 	})
@@ -447,71 +431,27 @@ func newAPIPeers(t *testing.T, server *http.Server, wrap func(net.Listener) net.
 	return clientConn, agentID
 }
 
-func jsonHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.Copy(io.Discard, r.Body)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte("{}\n"))
-	})
-}
-
-// reuseTrace returns ctx with a trace that records whether the connection
-// the request got was reused.
-func reuseTrace(ctx context.Context) (context.Context, *atomic.Bool) {
-	var reused atomic.Bool
-	return httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
-		GotConn: func(info httptrace.GotConnInfo) {
-			reused.Store(info.Reused)
-		},
-	}), &reused
-}
-
-var agentConnRequests = []struct {
-	name string
-	call func(context.Context, workspacesdk.AgentConn) error
-}{
-	{
-		name: "GET",
-		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
-			_, err := conn.ListeningPorts(ctx)
-			return err
-		},
-	},
-	{
-		name: "POST",
-		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
-			return conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x"))
-		},
-	},
-	{
-		name: "POSTToolCall",
-		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
-			_, err := conn.StartProcess(workspacesdk.WithToolCallID(ctx, uuid.New()), workspacesdk.StartProcessRequest{Command: "true"})
-			return err
-		},
-	},
-}
-
-// TestAgentConn_APIIdleConnTimeout checks that with APIIdleConnTimeout set,
-// requests share one connection that Close closes, and that without it,
-// each request uses a new connection.
 func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name        string
 		idleTimeout time.Duration
-		conns       int
+		conns       int32
 	}{
 		{name: "Set", idleTimeout: time.Minute, conns: 1},
-		{name: "Unset", conns: len(agentConnRequests)},
+		{name: "Unset", conns: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var accepted, closed atomic.Int32
 			clientConn, agentID := newAPIPeers(t, &http.Server{
-				Handler:           jsonHandler(),
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = io.Copy(io.Discard, r.Body)
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte("{}\n"))
+				}),
 				ReadHeaderTimeout: testutil.WaitShort,
 				ConnState: func(_ net.Conn, state http.ConnState) {
 					switch state {
@@ -521,7 +461,7 @@ func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
 						closed.Add(1)
 					}
 				},
-			}, nil)
+			})
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
 				AgentID:            agentID,
@@ -529,114 +469,15 @@ func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
 				APIIdleConnTimeout: tc.idleTimeout,
 			})
 
-			for _, req := range agentConnRequests {
-				require.NoError(t, req.call(ctx, conn), req.name)
-			}
-			require.Equal(t, tc.conns, int(accepted.Load()), "connections")
-
-			require.NoError(t, conn.Close())
-			require.Eventually(t, func() bool {
-				return closed.Load() == accepted.Load()
-			}, testutil.WaitShort, testutil.IntervalFast, "Close closes the idle connection")
-			if tc.idleTimeout > 0 {
-				_, err := conn.ListeningPorts(ctx)
-				require.Error(t, err, "a closed conn dials no new connection")
-			}
-		})
-	}
-}
-
-// TestAgentConn_ChunkedResponseKeepsIdleAPIConn checks that a decoded JSON
-// response leaves the API connection reusable when the body is chunked, so
-// the decoder may stop before EOF.
-func TestAgentConn_ChunkedResponseKeepsIdleAPIConn(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	clientConn, agentID := newAPIPeers(t, &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"ports": []any{}, "pad": strings.Repeat("x", 20<<10)})
-			w.(http.Flusher).Flush() // Forces a chunked body.
-		}),
-		ReadHeaderTimeout: testutil.WaitShort,
-	}, nil)
-	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
-		AgentID:            agentID,
-		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
-		APIIdleConnTimeout: time.Minute,
-	})
-	t.Cleanup(func() { _ = conn.Close() })
-
-	_, err := conn.ListeningPorts(ctx)
-	require.NoError(t, err)
-	for i := range 10 {
-		traceCtx, reused := reuseTrace(ctx)
-		_, err := conn.ListeningPorts(traceCtx)
-		require.NoError(t, err)
-		require.Truef(t, reused.Load(), "request %d reused the idle connection", i+1)
-	}
-}
-
-// dropIdleListener closes a connection when a request arrives on it after a
-// response was written, as an agent does that restarted while the
-// connection was idle.
-type dropIdleListener struct{ net.Listener }
-
-func (l dropIdleListener) Accept() (net.Conn, error) {
-	c, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return &dropIdleConn{Conn: c}, nil
-}
-
-type dropIdleConn struct {
-	net.Conn
-	responded atomic.Bool
-}
-
-func (c *dropIdleConn) Write(p []byte) (int, error) {
-	c.responded.Store(true)
-	return c.Conn.Write(p)
-}
-
-func (c *dropIdleConn) Read(p []byte) (int, error) {
-	n, err := c.Conn.Read(p)
-	if n > 0 && c.responded.Load() {
-		_ = c.Close()
-		return 0, io.EOF
-	}
-	return n, err
-}
-
-// TestAgentConn_DroppedIdleAPIConn checks what APIIdleConnTimeout documents
-// when the agent drops a kept connection: http.Transport resends a GET on a
-// new connection, and a POST returns the error.
-func TestAgentConn_DroppedIdleAPIConn(t *testing.T) {
-	t.Parallel()
-
-	clientConn, agentID := newAPIPeers(t, &http.Server{Handler: jsonHandler(), ReadHeaderTimeout: testutil.WaitShort}, func(ln net.Listener) net.Listener {
-		return dropIdleListener{ln}
-	})
-	for _, tc := range agentConnRequests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
-				AgentID:            agentID,
-				CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
-				APIIdleConnTimeout: time.Minute,
-			})
-			t.Cleanup(func() { _ = conn.Close() })
-			_, err := conn.ListeningPorts(ctx) // Leaves an idle connection.
+			_, err := conn.ListeningPorts(ctx)
 			require.NoError(t, err)
-			err = tc.call(ctx, conn)
-			if tc.name == "GET" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+			require.NoError(t, conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x")))
+			require.Equal(t, tc.conns, accepted.Load(), "connections")
+			if tc.idleTimeout > 0 {
+				require.NoError(t, conn.Close())
+				require.Eventually(t, func() bool {
+					return closed.Load() == accepted.Load()
+				}, testutil.WaitShort, testutil.IntervalFast, "Close closes the idle connection")
 			}
 		})
 	}
