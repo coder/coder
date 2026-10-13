@@ -968,6 +968,50 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
 }
 
+type systemPromptReadFailStore struct {
+	database.Store
+	failDeployment, failOrganization atomic.Bool
+}
+
+func (s *systemPromptReadFailStore) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
+	if s.failDeployment.Load() {
+		return database.GetChatSystemPromptConfigRow{}, xerrors.New("deployment prompt read failed")
+	}
+	return s.Store.GetChatSystemPromptConfig(ctx)
+}
+
+func (s *systemPromptReadFailStore) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	if s.failOrganization.Load() {
+		return database.ChatOrganizationSystemPrompt{}, xerrors.New("organization prompt read failed")
+	}
+	return s.Store.GetChatOrganizationSystemPrompt(ctx, organizationID)
+}
+
+func TestCreateChildSubagentChatReturnsSystemPromptReadErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, organization := range []bool{false, true} {
+		name, wantErr := "Deployment", "deployment prompt read failed"
+		if organization {
+			name, wantErr = "Organization", "organization prompt read failed"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			store := &systemPromptReadFailStore{Store: db}
+			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{})
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(t, db)
+			parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "prompt-read-"+name)
+
+			store.failDeployment.Store(!organization)
+			store.failOrganization.Store(organization)
+			_, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect", "", childSubagentChatOptions{})
+			require.ErrorContains(t, err, wantErr)
+		})
+	}
+}
+
 func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -3710,6 +3754,20 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Equal(t, "task complete", report)
 	})
 
+	t.Run("InterruptingIsNotDone", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		_, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusInterrupting, "")
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+
+		_, _, done, err := server.checkSubagentCompletion(ctx, child.ID)
+		require.NoError(t, err)
+		require.False(t, done)
+	})
+
 	t.Run("AlreadyError", func(t *testing.T) {
 		t.Parallel()
 		ctx := chatdTestContext(t)
@@ -4267,6 +4325,36 @@ func TestSubagentManagerAwait(t *testing.T) {
 	}
 }
 
+func TestSubagentManagerSendAndInterrupt(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	WaitUntilIdleForTest(server)
+	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
+
+	_, _, err := manager.Send(ctx, messageAgentArgs{ChatID: child.ID.String(), Message: "  "})
+	require.ErrorContains(t, err, "message is required")
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+	chat, interrupted, err := manager.Interrupt(ctx, interruptAgentArgs{ChatID: child.ID.String()})
+	require.NoError(t, err)
+	require.False(t, interrupted)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+	_, interrupted, err = manager.Send(ctx, messageAgentArgs{ChatID: child.ID.String(), Message: "redo it", Interrupt: true})
+	require.NoError(t, err)
+	require.True(t, interrupted)
+	// The unowned run is interrupted at once, so the message is promoted
+	// into history instead of waiting in the queue.
+	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
+}
+
 func TestSubagentManagerList(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
@@ -4276,23 +4364,36 @@ func TestSubagentManagerList(t *testing.T) {
 	parent, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "manager-list", ModelConfigID: model.ID, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}})
 	require.NoError(t, err)
 
-	children := make([]database.Chat, 0, 3)
-	for i, mode := range []database.NullChatMode{{}, {ChatMode: database.ChatModeExplore, Valid: true}, {}} {
+	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
+	empty, err := manager.List(ctx, listAgentsArgs{})
+	require.NoError(t, err)
+	require.Zero(t, empty.Total)
+	require.NotNil(t, empty.Agents)
+	require.Empty(t, empty.Agents)
+
+	children := make([]database.Chat, 0, 4)
+	for i, mode := range []database.NullChatMode{{}, {ChatMode: database.ChatModeExplore, Valid: true}, {}, {}} {
 		child, err := server.CreateChat(ctx, CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true}, RootChatID: uuid.NullUUID{UUID: parent.ID, Valid: true}, Title: fmt.Sprintf("child-%d", i), ModelConfigID: model.ID, ChatMode: mode, InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("work")}})
 		require.NoError(t, err)
 		children = append(children, child)
 	}
+	WaitUntilIdleForTest(server)
+	_, err = db.ArchiveChatByID(ctx, children[3].ID)
+	require.NoError(t, err)
+	// Touching the oldest child last makes it the most recently updated.
+	setChatStatus(ctx, t, db, children[0].ID, database.ChatStatusWaiting, "")
 
-	manager := newSubagentManager(server, func() database.Chat { return parent }, parent.LastModelConfigID)
 	result, err := manager.List(ctx, listAgentsArgs{})
 	require.NoError(t, err)
 	require.Equal(t, 3, result.Total)
 	require.Equal(t, 3, result.Returned)
 	require.False(t, result.HasMore)
+	require.Equal(t, children[0].ID.String(), result.Agents[0].ChatID)
 	typesByID := make(map[string]string, len(result.Agents))
 	for _, agent := range result.Agents {
 		typesByID[agent.ChatID] = agent.Type
 	}
+	require.NotContains(t, typesByID, children[3].ID.String())
 	require.Equal(t, subagentTypeExplore, typesByID[children[1].ID.String()])
 
 	limit, offset := 2, 2
@@ -4304,10 +4405,71 @@ func TestSubagentManagerList(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, second.Agents, 1)
 	require.NotContains(t, []string{first.Agents[0].ChatID, first.Agents[1].ChatID}, second.Agents[0].ChatID)
+	zero := 0
+	clamped, err := manager.List(ctx, listAgentsArgs{Limit: &zero})
+	require.NoError(t, err)
+	require.Len(t, clamped.Agents, 1)
 
 	childManager := newSubagentManager(server, func() database.Chat { return children[0] }, children[0].LastModelConfigID)
 	_, err = childManager.List(ctx, listAgentsArgs{})
 	require.ErrorContains(t, err, "only available on root chats")
+}
+
+// The model reads these payloads, so their exact text is the contract.
+func TestSubagentToolOutputsJSON(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	chat := database.Chat{
+		ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		Title:     "child",
+		Status:    database.ChatStatusError,
+		Mode:      database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt.Add(time.Minute),
+		LastError: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`{"message":"` + subagentGenericErrorMessage + `","detail":"bad model","retryable":true}`),
+			Valid:      true,
+		},
+	}
+	const id = `"chat_id":"11111111-1111-1111-1111-111111111111"`
+	report := "done"
+	for _, tc := range []struct {
+		name   string
+		output any
+		want   string
+	}{
+		{"Spawn", spawnAgentResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
+		{"Action", subagentActionResult(chat, true), `{` + id + `,"interrupted":true,"status":"error","title":"child","type":"explore"}`},
+		{"List", subagentListResult{
+			Agents:   []subagentListEntry{{ChatID: chat.ID.String(), CreatedAt: "c", Status: "s", Title: "t", Type: "y", UpdatedAt: "u"}},
+			HasMore:  true,
+			Offset:   1,
+			Returned: 1,
+			Total:    3,
+		}, `{"agents":[{` + id + `,"created_at":"c","status":"s","title":"t","type":"y","updated_at":"u"}],"has_more":true,"offset":1,"returned":1,"total":3}`},
+		{"EmptyList", subagentListResult{Agents: []subagentListEntry{}}, `{"agents":[],"has_more":false,"offset":0,"returned":0,"total":0}`},
+		{
+			"WaitSuccess",
+			subagentAwaitResult{ChatID: chat.ID.String(), RecordingFileID: "r", Report: &report, Status: "waiting", ThumbnailFileID: "th", Title: "child", Type: "explore"},
+			`{` + id + `,"recording_file_id":"r","report":"done","status":"waiting","thumbnail_file_id":"th","title":"child","type":"explore"}`,
+		},
+		{
+			"WaitTimeout",
+			subagentAwaitResult{ChatID: chat.ID.String(), Status: "running", TimedOut: true, Title: "child", Type: "explore"},
+			`{` + id + `,"status":"running","timed_out":true,"title":"child","type":"explore"}`,
+		},
+		{
+			"WaitError",
+			subagentAwaitStatusErrorResult(&subagentStatusError{chat: chat, report: "partial", reason: "partial"}),
+			`{` + id + `,"last_error":"bad model","last_error_detail":"bad model","last_error_kind":"generic","last_error_retryable":true,"report":"partial","status":"error","title":"child","type":"explore"}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, toolJSONResponse(tc.output).Content)
+		})
+	}
 }
 
 func TestEnabledChatModelConfigsForOrganization(t *testing.T) {

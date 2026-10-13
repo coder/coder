@@ -42,8 +42,8 @@ type subagentManagerError struct {
 func (e *subagentManagerError) Error() string { return e.err.Error() }
 func (e *subagentManagerError) Unwrap() error { return e.err }
 
-// Tool output field order matches sorted keys, the order the earlier
-// map-based payloads marshaled in, so the model-visible JSON is unchanged.
+// Tool outputs keep fields in sorted JSON key order so the payload text
+// the model sees stays stable.
 type subagentAwaitResult struct {
 	ChatID             string  `json:"chat_id"`
 	LastError          string  `json:"last_error,omitempty"`
