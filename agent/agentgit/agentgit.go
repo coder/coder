@@ -65,12 +65,14 @@ type Handler struct {
 	execer agentexec.Execer
 	gitBin string // path to git binary; empty means "git" (from PATH)
 
-	mu            sync.Mutex
-	repoRoots     map[string]struct{}     // watched repo roots
-	lastSnapshots map[string]repoSnapshot // last emitted snapshot per repo
-	lastScanAt    time.Time               // when the last scan completed
-	scanned       bool                    // whether Scan has emitted a message
-	scanTrigger   chan struct{}           // buffered(1), poked by triggers
+	mu              sync.Mutex
+	repoRoots       map[string]struct{}     // watched repo roots
+	pathRoots       map[string]string       // repo root each path resolved to in SetPaths
+	pendingRemovals map[string]struct{}     // roots dropped by SetPaths, not yet reported
+	lastSnapshots   map[string]repoSnapshot // last emitted snapshot per repo
+	lastScanAt      time.Time               // when the last scan completed
+	scanned         bool                    // whether Scan has emitted a message
+	scanTrigger     chan struct{}           // buffered(1), poked by triggers
 }
 
 // repoSnapshot captures the last emitted state for delta comparison.
@@ -83,13 +85,15 @@ type repoSnapshot struct {
 // NewHandler creates a new git watch handler.
 func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 	h := &Handler{
-		logger:        logger,
-		clock:         quartz.NewReal(),
-		execer:        agentexec.DefaultExecer,
-		gitBin:        "git",
-		repoRoots:     make(map[string]struct{}),
-		lastSnapshots: make(map[string]repoSnapshot),
-		scanTrigger:   make(chan struct{}, 1),
+		logger:          logger,
+		clock:           quartz.NewReal(),
+		execer:          agentexec.DefaultExecer,
+		gitBin:          "git",
+		repoRoots:       make(map[string]struct{}),
+		pathRoots:       make(map[string]string),
+		pendingRemovals: make(map[string]struct{}),
+		lastSnapshots:   make(map[string]repoSnapshot),
+		scanTrigger:     make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -142,6 +146,62 @@ func (h *Handler) Subscribe(paths []string) bool {
 	return added
 }
 
+// SetPaths replaces the watch set with the repo roots that paths
+// resolve to, so the watched roots match what a new connection would
+// resolve from the same paths. Roots that no path resolves to anymore
+// are reported as removed by the next Scan. A path that fails to
+// resolve keeps its previous root while that root is still a
+// repository, so a transient resolution failure does not make a repo
+// disappear and reappear.
+func (h *Handler) SetPaths(paths []string) {
+	if !h.gitAvailable() {
+		return
+	}
+
+	h.mu.Lock()
+	prevPathRoots := h.pathRoots
+	h.mu.Unlock()
+
+	// Resolve outside the lock so scans are not blocked on git.
+	pathRoots := make(map[string]string, len(paths))
+	for _, p := range paths {
+		if !filepath.IsAbs(p) {
+			continue
+		}
+		p = filepath.Clean(p)
+
+		root, err := findRepoRoot(h.execer, h.gitBin, p)
+		if err != nil {
+			prev, ok := prevPathRoots[p]
+			if !ok || isRepoDeleted(h.execer, h.gitBin, prev) {
+				continue
+			}
+			root = prev
+		}
+		pathRoots[p] = root
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	repoRoots := make(map[string]struct{}, len(pathRoots))
+	for _, root := range pathRoots {
+		repoRoots[root] = struct{}{}
+		delete(h.pendingRemovals, root)
+	}
+	for root := range h.repoRoots {
+		if _, ok := repoRoots[root]; ok {
+			continue
+		}
+		// Forget the snapshot so the repo is sent in full if a path
+		// resolves to it again.
+		delete(h.lastSnapshots, root)
+		h.pendingRemovals[root] = struct{}{}
+	}
+	h.repoRoots = repoRoots
+	h.pathRoots = pathRoots
+}
+
 // RequestScan pokes the scan trigger so the run loop performs a scan.
 func (h *Handler) RequestScan() {
 	select {
@@ -167,9 +227,10 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		roots = append(roots, r)
 	}
 	scanned := h.scanned
+	hasRemovals := len(h.pendingRemovals) > 0
 	h.mu.Unlock()
 
-	if len(roots) == 0 && scanned {
+	if len(roots) == 0 && scanned && !hasRemovals {
 		return nil
 	}
 
@@ -194,6 +255,12 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	defer h.mu.Unlock()
 
 	for _, res := range results {
+		// SetPaths dropped this root during the scan. Its removal is
+		// reported below, and recording a snapshot would suppress the
+		// full state if the root is watched again.
+		if _, ok := h.repoRoots[res.root]; !ok {
+			continue
+		}
 		if res.err != nil {
 			if isRepoDeleted(h.execer, h.gitBin, res.root) {
 				// Repo root or .git directory was removed.
@@ -233,6 +300,13 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 		}
 
 		repos = append(repos, res.changes)
+	}
+	for root := range h.pendingRemovals {
+		repos = append(repos, codersdk.WorkspaceAgentRepoChanges{
+			RepoRoot: root,
+			Removed:  true,
+		})
+		delete(h.pendingRemovals, root)
 	}
 
 	h.lastScanAt = now

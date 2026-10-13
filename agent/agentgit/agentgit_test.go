@@ -707,6 +707,94 @@ func TestScanTransientErrorDoesNotRemoveRepo(t *testing.T) {
 	require.Equal(t, repoDir, msg3.Repositories[0].RepoRoot)
 }
 
+// repoRemovals maps each repo root in msg to whether it was reported
+// as removed.
+func repoRemovals(msg *codersdk.WorkspaceAgentGitServerMessage) map[string]bool {
+	removals := make(map[string]bool, len(msg.Repositories))
+	for _, repo := range msg.Repositories {
+		removals[repo.RepoRoot] = repo.Removed
+	}
+	return removals
+}
+
+// TestSetPathsReportsRootsNoLongerResolved pins that SetPaths drops a
+// root no path resolves to anymore, reports it as removed, and sends
+// it in full if a path resolves to it again.
+func TestSetPathsReportsRootsNoLongerResolved(t *testing.T) {
+	t.Parallel()
+
+	parent := initTestRepo(t)
+	sub := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	file := filepath.Join(sub, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	ctx := context.Background()
+
+	h.SetPaths([]string{file})
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{parent: false}, repoRemovals(msg))
+
+	// The path now belongs to a nested repository.
+	gitCmd(t, sub, "init")
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{sub: false, parent: true}, repoRemovals(msg))
+
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories, "the removal is reported once")
+
+	// Without the nested repository the path resolves to parent
+	// again, which is sent in full even though it has not changed.
+	require.NoError(t, os.RemoveAll(filepath.Join(sub, ".git")))
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{parent: false, sub: true}, repoRemovals(msg))
+}
+
+// TestSetPathsKeepsRootWhenPathStopsResolving pins that a path that
+// no longer resolves keeps its root while the root is still a
+// repository, and that a deleted root is not watched again.
+func TestSetPathsKeepsRootWhenPathStopsResolving(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	buildDir := filepath.Join(repoDir, "build")
+	require.NoError(t, os.Mkdir(buildDir, 0o700))
+	file := filepath.Join(buildDir, "out.go")
+	require.NoError(t, os.WriteFile(file, []byte("package build\n"), 0o600))
+
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	ctx := context.Background()
+
+	h.SetPaths([]string{file})
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg))
+
+	// The path's directory is gone, so it no longer resolves, but its
+	// repo still exists.
+	require.NoError(t, os.RemoveAll(buildDir))
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg),
+		"the repo stays watched with its updated diff")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, ".git")))
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{repoDir: true}, repoRemovals(msg))
+
+	h.SetPaths([]string{file})
+	require.Nil(t, h.Scan(ctx), "a deleted repo is not watched again")
+}
+
 // --- WebSocket end-to-end tests ---
 
 // dialGitWatch starts an httptest server with the agentgit API and
@@ -946,6 +1034,47 @@ func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
 	msg = recvMsg(ctx, t, ch)
 	require.Len(t, msg.Repositories, 1)
 	require.Equal(t, dir, msg.Repositories[0].RepoRoot)
+}
+
+// TestWebSocketRefreshMatchesNewConnection pins that refresh leaves
+// the client with the repos a new connection reports, removing a repo
+// that the chat's paths no longer resolve to.
+func TestWebSocketRefreshMatchesNewConnection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	parent := initTestRepo(t)
+	sub := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	file := filepath.Join(sub, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ps.AddPaths([]uuid.UUID{chatID}, []string{file})
+
+	mClock := quartz.NewMock(t)
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	msg := recvMsg(ctx, t, ch)
+	require.Equal(t, map[string]bool{parent: false}, repoRemovals(&msg))
+
+	// The path now belongs to a nested repository.
+	gitCmd(t, sub, "init")
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
+	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
+	})
+	require.NoError(t, err)
+
+	msg = recvMsg(ctx, t, ch)
+	require.Equal(t, map[string]bool{sub: false, parent: true}, repoRemovals(&msg))
+
+	fresh := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	msg = recvMsg(ctx, t, fresh.Chan())
+	require.Equal(t, map[string]bool{sub: false}, repoRemovals(&msg))
 }
 
 func TestWebSocketUnknownMessageType(t *testing.T) {
