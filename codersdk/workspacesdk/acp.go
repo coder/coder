@@ -64,14 +64,12 @@ type ACPSessionID struct {
 
 // ACPCreateSessionRequest creates an idle session in an explicit directory.
 type ACPCreateSessionRequest struct {
-	// RequestID deduplicates creation within an agent lifetime.
-	RequestID        uuid.UUID         `json:"request_id"`
 	HarnessSlug      string            `json:"harness_slug"`
 	WorkingDirectory string            `json:"working_directory"`
 	Config           map[string]string `json:"config,omitempty"`
 }
 
-// ACPMessageRequest identifies a message so retries do not repeat its work.
+// ACPMessageRequest identifies a submitted message and its adapter responses.
 type ACPMessageRequest struct {
 	ID   uuid.UUID `json:"id"`
 	Text string    `json:"text"`
@@ -81,7 +79,10 @@ type ACPMessageRequest struct {
 type ACPMessageOutcome string
 
 const (
-	ACPMessageOutcomePrompt         ACPMessageOutcome = "prompt"
+	ACPMessageOutcomePrompt ACPMessageOutcome = "prompt"
+	// ACPMessageOutcomeSteering means a steering request was written. Its
+	// eventual outcome is processed asynchronously by the session runtime.
+	ACPMessageOutcomeSteering       ACPMessageOutcome = "steering"
 	ACPMessageOutcomeInjected       ACPMessageOutcome = "injected"
 	ACPMessageOutcomeStartedNewTurn ACPMessageOutcome = "startedNewTurn"
 )
@@ -95,10 +96,10 @@ type ACPMessageResponse struct {
 type ACPSessionStatus string
 
 const (
-	ACPSessionStatusStarting ACPSessionStatus = "starting"
-	ACPSessionStatusIdle     ACPSessionStatus = "idle"
-	ACPSessionStatusRunning  ACPSessionStatus = "running"
-	ACPSessionStatusError    ACPSessionStatus = "error"
+	ACPSessionStatusIdle         ACPSessionStatus = "idle"
+	ACPSessionStatusRunning      ACPSessionStatus = "running"
+	ACPSessionStatusInterrupting ACPSessionStatus = "interrupting"
+	ACPSessionStatusError        ACPSessionStatus = "error"
 )
 
 // ACPSession describes a runtime session without its transcript.
@@ -111,9 +112,9 @@ type ACPSession struct {
 	StopReason         string            `json:"stop_reason,omitempty"`
 	Error              string            `json:"error,omitempty"`
 	Cursor             ACPCursor         `json:"cursor"`
-	// HistoryComplete reports whether the agent's transcript covers the session
-	// from its beginning. It is false after resuming without retained history;
-	// session/resume does not replay earlier messages.
+	// HistoryComplete reports whether the transcript covers the session from
+	// its beginning. It becomes false when a message resets an existing
+	// transcript or restoration does not replay earlier messages.
 	HistoryComplete bool `json:"history_complete"`
 }
 
@@ -166,7 +167,11 @@ func acpQuery(id ACPSessionID, after *ACPCursor) url.Values {
 
 func acpRequest[T any](ctx context.Context, c *agentConn, method, path string, body any) (T, error) {
 	var result T
-	res, err := c.apiRequest(ctx, method, "/api/v0/acp"+path, body)
+	request := c.apiRequest
+	if method == http.MethodPost {
+		request = c.toolCallRequest
+	}
+	res, err := request(ctx, method, "/api/v0/acp"+path, body)
 	if err != nil {
 		return result, xerrors.Errorf("request ACP: %w", err)
 	}
@@ -206,7 +211,7 @@ func (c *agentConn) ReadACPSession(ctx context.Context, id ACPSessionID, opts AC
 	return acpRequest[ACPSessionResponse](ctx, c, http.MethodGet, "/sessions/session?"+acpQuery(id, opts.After).Encode(), nil)
 }
 
-// SendACPMessage admits a prompt or steering message using its deduplication ID.
+// SendACPMessage writes a prompt or steering message to the adapter.
 func (c *agentConn) SendACPMessage(ctx context.Context, id ACPSessionID, req ACPMessageRequest) (ACPMessageResponse, error) {
 	return acpRequest[ACPMessageResponse](ctx, c, http.MethodPost, "/sessions/session/messages?"+acpQuery(id, nil).Encode(), req)
 }

@@ -2,15 +2,32 @@ package agentacp
 
 import (
 	"context"
-	"encoding/json"
+	"sync"
+
+	"golang.org/x/xerrors"
 
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+// The lock protects only the initialization handoff. Once bound, callbacks
+// submit updates to their own instance and never consult the registry.
 type client struct {
-	session    *session
-	generation uint64
+	mu       sync.Mutex
+	session  *SessionFSM
+	replayID string
+	replay   []acp.SessionNotification
+}
+
+func (c *client) beginReplay(id string) { c.mu.Lock(); defer c.mu.Unlock(); c.replayID = id }
+func (c *client) replaying() bool       { c.mu.Lock(); defer c.mu.Unlock(); return c.replayID != "" }
+func (c *client) bind(s *SessionFSM) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, req := range c.replay {
+		_ = s.appendNotification(req)
+	}
+	c.replay = nil
+	c.session = s
 }
 
 func (*client) RequestPermission(ctx context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
@@ -27,66 +44,22 @@ func (*client) RequestPermission(ctx context.Context, req acp.RequestPermissionR
 	return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Cancelled: &acp.RequestPermissionOutcomeCancelled{}}}, nil
 }
 
-func (c *client) SessionUpdate(_ context.Context, req acp.SessionNotification) error {
+func (c *client) SessionUpdate(ctx context.Context, req acp.SessionNotification) error {
+	c.mu.Lock()
 	s := c.session
 	if s == nil {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed || c.generation != s.generation || (s.info.ID.SessionID != "" && s.info.ID.SessionID != string(req.SessionId)) {
-		return nil
-	}
-	// The submitted message is recorded locally; live adapter echoes are
-	// redundant. Replayed user messages are needed to reconstruct history.
-	if s.replay != nil {
-		s = s.replay
-	} else if req.Update.UserMessageChunk != nil {
-		return nil
-	}
-	raw, err := json.Marshal(req.Update)
-	if err != nil {
-		return err
-	}
-	s.appendLocked(workspacesdk.ACPEventKindUpdate, "", raw)
-	if chunk := req.Update.AgentMessageChunk; chunk != nil && chunk.Content.Text != nil {
-		s.assistant = append(s.assistant, assistantText{seq: s.info.Cursor.Seq, text: chunk.Content.Text.Text})
-	}
-	if req.Update.UserMessageChunk != nil {
-		s.lastUser = s.info.Cursor.Seq
-	}
-	if update := req.Update.SessionInfoUpdate; update != nil {
-		codex, _ := update.Meta["codex"].(map[string]any)
-		status, _ := codex["threadStatus"].(map[string]any)
-		kind, _ := status["type"].(string)
-		switch kind {
-		case "active", "idle", "systemError":
-			if kind == "active" && s.adapterStatus != "active" {
-				s.adapterTurn++
+		if c.replayID != "" {
+			if string(req.SessionId) != c.replayID {
+				c.mu.Unlock()
+				return xerrors.Errorf("%w: notification session ID mismatch", ErrInvalid)
 			}
-			s.adapterStatus = kind
-			if s.detached && s.info.Status != workspacesdk.ACPSessionStatusError {
-				s.applyThreadStatusLocked()
-			}
+			c.replay = append(c.replay, req)
 		}
+		c.mu.Unlock()
+		return nil
 	}
-	return nil
-}
-
-func (s *session) applyThreadStatusLocked() {
-	switch s.adapterStatus {
-	case "active":
-		s.info.Status, s.info.StopReason = workspacesdk.ACPSessionStatusRunning, ""
-	case "idle":
-		s.info.Status, s.info.StopReason = workspacesdk.ACPSessionStatusIdle, string(acp.StopReasonEndTurn)
-		if s.interrupting == s.turn {
-			s.info.StopReason = string(acp.StopReasonCancelled)
-		}
-	case "systemError":
-		s.failLocked(ErrUnavailable)
-		return
-	}
-	s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
+	c.mu.Unlock()
+	return s.ProcessACPUpdate(ctx, ACPUpdate{Notification: &req})
 }
 
 func (*client) ReadTextFile(context.Context, acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {

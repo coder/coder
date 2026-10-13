@@ -27,11 +27,15 @@ func TestACPTransport(t *testing.T) {
 	id := workspacesdk.ACPSessionID{SessionID: "native/id?x=1 &雪", HarnessSlug: "fake", WorkingDirectory: "/explicit dir/雪"}
 	cursor := workspacesdk.ACPCursor{Epoch: uuid.New(), Seq: 9}
 	info := workspacesdk.ACPSession{ID: id, Status: workspacesdk.ACPSessionStatusIdle, Cursor: cursor}
+	toolID := uuid.New()
 	router := http.NewServeMux()
 	router.HandleFunc("/api/v0/acp/", func(w http.ResponseWriter, r *http.Request) {
 		require.Empty(t, r.Header.Get(workspacesdk.CoderChatIDHeader))
-		// ACP uses its own UUID deduplication and does not attach context tool-call IDs.
-		require.Empty(t, r.Header.Get(workspacesdk.CoderToolCallIDHeader))
+		if r.Method == http.MethodPost {
+			require.Equal(t, toolID.String(), r.Header.Get(workspacesdk.CoderToolCallIDHeader))
+		} else {
+			require.Empty(t, r.Header.Get(workspacesdk.CoderToolCallIDHeader))
+		}
 		var result any
 		if r.URL.Path != "/api/v0/acp/harnesses" && r.URL.Path != "/api/v0/acp/sessions" {
 			if r.URL.Query().Get("session_id") == "unknown" {
@@ -81,11 +85,11 @@ func TestACPTransport(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	require.True(t, client.AwaitReachable(ctx, agentIP))
 	conn := workspacesdk.NewAgentConn(client, workspacesdk.AgentConnOptions{AgentID: agentID, Logger: testutil.Logger(t)})
-	ctx = workspacesdk.WithToolCallID(ctx, uuid.New())
+	ctx = workspacesdk.WithToolCallID(ctx, toolID)
 	catalog, err := conn.ListACPHarnesses(ctx)
 	require.NoError(t, err)
 	require.Len(t, catalog, 1)
-	created, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: id.HarnessSlug, WorkingDirectory: id.WorkingDirectory})
+	created, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: id.HarnessSlug, WorkingDirectory: id.WorkingDirectory})
 	require.NoError(t, err)
 	require.Equal(t, info.ID, created.ID)
 

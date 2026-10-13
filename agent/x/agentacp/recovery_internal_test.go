@@ -28,7 +28,7 @@ func TestRecovery(t *testing.T) {
 			require.NoError(t, err)
 			before, err := awaitTestSession(ctx, m, info.ID)
 			require.NoError(t, err)
-			// A dead harness with retained history prefers resume and keeps its epoch.
+			// Reads retain the failed instance until new work requests recovery.
 			_, err = m.Message(ctx, info.ID, workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "exit"})
 			require.NoError(t, err)
 			_, err = awaitTestSession(ctx, m, info.ID)
@@ -38,7 +38,7 @@ func TestRecovery(t *testing.T) {
 			if mode == fakeHarnessModeNone {
 				require.NoError(t, err)
 				require.Equal(t, workspacesdk.ACPSessionStatusError, read.Session.Status)
-				require.Contains(t, read.AssistantResponse, "answer:hello:other")
+				require.Empty(t, read.AssistantResponse)
 				_, _, stop, err := m.Subscribe(ctx, info.ID, nil)
 				require.NoError(t, err)
 				stop()
@@ -47,14 +47,15 @@ func TestRecovery(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, workspacesdk.ACPSessionStatusIdle, restored.Status)
-			if mode == fakeHarnessModeLoad {
-				require.NotEqual(t, before.Session.Cursor.Epoch, restored.Cursor.Epoch)
-				_, err = m.Read(context.Background(), info.ID, &before.Session.Cursor)
-				require.ErrorIs(t, err, ErrConflict)
-			} else {
-				require.Equal(t, before.Session.Cursor.Epoch, restored.Cursor.Epoch)
-			}
+			require.Equal(t, workspacesdk.ACPSessionStatusError, restored.Status)
+			recovered, err := m.recover(ctx, info.ID)
+			require.NoError(t, err)
+			snapshot, err := recovered.Read(ctx, nil)
+			require.NoError(t, err)
+			require.Equal(t, workspacesdk.ACPSessionStatusIdle, snapshot.Session.Status)
+			require.NotEqual(t, before.Session.Cursor.Epoch, snapshot.Session.Cursor.Epoch)
+			_, err = m.Read(context.Background(), info.ID, &before.Session.Cursor)
+			require.ErrorIs(t, err, ErrConflict)
 			require.NoError(t, m.Close())
 			// A new agent has no transcript. Load is preferred; resume is incomplete.
 			fresh := NewManager(context.Background(), Options{
@@ -88,31 +89,11 @@ func TestRecovery(t *testing.T) {
 			fresh = restartTestManager(t, fresh, dir)
 			_, err = fresh.Read(ctx, info.ID, nil)
 			require.ErrorIs(t, err, ErrUnavailable)
-			observed, err := awaitTestSession(ctx, fresh, info.ID)
-			require.NoError(t, err)
-			require.Equal(t, workspacesdk.ACPSessionStatusError, observed.Session.Status)
+			_, err = awaitTestSession(ctx, fresh, info.ID)
+			require.ErrorIs(t, err, ErrUnavailable)
+			require.Empty(t, fresh.List())
 		})
 	}
-}
-
-func TestCreateDeduplication(t *testing.T) {
-	t.Parallel()
-	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
-
-	req := workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir}
-	first, err := m.Create(context.Background(), req)
-	require.NoError(t, err)
-	req.Config = map[string]string{}
-	second, err := m.Create(context.Background(), req)
-	require.NoError(t, err)
-	require.Equal(t, first.ID, second.ID)
-	req.Config["model"] = "other"
-	_, err = m.Create(context.Background(), req)
-	require.ErrorIs(t, err, ErrConflict)
-	req.Config = nil
-	second, err = m.Create(context.Background(), req)
-	require.NoError(t, err)
-	require.Equal(t, first.ID, second.ID)
 }
 
 func restartTestManager(t *testing.T, m *Manager, dir string) *Manager {
@@ -158,11 +139,15 @@ func TestRecoveryThroughSessionOperations(t *testing.T) {
 					unsubscribe()
 				}
 			}
-			require.NoError(t, err)
+			if operation == "interrupt" {
+				require.ErrorIs(t, err, ErrConflict)
+			} else {
+				require.NoError(t, err)
+			}
 			result, err := awaitTestSession(ctx, fresh, info.ID)
 			require.NoError(t, err)
 			require.Equal(t, info.ID, result.Session.ID)
-			require.True(t, result.Session.HistoryComplete)
+			require.Equal(t, operation != "message", result.Session.HistoryComplete)
 			require.NotEqual(t, info.Cursor.Epoch, result.Session.Cursor.Epoch)
 			want := "answer:hello:other"
 			if operation == "message" {
@@ -221,12 +206,6 @@ func TestMessageRecoversWithoutReplayingInterruptedWork(t *testing.T) {
 	failed, err := awaitTestSession(ctx, m, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, workspacesdk.ACPSessionStatusError, failed.Session.Status)
-	// Retrying the admitted message does not submit it to the recovered process.
-	_, err = m.Message(ctx, info.ID, crash)
-	require.NoError(t, err)
-	retried, err := awaitTestSession(ctx, m, info.ID)
-	require.NoError(t, err)
-	require.Equal(t, workspacesdk.ACPSessionStatusError, retried.Session.Status)
 	_, err = m.Message(ctx, info.ID, workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "recovered"})
 	require.NoError(t, err)
 	result, err := awaitTestSession(ctx, m, info.ID)
@@ -266,6 +245,8 @@ func TestFailedLoadPreservesHistory(t *testing.T) {
 			_, events, unsubscribe, err := m.Subscribe(ctx, info.ID, &before.Session.Cursor)
 			require.NoError(t, err)
 			defer unsubscribe()
+			_, err = m.recover(ctx, info.ID)
+			require.ErrorIs(t, err, ErrUnavailable)
 			after, err := m.Read(ctx, info.ID, &before.Session.Cursor)
 			require.NoError(t, err)
 			require.Equal(t, workspacesdk.ACPSessionStatusError, after.Session.Status)
@@ -274,34 +255,17 @@ func TestFailedLoadPreservesHistory(t *testing.T) {
 				require.NotEqual(t, workspacesdk.ACPEventKindReset, event.Kind)
 				require.NotContains(t, string(event.Update), "partial replay")
 			}
-			for range len(after.Events) {
-				event := testutil.RequireReceive(ctx, t, events)
-				require.NotEqual(t, workspacesdk.ACPEventKindReset, event.Kind)
+			select {
+			case event := <-events:
+				t.Fatalf("unexpected event: %#v", event)
+			default:
 			}
 			read, err := m.Read(ctx, info.ID, nil)
 			require.NoError(t, err)
-			require.Contains(t, read.AssistantResponse, "answer:hello:other")
+			require.Empty(t, read.AssistantResponse)
 			require.NotContains(t, read.AssistantResponse, "partial replay")
 		})
 	}
-}
-
-func TestAdmittedMessageRetryDoesNotRequireRecovery(t *testing.T) {
-	t.Parallel()
-	m, dir, _ := newTestManager(t, fakeHarnessModeNone)
-	info := createTestSession(t, m, dir)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	message := workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "exit"}
-	admitted, err := m.Message(ctx, info.ID, message)
-	require.NoError(t, err)
-	_, err = awaitTestSession(ctx, m, info.ID)
-	require.NoError(t, err)
-	retried, err := m.Message(ctx, info.ID, message)
-	require.NoError(t, err)
-	require.Equal(t, admitted, retried)
-	message.Text = "different"
-	_, err = m.Message(ctx, info.ID, message)
-	require.ErrorIs(t, err, ErrConflict)
 }
 
 func TestRecoveryAvailability(t *testing.T) {
@@ -323,11 +287,19 @@ func TestRecoveryAvailability(t *testing.T) {
 	_, _, stop, err := m.Subscribe(ctx, info.ID, nil)
 	require.NoError(t, err)
 	stop()
+	_, err = m.recover(ctx, info.ID)
+	require.ErrorIs(t, err, ErrUnavailable)
 	writeConfig(t, filepath.Join(configs, "fake.json"), map[string]any{"command": fakeCommand(t, fakeHarnessModeBoth)})
 	require.NoError(t, m.Reload(ctx))
 	restored, err := m.Read(ctx, info.ID, nil)
 	require.NoError(t, err)
 	require.Equal(t, info.ID, restored.Session.ID)
+	require.Equal(t, workspacesdk.ACPSessionStatusError, restored.Session.Status)
+	recovered, err := m.recover(ctx, info.ID)
+	require.NoError(t, err)
+	restored, err = recovered.Read(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, workspacesdk.ACPSessionStatusIdle, restored.Session.Status)
 }
 
 func TestSessionIdentityTuple(t *testing.T) {

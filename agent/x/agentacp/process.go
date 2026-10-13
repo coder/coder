@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"io"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -38,19 +36,19 @@ func (b *diagnosticBuffer) String() string {
 }
 
 type process struct {
-	writeMu       sync.Mutex
-	promptWritten chan error
-	clock         quartz.Clock
-	conn          *acp.ClientSideConnection
-	cmd           *exec.Cmd
-	stdin         io.WriteCloser
-	stdout        io.ReadCloser
-	cancel        context.CancelFunc
-	done          chan struct{}
-	updatesDone   <-chan struct{}
-	err           error // Read only after done closes.
-	once          sync.Once
-	stderr        diagnosticBuffer
+	writeMu        sync.Mutex
+	requestWritten chan error
+	requestMethod  string
+	clock          quartz.Clock
+	conn           *acp.ClientSideConnection
+	cmd            *exec.Cmd
+	stdin          io.WriteCloser
+	stdout         io.ReadCloser
+	cancel         context.CancelFunc
+	done           chan struct{}
+	err            error // Read only after done closes.
+	once           sync.Once
+	stderr         diagnosticBuffer
 }
 
 func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Client) (*process, error) {
@@ -91,7 +89,7 @@ func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Cli
 		cancel()
 		return nil, xerrors.Errorf("start harness: %w", err)
 	}
-	p.conn, p.updatesDone = newClientConnection(handler, p, p.stdout)
+	p.conn = acp.NewClientSideConnection(handler, p, p.stdout)
 	go func() {
 		p.err = cmd.Wait()
 		// The shell may exit before its descendants. CommandContext stops
@@ -106,8 +104,8 @@ func (p *process) close() {
 	p.once.Do(func() { p.cancel(); _ = p.stdin.Close(); _ = p.stdout.Close(); <-p.done })
 }
 
-// Write observes prompt admission at the ACP transport boundary. The session's
-// admission lock ensures cancel and steering cannot overtake the first prompt.
+// Write observes request admission at the ACP transport boundary. The session
+// loop waits for this write before accepting another operation.
 func (p *process) Write(raw []byte) (int, error) {
 	// Closing the transport bounds the actual write, including calls whose
 	// contexts the ACP SDK only checks after writing the request.
@@ -124,60 +122,21 @@ func (p *process) Write(raw []byte) (int, error) {
 	var message struct {
 		Method string `json:"method"`
 	}
-	if json.Unmarshal(raw, &message) == nil && message.Method == "session/prompt" {
+	if json.Unmarshal(raw, &message) == nil && message.Method != "" {
 		p.writeMu.Lock()
-		if p.promptWritten != nil {
-			p.promptWritten <- err
-			p.promptWritten = nil
+		if p.requestWritten != nil && message.Method == p.requestMethod {
+			p.requestWritten <- err
+			p.requestWritten = nil
 		}
 		p.writeMu.Unlock()
 	}
 	return n, err
 }
 
-func (p *process) expectPrompt() <-chan error {
+func (p *process) expectWrite(method string) <-chan error {
 	p.writeMu.Lock()
+	p.requestMethod = method
 	defer p.writeMu.Unlock()
-	p.promptWritten = make(chan error, 1)
-	return p.promptWritten
-}
-
-// The SDK signals disconnect before draining notifications and exposes no
-// drain hook. A local notification appended after input ends runs after all
-// earlier notifications. Its random method name keeps it private to this
-// connection. Read errors end input too, including pipes closed during cleanup.
-func newClientConnection(handler acp.Client, input io.Writer, output io.Reader) (*acp.ClientSideConnection, <-chan struct{}) {
-	method := "_coder/drain/" + uuid.NewString()
-	client := &notificationClient{Client: handler, method: method, done: make(chan struct{})}
-	marker := "\n{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":{}}\n"
-	reader := io.MultiReader(endReader{output}, strings.NewReader(marker))
-	return acp.NewClientSideConnection(client, input, reader), client.done
-}
-
-type endReader struct{ io.Reader }
-
-func (r endReader) Read(p []byte) (int, error) {
-	n, err := r.Reader.Read(p)
-	if err != nil {
-		err = io.EOF
-	}
-	return n, err
-}
-
-type notificationClient struct {
-	acp.Client
-	method string
-	done   chan struct{}
-	once   sync.Once
-}
-
-func (c *notificationClient) HandleExtensionMethod(ctx context.Context, method string, params json.RawMessage) (any, error) {
-	if method == c.method {
-		c.once.Do(func() { close(c.done) })
-		return nil, nil //nolint:nilnil // Drain notifications have no response payload.
-	}
-	if handler, ok := c.Client.(acp.ExtensionMethodHandler); ok {
-		return handler.HandleExtensionMethod(ctx, method, params)
-	}
-	return nil, acp.NewMethodNotFound(method)
+	p.requestWritten = make(chan error, 1)
+	return p.requestWritten
 }

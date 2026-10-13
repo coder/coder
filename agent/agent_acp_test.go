@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	acp "github.com/coder/acp-go-sdk"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -52,18 +51,17 @@ func TestAgent_ACPInterface(t *testing.T) {
 	_, err = conn.ListACPHarnesses(ctx)
 	require.NoError(t, err)
 	tool := uuid.New()
-	// Even a supplied tool-call header must bypass response recording for ACP.
 	conn.SetExtraHeaders(http.Header{
-		workspacesdk.CoderChatIDHeader:     {uuid.NewString()},
-		workspacesdk.CoderToolCallIDHeader: {tool.String()},
+		workspacesdk.CoderChatIDHeader: {uuid.NewString()},
 	})
+	ctx = workspacesdk.WithToolCallID(ctx, tool)
 	var catalog []workspacesdk.ACPHarness
 	require.Eventually(t, func() bool { catalog, err = conn.ListACPHarnesses(ctx); return err == nil && len(catalog) == 2 }, testutil.WaitLong, testutil.IntervalFast)
 	require.Equal(t, "broken", catalog[0].Slug)
 	listed, err := conn.ListACPSessions(ctx)
 	require.NoError(t, err)
 	require.Empty(t, listed)
-	info, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir})
+	info, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir})
 	require.NoError(t, err)
 	events, closer, err := conn.WatchACPSession(ctx, testutil.Logger(t), info.ID, workspacesdk.ACPReadOptions{})
 	require.NoError(t, err)
@@ -105,6 +103,7 @@ type agentACPHarness struct{ acp.Agent }
 func (agentACPHarness) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
 	return acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersionNumber}, nil
 }
+
 func (agentACPHarness) NewSession(context.Context, acp.NewSessionRequest) (acp.NewSessionResponse, error) {
 	return acp.NewSessionResponse{SessionId: acp.SessionId(uuid.NewString())}, nil
 }

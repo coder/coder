@@ -186,11 +186,12 @@ func (o acpToolOptions) spawn(ctx context.Context, args acpSpawnArgs, _ fantasy.
 	if err != nil {
 		return o.errorResponse(err, nil), nil
 	}
-	session, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: id, HarnessSlug: harness.Slug, WorkingDirectory: args.WorkingDirectory, Config: args.Agent.Config})
+	session, err := conn.CreateACPSession(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: harness.Slug, WorkingDirectory: args.WorkingDirectory, Config: args.Agent.Config})
 	if err != nil {
 		return o.errorResponse(err, nil), nil
 	}
-	_, err = conn.SendACPMessage(ctx, session.ID, workspacesdk.ACPMessageRequest{ID: uuid.NewSHA1(id, []byte("initial-prompt")), Text: args.Prompt})
+	promptID := uuid.NewSHA1(id, []byte("initial-prompt"))
+	_, err = conn.SendACPMessage(workspacesdk.WithToolCallID(ctx, promptID), session.ID, workspacesdk.ACPMessageRequest{ID: promptID, Text: args.Prompt})
 	if err != nil {
 		return o.errorResponse(err, &session.ID), nil
 	}
@@ -243,7 +244,7 @@ func (o acpToolOptions) interrupt(ctx context.Context, args acpSessionArgs, _ fa
 	if info.HarnessDisplayName != "" {
 		result["harness_display_name"] = info.HarnessDisplayName
 	}
-	result["status"], result["interrupted"] = info.Status, info.Status == workspacesdk.ACPSessionStatusRunning
+	result["status"], result["interrupted"] = info.Status, info.Status == workspacesdk.ACPSessionStatusInterrupting
 	return acpResponse(result), nil
 }
 

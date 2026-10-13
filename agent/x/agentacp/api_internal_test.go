@@ -2,18 +2,20 @@ package agentacp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -23,7 +25,8 @@ import (
 func TestAPIAndStreamReplay(t *testing.T) {
 	t.Parallel()
 	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
-	handler := http.StripPrefix("/api/v0/acp", NewAPI(m).Routes())
+	toolCalls := agenttoolcall.New(m.clock, func(context.Context, uuid.UUID, uuid.UUID) {})
+	handler := agentchat.Middleware(toolCalls.Middleware(http.StripPrefix("/api/v0/acp", NewAPI(m).Routes())))
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -31,12 +34,15 @@ func TestAPIAndStreamReplay(t *testing.T) {
 		StatusCode int
 		Body       io.Reader
 	}
-	call := func(method, path string, body any, header string) testResponse {
+	call := func(method, path string, body any, header string, toolIDs ...uuid.UUID) testResponse {
 		raw, err := json.Marshal(body)
 		require.NoError(t, err)
 		req, err := http.NewRequestWithContext(ctx, method, server.URL+"/api/v0/acp"+path, bytes.NewReader(raw))
 		require.NoError(t, err)
 		req.Header.Set(workspacesdk.CoderChatIDHeader, header)
+		if len(toolIDs) != 0 {
+			req.Header.Set(workspacesdk.CoderToolCallIDHeader, toolIDs[0].String())
+		}
 		res, err := server.Client().Do(req)
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -47,12 +53,13 @@ func TestAPIAndStreamReplay(t *testing.T) {
 	for _, header := range []string{"", "invalid", uuid.Nil.String()} {
 		require.Equal(t, http.StatusOK, call("GET", "/harnesses", nil, header).StatusCode)
 	}
-	req := workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir}
-	res := call("POST", "/sessions", req, "")
+	req := workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir}
+	chatID, createID := uuid.NewString(), uuid.New()
+	res := call("POST", "/sessions", req, chatID, createID)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	var info workspacesdk.ACPSession
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&info))
-	res = call("POST", "/sessions", req, uuid.NewString())
+	res = call("POST", "/sessions", req, chatID, createID)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	var duplicate workspacesdk.ACPSession
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&duplicate))
@@ -88,8 +95,8 @@ func TestAPIAndStreamReplay(t *testing.T) {
 		}
 	}
 	message := workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "hello"}
-	require.Equal(t, http.StatusOK, call("POST", path("/messages"), message, "").StatusCode)
-	require.Equal(t, http.StatusOK, call("POST", path("/messages"), message, uuid.NewString()).StatusCode)
+	require.Equal(t, http.StatusOK, call("POST", path("/messages"), message, chatID, message.ID).StatusCode)
+	require.Equal(t, http.StatusOK, call("POST", path("/messages"), message, chatID, message.ID).StatusCode)
 	userMessages := 0
 	var updates []string
 	var completed workspacesdk.ACPSession
@@ -112,7 +119,7 @@ func TestAPIAndStreamReplay(t *testing.T) {
 	require.Equal(t, 1, userMessages)
 	require.Equal(t, workspacesdk.ACPSessionStatusIdle, completed.Status)
 	require.Contains(t, strings.Join(updates, "\n"), "answer:hello:default")
-	res = call("GET", path("")+"&epoch="+info.Cursor.Epoch.String()+"&after="+strconv.FormatUint(info.Cursor.Seq, 10), nil, "")
+	res = call("GET", path("")+"&epoch="+completed.Cursor.Epoch.String()+"&after=0", nil, "")
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	var result workspacesdk.ACPSessionResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&result))
@@ -169,7 +176,7 @@ func TestHarnessFailureKeepsDiagnosticsOutOfAPI(t *testing.T) {
 	cfg.command = "printf 'credential=%s\\n' 'setup-secret' >&2; exit 1"
 	m.configs["fake"] = cfg
 	m.mu.Unlock()
-	raw, err := json.Marshal(workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir})
+	raw, err := json.Marshal(workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir})
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/sessions", bytes.NewReader(raw))
 	require.NoError(t, err)

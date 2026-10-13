@@ -3,10 +3,8 @@ package agentacp
 
 import (
 	"context"
-	"encoding/json"
 	"maps"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -46,92 +44,42 @@ type Options struct {
 	WorkingDir func() string
 }
 
-type messageResult struct {
-	text     string
-	response workspacesdk.ACPMessageResponse
-	err      error
-}
-
-type assistantText struct {
-	seq  uint64
-	text string
-}
-
-type recoveryAttempt struct {
+type initialization struct {
+	request    workspacesdk.ACPCreateSessionRequest
 	done       chan struct{}
+	fsm        *SessionFSM
 	err        error
 	configHash [32]byte
 	retryAfter time.Time
 }
 
-type session struct {
-	interrupting uint64
-	// assistant stores assistant text chunks for the compact AssistantResponse
-	// returned by session reads. Full ACP updates are stored in the `events`
-	// field.
-	assistant []assistantText
-	// opMu serializes setup, recovery, message admission, and interruption.
-	// It may be held across ACP calls, but not for an entire prompt's execution.
-	opMu sync.Mutex
-	// mu protects session state, transcripts, deduplication, and subscribers.
-	// Release it before ACP calls so callbacks can acquire it to record updates.
-	mu      sync.Mutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	request workspacesdk.ACPCreateSessionRequest
-	info    workspacesdk.ACPSession
-	proc    *process
-	harness workspacesdk.ACPHarness
-	events  []workspacesdk.ACPEvent
-	// lastUser records the latest admitted or replayed user-message event's
-	// sequence in the current transcript epoch, or zero if none is recorded.
-	// Recovery uses it to detect retained history and prefer session/resume.
-	lastUser uint64
-	// replay stages load notifications until setup succeeds.
-	replay     *session
-	closed     bool
-	turn       uint64
-	generation uint64
-	recovery   *recoveryAttempt
-	// Codex steering can start a turn without a corresponding Prompt request.
-	// Its thread-status updates own completion of these detached turns.
-	detached           bool
-	adapterStatus      string
-	adapterTurn        uint64
-	trackedAdapterTurn uint64
-	changed            chan struct{}
-	ready              chan struct{}
-	setupErr           error
-	messages           map[uuid.UUID]messageResult
-	subscribers        map[chan workspacesdk.ACPEvent]struct{}
-}
-
 // Manager owns subprocesses, catalog snapshots, and in-memory transcripts.
 type Manager struct {
-	configHashes   map[string][32]byte
-	reloadTrigger  chan struct{}
-	closedDone     chan struct{}
-	ctx            context.Context
-	cancel         context.CancelFunc
-	logger         slog.Logger
-	clock          quartz.Clock
-	execer         agentexec.Execer
-	fs             afero.Fs
-	envInfo        usershell.EnvInfoer
-	updateEnv      func([]string) ([]string, error)
-	workingDir     func() string
-	mu             sync.Mutex
-	closed         bool
-	createRequests map[uuid.UUID]*session
-	sessions       map[workspacesdk.ACPSessionID]*session
-	configs        map[string]harnessConfig
-	retryAfter     map[string]time.Time
-	configDir      string
-	catalog        []workspacesdk.ACPHarness
-	onChange       func()
-	wg             sync.WaitGroup
-	reloadMu       sync.Mutex
-	runOnce        sync.Once
+	configHashes  map[string][32]byte
+	reloadTrigger chan struct{}
+	closedDone    chan struct{}
+	ctx           context.Context
+	cancel        context.CancelFunc
+	logger        slog.Logger
+	clock         quartz.Clock
+	execer        agentexec.Execer
+	fs            afero.Fs
+	envInfo       usershell.EnvInfoer
+	updateEnv     func([]string) ([]string, error)
+	workingDir    func() string
+	mu            sync.Mutex
+	closed        bool
+	sessions      map[workspacesdk.ACPSessionID]*SessionFSM
+	initializing  map[workspacesdk.ACPSessionID]*initialization
+	instances     []*SessionFSM
+	configs       map[string]harnessConfig
+	retryAfter    map[string]time.Time
+	configDir     string
+	catalog       []workspacesdk.ACPHarness
+	onChange      func()
+	wg            sync.WaitGroup
+	reloadMu      sync.Mutex
+	runOnce       sync.Once
 }
 
 // NewManager creates a manager; RunDiscovery starts filesystem discovery.
@@ -139,7 +87,7 @@ type Manager struct {
 // UpdateEnv is optional.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, updateEnv: opts.UpdateEnv, workingDir: opts.WorkingDir, createRequests: make(map[uuid.UUID]*session), sessions: make(map[workspacesdk.ACPSessionID]*session), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
+	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, updateEnv: opts.UpdateEnv, workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), initializing: make(map[workspacesdk.ACPSessionID]*initialization), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
 }
 
 // SetOnChange installs the callback invoked after discovery changes.
@@ -191,283 +139,292 @@ func (m *Manager) validateSessionRequest(slug, directory string) error {
 	return nil
 }
 
-// Create creates an idle session. Request IDs deduplicate setup, not sessions.
-// Setup survives caller disconnection.
-func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
-	if req.RequestID == uuid.Nil {
-		return workspacesdk.ACPSession{}, ErrInvalid
-	}
+// SessionManager returns the initialization and recovery interface.
+func (m *Manager) SessionManager() SessionManager { return sessions{m} }
+
+// SessionManager initializes sessions and replaces failed adapter runtimes.
+// Existing failed instances remain readable until the manager closes.
+type SessionManager interface {
+	// Create returns a new initialized FSM in idle.
+	Create(context.Context, workspacesdk.ACPCreateSessionRequest) (*SessionFSM, error)
+	// Get restores absent sessions and returns existing errors without recovery.
+	Get(context.Context, workspacesdk.ACPSessionID) (*SessionFSM, error)
+	// Recover replaces a failed instance or returns an already recovered one.
+	Recover(context.Context, workspacesdk.ACPSessionID) (*SessionFSM, error)
+	// Close prevents initialization and cleans up owned runtimes.
+	Close() error
+}
+
+// sessions separates initialization from the user-facing Manager operations.
+type sessions struct{ manager *Manager }
+
+type sessionAccess uint8
+
+const (
+	readSession sessionAccess = iota
+	recoverSession
+)
+
+var _ SessionManager = sessions{}
+
+func (sm sessions) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (*SessionFSM, error) {
+	m := sm.manager
 	if err := m.validateSessionRequest(req.HarnessSlug, req.WorkingDirectory); err != nil {
-		return workspacesdk.ACPSession{}, err
+		return nil, err
 	}
 	req.Config = maps.Clone(req.Config)
 	if len(req.Config) == 0 {
 		req.Config = nil
 	}
-	key := req.RequestID
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
-		return workspacesdk.ACPSession{}, ErrUnavailable
+		return nil, ErrUnavailable
 	}
-	s, exists := m.createRequests[key]
-	if exists {
-		if !reflect.DeepEqual(s.request, req) {
-			m.mu.Unlock()
-			return workspacesdk.ACPSession{}, ErrConflict
-		}
-	} else {
-		s = m.newSession(req, "")
-		m.createRequests[key] = s
-		m.startSetup(s, "")
-	}
+	attempt := &initialization{request: req, done: make(chan struct{})}
+	m.startInitialization(attempt, workspacesdk.ACPSessionID{}, nil)
 	m.mu.Unlock()
+	return awaitInitialization(ctx, attempt)
+}
+
+// Create initializes a dedicated idle adapter.
+func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
+	s, err := (sessions{m}).Create(ctx, req)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	return r.Session, err
+}
+
+func awaitInitialization(ctx context.Context, attempt *initialization) (*SessionFSM, error) {
 	select {
 	case <-ctx.Done():
-		return workspacesdk.ACPSession{}, ctx.Err()
-	case <-s.ready:
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return workspacesdk.ACPSession{}, ErrConflict
-	}
-	return s.infoLocked(), s.setupErr
-}
-
-// newSession and startSetup are called with m.mu held.
-func (m *Manager) newSession(req workspacesdk.ACPCreateSessionRequest, nativeID string) *session {
-	sctx, cancel := context.WithCancel(m.ctx)
-	return &session{
-		ctx: sctx, cancel: cancel, request: req,
-		info: workspacesdk.ACPSession{
-			ID:     workspacesdk.ACPSessionID{HarnessSlug: req.HarnessSlug, WorkingDirectory: req.WorkingDirectory, SessionID: nativeID},
-			Config: maps.Clone(req.Config), Status: workspacesdk.ACPSessionStatusStarting,
-			Cursor: workspacesdk.ACPCursor{Epoch: uuid.New()}, HistoryComplete: nativeID == "",
-		},
-		changed: make(chan struct{}), ready: make(chan struct{}),
-		messages: make(map[uuid.UUID]messageResult), subscribers: make(map[chan workspacesdk.ACPEvent]struct{}),
+		return nil, ctx.Err()
+	case <-attempt.done:
+		return attempt.fsm, attempt.err
 	}
 }
 
-func (m *Manager) startSetup(s *session, nativeID string) {
+func (sm sessions) Get(ctx context.Context, id workspacesdk.ACPSessionID) (*SessionFSM, error) {
+	return sm.obtain(ctx, id, readSession)
+}
+
+func (sm sessions) Recover(ctx context.Context, id workspacesdk.ACPSessionID) (*SessionFSM, error) {
+	return sm.obtain(ctx, id, recoverSession)
+}
+
+func (sm sessions) obtain(ctx context.Context, id workspacesdk.ACPSessionID, access sessionAccess) (*SessionFSM, error) {
+	m := sm.manager
+	if id.SessionID == "" || id.HarnessSlug == "" || !filepath.IsAbs(id.WorkingDirectory) {
+		return nil, ErrInvalid
+	}
+	for {
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return nil, ErrUnavailable
+		}
+		s := m.sessions[id]
+		// Reads retain the failed instance while recovery runs.
+		if s != nil && access == readSession {
+			m.mu.Unlock()
+			return s, nil
+		}
+		attempt := m.initializing[id]
+		if attempt != nil {
+			select {
+			case <-attempt.done:
+				cfg := m.configs[id.HarnessSlug]
+				if attempt.err != nil && attempt.configHash == cfg.hash && m.clock.Now().Before(attempt.retryAfter) {
+					m.mu.Unlock()
+					return awaitInitialization(ctx, attempt)
+				}
+			default:
+				m.mu.Unlock()
+				return awaitInitialization(ctx, attempt)
+			}
+		}
+		m.mu.Unlock()
+		if s != nil {
+			r, err := s.Read(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			if r.Session.Status != workspacesdk.ACPSessionStatusError {
+				return s, nil
+			}
+		}
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return nil, ErrUnavailable
+		}
+		if m.sessions[id] != s || m.initializing[id] != attempt {
+			m.mu.Unlock()
+			continue
+		}
+		req := workspacesdk.ACPCreateSessionRequest{HarnessSlug: id.HarnessSlug, WorkingDirectory: id.WorkingDirectory}
+		if s != nil {
+			req = s.request
+		}
+		attempt = &initialization{request: req, done: make(chan struct{}), configHash: m.configs[id.HarnessSlug].hash}
+		m.initializing[id] = attempt
+		m.startInitialization(attempt, id, s)
+		m.mu.Unlock()
+		return awaitInitialization(ctx, attempt)
+	}
+}
+
+func (sm sessions) Close() error { return sm.manager.Close() }
+
+func (m *Manager) get(ctx context.Context, id workspacesdk.ACPSessionID) (*SessionFSM, error) {
+	return (sessions{m}).Get(ctx, id)
+}
+
+func (m *Manager) recover(ctx context.Context, id workspacesdk.ACPSessionID) (*SessionFSM, error) {
+	return (sessions{m}).Recover(ctx, id)
+}
+
+// startInitialization is called with m.mu held. Only initialized FSMs enter
+// the registry; concurrent callers share the attempt, including its failure.
+func (m *Manager) startInitialization(attempt *initialization, id workspacesdk.ACPSessionID, retired *SessionFSM) {
 	m.wg.Go(func() {
-		s.opMu.Lock()
-		defer s.opMu.Unlock()
-		err := m.setup(s, nativeID)
-		if err == nil && nativeID == "" {
-			m.mu.Lock()
-			s.mu.Lock()
-			key := s.info.ID
+		if retired != nil {
+			retired.proc.close()
+		}
+		s, err := m.initialize(attempt.request, id.SessionID)
+		m.mu.Lock()
+		if err == nil {
 			switch {
-			case m.closed || s.closed:
+			case m.closed:
 				err = ErrUnavailable
-			case m.sessions[key] != nil:
+			case id.SessionID == "" && m.sessions[s.id] != nil:
 				err = ErrConflict
 			default:
-				m.sessions[key] = s
-			}
-			s.mu.Unlock()
-			m.mu.Unlock()
-		}
-		if err != nil {
-			s.mu.Lock()
-			p := s.proc
-			s.mu.Unlock()
-			if p != nil {
-				p.close()
+				m.sessions[s.id] = s
+				m.instances = append(m.instances, s)
+				m.wg.Go(s.loop)
 			}
 		}
-		s.mu.Lock()
-		s.setupErr = err
-		if err != nil {
-			s.failLocked(err)
+		m.mu.Unlock()
+		if err == nil {
+			if !m.run(func() { m.watchProcess(s) }) {
+				err = ErrUnavailable
+			}
 		}
-		close(s.ready)
-		s.mu.Unlock()
+		if err != nil && s != nil {
+			s.cancel()
+			s.proc.close()
+		}
+		attempt.fsm, attempt.err = s, err
+		if err != nil {
+			attempt.fsm = nil
+		}
+		attempt.retryAfter = m.clock.Now().Add(discoveryInterval)
+		close(attempt.done)
 	})
 }
 
-// setup starts a dedicated adapter process for this session. ACP supports
-// multiple sessions per process; we use one process per session to isolate
-// process failures and because it is simpler to manage than sharing a process
-// across sessions. This costs additional memory and startup time. The process
-// is retained between prompts.
-func (m *Manager) setup(s *session, nativeID string) error {
-	if err := m.validateSessionRequest(s.request.HarnessSlug, s.request.WorkingDirectory); err != nil {
-		return err
+// initialize restores the referenced conversation, never a replacement.
+// History replay is consumed before the idle FSM is published.
+func (m *Manager) initialize(req workspacesdk.ACPCreateSessionRequest, nativeID string) (*SessionFSM, error) {
+	if err := m.validateSessionRequest(req.HarnessSlug, req.WorkingDirectory); err != nil {
+		return nil, err
 	}
 	m.mu.Lock()
-	cfg, ok := m.configs[s.request.HarnessSlug]
+	cfg, found := m.configs[req.HarnessSlug]
 	m.mu.Unlock()
-	if !ok {
-		return xerrors.Errorf("%w: harness is missing or disabled", ErrUnavailable)
+	if !found {
+		return nil, xerrors.Errorf("%w: harness is missing or disabled", ErrUnavailable)
 	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return ErrUnavailable
-	}
-	old := s.proc
-	s.mu.Unlock()
-	if old != nil {
-		old.close()
-		m.drainUpdates(s.ctx, old)
-	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return ErrUnavailable
-	}
-	retained := s.info.HistoryComplete || s.lastUser != 0
-	s.proc = nil
-	s.generation++
-	generation := s.generation
-	s.detached, s.adapterStatus, s.adapterTurn, s.trackedAdapterTurn = false, "", 0, 0
-	s.info.ID.SessionID = nativeID
-	s.mu.Unlock()
-	cfg.directory = s.request.WorkingDirectory
-	p, err := m.launch(s.ctx, cfg, &client{session: s, generation: generation})
+	cfg.directory = req.WorkingDirectory
+	handler := &client{}
+	p, err := m.launch(m.ctx, cfg, handler)
 	if err != nil {
-		return xerrors.Errorf("%w: %v", ErrUnavailable, err)
+		return nil, xerrors.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	ok = false
+	ok := false
 	defer func() {
 		if !ok {
 			p.close()
-			drained := m.drainUpdates(s.ctx, p)
-			s.mu.Lock()
-			s.replay = nil
-			if !drained {
-				s.generation++
-			}
-			s.mu.Unlock()
 		}
 	}()
-	ctx, cancel := m.timeout(s.ctx, setupTimeout)
+	ctx, cancel := m.timeout(m.ctx, setupTimeout)
 	defer cancel()
 	init, err := p.conn.Initialize(ctx, acp.InitializeRequest{ProtocolVersion: acp.ProtocolVersionNumber, ClientInfo: &acp.Implementation{Name: "coder-agent", Version: buildinfo.Version()}})
 	if err != nil {
-		p.close()
-		return xerrors.Errorf("%w: initialize harness: %v", ErrUnavailable, m.harnessFailure(p, err, cfg))
+		return nil, xerrors.Errorf("%w: initialize harness: %v", ErrUnavailable, m.harnessFailure(p, err, cfg))
 	}
 	if init.ProtocolVersion != acp.ProtocolVersionNumber {
-		return xerrors.Errorf("%w: unsupported ACP protocol version", ErrUnavailable)
+		return nil, xerrors.Errorf("%w: unsupported ACP protocol version", ErrUnavailable)
 	}
+	creating := nativeID == ""
 	harness := harnessInfo(cfg, init)
 	var options []acp.SessionConfigOption
 	switch {
 	case nativeID == "":
-		created, err := p.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: s.request.WorkingDirectory, McpServers: []acp.McpServer{}})
+		created, err := p.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
 		if err != nil {
-			return xerrors.Errorf("%w: create ACP session: %v", ErrUnavailable, err)
+			return nil, xerrors.Errorf("%w: create ACP session: %v", ErrUnavailable, err)
 		}
 		if created.SessionId == "" {
-			return xerrors.Errorf("%w: harness returned an empty session id", ErrUnavailable)
+			return nil, xerrors.Errorf("%w: harness returned an empty session id", ErrUnavailable)
 		}
 		nativeID, options = string(created.SessionId), created.ConfigOptions
-	case harness.LoadSession && (!retained || !harness.ResumeSession):
-		s.mu.Lock()
-		s.replay = &session{info: s.infoLocked(), changed: make(chan struct{})}
-		s.replay.info.Cursor = workspacesdk.ACPCursor{Epoch: uuid.New()}
-		s.replay.appendLocked(workspacesdk.ACPEventKindReset, "", nil)
-		s.mu.Unlock()
-		loaded, err := p.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: s.request.WorkingDirectory, McpServers: []acp.McpServer{}})
+	case harness.LoadSession:
+		handler.beginReplay(nativeID)
+		loaded, err := p.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
 		if err != nil {
-			return xerrors.Errorf("%w: load ACP session: %v", ErrUnavailable, err)
+			return nil, xerrors.Errorf("%w: load ACP session: %v", ErrUnavailable, err)
 		}
 		options = loaded.ConfigOptions
 	case harness.ResumeSession:
-		resumed, err := p.conn.ResumeSession(ctx, acp.ResumeSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: s.request.WorkingDirectory, McpServers: []acp.McpServer{}})
+		resumed, err := p.conn.ResumeSession(ctx, acp.ResumeSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
 		if err != nil {
-			return xerrors.Errorf("%w: resume ACP session: %v", ErrUnavailable, err)
+			return nil, xerrors.Errorf("%w: resume ACP session: %v", ErrUnavailable, err)
 		}
 		options = resumed.ConfigOptions
 	default:
-		return xerrors.Errorf("%w: harness does not support restoration", ErrUnavailable)
+		return nil, xerrors.Errorf("%w: harness does not support restoration", ErrUnavailable)
 	}
-	for _, id := range slices.Sorted(maps.Keys(s.request.Config)) {
-		value := s.request.Config[id]
+	for _, id := range slices.Sorted(maps.Keys(req.Config)) {
+		value := req.Config[id]
 		if !validConfig(options, id, value) {
-			return xerrors.Errorf("%w: unsupported configuration %q=%q", ErrInvalid, id, value)
+			return nil, xerrors.Errorf("%w: unsupported configuration %q=%q", ErrInvalid, id, value)
 		}
 		updated, err := p.conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{ValueId: &acp.SetSessionConfigOptionValueId{SessionId: acp.SessionId(nativeID), ConfigId: acp.SessionConfigId(id), Value: acp.SessionConfigValueId(value)}})
 		if err != nil {
-			return xerrors.Errorf("%w: configure ACP session: %v", ErrInvalid, err)
+			return nil, xerrors.Errorf("%w: configure ACP session: %v", ErrInvalid, err)
 		}
 		options = updated.ConfigOptions
 	}
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return ErrUnavailable
-	}
-	if replay := s.replay; replay != nil {
-		s.events, s.assistant, s.lastUser = replay.events, replay.assistant, replay.lastUser
-		s.info.Cursor, s.info.HistoryComplete = replay.info.Cursor, true
-		s.adapterStatus, s.adapterTurn = replay.adapterStatus, replay.adapterTurn
-		s.replay = nil
-		for _, event := range s.events {
-			s.publishLocked(event)
-		}
-	}
-	s.proc, s.harness = p, harness
-	s.info.ID.SessionID = nativeID
-	s.info.HarnessDisplayName = cfg.displayName
-	s.info.Harness = cloneHarness(harness)
-	s.info.Harness.ConfigOptions = configOptions(options)
-	s.info.Status, s.info.Error, s.info.StopReason = workspacesdk.ACPSessionStatusIdle, "", ""
-	s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
-	s.mu.Unlock()
-	ok = m.run(func() { m.watchProcess(s, p, cfg) })
-	if !ok {
-		return ErrUnavailable
-	}
-	return nil
+	id := workspacesdk.ACPSessionID{HarnessSlug: req.HarnessSlug, WorkingDirectory: req.WorkingDirectory, SessionID: nativeID}
+	info := workspacesdk.ACPSession{ID: id, Config: maps.Clone(req.Config), Status: workspacesdk.ACPSessionStatusIdle, Cursor: workspacesdk.ACPCursor{Epoch: uuid.New()}, HistoryComplete: creating || handler.replaying()}
+	info.Harness, info.HarnessDisplayName = harness, cfg.displayName
+	info.Harness.ConfigOptions = configOptions(options)
+	s := newSessionFSM(m.ctx, req, info, p, m.run)
+	handler.bind(s)
+	ok = true
+	return s, nil
 }
 
-func (m *Manager) watchProcess(s *session, p *process, cfg harnessConfig) {
+func (m *Manager) watchProcess(s *SessionFSM) {
+	p := s.proc
 	select {
 	case <-p.done:
 	case <-p.conn.Done():
-	case <-s.ctx.Done():
+	case <-m.ctx.Done():
 	}
 	p.close()
-	m.drainUpdates(s.ctx, p)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.closed && s.proc == p {
-		s.proc = nil
-		s.generation++
-		err := p.err
-		if err == nil {
-			err = xerrors.New("harness disconnected")
-		}
-		s.failLocked(m.harnessFailure(p, err, cfg))
+	// TODO: The ACP SDK closes Done before queued notifications finish and
+	// exposes no signal for their completion. Disconnect can put the FSM in
+	// error before final updates arrive, causing those updates to be rejected.
+	err := p.err
+	if err == nil {
+		err = xerrors.New("harness disconnected")
 	}
-}
-
-func (m *Manager) drainUpdates(ctx context.Context, p *process) bool {
-	if p.updatesDone == nil {
-		return true
-	}
-	select {
-	case <-p.updatesDone:
-		return true
-	default:
-	}
-	// Malformed input or an overflowing SDK queue can prevent the marker from
-	// being dispatched. Bound cleanup even when the normal drain is unavailable.
-	timer := m.clock.NewTimer(setupTimeout, "acp-drain")
-	defer timer.Stop()
-	select {
-	case <-p.updatesDone:
-		return true
-	case <-ctx.Done():
-	case <-timer.C:
-		m.logger.Warn(ctx, "acp notification drain timed out")
-	}
-	return false
+	_ = s.adapterError(m.ctx, m.harnessFailure(p, err, harnessConfig{slug: s.id.HarnessSlug}))
 }
 
 func (m *Manager) harnessFailure(p *process, err error, cfg harnessConfig) error {
@@ -488,116 +445,7 @@ func validConfig(options []acp.SessionConfigOption, id, value string) bool {
 	return false
 }
 
-// get loads absent sessions using their native identity. Existing failed
-// runtimes remain observable so streams can report failed work.
-func (m *Manager) get(ctx context.Context, id workspacesdk.ACPSessionID) (*session, error) {
-	if id.SessionID == "" || id.HarnessSlug == "" || !filepath.IsAbs(id.WorkingDirectory) {
-		return nil, ErrInvalid
-	}
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return nil, ErrUnavailable
-	}
-	s, exists := m.sessions[id]
-	if !exists {
-		req := workspacesdk.ACPCreateSessionRequest{HarnessSlug: id.HarnessSlug, WorkingDirectory: id.WorkingDirectory}
-		s = m.newSession(req, id.SessionID)
-		m.sessions[id] = s
-		m.startSetup(s, id.SessionID)
-	}
-	m.mu.Unlock()
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-s.ready:
-	}
-	s.mu.Lock()
-	setupErr, closed := s.setupErr, s.closed
-	s.mu.Unlock()
-	if closed {
-		return nil, ErrNotFound
-	}
-	if !exists && setupErr != nil {
-		return nil, setupErr
-	}
-	return s, nil
-}
-
-// recover loads missing sessions and recovers failed runtimes for new work or
-// transcript access. It never replays previously admitted messages.
-func (m *Manager) recover(ctx context.Context, id workspacesdk.ACPSessionID) (*session, error) {
-	s, err := m.get(ctx, id)
-	if err != nil && s == nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	failed := s.info.Status == workspacesdk.ACPSessionStatusError
-	s.mu.Unlock()
-	if !failed {
-		return s, nil
-	}
-	m.mu.Lock()
-	cfg := m.configs[id.HarnessSlug]
-	m.mu.Unlock()
-	s.mu.Lock()
-	attempt := s.recovery
-	start := attempt == nil
-	if attempt != nil {
-		select {
-		case <-attempt.done:
-			start = attempt.err == nil || attempt.configHash != cfg.hash || !m.clock.Now().Before(attempt.retryAfter)
-		default:
-		}
-	}
-	if start {
-		attempt = &recoveryAttempt{done: make(chan struct{}), configHash: cfg.hash}
-		s.recovery = attempt
-	}
-	s.mu.Unlock()
-	if start {
-		finish := func(err error) {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			attempt.err = err
-			attempt.retryAfter = m.clock.Now().Add(discoveryInterval)
-			s.setupErr = err
-			if err != nil && !s.closed {
-				s.failLocked(err)
-			}
-			close(attempt.done)
-		}
-		if !m.run(func() {
-			s.opMu.Lock()
-			defer s.opMu.Unlock()
-			s.mu.Lock()
-			failed, closed := s.info.Status == workspacesdk.ACPSessionStatusError, s.closed
-			s.mu.Unlock()
-			switch {
-			case closed:
-				finish(ErrNotFound)
-			case !failed:
-				finish(nil)
-			default:
-				finish(m.setup(s, id.SessionID))
-			}
-		}) {
-			finish(ErrUnavailable)
-		}
-	}
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-attempt.done:
-		return s, attempt.err
-	}
-}
-
-// Message submits work or steers an active turn, deduplicating message IDs.
-// Prompt execution is asynchronous: Message returns once the prompt is written,
-// without waiting for the adapter to start processing it. Unfortunately ACP
-// provides no acknowledgement that processing has started; the prompt response
-// arrives only when the turn ends.
+// Message recovers failed sessions before submitting an FSM operation.
 func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
 	if req.ID == uuid.Nil || strings.TrimSpace(req.Text) == "" {
 		return workspacesdk.ACPMessageResponse{}, ErrInvalid
@@ -606,322 +454,66 @@ func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req
 	if err != nil {
 		return workspacesdk.ACPMessageResponse{}, err
 	}
-	// Resolve completed admissions before recovery, even if this runtime can
-	// no longer be restored. Waiting for opMu also observes in-flight admissions.
-	s.opMu.Lock()
-	s.mu.Lock()
-	result, admitted := s.messages[req.ID]
-	s.mu.Unlock()
-	s.opMu.Unlock()
-	if admitted {
-		if result.text != req.Text {
-			return workspacesdk.ACPMessageResponse{}, ErrConflict
-		}
-		return result.response, result.err
+	r, err := s.Read(ctx, nil)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
 	}
-	s, err = m.recover(ctx, id)
+	if r.Session.Status == workspacesdk.ACPSessionStatusError {
+		s, err = m.recover(ctx, id)
+		if err != nil {
+			return workspacesdk.ACPMessageResponse{}, err
+		}
+	}
+	reply, err := s.Message(ctx, req)
 	if err != nil {
 		return workspacesdk.ACPMessageResponse{}, err
 	}
 	select {
-	case <-s.ready:
 	case <-ctx.Done():
 		return workspacesdk.ACPMessageResponse{}, ctx.Err()
+	case result := <-reply:
+		return result.Message, result.Error
 	}
-	s.opMu.Lock()
-	defer s.opMu.Unlock()
-	s.mu.Lock()
-	if result, ok := s.messages[req.ID]; ok {
-		s.mu.Unlock()
-		if result.text != req.Text {
-			return workspacesdk.ACPMessageResponse{}, ErrConflict
-		}
-		return result.response, result.err
-	}
-	if s.closed || s.proc == nil || s.info.Status == workspacesdk.ACPSessionStatusError {
-		s.mu.Unlock()
-		return workspacesdk.ACPMessageResponse{}, ErrUnavailable
-	}
-	busy := s.info.Status == workspacesdk.ACPSessionStatusRunning || s.detached
-	if busy && !s.harness.Steering {
-		s.mu.Unlock()
-		return workspacesdk.ACPMessageResponse{}, xerrors.Errorf("%w: harness does not support steering", ErrConflict)
-	}
-	p := s.proc
-	s.appendLocked(workspacesdk.ACPEventKindUserMessage, req.Text, nil, req.ID)
-	submittedSeq := s.info.Cursor.Seq
-	if !busy {
-		s.lastUser = submittedSeq
-		s.info.Status, s.info.Error, s.info.StopReason = workspacesdk.ACPSessionStatusRunning, "", ""
-		s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
-		s.turn++
-		s.detached = false
-		s.trackedAdapterTurn = s.adapterTurn + 1
-	}
-	turn := s.turn
-	nativeID := s.info.ID.SessionID
-	s.mu.Unlock()
-	response := workspacesdk.ACPMessageResponse{Outcome: workspacesdk.ACPMessageOutcomePrompt}
-	if busy {
-		steerCtx, cancel := m.timeout(s.ctx, setupTimeout)
-		defer cancel()
-		var raw json.RawMessage
-		raw, err = p.conn.CallExtension(steerCtx, "_session/steering", map[string]any{"sessionId": nativeID, "prompt": []acp.ContentBlock{acp.TextBlock(req.Text)}})
-		if err == nil {
-			err = json.Unmarshal(raw, &response)
-		}
-		if err == nil && response.Outcome != workspacesdk.ACPMessageOutcomeInjected && response.Outcome != workspacesdk.ACPMessageOutcomeStartedNewTurn {
-			err = xerrors.Errorf("%w: steering was not accepted", ErrConflict)
-		}
-	} else {
-		written := p.expectPrompt()
-		completed := make(chan error, 1)
-		if !m.run(func() {
-			result, err := p.conn.Prompt(s.ctx, acp.PromptRequest{SessionId: acp.SessionId(nativeID), Prompt: []acp.ContentBlock{acp.TextBlock(req.Text)}})
-			// Admission must observe pre-write errors without waiting for opMu,
-			// which Message holds until admission completes.
-			completed <- err
-			if err != nil {
-				select {
-				case <-p.conn.Done():
-					// The process watcher reports disconnect after queued updates
-					// drain. Publishing failure here would allow earlier recovery.
-					return
-				default:
-				}
-			}
-			s.opMu.Lock()
-			defer s.opMu.Unlock()
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.completePromptLocked(p, turn, result, err)
-		}) {
-			err = ErrUnavailable
-		} else {
-			select {
-			case err = <-written:
-			case err = <-completed:
-				select {
-				case err = <-written:
-				default:
-				}
-			case <-s.ctx.Done():
-				err = ErrUnavailable
-			}
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if busy && err == nil {
-		s.lastUser = submittedSeq
-		if response.Outcome == workspacesdk.ACPMessageOutcomeStartedNewTurn && s.proc == p && s.info.Status != workspacesdk.ACPSessionStatusError {
-			s.turn++
-			s.detached = true
-			s.trackedAdapterTurn++
-			s.info.Status, s.info.StopReason = workspacesdk.ACPSessionStatusRunning, ""
-			if s.adapterTurn >= s.trackedAdapterTurn {
-				s.applyThreadStatusLocked()
-			} else {
-				s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
-			}
-		}
-	}
-	if busy || err == nil {
-		s.messages[req.ID] = messageResult{text: req.Text, response: response, err: err}
-	}
-	if err != nil {
-		if !busy && s.proc == p && s.info.Status != workspacesdk.ACPSessionStatusError {
-			s.failLocked(err)
-		} else {
-			s.appendLocked(workspacesdk.ACPEventKindError, err.Error(), nil)
-		}
-	}
-	return response, err
 }
 
-// completePromptLocked applies only results owned by the current live turn.
-func (s *session) completePromptLocked(p *process, turn uint64, result acp.PromptResponse, err error) {
-	if s.closed || s.proc != p || s.turn != turn || s.info.Status == workspacesdk.ACPSessionStatusError {
-		return
-	}
-	if err != nil {
-		s.failLocked(err)
-		return
-	}
-	s.info.Status, s.info.StopReason = workspacesdk.ACPSessionStatusIdle, string(result.StopReason)
-	s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
-}
-
-// Interrupt cancels the current prompt without terminating the subprocess.
+// Interrupt obtains a session without recovering failures, then writes cancel.
 func (m *Manager) Interrupt(ctx context.Context, id workspacesdk.ACPSessionID) (workspacesdk.ACPSession, error) {
-	s, err := m.recover(ctx, id)
+	s, err := m.get(ctx, id)
 	if err != nil {
 		return workspacesdk.ACPSession{}, err
 	}
-	s.opMu.Lock()
-	defer s.opMu.Unlock()
-	s.mu.Lock()
-	// turn identifies the prompt admitted by the Message method, which the
-	// adapter may not have started yet. Keep its process and turn to recognize
-	// when this cancellation attempt no longer applies.
-	info, p, turn, changed := s.infoLocked(), s.proc, s.turn, s.changed
-	// Start cancellation only for running work without an existing attempt for
-	// this turn. `interrupting` records the turn being canceled; zero means none.
-	start := info.Status == workspacesdk.ACPSessionStatusRunning && p != nil && s.interrupting != turn
-	if start {
-		s.interrupting = turn
-	}
-	s.mu.Unlock()
-	if !start {
-		return info, nil
-	}
-	err = p.conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(info.ID.SessionID)})
+	reply, err := s.Interrupt(ctx)
 	if err != nil {
-		s.mu.Lock()
-		s.interrupting = 0
-		s.mu.Unlock()
-		return info, err
+		return workspacesdk.ACPSession{}, err
 	}
-	// The `Message` method returns once the prompt is written, before the adapter
-	// necessarily starts processing it. This creates a race between `Interrupt`
-	// and `Message`: the adapter may handle cancel before registering the active
-	// prompt and ignore it. Retry on session updates or every second to cancel
-	// once the prompt is active.
-	if !m.run(func() {
-		defer func() {
-			s.mu.Lock()
-			// A newer turn may already have its own cancellation attempt.
-			if s.interrupting == turn {
-				s.interrupting = 0
-			}
-			s.mu.Unlock()
-		}()
-		for {
-			s.mu.Lock()
-			// Stop retrying when this turn ends, the process is replaced, or the
-			// session closes. A changed turn belongs to a different prompt.
-			if s.closed || s.proc != p || s.turn != turn || s.info.Status != workspacesdk.ACPSessionStatusRunning {
-				s.mu.Unlock()
-				return
-			}
-			s.mu.Unlock()
-			timer := m.clock.NewTimer(time.Second, "acp-interrupt")
-			select {
-			case <-s.ctx.Done():
-				timer.Stop()
-				return
-			case <-changed:
-			case <-timer.C:
-			}
-			timer.Stop()
-			s.opMu.Lock()
-			s.mu.Lock()
-			// State may have changed while waiting; recheck before sending again.
-			active := !s.closed && s.proc == p && s.turn == turn && s.info.Status == workspacesdk.ACPSessionStatusRunning
-			changed = s.changed
-			s.mu.Unlock()
-			if !active {
-				s.opMu.Unlock()
-				return
-			}
-			err := p.conn.Cancel(s.ctx, acp.CancelNotification{SessionId: acp.SessionId(info.ID.SessionID)})
-			s.opMu.Unlock()
-			if err != nil {
-				return
-			}
-		}
-	}) {
-		return info, ErrUnavailable
-	}
-	return info, nil
-}
-
-func (s *session) infoLocked() workspacesdk.ACPSession {
-	info := s.info
-	info.Config = maps.Clone(info.Config)
-	info.Harness = cloneHarness(info.Harness)
-	return info
-}
-
-func (s *session) appendLocked(kind workspacesdk.ACPEventKind, text string, update json.RawMessage, messageIDs ...uuid.UUID) {
-	s.info.Cursor.Seq++
-	e := workspacesdk.ACPEvent{Cursor: s.info.Cursor, Kind: kind, Text: text, Update: update}
-	if len(messageIDs) > 0 {
-		id := messageIDs[0]
-		e.MessageID = &id
-	}
-	if kind == workspacesdk.ACPEventKindStatus || kind == workspacesdk.ACPEventKindReset {
-		info := s.infoLocked()
-		e.Session = &info
-	}
-	s.events = append(s.events, e)
-	close(s.changed)
-	s.changed = make(chan struct{})
-	s.publishLocked(e)
-}
-
-func (s *session) publishLocked(e workspacesdk.ACPEvent) {
-	for ch := range s.subscribers {
-		select {
-		case ch <- cloneEvent(e):
-		default:
-			close(ch)
-			delete(s.subscribers, ch)
-		}
+	select {
+	case <-ctx.Done():
+		return workspacesdk.ACPSession{}, ctx.Err()
+	case result := <-reply:
+		return result.Session, result.Error
 	}
 }
 
-func (s *session) failLocked(err error) {
-	s.info.Status, s.info.Error = workspacesdk.ACPSessionStatusError, err.Error()
-	s.appendLocked(workspacesdk.ACPEventKindError, err.Error(), nil)
-	s.appendLocked(workspacesdk.ACPEventKindStatus, "", nil)
-}
-
-func (s *session) readLocked(after *workspacesdk.ACPCursor, start uint64) (workspacesdk.ACPSessionResponse, error) {
-	if after != nil {
-		if after.Epoch != s.info.Cursor.Epoch || after.Seq > s.info.Cursor.Seq {
-			return workspacesdk.ACPSessionResponse{}, xerrors.Errorf("%w: transcript cursor requires reset", ErrConflict)
-		}
-		start = after.Seq
-	}
-	r := workspacesdk.ACPSessionResponse{Session: s.infoLocked(), Events: make([]workspacesdk.ACPEvent, 0, len(s.events[start:]))}
-	for _, event := range s.events[start:] {
-		r.Events = append(r.Events, cloneEvent(event))
-	}
-	var text strings.Builder
-	for _, part := range s.assistant {
-		if part.seq > start {
-			_, _ = text.WriteString(part.text)
-		}
-	}
-	r.AssistantResponse = text.String()
-	return r, nil
-}
-
-// Read attempts runtime recovery and returns the available transcript. Failed
-// recovery remains observable in the session state without hiding its history.
+// Read preserves failed instances and their partial output.
 func (m *Manager) Read(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, error) {
-	s, err := m.recover(ctx, id)
-	if s == nil {
+	s, err := m.get(ctx, id)
+	if err != nil {
 		return workspacesdk.ACPSessionResponse{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return workspacesdk.ACPSessionResponse{}, ErrNotFound
-	}
-	return s.readLocked(after, 0)
+	return s.Read(ctx, after)
 }
 
-// List returns all registered runtime sessions.
+// List returns atomic snapshots of initialized runtime sessions.
 func (m *Manager) List() []workspacesdk.ACPSession {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	instances := slices.Collect(maps.Values(m.sessions))
+	m.mu.Unlock()
 	out := []workspacesdk.ACPSession{}
-	for _, s := range m.sessions {
-		s.mu.Lock()
-		out = append(out, s.infoLocked())
-		s.mu.Unlock()
+	for _, s := range instances {
+		r, err := s.Read(m.ctx, nil)
+		if err == nil {
+			out = append(out, r.Session)
+		}
 	}
 	slices.SortFunc(out, func(a, b workspacesdk.ACPSession) int {
 		if a.ID.HarnessSlug != b.ID.HarnessSlug {
@@ -935,64 +527,57 @@ func (m *Manager) List() []workspacesdk.ACPSession {
 	return out
 }
 
-// Subscribe atomically returns history and a subscription to later events.
-// Existing failures remain observable; new messages recover failed runtimes.
-//
-// Returns:
-//   - A slice of events after the supplied cursor (all available history if
-//     nil), followed by a snapshot of the current session state.
-//   - A channel delivering subsequent events in order. It closes on shutdown,
-//     when its buffer fills, or when unsubscribed.
-//   - An unsubscribe function the caller must invoke when finished. Repeated
-//     calls are safe.
-//   - An error if the subscription cannot be established. On error, the other
-//     three return values are nil.
+// Subscribe replays an atomic baseline and streams changes outside the FSM.
+// Slow subscribers reconnect using their last cursor.
 func (m *Manager) Subscribe(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) ([]workspacesdk.ACPEvent, <-chan workspacesdk.ACPEvent, func(), error) {
 	s, err := m.get(ctx, id)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil, nil, nil, ErrUnavailable
-	}
-	r, err := s.readLocked(after, 0)
+	r, changed, err := s.Watch(ctx, after)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	ch := make(chan workspacesdk.ACPEvent, 64)
-	s.subscribers[ch] = struct{}{}
-	info := s.infoLocked()
+	info := r.Session
 	r.Events = append(r.Events, workspacesdk.ACPEvent{Kind: workspacesdk.ACPEventKindSnapshot, Cursor: info.Cursor, Session: &info})
-	return r.Events, ch, func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if _, ok := s.subscribers[ch]; ok {
-			delete(s.subscribers, ch)
-			close(ch)
+	watchCtx, cancel := context.WithCancel(ctx)
+	ch := make(chan workspacesdk.ACPEvent, 64)
+	if !m.run(func() {
+		defer close(ch)
+		defer cancel()
+		cursor := info.Cursor
+		for {
+			select {
+			case <-watchCtx.Done():
+				return
+			case <-m.ctx.Done():
+				return
+			case <-changed:
+			}
+			snapshot, next, err := s.Watch(watchCtx, &cursor)
+			if xerrors.Is(err, ErrConflict) {
+				snapshot, next, err = s.Watch(watchCtx, nil)
+			}
+			if err != nil {
+				return
+			}
+			for _, event := range snapshot.Events {
+				select {
+				case ch <- event:
+				default:
+					return
+				}
+			}
+			cursor, changed = snapshot.Session.Cursor, next
 		}
-	}, nil
+	}) {
+		cancel()
+		return nil, nil, nil, ErrUnavailable
+	}
+	return r.Events, ch, cancel, nil
 }
 
-func (s *session) shutdown() {
-	s.mu.Lock()
-	s.closed = true
-	s.cancel()
-	p := s.proc
-	close(s.changed)
-	s.changed = make(chan struct{})
-	for ch := range s.subscribers {
-		close(ch)
-		delete(s.subscribers, ch)
-	}
-	s.mu.Unlock()
-	if p != nil {
-		p.close()
-	}
-}
-
-// Close stops subprocesses, discovery, and all manager-owned goroutines.
+// Close prevents initialization and stops all current and retired runtimes.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -1002,16 +587,10 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.cancel()
-	sessions := slices.Collect(maps.Values(m.sessions))
-	// Pending creations have not received a native session ID yet.
-	for _, s := range m.createRequests {
-		if !slices.Contains(sessions, s) {
-			sessions = append(sessions, s)
-		}
-	}
+	instances := slices.Clone(m.instances)
 	m.mu.Unlock()
-	for _, s := range sessions {
-		s.shutdown()
+	for _, s := range instances {
+		s.proc.close()
 	}
 	m.wg.Wait()
 	close(m.closedDone)

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
@@ -131,7 +130,7 @@ func TestDiscoveryDirectoryCreation(t *testing.T) {
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": fakeCommand(t, fakeHarnessModeBoth), "enabled": false})
 	advanceTestDiscovery(ctx, t, clock)
 	testutil.RequireReceive(ctx, t, changed)
-	_, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir})
+	_, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir})
 	require.ErrorIs(t, err, ErrUnavailable)
 }
 

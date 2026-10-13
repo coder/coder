@@ -69,7 +69,7 @@ func (o acpToolOptions) wait(ctx context.Context, args acpWaitArgs, call fantasy
 	transcript.reset()
 	var cursor *workspacesdk.ACPCursor
 	var boundAgent, boundWorkspace uuid.UUID
-	info := workspacesdk.ACPSession{Status: workspacesdk.ACPSessionStatusStarting}
+	info := workspacesdk.ACPSession{}
 	var waitErr error
 	finished := false
 	for !finished && waitCtx.Err() == nil {
@@ -91,7 +91,7 @@ func (o acpToolOptions) wait(ctx context.Context, args acpWaitArgs, call fantasy
 		if boundAgent != uuid.Nil && boundAgent != agentID {
 			cursor = nil
 			transcript.reset()
-			info = workspacesdk.ACPSession{Status: workspacesdk.ACPSessionStatusStarting}
+			info = workspacesdk.ACPSession{}
 			if preview.started {
 				preview.update(transcript.messages)
 			}

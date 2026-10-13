@@ -100,7 +100,10 @@ func TestACPHarnessSchemaAndGating(t *testing.T) {
 		noHarness   bool
 		want        int
 	}{
-		{name: "Off"}, {name: "Plan", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, plan: true}, {name: "Child", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, child: true}, {name: "ExecuteRoot", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, want: 4},
+		{name: "Off"},
+		{name: "Plan", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, plan: true},
+		{name: "Child", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, child: true},
+		{name: "ExecuteRoot", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, want: 4},
 		{name: "NoHarness", experiments: codersdk.Experiments{codersdk.ExperimentChatACPSubagents}, noHarness: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,7 +182,7 @@ func TestACPSpawnRetryAndInitialFailure(t *testing.T) {
 	requestID := uuid.New()
 	ctx := workspacesdk.WithToolCallID(context.Background(), requestID)
 	input := `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"test"}}`
-	create := workspacesdk.ACPCreateSessionRequest{RequestID: requestID, HarnessSlug: session.ID.HarnessSlug, WorkingDirectory: session.ID.WorkingDirectory}
+	create := workspacesdk.ACPCreateSessionRequest{HarnessSlug: session.ID.HarnessSlug, WorkingDirectory: session.ID.WorkingDirectory}
 	message := workspacesdk.ACPMessageRequest{ID: uuid.NewSHA1(requestID, []byte("initial-prompt")), Text: "task"}
 	gomock.InOrder(
 		conn.EXPECT().CreateACPSession(gomock.Any(), create).Return(session, nil),
@@ -211,7 +214,7 @@ func TestACPMessageAndInterrupt(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, response.IsError)
 	require.Contains(t, response.Content, `"harness_display_name":"Workspace Assistant"`)
-	conn.EXPECT().InterruptACPSession(gomock.Any(), session.ID).Return(workspacesdk.ACPSession{Status: workspacesdk.ACPSessionStatusRunning}, nil)
+	conn.EXPECT().InterruptACPSession(gomock.Any(), session.ID).Return(workspacesdk.ACPSession{Status: workspacesdk.ACPSessionStatusInterrupting}, nil)
 	response, err = opts.interrupt(ctx, acpTestArgs(session), fantasy.ToolCall{})
 	require.NoError(t, err)
 	require.Contains(t, response.Content, `"interrupted":true`)
@@ -243,7 +246,7 @@ func TestACPWaitBaselineAndLive(t *testing.T) {
 	events <- historical
 	events <- acpEvent(epoch, 4, workspacesdk.ACPEventKindUserMessage, "current")
 	events <- acpEvent(epoch, 5, workspacesdk.ACPEventKindUpdate, `{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"help","description":"List commands"}]}`)
-	events <- acpSnapshot(epoch, 5, workspacesdk.ACPSessionStatusRunning)
+	events <- acpSnapshot(epoch, 5, workspacesdk.ACPSessionStatusInterrupting)
 	baseline := testutil.RequireReceive(ctx, t, published).ResultDelta
 	var preview struct {
 		Messages []codersdk.ChatACPTranscriptMessage `json:"messages"`

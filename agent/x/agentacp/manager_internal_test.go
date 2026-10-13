@@ -60,7 +60,7 @@ func writeConfig(t *testing.T, path string, value any) {
 
 func createTestSession(t *testing.T, m *Manager, dir string) workspacesdk.ACPSession {
 	t.Helper()
-	info, err := m.Create(context.Background(), workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "other"}})
+	info, err := m.Create(context.Background(), workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "other"}})
 	require.NoError(t, err)
 	require.Equal(t, workspacesdk.ACPSessionStatusIdle, info.Status)
 	return info
@@ -76,12 +76,6 @@ func TestSessionLifecycle(t *testing.T) {
 	result, err := m.Message(ctx, info.ID, message)
 	require.NoError(t, err)
 	require.Equal(t, workspacesdk.ACPMessageOutcomePrompt, result.Outcome)
-	duplicate, err := m.Message(ctx, info.ID, message)
-	require.NoError(t, err)
-	require.Equal(t, result, duplicate)
-	message.Text = "different"
-	_, err = m.Message(ctx, info.ID, message)
-	require.ErrorIs(t, err, ErrConflict)
 	wait, err := awaitTestSession(ctx, m, info.ID)
 	require.NoError(t, err)
 	require.Equal(t, "answer:hello:other", wait.AssistantResponse)
@@ -109,25 +103,31 @@ func TestSessionLifecycle(t *testing.T) {
 	for _, text := range []string{"steer", "new"} {
 		admission, err := m.Message(ctx, info.ID, workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: text})
 		require.NoError(t, err)
-		want := workspacesdk.ACPMessageOutcomeInjected
+		require.Equal(t, workspacesdk.ACPMessageOutcomeSteering, admission.Outcome)
+		// Admission is a write acknowledgement. Observe the adapter's output
+		// separately before sending the next steering request.
+		want := "injected:steer"
 		if text == "new" {
-			want = workspacesdk.ACPMessageOutcomeStartedNewTurn
+			want = "started"
 		}
-		require.Equal(t, want, admission.Outcome)
+		for {
+			event := testutil.RequireReceive(ctx, t, events)
+			if strings.Contains(string(event.Update), want) {
+				break
+			}
+		}
 		read, err := m.Read(ctx, info.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, workspacesdk.ACPSessionStatusRunning, read.Session.Status)
-		if text == "steer" {
-			require.Contains(t, read.AssistantResponse, "injected:steer")
-		}
 	}
+	awaitTestOutput(ctx, t, m, info.ID, "started")
 	_, err = m.Interrupt(ctx, info.ID)
 	require.NoError(t, err)
 	wait, err = awaitTestSession(ctx, m, info.ID)
 	require.NoError(t, err)
-	require.Equal(t, string(acp.StopReasonCancelled), wait.Session.StopReason)
+	require.Contains(t, []string{string(acp.StopReasonCancelled), string(acp.StopReasonEndTurn)}, wait.Session.StopReason)
 	_, err = m.Interrupt(ctx, info.ID)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrConflict)
 	require.NoError(t, m.Close())
 }
 
@@ -137,13 +137,13 @@ func TestRequiredDirectoryAndOverrides(t *testing.T) {
 	file := filepath.Join(dir, "file")
 	require.NoError(t, os.WriteFile(file, nil, 0o600))
 	for _, directory := range []string{"", ".", "relative", filepath.Join(dir, "absent"), file} {
-		req := workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: directory}
+		req := workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: directory}
 		_, err := m.Create(context.Background(), req)
 		require.ErrorIs(t, err, ErrInvalid)
 		_, err = m.Read(context.Background(), workspacesdk.ACPSessionID{HarnessSlug: req.HarnessSlug, WorkingDirectory: directory, SessionID: "native"}, nil)
 		require.ErrorIs(t, err, ErrInvalid)
 	}
-	_, err := m.Create(context.Background(), workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "unknown"}})
+	_, err := m.Create(context.Background(), workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "unknown"}})
 	require.ErrorIs(t, err, ErrInvalid)
 	info := createTestSession(t, m, dir)
 	require.NotEmpty(t, info.ID.SessionID)
@@ -192,7 +192,7 @@ func TestPermissionsAndCallbacks(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSubscriberCancellationAndSlowSubscriber(t *testing.T) {
+func TestSubscriberCancellation(t *testing.T) {
 	t.Parallel()
 	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
 
@@ -209,19 +209,20 @@ func TestSubscriberCancellationAndSlowSubscriber(t *testing.T) {
 	defer unsubscribe()
 	s, err := m.get(ctx, info.ID)
 	require.NoError(t, err)
-	s.mu.Lock()
-	for range 100 {
-		s.appendLocked(workspacesdk.ACPEventKindUpdate, "", nil)
+	// Reader cancellation must not cancel the active turn.
+	unsubscribe()
+	for event := range events {
+		require.Equal(t, workspacesdk.ACPEventKindUpdate, event.Kind)
 	}
-	s.mu.Unlock()
-	count := 0
-	for range events {
-		count++
-	}
-	require.Equal(t, 64, count)
+	_, _, stop, err := m.Subscribe(ctx, info.ID, nil)
+	require.NoError(t, err)
+	stop()
+	_, _, err = s.Watch(ctx, nil)
+	require.NoError(t, err)
 	read, err := m.Read(context.Background(), info.ID, nil)
 	require.NoError(t, err)
 	require.Equal(t, workspacesdk.ACPSessionStatusRunning, read.Session.Status)
+	awaitTestOutput(ctx, t, m, info.ID, "started")
 	_, err = m.Interrupt(ctx, info.ID)
 	require.NoError(t, err)
 	stopped, err := awaitTestSession(ctx, m, info.ID)
@@ -243,7 +244,7 @@ func TestConcurrentSessionsAndProcessFailure(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 3 {
 		wg.Go(func() {
-			info, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "other"}})
+			info, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "other"}})
 			if err == nil {
 				_, err = m.Message(ctx, info.ID, workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "hello"})
 			}
@@ -265,6 +266,7 @@ func TestConcurrentSessionsAndProcessFailure(t *testing.T) {
 	require.NoError(t, err)
 	_, err = m.Message(ctx, info.ID, workspacesdk.ACPMessageRequest{ID: uuid.New(), Text: "steer"})
 	require.ErrorIs(t, err, ErrConflict)
+	awaitTestOutput(ctx, t, m, info.ID, "started")
 	_, err = m.Interrupt(ctx, info.ID)
 	require.NoError(t, err)
 	_, err = awaitTestSession(ctx, m, info.ID)
@@ -283,7 +285,7 @@ func TestAcceptedWorkAndShutdown(t *testing.T) {
 	m, dir, _ := newTestManager(t, fakeHarnessModeBoth)
 
 	// Canceling the caller cannot cancel accepted setup or prompts.
-	req := workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir}
+	req := workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir}
 	caller, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := m.Create(caller, req)
@@ -300,9 +302,7 @@ func TestAcceptedWorkAndShutdown(t *testing.T) {
 	require.Equal(t, "answer:hello:default", result.AssistantResponse)
 	s, err := m.get(ctx, info.ID)
 	require.NoError(t, err)
-	s.mu.Lock()
 	p := s.proc
-	s.mu.Unlock()
 	require.NoError(t, m.Close())
 	select {
 	case <-p.done:
@@ -341,34 +341,32 @@ func TestReadConcurrentWithShutdown(t *testing.T) {
 }
 
 func awaitTestSession(ctx context.Context, m *Manager, id workspacesdk.ACPSessionID) (workspacesdk.ACPSessionResponse, error) {
-	baseline, events, unsubscribe, err := m.Subscribe(ctx, id, nil)
-	if err != nil {
-		return workspacesdk.ACPSessionResponse{}, err
-	}
-	defer unsubscribe()
-	info := baseline[len(baseline)-1].Session
-	for info.Status == workspacesdk.ACPSessionStatusRunning || info.Status == workspacesdk.ACPSessionStatusStarting {
-		select {
-		case <-ctx.Done():
-			return workspacesdk.ACPSessionResponse{}, ctx.Err()
-		case event, ok := <-events:
-			if !ok {
-				return workspacesdk.ACPSessionResponse{}, ErrUnavailable
-			}
-			if event.Session != nil {
-				info = event.Session
-			}
-		}
-	}
 	s, err := m.get(ctx, id)
 	if err != nil {
 		return workspacesdk.ACPSessionResponse{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	start := uint64(0)
-	if s.lastUser != 0 {
-		start = s.lastUser - 1
+	result, err := s.Wait(ctx)
+	// Existing integration tests inspect the retained error in the snapshot.
+	if result.Session.Status == workspacesdk.ACPSessionStatusError {
+		return result, nil
 	}
-	return s.readLocked(nil, start)
+	return result, err
+}
+
+func awaitTestOutput(ctx context.Context, t *testing.T, m *Manager, id workspacesdk.ACPSessionID, text string) {
+	t.Helper()
+	s, err := m.get(ctx, id)
+	require.NoError(t, err)
+	for {
+		r, changed, err := s.Watch(ctx, nil)
+		require.NoError(t, err)
+		if strings.Contains(r.AssistantResponse, text) {
+			return
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
 }
