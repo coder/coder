@@ -3752,6 +3752,7 @@ CREATE TABLE workspace_agents (
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     agent_run_id text DEFAULT ''::text NOT NULL,
+    mcp_discovery_started_at timestamp with time zone,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -3783,6 +3784,8 @@ COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the AP
 COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 COMMENT ON COLUMN workspace_agents.agent_run_id IS 'UUID the agent process generates once and reports in Startup. Stable across RPC reconnects, changes on process restart, empty for agents that predate the field. A context snapshot with the same agent_run_id was published by the current process.';
+
+COMMENT ON COLUMN workspace_agents.mcp_discovery_started_at IS 'Coder server clock time at which coderd recorded that the agent run''s startup scripts finished (lifecycle ready, start_error, or start_timeout); the agent starts workspace MCP discovery at that moment. NULL while startup scripts run. Chats wait for MCP discovery at most a fixed time after this.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,

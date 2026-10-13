@@ -487,10 +487,11 @@ func GetRunningPrebuilds(
 			// eligible for claiming when their agents reach the "ready" state.
 			for _, agent := range agents {
 				err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-					ID:             agent.ID,
-					LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-					StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
-					ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+					ID:                    agent.ID,
+					LifecycleState:        database.WorkspaceAgentLifecycleStateReady,
+					StartedAt:             sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+					ReadyAt:               sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+					McpDiscoveryStartedAt: sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 				})
 				assert.NoError(t, err, "failed to update agent")
 			}

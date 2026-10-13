@@ -193,8 +193,6 @@ type Server struct {
 	debugSvcReady                  atomic.Bool
 	debugSvcInit                   sync.Once
 	configCache                    *chatConfigCache
-	mcpDiscoveryMu                 sync.Mutex
-	mcpDiscoveryAttempts           map[uuid.UUID]*mcpDiscoveryAttempt
 	configCacheUnsubscribe         func()
 	providerCacheUnsubscribe       func()
 
@@ -3844,7 +3842,9 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	waitForMCPDiscovery := p.mcpDiscoveryWaiter(opts.chat.ID)
+	waitForMCPDiscovery := func(ctx context.Context, agentID uuid.UUID) chattool.MCPDiscoveryOutcome {
+		return chattool.WaitForMCPDiscovery(ctx, p.db, agentID)
+	}
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{

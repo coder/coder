@@ -319,12 +319,13 @@ func (server *Server) prepareGeneration(
 		exposesWorkspaceMCP := !isExploreSubagent
 
 		loadWorkspaceContext = func() error {
-			// Turns that expose workspace MCP tools wait, within a bounded
-			// budget shared with the lifecycle tools, for the current agent
-			// process to finish discovery so the first turn sees its tools.
-			// Timeouts fail open with whatever has been discovered.
+			// Turns that expose workspace MCP tools wait, within the agent
+			// run's discovery limit shared with the lifecycle tools, for
+			// the current agent process to finish discovery so the first
+			// turn sees its tools. Timeouts fail open with whatever has
+			// been discovered.
 			if exposesWorkspaceMCP && agent.ID != uuid.Nil {
-				server.waitForMCPDiscovery(ctx, chat.ID, agent.ID)
+				chattool.WaitForMCPDiscovery(ctx, server.db, agent.ID)
 			}
 
 			// API-created chats bind their agent lazily here, after
