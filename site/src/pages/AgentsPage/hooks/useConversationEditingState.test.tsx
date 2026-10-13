@@ -1,5 +1,11 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+	$getRoot,
+	$isElementNode,
+	$isTextNode,
+	getNearestEditorFromDOMNode,
+} from "lexical";
 import { createRef, useImperativeHandle, useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,10 +14,12 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { ChatMessageInput } from "../components/ChatMessageInput/ChatMessageInput";
+import { FileReferenceNode } from "../components/ChatMessageInput/FileReferenceNode";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../utils/agentChatSendShortcut";
 import {
 	draftInputStorageKeyPrefix,
+	getFileReferenceNodes,
 	parseStoredDraft,
 } from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";
@@ -317,7 +325,69 @@ describe("useConversationEditingState", () => {
 			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 			await user.paste(text);
 		};
-		return { ...view, current, editorText, markOnServer, beginEdit, type };
+		// Backspace does not reach Lexical in jsdom either, so this removes the
+		// last characters through an editor update, as Backspace does.
+		const deleteBack = async (count: number) => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () =>
+				editor?.update(() => {
+					const node = $getRoot().getLastDescendant();
+					if ($isTextNode(node)) {
+						node.spliceText(node.getTextContentSize() - count, count, "", true);
+					}
+				}),
+			);
+		};
+		// Types into the editor, and for "reverted" deletes it again.
+		const change = async (kind: "none" | "typed" | "reverted") => {
+			if (kind === "none") {
+				return;
+			}
+			const before = editorText();
+			await type(" edit");
+			if (kind === "reverted") {
+				await deleteBack(" edit".length);
+				expect(editorText()).toBe(before);
+			}
+		};
+		const addFileReference = async (fileName: string) => {
+			await act(async () =>
+				current().chatInputRef.current?.addFileReference({
+					fileName,
+					startLine: 1,
+					endLine: 2,
+					content: "file content",
+				}),
+			);
+		};
+		const removeFirstFileReference = async () => {
+			const editor = getNearestEditorFromDOMNode(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			);
+			await act(async () =>
+				editor?.update(() => {
+					$getRoot()
+						.getChildren()
+						.flatMap((node) => ($isElementNode(node) ? node.getChildren() : []))
+						.find((node) => node instanceof FileReferenceNode)
+						?.remove();
+				}),
+			);
+		};
+		return {
+			...view,
+			current,
+			editorText,
+			markOnServer,
+			beginEdit,
+			type,
+			deleteBack,
+			change,
+			addFileReference,
+			removeFirstFileReference,
+		};
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -949,28 +1019,39 @@ describe("useConversationEditingState", () => {
 		// These drive the real editor: its remount on load emits updates of
 		// its own, which must not count as the user changing the edit. The
 		// row's text is "queued text"; the draft before the edit is "draft".
+		// Text typed and deleted again leaves the edit unmodified.
 		it.each([
-			["modified text stays as a new-message draft", true],
+			["modified text stays as a new-message draft", "typed"],
 			[
 				"unmodified text gives way to the draft from before the edit and the composer counts as untouched",
-				false,
+				"none",
 			],
-		])(
+			[
+				"text typed and deleted again gives way to the draft from before the edit",
+				"reverted",
+			],
+		] as const)(
 			"when the server ends the edit and marks no other row, %s",
-			async (_name, modify) => {
-				const { unmount, current, editorText, beginEdit, markOnServer, type } =
-					renderEditingWithEditor();
+			async (_name, edit) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					type,
+					change,
+				} = renderEditingWithEditor();
 
 				await type("draft");
 				await beginEdit(42, "queued text");
 				expect(editorText()).toBe("queued text");
-				if (modify) {
-					await type(" edit");
-				}
+				await change(edit);
 				const textWhileEditing = editorText();
 
 				await markOnServer(null);
 
+				const modify = edit === "typed";
 				const expectedDraft = modify ? textWhileEditing : "draft";
 				expect(current().editingTarget).toBeNull();
 				expect(current().composerMode).toBe(modify ? "draft" : "follow");
@@ -983,23 +1064,33 @@ describe("useConversationEditingState", () => {
 		);
 
 		it.each([
-			["modified text stays as a new-message draft and no edit opens", true],
-			["unmodified text follows the edit to the newly marked row", false],
-		])(
+			["modified text stays as a new-message draft and no edit opens", "typed"],
+			["unmodified text follows the edit to the newly marked row", "none"],
+			[
+				"text typed and deleted again follows the edit to the newly marked row",
+				"reverted",
+			],
+		] as const)(
 			"when another client moves the edit to a different row, %s",
-			async (_name, modify) => {
-				const { unmount, current, editorText, beginEdit, markOnServer, type } =
-					renderEditingWithEditor();
+			async (_name, edit) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					type,
+					change,
+				} = renderEditingWithEditor();
 
 				await type("draft");
 				await beginEdit(42, "queued text");
-				if (modify) {
-					await type(" edit");
-				}
+				await change(edit);
 				const textWhileEditing = editorText();
 
 				await markOnServer(6, "other row");
 
+				const modify = edit === "typed";
 				expect(current().editingTarget).toEqual(
 					modify ? null : { kind: "queued", id: 6 },
 				);
@@ -1010,6 +1101,51 @@ describe("useConversationEditingState", () => {
 					await markOnServer(null);
 					expect(current().composerMode).toBe("follow");
 					expect(editorText()).toBe("draft");
+				}
+				unmount();
+			},
+		);
+
+		// No edit is open; the composer is untouched, empty or with a stored
+		// draft, until the user changes it.
+		it.each([
+			[
+				"an empty composer typed into and cleared again follows it",
+				"",
+				"reverted",
+			],
+			[
+				"a stored draft typed into and deleted back follows it",
+				"saved draft",
+				"reverted",
+			],
+			["an empty composer typed into keeps its text", "", "typed"],
+			["a stored draft typed into keeps its text", "saved draft", "typed"],
+		] as const)(
+			"when another client begins an edit, %s",
+			async (_name, storedDraft, edit) => {
+				if (storedDraft) {
+					localStorage.setItem(expectedKey, storedDraft);
+				}
+				const { unmount, current, editorText, markOnServer, change } =
+					renderEditingWithEditor();
+				expect(editorText()).toBe(storedDraft);
+				await change(edit);
+				const textBeforeMarker = editorText();
+
+				await markOnServer(6, "other row");
+
+				if (edit === "typed") {
+					expect(current().editingTarget).toBeNull();
+					expect(editorText()).toBe(textBeforeMarker);
+					expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+						textBeforeMarker,
+					);
+				} else {
+					expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
+					expect(editorText()).toBe("other row");
+					await markOnServer(null);
+					expect(editorText()).toBe(storedDraft);
 				}
 				unmount();
 			},
@@ -1043,7 +1179,7 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
-		it("the first keystroke pins the edit to the marked row, so a later marker on another row does not open it", () => {
+		it("text changed while following the marked row stays as a draft when the marker leaves, so a later marker on another row does not open it", () => {
 			const { result, unmount, markOnServer } = renderEditing();
 			markOnServer(5);
 
@@ -1066,66 +1202,74 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
-		it("typing into an untouched composer keeps it on the draft when a row is marked later", () => {
-			const { result, unmount, markOnServer } = renderEditing();
-			act(() => {
-				result.current.handleContentChange("hi", "hi", false);
-			});
-
-			markOnServer(5);
-			expect(result.current.editingTarget).toBeNull();
-			expect(result.current.inputValueRef.current).toBe("hi");
-			unmount();
-		});
-
 		it.each([
 			[
 				"a file reference added during an edit keeps the edit as a new-message draft",
 				"queued text",
-				"queued text",
-				"queued text with a chip",
+				false,
 			],
 			[
 				"an edit reduced to a file reference keeps its draft",
 				"queued text",
-				"",
-				"a chip only",
+				true,
 			],
 			[
 				"a file reference added to a row with no text keeps the edit as a new-message draft",
 				"",
-				"",
-				"a chip only",
+				false,
 			],
 		])(
 			"when the server ends the edit, %s",
-			(_name, rowText, textWhileEditing, editorStateWhileEditing) => {
-				const { result, unmount, beginEdit, markOnServer } = renderEditing();
-				act(() => {
-					beginEdit({ kind: "queued", id: 42 }, rowText);
-				});
-				// The editor echoes a non-empty seed before the change.
-				if (rowText) {
-					act(() => {
-						result.current.handleContentChange(rowText, rowText, false);
-					});
+			async (_name, rowText, deleteText) => {
+				const {
+					unmount,
+					current,
+					editorText,
+					beginEdit,
+					markOnServer,
+					deleteBack,
+					addFileReference,
+				} = renderEditingWithEditor();
+				await beginEdit(42, rowText);
+				if (deleteText) {
+					await deleteBack(rowText.length);
 				}
-				act(() => {
-					result.current.handleContentChange(
-						textWhileEditing,
-						editorStateWhileEditing,
-						true,
-					);
-				});
+				await addFileReference("main.go");
+				const textWhileEditing = editorText();
 
-				markOnServer(null);
+				await markOnServer(null);
 
-				expect(result.current.composerMode).toBe("draft");
-				expect(result.current.inputValueRef.current).toBe(textWhileEditing);
-				expect(localStorage.getItem(expectedKey)).toBe(editorStateWhileEditing);
+				expect(current().composerMode).toBe("draft");
+				expect(editorText()).toBe(textWhileEditing);
+				const stored = localStorage.getItem(expectedKey) ?? undefined;
+				expect(parseStoredDraft(stored ?? null).text).toBe(
+					deleteText ? "" : rowText,
+				);
+				expect(getFileReferenceNodes(stored)).toHaveLength(1);
 				unmount();
 			},
 		);
+
+		// The text is unchanged, so only the file references tell the change.
+		it("a stored draft that loses one of its file references keeps it when another client begins an edit", async () => {
+			const first = renderEditingWithEditor();
+			await first.type("saved draft");
+			await first.addFileReference("a.go");
+			await first.addFileReference("b.go");
+			first.unmount();
+
+			const { unmount, current, markOnServer, removeFirstFileReference } =
+				renderEditingWithEditor();
+			await removeFirstFileReference();
+			const stored = localStorage.getItem(expectedKey) ?? undefined;
+			expect(getFileReferenceNodes(stored)).toHaveLength(1);
+
+			await markOnServer(6, "other row");
+
+			expect(current().editingTarget).toBeNull();
+			expect(localStorage.getItem(expectedKey)).toBe(stored);
+			unmount();
+		});
 
 		it("reports a loaded target change when a marked row loads or leaves, and not when the composer picks the loaded row", () => {
 			const { result, unmount, markOnServer, onLoadedTargetChange } =

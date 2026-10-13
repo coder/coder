@@ -8,6 +8,7 @@ import type { EditingTarget } from "../components/ChatConversation/types";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
+	getFileReferenceNodes,
 	type ParsedDraft,
 	parseStoredDraft,
 } from "../utils/draftStorage";
@@ -94,9 +95,13 @@ export function useConversationEditingState(deps: {
 		null,
 	);
 
-	// Whether the user changed the editor since the current target loaded,
-	// including editor state such as file-reference chips.
-	const editModifiedRef = useRef(false);
+	// The content last loaded into the editor: the stored draft, a target's
+	// text, a restored draft, or the empty editor after a send. The composer
+	// counts as changed while the editor differs from it.
+	const loadedContentRef = useRef<ParsedDraft>({
+		text: editorInitialValue,
+		editorState: initialEditorState,
+	});
 	const hasFileReferencesRef = useRef(false);
 
 	const loadEditorText = (text: string, editorState: string | undefined) => {
@@ -108,7 +113,23 @@ export function useConversationEditingState(deps: {
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		hasFileReferencesRef.current = false;
-		editModifiedRef.current = false;
+		loadedContentRef.current = { text, editorState };
+	};
+
+	// The editor is plain text apart from file-reference chips, which have no
+	// text, so the text and the chips in order identify its content; only a
+	// chip moved within unchanged text goes unseen. Whole serialized states
+	// are not compared because a stored state need not match how the editor
+	// serializes it once loaded.
+	const isEditorChanged = () => {
+		const loaded = loadedContentRef.current;
+		return (
+			inputValueRef.current !== loaded.text ||
+			!isEqual(
+				getFileReferenceNodes(serializedEditorStateRef.current),
+				getFileReferenceNodes(loaded.editorState),
+			)
+		);
 	};
 
 	// A draft is kept while it has text or file references.
@@ -145,26 +166,31 @@ export function useConversationEditingState(deps: {
 	// Brings the editor in line with the target whenever the target and the
 	// loaded target differ. The editor is uncontrolled, Lexical behind
 	// inputValueRef, so loading it is imperative work that belongs in a layout
-	// effect; it runs before paint. When the target goes away, modified text
-	// stays as a new-message draft; unmodified text gives the draft back and
-	// the composer counts as untouched again, so it follows the row the server
-	// marks now. The draft from before the edit is captured once per session.
+	// effect; it runs before paint. Whether the editor changed is decided
+	// here, when the target changes, so text typed and deleted again does not
+	// count. A changed editor keeps its content: when its target goes away it
+	// stays as a new-message draft, and in follow mode it does not load a
+	// newly marked row. When an unchanged edit's target goes away, the draft
+	// comes back and the composer follows the row the server marks now. The
+	// draft from before the edit is captured once per session.
 	const loadTargetIntoEditor = useEffectEvent(() => {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
-		onLoadedTargetChange?.();
-		const editModified = loadedTarget !== null && editModifiedRef.current;
-		if (target === null) {
-			if (editModified) {
+		if (isEditorChanged() && (target === null || composerMode === "follow")) {
+			if (loadedTarget !== null) {
+				onLoadedTargetChange?.();
 				setLoadedTarget(null);
 				setDraftBeforeEdit(null);
 				persistDraft();
-				setComposerMode("draft");
-			} else {
-				restoreDraftBeforeEdit();
-				setComposerMode("follow");
 			}
+			setComposerMode("draft");
+			return;
+		}
+		onLoadedTargetChange?.();
+		if (target === null) {
+			restoreDraftBeforeEdit();
+			setComposerMode("follow");
 			return;
 		}
 		const { text, fileBlocks } = getEditableContentPayload(targetContent);
@@ -198,7 +224,7 @@ export function useConversationEditingState(deps: {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			loadedTarget,
-			editModified: editModifiedRef.current,
+			loadedContent: loadedContentRef.current,
 			hasFileReferences: hasFileReferencesRef.current,
 		};
 
@@ -209,7 +235,7 @@ export function useConversationEditingState(deps: {
 
 		return () => {
 			loadEditorText(message, snapshot.editorState);
-			editModifiedRef.current = snapshot.editModified;
+			loadedContentRef.current = snapshot.loadedContent;
 			hasFileReferencesRef.current = snapshot.hasFileReferences;
 			setLoadedTarget(snapshot.loadedTarget);
 			if (snapshot.loadedTarget) {
@@ -227,6 +253,7 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.focus();
 		}
 		serializedEditorStateRef.current = undefined;
+		loadedContentRef.current = { text: "", editorState: undefined };
 		localStorage.removeItem(draftStorageKey);
 		if (sentTarget !== undefined) {
 			setDraftBeforeEdit(null);
@@ -282,25 +309,9 @@ export function useConversationEditingState(deps: {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => {
-		// The editor seed echoes the text the ref already holds; anything
-		// else is user input.
-		const isUserInput = content !== inputValueRef.current;
-		// The first change after a load is the seed echo, except after an
-		// empty-text load, which the editor does not echo. A later change of
-		// the serialized state is an edit even when the text is the same.
-		const isEditorStateChange =
-			serializedEditorStateRef.current === undefined
-				? loadedTarget?.text === ""
-				: serializedEditorState !== serializedEditorStateRef.current;
-		if (loadedTarget !== null && (isUserInput || isEditorStateChange)) {
-			editModifiedRef.current = true;
-		}
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 		hasFileReferencesRef.current = hasFileReferences;
-		if (isUserInput && composerMode === "follow") {
-			setComposerMode(target ?? "draft");
-		}
 
 		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
