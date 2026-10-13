@@ -40,7 +40,10 @@ coderd/x/chatd/evals/run.sh
 The first run clones coder/aegis at the pinned commit, builds its CLI and
 runner image, and builds coder from your checkout. Later runs reuse the
 cache in `${CHATD_EVAL_CACHE:-$HOME/.cache/chatd-evals}`. Results land in
-`./chatd-evals-out/<timestamp>/` unless you pass `--out`.
+`runs/<timestamp>/` under that cache unless you pass `--out`, and run.sh
+prints the path. Keep `--out` outside the coder checkout: untracked output
+there makes the next default run see a dirty tree and rebuild coder.
+`--validate-only` and `--self-check` write no results directory.
 
 ## Options
 
@@ -56,6 +59,7 @@ cache in `${CHATD_EVAL_CACHE:-$HOME/.cache/chatd-evals}`. Results land in
 | `--max-usd N` | per suite | Budget cap for each suite run. |
 | `--prompt-file PATH` | none | Adds a `candidate-prompt` arm with this system prompt. |
 | `--prompt-mode MODE` | `append` | `append` adds the file to the default prompt; `replace` replaces it. |
+| `--out DIR` | `<cache>/runs/<timestamp>` | Results directory. Keep it outside the coder checkout. |
 | `--validate-only` | | Compiles and validates the suites, then exits. |
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees and the grading container. |

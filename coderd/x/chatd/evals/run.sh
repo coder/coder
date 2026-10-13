@@ -36,7 +36,8 @@ Usage: run.sh [options]
   --max-usd N         budget cap per suite run
   --prompt-file PATH  add a candidate-prompt arm with this system prompt
   --prompt-mode MODE  append (default) or replace the default system prompt
-  --out DIR           output directory (default ./chatd-evals-out/<timestamp>)
+  --out DIR           output directory (default CACHE/runs/<timestamp>, where
+                      CACHE is $CHATD_EVAL_CACHE or ~/.cache/chatd-evals)
   --validate-only     compile and validate the suites, then exit
   --self-check        terminal-bench: verify reference solutions, no model
   --keep              keep temporary worktrees and grading containers
@@ -228,11 +229,7 @@ for tool in docker git go jq mise; do
 	command -v "$tool" >/dev/null || die "$tool is required"
 done
 
-if [[ -z $out ]]; then
-	out=$PWD/chatd-evals-out/$(date -u +%Y%m%dT%H%M%SZ)
-fi
-mkdir -p "$out" "$CACHE"
-out=$(cd "$out" && pwd)
+mkdir -p "$CACHE"
 
 cleanup_paths=()
 cleanup() {
@@ -553,6 +550,15 @@ if [[ " ${selected[*]} " == *" terminal-bench "* ]]; then
 		exit 0
 	fi
 fi
+
+# The default output lives in the cache: under a checkout it would be
+# untracked content that marks the next default build dirty.
+if [[ -z $out ]]; then
+	out=$CACHE/runs/$(date -u +%Y%m%dT%H%M%SZ)
+fi
+mkdir -p "$out"
+out=$(cd "$out" && pwd)
+log "writing results to $out"
 
 map_credentials
 
