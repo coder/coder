@@ -39,9 +39,12 @@ short canonical contract; these checkpoints are the long tail of what
 reviewers actually post. `pnpm check`, `pnpm lint`, `pnpm format`, and the
 affected tests still run separately (see `site/AGENTS.md`).
 
-`site/AGENTS.md` and `FRONTEND_PATTERNS.md` outrank the checkpoints. When a
-checkpoint contradicts them, the repository rule wins: reviewers apply it
-and report the conflict so the role file can be corrected.
+The root `AGENTS.md`, `site/AGENTS.md`, and `FRONTEND_PATTERNS.md` outrank
+the checkpoints. When a checkpoint contradicts them, the repository rule
+wins: reviewers apply it and report the conflict so the role file can be
+corrected. Passing every checkpoint does not replace those files: the
+author still follows the rules no checkpoint covers, such as JSDoc on
+exported symbols.
 
 ## Workflow
 
@@ -65,26 +68,30 @@ includes staged and unstaged edits, but not untracked files. Add the files
 the `git ls-files` line prints to the changed file list, marked
 `(new, untracked)`, so reviewers read them whole.
 
-For a PR authored by someone else, pin its revision once instead, so every
-reviewer reads the same commits even if the author pushes during the
-review:
+For a PR authored by someone else, do not check out its branch. A checkout
+runs Git hooks from the author's tree (this repository's hooks live in
+`scripts/githooks/`, `post-checkout` included), and reading files from the
+worktree follows any symlink the PR adds and mixes in your local edits.
+Fetch the PR and pin its revision once instead, so every reviewer reads the
+same commits even if the author pushes during the review:
 
 ```sh
-gh pr checkout <n> --detach
-git fetch origin "$(gh pr view <n> --json baseRefName --jq .baseRefName)"
-BASE=$(git merge-base HEAD FETCH_HEAD)
-HEAD_SHA=$(git rev-parse HEAD)
+BASE_REF=$(gh pr view <n> --json baseRefName --jq .baseRefName)
+git fetch origin "pull/<n>/head"
+HEAD_SHA=$(git rev-parse FETCH_HEAD)
+git fetch origin "$BASE_REF"
+BASE=$(git merge-base "$HEAD_SHA" FETCH_HEAD)
 echo "$BASE $HEAD_SHA"
 git diff --stat "$BASE" "$HEAD_SHA" -- site/ | tail -1
 git diff --name-only "$BASE" "$HEAD_SHA" -- site/
 ```
 
-The checkout now holds the author's version of every file, including this
-skill, `site/AGENTS.md`, and `FRONTEND_PATTERNS.md`. Read
-`reviewer-prompt.md` from the base revision
+Reviewers then read the PR only as Git objects at the head SHA, and the
+rules (the reviewer prompt, the role files, and the three rule files above)
+at the base SHA, so the PR cannot rewrite the rules it is reviewed against.
+Send the base revision's prompt
 (`git show <base-sha>:.claude/skills/frontend-deep-review/reviewer-prompt.md`),
-and fill its {ROLE_FILE} as that prompt describes, so the PR cannot rewrite
-the rules it is reviewed against.
+filled as it describes.
 
 Record three things every reviewer needs:
 
@@ -130,8 +137,11 @@ Then:
   verdict table: each one names a checkpoint whose role file needs
   correcting.
 - Drop findings without `file:line` evidence, except PR-scope findings
-  such as RO6, which cite `(whole PR)`. Also drop findings about untouched
-  pre-existing code unless the PR is a refactor of exactly that code.
+  such as RO6, which cite `(whole PR)`. A line the diff removes, cited as
+  `file:line (deleted)` with the old file's line, is evidence: removing the
+  only invalidation or error branch is a finding. Also drop findings about
+  untouched pre-existing code unless the PR is a refactor of exactly that
+  code.
 
 ### 4. Report
 
@@ -166,7 +176,8 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   conflicts, so the role file can be corrected.
 - Someone else's PR (report mode): post findings as inline review comments
   on the pinned head SHA, so their lines match what reviewers read, in the
-  register human reviewers use (short, specific, with the fix).
+  register human reviewers use (short, specific, with the fix). Post a
+  `(deleted)` finding on the removed line, on the left side of the diff.
   Group nits and PR-scope findings such as RO6 into the review summary.
   Never post any other finding you cannot point at a line.
 

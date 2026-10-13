@@ -20,7 +20,7 @@ Look for:
 - A doc block on a function or story whose sentences map one to one onto the statements or the export name beneath it (numbered "1. 2. 3." step lists, "Splits X into Y and Z" above a function named for exactly that).
 - Section labels above a group of identifiers ("// Queue editing state.") that name what the identifiers already name.
 
-Fix: delete the comment. If one clause carried a non-obvious constraint, keep only that clause.
+Fix: delete the comment. If one clause carried a non-obvious constraint, keep only that clause. On an exported symbol, which the root `AGENTS.md` requires to carry JSDoc, rewrite the doc to say what the name does not (the contract, a unit, an edge case) instead of deleting it.
 
 ### CD2: Delete rationale comments that do not earn their place
 
