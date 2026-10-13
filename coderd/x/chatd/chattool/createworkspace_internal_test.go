@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
@@ -30,6 +32,10 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 	db.EXPECT().
 		GetTemplateVersionByID(gomock.Any(), gomock.Any()).
 		Return(database.TemplateVersion{}, sql.ErrNoRows).
+		AnyTimes()
+	db.EXPECT().
+		GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
 		AnyTimes()
 	return db
 }
@@ -336,6 +342,144 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.Equal(t, buildID.String(), result["build_id"])
+}
+
+func TestCreateWorkspace_DevcontainerAgent(t *testing.T) {
+	t.Parallel()
+
+	type fixture struct {
+		db          *dbmock.MockStore
+		workspaceID uuid.UUID
+		parent      database.WorkspaceAgent
+		run         func(ctx context.Context, clock quartz.Clock) (map[string]any, uuid.UUID)
+	}
+	setup := func(t *testing.T, parentState database.WorkspaceAgentLifecycleState) fixture {
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetTemplateVersionByID(gomock.Any(), gomock.Any()).
+			Return(database.TemplateVersion{}, sql.ErrNoRows).AnyTimes()
+
+		ownerID := uuid.New()
+		orgID := uuid.New()
+		chatID := uuid.New()
+		templateID := uuid.New()
+		workspaceID := uuid.New()
+		jobID := uuid.New()
+		buildID := uuid.New()
+		parent := database.WorkspaceAgent{ID: uuid.New(), Name: "dev", LifecycleState: parentState}
+
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{ID: chatID}, nil).AnyTimes()
+		db.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).Return(database.Chat{ID: chatID}, nil)
+		db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), ownerID).Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+		db.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
+			AgentsAllowed:  true,
+		}, nil)
+		db.EXPECT().GetChatWorkspaceTTL(gomock.Any()).Return("0s", nil)
+		db.EXPECT().GetWorkspaceBuildByID(gomock.Any(), buildID).Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+		db.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
+		}, nil)
+		db.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), parent.ID).
+			Return([]database.WorkspaceAgentDevcontainer{{ID: uuid.New()}}, nil)
+		db.EXPECT().GetWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}, nil)
+
+		run := func(ctx context.Context, clock quartz.Clock) (map[string]any, uuid.UUID) {
+			var connectedAgentID uuid.UUID
+			tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
+				OwnerID: ownerID,
+				CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+					return codersdk.Workspace{
+						ID:          workspaceID,
+						Name:        req.Name,
+						OwnerName:   "testuser",
+						LatestBuild: codersdk.WorkspaceBuild{ID: buildID},
+					}, nil
+				},
+				AgentConnFn: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					connectedAgentID = agentID
+					return nil, func() {}, nil
+				},
+				WorkspaceMu: &sync.Mutex{},
+				Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Clock:       clock,
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "create_workspace",
+				Input: fmt.Sprintf(`{"template_id":%q,"name":"test-devcontainer"}`, templateID.String()),
+			})
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			return result, connectedAgentID
+		}
+		return fixture{db: db, workspaceID: workspaceID, parent: parent, run: run}
+	}
+
+	t.Run("WaitsForDevcontainerAgent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		f := setup(t, database.WorkspaceAgentLifecycleStateStarting)
+		child := database.WorkspaceAgent{
+			ID:       uuid.New(),
+			Name:     "devcontainer",
+			ParentID: uuid.NullUUID{UUID: f.parent.ID, Valid: true},
+		}
+		gomock.InOrder(
+			f.db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), f.workspaceID).
+				Return([]database.WorkspaceAgent{f.parent}, nil),
+			f.db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), f.workspaceID).
+				Return([]database.WorkspaceAgent{f.parent, child}, nil),
+		)
+
+		clock := quartz.NewMock(t)
+		trap := clock.Trap().NewTicker("chattool", "devcontainer_agent_poll")
+		defer trap.Close()
+		type result struct {
+			result    map[string]any
+			connected uuid.UUID
+		}
+		done := make(chan result, 1)
+		go func() {
+			res, connected := f.run(ctx, clock)
+			done <- result{result: res, connected: connected}
+		}()
+		trap.MustWait(ctx).MustRelease(ctx)
+		_, waiter := clock.AdvanceNext()
+		waiter.MustWait(ctx)
+
+		got := testutil.RequireReceive(ctx, t, done)
+		require.Equal(t, child.ID, got.connected)
+		require.NotContains(t, got.result, "devcontainer_status")
+	})
+
+	t.Run("FallsBackWhenDevcontainerUnavailable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		f := setup(t, database.WorkspaceAgentLifecycleStateReady)
+		f.db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), f.workspaceID).
+			Return([]database.WorkspaceAgent{f.parent}, nil)
+
+		result, connected := f.run(ctx, quartz.NewMock(t))
+		require.Equal(t, f.parent.ID, connected)
+		require.Equal(t, "unavailable", result["devcontainer_status"])
+		require.Equal(t, DevcontainerUnavailableMessage, result["devcontainer_message"])
+	})
 }
 
 func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {

@@ -199,7 +199,7 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		return &API{Options: &Options{Database: mDB, Logger: logger}}, mDB
 	}
 	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
-	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	rootAgentID, subAgentID, otherAgentID := uuid.New(), uuid.New(), uuid.New()
 	latestBuildID, otherLatestBuildID := uuid.New(), uuid.New()
 	latestBuildIDs := map[uuid.UUID]uuid.UUID{workspaceID: latestBuildID, otherWorkspaceID: otherLatestBuildID}
 	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
@@ -219,13 +219,14 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).DoAndReturn(func(_ any, ids []uuid.UUID) ([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow, error) {
 			require.ElementsMatch(t, []uuid.UUID{workspaceID, otherWorkspaceID}, ids)
 			return []database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
-				row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub"), row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"), row(otherWorkspaceID, otherAgentID, uuid.NullUUID{}, "root"),
+				row(workspaceID, subAgentID, uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub"), row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"), row(otherWorkspaceID, otherAgentID, uuid.NullUUID{}, "root"),
 			}, nil
 		}).Times(1)
 		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
 		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
-		require.Equal(t, rootAgentID, *chats[0].AgentID)
-		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
+		// The devcontainer sub-agent of the selected root is preferred.
+		require.Equal(t, subAgentID, *chats[0].AgentID)
+		require.Equal(t, subAgentID, *chats[0].Children[0].AgentID)
 		require.Equal(t, otherAgentID, *chats[1].AgentID)
 		require.Equal(t, latestBuildID, *chats[0].BuildID)
 		require.Equal(t, latestBuildID, *chats[0].Children[0].BuildID)

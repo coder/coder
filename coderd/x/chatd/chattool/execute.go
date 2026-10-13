@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"charm.land/fantasy"
@@ -36,6 +37,10 @@ type ExecuteOptions struct {
 	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
 	// browser session scoped to this chat instead of a shared default.
 	AgentBrowserSession string
+	// Notice, when set, is called after a successful command and its
+	// non-empty result is added to the result note, so the model learns
+	// about the environment the command ran in.
+	Notice func() string
 }
 
 // ProcessToolOptions configures a process management tool
@@ -101,6 +106,11 @@ func executeTool(
 	result, err := workspacetools.Execute(ctx, conn, req)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	if options.Notice != nil {
+		if notice := options.Notice(); notice != "" {
+			result.Note = strings.TrimSpace(result.Note + " " + notice)
+		}
 	}
 	return marshalExecuteResult(result)
 }

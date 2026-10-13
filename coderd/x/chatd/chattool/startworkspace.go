@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 // StartWorkspaceFn starts a workspace by creating a new build with
@@ -32,6 +33,8 @@ type StartWorkspaceOptions struct {
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
 	Logger        slog.Logger
+	// Clock drives devcontainer agent waits. Nil uses the real clock.
+	Clock quartz.Clock
 }
 
 type startWorkspaceArgs struct {
@@ -114,7 +117,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						xerrors.Errorf("waiting for in-progress build: %w", err),
 					), nil
 				}
-				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				result := waitForAgentAndRespond(ctx, db, options, ws, build.ID)
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
@@ -129,7 +132,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)), nil
+					return toolResponse(waitForAgentAndRespond(ctx, db, options, ws, uuid.Nil)), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -185,7 +188,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			result := waitForAgentAndRespond(ctx, db, options, ws, startBuild.ID)
 
 			// If the template version changed, annotate the
 			// response so the model knows an auto-update
@@ -225,10 +228,13 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 func waitForAgentAndRespond(
 	ctx context.Context,
 	db database.Store,
-	agentConnFn AgentConnFunc,
+	options StartWorkspaceOptions,
 	ws database.Workspace,
 	buildID uuid.UUID,
 ) map[string]any {
+	agentConnFn := options.AgentConnFn
+	logger := options.Logger
+	clock := clockOrReal(options.Clock)
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
 		// Workspace started but no agent found - still report
@@ -262,6 +268,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
+	selected = waitForDevcontainerAgentInResult(ctx, logger, db, clock, ws.ID, selected, result)
 	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 		result[k] = v
 	}

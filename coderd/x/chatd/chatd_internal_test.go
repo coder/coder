@@ -1299,6 +1299,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectNoDeclaredDevcontainers(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1347,6 +1348,119 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	require.Equal(t, workspaceAgent, gotAgent)
 }
 
+func TestTurnWorkspaceContext_LazyBindWaitsForDevcontainerAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+
+	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
+	buildID := uuid.New()
+	parent := database.WorkspaceAgent{ID: uuid.New(), LifecycleState: database.WorkspaceAgentLifecycleStateStarting}
+	child := database.WorkspaceAgent{ID: uuid.New(), ParentID: uuid.NullUUID{UUID: parent.ID, Valid: true}}
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	}
+	updatedChat := chat
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: child.ID, Valid: true}
+
+	// The parent is never bound while its devcontainer agent is pending.
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{parent}, nil),
+		db.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), parent.ID).
+			Return([]database.WorkspaceAgentDevcontainer{{ID: uuid.New()}}, nil),
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{parent, child}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID: uuid.NullUUID{UUID: child.ID, Valid: true},
+			ID:      chat.ID,
+		}).Return(updatedChat, nil),
+	)
+
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           &Server{db: db, clock: clock},
+		chatStateMu:      &sync.Mutex{},
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	trap := clock.Trap().NewTicker("chattool", "devcontainer_agent_poll")
+	defer trap.Close()
+	type result struct {
+		agent database.WorkspaceAgent
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		_, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+		done <- result{agent: agent, err: err}
+	}()
+	trap.MustWait(ctx).MustRelease(ctx)
+	_, waiter := clock.AdvanceNext()
+	waiter.MustWait(ctx)
+
+	got := testutil.RequireReceive(ctx, t, done)
+	require.NoError(t, got.err)
+	require.Equal(t, child, got.agent)
+	require.Equal(t, updatedChat, currentChat)
+	require.Empty(t, workspaceCtx.takeDevcontainerNotice())
+}
+
+func TestTurnWorkspaceContext_LazyBindFallsBackWhenDevcontainerUnavailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
+	buildID := uuid.New()
+	parent := database.WorkspaceAgent{ID: uuid.New(), LifecycleState: database.WorkspaceAgentLifecycleStateReady}
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	}
+	updatedChat := chat
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{parent}, nil),
+		db.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), parent.ID).
+			Return([]database.WorkspaceAgentDevcontainer{{ID: uuid.New()}}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+			ID:      chat.ID,
+		}).Return(updatedChat, nil),
+	)
+
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           &Server{db: db, clock: quartz.NewMock(t)},
+		chatStateMu:      &sync.Mutex{},
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	_, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, parent, agent)
+	require.Equal(t, chattool.DevcontainerUnavailableMessage, workspaceCtx.takeDevcontainerNotice())
+	require.Empty(t, workspaceCtx.takeDevcontainerNotice(), "notice is reported once")
+}
+
 // expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
 // context re-pin run against a mock store. The re-pin fires whenever a turn
 // rebinds a chat to a different agent; these agent-switch tests set up no
@@ -1361,6 +1475,12 @@ func expectBestEffortContextRepin(db *dbmock.MockStore) {
 	db.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 }
 
+// expectNoDeclaredDevcontainers lets agent resolution check for declared
+// devcontainers against a mock store, reporting none so it never waits.
+func expectNoDeclaredDevcontainers(db *dbmock.MockStore) {
+	db.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+}
+
 func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	t.Parallel()
 
@@ -1368,6 +1488,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	expectBestEffortContextRepin(db)
+	expectNoDeclaredDevcontainers(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1634,6 +1755,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectNoDeclaredDevcontainers(db)
 
 	deletedWorkspaceID := uuid.New()
 	replacementWorkspaceID := uuid.New()
@@ -1739,6 +1861,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectNoDeclaredDevcontainers(db)
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
