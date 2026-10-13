@@ -233,17 +233,31 @@ jobs:
           # exists. Remove before merge.
           BORROWED_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
           BORROWED_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+          BORROWED_TOKEN_2: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          BORROWED_URL_2: ${{ secrets.DOC_CHECK_CODER_URL }}
           HARBOR_CODER_MODEL: ${{ needs.resolve.outputs.model }}
         run: |
           set -euo pipefail
-          if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" && -n "${BORROWED_TOKEN}" ]]; then
-            echo "::warning::EVAL_CODER_SESSION_TOKEN not set; borrowing TRAIAGE_CODER_SESSION_TOKEN (temporary)"
-            HARBOR_CODER_UPSTREAM_TOKEN="${BORROWED_TOKEN}"
-            if [[ -z "${HARBOR_CODER_UPSTREAM_URL}" && -n "${BORROWED_URL}" ]]; then
-              HARBOR_CODER_UPSTREAM_URL="${BORROWED_URL%/}/api/v2/ai-gateway/anthropic"
-            fi
-            export HARBOR_CODER_UPSTREAM_TOKEN HARBOR_CODER_UPSTREAM_URL
-            echo "upstream host: $(printf '%s' "${HARBOR_CODER_UPSTREAM_URL:-default}" | sed -E 's|https?://([^/]+).*|\1|')"
+          probe() {
+            # 1-token request; prints HTTP status only.
+            curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
+              -H "Authorization: Bearer $1" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
+              -d '{"model":"claude-haiku-4-5","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}' \
+              "$2/v1/messages" || echo 000
+          }
+          if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
+            for pair in "TRAIAGE:${BORROWED_TOKEN}:${BORROWED_URL}" "DOC_CHECK:${BORROWED_TOKEN_2}:${BORROWED_URL_2}"; do
+              name="${pair%%:*}"; rest="${pair#*:}"; tok="${rest%%:*}"; url="${rest#*:}"
+              [[ -n "${tok}" && -n "${url}" ]] || continue
+              gw="${url%/}/api/v2/ai-gateway/anthropic"
+              code="$(probe "${tok}" "${gw}")"
+              echo "borrow ${name}: $(printf '%s' "${gw}" | sed -E 's|https?://([^/]+).*|\1|') -> ${code}"
+              if [[ "${code}" == "200" ]]; then
+                echo "::warning::EVAL_CODER_SESSION_TOKEN not set; borrowing ${name} token (temporary)"
+                export HARBOR_CODER_UPSTREAM_TOKEN="${tok}" HARBOR_CODER_UPSTREAM_URL="${gw}"
+                break
+              fi
+            done
           fi
           if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
             echo "::error::EVAL_CODER_SESSION_TOKEN secret is not set"
