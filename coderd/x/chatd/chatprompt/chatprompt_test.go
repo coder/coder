@@ -866,7 +866,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	resultC := mustMarshalToolResult(t,
 		"srvtoolu_C", "web_search",
 		json.RawMessage(`{}`),
-		false, false, true, // provider_executed = true
+		false, false, true, // provider_executed is true.
 	)
 	resultD := mustMarshalToolResult(t,
 		"toolu_D", "wait_agent",
@@ -1112,7 +1112,7 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	peResult := mustMarshalToolResult(t,
 		"srvtoolu_WS", "web_search",
 		json.RawMessage(`{"results":"cached"}`),
-		false, false, true, // providerExecuted = true
+		false, false, true, // providerExecuted is true.
 	)
 	execResult := mustMarshalToolResult(t,
 		"toolu_exec", "execute",
