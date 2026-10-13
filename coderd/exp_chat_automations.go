@@ -674,6 +674,11 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 			Message: "Chat automation limit reached.",
 			Detail:  fmt.Sprintf("A user can own at most %d chat automations across all organizations.", api.chatLimits.MaxAutomationsPerOwner),
 		})
+	case errors.Is(err, chatd.ErrAutomationWebhookConsumedEnable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This single-use webhook was already used.",
+			Detail:  "It accepts no more events, so it cannot be turned on again. Create a new webhook automation instead.",
+		})
 	case errors.Is(err, chatd.ErrAutomationWebhookConsumed):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "This single-use webhook was already used.",

@@ -52,6 +52,9 @@ var (
 	// ErrAutomationWebhookConsumed is returned when a single-use webhook
 	// was already used.
 	ErrAutomationWebhookConsumed = xerrors.New("single-use chat automation webhook was already used")
+	// ErrAutomationWebhookConsumedEnable is returned when someone turns on
+	// a used single-use webhook. It wraps ErrAutomationWebhookConsumed.
+	ErrAutomationWebhookConsumedEnable = xerrors.Errorf("%w: it cannot be turned on again", ErrAutomationWebhookConsumed)
 	// ErrAutomationChatBusy is returned when an automation that skips busy
 	// chats publishes to a busy chat.
 	ErrAutomationChatBusy = xerrors.New("chat automation target chat is busy")
@@ -603,16 +606,18 @@ func (p *Server) acceptAutomationInput(ctx context.Context, store database.Store
 // secret and an unused single-use webhook. Both target modes call it on
 // an unlocked read before the send and again on the locked row.
 func checkAutomationInput(in automationPublish, automation database.ChatAutomation) error {
-	if !automation.Enabled {
-		return ErrAutomationDisabled
-	}
 	if in.webhook {
 		if automation.Kind != database.ChatAutomationKindWebhook || automation.WebhookSecretVersion != in.secretVersion {
 			return ErrAutomationSecretChanged
 		}
-		if isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
+		// Before the enabled check: a used single-use webhook turned
+		// itself off, and "already used" is the reason to report.
+		if chatstate.UsedSingleUseWebhook(automation) {
 			return ErrAutomationWebhookConsumed
 		}
+	}
+	if !automation.Enabled {
+		return ErrAutomationDisabled
 	}
 	return nil
 }

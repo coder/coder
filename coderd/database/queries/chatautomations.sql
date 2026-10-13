@@ -146,13 +146,15 @@ ORDER BY
     id DESC;
 
 -- name: CountChatAutomationsByOwnerID :one
--- Counts the automations owner_id owns across all organizations.
+-- Counts the automations owner_id owns across all organizations. Used
+-- single-use webhooks cannot run again, so they do not count.
 SELECT
     COUNT(*)
 FROM
     chat_automations
 WHERE
-    owner_id = @owner_id::uuid;
+    owner_id = @owner_id::uuid
+    AND NOT (webhook_use = 'single' AND webhook_consumed_at IS NOT NULL);
 
 -- name: UpdateChatAutomationByID :one
 UPDATE
@@ -192,13 +194,16 @@ RETURNING
     *;
 
 -- name: ConsumeChatAutomationWebhookByID :execrows
--- Marks an unconsumed single-use webhook as consumed. It affects no row
--- when the automation is not a single-use webhook or was already
--- consumed, so callers can refuse the delivery.
+-- Marks an unconsumed single-use webhook as consumed and turns it off, in
+-- the transaction that accepts its event. It affects no row when the
+-- automation is not a single-use webhook or was already consumed, so
+-- callers can refuse the delivery. The queue generation stays, so the
+-- event the webhook queued is still delivered.
 UPDATE
     chat_automations
 SET
     webhook_consumed_at = @now::timestamptz,
+    enabled = false,
     updated_at = @now::timestamptz
 WHERE
     id = @id::uuid

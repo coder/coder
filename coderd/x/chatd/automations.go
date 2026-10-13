@@ -501,6 +501,11 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			// computes the next one.
 			arg.ScheduleNextRunAt = sql.NullTime{}
 		case enabling:
+			// A used single-use webhook accepts no more events, so turning
+			// it on would show an automation that never runs.
+			if chatstate.UsedSingleUseWebhook(row) {
+				return ErrAutomationWebhookConsumedEnable
+			}
 			arg.Enabled = true
 			if row.Kind == database.ChatAutomationKindSchedule {
 				sched, err := validateAutomationSchedule(arg.ScheduleCron.String, arg.ScheduleTimeZone.String, now)

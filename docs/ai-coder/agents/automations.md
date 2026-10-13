@@ -292,11 +292,13 @@ If a sender retries after a timeout, the chat can receive the same event twice.
 
 A multi-use webhook accepts events until you turn the automation off.
 A single-use webhook accepts one event.
-Later deliveries return `409`, and the automation stays turned on.
-In the list, its switch stays on and **Next run** reads **Used**. To receive another event, create a new automation.
+Accepting that event also turns the automation off, so it counts as used, not as an automation that runs.
+Later deliveries return `409`.
+In the list, **Next run** and the switch label read **Used**, and turning it on again returns `409`: create a new automation instead.
+A used single-use webhook doesn't count toward the per-owner limit.
 A delivery that Coder refuses doesn't use up a single-use webhook.
 You choose single use or multi use when you create the webhook and can't change it later.
-An update request that includes `webhook_use` doesn't fail, but Coder ignores the field.
+An update request that includes `webhook_use` returns `400`.
 
 ### Rotate the webhook secret
 

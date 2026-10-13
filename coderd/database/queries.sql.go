@@ -5572,6 +5572,7 @@ UPDATE
     chat_automations
 SET
     webhook_consumed_at = $1::timestamptz,
+    enabled = false,
     updated_at = $1::timestamptz
 WHERE
     id = $2::uuid
@@ -5585,9 +5586,11 @@ type ConsumeChatAutomationWebhookByIDParams struct {
 	ID  uuid.UUID `db:"id" json:"id"`
 }
 
-// Marks an unconsumed single-use webhook as consumed. It affects no row
-// when the automation is not a single-use webhook or was already
-// consumed, so callers can refuse the delivery.
+// Marks an unconsumed single-use webhook as consumed and turns it off, in
+// the transaction that accepts its event. It affects no row when the
+// automation is not a single-use webhook or was already consumed, so
+// callers can refuse the delivery. The queue generation stays, so the
+// event the webhook queued is still delivered.
 func (q *sqlQuerier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg ConsumeChatAutomationWebhookByIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, consumeChatAutomationWebhookByID, arg.Now, arg.ID)
 	if err != nil {
@@ -5603,9 +5606,11 @@ FROM
     chat_automations
 WHERE
     owner_id = $1::uuid
+    AND NOT (webhook_use = 'single' AND webhook_consumed_at IS NOT NULL)
 `
 
-// Counts the automations owner_id owns across all organizations.
+// Counts the automations owner_id owns across all organizations. Used
+// single-use webhooks cannot run again, so they do not count.
 func (q *sqlQuerier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatAutomationsByOwnerID, ownerID)
 	var count int64

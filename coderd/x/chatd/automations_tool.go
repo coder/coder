@@ -798,6 +798,8 @@ func (p *Server) manageAutomationsError(ctx context.Context, logger slog.Logger,
 		// and what to do. The cap counts every organization.
 		return xerrors.Errorf("You have reached the limit of %d automations, counted across all organizations. "+
 			"Delete one you no longer need first, or update an existing one instead of creating a new one.", p.chatLimits.MaxAutomationsPerOwner)
+	case errors.Is(err, ErrAutomationWebhookConsumed):
+		return xerrors.New("this single-use webhook was already used and cannot be turned on again: create a new webhook automation instead")
 	case errors.Is(err, ErrAutomationDisabled):
 		return xerrors.New("the automation is disabled: enable it before running it")
 	case errors.Is(err, ErrAutomationChatBusy):

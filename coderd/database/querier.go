@@ -107,13 +107,16 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
-	// Marks an unconsumed single-use webhook as consumed. It affects no row
-	// when the automation is not a single-use webhook or was already
-	// consumed, so callers can refuse the delivery.
+	// Marks an unconsumed single-use webhook as consumed and turns it off, in
+	// the transaction that accepts its event. It affects no row when the
+	// automation is not a single-use webhook or was already consumed, so
+	// callers can refuse the delivery. The queue generation stays, so the
+	// event the webhook queued is still delivered.
 	ConsumeChatAutomationWebhookByID(ctx context.Context, arg ConsumeChatAutomationWebhookByIDParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
-	// Counts the automations owner_id owns across all organizations.
+	// Counts the automations owner_id owns across all organizations. Used
+	// single-use webhooks cannot run again, so they do not count.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)

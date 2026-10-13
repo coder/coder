@@ -3,6 +3,7 @@ package chatstate_test
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,14 @@ func TestQueuedRowPromotable(t *testing.T) {
 	t.Parallel()
 	enabled := database.ChatAutomation{ID: uuid.New(), Enabled: true, QueueGeneration: 3}
 	disabled := database.ChatAutomation{ID: uuid.New(), Enabled: false, QueueGeneration: 3}
-	automations := map[uuid.UUID]database.ChatAutomation{enabled.ID: enabled, disabled.ID: disabled}
+	// A single-use webhook turns itself off when it accepts its event, so
+	// the event it queued must still be delivered.
+	used := database.ChatAutomation{
+		ID: uuid.New(), Enabled: false, QueueGeneration: 3, Kind: database.ChatAutomationKindWebhook,
+		WebhookUse:        database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseSingle, Valid: true},
+		WebhookConsumedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}
+	automations := map[uuid.UUID]database.ChatAutomation{enabled.ID: enabled, disabled.ID: disabled, used.ID: used}
 	row := func(id uuid.UUID, generation sql.NullInt64) database.ChatQueuedMessage {
 		return database.ChatQueuedMessage{AutomationID: uuid.NullUUID{UUID: id, Valid: id != uuid.Nil}, QueueGeneration: generation}
 	}
@@ -34,6 +42,10 @@ func TestQueuedRowPromotable(t *testing.T) {
 		{"OlderGeneration", row(enabled.ID, gen(2)), false},
 		{"MissingGeneration", row(enabled.ID, sql.NullInt64{}), false},
 		{"DisabledAutomation", row(disabled.ID, gen(3)), false},
+		{"UsedSingleUseWebhook", row(used.ID, gen(3)), true},
+		// Disabling the used webhook again bumps the generation, which
+		// still removes its queued event.
+		{"UsedSingleUseWebhookOlderGeneration", row(used.ID, gen(2)), false},
 		{"DeletedAutomation", row(uuid.New(), gen(3)), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

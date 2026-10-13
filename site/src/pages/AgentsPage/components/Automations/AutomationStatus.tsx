@@ -271,7 +271,7 @@ type AutomationEnabledSwitchProps = {
 	isOwner: boolean;
 	isUpdating: boolean;
 	onToggle: (enabled: boolean) => void;
-	/** Shows "Enabled" or "Disabled" next to the switch. */
+	/** Shows "Enabled", "Disabled", or, for a used single-use webhook, "Used". */
 	showLabel?: boolean;
 };
 
@@ -285,10 +285,12 @@ export const AutomationEnabledSwitch: React.FC<
 > = ({ automation, isOwner, isUpdating, onToggle, showLabel = false }) => {
 	const reasonId = useId();
 	// The switch shows the server's enabled flag. A used single-use webhook
-	// stays on and its Next run reads Used; turning it back on cannot re-arm it.
+	// turns itself off when it accepts its event, reads Used, and cannot be
+	// turned on again.
 	const checked = automation.enabled;
+	const used = isUsedSingleUseWebhook(automation);
 	let blockedReason: string | undefined;
-	if (isUsedSingleUseWebhook(automation) && !automation.enabled) {
+	if (used && !automation.enabled) {
 		blockedReason = "A used single-use webhook cannot run again.";
 	} else if (!isOwner && !automation.enabled) {
 		blockedReason = "Only the owner can turn this automation back on.";
@@ -333,7 +335,7 @@ export const AutomationEnabledSwitch: React.FC<
 			)}
 			{showLabel && (
 				<span className="text-sm text-content-primary">
-					{checked ? "Enabled" : "Disabled"}
+					{used ? "Used" : checked ? "Enabled" : "Disabled"}
 				</span>
 			)}
 		</span>

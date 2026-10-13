@@ -127,8 +127,10 @@ func queuedAutomationIDs(rows []database.ChatQueuedMessage) []uuid.UUID {
 
 // QueuedRowPromotable reports whether row may be promoted. Rows without
 // an automation always pass. Automation rows pass only when their
-// automation exists, is enabled, and still has the queue generation the
-// row was queued with. automations holds the rows' automations by id;
+// automation exists, is enabled or is a used single-use webhook, which
+// turns itself off when it accepts its event, and still has the queue
+// generation the row was queued with. Disabling bumps the generation, so
+// it still removes the rows of a used webhook. automations holds the rows' automations by id;
 // deleted ones are absent. Promotion uses the locked rows, and chatd's
 // unlocked admission prechecks use the same rule on unlocked reads.
 func QueuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UUID]database.ChatAutomation) bool {
@@ -136,10 +138,19 @@ func QueuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UU
 		return true
 	}
 	automation, ok := automations[row.AutomationID.UUID]
-	if !ok || !automation.Enabled {
+	if !ok || (!automation.Enabled && !UsedSingleUseWebhook(automation)) {
 		return false
 	}
 	return row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration
+}
+
+// UsedSingleUseWebhook reports whether automation is a single-use webhook
+// that already accepted its event.
+func UsedSingleUseWebhook(automation database.ChatAutomation) bool {
+	return automation.Kind == database.ChatAutomationKindWebhook &&
+		automation.WebhookUse.Valid &&
+		automation.WebhookUse.ChatAutomationWebhookUse == database.ChatAutomationWebhookUseSingle &&
+		automation.WebhookConsumedAt.Valid
 }
 
 // dropUnpromotable deletes the rows that fail the promotion guard and
