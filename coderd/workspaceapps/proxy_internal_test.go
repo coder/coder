@@ -201,8 +201,7 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + basePath + "?reconnect=" + uuid.NewString()
-	// The response body is nil after a successful upgrade.
-	conn, _, err := websocket.Dial(ctx, wsURL, nil) //nolint:bodyclose
+	conn, _, err := websocket.Dial(ctx, wsURL, nil) //nolint:bodyclose // The response body is nil after a successful upgrade.
 	require.NoError(t, err)
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
