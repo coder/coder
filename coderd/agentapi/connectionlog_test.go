@@ -50,6 +50,8 @@ func TestConnectionLog(t *testing.T) {
 		status          int32
 		reason          string
 		clientSessionID string
+		connectPath     agentproto.Connection_Path
+		disconnectPath  agentproto.Connection_Path
 	}{
 		{
 			name:            "SSH Connect",
@@ -60,6 +62,7 @@ func TestConnectionLog(t *testing.T) {
 			ip:              "127.0.0.1",
 			status:          200,
 			clientSessionID: "0123456789abcdef0123456789abcdef",
+			connectPath:     agentproto.Connection_DERP,
 		},
 		{
 			name:   "VS Code Connect",
@@ -94,13 +97,15 @@ func TestConnectionLog(t *testing.T) {
 			time:   dbtime.Now(),
 		},
 		{
-			name:   "SSH Disconnect",
-			id:     uuid.New(),
-			action: agentproto.Connection_DISCONNECT.Enum(),
-			typ:    agentproto.Connection_SSH.Enum(),
-			time:   dbtime.Now(),
-			status: 500,
-			reason: "because error says so",
+			name:           "SSH Disconnect",
+			id:             uuid.New(),
+			action:         agentproto.Connection_DISCONNECT.Enum(),
+			typ:            agentproto.Connection_SSH.Enum(),
+			time:           dbtime.Now(),
+			status:         500,
+			reason:         "because error says so",
+			connectPath:    agentproto.Connection_DERP,
+			disconnectPath: agentproto.Connection_DIRECT,
 		},
 	}
 	for _, tt := range tests {
@@ -129,6 +134,8 @@ func TestConnectionLog(t *testing.T) {
 					StatusCode:      tt.status,
 					Reason:          &tt.reason,
 					ClientSessionId: tt.clientSessionID,
+					ConnectPath:     tt.connectPath,
+					DisconnectPath:  tt.disconnectPath,
 				},
 			})
 
@@ -169,6 +176,8 @@ func TestConnectionLog(t *testing.T) {
 					String: tt.clientSessionID,
 					Valid:  tt.clientSessionID != "",
 				},
+				ConnectPath:    db2sdk.ConnectionLogPathFromAgentProtoConnectionPath(tt.connectPath),
+				DisconnectPath: db2sdk.ConnectionLogPathFromAgentProtoConnectionPath(tt.disconnectPath),
 			}))
 		})
 	}

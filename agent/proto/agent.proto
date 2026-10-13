@@ -386,6 +386,12 @@ message Connection {
 		JETBRAINS = 3;
 		RECONNECTING_PTY = 4;
 	}
+	// Path is the network path between the client and the agent.
+	enum Path {
+		PATH_UNSPECIFIED = 0;
+		DERP = 1;
+		DIRECT = 2;
+	}
 
 	bytes id = 1;
 	Action action = 2;
@@ -395,6 +401,12 @@ message Connection {
 	int32 status_code = 6;
 	optional string reason = 7;
 	string client_session_id = 8;
+	// connect_path is the network path when the connection was opened. It is
+	// set on both connect and disconnect events.
+	Path connect_path = 9;
+	// disconnect_path is the network path when the connection was closed. It
+	// is only set on disconnect events.
+	Path disconnect_path = 10;
 }
 
 message ReportConnectionRequest {

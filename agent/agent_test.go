@@ -4585,6 +4585,11 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	}
 	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
 	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
+	// Every connection arrives over the tailnet, so the path is known.
+	assert.NotEqual(t, proto.Connection_PATH_UNSPECIFIED, reports[0].GetConnection().GetConnectPath(), "connect path should be set")
+	assert.Equal(t, reports[0].GetConnection().GetConnectPath(), reports[1].GetConnection().GetConnectPath(), "disconnect should repeat the connect path")
+	assert.Equal(t, proto.Connection_PATH_UNSPECIFIED, reports[0].GetConnection().GetDisconnectPath(), "connect should not have a disconnect path")
+	assert.NotEqual(t, proto.Connection_PATH_UNSPECIFIED, reports[1].GetConnection().GetDisconnectPath(), "disconnect path should be set")
 }
 
 func TestAgent_ToolCall(t *testing.T) {

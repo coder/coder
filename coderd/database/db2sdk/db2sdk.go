@@ -1018,6 +1018,21 @@ func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Conn
 	}
 }
 
+// ConnectionLogPathFromAgentProtoConnectionPath converts an agent-reported
+// network path. Unspecified and unknown paths map to NULL rather than an
+// error, so that a missing path never causes a connection report to be
+// dropped.
+func ConnectionLogPathFromAgentProtoConnectionPath(path agentproto.Connection_Path) database.NullConnectionPath {
+	switch path {
+	case agentproto.Connection_DERP:
+		return database.NullConnectionPath{ConnectionPath: database.ConnectionPathDerp, Valid: true}
+	case agentproto.Connection_DIRECT:
+		return database.NullConnectionPath{ConnectionPath: database.ConnectionPathDirect, Valid: true}
+	default:
+		return database.NullConnectionPath{}
+	}
+}
+
 func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
 	switch action {
 	case agentproto.Connection_CONNECT:

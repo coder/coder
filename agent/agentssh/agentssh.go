@@ -246,6 +246,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
 			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
+			ctx.SetValue(connectionPathContextKey{}, ConnectionPathFunc(conn))
 			return conn
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
@@ -487,6 +488,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			AppName:         appName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
+			Path:            connectionPathFromContext(ctx),
 		})
 		defer connReporter.Disconnect(proto.DisconnectEvent{
 			Code:   1,
@@ -525,6 +527,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			AppName:         appName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
+			Path:            connectionPathFromContext(ctx),
 		})
 		defer func() {
 			logger.Info(ctx, "ssh session closed",
@@ -1150,6 +1153,8 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	}
 	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
+	stopWatchingPath := WatchConnectionPath(context.Background(), logger, c)
+	defer stopWatchingPath()
 	s.srv.HandleConn(c)
 }
 

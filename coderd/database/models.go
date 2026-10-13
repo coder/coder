@@ -2252,6 +2252,64 @@ func AllChatTitleSourceValues() []ChatTitleSource {
 	}
 }
 
+type ConnectionPath string
+
+const (
+	ConnectionPathDerp   ConnectionPath = "derp"
+	ConnectionPathDirect ConnectionPath = "direct"
+)
+
+func (e *ConnectionPath) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionPath(s)
+	case string:
+		*e = ConnectionPath(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionPath: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionPath struct {
+	ConnectionPath ConnectionPath `json:"connection_path"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionPath is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionPath) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionPath, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionPath.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionPath) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionPath), nil
+}
+
+func (e ConnectionPath) Valid() bool {
+	switch e {
+	case ConnectionPathDerp,
+		ConnectionPathDirect:
+		return true
+	}
+	return false
+}
+
+func AllConnectionPathValues() []ConnectionPath {
+	return []ConnectionPath{
+		ConnectionPathDerp,
+		ConnectionPathDirect,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -5826,6 +5884,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// The network path between the client and the agent when the connection was opened. Null for web connections, or when the agent did not know or report the path.
+	ConnectPath NullConnectionPath `db:"connect_path" json:"connect_path"`
+	// The network path between the client and the agent when the connection was closed. Null for web connections, until we receive a disconnect event, or when the agent did not know or report the path.
+	DisconnectPath NullConnectionPath `db:"disconnect_path" json:"disconnect_path"`
 }
 
 type CryptoKey struct {

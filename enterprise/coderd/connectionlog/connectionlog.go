@@ -258,12 +258,27 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 
 	// Prefer disconnect over connect (superset of info).
 	// If same status, prefer the later event.
+	chosen := existing
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
 		existing.ConnectionStatus != database.ConnectionStatusDisconnected {
-		b.dedupedBatch[connID] = entry
+		chosen = entry
 	} else if item.Time.After(existing.Time) {
-		b.dedupedBatch[connID] = entry
+		chosen = entry
 	}
+	// Keep a path reported by either event, matching the SQL COALESCE.
+	if !chosen.ConnectPath.Valid {
+		chosen.ConnectPath = existing.ConnectPath
+		if !chosen.ConnectPath.Valid {
+			chosen.ConnectPath = entry.ConnectPath
+		}
+	}
+	if !chosen.DisconnectPath.Valid {
+		chosen.DisconnectPath = existing.DisconnectPath
+		if !chosen.DisconnectPath.Valid {
+			chosen.DisconnectPath = entry.DisconnectPath
+		}
+	}
+	b.dedupedBatch[connID] = chosen
 }
 
 // batchLen returns the total number of entries currently buffered.
@@ -394,6 +409,8 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
 		clientSessionID  = make([]string, 0, count)
+		connectPath      = make([]string, 0, count)
+		disconnectPath   = make([]string, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -415,6 +432,8 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
 		clientSessionID = append(clientSessionID, e.ClientSessionID.String)
+		connectPath = append(connectPath, e.ConnectPath.TextOrEmpty())
+		disconnectPath = append(disconnectPath, e.DisconnectPath.TextOrEmpty())
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -443,6 +462,8 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
 		ClientSessionID:  clientSessionID,
+		ConnectPath:      connectPath,
+		DisconnectPath:   disconnectPath,
 	}
 }
 

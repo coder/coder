@@ -36,6 +36,7 @@ type JetbrainsChannelWatcher struct {
 	originAddr         string
 	clientSessionID    string
 	connectionReporter proto.ConnectionReporter
+	path               func() proto.Connection_Path
 }
 
 func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
@@ -78,6 +79,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 		originAddr:         d.OriginAddr,
 		connectionReporter: connectionReporter,
 		clientSessionID:    clientSessionID,
+		path:               connectionPathFromContext(ctx),
 	}
 }
 
@@ -88,6 +90,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		AppName:         string(codersdk.AppFamilyJetBrains),
 		IP:              w.originAddr,
 		ClientSessionID: w.clientSessionID,
+		Path:            w.path,
 	})
 
 	c, r, err := w.NewChannel.Accept()

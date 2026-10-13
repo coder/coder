@@ -641,6 +641,26 @@ func (c *configMaps) nodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bo
 	return nil, false
 }
 
+// peerByAddr returns the ID and public key of the peer that owns addr. The
+// wireguard engine only accepts a packet when its source address is within the
+// sending peer's allowed IPs, so the owner of a source address is the sender.
+func (c *configMaps) peerByAddr(addr netip.Addr) (uuid.UUID, key.NodePublic, bool) {
+	addr = addr.Unmap()
+	c.L.Lock()
+	defer c.L.Unlock()
+	for id, lc := range c.peers {
+		if lc.node == nil {
+			continue
+		}
+		for _, p := range lc.node.AllowedIPs {
+			if p.Contains(addr) {
+				return id, lc.node.Key, true
+			}
+		}
+	}
+	return uuid.Nil, key.NodePublic{}, false
+}
+
 func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	status := c.status()
 	c.L.Lock()

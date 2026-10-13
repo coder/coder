@@ -1034,23 +1034,34 @@ func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
 // still used as the canonical connection log event type throughout
 // the codebase.
 type UpsertConnectionLogParams struct {
-	ID               uuid.UUID        `db:"id" json:"id"`
-	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
-	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType   `db:"type" json:"type"`
-	Code             sql.NullInt32    `db:"code" json:"code"`
-	IP               pqtype.Inet      `db:"ip" json:"ip"`
-	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
-	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
-	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
-	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
-	Time             time.Time        `db:"time" json:"time"`
-	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+	ID               uuid.UUID          `db:"id" json:"id"`
+	OrganizationID   uuid.UUID          `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID          `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID          `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string             `db:"workspace_name" json:"workspace_name"`
+	AgentName        string             `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType     `db:"type" json:"type"`
+	Code             sql.NullInt32      `db:"code" json:"code"`
+	IP               pqtype.Inet        `db:"ip" json:"ip"`
+	UserAgent        sql.NullString     `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID      `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString     `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID      `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString     `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString     `db:"client_session_id" json:"client_session_id"`
+	ConnectPath      NullConnectionPath `db:"connect_path" json:"connect_path"`
+	DisconnectPath   NullConnectionPath `db:"disconnect_path" json:"disconnect_path"`
+	Time             time.Time          `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus   `db:"connection_status" json:"connection_status"`
+}
+
+// TextOrEmpty returns the path as text, or an empty string when it is NULL.
+// Batch queries take paths as text arrays and treat empty strings as NULL.
+func (n NullConnectionPath) TextOrEmpty() string {
+	if !n.Valid {
+		return ""
+	}
+	return string(n.ConnectionPath)
 }
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {

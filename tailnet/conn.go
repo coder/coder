@@ -477,6 +477,9 @@ type Conn struct {
 	watchCtx    context.Context
 	watchCancel func()
 
+	// pathWatchers serves PeerConn.WatchPath subscriptions.
+	pathWatchers pathWatchers
+
 	trafficStats *connstats.Statistics
 	lastNetInfo  *tailcfg.NetInfo
 }
@@ -802,10 +805,14 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 	}
 
 	return func(conn net.Conn) {
+		pc := c.newPeerConn(conn, src.Addr())
+		if peerID, ok := pc.PeerID(); ok {
+			logger = logger.With(slog.F("peer_id", peerID))
+		}
 		t := time.NewTimer(time.Second)
 		defer t.Stop()
 		select {
-		case ln.conn <- conn:
+		case ln.conn <- pc:
 			logger.Info(context.Background(), "accepted connection")
 			return
 		case <-ln.closed:
@@ -947,6 +954,16 @@ func (c *Conn) watchConnChange() {
 		peer := status.Peer[peers[0]]
 		// If the connection type has changed, send a telemetry event with the latest ping stats
 		if c.telemetryStore.changedConntype(peer.CurAddr) {
+			path := PathDERP
+			if peer.CurAddr != "" {
+				path = PathDirect
+			}
+			c.logger.Info(c.watchCtx, "connection path changed",
+				slog.F("client_session_id", c.clientSessionID),
+				slog.F("path", path),
+				slog.F("endpoint", peer.CurAddr),
+				slog.F("derp_region", peer.Relay),
+			)
 			c.telemetryStore.pingPeer(c)
 		}
 	}

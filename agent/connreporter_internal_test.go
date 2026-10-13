@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -97,6 +98,32 @@ func TestConnectionReporter(t *testing.T) {
 			require.Equal(t, tc.report.ClientSessionID, req1.GetConnection().GetClientSessionId())
 		})
 	}
+
+	t.Run("Path", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reporter := newConnectionReporter(ctx, testutil.Logger(t))
+
+		var path atomic.Int32
+		path.Store(int32(proto.Connection_DERP))
+		connReporter := reporter.Connect(proto.ConnectEvent{
+			ID:   uuid.New(),
+			Type: proto.Connection_SSH,
+			Path: func() proto.Connection_Path { return proto.Connection_Path(path.Load()) },
+		})
+		req0 := testutil.RequireReceive(ctx, t, reporter.report)
+		require.Equal(t, proto.Connection_DERP, req0.GetConnection().GetConnectPath())
+		require.Equal(t, proto.Connection_PATH_UNSPECIFIED, req0.GetConnection().GetDisconnectPath())
+
+		// The path changes while the connection is open.
+		path.Store(int32(proto.Connection_DIRECT))
+		connReporter.Disconnect(proto.DisconnectEvent{})
+		req1 := testutil.RequireReceive(ctx, t, reporter.report)
+		require.Equal(t, proto.Connection_DERP, req1.GetConnection().GetConnectPath(),
+			"disconnect should repeat the path at connect time")
+		require.Equal(t, proto.Connection_DIRECT, req1.GetConnection().GetDisconnectPath())
+	})
 
 	t.Run("DropsPastLimit", func(t *testing.T) {
 		t.Parallel()

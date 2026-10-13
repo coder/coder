@@ -5424,6 +5424,66 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.Equal(t, "0123456789abcdef0123456789abcdef", row.ClientSessionID.String,
 			"client_session_id should not be overwritten")
 	})
+	t.Run("PathsAreWriteOnce", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		connectTime := dbtime.Now()
+
+		mkParams := func(connectPath, disconnectPath string) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{connectTime},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{0},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{""},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
+				ConnectPath:      []string{connectPath},
+				DisconnectPath:   []string{disconnectPath},
+			}
+		}
+		getRow := func() database.ConnectionLog {
+			rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			return rows[0].ConnectionLog
+		}
+
+		// Connect without a known path leaves both columns NULL.
+		err := db.BatchUpsertConnectionLogs(ctx, mkParams("", ""))
+		require.NoError(t, err)
+		row := getRow()
+		require.False(t, row.ConnectPath.Valid)
+		require.False(t, row.DisconnectPath.Valid)
+
+		// A later event fills in missing paths.
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams("derp", "direct"))
+		require.NoError(t, err)
+		row = getRow()
+		require.Equal(t, database.NullConnectionPath{ConnectionPath: database.ConnectionPathDerp, Valid: true}, row.ConnectPath)
+		require.Equal(t, database.NullConnectionPath{ConnectionPath: database.ConnectionPathDirect, Valid: true}, row.DisconnectPath)
+
+		// Recorded paths are not overwritten.
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams("direct", "derp"))
+		require.NoError(t, err)
+		row = getRow()
+		require.Equal(t, database.ConnectionPathDerp, row.ConnectPath.ConnectionPath)
+		require.Equal(t, database.ConnectionPathDirect, row.DisconnectPath.ConnectionPath)
+	})
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

@@ -16310,7 +16310,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
     slug_or_port, connection_id, disconnect_reason, disconnect_time,
-	client_session_id
+	client_session_id, connect_path, disconnect_path
 )
 SELECT
     u.id,
@@ -16331,7 +16331,9 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    NULLIF(u.connect_path, '')::connection_path,
+    NULLIF(u.disconnect_path, '')::connection_path
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -16351,7 +16353,11 @@ FROM (
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time,
-        unnest($18::text[]) AS client_session_id
+        unnest($18::text[]) AS client_session_id,
+        -- Paths are passed as text so an empty string can represent an
+        -- unknown path.
+        unnest($19::text[]) AS connect_path,
+        unnest($20::text[]) AS disconnect_path
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -16379,7 +16385,9 @@ DO UPDATE SET
         WHEN connection_logs.code IS NULL
         THEN EXCLUDED.code
         ELSE connection_logs.code
-    END
+    END,
+    connect_path = COALESCE(connection_logs.connect_path, EXCLUDED.connect_path),
+    disconnect_path = COALESCE(connection_logs.disconnect_path, EXCLUDED.disconnect_path)
 `
 
 type BatchUpsertConnectionLogsParams struct {
@@ -16401,6 +16409,8 @@ type BatchUpsertConnectionLogsParams struct {
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
 	ClientSessionID  []string         `db:"client_session_id" json:"client_session_id"`
+	ConnectPath      []string         `db:"connect_path" json:"connect_path"`
+	DisconnectPath   []string         `db:"disconnect_path" json:"disconnect_path"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -16423,6 +16433,8 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
 		pq.Array(arg.ClientSessionID),
+		pq.Array(arg.ConnectPath),
+		pq.Array(arg.DisconnectPath),
 	)
 	return err
 }
@@ -16605,7 +16617,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id, connection_logs.connect_path, connection_logs.disconnect_path,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -16820,6 +16832,8 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.ConnectPath,
+			&i.ConnectionLog.DisconnectPath,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

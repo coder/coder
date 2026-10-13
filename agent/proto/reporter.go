@@ -28,6 +28,10 @@ type ConnectEvent struct {
 	AppName         string
 	IP              string
 	ClientSessionID string
+	// Path, if set, reports the current network path of the connection. It
+	// is called when the connection is reported and again when the
+	// disconnection is reported.
+	Path func() Connection_Path
 }
 
 type DisconnectEvent struct {

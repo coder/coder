@@ -168,6 +168,78 @@ func TestTailnet(t *testing.T) {
 		require.Len(t, node.DERPForcedWebsocket, 0)
 	})
 
+	t.Run("PeerConn", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
+		listener, err := w1.Listen("tcp", ":35566")
+		require.NoError(t, err)
+		defer listener.Close()
+		accepted := make(chan net.Conn, 1)
+		go func() {
+			nc, err := listener.Accept()
+			if assert.NoError(t, err) {
+				accepted <- nc
+			}
+		}()
+		clientConn, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35566))
+		require.NoError(t, err)
+		defer clientConn.Close()
+		nc := testutil.TryReceive(ctx, t, accepted)
+		defer nc.Close()
+
+		pc, ok := tailnet.PeerConnFromConn(nc)
+		require.True(t, ok, "accepted conn should be a PeerConn")
+		peerID, ok := pc.PeerID()
+		require.True(t, ok, "peer should be known")
+		require.Contains(t, w1.GetKnownPeerIDs(), peerID)
+
+		// The peer handshaked to deliver the connection, so it has a path,
+		// and in this test environment it eventually goes direct.
+		changes := make(chan tailnet.PeerPath, 16)
+		cur, cancel := pc.WatchPath(func(_, cur tailnet.PeerPath) {
+			select {
+			case changes <- cur:
+			default:
+			}
+		})
+		defer cancel()
+		require.NotEqual(t, tailnet.PathUnknown, cur.Type)
+		for cur.Type != tailnet.PathDirect {
+			// Keep traffic flowing so the engine upgrades to a direct path.
+			_, _, _, _ = w2.Ping(ctx, w1IP)
+			select {
+			case cur = <-changes:
+			case <-time.After(testutil.IntervalMedium):
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for direct path")
+			}
+		}
+		require.NotEmpty(t, cur.Endpoint)
+		require.Equal(t, tailnet.PathDirect, pc.Path().Type)
+	})
+
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)

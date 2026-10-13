@@ -103,6 +103,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 			String: reason,
 			Valid:  reason != "",
 		},
+		ConnectPath:    db2sdk.ConnectionLogPathFromAgentProtoConnectionPath(req.GetConnection().GetConnectPath()),
+		DisconnectPath: db2sdk.ConnectionLogPathFromAgentProtoConnectionPath(req.GetConnection().GetDisconnectPath()),
 		// We supply the action:
 		// - So the DB can handle duplicate connections or disconnections properly.
 		// - To make it clear whether this is a connection or disconnection

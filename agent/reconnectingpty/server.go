@@ -91,6 +91,7 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			Type:            proto.Connection_RECONNECTING_PTY,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
+			Path:            agentssh.ConnectionPathFunc(conn),
 		})
 		closed := make(chan struct{})
 		go func() {
@@ -114,7 +115,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 		go func() {
 			defer close(closed)
 			defer wg.Done()
+			stopWatchingPath := agentssh.WatchConnectionPath(ctx, clog, conn)
 			err := s.handleConn(ctx, clog, conn)
+			stopWatchingPath()
 			var reason codersdk.DisconnectReason
 			var code int
 			var detail string

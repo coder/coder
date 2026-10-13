@@ -226,6 +226,46 @@ func Test_addToBatch(t *testing.T) {
 			"connect_time must not regress to disconnect timestamp")
 		require.Equal(t, disconnect2.Time, got.disconnectTime)
 	})
+
+	t.Run("PathsSurviveMerge", func(t *testing.T) {
+		t.Parallel()
+
+		b := &DBBatcher{
+			maxBatchSize: 100,
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
+		}
+
+		wsID := uuid.New()
+		connID := uuid.New()
+		derp := database.NullConnectionPath{ConnectionPath: database.ConnectionPathDerp, Valid: true}
+		direct := database.NullConnectionPath{ConnectionPath: database.ConnectionPathDirect, Valid: true}
+
+		// The connect event carries the connect path, and the disconnect
+		// event (as sent by an agent that lost it) carries only the
+		// disconnect path. The merged entry keeps both.
+		connect := fakeConnectEvent(wsID, "agent1", connID)
+		connect.ConnectPath = derp
+		disconnect := fakeDisconnectEvent(wsID, "agent1", connID)
+		disconnect.DisconnectPath = direct
+
+		b.addToBatch(connect)
+		b.addToBatch(disconnect)
+
+		got := b.dedupedBatch[connID]
+		require.Equal(t, disconnect.ID, got.ID)
+		require.Equal(t, derp, got.ConnectPath)
+		require.Equal(t, direct, got.DisconnectPath)
+
+		// A later duplicate disconnect without paths does not erase them.
+		disconnect2 := fakeDisconnectEvent(wsID, "agent1", connID)
+		disconnect2.Time = disconnect.Time.Add(time.Second)
+		b.addToBatch(disconnect2)
+
+		got = b.dedupedBatch[connID]
+		require.Equal(t, disconnect2.ID, got.ID)
+		require.Equal(t, derp, got.ConnectPath)
+		require.Equal(t, direct, got.DisconnectPath)
+	})
 }
 
 func Test_batcherFlush(t *testing.T) {

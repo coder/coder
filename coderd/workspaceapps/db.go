@@ -560,6 +560,9 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			ConnectionID:     uuid.NullUUID{},
 			DisconnectReason: sql.NullString{},
 			ClientSessionID:  sql.NullString{},
+			// N/A, the path is only known by the agent.
+			ConnectPath:    database.NullConnectionPath{},
+			DisconnectPath: database.NullConnectionPath{},
 		})
 		if err != nil {
 			logger.Error(ctx, "upsert connection log failed", slog.Error(err))

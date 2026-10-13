@@ -90,7 +90,8 @@ func (r *connectionReporter) Connect(connectEvent proto.ConnectEvent) proto.Disc
 		connectEvent.IP = "127.0.0.1"
 	}
 
-	payload := connectionRequest(&connectEvent, nil)
+	connectPath := connectionPath(&connectEvent)
+	payload := connectionRequest(&connectEvent, connectPath, nil, proto.Connection_PATH_UNSPECIFIED)
 	select {
 	case r.report <- payload:
 	default:
@@ -103,6 +104,7 @@ func (r *connectionReporter) Connect(connectEvent proto.ConnectEvent) proto.Disc
 	return &disconnectionReporter{
 		ctx:          r.ctx,
 		connectEvent: &connectEvent,
+		connectPath:  connectPath,
 		logger:       r.logger,
 		report:       r.report,
 	}
@@ -111,12 +113,13 @@ func (r *connectionReporter) Connect(connectEvent proto.ConnectEvent) proto.Disc
 type disconnectionReporter struct {
 	ctx          context.Context
 	connectEvent *proto.ConnectEvent
+	connectPath  proto.Connection_Path
 	logger       slog.Logger
 	report       chan *proto.ReportConnectionRequest
 }
 
 func (r *disconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent) {
-	payload := connectionRequest(r.connectEvent, &disconnectEvent)
+	payload := connectionRequest(r.connectEvent, r.connectPath, &disconnectEvent, connectionPath(r.connectEvent))
 	select {
 	case r.report <- payload:
 	default:
@@ -127,10 +130,23 @@ func (r *disconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent
 	}
 }
 
+// connectionPath returns the current network path of the connection, if the
+// connect event can report it.
+func connectionPath(connect *proto.ConnectEvent) proto.Connection_Path {
+	if connect.Path == nil {
+		return proto.Connection_PATH_UNSPECIFIED
+	}
+	return connect.Path()
+}
+
 // connectionRequest converts connect and disconnect events into a proto
 // connection request.  Disconnect events must pass both the original connect
-// event and the disconnect event.
-func connectionRequest(connect *proto.ConnectEvent, disconnect *proto.DisconnectEvent) *proto.ReportConnectionRequest {
+// event and the disconnect event. The connect path is included in both, so the
+// path is recorded even if only the disconnect report is delivered.
+func connectionRequest(
+	connect *proto.ConnectEvent, connectPath proto.Connection_Path,
+	disconnect *proto.DisconnectEvent, disconnectPath proto.Connection_Path,
+) *proto.ReportConnectionRequest {
 	// TODO: For now, `connect.AppName` is ignored.  It needs to be added once the
 	// type and app names are separated in the database.
 	payload := &proto.ReportConnectionRequest{
@@ -143,12 +159,14 @@ func connectionRequest(connect *proto.ConnectEvent, disconnect *proto.Disconnect
 			StatusCode:      0,
 			Reason:          nil,
 			ClientSessionId: connect.ClientSessionID,
+			ConnectPath:     connectPath,
 		},
 	}
 	if disconnect != nil {
 		payload.Connection.Action = proto.Connection_DISCONNECT
 		payload.Connection.StatusCode = int32(disconnect.Code) //nolint:gosec
 		payload.Connection.Reason = &disconnect.Reason
+		payload.Connection.DisconnectPath = disconnectPath
 	}
 	return payload
 }

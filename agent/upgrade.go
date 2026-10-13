@@ -28,6 +28,11 @@ type upgradedConn struct {
 func (c *upgradedConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 func (c *upgradedConn) ClientSessionID() string    { return c.clientSessionID }
 
+// NetConn returns the hijacked connection, so callers can identify the tailnet
+// peer behind it. Reads must still go through upgradedConn, which may have
+// buffered data.
+func (c *upgradedConn) NetConn() net.Conn { return c.Conn }
+
 type httpUpgradeListener struct {
 	mu     sync.Mutex
 	addr   net.Addr

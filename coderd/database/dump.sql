@@ -424,6 +424,11 @@ CREATE TYPE chat_title_source AS ENUM (
 
 COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
+CREATE TYPE connection_path AS ENUM (
+    'derp',
+    'direct'
+);
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -2594,6 +2599,8 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    connect_path connection_path,
+    disconnect_path connection_path,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2612,6 +2619,10 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.connect_path IS 'The network path between the client and the agent when the connection was opened. Null for web connections, or when the agent did not know or report the path.';
+
+COMMENT ON COLUMN connection_logs.disconnect_path IS 'The network path between the client and the agent when the connection was closed. Null for web connections, until we receive a disconnect event, or when the agent did not know or report the path.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
