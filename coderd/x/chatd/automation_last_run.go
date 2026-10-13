@@ -3,12 +3,15 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -75,48 +78,169 @@ func classifyAutomationRun(err error) (outcome database.ChatAutomationRunOutcome
 	}
 }
 
+// automationRunTrigger names what started a run, for the run's audit
+// entry and metrics.
+type automationRunTrigger string
+
+const (
+	automationRunTriggerSchedule automationRunTrigger = "schedule"
+	automationRunTriggerWebhook  automationRunTrigger = "webhook"
+	automationRunTriggerRunNow   automationRunTrigger = "run_now"
+)
+
+// automationRun is the decided outcome of one run.
+type automationRun struct {
+	automationID uuid.UUID
+	trigger      automationRunTrigger
+	outcome      database.ChatAutomationRunOutcome
+	reason       codersdk.ChatAutomationRunReason
+	// chatID is the chat the input went to or was meant for, uuid.Nil
+	// when it is not known.
+	chatID uuid.UUID
+	// inputID identifies an accepted input, uuid.Nil otherwise.
+	inputID uuid.UUID
+	request AutomationRequest
+}
+
 // recordAutomationRunResult records the outcome of a publish that ended
-// with err as the automation's last run. chatID is the chat the input went
-// to, uuid.Nil when it is not known.
-func (p *Server) recordAutomationRunResult(ctx context.Context, automationID, chatID uuid.UUID, err error) {
+// with err: the automation's last run and the run's audit entry.
+func (p *Server) recordAutomationRunResult(ctx context.Context, trigger automationRunTrigger, request AutomationRequest, automationID uuid.UUID, result PublishAutomationResult, err error) {
 	outcome, reason, record := classifyAutomationRun(err)
 	if !record {
 		return
 	}
+	chatID := result.ChatID
 	// The skip names the chat that is still active.
 	if active, ok := errors.AsType[*AutomationPreviousRunActiveError](err); ok {
 		chatID = active.ChatID
 	}
-	p.recordAutomationRun(ctx, automationID, outcome, reason, chatID)
+	p.recordAutomationRun(ctx, automationRun{
+		automationID: automationID,
+		trigger:      trigger,
+		outcome:      outcome,
+		reason:       reason,
+		chatID:       chatID,
+		inputID:      result.InputID,
+		request:      request,
+	})
 }
 
 // RecordAutomationWebhookRefusal records an authenticated webhook delivery
 // that coderd refused before it reached chatd, for example because its
 // body was too large or not JSON. Callers must have verified the secret.
-func (p *Server) RecordAutomationWebhookRefusal(ctx context.Context, automationID uuid.UUID, reason codersdk.ChatAutomationRunReason) {
-	p.recordAutomationRun(ctx, automationID, database.ChatAutomationRunOutcomeRefused, reason, uuid.Nil)
+func (p *Server) RecordAutomationWebhookRefusal(ctx context.Context, automationID uuid.UUID, reason codersdk.ChatAutomationRunReason, request AutomationRequest) {
+	p.recordAutomationRun(ctx, automationRun{
+		automationID: automationID,
+		trigger:      automationRunTriggerWebhook,
+		outcome:      database.ChatAutomationRunOutcomeRefused,
+		reason:       reason,
+		request:      request,
+	})
 }
 
-// recordAutomationRun writes the automation's last run. It is best effort:
-// the outcome is already decided, so a failed write is only logged, and
-// it runs even when the caller's context is canceled, for example after a
-// webhook sender disconnected.
-func (p *Server) recordAutomationRun(ctx context.Context, automationID uuid.UUID, outcome database.ChatAutomationRunOutcome, reason codersdk.ChatAutomationRunReason, chatID uuid.UUID) {
+// recordAutomationRun writes the automation's last run and the run's audit
+// entry. It is best effort: the outcome is already decided, so a failed
+// write is only logged, and it runs even when the caller's context is
+// canceled, for example after a webhook sender disconnected.
+func (p *Server) recordAutomationRun(ctx context.Context, run automationRun) {
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), automationLastRunWriteTimeout)
 	defer cancel()
+	logger := p.logger.With(
+		slog.F("automation_id", run.automationID),
+		slog.F("trigger", run.trigger),
+		slog.F("outcome", run.outcome),
+		slog.F("reason", run.reason),
+	)
 	//nolint:gocritic // Publishers have no user identity; chatd records the outcome of every owner's runs.
-	_, err := p.db.UpdateChatAutomationLastRunByID(dbauthz.AsChatd(writeCtx), database.UpdateChatAutomationLastRunByIDParams{
-		ID:             automationID,
+	chatdCtx := dbauthz.AsChatd(writeCtx)
+	_, err := p.db.UpdateChatAutomationLastRunByID(chatdCtx, database.UpdateChatAutomationLastRunByIDParams{
+		ID:             run.automationID,
 		LastRunAt:      dbtime.Time(p.clock.Now()),
-		LastRunOutcome: outcome,
-		LastRunReason:  sql.NullString{String: string(reason), Valid: reason != ""},
-		LastRunChatID:  uuid.NullUUID{UUID: chatID, Valid: chatID != uuid.Nil},
+		LastRunOutcome: run.outcome,
+		LastRunReason:  sql.NullString{String: string(run.reason), Valid: run.reason != ""},
+		LastRunChatID:  uuid.NullUUID{UUID: run.chatID, Valid: run.chatID != uuid.Nil},
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		p.logger.Warn(ctx, "record chat automation last run",
-			slog.F("automation_id", automationID),
-			slog.F("outcome", outcome),
-			slog.F("reason", reason),
-			slog.Error(err))
+		logger.Warn(ctx, "record chat automation last run", slog.Error(err))
+	}
+	p.auditAutomationRun(chatdCtx, logger, run)
+}
+
+// auditAutomationRun records one start entry for the automation per run,
+// attributed to the owner, whose authority the run used. A deleted
+// automation is not audited: there is no row to name.
+func (p *Server) auditAutomationRun(ctx context.Context, logger slog.Logger, run automationRun) {
+	if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
+		return
+	}
+	auditor := p.chatWorker.opts.Auditor.Load()
+	if auditor == nil {
+		return
+	}
+	automation, err := p.db.GetChatAutomationByID(ctx, run.automationID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "load chat automation for run audit", slog.Error(err))
+		}
+		return
+	}
+	additional := map[string]string{
+		"trigger": string(run.trigger),
+		"outcome": string(run.outcome),
+		"reason":  string(run.reason),
+	}
+	if run.inputID != uuid.Nil {
+		additional["input_id"] = run.inputID.String()
+	}
+	if run.chatID != uuid.Nil {
+		additional["chat_id"] = run.chatID.String()
+	}
+	// Marshaling a map[string]string cannot fail.
+	fields, _ := json.Marshal(additional)
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.ChatAutomation]{
+		Audit:          *auditor,
+		Log:            logger,
+		UserID:         automation.OwnerID,
+		OrganizationID: automation.OrganizationID,
+		RequestID:      run.request.RequestID,
+		IP:             run.request.IP,
+		UserAgent:      run.request.UserAgent,
+		Action:         database.AuditActionStart,
+		Status:         automationRunStatus(run.outcome, run.reason),
+		// A run changes no configuration, so the entry has no diff.
+		Old:              automation,
+		New:              automation,
+		AdditionalFields: fields,
+	})
+}
+
+// automationRunStatus is the HTTP status of a run: the status the webhook
+// and Run now routes return for the outcome, and the same status for a
+// scheduled run, which has no response.
+func automationRunStatus(outcome database.ChatAutomationRunOutcome, reason codersdk.ChatAutomationRunReason) int {
+	if outcome == database.ChatAutomationRunOutcomeAccepted {
+		return http.StatusAccepted
+	}
+	switch reason {
+	case codersdk.ChatAutomationRunReasonQueueFull:
+		return http.StatusTooManyRequests
+	case codersdk.ChatAutomationRunReasonHookDenied,
+		codersdk.ChatAutomationRunReasonOwnerInactive,
+		codersdk.ChatAutomationRunReasonForbidden,
+		codersdk.ChatAutomationRunReasonDisabled:
+		return http.StatusForbidden
+	case codersdk.ChatAutomationRunReasonExperimentDisabled:
+		return http.StatusNotFound
+	case codersdk.ChatAutomationRunReasonBodyTooLarge:
+		return http.StatusRequestEntityTooLarge
+	case codersdk.ChatAutomationRunReasonInvalidBody,
+		codersdk.ChatAutomationRunReasonNoDefaultModel:
+		return http.StatusBadRequest
+	case codersdk.ChatAutomationRunReasonError:
+		return http.StatusInternalServerError
+	default:
+		// chat_busy, missed, previous_run_active, single_use_consumed,
+		// target_unavailable, model_unavailable.
+		return http.StatusConflict
 	}
 }

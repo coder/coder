@@ -554,6 +554,10 @@ To cap each user's AI spend, refer to [Spend management](./platform-controls/spe
 
 ### Silent failures
 
+Every run of an automation is in the audit log as a **start** entry for the automation, attributed to its owner: each schedule occurrence, including skipped and missed ones, each **Run now**, and each webhook delivery with the right secret.
+The entry's additional fields name the `trigger` (`schedule`, `webhook`, or `run_now`), the `outcome`, the `reason`, the `input_id`, and the `chat_id`, and webhook entries carry the sender's IP address and user agent.
+Requests with a wrong secret or for an automation that doesn't exist aren't audited.
+
 Skipped and missed schedule runs appear only in the logs of `coderd`, the process that runs the control plane, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
 A schedule doesn't run or produce logs when its target chat is archived or deleted, or when its owner isn't active.
 A refused webhook delivery appears in the HTTP response the sender receives.

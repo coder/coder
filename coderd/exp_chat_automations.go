@@ -774,9 +774,14 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// The caller proved the secret, so refusals from here on are recorded
-	// as the automation's last run.
+	// as the automation's last run and audited with the request.
+	request := chatd.AutomationRequest{
+		IP:        r.RemoteAddr,
+		UserAgent: r.UserAgent(),
+		RequestID: httpmw.RequestID(r),
+	}
 	if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, automation.OwnerID) {
-		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonExperimentDisabled)
+		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonExperimentDisabled, request)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -784,7 +789,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, int64(api.chatDaemon.AutomationWebhookMaxBodyBytes())))
 	if err != nil {
 		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonBodyTooLarge)
+			api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonBodyTooLarge, request)
 			httpapi.RecordRequestBodyLimit(ctx, mbe.Limit)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
@@ -801,7 +806,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 	// Unmarshal instead of json.Valid so the detail names the cause, such
 	// as a value nested deeper than the parser accepts.
 	if err := json.Unmarshal(body, new(json.RawMessage)); err != nil {
-		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonInvalidBody)
+		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonInvalidBody, request)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
@@ -813,6 +818,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		AutomationID:  automation.ID,
 		SecretVersion: automation.WebhookSecretVersion,
 		Body:          body,
+		Request:       request,
 	})
 	if err != nil {
 		writeChatAutomationEventError(ctx, rw, err)

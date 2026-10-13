@@ -139,6 +139,16 @@ type PublishAutomationWebhookParams struct {
 	SecretVersion int64
 	// Body is the event payload. It must be valid JSON.
 	Body []byte
+	// Request identifies the HTTP request that delivered the event, for
+	// the run's audit entry.
+	Request AutomationRequest
+}
+
+// AutomationRequest identifies the HTTP request that started a run.
+type AutomationRequest struct {
+	IP        string
+	UserAgent string
+	RequestID uuid.UUID
 }
 
 // PublishAutomationResult identifies an accepted automation input.
@@ -163,6 +173,22 @@ type automationPublish struct {
 	// guard, when set, must accept the automation before the send and
 	// the locked row at admission.
 	guard AutomationGuard
+	// request is the HTTP request of a webhook delivery, for the run's
+	// audit entry.
+	request AutomationRequest
+}
+
+// trigger names what started the input: a schedule occurrence, a webhook
+// delivery, or Run now.
+func (in automationPublish) trigger() automationRunTrigger {
+	switch {
+	case in.occurrence != nil:
+		return automationRunTriggerSchedule
+	case in.webhook:
+		return automationRunTriggerWebhook
+	default:
+		return automationRunTriggerRunNow
+	}
 }
 
 // PublishAutomationWebhook delivers a webhook event to the automation's
@@ -178,7 +204,7 @@ func (p *Server) PublishAutomationWebhook(ctx context.Context, params PublishAut
 	escaped := escapeAutomationEventData(params.Body)
 	if limit := p.AutomationWebhookMaxBodyBytes(); len(escaped) > limit {
 		err := &AutomationEventTooLargeError{Size: len(escaped), Max: limit}
-		p.recordAutomationRunResult(ctx, params.AutomationID, uuid.Nil, err)
+		p.recordAutomationRunResult(ctx, automationRunTriggerWebhook, params.Request, params.AutomationID, PublishAutomationResult{}, err)
 		return PublishAutomationResult{}, err
 	}
 	return p.publishAutomation(ctx, automationPublish{
@@ -191,6 +217,7 @@ func (p *Server) PublishAutomationWebhook(ctx context.Context, params PublishAut
 		},
 		webhook:       true,
 		secretVersion: params.SecretVersion,
+		request:       params.Request,
 	})
 }
 
@@ -204,7 +231,7 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		return PublishAutomationResult{}, xerrors.New("publish automation: authorizer is not configured")
 	}
 	result, err := p.publishAutomationInput(ctx, in)
-	p.recordAutomationRunResult(ctx, in.automationID, result.ChatID, err)
+	p.recordAutomationRunResult(ctx, in.trigger(), in.request, in.automationID, result, err)
 	return result, err
 }
 

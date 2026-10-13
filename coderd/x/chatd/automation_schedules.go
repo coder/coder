@@ -291,7 +291,12 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		// cron time within the window is after the cursor.
 		next, moved := skip(automationScheduleGrace, "chat automation schedule occurrence missed")
 		if moved {
-			p.recordAutomationRun(ctx, row.ID, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonMissed, uuid.Nil)
+			p.recordAutomationRun(ctx, automationRun{
+				automationID: row.ID,
+				trigger:      automationRunTriggerSchedule,
+				outcome:      database.ChatAutomationRunOutcomeSkipped,
+				reason:       codersdk.ChatAutomationRunReasonMissed,
+			})
 		}
 		if !moved || next.IsZero() || next.After(dbtime.Time(p.clock.Now())) {
 			return

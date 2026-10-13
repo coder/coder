@@ -137,7 +137,12 @@ func TestAutomationLastRun(t *testing.T) {
 		server := f.newServer(t, Limits{})
 		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 
-		server.recordAutomationRun(ctx, automation.ID, database.ChatAutomationRunOutcomeAccepted, "", f.chat.ID)
+		server.recordAutomationRun(ctx, automationRun{
+			automationID: automation.ID,
+			trigger:      automationRunTriggerSchedule,
+			outcome:      database.ChatAutomationRunOutcomeAccepted,
+			chatID:       f.chat.ID,
+		})
 		recorded := f.lastRun(ctx, t, automation.ID).LastRunAt.Time
 		// A write that another instance decided earlier does not replace
 		// the later one.
