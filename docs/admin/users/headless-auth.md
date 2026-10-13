@@ -8,6 +8,7 @@ title: Headless authentication
 Service accounts are headless user accounts that cannot use the web UI to log in
 to Coder. This is useful for creating accounts for automated systems, such as
 CI/CD pipelines or for users who only consume Coder via another client/API. Service accounts do not have passwords or associated email addresses.
+Coder never marks a service account [dormant](./index.md#dormant-user), so it stays active without logging in.
 
 You must have the User Admin role or above to create service accounts.
 
