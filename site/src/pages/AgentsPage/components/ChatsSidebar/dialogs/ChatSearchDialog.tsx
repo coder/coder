@@ -96,6 +96,13 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	// Radix only restores focus to a Dialog.Trigger, and this dialog opens
+	// from the sidebar button or the Ctrl+K shortcut instead. Remember what
+	// had focus on open so dismissing returns keyboard users there.
+	const returnFocusRef = useRef<{
+		element: HTMLElement;
+		pathname: string;
+	} | null>(null);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,11 +128,30 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 				// off-screen. Focus the dialog container instead to keep the
 				// element in the accessibility tree.
 				onOpenAutoFocus={(event) => {
+					const previous = document.activeElement;
+					returnFocusRef.current =
+						previous instanceof HTMLElement && previous !== document.body
+							? { element: previous, pathname: window.location.pathname }
+							: null;
 					if (focusInputOnOpen) {
 						return;
 					}
 					event.preventDefault();
 					contentRef.current?.focus({ preventScroll: true });
+				}}
+				onCloseAutoFocus={(event) => {
+					const returnFocus = returnFocusRef.current;
+					returnFocusRef.current = null;
+					// Selecting a result navigates; the destination page owns
+					// focus then.
+					if (
+						!returnFocus?.element.isConnected ||
+						returnFocus.pathname !== window.location.pathname
+					) {
+						return;
+					}
+					event.preventDefault();
+					returnFocus.element.focus({ preventScroll: true });
 				}}
 			>
 				<ChatSearchDialogContent
