@@ -46,6 +46,7 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
+import { getBuiltinImageDescription } from "#/theme/builtinImages";
 
 type ChatShareButtonProps = {
 	chatId: string;
@@ -138,6 +139,7 @@ const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
 				avatar={
 					<Avatar
 						src={group.avatar_url}
+						alt={getBuiltinImageDescription(group.avatar_url) ?? ""}
 						fallback={group.display_name || group.name}
 						variant="icon"
 					/>
