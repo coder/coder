@@ -320,6 +320,21 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
+	const seed = (page: TypesGen.ChatMessagesResponse): void => {
+		if (state.load.status === "loaded") {
+			return;
+		}
+		syncedSnapshotVersion = page.snapshot_version ?? 0;
+		setState((current) => ({
+			...current,
+			messagesByID: buildMessageMap(page.messages),
+			orderedMessageIDs: buildOrderedMessageIDs(page.messages),
+			queuedMessages: page.queued_messages,
+			hasMoreMessages: page.has_more,
+			load: { status: "loaded" },
+		}));
+	};
+
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
 		// Use `state` for the early-return guard so we can return
 		// the result synchronously. The actual mutation below uses
@@ -418,7 +433,7 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
-	const store: ChatStore = {
+	return {
 		getSnapshot: () => state,
 		subscribe: (listener) => {
 			listeners.add(listener);
@@ -452,20 +467,7 @@ export const createChatStore = (): ChatStore => {
 				endPending(["message", "queue"]);
 			});
 		},
-		seed: (page) => {
-			if (state.load.status === "loaded") {
-				return;
-			}
-			syncedSnapshotVersion = page.snapshot_version ?? 0;
-			setState((current) => ({
-				...current,
-				messagesByID: buildMessageMap(page.messages),
-				orderedMessageIDs: buildOrderedMessageIDs(page.messages),
-				queuedMessages: page.queued_messages,
-				hasMoreMessages: page.has_more,
-				load: { status: "loaded" },
-			}));
-		},
+		seed,
 		load: (fetchPage) => {
 			if (loadInFlight || state.load.status === "loaded") {
 				return;
@@ -490,7 +492,7 @@ export const createChatStore = (): ChatStore => {
 						}));
 						return;
 					}
-					store.seed(page);
+					seed(page);
 				},
 				(error: unknown) => {
 					loadInFlight = false;
@@ -711,7 +713,6 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 	};
-	return store;
 };
 
 type ChatView = Pick<

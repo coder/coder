@@ -117,15 +117,23 @@ const findBuiltInChatCommand = (
 
 const runBuiltInChatCommand = async ({
 	command,
+	store,
+	agentId,
+	clearChatErrorReason,
 	compact,
 	clearChatContext,
 }: {
 	command: (typeof CHAT_SLASH_COMMANDS)[number];
+	store: ChatStore;
+	agentId: string;
+	clearChatErrorReason: (chatId: string) => void;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 }): Promise<void> => {
 	switch (command.name) {
 		case COMPACT_SLASH_COMMAND.name: {
+			clearChatErrorReason(agentId);
+			store.clearStreamError();
 			try {
 				await compact();
 			} catch (error) {
@@ -207,6 +215,9 @@ export async function submitChatTurn(
 	if (builtInCommandResolution === "available" && builtInCommand) {
 		await runBuiltInChatCommand({
 			command: builtInCommand,
+			store,
+			agentId,
+			clearChatErrorReason,
 			compact,
 			clearChatContext,
 		});
@@ -231,6 +242,8 @@ export async function submitChatTurn(
 				: undefined,
 			mcp_server_ids: [...mcpServerIds],
 		};
+		clearChatErrorReason(agentId);
+		store.clearStreamError();
 		const pendingID = store.addPendingAction({
 			kind: "edit",
 			editedMessageID,
