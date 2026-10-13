@@ -1,4 +1,5 @@
 import {
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPreviewParameter,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
@@ -15,6 +16,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { mockDynamicParameterWebSocket } from "testHelpers/websockets";
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import { act } from "react";
 import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperimental";
@@ -63,6 +65,51 @@ describe("WorkspaceParametersPageExperimental", () => {
 	afterEach(() => {
 		jest.useRealTimers();
 		jest.restoreAllMocks();
+	});
+
+	it("allows updating to a required active version without permission to change versions", async () => {
+		const workspace = MockOutdatedStoppedWorkspaceRequireActiveVersion;
+		jest
+			.mocked(API.getWorkspaceByOwnerAndName)
+			.mockReset()
+			.mockResolvedValue(workspace);
+		jest.spyOn(API, "checkAuthorization").mockResolvedValue({
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: false,
+			deleteFailedWorkspace: false,
+		});
+		jest
+			.mocked(API.getWorkspaceBuildParameters)
+			.mockReset()
+			.mockResolvedValue([]);
+		const postWorkspaceBuild = jest
+			.spyOn(API, "postWorkspaceBuild")
+			.mockResolvedValue(workspace.latest_build);
+		mockDynamicParameterWebSocket([
+			{ ...MockPreviewParameter, value: { valid: true, value: "value" } },
+		]);
+
+		renderWorkspaceParametersPageExperimental(
+			`/@${workspace.owner_name}/${workspace.name}/settings?templateVersionId=${workspace.template_active_version_id}`,
+		);
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(postWorkspaceBuild).toHaveBeenCalledWith(
+				workspace.id,
+				expect.objectContaining({
+					template_version_id: workspace.template_active_version_id,
+				}),
+			),
+		);
 	});
 
 	it("does not clobber touched parameters", async () => {
