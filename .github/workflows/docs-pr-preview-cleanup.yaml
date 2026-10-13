@@ -1,0 +1,114 @@
+# Deletes the docs previews that docs-pr-preview-deploy.yaml publishes.
+#
+# On merge or close it deletes every deployment of that PR (tagged with the
+# deployment meta pr=<number>), and with them their
+# coder-docs-pr-<number>[-<sha>].vercel.app aliases. Once a week, and on
+# demand, it grooms the whole preview project: any deployment whose PR is
+# closed goes, which catches a close event this workflow missed.
+#
+# Only the Vercel and GitHub APIs are called; nothing is checked out.
+name: docs-pr-preview-cleanup
+
+on:
+  # zizmor: ignore[dangerous-triggers] Needed so a fork PR's previews are cleaned with the Vercel secret. Nothing from the PR is checked out or run.
+  pull_request_target:
+    types:
+      - closed
+  schedule:
+    - cron: "23 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || 'groom' }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: docs-preview
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Delete closed pull requests' previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CLOSED_PR: ${{ github.event.pull_request.number }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          vercel_api() {
+            curl --fail-with-body -sS --retry 3 \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" "$@"
+          }
+
+          # Every deployment in the preview project as "<id>\t<pr>\t<sha>",
+          # following the pagination cursor to the end.
+          list_deployments() {
+            local until="" page
+            while :; do
+              page=$(vercel_api "https://api.vercel.com/v6/deployments?teamId=${VERCEL_ORG_ID}&projectId=${VERCEL_PROJECT_ID}&limit=100${until:+&until=${until}}")
+              printf '%s' "$page" | jq -r '.deployments[] | [.uid, (.meta.pr // ""), (.meta.sha // "")] | @tsv'
+              until=$(printf '%s' "$page" | jq -r '.pagination.next // empty')
+              [ -n "$until" ] || break
+            done
+          }
+
+          # A 404 means the alias or deployment is already gone.
+          delete() {
+            local status
+            status=$(vercel_api -o /dev/null -w '%{http_code}' -X DELETE "$1" || true)
+            case "$status" in
+            200 | 204 | 404) ;;
+            *)
+              echo "DELETE $1 returned ${status}" >&2
+              return 1
+              ;;
+            esac
+          }
+
+          deployments=$(list_deployments)
+
+          if [ -n "$CLOSED_PR" ]; then
+            closed="$CLOSED_PR"
+          else
+            closed=""
+            for pr in $(printf '%s\n' "$deployments" | cut -f2 | grep -E '^[0-9]+$' | sort -un); do
+              state=$(gh api "repos/${REPO}/pulls/${pr}" --jq '.state' || echo unknown)
+              if [ "$state" = "closed" ]; then
+                closed="${closed} ${pr}"
+              elif [ "$state" = "unknown" ]; then
+                echo "::warning::Could not read #${pr}; keeping its previews until the next run."
+              fi
+            done
+          fi
+
+          failed=0
+          for pr in $closed; do
+            removed=0
+            delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}.vercel.app?teamId=${VERCEL_ORG_ID}" || failed=1
+            while IFS=$'\t' read -r id dep_pr sha; do
+              [ "$dep_pr" = "$pr" ] || continue
+              if [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+                delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}-${sha:0:9}.vercel.app?teamId=${VERCEL_ORG_ID}" || failed=1
+              fi
+              if delete "https://api.vercel.com/v13/deployments/${id}?teamId=${VERCEL_ORG_ID}"; then
+                removed=$((removed + 1))
+              else
+                failed=1
+              fi
+            done <<< "$deployments"
+            echo "#${pr}: deleted ${removed} preview deployment(s)."
+          done
+          exit "$failed"

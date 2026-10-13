@@ -1,6 +1,7 @@
 # Posts a docs-preview comment on docs PRs. For every changed page with a
-# docs/manifest.json route it lists a preview link (coder.com/docs/@<branch>,
-# branch URL-encoded) and a Markdown checkbox. Checkbox state round-trips
+# docs/manifest.json route it lists a preview link on the PR's own preview
+# (coder-docs-pr-<number>.vercel.app, built and aliased by
+# docs-pr-preview-deploy.yaml) and a Markdown checkbox. Checkbox state round-trips
 # across pushes but resets when a page's content changes, so a checked box
 # means "reviewed the current revision." Pages with no manifest route
 # (docs/.style/** tooling, or not-yet-navigable pages) are dropped, since
@@ -62,7 +63,6 @@ jobs:
       - name: Post docs preview comment
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
@@ -223,8 +223,7 @@ jobs:
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           # Computed early: the reference-page log below needs it too.
-          encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
-          url_prefix="https://coder.com/docs/@${encoded_branch}"
+          url_prefix="https://coder-docs-pr-${PR_NUMBER}.vercel.app"
 
           # Fetch the PR's changed files once, then derive the Markdown and
           # image sets from the same payload: one read halves the rate-limit
@@ -482,6 +481,8 @@ jobs:
             # whose state map is {}.
             {
               printf '## Docs preview\n\n'
+              # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+              printf 'Links open this pull request'"'"'s preview at %s once its build finishes. A pull request from a fork builds after a maintainer adds the `docs-preview` label.\n\n' "$url_prefix"
               if [ -n "$page_block" ]; then
                 printf '%s\n' "$page_block"
               fi
