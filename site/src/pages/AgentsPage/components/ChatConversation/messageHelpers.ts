@@ -104,9 +104,12 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
-	const endsWithResponseBlock =
-		visibleBlocks.length > 0 &&
-		visibleBlocks[visibleBlocks.length - 1].type === "response";
+	// The answer's citation row renders after the text it cites, so it
+	// does not stop the message from ending with text.
+	const lastNonSourceBlock = visibleBlocks.findLast(
+		(block) => block.type !== "sources",
+	);
+	const endsWithResponseBlock = lastNonSourceBlock?.type === "response";
 
 	return {
 		hasRenderableContent,
