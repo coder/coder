@@ -31,7 +31,7 @@ Look for:
 
 - `!!x` in new code: the codebase preference is `Boolean(x)`.
 - `String(x)` or `x === undefined ? undefined : String(x)` where `x` is already `string | undefined`; check the declared type before accepting the cast.
-- `?? ""`, `|| "fallback"`, `?? otherValue`, and `"" satisfies T` sentinels: ask under what scenario the left side is missing and whether the fallback is reachable; a hardcoded literal that duplicates an existing default constant must reference the constant.
+- `?? ""`, `|| "fallback"`, `?? otherValue`, and `"" satisfies T` sentinels: ask under what scenario the left side is missing and whether the fallback is reachable. A visible fallback such as "N/A" or "Unknown" for nullable display text is required by FE5, so keep it. A hardcoded literal that duplicates an existing default constant must reference the constant.
 - `x === false` or `x !== false` on a `boolean`: write `!x` or `x`.
 
 Fix: Delete the coercion and let the declared type carry the value; when a fallback is genuinely needed, make the source non-nullable or name the default as a constant and reference it.
@@ -57,12 +57,12 @@ FE parent: none
 
 Look for:
 
-- Components declared as `({ a, b }: Props) =>` with no `React.FC`, or as `FC<{ inline: string }>` with the props shape inlined: every component gets a named `XProps` type and `React.FC<XProps>`.
+- Components declared as `({ a, b }: Props) =>` with no `React.FC`, or as `FC<{ inline: string }>` with the props shape inlined. The codebase convention is a named `XProps` type and `React.FC<XProps>`; in a file whose existing components are bare typed arrows (`site/src/components/Tabs/Tabs.tsx`), match the file instead, as site/AGENTS.md asks.
 - `interface XProps` for props, and diffs that swap `React.FC` for a bare `FC` import: the convention is `type` and the `React` namespace; treat a change away from it as a regression.
 - Generics narrowed to `string` (or another concrete type) when the implementation does not depend on it, and multi-line `NonNullable<ComponentPropsWithRef<...>[...]>` gymnastics to express a simple requirement.
 - Two styles for the same thing inside one PR (one query key `as const`, another not): pick the existing convention and apply it everywhere. Fixture names are exempt: they are TS3's checkpoint, and a new `mockX` fixture beside pre-existing unprefixed fixtures is the convention arriving, not a second style.
 
-Fix: Declare `type XProps = { ... }` and `export const X: React.FC<XProps> = (...)`; keep generics generic; match the pattern in the surrounding folder rather than introducing a second one. Never recommend removing a `mock` prefix or renaming existing unprefixed fixtures.
+Fix: Declare `type XProps = { ... }` and `export const X: React.FC<XProps> = (...)` unless the file's existing components use another form; keep generics generic; match the pattern in the same file, then the surrounding folder, rather than introducing a second one. Never recommend removing a `mock` prefix or renaming existing unprefixed fixtures.
 
 ### TN5: Name identifiers for what they mean to the reader
 

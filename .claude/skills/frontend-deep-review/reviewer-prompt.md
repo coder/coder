@@ -50,16 +50,18 @@ Do this, in order:
    checkpoint ID, the severity (the role file's default unless the
    consequence is user-visible, which raises it, or the code is pre-existing
    and merely touched, which lowers it), the exact file:line in the new
-   file, what is wrong in one sentence, and the fix in one sentence.
-5. Skip findings you cannot pin to a line in the diff. Skip pre-existing code
-   unless the PR is a refactor of exactly that code. Skip anything a linter
-   or formatter already reports.
+   file (or `(whole PR)` for a PR-scope checkpoint such as RO6), what is
+   wrong in one sentence, and the fix in one sentence.
+5. Skip findings you cannot pin to a line in the diff, except PR-scope
+   findings such as RO6. Skip pre-existing code unless the PR is a refactor
+   of exactly that code. Skip anything a linter or formatter already
+   reports.
 
 Your final message is the deliverable. Use exactly this layout:
 
 ## <PREFIX> findings
 
-<ID> <severity> <file:line>
+<ID> <severity> <file:line, or (whole PR)>
 <one sentence: what is wrong>
 Fix: <one sentence>
 

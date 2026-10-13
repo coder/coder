@@ -67,7 +67,7 @@ Fix: move the code next to the component that uses it, or into the existing modu
 ### RO5: Keep unrelated changes out of the PR
 
 Default severity: should-fix
-FE parent: none
+FE parent: FE3
 
 Look for:
 

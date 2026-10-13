@@ -104,7 +104,8 @@ Then:
 - Copy each reviewer's "Conflicts with repository rules" entries below the
   verdict table: each one names a checkpoint whose role file needs
   correcting.
-- Drop findings without `file:line` evidence, and findings about untouched
+- Drop findings without `file:line` evidence, except PR-scope findings
+  such as RO6, which cite `(whole PR)`. Also drop findings about untouched
   pre-existing code unless the PR is a refactor of exactly that code.
 
 ### 4. Report
@@ -133,7 +134,8 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   one-line justification that will go in the PR description.
 - Someone else's PR (report mode): post findings as inline review comments
   in the register human reviewers use (short, specific, with the fix).
-  Group nits into the review summary. Never post a finding you cannot point at a line.
+  Group nits and PR-scope findings such as RO6 into the review summary.
+  Never post any other finding you cannot point at a line.
 
 ## Severity
 
@@ -149,7 +151,7 @@ touched.
 |---|---|
 | FE1 Storybook visual states, Vitest behavior | TS1, TS4, TS5, TS7 |
 | FE2 No loose types | TN1, TN2, TN3 |
-| FE3 Reuse, single purpose, no dead code | RO1, RO2, RO3, RO6, SD1, SD2, SD4 |
+| FE3 Reuse, single purpose, no dead code | RO1, RO2, RO3, RO5, RO6, RP5, SD1, SD2, SD4 |
 | FE4 Comments earn their place | CD1 to CD6 |
 | FE5 UI states, never clobber user state | DF5, DF6 |
 | FE6 Accessibility | SA6 |
@@ -158,7 +160,7 @@ touched.
 | FE9 Fixtures and mocks | TS3, TS6 |
 | FE10 Tests assert observable behavior | TS2 |
 
-Checkpoints with no FE parent (SD3, SD5, SD6, SD7, RP4 to RP8, DF7, RO4,
-RO5, TN4 to TN6, SA1 to SA5) are conventions reviewers enforce that the
+Checkpoints with no FE parent (SD3, SD5, SD6, SD7, RP4, RP6 to RP8, DF7,
+RO4, TN4 to TN6, SA1 to SA5) are conventions reviewers enforce that the
 contract does not yet spell out. When one of them proves consistently
 useful, propose adding it to `FRONTEND_PATTERNS.md`.

@@ -44,11 +44,11 @@ FE parent: FE9
 Look for:
 
 - A local entity constant in a story or test named without the `mock` prefix (`defaultChat`, `parentChat`, `secondTemplate`, `slackMCPAlwaysOnNeedingAuth`): rename to `mockX`. Pre-existing unprefixed neighbours in the same file (`sentryMCP`, `linearMCP`) do not excuse the new one; flag only the new fixture and do not ask for the old ones to be renamed.
-- A factory function (`makeCostControl(overrides)`, `buildMCPServer(...)`, `memberWithSpend(...)`) where a `mockX` constant plus `{ ...mockX, field: value }` at the call site would do.
+- A factory function (`makeCostControl(overrides)`, `buildMCPServer(...)`, `memberWithSpend(...)`) where named `mockX` constants that spread the base fixture would do.
 - A local fixture that duplicates an existing `Mock*` from site/src/testHelpers with no meaningful difference: use the shared one.
 - Real production domains or hostnames in fixture values: use `*.example.com`.
 
-Fix: define one `mockX` constant per entity (spreading the shared `MockX` when one exists), override fields inline at each call site, and delete the factory.
+Fix: define one `mockX` constant per entity, and one named constant per variant that spreads the base fixture (the shared `MockX` when one exists), as FE9 asks; delete the factory.
 
 ### TS4: Keep test and story files plain, and keep test code out of production
 

@@ -46,9 +46,9 @@ Look for:
 - Per-call `mutate(id, { onSuccess, onError })` blocks inside JSX or click handlers that close dialogs, toast, and navigate; especially several copies in one file.
 - `await mutateAsync()` where no later step needs the result for control flow (FE7 asks for `mutate()` with callbacks there), `try/catch` around it written inline in markup, or a `catch` that only toasts when the `useMutation` definition already has (or should have) `onSuccess`/`onError`.
 - Hand-written `MutationOptions<Awaited<ReturnType<typeof API.x>>, unknown, {...}>` generics instead of `mutationOptions(...)`.
-- `invalidateQueries` after a mutation that hits a broader key than the entity changed (the whole list for a single-item update) with no stated reason, or that is missing on one of two chained requests.
+- `invalidateQueries` on a key that also covers queries the mutation cannot have changed, with no stated reason, or a missing invalidation for a query that holds the changed data (the list that shows an updated item, the second of two chained requests).
 
-Fix: use `mutate()` with `onSuccess`/`onError`, defined once on the `useMutation` when the call sites share them (add to, do not overwrite, existing callbacks). Keep `await mutateAsync()` only where the caller needs the result for control flow, with a `catch` that handles the error. Wrap options in `mutationOptions`. Invalidate the narrowest key that covers what changed and say why when it must be wider.
+Fix: use `mutate()` with `onSuccess`/`onError`, defined once on the `useMutation` when the call sites share them (add to, do not overwrite, existing callbacks). Keep `await mutateAsync()` only where the caller needs the result for control flow, with a `catch` that handles the error. Wrap options in `mutationOptions`. Invalidate every query that holds data the mutation changed, as FE7 requires (`updateTemplateMeta` in `api/queries/templates.ts` invalidates both the list and the detail keys), and nothing broader without a stated reason.
 
 ### DF4: Queries live in api/queries and React Query drives the fetching
 
@@ -76,7 +76,7 @@ Look for:
 - Show/hide logic for banners and hints derived by comparing a query or filter string to a hardcoded literal; ask what happens for equivalent inputs written differently.
 - A story matrix that covers loading and error but not the empty variants the code branches on.
 
-Fix: branch explicitly on `isLoading`, `error`, and each empty condition with deliberate copy, derive visibility from parsed data rather than string equality, and stop coalescing missing server data into placeholder values (TN owns the coercion style, DF owns the missing branch).
+Fix: branch explicitly on `isLoading`, `error`, and each empty condition with deliberate copy, derive visibility from parsed data rather than string equality, and stop coalescing data that has not loaded yet into placeholder values (TN owns the coercion style, DF owns the missing branch). A nullable field the server did return still renders a visible fallback such as "N/A" (FE5).
 
 ### DF6: Never clobber user state on refetch or reconciliation
 
@@ -101,7 +101,7 @@ Look for:
 
 - A new `localStorage` or `sessionStorage` key for a user preference (button variant, layout width, full-width toggle, flags): ask whether it should be a persisted user setting in the database like existing preference settings.
 - Keys that are not scoped by user id, organization id, or workspace id when the value differs per user or resource; and legacy-key migration or removal done inline in a component (`removeItem(legacyKey)`) or via a registered "legacy keys" sweep with no owner.
-- Read paths that ignore the expiry the write path records, expiry on data the user expects to keep (drafts), and helpers that subscribe to both a custom change event and the `storage` event for the same key.
+- Read paths that ignore the expiry the write path records, and expiry on data the user expects to keep (drafts). A custom change event next to the native `storage` event is not a duplicate: the native event fires only in other tabs.
 - `useEffect` that mirrors React state into storage with a "last persisted" ref instead of writing in the event handler that changes the state.
 
 Fix: prefer a database-backed user setting for anything users expect to follow them; when storage is right, define the key once next to the code that reads it, with the user or resource scope in the key, write it in the event handler, make reads honour any expiry the write records, and keep migrations and legacy cleanup with the key definition rather than in components.

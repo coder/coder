@@ -20,21 +20,21 @@ Look for:
 - useState initialised from a prop and never set again. Use the prop.
 - An effect that runs to "sync" one state into another with an inequality guard. Delete one of the two.
 
-Fix: read the source value directly or compute the derived value in render; when a prop change must reset local state, compare against the previous value during render or remount the subtree with a key.
+Fix: read the source value directly or compute the derived value in render; when a prop change must reset local state, compare against the previous value during render or remount the subtree with a key derived from the changed id (FE5 forbids `key={String(booleanState)}`).
 
-### RP2: Move side effects into the event handler or query callback that causes them
+### RP2: Move side effects into the event handler or mutation callback that causes them
 
 Default severity: should-fix
 FE parent: FE8
 
 Look for:
 
-- An effect that persists state (storage.set, save*) whenever the state changes, usually guarded by a lastPersistedRef. The write belongs in the setter or the existing storage hook.
-- An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or query callback should own that step.
+- An effect that persists state (localStorage.setItem, save*) whenever the state changes, usually guarded by a lastPersistedRef. The write belongs in the event handler or setter that changes the state.
+- An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or mutation callback should own that step. `useQuery` has no `onSuccess` (TanStack Query v5 removed query callbacks), so never suggest one.
 - An effect that runs a migration or one-off transform on every render where query data exists, with a ref to make it run once.
 - Any effect the author could not explain in one sentence. The reviewers asked for the justification in the PR or in a comment, and mostly got a rewrite.
 
-Fix: call the side effect from the handler that changes the value, or from the query or mutation callback that produces it; if the effect stays, document why the external-system case applies.
+Fix: call the side effect from the handler that changes the value, or from the mutation callback that produces it; derive values from query data in render or in the query's `select`; if the effect stays, document why the external-system case applies.
 
 ### RP3: Audit dependencies and refs on effects that own listeners, observers, fetches, or DOM
 
@@ -46,7 +46,8 @@ Look for:
 - A suppression of oxlint's `react/exhaustive-deps` rule. If the value is stable, add it; if it is not, the effect is wrong.
 - An effect that only copies state or a prop into a ref (widthRef.current = width, formValuesRef, dragged.current = true). Ask who reads the ref; usually it exists to dodge a dependency array. Use useEffectEvent or read the value directly.
 - addEventListener, ResizeObserver, popup windows, or fetchNextPage set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource.
-- Helper functions declared inside the effect body and DOM found via querySelector instead of a ref. Pull the function out; attach a ref or ref callback instead.
+- Helper functions declared inside the effect body that capture no props or state: hoist them to module level. A helper that reads props or state stays inside the effect, as React recommends.
+- DOM found via querySelector instead of a ref: attach a ref or ref callback instead.
 
 Fix: make the dependency list honest, delete ref-sync effects, keep setup and cleanup in the same effect, and use a ref callback for measurements that only need the mounted element.
 
@@ -60,7 +61,7 @@ Look for:
 - A new useCallback, useMemo, or memo() in a directory the React Compiler `include` filter in site/vite.config.mts lists. The compiler already memoizes those files. Exception: memo() on a list-item component rendered in a map stays, because compiler memoization does not cross component boundaries (site/AGENTS.md).
 - A new useCallback, useMemo, or memo() outside those directories with no stated reason: ask for one. Nothing memoizes these files automatically, so do not ask to remove memoization that has a reason.
 - memo() on a child whose parent passes a new function or object on every render: the memo never hits.
-- useMemo(() => generateId(), []) used for a stable identity. useMemo is a performance hint React may discard; use useState with an initialiser.
+- useMemo(() => generateId(), []) used for a stable identity. useMemo is a performance hint React may discard; use useState with an initialiser, or React.useId() for DOM and ARIA ids (FE6).
 - In a compiled directory, a component or hook with a `try` block that has a `finally` clause or contains a `? :`, `&&`, `||`, `??`, or `?.` expression: the compiler skips the whole function, and `pnpm lint:compiler` reports it.
 - Functions that capture no component variables defined inside the component. Hoist them to module level.
 
@@ -69,7 +70,7 @@ Fix: in a compiled directory, remove the memoization (except memo() on list item
 ### RP5: Do not add a hook that a plain function or an existing hook already covers
 
 Default severity: should-fix
-FE parent: none
+FE parent: FE3
 
 Look for:
 

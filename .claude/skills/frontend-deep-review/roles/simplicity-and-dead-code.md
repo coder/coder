@@ -76,7 +76,7 @@ Look for:
 - Deep copies written by hand or as `JSON.parse(JSON.stringify(x))` where `structuredClone` or an object spread does the job; `[...arr].sort()` where `toSorted` exists.
 - `typeof error === "object" && error !== null && "name" in error` style guards instead of catching and narrowing on the error type (`instanceof`, `isAxiosError`).
 - Several regexes or `replace` calls (`replace(/^0+/, "")`) that hand-parse one value where a single helper taking the string and returning the parsed value or `undefined` would read better; a hand-written tokenizer or matcher that recreates regex. Parsing is not validation: `Number.parseInt("12abc", 10)` is 12 and `Number("0x50")` is 80, so a replacement must still reject every input the old check rejected (keep `/^\d+$/` when the whole string must be digits).
-- Manual data-URL decoding or blob assembly where `fetch` on the URI already returns a Blob; npm scripts chaining `cd .. && ... && cd site` where a tool flag (`make -C ..`) exists.
+- npm scripts chaining `cd .. && ... && cd site` where a tool flag (`make -C ..`) exists. Do not suggest `fetch(dataUrl)` in place of manual data-URL decoding: the production CSP's `connect-src` excludes `data:`, so the fetch fails.
 
 Fix: replace the hand-rolled block with the platform or library call, keeping any full-string check the old code performed, and narrow errors by type rather than by structural checks.
 
@@ -87,11 +87,11 @@ FE parent: none
 
 Look for:
 
-- `{" "}` immediately after a closing tag, a closing `)}` of a conditional, or as the first child of a container. Grep the diff for `{" "}` on added lines; nearly every one is a formatter artifact, not intentional spacing.
+- `{" "}` immediately after a closing tag, a closing `)}` of a conditional, or as the first child of a container. Grep the diff for `{" "}` on added lines and ask whether each one is intended: most are leftovers, but one between inline text and an element is a visible space.
 - A blank line inserted between a file header comment and the first import, or in the middle of an import block.
 - Whitespace-only hunks in files the PR otherwise did not need to touch.
 
-Fix: delete the `{" "}` or blank line. If a space between inline elements is really needed, say so in the PR or use a gap class on the parent.
+Fix: delete the unintended `{" "}` or blank line. Keep a `{" "}` that separates inline words, and space flex or grid items with a gap class on the parent.
 
 ### SD7: Question premature extraction and abstraction
 

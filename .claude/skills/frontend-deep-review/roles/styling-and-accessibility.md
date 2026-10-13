@@ -42,11 +42,12 @@ FE parent: none
 
 Look for:
 
-- New `style={{ ... }}` props, `css={...}`, `theme.palette.*`, `useTheme`, or `@mui` imports in changed files, including `style` used only to read a CSS variable (`height: "var(--header-height)"`).
+- New `style={{ ... }}` props whose values are static and have a utility equivalent, including `style` used only to read a CSS variable (`height: "var(--header-height)"`). Inline `style` stays for values computed at runtime (a percentage from data, a user-chosen color, a virtualizer's row position), because Tailwind only generates classes it finds in the source.
+- `css={...}`, `theme.palette.*`, `useTheme`, or `@mui` imports in changed files.
 - New entries in `site/src/theme/roles.ts` or other theme color objects.
 - Edits to `site/src/index.css`, new global class names consumed from components, and JS that writes `document.documentElement.style` properties.
 
-Fix: express it as Tailwind classes on the element (arbitrary-value classes are acceptable for CSS variables); keep colors in Tailwind tokens; keep global CSS untouched unless the change is meant to cascade site-wide, and say so.
+Fix: express static styles as Tailwind classes on the element (arbitrary-value classes are acceptable for CSS variables) and leave runtime values in `style`; keep colors in Tailwind tokens; keep global CSS untouched unless the change is meant to cascade site-wide, and say so.
 
 ### SA4: Let CSS and the browser do layout; check spacing and text rendering
 
@@ -69,12 +70,12 @@ FE parent: none
 
 Look for:
 
-- `invert`, color, or filter classes with no `dark:` qualifier, especially on `ExternalImage`.
+- `invert`, color, or filter classes that suit only one theme, especially on `ExternalImage`, which already adapts icons to the theme through `site/src/theme/externalImages.ts`. Ask for a semantic theme token or that mechanism; site/AGENTS.md forbids the `dark:` prefix, so never ask for one.
 - New icons in `site/src/theme/icons.json` without a matching entry in `site/src/theme/externalImages.ts`.
 - New theme variants that redefine every variable instead of overriding only the values that differ, and any change that removes or renames the `auto` theme option.
 - Hardcoded `fontFamily` or color strings passed to third-party renderers (Mermaid, terminals) when a Tailwind or CSS variable could be inherited.
 
-Fix: qualify by theme or use the token; register icons in externalImages.ts; base new themes on an existing one; read fonts and colors from CSS variables where the library allows.
+Fix: use the semantic token or the theme-aware primitive instead of a fixed color or filter; register icons in externalImages.ts; base new themes on an existing one; read fonts and colors from CSS variables where the library allows.
 
 ### SA6: Use semantic elements and correct accessible names, keyboard paths, and focus
 
