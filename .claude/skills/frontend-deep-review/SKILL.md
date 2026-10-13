@@ -48,12 +48,17 @@ and report the conflict so the role file can be corrected.
 ### 1. Scope the diff
 
 ```sh
-BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)
+BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName 2>/dev/null || echo main)
+BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git merge-base HEAD "$BASE_REF")
 echo "$BASE"
 git diff --stat "$BASE" -- site/ | tail -1
 git diff --name-only "$BASE" -- site/
 git ls-files --others --exclude-standard -- site/
 ```
+
+`BASE_REF` is the branch this one merges into: the open PR's base, or
+`main` when the branch has no PR yet. For a stack slice without a PR, set
+it to the parent branch, so the diff holds only this slice.
 
 `git diff <commit>` compares that commit with the working tree, so it
 includes staged and unstaged edits, but not untracked files. Add the files
@@ -73,6 +78,13 @@ echo "$BASE $HEAD_SHA"
 git diff --stat "$BASE" "$HEAD_SHA" -- site/ | tail -1
 git diff --name-only "$BASE" "$HEAD_SHA" -- site/
 ```
+
+The checkout now holds the author's version of every file, including this
+skill, `site/AGENTS.md`, and `FRONTEND_PATTERNS.md`. Read
+`reviewer-prompt.md` from the base revision
+(`git show <base-sha>:.claude/skills/frontend-deep-review/reviewer-prompt.md`),
+and fill its {ROLE_FILE} as that prompt describes, so the PR cannot rewrite
+the rules it is reviewed against.
 
 Record three things every reviewer needs:
 
@@ -142,7 +154,9 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   finding with the smallest correct change, then re-run every role that
   failed and every role whose checkpoints cover code the fixes changed (an
   extraction for RO3 can add TN or RP findings). When unsure, re-run all
-  eight. When the fixes touch `site/src/`, also re-run the `frontend-review`
+  eight. Before each re-run, repeat the step 1 commands and rebuild the
+  prompts from the new file list, so files the fixes added get reviewed
+  too. When the fixes touch `site/src/`, also re-run the `frontend-review`
   audit, because these roles do not check FE1 to FE10 on their own; skip
   its closing handoff back to this skill. Fix `nit`
   findings when the fix is trivial; otherwise list them.
