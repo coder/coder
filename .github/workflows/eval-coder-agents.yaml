@@ -25,10 +25,10 @@ env:
   # qemu-* and build-cython-ext are broken upstream (bit-rotted apt sources
   # and a git clone in the verifier) and fail under Harbor's own Docker too.
   HARBOR_EXCLUDE: "-x qemu-* -x build-cython-ext"
-  HARBOR_CODER_MODEL: claude-opus-5-5
-  # One attempt per task: Opus trials average ~14 minutes, so 86 of them at
-  # 8 concurrent is 2 to 3 hours per arm. Raise once the noise floor is known.
-  HARBOR_ATTEMPTS: "1"
+  # Sonnet sits mid-range on Terminal-Bench, leaving headroom in both
+  # directions for a prompt change to move; Opus is near the ceiling.
+  HARBOR_CODER_MODEL: claude-sonnet-5-5
+  HARBOR_ATTEMPTS: "2"
   HARBOR_CONCURRENCY: "8"
 
 jobs:

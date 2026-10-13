@@ -14,11 +14,12 @@ A/B Coder Agents between a branch and `main` using
 
 Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents.yaml`:
 each arm builds its own coderd (main vs the PR), runs `terminal-bench@2.0`
-(86 of 89 tasks; 3 are broken upstream) with Coder Agents on `claude-opus-5-5`,
+(86 of 89 tasks; 3 are broken upstream) with Coder Agents on `claude-sonnet-5-5`,
 and the comparison is posted on the PR. The system prompt is Go code, so a
 prompt change is a branch and the unit of comparison is a build. Measured on
-an 8-task slice: Opus passes 8/8 at about $0.30 and 14 minutes per trial, so
-expect roughly $30 and 2 to 3 hours per arm at one attempt per task.
+an 8-task slice: Sonnet passes 7/8 at about $0.17 and 4 minutes per trial
+(Opus 5.5: 8/8, $0.30, 14 minutes), so expect roughly $30 and 1.5 hours per
+arm at two attempts per task.
 Dataset, model, attempts, and concurrency are the `env` block at the top of
 the workflow; `terminal-bench-sample@2.0` with `claude-haiku-4-5` is a $2,
 10-minute smoke configuration.
@@ -28,7 +29,7 @@ the workflow; `terminal-bench-sample@2.0` with `claude-haiku-4-5` is a $2,
 ```sh
 uv tool install --with-editable scripts/harbor-coder harbor
 export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h)   # dogfood gateway auth
-export HARBOR_CODER_MODEL=claude-opus-5-5
+export HARBOR_CODER_MODEL=claude-sonnet-5-5
 ./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env
 set -a; . .harbor-coder/env; set +a; export PATH="$PWD/.harbor-coder:$PATH"
 harbor run -d terminal-bench@2.0 -x 'qemu-*' -x build-cython-ext \
