@@ -36,10 +36,7 @@ import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
-import {
-	filterSkillsByQuery,
-	isPersonalSkillTriggerToken,
-} from "../../utils/personalSkills";
+import { filterSkillsByQuery, isSkillTriggerToken } from "../../utils/skills";
 import type { ChatSlashCommand } from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,
@@ -799,10 +796,7 @@ const ChatMessageInput = ({
 			const token = node
 				.getTextContent()
 				.slice(trigger.slashOffset, caretOffset);
-			if (
-				caretOffset < trigger.slashOffset ||
-				!isPersonalSkillTriggerToken(token)
-			) {
+			if (caretOffset < trigger.slashOffset || !isSkillTriggerToken(token)) {
 				return;
 			}
 

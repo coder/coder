@@ -25,3 +25,11 @@ export const MockSkills: SkillMetadata[] = [
 	},
 	{ ...MockSkill, id: "skill-plan", name: "plan" },
 ];
+
+export const MockDisabledSkill: SkillMetadata = {
+	...MockSkill,
+	id: "skill-legacy-review",
+	name: "legacy-review",
+	description: "Older review checklist kept for reference.",
+	enabled: false,
+};

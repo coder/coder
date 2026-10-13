@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { MockSkills } from "#/testHelpers/skills";
-import { filterSkillsByQuery } from "../../utils/personalSkills";
+import { filterSkillsByQuery } from "../../utils/skills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
 	createCommandMenuItem,
