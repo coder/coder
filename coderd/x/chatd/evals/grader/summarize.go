@@ -432,9 +432,10 @@ func formatKinds(kinds map[string]int) string {
 
 func writeComparison(w io.Writer, cand, base *runSummary) {
 	_, _ = fmt.Fprintf(w, "== %s vs %s\n", cand.Label, base.Label)
-	// Labels name the builds, which can be wider than the rate columns.
+	// Labels name the builds, which can be wider than the rate columns;
+	// two spaces keep a full-width label apart from the next column.
 	width := max(28, len(cand.Label), len(base.Label))
-	_, _ = fmt.Fprintf(w, "  %-36s %-*s %-*s\n", "case", width, cand.Label, width, base.Label)
+	_, _ = fmt.Fprintf(w, "  %-36s %-*s  %-*s\n", "case", width, cand.Label, width, base.Label)
 	cases := map[string]bool{}
 	for c := range cand.ByCase {
 		cases[c] = true
@@ -443,10 +444,10 @@ func writeComparison(w io.Writer, cand, base *runSummary) {
 		cases[c] = true
 	}
 	for _, c := range sortedKeys(cases) {
-		_, _ = fmt.Fprintf(w, "  %-36s %-*s %-*s\n", c, width, pct(cand.ByCase[c]), width, pct(base.ByCase[c]))
+		_, _ = fmt.Fprintf(w, "  %-36s %-*s  %-*s\n", c, width, pct(cand.ByCase[c]), width, pct(base.ByCase[c]))
 	}
-	_, _ = fmt.Fprintf(w, "  %-36s %-*s %-*s\n", "overall", width, pct(cand.Overall), width, pct(base.Overall))
-	_, _ = fmt.Fprintf(w, "  %-36s $%-*.4f $%-*.4f\n", "cost", width-1, cand.CostUSD, width-1, base.CostUSD)
+	_, _ = fmt.Fprintf(w, "  %-36s %-*s  %-*s\n", "overall", width, pct(cand.Overall), width, pct(base.Overall))
+	_, _ = fmt.Fprintf(w, "  %-36s $%-*.4f  $%-*.4f\n", "cost", width-1, cand.CostUSD, width-1, base.CostUSD)
 	_, _ = fmt.Fprintf(w, "Tool failure rates (%s vs %s):\n", cand.Label, base.Label)
 	rows := map[string][2]toolRow{}
 	for _, r := range cand.Tools {

@@ -26,7 +26,9 @@ people with read access to it.
 ## Quick start
 
 ```sh
-# Compile and validate every suite: no coder build, no model calls.
+# Compile and validate the default suites (all but terminal-bench; add
+# --suite all for every suite). Builds no runner image, coder binary, or
+# grader, and makes no model calls.
 coderd/x/chatd/evals/run.sh --validate-only
 
 # One cheap case against this checkout, uncommitted changes included.
@@ -68,7 +70,7 @@ one `terminal-bench` suite or `--self-check` per cache at a time.
 | `--prompt-file PATH` | none | Adds a `candidate-prompt` arm with this system prompt. |
 | `--prompt-mode MODE` | `append` | `append` adds the file to the default prompt; `replace` replaces it. |
 | `--out DIR` | `<cache>/runs/<timestamp>-<pid>` | Results directory. Keep it outside the coder checkout. |
-| `--validate-only` | | Compiles and validates the suites, then exits. Builds aegis on a cold cache. |
+| `--validate-only` | | Compiles and validates the selected suites, then exits. Builds aegis on a cold cache. |
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees and the grading container. |
 
@@ -330,10 +332,19 @@ suite run: aegis stops scheduling trials when the cap is reached.
   `plan-mode-proposes`, and it adds `find`, `ls`, and `cat` exploration
   that `no_shell_file_io` counts in the lifecycle and tool-guidance suites.
 - `test_after_edit` sees edits made with `write_file`, `edit_files`, shell
-  redirection or in-place editors, and interpreters that run inline code
-  (a here-document, a here-string, or `-c` or `-e`) that writes files. It
-  misses an edit made by running a script file, for example
-  `python3 /tmp/fix.py`.
+  redirection or in-place editors, and Python, Node, Ruby, Perl, or PHP
+  inline code that writes files. Inline code is a here-document, a
+  here-string, `echo` or here-document text piped in, or a code flag such
+  as `-c`, `-e`, `--eval`, or `php -r`, also inside `bash -c` or a
+  here-document fed to a shell. The code counts as an edit when it calls a
+  write, append, delete, rename, or copy function such as `write_text`,
+  `appendFileSync`, `file_put_contents`, or `os.remove`, or opens a file
+  in a write mode (`open(p, "w")`, Perl `open($fh, ">", $p)`). This is a
+  pattern match on the program text, not a trace of what ran: it misses
+  edits made by running a script file (`python3 /tmp/fix.py`,
+  `cat fix.py | python3`), by helpers whose names it does not know, or
+  through other tools such as `make`, and it counts read-only code that
+  calls a function with one of those names, such as a pandas `rename()`.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case

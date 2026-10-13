@@ -261,8 +261,19 @@ aegis_env() {
 		MISE_TASK_RUN_AUTO_INSTALL=false MISE_EXEC_AUTO_INSTALL=false "$@")
 }
 
+# aegis_tool_path prints PATH with the aegis checkout's pinned go, node, and
+# pnpm first. mise tasks do not always put them ahead of a host or system
+# mise toolchain, and content-tag.sh and the sdk's package.json engines
+# refuse other versions.
+aegis_tool_path() {
+	local paths
+	paths=$(aegis_env "$1" mise bin-paths go node pnpm | paste -sd: -)
+	[[ -n $paths ]] || die "mise found no go, node, or pnpm for $1"
+	printf '%s:%s\n' "$paths" "$PATH"
+}
+
 bootstrap_aegis() {
-	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src tmp
+	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src tmp tool_path
 	src=$AEGIS_REPO
 	if [[ -n ${CHATD_EVAL_AEGIS_DIR:-} ]]; then
 		# The checkout the user passed in is only read: clone its commit.
@@ -283,7 +294,8 @@ bootstrap_aegis() {
 			# Only the tools these steps use: a bare mise install would also
 			# install every tool in the user's global mise config.
 			aegis_env "$tmp" mise install go node pnpm
-			aegis_env "$tmp" mise run evals-build
+			tool_path=$(aegis_tool_path "$tmp")
+			aegis_env "$tmp" env PATH="$tool_path" mise run evals-build
 			aegis_env "$tmp" mise exec -- env CGO_ENABLED=0 GOOS=linux go build -o bin/aegis ./cmd/aegis
 		} >&2
 		touch "$tmp/.chatd-evals-ready"
@@ -303,9 +315,7 @@ bootstrap_aegis() {
 runner_image() {
 	local arch go_path
 	arch=$(docker version --format '{{.Server.Arch}}')
-	# content-tag.sh, also run by the image task, refuses a go on PATH that
-	# differs from the aegis pin, and a host go may come first on PATH.
-	go_path=$(aegis_env "$AEGIS_DIR" mise where go)/bin:$NODE_BIN:$PATH
+	go_path=$(aegis_tool_path "$AEGIS_DIR")
 	RUNNER_TAG=$(aegis_env "$AEGIS_DIR" env PATH="$go_path" bash images/runner/content-tag.sh "$arch")
 	RUNNER_IMAGE=aegis-runner:$RUNNER_TAG
 	if ! docker image inspect "$RUNNER_IMAGE" >/dev/null 2>&1; then
