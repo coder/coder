@@ -4,13 +4,19 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	boardSidebarChats,
 	collectBoardGroups,
+	groupUpdatedAt,
 	isBoardGroupMember,
 } from "./boardGroups";
 
-const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
+const chat = (
+	id: string,
+	labels: Record<string, string> = {},
+	updated_at = MockChat.updated_at,
+): Chat => ({
 	...MockChat,
 	id,
 	labels,
+	updated_at,
 });
 
 describe("boardGroups", () => {
@@ -38,5 +44,19 @@ describe("boardGroups", () => {
 		const { chats: listed, groups } = boardSidebarChats(chats);
 		expect(listed).toEqual([primary]);
 		expect(groups.get("p")).toEqual([member]);
+	});
+
+	it("places a group by its most recently updated chat", () => {
+		const member = chat("m", { "board/group": "p" }, "2026-01-03T00:00:00Z");
+		const other = chat("o", {}, "2026-01-02T00:00:00Z");
+		const primary = chat("p", {}, "2026-01-01T00:00:00Z");
+
+		const { chats: listed, groups } = boardSidebarChats([
+			member,
+			other,
+			primary,
+		]);
+		expect(listed.map((c) => c.id)).toEqual(["p", "o"]);
+		expect(groupUpdatedAt(primary, groups)).toBe(member.updated_at);
 	});
 });
