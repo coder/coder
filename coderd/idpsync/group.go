@@ -462,7 +462,66 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 // matches no group at all, whether deleted or never created. Only Inside is
 // safe to sync; Outside and Missing come from invalid sync settings.
 func PartitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID uuid.UUID, expected []ExpectedGroup) (inside, outside, missing []ExpectedGroup, err error) {
-	return nil, nil, nil, xerrors.New("not implemented")
+	var ids []uuid.UUID
+	for _, e := range expected {
+		if e.GroupID != nil {
+			ids = append(ids, *e.GroupID)
+		}
+	}
+
+	if len(ids) == 0 {
+		// GetGroups applies no ID filter when GroupIds is empty, so each
+		// lookup runs only on a nonempty list of IDs. With no IDs, every
+		// entry is a name, and names are inside.
+		return expected, nil, nil, nil
+	}
+	inOrg := make(map[uuid.UUID]struct{})
+	rows, err := tx.GetGroups(ctx, database.GetGroupsParams{
+		OrganizationID: orgID,
+		GroupIds:       ids,
+	})
+	if err != nil {
+		return nil, nil, nil, xerrors.Errorf("get groups in organization: %w", err)
+	}
+	for _, row := range rows {
+		inOrg[row.Group.ID] = struct{}{}
+	}
+
+	var rest []uuid.UUID
+	for _, id := range ids {
+		if _, ok := inOrg[id]; !ok {
+			rest = append(rest, id)
+		}
+	}
+	if len(rest) == 0 {
+		// Every ID is in the organization, which is the ordinary case.
+		return expected, nil, nil, nil
+	}
+	elsewhere := make(map[uuid.UUID]struct{})
+	rows, err = tx.GetGroups(ctx, database.GetGroupsParams{
+		GroupIds: rest,
+	})
+	if err != nil {
+		return nil, nil, nil, xerrors.Errorf("get groups outside organization: %w", err)
+	}
+	for _, row := range rows {
+		elsewhere[row.Group.ID] = struct{}{}
+	}
+
+	for _, e := range expected {
+		if e.GroupID == nil {
+			inside = append(inside, e)
+			continue
+		}
+		if _, ok := inOrg[*e.GroupID]; ok {
+			inside = append(inside, e)
+		} else if _, ok := elsewhere[*e.GroupID]; ok {
+			outside = append(outside, e)
+		} else {
+			missing = append(missing, e)
+		}
+	}
+	return inside, outside, missing, nil
 }
 
 func ConvertAllowList(allowList []string) map[string]struct{} {
