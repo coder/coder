@@ -1725,6 +1725,7 @@ func decodeAgentJSON(res *http.Response, v any) error {
 	if err := json.NewDecoder(res.Body).Decode(v); err != nil {
 		return err
 	}
+	//nolint:errcheck // If the drain fails, http.Transport does not reuse the connection; v is already decoded.
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxJSONTrailerBytes))
 	return nil
 }
