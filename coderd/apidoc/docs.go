@@ -23788,6 +23788,10 @@ const docTemplate = `{
                 "oauth2_client_secret": {
                     "type": "string"
                 },
+                "oauth2_resource": {
+                    "description": "OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2\nrequests when set. Auto-discovery fills it if empty.",
+                    "type": "string"
+                },
                 "oauth2_revocation_url": {
                     "description": "OAuth2RevocationURL is the provider's RFC 7009 revocation\nendpoint; auto-populated by OAuth2 discovery when omitted.",
                     "type": "string"
@@ -26481,6 +26485,9 @@ const docTemplate = `{
                 },
                 "oauth2_client_id": {
                     "description": "OAuth2 fields (only populated for admins).",
+                    "type": "string"
+                },
+                "oauth2_resource": {
                     "type": "string"
                 },
                 "oauth2_revocation_url": {
@@ -31977,6 +31984,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_secret": {
+                    "type": "string"
+                },
+                "oauth2_resource": {
+                    "description": "OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep\nthe stored value; send \"\" to clear it.",
                     "type": "string"
                 },
                 "oauth2_revocation_url": {
