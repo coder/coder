@@ -3077,7 +3077,7 @@ describe("chat stream contract", () => {
 		expect(result.current.queuedIDs).toEqual([]);
 	});
 
-	it("reconnects at the last applied version without the partial reply or the retry", async () => {
+	it("reconnects at the last applied version without the retry", async () => {
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
@@ -3094,10 +3094,6 @@ describe("chat stream contract", () => {
 				retry,
 			]);
 		});
-		act(() => {
-			sockets[0].emitData(part("partial"));
-		});
-		await waitFor(() => expect(result.current.streamState).not.toBeNull());
 		expect(result.current.retry).not.toBeNull();
 
 		act(() => {
@@ -3111,12 +3107,11 @@ describe("chat stream contract", () => {
 		expect(result.current).toMatchObject({
 			messageIDs: [1, 2],
 			status: "running",
-			streamState: null,
 			retry: null,
 		});
 	});
 
-	it("drops the partial reply and the retry on return to the chat", async () => {
+	it("drops the retry on return to the chat", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const queryClient = createTestQueryClient();
 		mockNewestPage(chatID, page([buildMessage(chatID, 1, "user", "prompt")]));
@@ -3128,10 +3123,7 @@ describe("chat stream contract", () => {
 						setChatErrorReason: vi.fn(),
 						clearChatErrorReason: vi.fn(),
 					});
-					return {
-						retry: useChatSelector(store, selectRetryState),
-						streamState: useChatSelector(store, selectStreamState),
-					};
+					return useChatSelector(store, selectRetryState);
 				},
 				{ wrapper: createWrapper(queryClient) },
 			);
@@ -3139,15 +3131,12 @@ describe("chat stream contract", () => {
 		await waitFor(() => expect(sockets).toHaveLength(1));
 		act(() => {
 			sockets[0].emitDataBatch([statusEvent(chatID), retry]);
-			sockets[0].emitData(part("partial"));
 		});
-		await waitFor(() =>
-			expect(first.result.current.streamState).not.toBeNull(),
-		);
+		expect(first.result.current).not.toBeNull();
 		first.unmount();
 
 		const second = renderOnce();
-		expect(second.result.current).toEqual({ retry: null, streamState: null });
+		expect(second.result.current).toBeNull();
 	});
 
 	it("resyncs from the last applied version when a frame fails to parse", async () => {
@@ -3304,15 +3293,21 @@ describe("chat stream contract", () => {
 		});
 	});
 
-	it("keeps a retry until a preview_reset or a status other than running", async () => {
+	it("keeps a retry until the next status, message or message part", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
 			page([buildMessage(chatID, 1, "user", "prompt")]),
 		);
 		await waitFor(() => expect(sockets).toHaveLength(1));
 
+		// One read can end the attempt and record a retry; its preview_reset
+		// follows the retry.
 		act(() => {
-			sockets[0].emitDataBatch([statusEvent(chatID), retry]);
+			sockets[0].emitDataBatch([
+				statusEvent(chatID),
+				retry,
+				{ type: "preview_reset", chat_id: chatID },
+			]);
 		});
 		expect(result.current.retry).toMatchObject({
 			attempt: 2,
@@ -3320,16 +3315,7 @@ describe("chat stream contract", () => {
 		});
 
 		act(() => {
-			sockets[0].emitDataBatch([
-				part("late"),
-				message(2, "assistant", 5),
-				statusEvent(chatID),
-			]);
-		});
-		expect(result.current.retry).not.toBeNull();
-
-		act(() => {
-			sockets[0].emitData({ type: "preview_reset", chat_id: chatID });
+			sockets[0].emitData(statusEvent(chatID));
 		});
 		expect(result.current.retry).toBeNull();
 
@@ -3338,7 +3324,16 @@ describe("chat stream contract", () => {
 		});
 		expect(result.current.retry).not.toBeNull();
 		act(() => {
-			sockets[0].emitData(statusEvent(chatID, "waiting"));
+			sockets[0].emitData(message(2, "assistant", 5));
+		});
+		expect(result.current.retry).toBeNull();
+
+		act(() => {
+			sockets[0].emitData(retry);
+		});
+		expect(result.current.retry).not.toBeNull();
+		act(() => {
+			sockets[0].emitData(part("next attempt"));
 		});
 		expect(result.current.retry).toBeNull();
 	});

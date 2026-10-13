@@ -277,6 +277,7 @@ export const useChatStore = (
 						}
 						const part = streamEvent.message_part?.part;
 						if (part) {
+							store.clearRetryState();
 							partsBuf.push(part);
 						}
 						continue;
@@ -313,7 +314,6 @@ export const useChatStore = (
 					if (streamEvent.type === "preview_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						store.clearRetryState();
 						continue;
 					}
 
@@ -330,6 +330,7 @@ export const useChatStore = (
 							if (!message) {
 								continue;
 							}
+							store.clearRetryState();
 							pendingMessages.push(message);
 							if (message.role === "assistant") {
 								needsStreamReset = true;
@@ -346,6 +347,7 @@ export const useChatStore = (
 							}
 
 							streamReportedWaiting = nextStatus === "waiting";
+							store.clearRetryState();
 							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
@@ -372,6 +374,7 @@ export const useChatStore = (
 							discardBufferedParts();
 							store.setTurnError(reason);
 							store.clearStreamState();
+							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
 							continue;
 						}
