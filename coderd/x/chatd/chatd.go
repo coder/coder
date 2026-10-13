@@ -3506,6 +3506,12 @@ func toolAllowedForTurn(
 	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
 		return true
 	}
+	// Workspace MCP tools run inside the workspace like execute, so plan
+	// mode allows them for root chats and subagents alike. External MCP
+	// servers need plan-mode approval instead.
+	if _, ok := tool.(*chattool.WorkspaceMCPTool); ok {
+		return true
+	}
 	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
 	if !ok {
 		return false
@@ -3533,8 +3539,8 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
+// activeToolNamesForTurn extends the built-in plan allowlist with workspace
+// MCP tools and, for root plan-mode chats, approved external MCP tools.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -3838,10 +3844,7 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	var waitForMCPDiscovery chattool.MCPDiscoveryWaiter
-	if !opts.isPlanModeTurn {
-		waitForMCPDiscovery = p.mcpDiscoveryWaiter(opts.chat.ID)
-	}
+	waitForMCPDiscovery := p.mcpDiscoveryWaiter(opts.chat.ID)
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{

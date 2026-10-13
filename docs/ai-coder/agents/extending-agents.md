@@ -222,7 +222,7 @@ to the HTTP endpoint from the workspace.
 
 The agent connects to the servers declared in `.mcp.json` once startup scripts finish.
 A chat turn that offers workspace MCP tools waits up to 15&nbsp;seconds for that initial discovery to finish so the model sees them; if discovery takes longer, the turn continues with whatever has been discovered so far.
-Plan Mode turns and explore sub-agents never receive workspace MCP tools, so they do not wait.
+Plan Mode turns receive workspace MCP tools and wait the same way. Explore sub-agents never receive workspace MCP tools, so they do not wait.
 Each server is published as soon as it connects, so one slow or unresponsive server does not hold back the tools of the others.
 Servers that fail to connect are listed with their error, servers that connect with no tools are still listed, and the rest contribute their tools.
 

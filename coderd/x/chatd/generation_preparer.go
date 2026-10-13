@@ -316,7 +316,7 @@ func (server *Server) prepareGeneration(
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
-		exposesWorkspaceMCP := !isPlanModeTurn && !isExploreSubagent
+		exposesWorkspaceMCP := !isExploreSubagent
 
 		loadWorkspaceContext = func() error {
 			// Turns that expose workspace MCP tools wait, within a bounded
@@ -685,10 +685,10 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	// Regular root execution turns may create or start a workspace in the
-	// same step as a find_tools call, so find_tools stays available with an
-	// empty catalog and reloads it once before its first call.
-	canLoadWorkspaceCatalog := !isPlanModeTurn && !chat.ParentChatID.Valid && !isExploreSubagent
+	// Root turns may create or start a workspace in the same step as a
+	// find_tools call, so find_tools stays available with an empty catalog
+	// and reloads it once before its first call.
+	canLoadWorkspaceCatalog := !chat.ParentChatID.Valid && !isExploreSubagent
 	if decideMCPToolSearch(mcpToolSearchInput{
 		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
 		allowEmpty:        canLoadWorkspaceCatalog,

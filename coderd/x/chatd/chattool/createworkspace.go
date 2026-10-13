@@ -99,9 +99,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"request. Readiness does not guarantee skills, MCP tools, or "+
 			"context have finished loading; use capabilities actually exposed "+
 			"and continue with workspace file and shell tools where possible. "+
-			"Do not recreate the workspace to retry discovery. In Plan Mode, "+
-			"workspace MCP tools remain unavailable; "+
-			"do not create a workspace solely to access them. Prefer existing "+
+			"Do not recreate the workspace to retry discovery. Prefer existing "+
 			"tools and context when they are sufficient. Requires a "+
 			"template_id from list_templates; follow its "+NextStepField+" "+
 			"before calling. Optionally provide a name (one is generated if "+
