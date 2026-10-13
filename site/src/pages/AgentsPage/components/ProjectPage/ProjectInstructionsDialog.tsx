@@ -1,8 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { getErrorMessage, isApiError } from "#/api/errors";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { InvisibleCharactersAlert } from "#/components/Alert/InvisibleCharactersAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -12,10 +14,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	countInvisibleCharacters,
-	sanitizePromptText,
-} from "#/utils/invisibleUnicode";
+import { sanitizePromptText } from "#/utils/invisibleUnicode";
 
 type ProjectInstructionsDialogProps = {
 	readonly open: boolean;
@@ -26,8 +25,8 @@ type ProjectInstructionsDialogProps = {
 	readonly isDeleting: boolean;
 	readonly saveError: unknown;
 	readonly deleteError: unknown;
-	/** Called when the user edits the draft, so stale errors can clear. */
-	readonly onDraftChange: () => void;
+	/** Called whenever the draft changes. */
+	readonly onResetErrors: () => void;
 	readonly onSave: (instructions: string) => void;
 	readonly onDelete: () => void;
 };
@@ -44,8 +43,6 @@ export const ProjectInstructionsDialog: React.FC<
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			{/* Radix unmounts the content on close, so the draft below resets
-			    to the saved instructions on every open. */}
 			<DialogContent>
 				<ProjectInstructionsForm
 					{...formProps}
@@ -71,36 +68,30 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	isDeleting,
 	saveError,
 	deleteError,
-	onDraftChange,
+	onResetErrors,
 	onSave,
 	onDelete,
 	onCancel,
 }) => {
 	const textareaId = useId();
-	// The saved instructions the draft is based on. A refetch can change
-	// the saved instructions while the editor is open (another user edited
-	// them); Save stays blocked until the user either loads the latest
-	// version or keeps their draft, so a stale draft never silently
-	// overwrites the newer instructions.
+	const deleteButtonRef = useRef<HTMLButtonElement>(null);
 	const [baseInstructions, setBaseInstructions] = useState(instructions);
 	const [draft, setDraft] = useState(baseInstructions);
-	// The content stays mounted during the close animation, after a
-	// successful save or delete has already updated the instructions, so
-	// only a change that arrives while the dialog is open is a conflict.
+	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 	const hasConflict = open && instructions !== baseInstructions;
+	// The confirmation would hide the conflict warning behind its overlay.
+	if (hasConflict && isConfirmingDelete) {
+		setIsConfirmingDelete(false);
+	}
 	const isEditing = baseInstructions !== "";
 	const isBusy = isSaving || isDeleting;
-	const invisibleCharCount = countInvisibleCharacters(draft);
-	// Only the latest action's error is set, so at most one of these is.
 	const error = saveError ?? deleteError;
 	const errorFallback = saveError
 		? "Failed to save instructions."
 		: "Failed to delete instructions.";
-	const errorDetail = getErrorDetail(error);
-	// Blank instructions are cleared with Delete rather than saved. Compare
-	// drafts as the server will store them, so edits it would discard
-	// (invisible characters, trailing whitespace, extra blank lines) are
-	// neither nonblank nor a change.
+	const errorDetail = isApiError(error)
+		? error.response.data.detail
+		: undefined;
 	const normalizedDraft = sanitizePromptText(draft);
 	const canSave =
 		normalizedDraft !== "" &&
@@ -109,115 +100,126 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 		!isBusy;
 
 	return (
-		<form
-			className="flex flex-col gap-4"
-			onSubmit={(event) => {
-				event.preventDefault();
-				if (canSave) {
-					onSave(draft);
-				}
-			}}
-		>
-			<DialogHeader>
-				<DialogTitle>
-					{isEditing ? "Edit instructions" : "Create instructions"}
-				</DialogTitle>
-				<DialogDescription>
-					Instructions are added to every chat in this project, for all users.
-				</DialogDescription>
-			</DialogHeader>
-			<label htmlFor={textareaId} className="sr-only">
-				Instructions
-			</label>
-			<TextareaAutosize
-				id={textareaId}
-				className="max-h-[50vh] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link"
-				placeholder="Conventions, context, and preferences for every chat in this project"
-				value={draft}
-				onChange={(event) => {
-					setDraft(event.target.value);
-					onDraftChange();
-				}}
-				disabled={isBusy}
-				minRows={6}
-				autoFocus
-			/>
-			{hasConflict && (
-				<Alert
-					severity="warning"
-					actions={
-						<div className="flex gap-2">
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								disabled={isBusy}
-								onClick={() => setBaseInstructions(instructions)}
-							>
-								Keep my draft
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								disabled={isBusy}
-								onClick={() => {
-									setBaseInstructions(instructions);
-									setDraft(instructions);
-									onDraftChange();
-								}}
-							>
-								Load latest
-							</Button>
-						</div>
+		<>
+			<form
+				className="flex flex-col gap-4"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (canSave) {
+						onSave(draft);
 					}
-				>
-					<AlertDescription>
-						Someone else changed these instructions while you were editing. Load
-						the latest version, or keep your draft to replace it.
-					</AlertDescription>
-				</Alert>
-			)}
-			{invisibleCharCount > 0 && (
-				<Alert severity="warning">
-					<AlertDescription>
-						This text contains {invisibleCharCount} invisible Unicode{" "}
-						{invisibleCharCount !== 1 ? "characters" : "character"} that could
-						hide content. These will be stripped on save.
-					</AlertDescription>
-				</Alert>
-			)}
-			{Boolean(error) && (
-				<div role="alert" className="text-sm text-content-destructive">
-					<p className="m-0">{getErrorMessage(error, errorFallback)}</p>
-					{errorDetail && <p className="m-0 mt-1">{errorDetail}</p>}
-				</div>
-			)}
-			<DialogFooter>
-				{isEditing && (
+				}}
+			>
+				<DialogHeader>
+					<DialogTitle>
+						{isEditing ? "Edit instructions" : "Create instructions"}
+					</DialogTitle>
+					<DialogDescription>
+						Instructions are added to every chat in this project, for all users.
+					</DialogDescription>
+				</DialogHeader>
+				<label htmlFor={textareaId} className="sr-only">
+					Instructions
+				</label>
+				<TextareaAutosize
+					id={textareaId}
+					className="max-h-[50vh] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link scrollbar-thin"
+					placeholder="Conventions, context, and preferences for every chat in this project"
+					value={draft}
+					onChange={(event) => {
+						setDraft(event.target.value);
+						onResetErrors();
+					}}
+					disabled={isBusy}
+					minRows={6}
+					autoFocus
+				/>
+				{hasConflict && (
+					<Alert
+						severity="warning"
+						actions={
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={isBusy}
+									onClick={() => setBaseInstructions(instructions)}
+								>
+									Keep my draft
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									disabled={isBusy}
+									onClick={() => {
+										setBaseInstructions(instructions);
+										setDraft(instructions);
+										onResetErrors();
+									}}
+								>
+									Load latest
+								</Button>
+							</div>
+						}
+					>
+						<AlertDescription>
+							Someone else changed these instructions while you were editing.
+							Load the latest version, or keep your draft to replace it.
+						</AlertDescription>
+					</Alert>
+				)}
+				<InvisibleCharactersAlert text={draft} />
+				{Boolean(error) && (
+					<Alert severity="error" prominent>
+						<AlertTitle>{getErrorMessage(error, errorFallback)}</AlertTitle>
+						{errorDetail && <AlertDescription>{errorDetail}</AlertDescription>}
+					</Alert>
+				)}
+				<DialogFooter>
+					{isEditing && (
+						<Button
+							ref={deleteButtonRef}
+							type="button"
+							variant="destructive"
+							className="sm:mr-auto"
+							disabled={isBusy || hasConflict}
+							onClick={() => setIsConfirmingDelete(true)}
+						>
+							<Spinner loading={isDeleting} />
+							Delete
+						</Button>
+					)}
 					<Button
 						type="button"
-						variant="destructive"
-						className="sm:mr-auto"
-						disabled={isBusy || hasConflict}
-						onClick={onDelete}
+						variant="outline"
+						disabled={isBusy}
+						onClick={onCancel}
 					>
-						<Spinner loading={isDeleting} />
-						Delete
+						Cancel
 					</Button>
-				)}
-				<Button
-					type="button"
-					variant="outline"
-					disabled={isBusy}
-					onClick={onCancel}
-				>
-					Cancel
-				</Button>
-				<Button type="submit" disabled={!canSave}>
-					<Spinner loading={isSaving} />
-					Save
-				</Button>
-			</DialogFooter>
-		</form>
+					<Button type="submit" disabled={!canSave}>
+						<Spinner loading={isSaving} />
+						Save
+					</Button>
+				</DialogFooter>
+			</form>
+			<ConfirmDialog
+				open={isConfirmingDelete}
+				type="delete"
+				title="Delete instructions?"
+				description="Chats in this project will no longer receive these instructions, for all users. This action cannot be undone."
+				confirmText="Delete instructions"
+				onClose={() => setIsConfirmingDelete(false)}
+				onConfirm={() => {
+					setIsConfirmingDelete(false);
+					onDelete();
+				}}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					deleteButtonRef.current?.focus();
+				}}
+			/>
+		</>
 	);
 };

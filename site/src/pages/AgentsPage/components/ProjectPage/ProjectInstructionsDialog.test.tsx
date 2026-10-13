@@ -15,7 +15,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 		isDeleting: false,
 		saveError: undefined,
 		deleteError: undefined,
-		onDraftChange: vi.fn(),
+		onResetErrors: vi.fn(),
 		onSave: vi.fn(),
 		onDelete: vi.fn(),
 		...props,
@@ -74,6 +74,41 @@ describe("ProjectInstructionsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
 		expect(textbox).toHaveValue("Edited in another tab.");
 		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.click(
+			screen.getByRole("button", { name: "Delete instructions" }),
+		);
 		expect(props.onDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("asks for confirmation before deleting", async () => {
+		const { user, props } = renderDialog({
+			instructions: MockChatProjectInstructions.instructions,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(props.onDelete).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(props.onDelete).not.toHaveBeenCalled();
+		expect(screen.getByRole("button", { name: "Delete" })).toHaveFocus();
+
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.click(
+			screen.getByRole("button", { name: "Delete instructions" }),
+		);
+		expect(props.onDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes the delete confirmation when the saved instructions change", async () => {
+		const { user, props, rerenderWithInstructions } = renderDialog({
+			instructions: MockChatProjectInstructions.instructions,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		rerenderWithInstructions("Edited in another tab.");
+
+		expect(
+			screen.queryByRole("button", { name: "Delete instructions" }),
+		).not.toBeInTheDocument();
+		expect(props.onDelete).not.toHaveBeenCalled();
 	});
 });

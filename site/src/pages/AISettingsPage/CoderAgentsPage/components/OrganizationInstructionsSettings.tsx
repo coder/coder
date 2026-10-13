@@ -3,13 +3,12 @@ import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { InvisibleCharactersAlert } from "#/components/Alert/InvisibleCharactersAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import type { MutationCallbacks } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 type OrganizationInstructionsSettingsProps = {
 	systemPrompt: string | undefined;
@@ -46,8 +45,6 @@ export const OrganizationInstructionsSettings: React.FC<
 	const savedPrompt = systemPrompt ?? "";
 	const value = draft ?? savedPrompt;
 	const isDirty = draft !== undefined && draft !== savedPrompt;
-	const invisibleCharCount = countInvisibleCharacters(value);
-
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		onResetSave();
@@ -102,15 +99,7 @@ export const OrganizationInstructionsSettings: React.FC<
 						minRows={4}
 						maxRows={9}
 					/>
-					{invisibleCharCount > 0 && (
-						<Alert severity="warning" className="mt-2">
-							<AlertDescription>
-								This text contains {invisibleCharCount} invisible Unicode{" "}
-								{invisibleCharCount !== 1 ? "characters" : "character"} that
-								could hide content. These will be stripped on save.
-							</AlertDescription>
-						</Alert>
-					)}
+					<InvisibleCharactersAlert text={value} className="mt-2" />
 					{saveError != null && (
 						<p
 							role="alert"

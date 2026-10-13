@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useSyncExternalStore } from "react";
-import { fn } from "storybook/test";
+import { fn, screen, userEvent } from "storybook/test";
 import {
 	MockChatProjectInstructions,
 	mockApiError,
@@ -18,7 +18,7 @@ const meta: Meta<typeof ProjectInstructionsDialog> = {
 		isDeleting: false,
 		saveError: undefined,
 		deleteError: undefined,
-		onDraftChange: fn(),
+		onResetErrors: fn(),
 		onSave: fn(),
 		onDelete: fn(),
 	},
@@ -59,6 +59,14 @@ export const Saving: Story = {
 	args: {
 		instructions: MockChatProjectInstructions.instructions,
 		isSaving: true,
+	},
+};
+
+export const DeleteConfirmation: Story = {
+	args: { instructions: MockChatProjectInstructions.instructions },
+	play: async () => {
+		await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+		await screen.findByRole("button", { name: "Delete instructions" });
 	},
 };
 
