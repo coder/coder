@@ -21311,17 +21311,9 @@ const docTemplate = `{
                         }
                     }
                 },
-                "provider_credential": {
-                    "description": "ProviderCredential records whether a reasoning part was produced\nwith the deployment's credential or the user's personal API key,\nbecause encrypted reasoning only decrypts for the organization\nbehind that credential. Internal only: stripped before API responses.",
-                    "type": "string"
-                },
                 "provider_executed": {
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
-                },
-                "provider_identity": {
-                    "description": "ProviderIdentity records the provider that produced a reasoning\npart, because a model config's provider can change after the\nmessage was written. Internal only: stripped before API responses.",
-                    "type": "string"
                 },
                 "provider_metadata": {
                     "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
@@ -21330,16 +21322,8 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
-                "provider_model": {
-                    "description": "ProviderModel records the model that produced a reasoning part,\nbecause a model config's model can change after the message was\nwritten. Internal only: stripped before API responses.",
-                    "type": "string"
-                },
                 "reasoning_delta": {
                     "type": "string"
-                },
-                "reasoning_epoch": {
-                    "description": "ReasoningEpoch records how many times the provider had rejected the\nchat's encrypted reasoning from this provider, model, and credential\nbefore this reasoning part was produced. A step that produced no\nreasoning after a rejection records its epoch, provider, model, and\ncredential on its first part instead. Internal only: stripped before\nAPI responses.",
-                    "type": "integer"
                 },
                 "result": {
                     "type": "array",

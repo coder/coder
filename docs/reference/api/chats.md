@@ -2903,15 +2903,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
               "string"
             ]
           ],
-          "provider_credential": "string",
           "provider_executed": true,
-          "provider_identity": "string",
           "provider_metadata": [
             0
           ],
-          "provider_model": "string",
           "reasoning_delta": "string",
-          "reasoning_epoch": 0,
           "result": [
             0
           ],
@@ -2988,15 +2984,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
               "string"
             ]
           ],
-          "provider_credential": "string",
           "provider_executed": true,
-          "provider_identity": "string",
           "provider_metadata": [
             0
           ],
-          "provider_model": "string",
           "reasoning_delta": "string",
-          "reasoning_epoch": 0,
           "result": [
             0
           ],
@@ -3147,15 +3139,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             "string"
           ]
         ],
-        "provider_credential": "string",
         "provider_executed": true,
-        "provider_identity": "string",
         "provider_metadata": [
           0
         ],
-        "provider_model": "string",
         "reasoning_delta": "string",
-        "reasoning_epoch": 0,
         "result": [
           0
         ],
@@ -3231,15 +3219,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
               "string"
             ]
           ],
-          "provider_credential": "string",
           "provider_executed": true,
-          "provider_identity": "string",
           "provider_metadata": [
             0
           ],
-          "provider_model": "string",
           "reasoning_delta": "string",
-          "reasoning_epoch": 0,
           "result": [
             0
           ],
@@ -3316,15 +3300,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             "string"
           ]
         ],
-        "provider_credential": "string",
         "provider_executed": true,
-        "provider_identity": "string",
         "provider_metadata": [
           0
         ],
-        "provider_model": "string",
         "reasoning_delta": "string",
-        "reasoning_epoch": 0,
         "result": [
           0
         ],
@@ -3460,15 +3440,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             "string"
           ]
         ],
-        "provider_credential": "string",
         "provider_executed": true,
-        "provider_identity": "string",
         "provider_metadata": [
           0
         ],
-        "provider_model": "string",
         "reasoning_delta": "string",
-        "reasoning_epoch": 0,
         "result": [
           0
         ],
@@ -3544,15 +3520,11 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
               "string"
             ]
           ],
-          "provider_credential": "string",
           "provider_executed": true,
-          "provider_identity": "string",
           "provider_metadata": [
             0
           ],
-          "provider_model": "string",
           "reasoning_delta": "string",
-          "reasoning_epoch": 0,
           "result": [
             0
           ],
@@ -4139,15 +4111,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               "string"
             ]
           ],
-          "provider_credential": "string",
           "provider_executed": true,
-          "provider_identity": "string",
           "provider_metadata": [
             0
           ],
-          "provider_model": "string",
           "reasoning_delta": "string",
-          "reasoning_epoch": 0,
           "result": [
             0
           ],
@@ -4222,15 +4190,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "string"
           ]
         ],
-        "provider_credential": "string",
         "provider_executed": true,
-        "provider_identity": "string",
         "provider_metadata": [
           0
         ],
-        "provider_model": "string",
         "reasoning_delta": "string",
-        "reasoning_epoch": 0,
         "result": [
           0
         ],
@@ -4292,15 +4256,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
                 "string"
               ]
             ],
-            "provider_credential": "string",
             "provider_executed": true,
-            "provider_identity": "string",
             "provider_metadata": [
               0
             ],
-            "provider_model": "string",
             "reasoning_delta": "string",
-            "reasoning_epoch": 0,
             "result": [
               0
             ],
@@ -4398,13 +4358,9 @@ Status Code **200**
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
-| `»»» provider_credential`          | string                                                                           | false    |              | Provider credential records whether a reasoning part was produced with the deployment's credential or the user's personal API key, because encrypted reasoning only decrypts for the organization behind that credential. Internal only: stripped before API responses.                                                                                                                                    |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_identity`            | string                                                                           | false    |              | Provider identity records the provider that produced a reasoning part, because a model config's provider can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                           |
 | `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
-| `»»» provider_model`               | string                                                                           | false    |              | Provider model records the model that produced a reasoning part, because a model config's model can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                                    |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» reasoning_epoch`              | integer                                                                          | false    |              | Reasoning epoch records how many times the provider had rejected the chat's encrypted reasoning from this provider, model, and credential before this reasoning part was produced. A step that produced no reasoning after a rejection records its epoch, provider, model, and credential on its first part instead. Internal only: stripped before API responses.                                         |
 | `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
