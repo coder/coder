@@ -567,7 +567,7 @@ const MobileFrame = ({ children }: React.PropsWithChildren) => {
 };
 
 // Decorator that pins a fake composer to the bottom of the viewport and sets
-// mobile dropdown geometry custom properties to simulate `AgentChatInput`.
+// mobile dropdown geometry custom properties to simulate `ChatComposer`.
 const MobileDecorator: Decorator = (Story) => (
 	<MobileFrame>
 		<Story />

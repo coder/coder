@@ -32,12 +32,9 @@ import {
 	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
-import {
-	type AttachedWorkspaceInfo,
-	isUploadInProgress,
-	type UploadState,
-} from "./AgentChatInput";
+import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 import { ChatComposer } from "./AgentComposers";
+import { isUploadInProgress, type UploadState } from "./AttachmentPreview";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";

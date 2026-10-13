@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import { generateUUID } from "#/utils/random";
-import type { UploadState } from "../components/AgentChatInput";
+import type { UploadState } from "../components/AttachmentPreview";
 import {
 	getChatFileURL,
 	isRasterImageMediaType,
