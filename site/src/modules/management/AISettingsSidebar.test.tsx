@@ -21,8 +21,8 @@ const mockAIGatewayEntitlements = {
 	}),
 };
 
-const mockPermissions = vi.hoisted(() => ({
-	current: {} as Partial<Permissions>,
+const mockPermissions = vi.hoisted((): { current: Partial<Permissions> } => ({
+	current: {},
 }));
 
 vi.mock("#/hooks/useAuthenticated", () => ({
