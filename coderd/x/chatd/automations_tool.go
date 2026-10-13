@@ -43,14 +43,15 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"A heartbeat is a schedule that wakes this chat: create it with kind schedule, target_mode existing_chat, name, prompt, " +
 	"schedule_cron, and schedule_time_zone; target_chat_id defaults to this chat. " +
 	manageAutomationsStopGuidance +
-	"A callback is a single-use webhook on this chat: create it with kind webhook, target_mode existing_chat, webhook_use single, name, and prompt; " +
-	"the result has webhook_url and webhook_secret, which an external job uses once as POST webhook_url with header Authorization: Bearer <webhook_secret> and a JSON body. " +
-	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
+	"Creating a webhook returns webhook_url and webhook_secret once; the sender POSTs a JSON body to webhook_url with header Authorization: Bearer <webhook_secret>. " +
+	"Store a multi-use secret in the system that sends events, such as a CI secret. " +
+	"A callback is a single-use webhook on this chat (webhook_use single), whose secret works for one delivery: hand it to the job or agent that calls back. " +
+	"No other action returns a secret: the owner rotates it in the automations UI to get a new one. " +
 	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
 	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
 	"A new_chat automation puts its chats into this chat's project, if this chat has one, unless project_id is empty; it cannot use another project. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
-	"When an automation sent the current turn's message, create, update, enable, and run_now are refused; " +
+	"When an automation sent the newest message of the turn, create, update, enable, and run_now are refused; " +
 	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that sent the message."
 
 // manageAutomationsListPromptMax and manageAutomationsGetPromptMax cap,
@@ -82,7 +83,18 @@ var errManageAutomationsNotFound = xerrors.New("automation not found: call list 
 // not return.
 //
 //nolint:gosec // Explains that a secret is withheld; it is not a credential.
-const manageAutomationsSecretNotShown = "The webhook secret is not shown. The owner can rotate the secret in the automations UI to get a new one."
+const manageAutomationsSecretNotShown = "The webhook secret is not shown in a turn that an automation started. The owner can rotate the secret in the automations UI to get a new one."
+
+// manageAutomationsMultiUseSecretNote explains how to use a returned
+// multi-use secret.
+//
+//nolint:gosec // Explains how a secret is used; it is not a credential.
+const manageAutomationsMultiUseSecretNote = "This secret is shown once and works for every delivery until the owner rotates it: " +
+	"POST a JSON body to webhook_url with the header Authorization: Bearer <webhook_secret>. " +
+	"Each delivery sends this automation's prompt and the body, marked as untrusted event data, to the target. " +
+	"Store the secret only in the system that sends events, for example as a CI secret. " +
+	"Warning: this result stays in the chat, so anyone who can read this chat can send events with it until the owner rotates it in the automations UI. " +
+	"Do not repeat the secret in your reply."
 
 // manageAutomationsSingleUseSecretNote explains how to use a returned
 // single-use secret.
@@ -109,7 +121,7 @@ type manageAutomationsArgs struct {
 	ReasoningEffort      *string `json:"reasoning_effort,omitempty" description:"new_chat only: reasoning effort for new chats. On update, an empty value clears it."`
 	ProjectID            *string `json:"project_id,omitempty" description:"new_chat only: project for new chats. Must be this chat's project. Defaults to this chat's project on create. An empty value means no project; on update it removes the project."`
 	WhenBusy             *string `json:"when_busy,omitempty" enum:"queue,skip" description:"existing_chat only: queue or skip a run while the chat is busy. Schedules default to skip, webhooks to queue."`
-	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single (one delivery; create returns the secret once, for a callback) or multi (secret never returned). Defaults to multi."`
+	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single (one delivery, for a callback) or multi (every delivery until the owner rotates the secret). Create returns the secret once for both. Defaults to multi."`
 	Prompt               *string `json:"prompt,omitempty" description:"create (required) and update: the prompt each run sends."`
 	ScheduleCron         *string `json:"schedule_cron,omitempty" description:"schedule only, required on create: a standard five-field cron expression."`
 	ScheduleTimeZone     *string `json:"schedule_time_zone,omitempty" description:"schedule only, required on create: an IANA time zone such as UTC or Europe/Berlin."`
@@ -185,7 +197,7 @@ var manageAutomationsArgHints = map[string]string{
 	"chat_id":        "use target_chat_id, which defaults to this chat",
 	"model":          "use new_chat_model_config_id",
 	"model_config":   "use new_chat_model_config_id",
-	"webhook_secret": "the tool returns a secret only when it creates a single-use webhook",
+	"webhook_secret": "the tool returns a secret only when it creates a webhook",
 }
 
 // checkManageAutomationsArgNames rejects arguments the schema does not
@@ -243,33 +255,19 @@ type automationTurnTrigger struct {
 // automationTurnTriggerFromHistory returns the automation input that
 // reached the current turn. messages is the chat's ordered history or the
 // rows of GetChatMessagesForAutomationTurnTrigger, which give the same
-// result. The prompt window is not enough because compaction replays
-// pending user rows without their automation_id. The turn is the latest
-// user prompt, the contiguous user rows before it back to the previous
-// assistant or tool row, and any user rows after it. The latest of these
-// rows that carries an automation_id is the trigger, so a human message
-// sent right after an automation message, with no response in between,
-// also counts as reached. That errs on the restrictive side.
+// result. The newest user message of the turn decides: when it carries
+// an automation_id, an automation reached the turn; otherwise the owner
+// did, even when an automation message came just before it without a
+// response, so the tool obeys the owner's latest message. The newest
+// user message is the latest user prompt: deleted and compressed rows and
+// the model-only rows that compaction replays without their automation_id
+// never count.
 func automationTurnTriggerFromHistory(messages []database.ChatMessage) automationTurnTrigger {
-	start := lastUserPromptIndex(messages)
-	if start == -1 {
+	index := lastUserPromptIndex(messages)
+	if index == -1 || !messages[index].AutomationID.Valid {
 		return automationTurnTrigger{}
 	}
-	for start > 0 {
-		row := messages[start-1]
-		if !row.Deleted && !row.Compressed && row.Role != database.ChatMessageRoleUser {
-			break
-		}
-		start--
-	}
-	var trigger automationTurnTrigger
-	for _, row := range messages[start:] {
-		if row.Deleted || row.Role != database.ChatMessageRoleUser || !row.AutomationID.Valid {
-			continue
-		}
-		trigger = automationTurnTrigger{AutomationID: row.AutomationID, InputID: row.InputID}
-	}
-	return trigger
+	return automationTurnTrigger{AutomationID: messages[index].AutomationID, InputID: messages[index].InputID}
 }
 
 // manageAutomationsAllowed reports whether chat may use the
@@ -360,7 +358,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	if trigger.AutomationID.Valid && slices.Contains(manageAutomationsWriteActions, action) {
 		return nil, xerrors.Errorf("%s is not available in a turn that an automation started: an automation sent this turn's message, "+
 			"so only list, get, disable, and delete work. Ask the owner to make the change; "+
-			"a message the owner sends after your reply starts a turn without this limit", action)
+			"a new message from the owner starts a turn without this limit", action)
 	}
 
 	switch action {
@@ -502,12 +500,12 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		return nil, err
 	}
 
-	// A multi-use secret is dropped: tool results stay in the chat, which
-	// shared readers, the model provider, and compaction can see. A
-	// single-use secret is returned, as the RFC allows in a turn no
-	// automation reached (create is refused in the others), because a
-	// callback the agent cannot hand to a job is useless, and the secret
-	// stops working after one delivery.
+	// The secret is returned once, in a turn no automation reached
+	// (create is refused in the others), because an agent must hand it
+	// to the sender: a CI secret for a multi-use webhook or a callback
+	// job for a single-use one. Tool results stay in the chat, where
+	// read-shared users, the model provider, and compaction can see
+	// them, so the note warns about that.
 	row, secret, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
 		OrganizationID:  chat.OrganizationID,
 		OwnerID:         chat.OwnerID,
@@ -522,11 +520,16 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	result := map[string]any{"automation": p.manageAutomationsView(row, manageAutomationsListPromptMax)}
 	switch {
 	case row.Kind != database.ChatAutomationKindWebhook:
-	case isSingleUseWebhook(row) && !trigger.AutomationID.Valid:
+	case trigger.AutomationID.Valid:
+		// Unreachable while create is refused in automation turns; kept
+		// so a change there cannot leak a secret into such a turn.
+		result["webhook_secret_note"] = manageAutomationsSecretNotShown
+	case isSingleUseWebhook(row):
 		result["webhook_secret"] = secret
 		result["webhook_secret_note"] = manageAutomationsSingleUseSecretNote
 	default:
-		result["webhook_secret_note"] = manageAutomationsSecretNotShown
+		result["webhook_secret"] = secret
+		result["webhook_secret_note"] = manageAutomationsMultiUseSecretNote
 	}
 	return result, nil
 }

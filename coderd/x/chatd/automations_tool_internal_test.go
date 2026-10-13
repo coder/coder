@@ -83,8 +83,14 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			want:     reached,
 		},
 		{
+			// The newest user row decides: an owner message after an
+			// automation message, before any response, leads the turn.
 			name:     "HumanAfterAutomationWithoutResponse",
 			messages: []database.ChatMessage{assistant, fromAutomation(automationID, inputID), human()},
+		},
+		{
+			name:     "AutomationAfterHumanWithoutResponse",
+			messages: []database.ChatMessage{assistant, human(), fromAutomation(automationID, inputID)},
 			want:     reached,
 		},
 		{
@@ -108,12 +114,20 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 		},
 		{
 			// Compaction ran before the automation message got a response,
-			// then a human sent a message. Compressed rows do not end the
-			// turn.
+			// then a human sent a message, which leads the turn.
 			name: "CompactionBeforeResponse",
 			messages: []database.ChatMessage{
 				assistant, fromAutomation(automationID, inputID),
 				compressed(assistant), compressed(tool), replayed, human(),
+			},
+		},
+		{
+			// Replayed rows carry no automation_id and are never the newest
+			// user row.
+			name: "ReplayAfterAutomation",
+			messages: []database.ChatMessage{
+				assistant, fromAutomation(automationID, inputID),
+				compressed(assistant), compressed(tool), replayed,
 			},
 			want: reached,
 		},
@@ -126,6 +140,10 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 		{
 			name:     "DeletedAssistantDoesNotJoinTurns",
 			messages: []database.ChatMessage{fromAutomation(automationID, inputID), deleted(assistant), human()},
+		},
+		{
+			name:     "DeletedHumanLeavesAutomation",
+			messages: []database.ChatMessage{assistant, fromAutomation(automationID, inputID), deleted(human())},
 			want:     reached,
 		},
 	}
@@ -983,31 +1001,26 @@ func TestManageAutomationsTool(t *testing.T) {
 			require.NotContains(t, content, automationWebhookSecretPrefix)
 		}
 
-		// Only creating a single-use webhook in a human turn returns its
-		// secret, once; multi-use secrets are never returned.
+		// Creating a webhook in a human turn returns its secret once, for
+		// both uses: an agent stores a multi-use secret in the sending
+		// system and hands a single-use secret to a callback job.
 		var rows []database.ChatAutomation
 		for _, tc := range []struct {
-			args       manageAutomationsArgs
-			wantSecret bool
+			args     manageAutomationsArgs
+			wantNote string
 		}{
-			{webhookArgs(ptr.Ref("single"), "existing_chat"), true},
-			{webhookArgs(ptr.Ref("multi"), "existing_chat"), false},
-			{webhookArgs(nil, "existing_chat"), false},
-			{webhookArgs(ptr.Ref("single"), "new_chat"), true},
+			{webhookArgs(ptr.Ref("single"), "existing_chat"), manageAutomationsSingleUseSecretNote},
+			{webhookArgs(ptr.Ref("multi"), "existing_chat"), manageAutomationsMultiUseSecretNote},
+			{webhookArgs(nil, "existing_chat"), manageAutomationsMultiUseSecretNote},
+			{webhookArgs(ptr.Ref("single"), "new_chat"), manageAutomationsSingleUseSecretNote},
 		} {
 			row, content := f.mustCreate(ctx, t, f.chat.ID, tc.args)
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(content), &result))
-			if tc.wantSecret {
-				secret, ok := result["webhook_secret"].(string)
-				require.True(t, ok, content)
-				require.True(t, strings.HasPrefix(secret, automationWebhookSecretPrefix))
-				require.Equal(t, manageAutomationsSingleUseSecretNote, result["webhook_secret_note"])
-			} else {
-				require.NotContains(t, result, "webhook_secret")
-				require.Equal(t, manageAutomationsSecretNotShown, result["webhook_secret_note"])
-				requireNoPlaintextSecret(t, content)
-			}
+			secret, ok := result["webhook_secret"].(string)
+			require.True(t, ok, content)
+			require.True(t, strings.HasPrefix(secret, automationWebhookSecretPrefix))
+			require.Equal(t, tc.wantNote, result["webhook_secret_note"])
 			requireNoWebhookSecret(t, content, row, "")
 			rows = append(rows, row)
 		}

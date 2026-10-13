@@ -496,13 +496,15 @@ Coder checks these rules again when it applies the change.
 
 In a turn that an automation started, the agent can't create, update, enable, or run automations.
 It sees only automations that target the chat or that created it, and it can delete only the automation that started the turn.
-A message you send right after an automation message, before the agent responds, counts as part of that turn.
+The newest message of the turn decides.
+If you send a message after an automation message, even before the agent responds, the turn becomes yours and these limits don't apply.
 
-The tool never returns the secret of a multi-use webhook, because tool results stay in the chat.
-To get the secret of a multi-use webhook an agent created, rotate the secret in the dashboard.
-When the agent creates a single-use webhook in a turn that you start, the result shows the secret and the endpoint once, so the agent can hand them to a job as a callback.
-The secret stops working after one delivery.
-Until then, anyone who can read the chat can use it, so don't share the chat until the callback is used.
+When the agent creates a webhook in a turn that you start, the result shows the endpoint and the secret once, so the agent can hand them to the sender.
+For a multi-use webhook, the agent can store the secret in the sending system, for example as a CI secret.
+For a single-use webhook, the agent can pass the secret to a job or another agent as a callback, and the secret stops working after one delivery.
+The tool result stays in the chat, so anyone who can read the chat can use the secret: a multi-use secret until you rotate it, a single-use secret until its first delivery.
+Don't share the chat while the secret is valid, and rotate a multi-use secret in the dashboard if the chat was shared.
+No other action returns a secret.
 
 ### What the agent sees in an automation turn
 

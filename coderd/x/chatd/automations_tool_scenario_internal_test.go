@@ -214,3 +214,41 @@ func TestManageAutomationsLimitError(t *testing.T) {
 		"Delete one you no longer need first, or update an existing one instead of creating a new one.", content)
 	require.Len(t, f.ownerAutomations(ctx, t), 1)
 }
+
+// TestManageAutomationsOwnerMessageLeadsTurn covers the owner decision
+// that the newest user message of a turn decides: an owner message after
+// an automation message lifts the automation-turn limits, and the next
+// automation message brings them back. Secrets follow the same rule.
+func TestManageAutomationsOwnerMessageLeadsTurn(t *testing.T) {
+	t.Parallel()
+	f := newManageAutomationsFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	heartbeat := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+	automationMessage := func() {
+		dbgen.ChatMessage(t, f.db, database.ChatMessage{
+			ChatID:       f.chat.ID,
+			Role:         database.ChatMessageRoleUser,
+			AutomationID: uuid.NullUUID{UUID: heartbeat.ID, Valid: true},
+			InputID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+	}
+	webhook := `{"action":"create","name":"Deploy","kind":"webhook","target_mode":"existing_chat","prompt":"A deploy finished."}`
+
+	dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleAssistant})
+	automationMessage()
+	content, isError := f.callRaw(ctx, t, webhook)
+	require.True(t, isError, content)
+	require.Contains(t, content, "not available in a turn that an automation started")
+	require.NotContains(t, content, automationWebhookSecretPrefix)
+
+	// The owner writes before the agent answers the automation message.
+	dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
+	content, isError = f.callRaw(ctx, t, webhook)
+	require.False(t, isError, content)
+	require.Contains(t, content, automationWebhookSecretPrefix, "an owner-led turn gets the secret")
+
+	automationMessage()
+	content, isError = f.callRaw(ctx, t, webhook)
+	require.True(t, isError, content)
+	require.Contains(t, content, "not available in a turn that an automation started")
+}
