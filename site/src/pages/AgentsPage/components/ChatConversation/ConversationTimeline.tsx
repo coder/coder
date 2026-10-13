@@ -40,7 +40,6 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
-	getVisibleContent,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
@@ -56,8 +55,9 @@ import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	getRowBlocks,
 	groupWorkingBlocks,
-	isAgentAttachmentOnlyRow,
-	type RowSection,
+	type RowSlice,
+	splitRowPieces,
+	type TimelineItem,
 } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
@@ -109,8 +109,11 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
-	section?: RowSection;
-	hideAttachments: boolean;
+	// A row that a working block splits renders as slices, each a half-open
+	// range of its pieces from splitRowPieces.
+	pieceStart?: number;
+	pieceEnd?: number;
+	isWorkSlice?: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -153,8 +156,9 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
-		section,
-		hideAttachments,
+		pieceStart,
+		pieceEnd,
+		isWorkSlice = false,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -188,12 +192,33 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const rowBlocks = parsed?.blocks ?? liveBlocks;
+		const rowTools = parsed?.tools ?? liveTools;
+		const pieces =
+			pieceStart === undefined
+				? undefined
+				: splitRowPieces(rowBlocks, rowTools);
+		const blocks = pieces
+			? pieces.slice(pieceStart, pieceEnd).flatMap((piece) => piece.blocks)
+			: rowBlocks;
+		// A slice renders only its own tools, or the rest would render again
+		// as block-less tools.
+		const sliceToolIds = new Set(
+			blocks.flatMap((block) => (block.type === "tool" ? [block.id] : [])),
+		);
+		const tools = pieces
+			? rowTools.filter((tool) => sliceToolIds.has(tool.id))
+			: rowTools;
+		// The slice that ends the row carries its actions and live status.
+		const endsRow = !pieces || pieceEnd === pieces.length;
+		const coversRow = endsRow && (pieceStart ?? 0) === 0;
+		const showsActions = !hideActions && endsRow;
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
 						message,
 						parsed,
-						hideActions,
+						hideActions: !showsActions,
 						hasActiveStream,
 						isAwaitingFirstStreamChunk,
 					})
@@ -238,26 +263,11 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
-		const isWorkSection = section === "work";
-		const rowBlocks = parsed?.blocks ?? liveBlocks;
-		const rowTools = parsed?.tools ?? liveTools;
-		const blocks = getRowBlocks(rowBlocks, rowTools, {
-			section,
-			hideAttachments,
-		});
-		// An answer whose only work was a search without citations folds
-		// nothing, and an empty row would still add a gap inside the block.
-		if (
-			isWorkSection &&
-			getVisibleContent(blocks, rowTools).visibleBlocks.length === 0
-		) {
-			return null;
-		}
-		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
+		const outputLiveStatus = endsRow ? liveStatus : undefined;
 
 		return (
 			<div
-				data-testid={`chat-message-${renderKey}${isWorkSection ? "-work" : ""}`}
+				data-testid={`chat-message-${renderKey}${isWorkSlice && !coversRow ? "-work" : ""}`}
 				className={cn(
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
@@ -282,8 +292,7 @@ const ChatMessageItem = memo<{
 									organizationId={organizationId}
 									keyPrefix={renderKey}
 									blocks={blocks}
-									// Folded tools would otherwise render again as block-less tools.
-									tools={section === "answer" ? [] : rowTools}
+									tools={tools}
 									isStreaming={outputLiveStatus?.phase === "streaming"}
 									liveStatus={outputLiveStatus}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -318,7 +327,7 @@ const ChatMessageItem = memo<{
 					</LifecycleHookNotice>
 				))}
 				{displayState &&
-					!hideActions &&
+					showsActions &&
 					(displayState.hasCopyableContent ||
 						canEditUserMessage ||
 						canJumpBetweenUserMessages) && (
@@ -516,8 +525,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
-		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
-		const workingBlocks = collapseSteps
+		const layout = preferences.data?.collapse_assistant_steps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
 					// requires_action is the agent waiting on the user, not working.
@@ -530,13 +538,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					liveTools,
 					streamState,
 				})
-			: [];
-		const blockByFirstRow = new Map(
-			workingBlocks.map((block) => [block.rowIndices[0], block]),
-		);
-		const groupedRows = new Set(
-			workingBlocks.flatMap((block) => block.rowIndices),
-		);
+			: undefined;
+		const workingBlocks = layout?.blocks ?? [];
+		const items =
+			layout?.items ??
+			renderRows.map(
+				(row, rowIndex): TimelineItem => ({
+					type: "slice",
+					slice: { rowIndex, key: row.key },
+				}),
+			);
 		const nextLiveBlockKeys = reconcileLiveBlockKeys(
 			workingBlocks,
 			streamState?.startedAt,
@@ -631,19 +642,23 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		// The work section keeps the row's key, so a row that becomes an answer
-		// row inside an expanded block does not remount its reasoning.
-		const renderRowContent = (index: number, section?: RowSection) => {
-			const row = renderRows[index];
-			const hideAttachments = collapseSteps && !groupedRows.has(index);
+		// A slice keeps the row's key while it holds the row's first work or
+		// output, so a row that splits inside an expanded block does not remount
+		// its reasoning or streaming text.
+		const renderSlice = (slice: RowSlice, inBlock: boolean) => {
+			const row = renderRows[slice.rowIndex];
+			const sliceProps = {
+				renderKey: slice.key,
+				pieceStart: slice.pieces?.start,
+				pieceEnd: slice.pieces?.end,
+				isWorkSlice: inBlock,
+			};
 			if (row.type === "live") {
 				return (
 					<ChatMessageItem
-						key={row.key}
+						key={slice.key}
+						{...sliceProps}
 						organizationId={organizationId}
-						renderKey={row.key}
-						section={section}
-						hideAttachments={hideAttachments}
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -661,20 +676,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const { message, parsed } = row.entry;
 			const isUser = message.role === "user";
 			const neighbors = userNeighborsByKey.get(row.key);
-			// A block's item dims and inerts its rows as a whole; the answer
-			// section renders outside it, so it dims itself.
-			const isAfterEditingMessage =
-				(section === "answer" || !groupedRows.has(index)) &&
-				afterEditingMessageIds.has(message.id);
 
 			return (
 				<ChatMessageItem
-					key={row.key}
+					key={slice.key}
+					{...sliceProps}
 					organizationId={organizationId}
-					renderKey={row.key}
 					message={message}
-					section={section}
-					hideAttachments={hideAttachments}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}
@@ -687,10 +695,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					}
 					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
-					isAfterEditingMessage={isAfterEditingMessage}
-					hideActions={
-						section === "work" || (!isUser && !row.isLastInAssistantChain)
+					// A block's item dims and inerts its slices as a whole.
+					isAfterEditingMessage={
+						!inBlock && afterEditingMessageIds.has(message.id)
 					}
+					hideActions={inBlock || (!isUser && !row.isLastInAssistantChain)}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					isLastMessage={row.isLastMessage}
@@ -707,31 +716,25 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{renderRows.flatMap((row, index) => {
-					const block = blockByFirstRow.get(index);
-					if (block) {
-						// Keyed on durable member rows and the item key, excluding the live
+				{items.map((item) => {
+					if (item.type === "block") {
+						const { block } = item;
+						// Keyed on durable pieces and the item key, excluding the live
 						// row so the choice does not carry into the next turn; the newest
-						// member wins.
-						const memberKeys = block.rowIndices.flatMap((rowIndex) => {
-							const member = renderRows[rowIndex];
-							return member.type === "message" ? [member.key] : [];
-						});
+						// piece wins.
 						const itemKey =
 							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 						const expanded =
 							expandedBlocks.get(
-								memberKeys.findLast((key) => expandedBlocks.has(key)) ??
+								block.pieceKeys.findLast((key) => expandedBlocks.has(key)) ??
 									itemKey,
 							) ?? false;
+						const firstRow = renderRows[block.slices[0].rowIndex];
 						const isAfterEditingMessage =
-							row.type === "message" &&
-							afterEditingMessageIds.has(row.entry.message.id);
-						const answerRowIndex = block.endsWithAnswer
-							? block.rowIndices.at(-1)
-							: undefined;
+							firstRow.type === "message" &&
+							afterEditingMessageIds.has(firstRow.entry.message.id);
 
-						return [
+						return (
 							<MessageScroller.Item
 								key={itemKey}
 								messageId={itemKey}
@@ -747,7 +750,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onExpandedChange={(value) =>
 										setExpandedBlocks((previous) => {
 											const next = new Map(previous);
-											for (const key of [itemKey, ...memberKeys]) {
+											for (const key of [itemKey, ...block.pieceKeys]) {
 												next.set(key, value);
 											}
 											return next;
@@ -755,49 +758,29 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									}
 								>
 									{expanded &&
-										block.rowIndices.map((rowIndex) =>
-											renderRowContent(
-												rowIndex,
-												rowIndex === answerRowIndex ? "work" : undefined,
-											),
-										)}
+										block.slices.map((slice) => renderSlice(slice, true))}
 								</WorkingBlockDisclosure>
-							</MessageScroller.Item>,
-							...(answerRowIndex === undefined
-								? []
-								: [
-										<MessageScroller.Item
-											key={renderRows[answerRowIndex].key}
-											messageId={renderRows[answerRowIndex].key}
-										>
-											{renderRowContent(answerRowIndex, "answer")}
-										</MessageScroller.Item>,
-									]),
-						];
+							</MessageScroller.Item>
+						);
 					}
 
-					if (
-						groupedRows.has(index) ||
-						(collapseSteps && isAgentAttachmentOnlyRow(row))
-					) {
-						return [];
-					}
-
+					const { slice } = item;
+					const row = renderRows[slice.rowIndex];
 					const suppressInitialAnchor =
 						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&
 						row.entry.message.id <= initialActiveTurnMaxMessageId;
-					return [
+					return (
 						<MessageScroller.Item
-							key={row.key}
-							messageId={row.key}
+							key={slice.key}
+							messageId={slice.key}
 							scrollAnchor={
-								row.key === anchorUserRowKey && !suppressInitialAnchor
+								slice.key === anchorUserRowKey && !suppressInitialAnchor
 							}
 						>
-							{renderRowContent(index)}
-						</MessageScroller.Item>,
-					];
+							{renderSlice(slice, false)}
+						</MessageScroller.Item>
+					);
 				})}
 			</FileProbeProvider>
 		);

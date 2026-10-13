@@ -108,20 +108,31 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline working blocks", () => {
-	it("copies the whole message from the answer below its expanded block", async () => {
+	it("copies the whole message from the answer that ends a row split by its work", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 		renderTimeline({ messages: MockWebSearchAnswerMessages });
 
+		// The lead-in text closes the steps' block, and the search opens another.
+		expect(
+			screen.getByRole("button", { name: "Worked for 13s (2 steps)" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Worked for 2s (1 step)" }),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId("chat-message-message:6")).queryByRole(
+				"button",
+				{ name: "Copy message" },
+			),
+		).not.toBeInTheDocument();
 		await user.click(
-			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
-		);
-		await user.click(
-			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
-				name: "Copy message",
-			}),
+			within(screen.getByTestId("chat-message-message:6:1")).getByRole(
+				"button",
+				{ name: "Copy message" },
+			),
 		);
 
 		expect(writeText).toHaveBeenCalledWith(
@@ -332,6 +343,42 @@ const streamingStage = (
 });
 
 describe("ConversationTimeline live working blocks", () => {
+	it("keeps streamed text mounted between the block it closes and the next step's block", () => {
+		const messages = MockWorkingMessages.slice(0, 3);
+		const note = { type: "text", text: "Trials are running." } as const;
+		const { rerenderStage } = renderTimeline({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([note]),
+		});
+
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		summary.focus();
+		const text = screen.getByTestId("chat-message-live-assistant");
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				note,
+				{
+					type: "tool-call",
+					tool_call_id: "second",
+					tool_name: "execute",
+					args: { command: "echo second" },
+					created_at: workingFixtureTime(5),
+				},
+			]),
+		});
+
+		expect(summary).toHaveFocus();
+		expect(summary).toHaveTextContent("Worked for 3s (1 step)");
+		expect(screen.getByTestId("chat-message-live-assistant")).toBe(text);
+		expect(
+			screen.getByRole("button", { name: "Working for 8s" }),
+		).toBeInTheDocument();
+	});
+
 	it("keeps an open block mounted from streaming steps through durable completion", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline(

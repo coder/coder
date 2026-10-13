@@ -118,12 +118,15 @@ export const workingFixtureTime = (seconds: number) =>
 export const MockWorkingBlock: WorkingBlock = {
 	key: "working:through:message:5",
 	liveKey: "working:live:message:1:0",
-	rowIndices: [0, 1],
+	slices: [
+		{ rowIndex: 1, pieces: { start: 0, end: 1 }, key: "message:2" },
+		{ rowIndex: 2, pieces: { start: 0, end: 1 }, key: "message:4" },
+	],
 	memberIds: [2, 4],
+	pieceKeys: ["2:0", "4:0"],
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
-	endsWithAnswer: false,
 	isLive: false,
 	isPartial: false,
 };
