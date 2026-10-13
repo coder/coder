@@ -3755,6 +3755,7 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3838,7 +3839,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions:
 		return true
 	}
 	return false
@@ -3891,6 +3893,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
 	}
 }
 

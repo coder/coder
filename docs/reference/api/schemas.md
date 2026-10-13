@@ -4871,6 +4871,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `owner_id`        | string | false    |              |                                                                                               |
 | `updated_at`      | string | false    |              |                                                                                               |
 
+## codersdk.ChatProjectInstructions
+
+```json
+{
+  "instructions": "string",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                         | Required | Restrictions | Description                                                                                                                  |
+|----------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `instructions` | string                                       | false    |              |                                                                                                                              |
+| `project_id`   | string                                       | false    |              |                                                                                                                              |
+| `updated_at`   | string                                       | false    |              |                                                                                                                              |
+| `updated_by`   | [codersdk.MinimalUser](#codersdkminimaluser) | false    |              | Updated by is the user who last changed the instructions. It is nil when the instructions are unset or the user was deleted. |
+
 ## codersdk.ChatProjectMemory
 
 ```json
@@ -14158,9 +14183,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -16554,6 +16579,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                     | Type   | Required | Restrictions | Description |
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.UpdateChatProjectInstructionsRequest
+
+```json
+{
+  "instructions": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `instructions` | string | false    |              |             |
 
 ## codersdk.UpdateChatProjectRequest
 
