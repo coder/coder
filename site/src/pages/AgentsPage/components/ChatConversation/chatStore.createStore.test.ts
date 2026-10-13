@@ -181,12 +181,6 @@ describe("upsertDurableMessage", () => {
 // applyServerChatStatus
 // ---------------------------------------------------------------------------
 
-const retryState = {
-	attempt: 2,
-	error: "rate limited",
-	kind: "rate_limit",
-} as const;
-
 describe("applyServerChatStatus", () => {
 	it("keeps the turn error while the status is error", () => {
 		const store = createChatStore();
@@ -200,18 +194,6 @@ describe("applyServerChatStatus", () => {
 
 		store.applyServerChatStatus("running");
 		expect(selectStreamError(store.getSnapshot())).toBeNull();
-	});
-
-	it("keeps the retry while the status is running", () => {
-		const store = createChatStore();
-		store.applyServerChatStatus("running");
-		store.setRetryState(retryState);
-
-		store.applyServerChatStatus("running");
-		expect(store.getSnapshot().retryState).toEqual(retryState);
-
-		store.applyServerChatStatus("waiting");
-		expect(store.getSnapshot().retryState).toBeNull();
 	});
 
 	it("does not notify when the status is unchanged", () => {

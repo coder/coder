@@ -195,8 +195,7 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	// Applies a status event; error lasts while it is error, retry while it
-	// is running.
+	// Applies a status event; the turn error lasts while it is error.
 	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
 	setTurnError: (reason: ChatDetailError) => void;
 	// The highest snapshot version of the newest page and the applied events.
@@ -535,15 +534,13 @@ export const createChatStore = (): ChatStore => {
 			batch(() => {
 				setState((current) => {
 					const turnError = status === "error" ? current.turnError : null;
-					const retryState = status === "running" ? current.retryState : null;
 					if (
 						current.chatStatus === status &&
-						current.turnError === turnError &&
-						current.retryState === retryState
+						current.turnError === turnError
 					) {
 						return current;
 					}
-					return { ...current, chatStatus: status, turnError, retryState };
+					return { ...current, chatStatus: status, turnError };
 				});
 				endPending(["turn"]);
 			});
