@@ -66,7 +66,7 @@ export type ComposerDraftBindings = ComposerEditorBindings & {
 };
 
 /** Operations available only inside an existing chat. */
-type ComposerChatBindings = {
+export type ComposerChatBindings = {
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
