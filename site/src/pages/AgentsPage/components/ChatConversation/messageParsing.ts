@@ -20,8 +20,8 @@ import type {
 } from "./types";
 
 /**
- * Concatenate text chunks. Whitespace-only text extends the text but never
- * starts it, matching appendTextBlock.
+ * Concatenate text chunks. A whitespace-only chunk is dropped only while the
+ * text is still empty, so paragraph breaks between chunks survive.
  */
 const appendText = (current: string, next: string): string => {
 	if (!current && !next.trim()) {

@@ -26,16 +26,14 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			// A delta that appends nothing returns prev, so a leading
-			// whitespace-only delta does not create a non-null StreamState
-			// with empty blocks, which would prematurely end the "starting"
-			// phase.
 			const blocks = appendTextBlock(
 				nextState.blocks,
 				"response",
 				part.text,
 				part.narration,
 			);
+			// Keeps a leading whitespace-only delta from creating a non-null
+			// state with no blocks, which would end the "starting" phase early.
 			if (blocks === nextState.blocks) {
 				return prev;
 			}
