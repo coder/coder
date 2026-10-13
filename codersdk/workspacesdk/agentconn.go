@@ -45,9 +45,7 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 	if opts.APIIdleConnTimeout > 0 {
 		var dialCtx context.Context
 		dialCtx, c.endKeepAliveDials = context.WithCancel(context.Background())
-		c.keepAliveClient = c.newAPIClient(dialCtx, &http.Transport{
-			IdleConnTimeout: opts.APIIdleConnTimeout,
-		})
+		c.keepAliveClient = c.newAPIClient(dialCtx, opts.APIIdleConnTimeout)
 	}
 	return c
 }
@@ -174,11 +172,12 @@ type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
 	Logger    slog.Logger
-	// APIIdleConnTimeout, if positive, keeps connections to the workspace
-	// agent's HTTP API server open between requests, for up to this long while
-	// idle. It must be below AgentHTTPAPIServerIdleTimeout. If the workspace
-	// agent closes a kept connection anyway, such as by restarting, a request
-	// that http.Transport does not resend returns the error.
+	// APIIdleConnTimeout, if positive, sends every request through one client
+	// that keeps connections to the workspace agent's HTTP API server open for
+	// up to this long while idle. Keep it below the workspace agent's idle
+	// timeout: a request sent on a connection the workspace agent closed, for
+	// example by restarting, can fail. Close ends the client's dials and
+	// connections.
 	APIIdleConnTimeout time.Duration
 }
 
@@ -1733,30 +1732,24 @@ func decodeAgentJSON(res *http.Response, v any) error {
 // maxJSONTrailerBytes is how much decodeAgentJSON reads after the value, so
 // that http.Transport can reuse the connection: it reuses one only after the
 // body was read to EOF, and the decoder can stop before the end of a chunked
-// body. The agent writes one newline after the value.
+// body. The workspace agent writes one newline after the value.
 const maxJSONTrailerBytes = 4 << 10
 
-// apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server. Without
-// opts.APIIdleConnTimeout, the client is scoped to a single request:
-// its transport cancels in-flight dials once reqCtx ends.
+// apiClient returns the client for a request to the workspace agent's HTTP
+// API server: the keep-alive client if opts.APIIdleConnTimeout is set, or
+// else a client scoped to the request, whose dials end when reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 	if c.keepAliveClient != nil {
 		return c.keepAliveClient
 	}
-	return c.newAPIClient(reqCtx, &http.Transport{
-		// Disable keep alives as we're usually only making a single
-		// request, and this triggers goleak in tests
-		DisableKeepAlives: true,
-	})
+	return c.newAPIClient(reqCtx, 0)
 }
 
-// newAPIClient returns an HTTP client that sends requests to the workspace
-// agent's HTTP API server through transport, whose dials end when dialCtx
-// ends.
-func (c *agentConn) newAPIClient(dialCtx context.Context, transport *http.Transport) *http.Client {
+// newAPIClient returns a client for the workspace agent's HTTP API server
+// whose dials end when dialCtx ends.
+func (c *agentConn) newAPIClient(dialCtx context.Context, idleConnTimeout time.Duration) *http.Client {
 	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if network != "tcp" {
 			return nil, xerrors.Errorf("network must be tcp")
 		}
@@ -1780,8 +1773,8 @@ func (c *agentConn) newAPIClient(dialCtx context.Context, transport *http.Transp
 		// http.Transport detaches ctx from the request context so a
 		// pending dial can outlive its request and serve future requests.
 		// Without ending it with dialCtx, the dial could block in
-		// AwaitReachable until the agent becomes reachable, which may be
-		// never.
+		// AwaitReachable until the workspace agent becomes reachable, which
+		// may be never.
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		stop := context.AfterFunc(dialCtx, cancel)
@@ -1804,7 +1797,13 @@ func (c *agentConn) newAPIClient(dialCtx context.Context, transport *http.Transp
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: transport,
+		Transport: &http.Transport{
+			// Disable keep alives for a client scoped to one request, as its
+			// idle connections would trigger goleak in tests.
+			DisableKeepAlives: idleConnTimeout == 0,
+			IdleConnTimeout:   idleConnTimeout,
+			DialContext:       dial,
+		},
 	}
 }
 
