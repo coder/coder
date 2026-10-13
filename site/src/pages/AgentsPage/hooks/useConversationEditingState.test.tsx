@@ -1,11 +1,19 @@
-import { act, renderHook } from "@testing-library/react";
-import { createRef, useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createRef, useImperativeHandle, useState } from "react";
+import { QueryClientProvider } from "react-query";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
+import { ChatMessageInput } from "../components/ChatMessageInput/ChatMessageInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
-import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
+import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../utils/agentChatSendShortcut";
+import {
+	draftInputStorageKeyPrefix,
+	parseStoredDraft,
+} from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";
 import {
 	type ComposerMode,
@@ -84,6 +92,82 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
+// The row the store marks, or none, and the latest marker request.
+type ServerProps = {
+	serverMarkedID: number | null;
+	marker: MarkerRequest;
+};
+
+type EditingHarnessHandle = ReturnType<typeof useConversationEditingState> & {
+	composerMode: ComposerMode;
+	setComposerMode: (mode: ComposerMode) => void;
+};
+
+// Wires the hook to the real Lexical editor the way the page does, so the
+// hook sees the editor's own update sequence, including remounts.
+const EditingWithEditor = ({
+	chatID,
+	contents,
+	serverMarkedID,
+	marker,
+	ref,
+}: ServerProps & {
+	chatID: string;
+	contents: ReadonlyMap<number, string>;
+	ref: React.Ref<EditingHarnessHandle>;
+}) => {
+	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
+	const [inputValueRef] = useState(() => ({ current: "" }));
+	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
+	const target = deriveComposerTarget(
+		composerMode,
+		serverMarkedID,
+		marker,
+		true,
+	);
+	const targetText = target ? contents.get(target.id) : undefined;
+	const editing = useConversationEditingState({
+		chatID,
+		onSend: vi.fn(),
+		chatInputRef,
+		inputValueRef,
+		composerMode,
+		setComposerMode,
+		target,
+		targetContent:
+			targetText === undefined ? undefined : textContent(targetText),
+	});
+	useImperativeHandle(ref, () => ({
+		...editing,
+		composerMode,
+		setComposerMode,
+	}));
+	return (
+		<ChatMessageInput
+			ref={chatInputRef}
+			aria-label="Chat message"
+			placeholder="Type a message..."
+			initialValue={editing.editorInitialValue}
+			initialEditorState={editing.initialEditorState}
+			remountKey={editing.remountKey}
+			onChange={editing.handleContentChange}
+			onEnter={vi.fn()}
+			sendShortcut={DEFAULT_AGENT_CHAT_SEND_SHORTCUT}
+			disabled={false}
+			hasWorkspace={false}
+		/>
+	);
+};
+
+beforeAll(() => {
+	// Lexical measures the selection to scroll it into view; jsdom has no
+	// layout.
+	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+		configurable: true,
+		value: () => new DOMRect(0, 0, 1, 16),
+	});
+});
+
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
 	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
@@ -95,10 +179,6 @@ describe("useConversationEditingState", () => {
 
 	// The harness owns composerMode and derives the target the way the page
 	// does: from the mode, the store marker and the marker request.
-	type ServerProps = {
-		serverMarkedID: number | null;
-		marker: MarkerRequest;
-	};
 	const renderEditing = (...args: [] | [string]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onLoadedTargetChange = vi.fn();
@@ -189,6 +269,55 @@ describe("useConversationEditingState", () => {
 			markOnServer,
 			openEditWhileBeginPending,
 		};
+	};
+
+	// Renders the hook with the real editor. Rows are queued rows keyed by
+	// id; the user types through the editor rather than handleContentChange.
+	const renderEditingWithEditor = () => {
+		const user = userEvent.setup();
+		const handle = createRef<EditingHarnessHandle>();
+		const contents = new Map<number, string>();
+		const queryClient = createTestQueryClient();
+		const ui = (props: ServerProps) => (
+			<QueryClientProvider client={queryClient}>
+				<EditingWithEditor
+					ref={handle}
+					chatID={chatID}
+					contents={contents}
+					{...props}
+				/>
+			</QueryClientProvider>
+		);
+		const view = render(ui({ serverMarkedID: null, marker: idleMarker }));
+		const current = () => {
+			if (!handle.current) {
+				throw new Error("harness is not mounted");
+			}
+			return handle.current;
+		};
+		const editorText = () =>
+			screen.getByRole("textbox", { name: "Chat message" }).textContent;
+		// Async act, so the editor's remount commits settle inside it.
+		const markOnServer = async (id: number | null, text?: string) => {
+			if (id !== null && text !== undefined) {
+				contents.set(id, text);
+			}
+			await act(async () =>
+				view.rerender(ui({ serverMarkedID: id, marker: idleMarker })),
+			);
+		};
+		// Edit on a row as the page does it once the begin request settles.
+		const beginEdit = async (id: number, text: string) => {
+			await markOnServer(id, text);
+			await act(async () => current().setComposerMode({ kind: "queued", id }));
+		};
+		// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
+		// through its input path.
+		const type = async (text: string) => {
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.paste(text);
+		};
+		return { ...view, current, editorText, markOnServer, beginEdit, type };
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -817,81 +946,71 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
-		// The row's text is "queued text"; the draft before the edit is "draft".
+		// These drive the real editor: its remount on load emits updates of
+		// its own, which must not count as the user changing the edit. The
+		// row's text is "queued text"; the draft before the edit is "draft".
 		it.each([
-			[
-				"modified text stays as a new-message draft",
-				"queued edit",
-				"queued edit",
-				"draft",
-			],
+			["modified text stays as a new-message draft", true],
 			[
 				"unmodified text gives way to the draft from before the edit and the composer counts as untouched",
-				"queued text",
-				"draft",
-				"follow",
+				false,
 			],
 		])(
 			"when the server ends the edit and marks no other row, %s",
-			(_name, textWhileEditing, expectedDraft, expectedMode) => {
-				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+			async (_name, modify) => {
+				const { unmount, current, editorText, beginEdit, markOnServer, type } =
+					renderEditingWithEditor();
 
-				act(() => {
-					result.current.handleContentChange("draft", "draft", false);
-					beginEdit({ kind: "queued", id: 42 }, "queued text");
-				});
-				act(() => {
-					result.current.handleContentChange(
-						textWhileEditing,
-						textWhileEditing,
-						false,
-					);
-				});
+				await type("draft");
+				await beginEdit(42, "queued text");
+				expect(editorText()).toBe("queued text");
+				if (modify) {
+					await type(" edit");
+				}
+				const textWhileEditing = editorText();
 
-				markOnServer(null);
+				await markOnServer(null);
 
-				expect(result.current.editingTarget).toBeNull();
-				expect(result.current.composerMode).toBe(expectedMode);
-				expect(result.current.inputValueRef.current).toBe(expectedDraft);
-				expect(localStorage.getItem(expectedKey)).toBe(expectedDraft);
+				const expectedDraft = modify ? textWhileEditing : "draft";
+				expect(current().editingTarget).toBeNull();
+				expect(current().composerMode).toBe(modify ? "draft" : "follow");
+				expect(editorText()).toBe(expectedDraft);
+				expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+					expectedDraft,
+				);
 				unmount();
 			},
 		);
 
 		it.each([
-			[
-				"modified text stays as a new-message draft and no edit opens",
-				"queued edit",
-				null,
-				"queued edit",
-			],
-			[
-				"unmodified text follows the edit to the newly marked row",
-				"queued text",
-				{ kind: "queued", id: 6 },
-				"other row",
-			],
+			["modified text stays as a new-message draft and no edit opens", true],
+			["unmodified text follows the edit to the newly marked row", false],
 		])(
 			"when another client moves the edit to a different row, %s",
-			(_name, textWhileEditing, expectedTarget, expectedText) => {
-				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+			async (_name, modify) => {
+				const { unmount, current, editorText, beginEdit, markOnServer, type } =
+					renderEditingWithEditor();
 
-				act(() => {
-					result.current.handleContentChange("draft", "draft", false);
-					beginEdit({ kind: "queued", id: 42 }, "queued text");
-				});
-				act(() => {
-					result.current.handleContentChange(
-						textWhileEditing,
-						textWhileEditing,
-						false,
-					);
-				});
+				await type("draft");
+				await beginEdit(42, "queued text");
+				if (modify) {
+					await type(" edit");
+				}
+				const textWhileEditing = editorText();
 
-				markOnServer(6, "other row");
+				await markOnServer(6, "other row");
 
-				expect(result.current.editingTarget).toEqual(expectedTarget);
-				expect(result.current.inputValueRef.current).toBe(expectedText);
+				expect(current().editingTarget).toEqual(
+					modify ? null : { kind: "queued", id: 6 },
+				);
+				expect(editorText()).toBe(modify ? textWhileEditing : "other row");
+
+				// The followed edit is untouched too, so its end gives the draft back.
+				if (!modify) {
+					await markOnServer(null);
+					expect(current().composerMode).toBe("follow");
+					expect(editorText()).toBe("draft");
+				}
 				unmount();
 			},
 		);
