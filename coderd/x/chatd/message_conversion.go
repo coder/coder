@@ -336,14 +336,15 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
-	summaryResult, err := json.Marshal(map[string]any{
-		"summary":                  input.compaction.SummaryReport,
-		"source":                   source,
-		"threshold_percent":        input.compaction.ThresholdPercent,
-		"usage_percent":            input.compaction.UsagePercent,
-		"context_tokens":           input.compaction.ContextTokens,
-		"context_limit_tokens":     input.compaction.ContextLimit,
-		"estimated_context_tokens": input.compaction.EstimatedContextTokens,
+	summaryResult, err := json.Marshal(chatloop.CompactionToolResult{
+		Summary:                   input.compaction.SummaryReport,
+		Source:                    source,
+		ThresholdPercent:          input.compaction.ThresholdPercent,
+		UsagePercent:              input.compaction.UsagePercent,
+		ContextTokens:             input.compaction.ContextTokens,
+		ContextLimitTokens:        input.compaction.ChatContextLimit,
+		EstimatedContextTokens:    input.compaction.EstimatedContextTokens,
+		TriggerContextLimitTokens: input.compaction.TriggerContextLimit,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)
@@ -501,7 +502,7 @@ func compactionStatusFromHistory(
 	messages []database.ChatMessage,
 	requirement compactionRequirement,
 	thresholdPercent int32,
-	contextLimit int64,
+	triggerContextLimit int64,
 ) compactionStatus {
 	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
@@ -514,7 +515,8 @@ func compactionStatusFromHistory(
 		// does not carry context usage, and is always preceded by an assistant
 		// message.
 		if assistant, ok := firstUncompressedAssistantAfter(messages, boundaryIndex); ok &&
-			postCompactionAssistantOverLimit(assistant, thresholdPercent, contextLimit) {
+			postCompactionAssistantOverLimit(assistant, thresholdPercent, triggerContextLimit) &&
+			!summaryRecordedUnderOtherTrigger(messages[boundaryIndex], thresholdPercent, triggerContextLimit) {
 			return compactionStatusStillOverLimit
 		}
 		if hasUncompressedMessageAfter(messages, boundaryIndex) {
@@ -526,6 +528,39 @@ func compactionStatusFromHistory(
 		return compactionStatusAfterCompaction
 	}
 	return compactionStatusNotNeeded
+}
+
+// summaryRecordedUnderOtherTrigger reports whether a chat_summarized
+// boundary recorded a trigger other than the current one. A summary made
+// under an older trigger is not a failed compaction under the current one.
+func summaryRecordedUnderOtherTrigger(boundary database.ChatMessage, thresholdPercent int32, triggerContextLimit int64) bool {
+	parts, err := chatprompt.ParseContent(boundary)
+	if err != nil {
+		return false
+	}
+	for _, part := range parts {
+		if part.ToolName != "chat_summarized" || part.Type != codersdk.ChatMessagePartTypeToolResult {
+			continue
+		}
+		// Results written before trigger_context_limit_tokens stored the
+		// trigger's window in context_limit_tokens. A result without these
+		// keys compares equal to the current trigger.
+		const noTriggerContextLimit = -1
+		recorded := chatloop.CompactionToolResult{
+			ThresholdPercent:          thresholdPercent,
+			ContextLimitTokens:        triggerContextLimit,
+			TriggerContextLimitTokens: noTriggerContextLimit,
+		}
+		if err := json.Unmarshal(part.Result, &recorded); err != nil {
+			return false
+		}
+		recordedLimit := recorded.TriggerContextLimitTokens
+		if recordedLimit == noTriggerContextLimit {
+			recordedLimit = recorded.ContextLimitTokens
+		}
+		return recorded.ThresholdPercent != thresholdPercent || recordedLimit != triggerContextLimit
+	}
+	return false
 }
 
 // latestContextBoundaryIndex finds the latest compressed
@@ -598,8 +633,20 @@ func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) boo
 	return false
 }
 
-func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
-	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
+// postCompactionOverLimit reports whether the first assistant usage after the
+// latest boundary reaches trigger's point. A disabled trigger never does.
+func postCompactionOverLimit(messages []database.ChatMessage, trigger compactionTrigger) bool {
+	assistant, ok := firstUncompressedAssistantAfter(messages, latestContextBoundaryIndex(messages))
+	return ok && postCompactionAssistantOverLimit(assistant, trigger.thresholdPercent, trigger.contextLimit)
+}
+
+func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, triggerContextLimit int64) bool {
+	// Zero means "always compact." Excluding it from this check prevents a
+	// terminal over-limit error after every compaction.
+	if thresholdPercent <= 0 {
+		return false
+	}
+	return shouldCompactPromptUsage(usageFromMessage(msg), triggerContextLimit, thresholdPercent)
 }
 
 func usageFromMessage(msg database.ChatMessage) fantasy.Usage {

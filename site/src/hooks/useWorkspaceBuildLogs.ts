@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { watchBuildLogsByBuildId } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 export const useWorkspaceBuildLogs = (
 	// buildId is optional because sometimes the build is not loaded yet

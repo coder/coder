@@ -1,12 +1,16 @@
 package coderd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -100,11 +104,44 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	aReq, commitAudit := audit.InitRequestWithCancel[database.AuditableChatProjectInstructions](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: project.OrganizationID,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatProjectInstruction{ProjectID: project.ID, OrganizationID: project.OrganizationID}.Auditable(project.Name)
+	aReq.New = aReq.Old
+
 	// Write and read back in one transaction so a failed read rolls back
 	// the write instead of returning an error for a change that was saved.
-	var row database.GetChatProjectInstructionsByProjectIDRow
+	// The audit diff is applied only after the transaction commits, so a
+	// rolled-back write is audited without one.
+	var (
+		row               database.GetChatProjectInstructionsByProjectIDRow
+		previous, updated database.ChatProjectInstruction
+	)
 	err := api.Database.InTx(func(tx database.Store) error {
-		_, err := tx.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+		previous = aReq.Old.ChatProjectInstruction
+		// The per-project lock serializes reading the previous value for
+		// the audit diff with the write.
+		if err := tx.AcquireLock(ctx, chatProjectInstructionsLockID(project.ID)); err != nil {
+			return xerrors.Errorf("acquire chat project instructions lock: %w", err)
+		}
+		// The ActionUpdate check above gates this endpoint, so the reads
+		// below run under a system context: a role that grants update
+		// without read can still save.
+		//nolint:gocritic // See above.
+		old, err := tx.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get previous chat project instructions: %w", err)
+		}
+		if err == nil {
+			previous = old.ChatProjectInstruction
+		}
+		updated, err = tx.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
 			ProjectID:    project.ID,
 			Instructions: instructions,
 			UpdatedBy:    apiKey.UserID,
@@ -112,10 +149,7 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("upsert chat project instructions: %w", err)
 		}
-		// Read the row back to include the updating user's profile. The
-		// ActionUpdate check above gates this endpoint, so read under a
-		// system context: a role that grants update without read can
-		// still save.
+		// Read the row back to include the updating user's profile.
 		//nolint:gocritic // See above.
 		row, err = tx.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
 		if err != nil {
@@ -130,6 +164,12 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	// Saving unchanged instructions is not audited.
+	if updated.Instructions == previous.Instructions {
+		commitAudit(false)
+	}
+	aReq.Old = previous.Auditable(project.Name)
+	aReq.New = updated.Auditable(project.Name)
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProjectInstructions(row))
 }
 
@@ -149,13 +189,65 @@ func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Re
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	aReq, commitAudit := audit.InitRequestWithCancel[database.AuditableChatProjectInstructions](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionDelete,
+		OrganizationID: project.OrganizationID,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatProjectInstruction{ProjectID: project.ID, OrganizationID: project.OrganizationID}.Auditable(project.Name)
+
 	// Deleting unset instructions succeeds, so the request is idempotent.
-	if err := api.Database.DeleteChatProjectInstructionsByProjectID(ctx, project.ID); err != nil {
+	// The audit diff is applied only after the transaction commits, so a
+	// rolled-back delete is audited without one.
+	var (
+		deleted  bool
+		previous database.ChatProjectInstruction
+	)
+	err := api.Database.InTx(func(tx database.Store) error {
+		deleted = false
+		// The per-project lock serializes reading the deleted value for the
+		// audit diff with the delete.
+		if err := tx.AcquireLock(ctx, chatProjectInstructionsLockID(project.ID)); err != nil {
+			return xerrors.Errorf("acquire chat project instructions lock: %w", err)
+		}
+		// The ActionUpdate check above gates this endpoint, so read the
+		// value being deleted under a system context: a role that grants
+		// update without read can still delete.
+		//nolint:gocritic // See above.
+		old, err := tx.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get chat project instructions: %w", err)
+		}
+		previous = old.ChatProjectInstruction
+		if err := tx.DeleteChatProjectInstructionsByProjectID(ctx, project.ID); err != nil {
+			return xerrors.Errorf("delete chat project instructions: %w", err)
+		}
+		deleted = true
+		return nil
+	}, nil)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat project instructions.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	// Deleting unset instructions changes nothing, so it is not audited.
+	if !deleted {
+		commitAudit(false)
+	}
+	aReq.Old = previous.Auditable(project.Name)
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectInstructionsLockID returns the advisory lock ID that serializes
+// writes to one project's instructions.
+func chatProjectInstructionsLockID(projectID uuid.UUID) int64 {
+	return database.GenLockID("chat-project-instructions:" + projectID.String())
 }

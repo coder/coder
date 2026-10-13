@@ -254,11 +254,18 @@ of the template will be used.
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -630,11 +637,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -972,11 +986,18 @@ of the template will be used.
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -1264,11 +1285,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "scripts": [
                   {
                     "cron": "string",
+                    "dependencies": [],
                     "display_name": "string",
                     "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "resource_address": "string",
                     "run_on_start": true,
                     "run_on_stop": true,
                     "script": "string",
@@ -1583,11 +1606,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -2211,11 +2241,18 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",

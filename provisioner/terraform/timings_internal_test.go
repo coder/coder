@@ -135,7 +135,6 @@ func ingestAllSpans(t *testing.T, input []byte, aggregator *timingAggregator) {
 
 		ts, span, err := extractTimingSpan(log)
 		if err != nil {
-			// t.Logf("%s: failed span extraction on line: %q", err, line)
 			continue
 		}
 

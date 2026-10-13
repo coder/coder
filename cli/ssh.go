@@ -1087,7 +1087,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			useParameterDefaults: true,
 		}, buildFlags{
 			reason: string(codersdk.BuildReasonSSHConnection),
-		}, WorkspaceStart)
+		}, WorkspaceStart, uuid.Nil)
 		if cerr, ok := codersdk.AsError(err); ok {
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
@@ -1097,7 +1097,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
 					useParameterDefaults: true,
-				}, buildFlags{}, WorkspaceUpdate)
+				}, buildFlags{}, WorkspaceUpdate, uuid.Nil)
 				if err != nil {
 					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}

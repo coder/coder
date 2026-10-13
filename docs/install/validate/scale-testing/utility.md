@@ -2,24 +2,18 @@
 title: Scale tests and utilities
 ---
 
-We scale-test Coder with a built-in utility that can
-be used in your environment for insights into how Coder scales with your
-infrastructure. For scale-testing Kubernetes clusters we recommend that you install
-and use the dedicated Coder template,
-[scaletest-runner](../../../../scaletest/templates/scaletest-runner).
+We scale-test Coder with a built-in utility that can be used in your environment for insights into how Coder scales with your infrastructure.
+For scale-testing Kubernetes clusters we recommend that you install and use the dedicated Coder template, [scaletest-runner](../../../../scaletest/templates/scaletest-runner).
 
-Learn more about [Coder’s architecture](../../plan/architecture.md) and our
-[scale-testing methodology](../scale-testing.md).
+Learn more about [Coder’s architecture](../../plan/architecture.md) and our [scale-testing methodology](../scale-testing.md).
 
 For more information about scaling, see our [Coder scaling best practices](../../../tutorials/best-practices/scale-coder.md).
 
 ## Recent scale tests
 
-The information in this doc is for reference purposes only, and is not intended
-to be used as guidelines for infrastructure sizing.
+The information in this doc is for reference purposes only, and is not intended to be used as guidelines for infrastructure sizing.
 
-Review the [Reference Architectures](../../plan/sizing/index.md#node-sizing) for
-hardware sizing recommendations.
+Review the [Reference Architectures](../../plan/sizing/index.md#node-sizing) for hardware sizing recommendations.
 
 | Environment      | Coder CPU    | Coder RAM  | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 |------------------|--------------|------------|----------------|-------------------|-------|-------------------|---------------------------------------|---------------|--------------|
@@ -35,25 +29,19 @@ hardware sizing recommendations.
 
 ## Scale testing utility
 
-Since Coder's performance is highly dependent on the templates and workflows you
-support, you may wish to use our internal scale testing utility against your own
-environments.
+Since Coder's performance is highly dependent on the templates and workflows you support, you may wish to use our internal scale testing utility against your own environments.
 
 > [!IMPORTANT]
 > This utility is experimental.
 >
-> It is not subject to any compatibility guarantees and may cause interruptions
-> for your users.
-> To avoid potential outages and orphaned resources, we recommend that you run
-> scale tests on a secondary "staging" environment or a dedicated
-> Kubernetes playground cluster.
+> It is not subject to any compatibility guarantees and may cause interruptions for your users.
+> To avoid potential outages and orphaned resources, we recommend that you run scale tests on a secondary "staging" environment or a dedicated Kubernetes playground cluster.
 >
 > Run it against a production environment at your own risk.
 
 ### Create workspaces
 
-The following command will provision a number of Coder workspaces using the
-specified template and extra parameters:
+The following command will provision a number of Coder workspaces using the specified template and extra parameters:
 
 ```sh
 coder exp scaletest create-workspaces \
@@ -69,13 +57,10 @@ coder exp scaletest create-workspaces \
 
 The command does the following:
 
-1. Create `${SCALETEST_PARAM_NUM_WORKSPACES}` workspaces concurrently
-   (concurrency level: `${SCALETEST_PARAM_CREATE_CONCURRENCY}`) using the
-   template `${SCALETEST_PARAM_TEMPLATE}`.
+1. Create `${SCALETEST_PARAM_NUM_WORKSPACES}` workspaces concurrently (concurrency level: `${SCALETEST_PARAM_CREATE_CONCURRENCY}`) using the template `${SCALETEST_PARAM_TEMPLATE}`.
 1. Leave workspaces running to use in next steps (`--no-cleanup` option).
 1. Store provisioning results in JSON format.
-1. If you don't want the creation process to be interrupted by any errors, use
-   the `--retry 5` flag.
+1. If you don't want the creation process to be interrupted by any errors, use the `--retry 5` flag.
 
 For more built-in `scaletest` options, use the `--help` flag:
 
@@ -85,9 +70,7 @@ coder exp scaletest create-workspaces --help
 
 ### Traffic Generation
 
-Given an existing set of workspaces created previously with `create-workspaces`,
-the following command will generate traffic similar to that of Coder's Web
-Terminal against those workspaces.
+Given an existing set of workspaces created previously with `create-workspaces`, the following command will generate traffic similar to that of Coder's Web Terminal against those workspaces.
 
 ```sh
 # Produce load at about 1000MB/s (25MB/40ms).
@@ -110,15 +93,12 @@ Traffic generation can be parametrized:
 1. Target a range of workspaces with `--target-workspaces 0:100`.
 1. For dashboard traffic: Target a range of users with `--target-users 0:100`.
 1. Store provisioning results in JSON format.
-1. Expose a dedicated Prometheus address (`--scaletest-prometheus-address`) for
-   scaletest-specific metrics.
+1. Expose a dedicated Prometheus address (`--scaletest-prometheus-address`) for scaletest-specific metrics.
 
 The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
 
-1. For SSH traffic: Use `--ssh` flag to generate SSH traffic instead of Web
-   Terminal.
-1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app
-   behavior.
+1. For SSH traffic: Use `--ssh` flag to generate SSH traffic instead of Web Terminal.
+1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app behavior.
 
    - `wsdi`: WebSocket discard
    - `wsec`: WebSocket echo
@@ -126,8 +106,8 @@ The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
 
 ### Cleanup
 
-The scaletest utility will attempt to clean up all workspaces it creates. If you
-wish to clean up all workspaces, you can run the following command:
+The scaletest utility will attempt to clean up all workspaces it creates.
+If you wish to clean up all workspaces, you can run the following command:
 
 ```sh
 coder exp scaletest cleanup \
@@ -139,26 +119,19 @@ This will delete all workspaces and users with the prefix `scaletest-`.
 
 ## Scale testing template
 
-Consider using a dedicated
-[scaletest-runner](../../../../scaletest/templates/scaletest-runner)
-template alongside the CLI utility for testing large-scale Kubernetes clusters.
+Consider using a dedicated [scaletest-runner](../../../../scaletest/templates/scaletest-runner) template alongside the CLI utility for testing large-scale Kubernetes clusters.
 
-The template deploys a main workspace with scripts used to orchestrate Coder,
-creating workspaces, generating workspace traffic, or load-testing workspace
-apps.
+The template deploys a main workspace with scripts used to orchestrate Coder, creating workspaces, generating workspace traffic, or load-testing workspace apps.
 
 ### Parameters
 
 The _scaletest-runner_ offers the following configuration options:
 
-- Workspace size selection: minimal/small/medium/large (_default_: minimal,
-  which contains just enough resources for a Coder agent to run without
-  additional workloads)
+- Workspace size selection: minimal/small/medium/large (_default_: minimal, which contains just enough resources for a Coder agent to run without additional workloads)
 - Number of workspaces
 - Wait duration between scenarios or staggered approach
 
-The template exposes parameters to control the traffic dimensions for SSH
-connections, workspace apps, and dashboard tests:
+The template exposes parameters to control the traffic dimensions for SSH connections, workspace apps, and dashboard tests:
 
 - Traffic duration of the load test scenario
 - Traffic percentage of targeted workspaces
@@ -167,20 +140,15 @@ connections, workspace apps, and dashboard tests:
 
 Scale testing concurrency can be controlled with the following parameters:
 
-- Enable parallel scenarios - interleave different traffic patterns (SSH,
-  workspace apps, dashboard traffic, etc.)
+- Enable parallel scenarios - interleave different traffic patterns (SSH, workspace apps, dashboard traffic, etc.)
 - Workspace creation concurrency level (_default_: 10)
-- Job concurrency level - generate workspace traffic using multiple jobs
-  (_default_: 0)
+- Job concurrency level - generate workspace traffic using multiple jobs (_default_: 0)
 - Cleanup concurrency level
 
 ### Kubernetes cluster
 
-It is recommended to learn how to operate the _scaletest-runner_ before running
-it against the staging cluster (or production at your own risk). Coder provides
-different
-[workspace configurations](../../../../scaletest/templates)
-that operators can deploy depending on the traffic projections.
+It is recommended to learn how to operate the _scaletest-runner_ before running it against the staging cluster (or production at your own risk).
+Coder provides different [workspace configurations](../../../../scaletest/templates) that operators can deploy depending on the traffic projections.
 
 There are a few cluster options available:
 
@@ -191,24 +159,19 @@ There are a few cluster options available:
 | medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
 | large          | 4    | 4 Gi   | None              |                                                       |
 
-Note: Review the selected cluster template and edit the node affinity to match
-your setup.
+Note: Review the selected cluster template and edit the node affinity to match your setup.
 
 #### Greedy agent
 
-The greedy agent variant is a template modification that makes the Coder agent
-transmit large metadata (size: 4K) while reporting stats. The transmission of
-large chunks puts extra overhead on `coderd` instances and agents when handling
-and storing the data.
+The greedy agent variant is a template modification that makes the Coder agent transmit large metadata (size: 4K) while reporting stats.
+The transmission of large chunks puts extra overhead on `coderd` instances and agents when handling and storing the data.
 
 Use this template variant to verify limits of the cluster performance.
 
 ### Observability
 
 During scale tests, operators can monitor progress using a Grafana dashboard.
-Coder offers a comprehensive overview
-[dashboard](../../../../scaletest/scaletest_dashboard.json)
-that can seamlessly integrate into the internal Grafana deployment.
+Coder offers a comprehensive overview [dashboard](../../../../scaletest/scaletest_dashboard.json) that can seamlessly integrate into the internal Grafana deployment.
 
 This dashboard provides insights into various aspects, including:
 
@@ -218,55 +181,35 @@ This dashboard provides insights into various aspects, including:
 - Resource consumption within Coder workspaces (CPU, memory, network usage)
 - Internal metrics related to provisioner jobs
 
-Note: Database metrics are disabled by default and can be enabled by setting the
-environment variable `CODER_PROMETHEUS_COLLECT_DB_METRICS` to `true`.
+Note: Database metrics are disabled by default and can be enabled by setting the environment variable `CODER_PROMETHEUS_COLLECT_DB_METRICS` to `true`.
 
-It is highly recommended to deploy a solution for centralized log collection and
-aggregation. The presence of error logs may indicate an underscaled deployment
-of Coder, necessitating action from operators.
+It is highly recommended to deploy a solution for centralized log collection and aggregation.
+The presence of error logs may indicate an underscaled deployment of Coder, necessitating action from operators.
 
 ## Autoscaling
 
-We generally do not recommend using an autoscaler that modifies the number of
-`coderd` replicas. In particular, scale down events can cause interruptions for
-a large number of users.
+We generally do not recommend using an autoscaler that modifies the number of `coderd` replicas.
+In particular, scale down events can cause interruptions for a large number of users.
 
-`coderd` is different from a simple request-response HTTP service in that it
-services long-lived connections whenever it proxies HTTP applications like IDEs
-or terminals that rely on websockets, or when it relays tunneled connections to
-workspaces. Loss of a `coderd` replica will drop these long-lived connections
-and interrupt users. For example, if you have 4 `coderd` replicas behind a load
-balancer, and an autoscaler decides to reduce it to 3, roughly 25% of the
-connections will drop. An even larger proportion of users could be affected if
-they use applications that use more than one websocket.
+`coderd` is different from a simple request-response HTTP service in that it services long-lived connections whenever it proxies HTTP applications like IDEs or terminals that rely on websockets, or when it relays tunneled connections to workspaces.
+Loss of a `coderd` replica will drop these long-lived connections and interrupt users.
+For example, if you have 4 `coderd` replicas behind a load balancer, and an autoscaler decides to reduce it to 3, roughly 25% of the connections will drop.
+An even larger proportion of users could be affected if they use applications that use more than one websocket.
 
-The severity of the interruption varies by application. Coder's web terminal,
-for example, will reconnect to the same session and continue. So, this should
-not be interpreted as saying `coderd` replicas should never be taken down for
-any reason.
+The severity of the interruption varies by application.
+Coder's web terminal, for example, will reconnect to the same session and continue.
+So, this should not be interpreted as saying `coderd` replicas should never be taken down for any reason.
 
-We recommend you plan to run enough `coderd` replicas to comfortably meet your
-weekly high-water-mark load, and monitor `coderd` peak CPU & memory utilization
-over the long term, reevaluating periodically. When scaling down (or performing
-upgrades), schedule these outside normal working hours to minimize user
-interruptions.
+We recommend you plan to run enough `coderd` replicas to comfortably meet your weekly high-water-mark load, and monitor `coderd` peak CPU & memory utilization over the long term, reevaluating periodically.
+When scaling down (or performing upgrades), schedule these outside normal working hours to minimize user interruptions.
 
 ### A note for Kubernetes users
 
-When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many
-operators choose to employ a _cluster_ autoscaler that adds and removes
-Kubernetes _nodes_ according to load. Coder can coexist with such cluster
-autoscalers, but we recommend you take steps to prevent the autoscaler from
-evicting `coderd` pods, as an eviction will cause the same interruptions as
-described above. For example, if you are using the
-[Kubernetes cluster autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict),
-you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as
-an annotation on the `coderd` deployment.
+When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many operators choose to employ a _cluster_ autoscaler that adds and removes Kubernetes _nodes_ according to load.
+Coder can coexist with such cluster autoscalers, but we recommend you take steps to prevent the autoscaler from evicting `coderd` pods, as an eviction will cause the same interruptions as described above.
+For example, if you are using the [Kubernetes cluster autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict), you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the `coderd` deployment.
 
 ## Troubleshooting
 
-If a load test fails or if you are experiencing performance issues during
-day-to-day use, you can leverage Coder's
-[Prometheus metrics](../../../admin/integrations/prometheus.md) to identify bottlenecks
-during scale tests. Additionally, you can use your existing cloud monitoring
-stack to measure load, view server logs, etc.
+If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [Prometheus metrics](../../../admin/integrations/prometheus.md) to identify bottlenecks during scale tests.
+Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.

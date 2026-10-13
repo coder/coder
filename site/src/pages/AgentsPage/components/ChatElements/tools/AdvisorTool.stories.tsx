@@ -110,33 +110,6 @@ export const Running: Story = {
 	},
 };
 
-// When the model supplies a model_intent, it is the whole header label,
-// matching how the exec tool renders its intent.
-export const WithModelIntent: Story = {
-	args: {
-		status: "completed",
-		args: {
-			question: sampleQuestion,
-			model_intent: "Weighing a refactor tradeoff",
-		},
-		// The backend surfaces model_intent as a top-level tool field, so the
-		// story passes it the same way the timeline does.
-		modelIntent: "Weighing a refactor tradeoff",
-		result: {
-			type: "advice",
-			advice: sampleAdvice,
-			remaining_uses: 2,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button", {
-			name: /Weighing a refactor tradeoff/,
-		});
-		await userEvent.click(toggle);
-	},
-};
-
 export const RunningWithReasoning: Story = {
 	args: {
 		status: "running",

@@ -6,6 +6,7 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
+	followLogEnd,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
@@ -26,7 +27,6 @@ import {
 	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
-	sanitizeExecuteModelIntent,
 	stripNoNewline,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
@@ -45,42 +45,6 @@ describe("formatModelIntentLabel", () => {
 		);
 		expect(formatModelIntentLabel(" a")).toBe("A");
 		expect(formatModelIntentLabel("Running tests")).toBe("Running tests");
-	});
-});
-
-describe("sanitizeExecuteModelIntent", () => {
-	it("strips redundant command and duration suffixes", () => {
-		expect(
-			sanitizeExecuteModelIntent("Running tests using npm for 5s", "npm test"),
-		).toBe("Running tests");
-		expect(
-			sanitizeExecuteModelIntent(
-				"checking status using git fetch origin",
-				"git fetch origin",
-			),
-		).toBe("Checking status");
-	});
-
-	it("strips trailing durations without command suffixes", () => {
-		expect(
-			sanitizeExecuteModelIntent("Running tests for 2.5s", "npm test"),
-		).toBe("Running tests");
-		expect(sanitizeExecuteModelIntent("for 5s", "npm test")).toBe("");
-	});
-
-	it("strips leading using only when it references the command", () => {
-		expect(
-			sanitizeExecuteModelIntent("using git fetch origin", "git fetch origin"),
-		).toBe("");
-		expect(
-			sanitizeExecuteModelIntent("Using environment variables", "npm test"),
-		).toBe("Using environment variables");
-	});
-
-	it("preserves using when it is not followed by a command reference", () => {
-		expect(
-			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
-		).toBe("Testing using mock data");
 	});
 });
 
@@ -1266,5 +1230,20 @@ describe("summarizeParsedCommands", () => {
 
 	it("skips entries with no program", () => {
 		expect(summarizeParsedCommands([[""], ["git", "pull"]])).toBe("git pull");
+	});
+});
+
+// A 200px box whose lines were 300px tall before new lines made them 400px.
+describe("followLogEnd", () => {
+	it("follows new lines when the reader was at the end", () => {
+		const viewport = { scrollTop: 100, clientHeight: 200, scrollHeight: 400 };
+		expect(followLogEnd(viewport, 300)).toBe(400);
+		expect(viewport.scrollTop).toBe(400);
+	});
+
+	it("keeps the reader's place after they scroll up", () => {
+		const viewport = { scrollTop: 40, clientHeight: 200, scrollHeight: 400 };
+		expect(followLogEnd(viewport, 300)).toBe(400);
+		expect(viewport.scrollTop).toBe(40);
 	});
 });

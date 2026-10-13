@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -73,7 +75,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{})
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -83,6 +85,14 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 			require.NotNil(t, router)
 		})
 	}
+}
+
+func TestNewRouterRequiresRecorder(t *testing.T) {
+	t.Parallel()
+
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	require.ErrorContains(t, err, `configure provider "openai" bridged handler: recorder is required`)
+	require.Nil(t, router)
 }
 
 //nolint:paralleltest,tparallel // Sequential subtests verify connection reuse.
@@ -110,7 +120,7 @@ func TestRouterRoutes(t *testing.T) {
 	m := metrics.NewMetrics(prometheus.NewRegistry())
 	router, err := proxy.NewRouter(
 		t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
+		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{},
 	)
 	require.NoError(t, err)
 
@@ -120,6 +130,7 @@ func TestRouterRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		path       string
+		noActor    bool
 		wantStatus int
 		wantBody   string
 	}{
@@ -164,6 +175,13 @@ func TestRouterRoutes(t *testing.T) {
 			path:       "/openai/bridged/whole/subtree/nested",
 			wantStatus: http.StatusNotImplemented,
 			wantBody:   bridgedBody,
+		},
+		{
+			name:       "BridgedRouteWithoutActor",
+			path:       "/openai/bridged/exact/path",
+			noActor:    true,
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "no actor found\n",
 		},
 		{
 			name:       "EnabledProvider_Bridged_ExactPathOverridesPassthroughSubtree",
@@ -212,8 +230,12 @@ func TestRouterRoutes(t *testing.T) {
 			if tc.wantStatus == http.StatusOK {
 				passthroughPaths = append(passthroughPaths, tc.wantBody)
 			}
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil).WithContext(t.Context())
+			if !tc.noActor {
+				req = req.WithContext(aibcontext.AsActor(req.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
+			}
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, tc.path, nil))
+			router.ServeHTTP(resp, req)
 			assert.Equal(t, tc.wantStatus, resp.Code, "path: %s", tc.path)
 			assert.Equal(t, tc.wantBody, resp.Body.String(), "path: %s", tc.path)
 		})
@@ -247,7 +269,9 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 			},
 			provider.NewDisabledStub("disabled-openai", "openai"),
 		},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil,
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()),
+		gate,
+		&aibtestutil.MockRecorder{},
 	)
 	require.NoError(t, err)
 	require.NoError(t, gate.Shutdown(testutil.Context(t, testutil.WaitShort)))
@@ -276,8 +300,9 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
 			resp := httptest.NewRecorder()
-			router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, tc.path, nil))
+			router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, tc.path, nil).WithContext(ctx))
 			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 			assert.Equal(t, "AI Gateway is shutting down\n", resp.Body.String())
 		})
