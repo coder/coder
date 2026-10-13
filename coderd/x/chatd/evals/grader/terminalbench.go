@@ -560,7 +560,7 @@ func rewardVerdict(task, raw, logsDir string) (graderVerdict, error) {
 		}
 	}
 	return graderVerdict{
-		Passed:  raw != "" && reward == 1,
+		Passed:  reward == 1,
 		Reason:  fmt.Sprintf("reward %q (verifier logs: %s)", raw, logsDir),
 		Metrics: map[string]any{"reward": reward},
 	}, nil
