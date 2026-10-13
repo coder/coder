@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -328,6 +329,8 @@ func (server *Server) prepareGeneration(
 		workspaceMCPTools   []fantasy.AgentTool
 		workspaceSkills     []chattool.SkillMeta
 		personalSkills      []skillspkg.Skill
+		orgSkills           []skillspkg.Skill
+		orgSkillReader      rbac.Subject
 		resolvedUserPrompt  string
 		projectInstructions string
 		planPathBlock       string
@@ -434,6 +437,15 @@ func (server *Server) prepareGeneration(
 	g2.Go(func() error {
 		var err error
 		personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
+		return err
+	})
+	g2.Go(func() error {
+		var err error
+		orgSkillReader, err = server.chatOwnerSubject(ctx, chat.OwnerID)
+		if err != nil {
+			return err
+		}
+		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
 		return err
 	})
 	g2.Go(func() error {
@@ -552,7 +564,7 @@ func (server *Server) prepareGeneration(
 		subagentInstruction = defaultSubagentInstruction
 	}
 	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, workspaceSkills)
+		return mergeTurnSkills(personalSkills, orgSkills, workspaceSkills)
 	}
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
@@ -642,12 +654,15 @@ func (server *Server) prepareGeneration(
 			return workspaceSkills
 		},
 		ResolveAlias: resolveSkillAlias,
-		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
+			if skill.Source == skillspkg.SourceOrganization {
+				return server.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+			}
+			return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(workspaceSkills) == 0 {
 			return current, false
 		}
 		updated := current
