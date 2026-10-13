@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"sync/atomic"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -72,6 +73,9 @@ type resolvedModelCall struct {
 	resolvedEffort   string
 	route            aiGatewayModelRoute
 	debugEnabled     bool
+	// reasoningRejected reports whether the provider rejected encrypted
+	// reasoning replayed into a call to model.
+	reasoningRejected *atomic.Bool
 }
 
 // stageModel uses the configured provider type rather than
@@ -182,6 +186,8 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
+	out.reasoningRejected = &atomic.Bool{}
+	model = p.withEncryptedReasoningFallback(model, spec.chat.ID, out.reasoningRejected)
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
