@@ -483,6 +483,17 @@ export const createChatStore = (): ChatStore => {
 			fetchPage().then(
 				(page) => {
 					loadInFlight = false;
+					// Only a server older than this client omits the version.
+					if (page.snapshot_version === undefined) {
+						const error = new Error(
+							"The server does not support this version of the page. Try again, or reload the page.",
+						);
+						setState((current) => ({
+							...current,
+							load: { status: "failed", error },
+						}));
+						return;
+					}
 					store.seed(page);
 				},
 				(error: unknown) => {

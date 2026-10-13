@@ -39,6 +39,13 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	retryingAt: retry.retrying_at.trim() || undefined,
 });
 
+// A server older than this client sends these without snapshot_version.
+const isUnversionedEvent = (event: TypesGen.ChatStreamEvent): boolean =>
+	(event.type === "message" ||
+		event.type === "queue_update" ||
+		event.type === "history_reset") &&
+	event.snapshot_version === undefined;
+
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectStreamError(state) === null &&
 	(selectStreamState(state) !== null ||
@@ -222,9 +229,14 @@ export const useChatStore = (
 			if (disposed) {
 				return;
 			}
-			if (payload.parseError || !payload.parsedMessage) {
+			if (
+				payload.parseError ||
+				!payload.parsedMessage ||
+				payload.parsedMessage.some(isUnversionedEvent)
+			) {
 				// A lost frame can hold events that a later event's version would
-				// skip on reconnect, so resync from the last applied version.
+				// skip on reconnect, and an unversioned event comes from an older
+				// server, so both resync from the last applied version.
 				discardBufferedParts();
 				store.setStreamError({
 					kind: "generic",
