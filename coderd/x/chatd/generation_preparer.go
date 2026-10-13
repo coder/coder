@@ -117,20 +117,17 @@ func (server *Server) prepareGeneration(
 			return err
 		})
 	}
-	var (
-		internalMCPServers  []mcpclient.InProcessServer
-		internalMCPFailures []mcpclient.ConnectSummary
-	)
+	var internalMCPServers []mcpclient.InProcessServer
 	if usesMCPServers && len(server.internalMCPServers) > 0 {
 		g.Go(func() error {
-			internalMCPServers, internalMCPFailures = server.internalMCPServersForChat(ctx, chat)
-			return nil
+			var err error
+			internalMCPServers, err = server.internalMCPServersForChat(ctx, chat)
+			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
-	mcpLoadFailures = append(mcpLoadFailures, internalMCPFailures...)
 
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {

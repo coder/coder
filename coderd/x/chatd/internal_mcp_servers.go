@@ -7,9 +7,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // internalMCPServerNamespace derives the stable ID of each internal MCP
@@ -52,26 +53,22 @@ func validateInternalMCPServers(servers []InternalMCPServer) error {
 }
 
 // internalMCPServersForChat returns the internal MCP servers that serve
-// chat in this step. A server whose ServerForChat fails is skipped and
-// returned as a failed ConnectSummary. The summary text is fixed so error
-// detail never reaches viewer-visible data.
-func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, []mcpclient.ConnectSummary) {
-	var (
-		servers  []mcpclient.InProcessServer
-		failures []mcpclient.ConnectSummary
-	)
+// chat in this step. An error from any ServerForChat fails the turn. The
+// chat error has a fixed message, so the error text of the server goes
+// only to the server log and never to viewer-visible data.
+func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, error) {
+	var servers []mcpclient.InProcessServer
 	for _, internal := range server.internalMCPServers {
 		mcpServer, err := internal.ServerForChat(ctx, chat)
 		if err != nil {
-			server.logger.Warn(ctx, "failed to attach internal MCP server",
-				slog.F("chat_id", chat.ID), slog.F("server_slug", internal.Slug), slog.Error(err))
-			failures = append(failures, mcpclient.ConnectSummary{
-				ConfigID: internal.id(),
-				Slug:     internal.Slug,
-				Outcome:  mcpclient.ConnectOutcomeError,
-				Error:    "failed to attach internal MCP server",
-			})
-			continue
+			return nil, chaterror.WithClassification(
+				xerrors.Errorf("get internal MCP server %q: %w", internal.Slug, err),
+				chaterror.ClassifiedError{
+					Message:   "An internal MCP server failed.",
+					Kind:      codersdk.ChatErrorKindGeneric,
+					Retryable: false,
+				},
+			)
 		}
 		if mcpServer == nil {
 			continue
@@ -82,5 +79,5 @@ func (server *Server) internalMCPServersForChat(ctx context.Context, chat databa
 			Server: mcpServer,
 		})
 	}
-	return servers, failures
+	return servers, nil
 }
