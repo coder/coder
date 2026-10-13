@@ -159,9 +159,15 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{"resources":[
-			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}},
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.dependent"]}]}}
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}}
 		]}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.dependent"]}]}}
+			]}}
+		},
 		"configuration":{"root_module":{"resources":[
 			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
 		]}}
@@ -172,9 +178,15 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{"resources":[
-			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"run_on_start":true}},
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.optional"],"after":["coder_script.prerequisite"]}]}}
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"run_on_start":true}}
 		]}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.optional"],"after":["coder_script.prerequisite"]}]}}
+			]}}
+		},
 		"configuration":{"root_module":{"resources":[
 			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0},
 			{"address":"coder_script.optional","mode":"managed","type":"coder_script","name":"optional","schema_version":0,"count_expression":{"constant_value":0}}
@@ -186,28 +198,6 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"planned_values":{"root_module":{}},
 		"configuration":{"root_module":{}}
 	}`
-	// Prior state contains an order selecting nonexistent scripts. Its declaration
-	// now has count = 0, so the stale instance must be ignored.
-	const stalePriorInstancePlanJSON = `{
-		"format_version":"1.2",
-		"terraform_version":"1.15.0",
-		"planned_values":{"root_module":{"resources":[
-			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"run_on_start":true}},
-			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}},
-			{"address":"data.coder_script_order.active","mode":"data","type":"coder_script_order","name":"active","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
-		]}},
-		"prior_state":{
-			"format_version":"1.0",
-			"terraform_version":"1.15.0",
-			"values":{"root_module":{"resources":[
-				{"address":"data.coder_script_order.order[0]","mode":"data","type":"coder_script_order","name":"order","index":0,"values":{"rule":[{"run":["coder_script.missing"],"after":["coder_script.also_missing"]}]}}
-			]}}
-		},
-		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.active","mode":"data","type":"coder_script_order","name":"active","schema_version":0},
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"count_expression":{"constant_value":0}}
-		]}}
-	}`
 	// The run selector fixes the inferred phase to start. The module selector also
 	// contains a stop script, which is filtered and reported as a warning.
 	const phaseWarningPlanJSON = `{
@@ -215,8 +205,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{
 			"resources":[
-				{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}},
-				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["module.bootstrap"]}]}}
+				{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}}
 			],
 			"child_modules":[{
 				"address":"module.bootstrap",
@@ -226,6 +215,13 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 				]
 			}]
 		}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["module.bootstrap"]}]}}
+			]}}
+		},
 		"configuration":{"root_module":{
 			"resources":[
 				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
@@ -272,11 +268,6 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			name:       "StartWithoutDeclaration",
 			transition: proto.WorkspaceTransition_START,
 			planJSON:   noDeclarationPlanJSON,
-		},
-		{
-			name:       "StartIgnoresStalePriorInstance",
-			transition: proto.WorkspaceTransition_START,
-			planJSON:   stalePriorInstancePlanJSON,
 		},
 		{
 			name:            "StartPhaseWarning",
@@ -355,18 +346,14 @@ esac
 func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 	t.Parallel()
 
-	// The planned order instance causes its configuration to be retained for
-	// state graph conversion; applied resources come from state below.
-	const planJSON = `{
-		"format_version":"1.2",
-		"terraform_version":"1.15.0",
-		"planned_values":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
-		]}},
-		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
-		]}}
-	}`
+	// Terraform records the script order data source in prior state when it is
+	// read during planning. The plan fixture reproduces that shape so this test
+	// can verify that the plan configuration is cached for state graph
+	// conversion.
+	// The fixture was generated by Terraform 1.16.2 with terraform-provider-coder
+	// at e851c57.
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
 	const stateJSON = `{
 		"format_version":"1.0",
 		"terraform_version":"1.15.0",
@@ -423,7 +410,7 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 			graphPath := filepath.Join(dir, "graph.dot")
 			showArgsPath := filepath.Join(dir, "show-args")
 			graphArgsPath := filepath.Join(dir, "graph-args")
-			require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
 			require.NoError(t, os.WriteFile(statePath, []byte(test.stateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
 

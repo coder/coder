@@ -295,10 +295,7 @@ func (s *server) Graph(
 		}
 
 		modules = planModules(plan)
-		convertScriptOrder = isStartTransition && plan.PlannedValues != nil &&
-			hasScriptOrderDataSource([]*tfjson.StateModule{
-				plan.PlannedValues.RootModule,
-			})
+		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
 			planConfig = plan.Config
 		}

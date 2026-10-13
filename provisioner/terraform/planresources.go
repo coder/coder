@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"slices"
-
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
@@ -15,32 +13,19 @@ type PlanState struct {
 func planModules(plan *tfjson.Plan) []*tfjson.StateModule {
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
-		// We need the data resources for rich parameters. For some reason, they
-		// only show up in the PriorState.
+		// Terraform records data sources read during planning in
+		// PriorState rather than PlannedValues. Retain them for rich
+		// parameters and script ordering.
 		//
 		// We don't want all prior resources, because Quotas (and
 		// future features) would never know which resources are getting
 		// deleted by a stop.
 
 		filtered := onlyDataResources(*plan.PriorState.Values.RootModule)
-		// Script ordering uses only current planned data source instances.
-		// Retaining a prior instance can preserve rules removed by count or
-		// for_each changes.
-		removeScriptOrderDataSources(&filtered)
 		modules = append(modules, &filtered)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 	return modules
-}
-
-func removeScriptOrderDataSources(module *tfjson.StateModule) {
-	if module == nil {
-		return
-	}
-	module.Resources = slices.DeleteFunc(module.Resources, isScriptOrderDataSource)
-	for _, child := range module.ChildModules {
-		removeScriptOrderDataSources(child)
-	}
 }
 
 // ConvertPlanState consumes a terraform plan json output and produces a thinner

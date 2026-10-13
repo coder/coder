@@ -378,10 +378,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	}
 
 	var planConfig *tfjson.Config
-	if plan.PlannedValues != nil &&
-		hasScriptOrderDataSource([]*tfjson.StateModule{
-			plan.PlannedValues.RootModule,
-		}) {
+	if hasScriptOrderDataSource(planModules(plan)) {
 		planConfig = plan.Config
 	}
 	return msg, planConfig, nil
