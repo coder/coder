@@ -270,30 +270,26 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	return s.acquireAgentConn(ctx, agentID, workspacesdk.AgentConnOptions{})
+	return s.acquireAgentConn(ctx, agentID, 0)
 }
 
-// keepAliveAPIIdleConnTimeout is how long a connection from
-// keepAliveAgentConn keeps an idle connection to the workspace agent's HTTP
-// API server. It is below workspacesdk.AgentHTTPAPIServerIdleTimeout, so
-// coderd normally closes the idle connection before the workspace agent
-// does. On dogfood, 99.7% of the gaps between workspace tool calls in a chat
-// turn were shorter.
-const keepAliveAPIIdleConnTimeout = 2 * time.Minute
+// keepAliveAPIIdleConnTimeout is below
+// workspacesdk.AgentHTTPAPIServerIdleTimeout, so coderd closes an idle
+// connection before the workspace agent does. When a request arrives, the
+// workspace agent has been idle for the gap plus one round trip, so the 5 s
+// margin covers round trips up to 5 s.
+const keepAliveAPIIdleConnTimeout = 15 * time.Second
 
-// keepAliveAgentConn is AgentConn whose connection keeps one connection to
-// the workspace agent's HTTP API server open between requests, for callers
-// that send many requests on one connection.
+// keepAliveAgentConn is AgentConn whose connection keeps connections to the
+// workspace agent's HTTP API server open between requests, for callers that
+// send many requests on one connection.
 func (s *ServerTailnet) keepAliveAgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	return s.acquireAgentConn(ctx, agentID, workspacesdk.AgentConnOptions{
-		APIIdleConnTimeout: keepAliveAPIIdleConnTimeout,
-	})
+	return s.acquireAgentConn(ctx, agentID, keepAliveAPIIdleConnTimeout)
 }
 
-// acquireAgentConn returns a connection to agentID built with opts. Release
-// closes it, which closes its idle API connection; CloseFunc keeps the
-// shared tailnet open.
-func (s *ServerTailnet) acquireAgentConn(ctx context.Context, agentID uuid.UUID, opts workspacesdk.AgentConnOptions) (workspacesdk.AgentConn, func(), error) {
+// acquireAgentConn returns a connection to agentID. Release closes it, which
+// closes its idle API connections; CloseFunc keeps the shared tailnet open.
+func (s *ServerTailnet) acquireAgentConn(ctx context.Context, agentID uuid.UUID, apiIdleConnTimeout time.Duration) (workspacesdk.AgentConn, func(), error) {
 	var (
 		conn workspacesdk.AgentConn
 		ret  func()
@@ -306,10 +302,12 @@ func (s *ServerTailnet) acquireAgentConn(ctx context.Context, agentID uuid.UUID,
 	}
 	ret = s.coordCtrl.acquireTicket(agentID)
 
-	opts.AgentID = agentID
-	opts.CloseFunc = func() error { return workspacesdk.ErrSkipClose }
-	opts.Logger = s.logger
-	conn = workspacesdk.NewAgentConn(s.conn, opts)
+	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
+		AgentID:            agentID,
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		Logger:             s.logger,
+		APIIdleConnTimeout: apiIdleConnTimeout,
+	})
 	release := func() {
 		_ = conn.Close()
 		ret()
