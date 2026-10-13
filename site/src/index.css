@@ -700,7 +700,6 @@
 		@apply font-sans;
 	}
 
-	/* Fallback ring for elements that don't draw their own. */
 	:focus-visible {
 		outline: 2px solid hsl(var(--content-link));
 		outline-offset: 0;

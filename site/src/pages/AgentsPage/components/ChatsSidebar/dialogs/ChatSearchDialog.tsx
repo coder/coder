@@ -140,7 +140,6 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 				onCloseAutoFocus={(event) => {
 					const returnFocus = returnFocusRef.current;
 					returnFocusRef.current = null;
-					// Picking a result navigates; leave focus to the new page.
 					if (
 						!returnFocus?.element.isConnected ||
 						returnFocus.pathname !== window.location.pathname

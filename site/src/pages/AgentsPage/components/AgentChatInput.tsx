@@ -257,11 +257,9 @@ export type AttachedWorkspaceInfo = {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-// Inset because the badge row clips overflow.
 const pillFocusRingClasses =
 	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
 
-// Rings the pill when its dismiss button has focus.
 const pillFocusWithinRingClasses =
 	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
 
