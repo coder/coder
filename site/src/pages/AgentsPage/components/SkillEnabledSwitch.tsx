@@ -8,13 +8,11 @@ import type { SkillsScope } from "../utils/skills";
 type SkillEnabledSwitchProps = {
 	scope: SkillsScope;
 	skill: SkillMetadata;
-	disabled: boolean;
 };
 
 export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	scope,
 	skill,
-	disabled,
 }) => {
 	const queryClient = useQueryClient();
 	const toggleMutation = useMutation({
@@ -34,7 +32,7 @@ export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 					? Boolean(toggleMutation.variables.req.enabled)
 					: skill.enabled
 			}
-			disabled={disabled || toggleMutation.isPending}
+			disabled={toggleMutation.isPending}
 			onCheckedChange={(enabled) =>
 				toggleMutation.mutate({ name: skill.name, req: { enabled } })
 			}

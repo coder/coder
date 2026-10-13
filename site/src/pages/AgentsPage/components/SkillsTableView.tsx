@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, EllipsisVerticalIcon, PlusIcon, XIcon } from "lucide-react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -395,11 +395,21 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 									)}
 								</TableCell>
 								<TableCell>
-									<SkillEnabledSwitch
-										scope={scope}
-										skill={skill}
-										disabled={!access.update}
-									/>
+									{access.update ? (
+										<SkillEnabledSwitch scope={scope} skill={skill} />
+									) : skill.enabled ? (
+										<CheckIcon
+											role="img"
+											aria-label="Enabled"
+											className="size-icon-sm text-content-success"
+										/>
+									) : (
+										<XIcon
+											role="img"
+											aria-label="Disabled"
+											className="size-icon-sm text-content-secondary"
+										/>
+									)}
 								</TableCell>
 								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}
