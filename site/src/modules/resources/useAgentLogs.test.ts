@@ -1,9 +1,9 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { toast } from "sonner";
 import type { MockInstance } from "vitest";
 import * as apiModule from "#/api/api";
 import type { WorkspaceAgentLog } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	createMockWebSocket,

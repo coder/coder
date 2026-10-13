@@ -3,9 +3,9 @@ import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { SkillMetadata } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	parseSkillMarkdown,
 	SKILLS_MAX_PER_OWNER,

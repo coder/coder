@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -16,6 +15,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverridesKey,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -24,6 +24,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
 	MockChatMessage,
@@ -391,6 +392,10 @@ const buildQueries = (
 		{
 			key: userCompactionThresholdsKey,
 			data: MockUserChatCompactionThresholds,
+		},
+		{
+			key: organizationChatModelOverridesKey(chat.organization_id),
+			data: { overrides: [] },
 		},
 	];
 };
@@ -960,6 +965,37 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const mockContextUsageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	usage: { input_tokens: 50_000, context_limit: 200_000 },
+};
+
+export const CompactionHintSurvivesOverrideFetchError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(MockChat, {
+				messages: [mockContextUsageMessage],
+				queued_messages: [],
+				has_more: false,
+			}),
+			organizationChatModelOverridesKey(MockChat.organization_id),
+		),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: /Context usage 25%/ }),
+		);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,

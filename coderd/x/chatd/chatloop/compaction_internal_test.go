@@ -856,16 +856,19 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name            string
-		contextLimit    int64
-		inputTokens     int64
-		outputTokens    int64
-		toolResultBytes int
-		cap             int64
-		wantCap         int64
+		name                string
+		contextLimit        int64
+		inputTokens         int64
+		outputTokens        int64
+		toolResultBytes     int
+		summaryContextLimit int64
+		cap                 int64
+		wantCap             int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
 		{name: "reserves trailing tool results", contextLimit: 100, inputTokens: 72, toolResultBytes: 30, cap: 64_000, wantCap: 16},
+		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryContextLimit: 160_000, cap: 64_000, wantCap: 9998},
+		{name: "uses a larger summary window", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryContextLimit: 1_000, cap: 64_000, wantCap: 913},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
 		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
@@ -900,14 +903,15 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				})
 			}
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:            model,
-				Messages:         messages,
-				Clock:            quartz.NewMock(t),
-				ThresholdPercent: 70,
-				ContextLimit:     tc.contextLimit,
-				SummaryPrompt:    "prompt",
-				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				SummaryCall:      fantasy.Call{MaxOutputTokens: &capTokens},
+				Model:               model,
+				Messages:            messages,
+				Clock:               quartz.NewMock(t),
+				ThresholdPercent:    70,
+				ContextLimit:        tc.contextLimit,
+				SummaryContextLimit: tc.summaryContextLimit,
+				SummaryPrompt:       "prompt",
+				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
@@ -986,9 +990,56 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 			var metadata map[string]any
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
 			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
-			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
+			require.Equal(t, float64(1000), metadata["trigger_context_limit_tokens"])
+			require.Equal(t, float64(0), metadata["context_limit_tokens"])
 		})
 	}
+}
+
+// TestGenerateCompaction_RecordsRequestedTrigger verifies the result echoes
+// the requested trigger, not the normalized one, while UsagePercent uses the
+// resolved limit.
+func TestGenerateCompaction_RecordsRequestedTrigger(t *testing.T) {
+	t.Parallel()
+
+	var parts []codersdk.ChatMessagePart
+	result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+		Model: &chattest.FakeModel{
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				), nil
+			},
+		},
+		Messages:             []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		Force:                true,
+		ThresholdPercent:     101,
+		ContextLimit:         0,
+		ContextLimitFallback: 1000,
+		ChatContextLimit:     2000,
+		StepUsage:            fantasy.Usage{InputTokens: 800},
+		ToolCallID:           "summary",
+		ToolName:             "chat_summarized",
+		PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			parts = append(parts, part)
+		},
+		Clock: quartz.NewMock(t),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(101), result.ThresholdPercent)
+	require.Zero(t, result.TriggerContextLimit)
+	require.Equal(t, int64(2000), result.ChatContextLimit)
+	require.InDelta(t, 80, result.UsagePercent, 0.001)
+
+	require.Len(t, parts, 2)
+	var streamed CompactionToolResult
+	require.NoError(t, json.Unmarshal(parts[1].Result, &streamed))
+	require.Equal(t, int32(101), streamed.ThresholdPercent)
+	require.Zero(t, streamed.TriggerContextLimitTokens)
+	require.Equal(t, int64(2000), streamed.ContextLimitTokens)
 }
 
 // TestGenerateCompaction_RequiresClock verifies a nil clock is

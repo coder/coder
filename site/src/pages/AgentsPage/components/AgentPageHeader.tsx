@@ -16,7 +16,6 @@ import {
 	useLocation,
 	useOutletContext,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
@@ -27,6 +26,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";

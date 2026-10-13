@@ -7,12 +7,12 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";

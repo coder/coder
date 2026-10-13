@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	organizationSkillACL,
 	organizationSkillACLAvailable,
 	updateOrganizationSkillACL,
 } from "#/api/queries/organizationSkills";
+import { toast } from "#/components/Toaster/toast";
 import { ACLPrincipalAutocomplete } from "../components/ACLPrincipalAutocomplete";
 import { selectedPrincipal, sharingDialogData } from "../components/aclSharing";
 import { ResourceSharingDialog } from "../components/ResourceSharingDialog";

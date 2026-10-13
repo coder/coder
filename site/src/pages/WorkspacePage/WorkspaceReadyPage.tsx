@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -23,6 +22,7 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
