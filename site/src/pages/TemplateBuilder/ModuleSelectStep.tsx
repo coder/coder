@@ -212,9 +212,6 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 				className="my-4"
 			/>
 
-			{/* A single-select toggle group (radio semantics) rather than tabs:
-			    the categories filter the same grid as the search field, so there
-			    is no per-category tab panel for aria-controls to reference. */}
 			<ToggleGroup.Root
 				type="single"
 				value={selectedCategory}
