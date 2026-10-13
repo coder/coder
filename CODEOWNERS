@@ -45,5 +45,22 @@ codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 # aigateway-prices-refresh workflow proposes updates to both from live
 # models.dev data, and they carry customer-visible cost numbers, so every
 # refresh needs a review from someone who owns them.
-coderd/aibridge/prices/data/prices.json @ssncferreira @johnstcn
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @johnstcn
+coderd/aibridge/prices/data/prices.json @ssncferreira @johnstcn @SasSwart
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @johnstcn @SasSwart
+
+# The documentation and the CI that checks, previews, and publishes it. Docs
+# are served on coder.com, so a docs/ change gets the same code-owner review
+# as code. The workflow files stay co-owned with .github/'s owner, since a
+# later rule replaces an earlier one here.
+docs/ @nickvigilante
+.vale.ini @nickvigilante
+.markdownlint.jsonc @nickvigilante
+.markdownlint-cli2.jsonc @nickvigilante
+.github/workflows/audit-docs-paths.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/deploy-docs.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/doc-check.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/docs-preview.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/weekly-docs.yaml @nickvigilante @jdomeracki-coder
+.github/workflows/test-deploy-docs-diff.sh @nickvigilante @jdomeracki-coder
+.github/workflows/test-deploy-docs-release.sh @nickvigilante @jdomeracki-coder
+.github/workflows/test-docs-preview-mapper.sh @nickvigilante @jdomeracki-coder

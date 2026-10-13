@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { roles } from "#/api/queries/roles";
 import {
@@ -14,6 +13,7 @@ import {
 import type { User } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
 import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { generateRandomBase64String } from "#/utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";

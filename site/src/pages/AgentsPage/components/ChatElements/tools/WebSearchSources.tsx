@@ -77,7 +77,7 @@ const SourcePill: React.FC<{ source: { url: string; title: string } }> = ({
 			title={source.title || source.url}
 			className={cn(
 				"group inline-flex items-center gap-1.5 rounded-full",
-				"border border-solid border-border-default bg-surface-secondary",
+				"border border-solid border-border bg-surface-secondary",
 				"px-2.5 py-1 text-xs leading-none text-content-secondary",
 				"no-underline transition-colors",
 				"hover:bg-surface-tertiary hover:text-content-primary",

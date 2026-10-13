@@ -70,7 +70,7 @@ export const WriteFileTool: React.FC<{
 				{showDiff && (
 					<ScrollArea
 						data-testid="write-file-diff"
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 						viewportClassName={
 							isAgentDisplayFullyExpanded(displayState)
 								? "max-h-[80vh]"

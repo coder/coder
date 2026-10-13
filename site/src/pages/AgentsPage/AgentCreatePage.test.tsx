@@ -2,7 +2,6 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { onlineManager } from "react-query";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -15,6 +14,8 @@ import {
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildSearchParam,
@@ -30,6 +31,7 @@ import {
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 	mockApiError,
@@ -40,6 +42,7 @@ import AgentCreatePage from "./AgentCreatePage";
 import type * as AgentCreateFormModule from "./components/AgentCreateForm";
 import {
 	type CreateChatOptions,
+	draftStorageKeys,
 	emptyInputStorageKey,
 } from "./components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "./hooks/useWorkspaceFileUploads";
@@ -76,13 +79,10 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		onCreateChat,
 		isCreating,
 		project,
-		header,
-		footer,
 	}: AgentCreateFormProps) => {
 		renderedProjects.push(project);
 		return (
 			<div>
-				{header}
 				<button
 					type="button"
 					disabled={isCreating}
@@ -91,13 +91,11 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 							message: "Create this chat",
 							organizationId:
 								project?.organization_id ?? MockDefaultOrganization.id,
-							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
 				>
 					Create chat
 				</button>
-				{footer}
 			</div>
 		);
 	};
@@ -137,15 +135,31 @@ const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	);
 };
 
+// The project page header shows tooltips, which need a provider.
 const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
-	renderWithAuth(<AgentCreatePage />, {
-		path: "/agents/projects/:projectId",
-		route,
-		extraRoutes: [
-			{ path: "/agents", element: <AgentCreatePage /> },
-			{ path: "/agents/:agentId", element: null },
-		],
-	});
+	renderWithAuth(
+		<TooltipProvider>
+			<AgentCreatePage />
+		</TooltipProvider>,
+		{
+			path: "/agents/projects/:projectId",
+			route,
+			extraRoutes: [
+				{ path: "/agents", element: <AgentCreatePage /> },
+				{ path: "/agents/:agentId", element: null },
+			],
+		},
+	);
+
+const openProjectAction = async (
+	user: ReturnType<typeof userEvent.setup>,
+	action: "Edit project" | "Delete project",
+) => {
+	await user.click(
+		await screen.findByRole("button", { name: "Project actions" }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: action }));
+};
 
 const failedBuild = MockFailedWorkspaceBuild();
 
@@ -199,6 +213,11 @@ beforeAll(() => {
 		configurable: true,
 		value: () => new DOMRect(0, 0, 1, 16),
 	});
+});
+
+// Project pages list the project's chats below the composer.
+beforeEach(() => {
+	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -532,12 +551,10 @@ describe("AgentCreatePage project frame", () => {
 		const { router } = renderAgentsRoutes(projectPath(projectB.id));
 		await screen.findByRole("heading", { name: "Beta" });
 		await act(() => router.navigate(projectPath(projectA.id)));
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		await act(() => router.navigate(-1));
 		await screen.findByRole("heading", { name: "Beta" });
-		await user.click(screen.getByRole("button", { name: "Edit project" }));
+		await openProjectAction(user, "Edit project");
 		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.type(nameInput, "!");
@@ -550,7 +567,7 @@ describe("AgentCreatePage project frame", () => {
 		expect(requestBody).toMatchObject({ name: "Beta!" });
 	});
 
-	it("edits the project from the composer and shows the saved name", async () => {
+	it("edits the project from the actions menu and shows the saved name", async () => {
 		enableExperiments("chat-projects");
 		let project = MockChatProject;
 		let requestBody: unknown;
@@ -572,7 +589,7 @@ describe("AgentCreatePage project frame", () => {
 		renderAgentsRoutes();
 
 		await screen.findByRole("heading", { name: MockChatProject.name });
-		await user.click(screen.getByRole("button", { name: "Edit project" }));
+		await openProjectAction(user, "Edit project");
 		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.clear(nameInput);
@@ -582,11 +599,11 @@ describe("AgentCreatePage project frame", () => {
 		await screen.findByRole("heading", { name: "Renamed" });
 		expect(requestBody).toMatchObject({ name: "Renamed" });
 
-		// The open dialog hides the page from the accessibility tree, so this
-		// waits for the save to close it. Reopening edits the saved project.
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		// Reopening edits the saved project, not the one the dialog first opened with.
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+		await openProjectAction(user, "Edit project");
 		const reopened = await screen.findByRole("dialog", {
 			name: "Edit project",
 		});
@@ -598,6 +615,102 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() =>
 			expect(requestBody).toMatchObject({ name: "Renamed!" }),
 		);
+	});
+
+	it("clears a failed save when the edit dialog is reopened", async () => {
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+		server.use(
+			http.patch(
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/${MockChatProject.id}`,
+				() => HttpResponse.json({ message: "Save failed" }, { status: 500 }),
+			),
+		);
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+
+		await openProjectAction(user, "Edit project");
+		let dialog = await screen.findByRole("dialog", { name: "Edit project" });
+		await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "!");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await within(dialog).findByText("Save failed");
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+
+		await openProjectAction(user, "Edit project");
+		dialog = await screen.findByRole("dialog", { name: "Edit project" });
+		expect(within(dialog).queryByText("Save failed")).not.toBeInTheDocument();
+	});
+
+	it("deletes the project, clears its drafts, and returns to /agents with the sidebar filters", async () => {
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+		let deletedProjectId: string | undefined;
+		server.use(
+			http.delete(
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId`,
+				({ params }) => {
+					deletedProjectId = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		const toastSuccess = vi.spyOn(toast, "success");
+		const draftKeys = draftStorageKeys(MockChatProject.id);
+		localStorage.setItem(draftKeys.text, "draft");
+		localStorage.setItem(draftKeys.attachments, "[]");
+		const user = userEvent.setup();
+
+		const { router } = renderAgentsRoutes(
+			`${projectPath(MockChatProject.id)}?archived=archived`,
+		);
+
+		await openProjectAction(user, "Delete project");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete project",
+		});
+		await user.type(
+			within(dialog).getByRole("textbox", {
+				name: "Name of the project to delete",
+			}),
+			MockChatProject.name,
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents");
+		});
+		expect(router.state.location.search).toBe("?archived=archived");
+		expect(deletedProjectId).toBe(MockChatProject.id);
+		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
+		expect(localStorage.getItem(draftKeys.text)).toBeNull();
+		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+	});
+
+	it("looks up the owner of a project owned by someone else", async () => {
+		enableExperiments("chat-projects");
+		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
+		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
+
+		renderAgentsRoutes();
+
+		await waitFor(() => {
+			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
+		});
+	});
+
+	it("does not look up the owner of the user's own project", async () => {
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+		const getUser = vi.spyOn(API, "getUser");
+
+		renderAgentsRoutes();
+
+		await screen.findByRole("button", { name: "Project actions" });
+		expect(getUser).not.toHaveBeenCalled();
 	});
 });
 
@@ -746,7 +859,6 @@ const submit = (options: Partial<CreateChatOptions>) => {
 			message: "inspect this archive",
 			organizationId: MockDefaultOrganization.id,
 			workspaceId: "ws-1",
-			manageAutomationsEnabled: false,
 			...options,
 		}),
 	);
@@ -819,19 +931,6 @@ describe("AgentCreatePage workspace uploads", () => {
 			}),
 		);
 		expect(router.state.location.pathname).toBe(chatPath);
-	});
-
-	it("sends manage_automations_enabled matching the toggle", async () => {
-		await renderUploadPage();
-
-		await submit({ manageAutomationsEnabled: false });
-		await submit({ manageAutomationsEnabled: true });
-
-		const [offRequest, onRequest] = vi
-			.mocked(API.experimental.createChat)
-			.mock.calls.map(([request]) => request);
-		expect(offRequest).toMatchObject({ manage_automations_enabled: false });
-		expect(onRequest).toMatchObject({ manage_automations_enabled: true });
 	});
 
 	it("archives the chat when the upload fails", async () => {

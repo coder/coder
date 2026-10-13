@@ -8,7 +8,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
@@ -27,6 +26,7 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -38,10 +38,10 @@ import {
 	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
+import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
-import { ProjectComposerFooter } from "./components/ProjectComposerFooter";
-import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
+import { ProjectPage } from "./components/ProjectPage/ProjectPage";
 import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
@@ -268,7 +268,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		organizationId,
 		projectId: formProjectId,
 		planMode,
-		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -291,7 +290,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
-			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 			...(formProjectId ? { project_id: formProjectId } : {}),
@@ -399,6 +397,31 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		}
 	};
 
+	const form = (
+		<AgentCreateForm
+			fillWidth={project !== undefined}
+			key={
+				debugPrefill
+					? debugBuildId
+					: linkPrompt
+						? `prompt:${linkPrompt}`
+						: "draft"
+			}
+			project={project}
+			onCreateChat={handleCreateChat}
+			isCreating={createMutation.isPending}
+			createError={createMutation.error}
+			canCreateChat={permissions.createChat}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			aiGatewayDisabled={aiGatewayDisabled}
+			workspaceCount={workspacesQuery.data?.count}
+			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspacesError={workspacesQuery.error}
+			isWorkspacesLoading={workspacesQuery.isLoading}
+			prefill={prefill}
+		/>
+	);
+
 	return (
 		<>
 			<AgentPageHeader
@@ -449,30 +472,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				<Loader className="flex-1" label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
+			) : project ? (
+				<ProjectPage project={project}>{form}</ProjectPage>
 			) : (
-				<AgentCreateForm
-					key={
-						debugPrefill
-							? debugBuildId
-							: linkPrompt
-								? `prompt:${linkPrompt}`
-								: "draft"
-					}
-					project={project}
-					header={project && <ProjectComposerHeader project={project} />}
-					footer={project && <ProjectComposerFooter project={project} />}
-					onCreateChat={handleCreateChat}
-					isCreating={createMutation.isPending}
-					createError={createMutation.error}
-					canCreateChat={permissions.createChat}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					aiGatewayDisabled={aiGatewayDisabled}
-					workspaceCount={workspacesQuery.data?.count}
-					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-					workspacesError={workspacesQuery.error}
-					isWorkspacesLoading={workspacesQuery.isLoading}
-					prefill={prefill}
-				/>
+				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>
 			)}
 		</>
 	);

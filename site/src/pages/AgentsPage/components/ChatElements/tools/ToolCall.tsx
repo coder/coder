@@ -11,6 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -35,7 +36,7 @@ type ToolCallContextValue = {
 	errorMessage?: string;
 	expanded: boolean;
 	failed: boolean;
-	onToggle: () => void;
+	onToggle: (event: React.MouseEvent<HTMLElement>) => void;
 	status: ToolStatus;
 	view: ToolCallView;
 };
@@ -59,7 +60,7 @@ const PolicyProvider: React.FC<{
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
-						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary"
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border px-1 text-[11px] leading-4 text-content-secondary"
 					>
 						<ShieldIcon aria-hidden className="size-3 shrink-0" />
 						Modified by policy
@@ -145,7 +146,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
-	const onToggle = () => {
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
+		userLayoutIntent(event.currentTarget);
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
