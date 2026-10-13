@@ -700,6 +700,14 @@
 		@apply font-sans;
 	}
 
+	/* Default keyboard focus indicator for elements that do not draw their
+	 * own. Matches the focus-visible:ring-2 ring-content-link treatment used
+	 * by Button; components with a custom ring set focus-visible:outline-hidden. */
+	:focus-visible {
+		outline: 2px solid hsl(var(--content-link));
+		outline-offset: 0;
+	}
+
 	input:-webkit-autofill,
 	input:-webkit-autofill:hover,
 	input:-webkit-autofill:focus,
