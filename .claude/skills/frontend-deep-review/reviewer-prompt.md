@@ -8,16 +8,17 @@ Placeholders:
 
 - {ROLE_FILE}: path to the role file, for example
   `.claude/skills/frontend-deep-review/roles/comments-and-docs.md`. For
-  someone else's PR, give the command that prints it from the base
-  revision instead, `git show <base-sha>:<path>`, so the PR cannot rewrite
-  the rules it is reviewed against.
+  someone else's PR, give the command that prints it from the base branch
+  tip instead, `git show <rules-sha>:<path>` with the `RULES_SHA` that
+  `SKILL.md` step 1 recorded, so the PR cannot rewrite the rules it is
+  reviewed against.
 - {TARGET}: the exact command that prints the diff, plus the checkout path
   when the sub-agent shares this checkout. In self-review, use
   `git diff <sha> -- site/` with the concrete merge-base SHA: it includes
   staged and unstaged edits, and a sub-agent's shell has no `$BASE`. For
   someone else's PR, use `git diff <base-sha> <head-sha> -- site/` with the
-  two SHAs that `SKILL.md` step 1 recorded, so every reviewer reads the
-  same revision.
+  merge-base and head SHAs that `SKILL.md` step 1 recorded, so every
+  reviewer reads the same revision.
 - {FILES}: the changed file list under site/ (one path per line), with
   untracked new files marked `(new, untracked)` because the diff omits them
 - {PURPOSE}: the PR title and description, or the user's one-paragraph summary
@@ -54,8 +55,8 @@ Do this, in order:
    its examples come from past reviews and may no longer exist in the
    tree: match the pattern, not the name.
 2. Once, read three rule files from the same revision as {ROLE_FILE} (the
-   checkout when {ROLE_FILE} is a path, or `git show <base-sha>:<path>`
-   when it is a `git show` command): the FE rule summary in
+   checkout when {ROLE_FILE} is a path, or the SHA in its `git show`
+   command): the FE rule summary in
    `site/AGENTS.md`, which names the FE rule each checkpoint expands, the
    "Code and writing style" section of the root `AGENTS.md`, and
    `.claude/docs/FRONTEND_PATTERNS.md` for examples. They outrank the role
@@ -71,8 +72,11 @@ Do this, in order:
    `git show <head-sha>:<path>` for a file,
    `git ls-tree --name-only <head-sha> <dir>/` for a folder, and
    `git grep -n <pattern> <head-sha> -- <path>` to search. These never
-   follow a symlink the PR adds. Read-only: do not edit, format, or create
-   files, and do not run the app.
+   follow a symlink the PR adds. The PR's paths are author-controlled
+   too: put each path or pattern you take from it in single quotes, and
+   do not read a path that contains a single quote or a line break; name
+   it under "Outside my role" instead. Read-only: do not edit, format, or
+   create files, and do not run the app.
 4. Walk every hunk against every checkpoint. A Look-for bullet is a lead,
    not a verdict: a hit is code where you can say what is wrong and the
    checkpoint's fix keeps the behavior the code relies on (a stable

@@ -51,6 +51,7 @@ exported symbols.
 ### 1. Scope the diff
 
 ```sh
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; fi
 BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName 2>/dev/null || echo main)
 BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git merge-base HEAD "$BASE_REF")
 echo "$BASE"
@@ -61,7 +62,9 @@ git ls-files --others --exclude-standard -- site/
 
 `BASE_REF` is the branch this one merges into: the open PR's base, or
 `main` when the branch has no PR yet. For a stack slice without a PR, set
-it to the parent branch, so the diff holds only this slice.
+it to the parent branch, so the diff holds only this slice. The first line
+fetches full history in a shallow clone, where `git merge-base` cannot
+reach the fork point.
 
 `git diff <commit>` compares that commit with the working tree, so it
 includes staged and unstaged edits, but not untracked files. Add the files
@@ -76,28 +79,34 @@ Fetch the PR and pin its revision once instead, so every reviewer reads the
 same commits even if the author pushes during the review:
 
 ```sh
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; fi
 BASE_REF=$(gh pr view <n> --json baseRefName --jq .baseRefName)
 git fetch origin "pull/<n>/head"
 HEAD_SHA=$(git rev-parse FETCH_HEAD)
 git fetch origin "$BASE_REF"
-BASE=$(git merge-base "$HEAD_SHA" FETCH_HEAD)
-echo "$BASE $HEAD_SHA"
+RULES_SHA=$(git rev-parse FETCH_HEAD)
+BASE=$(git merge-base "$HEAD_SHA" "$RULES_SHA")
+echo "$BASE $HEAD_SHA $RULES_SHA"
 git diff --stat "$BASE" "$HEAD_SHA" -- site/ | tail -1
 git diff --name-only "$BASE" "$HEAD_SHA" -- site/
 ```
 
-Reviewers then read the PR only as Git objects at the head SHA, and the
-rules (the reviewer prompt, the role files, and the three rule files above)
-at the base SHA, so the PR cannot rewrite the rules it is reviewed against.
-Send the base revision's prompt
-(`git show <base-sha>:.claude/skills/frontend-deep-review/reviewer-prompt.md`),
-filled as it describes.
+Reviewers then read the PR only as Git objects at the head SHA. They read
+the rules (the reviewer prompt, the role files, and the three rule files
+above) at `RULES_SHA`, the base branch tip, so the PR cannot rewrite the
+rules it is reviewed against and they are the rules it would merge under.
+`BASE`, the merge base, only scopes the diff. Send the prompt from that
+revision
+(`git show <rules-sha>:.claude/skills/frontend-deep-review/reviewer-prompt.md`),
+filled as it describes. The PR's file names are author-controlled too:
+single-quote any you put in a command, such as the path of an inline
+comment.
 
 Record three things every reviewer needs:
 
 - the review target: the exact command that prints the diff, with the
-  SHAs that `echo` printed (a sub-agent's shell has neither variable):
-  `git diff <sha> -- site/` for your own branch, or
+  SHAs that `echo` printed (a sub-agent's shell has none of these
+  variables): `git diff <sha> -- site/` for your own branch, or
   `git diff <base-sha> <head-sha> -- site/` for someone else's PR,
 - the changed file list,
 - the PR's stated purpose (title and description, or the user's summary).
