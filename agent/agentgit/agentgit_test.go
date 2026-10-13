@@ -955,6 +955,11 @@ func TestWebSocketUnknownMessageType(t *testing.T) {
 	stream := dialGitWatch(t)
 	ch := stream.Chan()
 
+	// Every connection starts with its initial state, even with no repos.
+	initial := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, initial.Type)
+	require.Empty(t, initial.Repositories)
+
 	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
 		Type: "bogus",
 	})
@@ -1368,6 +1373,12 @@ func TestE2E_WriteFileTriggersGitWatch(t *testing.T) {
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
 
+	// The connection reports its initial empty state first. Advance
+	// past the scan cooldown so the path update scans immediately.
+	initial := recvMsg(ctx, t, ch)
+	require.Empty(t, initial.Repositories)
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
 	// Simulate what HandleWriteFile does: add a path to the
 	// PathStore. This triggers a notification → subscribe → scan.
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "newfile.go")})
@@ -1405,6 +1416,12 @@ func TestE2E_SubagentAncestorWatch(t *testing.T) {
 	// Connect a git watch WebSocket for the PARENT chat.
 	stream := dialGitWatchWithPathStore(t, ps, parentChatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
+
+	// The connection reports its initial empty state first. Advance
+	// past the scan cooldown so the path update scans immediately.
+	initial := recvMsg(ctx, t, ch)
+	require.Empty(t, initial.Repositories)
+	mClock.Advance(2 * time.Second).MustWait(ctx)
 
 	// Simulate a tool call from the CHILD chat with the parent as
 	// ancestor. The PathStore propagates the paths to all ancestor
