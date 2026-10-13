@@ -1,12 +1,7 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import {
-	invalidateChatDiffContents,
-	invalidateChatEntity,
-} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -56,6 +51,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { useGitPanelRefresh } from "./hooks/useGitPanelRefresh";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -322,7 +318,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onMCPAuthComplete,
 	desktopChatId,
 }) => {
-	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const { entitlements } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -335,17 +330,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
-	// Wrap the git watcher refresh to also refetch the chat, whose
-	// diff statuses back the PR tabs, and the cached remote/PR diff
-	// contents, so refresh shows what a page reload would.
-	const handleRefresh = () => {
-		const sent = gitWatcher.refresh();
-		if (sent && agentId) {
-			void invalidateChatEntity(queryClient, agentId);
-			void invalidateChatDiffContents(queryClient, agentId);
-		}
-		return sent;
-	};
+	const handleRefresh = useGitPanelRefresh(agentId, gitWatcher.refresh);
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// The turn already running when the page loaded must not anchor the
