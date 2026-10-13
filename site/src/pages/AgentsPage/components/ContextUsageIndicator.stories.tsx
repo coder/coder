@@ -127,7 +127,6 @@ export const ResourceIssue: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.hover(button);
-		// The popover state belongs on the button, not a wrapper element.
 		await waitFor(() =>
 			expect(button).toHaveAttribute("aria-expanded", "true"),
 		);
