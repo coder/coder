@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type HighlightSource = "keyboard" | "pointer";
 
@@ -27,15 +27,23 @@ if (typeof document !== "undefined") {
 /**
  * Tracks whether the keyboard or the pointer last moved the highlight inside a
  * cmdk root. Set `source` as the root's `data-highlight-source` and call the
- * marks from its focus, key down, and pointer move handlers. Items then show
- * the ring only for keyboard highlights via `keyboardHighlightRingClassName`.
+ * marks from its focus and pointer move handlers. Items then show the ring
+ * only for keyboard highlights via `keyboardHighlightRingClassName`.
+ *
+ * Key presses are tracked on the whole document because some menus are driven
+ * by keys outside the root, such as the Agents composer's slash menu, where
+ * the editor handles the arrow keys.
  */
 export const useHighlightSource = () => {
 	const [source, setSource] = useState<HighlightSource>(() => lastPageInput);
+	useEffect(() => {
+		const markKeyboard = () => setSource("keyboard");
+		document.addEventListener("keydown", markKeyboard, true);
+		return () => document.removeEventListener("keydown", markKeyboard, true);
+	}, []);
 	return {
 		source,
 		markFromPage: () => setSource(lastPageInput),
-		markKeyboard: () => setSource("keyboard"),
 		markPointer: () => setSource("pointer"),
 	};
 };

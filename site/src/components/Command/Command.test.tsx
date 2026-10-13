@@ -33,6 +33,16 @@ describe("Command", () => {
 		expect(root).toHaveAttribute("data-highlight-source", "pointer");
 	});
 
+	it("marks keyboard highlights driven by keys outside the root", () => {
+		const { root } = renderCommand();
+
+		fireEvent.pointerMove(screen.getByText("Banana"));
+		expect(root).toHaveAttribute("data-highlight-source", "pointer");
+
+		fireEvent.keyDown(document.body, { key: "ArrowDown" });
+		expect(root).toHaveAttribute("data-highlight-source", "keyboard");
+	});
+
 	it("starts from the last input on the page when it takes focus", () => {
 		const { input, root } = renderCommand();
 

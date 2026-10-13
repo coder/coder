@@ -8,7 +8,7 @@ import {
 
 export const Command: React.FC<
 	React.ComponentProps<typeof CommandPrimitive>
-> = ({ className, onFocus, onKeyDown, onPointerMove, ...props }) => {
+> = ({ className, onFocus, onPointerMove, ...props }) => {
 	const highlightSource = useHighlightSource();
 	return (
 		<CommandPrimitive
@@ -20,10 +20,6 @@ export const Command: React.FC<
 			onFocus={(event) => {
 				highlightSource.markFromPage();
 				onFocus?.(event);
-			}}
-			onKeyDown={(event) => {
-				highlightSource.markKeyboard();
-				onKeyDown?.(event);
 			}}
 			onPointerMove={(event) => {
 				highlightSource.markPointer();

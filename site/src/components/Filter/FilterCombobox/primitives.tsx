@@ -164,7 +164,6 @@ export function FilterComboboxRoot({
 					data-highlight-source={highlightSource.source}
 					onFocus={highlightSource.markFromPage}
 					onKeyDown={(event) => {
-						highlightSource.markKeyboard();
 						// On Enter the cmdk root selects the highlighted row and cancels
 						// the focused button's click. A button takes Enter as a click
 						// instead; preventDefault makes the root skip the key.
