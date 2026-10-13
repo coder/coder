@@ -369,7 +369,7 @@ func (p *Server) buildTurnEnvironment(
 		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
 		defer cancel()
 
-		if err := workspaceCtx.checkWorkspaceAgentBinding(planCtx); err != nil {
+		if err := workspaceCtx.forgetStaleBindingConn(planCtx); err != nil {
 			logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
 				slog.Error(err),
 				slog.F("chat_id", chat.ID),
@@ -1620,10 +1620,11 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 	)
 }
 
-// checkWorkspaceAgentBinding reads the chat agent of the workspace's latest
-// build. If the chat is bound to another workspace agent, the next dial
-// validates the binding instead of reusing the chat runner's connection.
-func (c *turnWorkspaceContext) checkWorkspaceAgentBinding(ctx context.Context) error {
+// forgetStaleBindingConn reads the chat agent of the workspace's latest
+// build. If the chat is bound to another workspace agent, the chat runner
+// forgets its connection to the bound one, so each step dials it again
+// through dialWithLazyValidation.
+func (c *turnWorkspaceContext) forgetStaleBindingConn(ctx context.Context) error {
 	chatSnapshot, latestAgentID, err := c.workspaceAgentIDForConn(ctx)
 	if err != nil {
 		return err
@@ -1945,8 +1946,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-// agentConnFn returns the dial for this step: the chat runner's, which reuses
-// its connection across steps, or the server's.
 func (c *turnWorkspaceContext) agentConnFn() AgentConnFunc {
 	if c.runnerAgentConn == nil {
 		return c.server.agentConnFn
@@ -1959,18 +1958,12 @@ func (c *turnWorkspaceContext) agentConnFn() AgentConnFunc {
 // workspaceHome returns the home directory of the chat's workspace agent. The
 // chat runner keeps it with its connection, so later steps skip the lookup.
 func (c *turnWorkspaceContext) workspaceHome(ctx context.Context) (string, error) {
-	chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
-	if err != nil {
-		return "", err
-	}
-	if home, ok := c.runnerAgentConn.homeOf(agent.ID); ok {
-		// Bump workspace usage as getWorkspaceConn does.
-		c.trackWorkspaceUsage(ctx, chatSnapshot)
-		return home, nil
-	}
 	conn, err := c.getWorkspaceConn(ctx)
 	if err != nil {
 		return "", err
+	}
+	if home, ok := c.runnerAgentConn.homeOf(conn); ok {
+		return home, nil
 	}
 	home, err := chattool.ResolveWorkspaceHome(ctx, conn)
 	if err != nil {
