@@ -116,15 +116,19 @@ var wrapperOptions = map[string]struct {
 	"xargs":   {short: "InPLsdEa", long: []string{"--max-args", "--max-procs", "--max-lines", "--max-chars", "--delimiter", "--eof", "--arg-file"}},
 }
 
+// maxWrapperDepth bounds how many wrappers of wrappers are followed. Real
+// commands nest a few; each level copies the remaining words, so an
+// unbounded chain of thousands costs quadratic time and memory.
+const maxWrapperDepth = 16
+
 // wrappedCommands returns the commands that c runs on its behalf: the
 // command after a wrapper such as env, timeout, sudo, or xargs, and the
 // commands find runs with -exec, -execdir, -ok, or -okdir. The inner
-// commands inherit c's stdin, and wrappers of wrappers are followed to
-// any depth: each unwrap drops the wrapper's own name, so the literal
-// text left to unwrap shrinks every time.
+// commands inherit c's stdin, and wrappers of wrappers are followed up to
+// maxWrapperDepth levels.
 func wrappedCommands(c shellCommand) []shellCommand {
 	var out []shellCommand
-	for next := []shellCommand{c}; len(next) > 0; {
+	for depth, next := 0, []shellCommand{c}; depth < maxWrapperDepth && len(next) > 0; depth++ {
 		var found []shellCommand
 		for _, cmd := range next {
 			found = append(found, directlyWrapped(cmd)...)
@@ -205,21 +209,31 @@ func directlyWrapped(c shellCommand) []shellCommand {
 	}
 	if prog == "xargs" {
 		// xargs supplies operands from its input, which the grader cannot
-		// see, so they become one operand that needs expansion: replacing
-		// each word that holds the -I string, or appended at the end.
+		// see. Without -I they become one operand that needs expansion,
+		// appended at the end. With -I a word equal to the replace string
+		// becomes that operand, and inside other words, such as a sh -c
+		// script or /tmp/{}, the string becomes xargsInput.
 		if replaceWith == "" {
 			inner.Args = append(inner.Args, "")
 			inner.Source = append(inner.Source, "")
 		} else {
 			for k, a := range inner.Args {
-				if strings.Contains(a, replaceWith) {
+				if a == replaceWith {
 					inner.Args[k] = ""
+					continue
 				}
+				inner.Args[k] = strings.ReplaceAll(a, replaceWith, xargsInput)
+				inner.Source[k] = strings.ReplaceAll(inner.Source[k], replaceWith, xargsInput)
 			}
 		}
 	}
 	return []shellCommand{inner}
 }
+
+// xargsInput stands in for an xargs -I input line inside a word. The
+// input may hold "..", so the stand-in climbs out of its directory and
+// /tmp/{} is not treated as a path under /tmp.
+const xargsInput = "../xargs-input"
 
 // optionValue reads the option at args[i]: its name (a long option
 // before any =, or the first value-taking letter of a short cluster), its
@@ -398,7 +412,7 @@ func literalWord(w *syntax.Word) string {
 	for _, part := range w.Parts {
 		switch p := part.(type) {
 		case *syntax.Lit:
-			_, _ = sb.WriteString(p.Value)
+			_, _ = sb.WriteString(unescapeLit(p.Value))
 		case *syntax.SglQuoted:
 			_, _ = sb.WriteString(p.Value)
 		case *syntax.DblQuoted:
@@ -411,6 +425,28 @@ func literalWord(w *syntax.Word) string {
 			}
 		default:
 			return ""
+		}
+	}
+	return sb.String()
+}
+
+// unescapeLit resolves backslashes in an unquoted word the way bash does:
+// \x is x and a backslash-newline disappears. A single-quoted bash -c
+// script that ends its quote, adds a backslash-escaped quote, and reopens
+// it then reads as bash runs it.
+func unescapeLit(v string) string {
+	if !strings.Contains(v, `\`) {
+		return v
+	}
+	var sb strings.Builder
+	for i := 0; i < len(v); i++ {
+		if v[i] != '\\' || i+1 == len(v) {
+			_ = sb.WriteByte(v[i])
+			continue
+		}
+		i++
+		if v[i] != '\n' {
+			_ = sb.WriteByte(v[i])
 		}
 	}
 	return sb.String()

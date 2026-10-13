@@ -33,12 +33,17 @@ const caseFilter = new Set(
 
 /**
  * USD per million tokens, from coderd/aibridge/prices/data/prices.json.
- * Every model a trial may call needs an entry or aegis fails the trial.
+ * These extend aegis's built-in catalog (internal/trace/pricing.yaml).
+ * `aegis validate` rejects a subject model priced in neither, so an
+ * unpriced pin fails before any trial runs.
  */
 const pricing = {
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
   "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  "gpt-5.6": { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
+  "gpt-6-sol": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  "gpt-6.1-sol": { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
 };
 
 export const controlArm = "control";

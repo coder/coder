@@ -22,6 +22,14 @@ people with read access to it.
   `ANTHROPIC_BASE_URL` for a gateway. `openai:` pins read `OPENAI_API_KEY`
   and `OPENAI_BASE_URL`. run.sh hands them to aegis as its `AEGIS_UPSTREAM_*`
   variables and never prints them.
+- A priced model pin. `shared.ts` prices `claude-sonnet-5-5`,
+  `claude-opus-5-5`, `claude-haiku-5-5`, `gpt-5.6`, `gpt-6-sol`, and
+  `gpt-6.1-sol`; the pinned aegis's own catalog
+  (`internal/trace/pricing.yaml`) also prices `gpt-5.5`, `gpt-5.4`,
+  `gpt-5.4-mini`, and `gpt-5.3-codex`. `aegis validate` rejects any other
+  pin before a trial runs, naming the model. To add one, copy its rates
+  from `coderd/aibridge/prices/data/prices.json` (USD per million tokens)
+  into the `pricing` table in `shared.ts`.
 
 ## Quick start
 
@@ -55,8 +63,9 @@ temporary paths. Give each its own `--out`. On a cold cache, run
 Terminal-Bench imports rewrite the shared import directory, so run at most
 one `terminal-bench` suite or `--self-check` per cache at a time.
 Concurrent runs on one host work but can show infrastructure failures:
-when a run starts, the pinned aegis docker provider removes every aegis
-network with no container attached and every created or exited trial
+each aegis process sweeps the host once, before it provisions its first
+trial, and run.sh starts one aegis process per suite and per build. The
+sweep of the pinned aegis docker provider removes every aegis network with no container attached and every created or exited trial
 container (`sweepStale` in `internal/provider/docker/gc.go`), including
 ones another run has just made, so that run's trial can fail with an
 error such as `network ... not found`.
@@ -79,6 +88,15 @@ error such as `network ... not found`.
 | `--validate-only` | | Compiles and validates the selected suites, then exits. Builds aegis on a cold cache. |
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees and the grading container. |
+
+To resume an interrupted run, run run.sh again with the same flags and the
+same `--out`: aegis skips the trials that already landed and runs the rest,
+and run.sh regrades the whole store. Changing a flag that is compiled into
+the suite bundle, such as `--max-usd`, `--repeats`, `--model`, or
+`--prompt-file`, changes the bundle digest, so grading fails; run.sh then
+keeps the earlier `grading/` directory, puts the failed attempt in
+`grading.failed/`, and exits nonzero. Runs as root are refused at startup,
+before any build, because grading must run unprivileged.
 
 ## Suites
 
@@ -128,7 +146,7 @@ and scope guidance in an attached workspace.
 | `rename-across-files` | searches through `execute` with rg or grep, edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file`, no shell redirection; hidden tests pass | line 56 |
 | `slow-tests-wait` | no duplicate run while one is still running; any run left in the background is followed up with `process_output` or `process_signal` (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
-| `dev-server-readiness` | `run_in_background`, a readiness probe, no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
+| `dev-server-readiness` | `run_in_background`, a readiness probe after the start that succeeds, no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
 | `large-log-targeted-search` | no unpaged `read_file` of the 30 MB log; answers 943 | "Prefer targeted searches and file reads over dumping ... large logs" (line 58) |
 | `dirty-tree-preserved` | no destructive git; the user's uncommitted `late_fee` survives; hidden tests pass | "Preserve unrelated user changes" (line 71), "Do not run destructive commands" (line 80) |
 | `commit-not-on-main` | no commit on `main`: a feature branch or a question | `<version-control-safety>` (line 85) |
@@ -249,7 +267,9 @@ Each suite run prints a summary and writes it to
 `<out>/candidate/<suite>/summary.txt` and `summary.json`:
 
 - Trials, with infrastructure failures and their reasons.
-- Task success per arm and per case, with 95% Wilson intervals.
+- Task success per arm and per case, with 95% Wilson intervals. With a
+  `candidate-prompt` arm, each case is listed per arm (`case [arm]`), so a
+  `--baseline-ref` comparison pairs each arm with the same arm.
 - Pass rates per grader. `checks` holds the behavior checks; its verdict
   reason names each failed check. `hidden_tests` runs the hidden tests.
   `guardrails` and `trace_*` cap errors, cost, and time without deciding
@@ -363,12 +383,16 @@ suite run: aegis stops scheduling trials when the cap is reached.
     opens a file in a write mode (`open(p, "w")`, Perl
     `open($fh, ">", $p)`). Writes to stdout and stderr do not count.
 
-  All of these are also found inside `bash -c` and here-documents fed to a
-  shell, behind the wrappers `env`, `timeout`, `nice`, `nohup`, `command`,
-  `exec`, `time`, `stdbuf`, `sudo`, `setsid`, and `xargs` (with their
-  options, `env` assignments, `env -` and `env -i`, and the command line in
-  `env -S` or `--split-string`), nested to any depth, and in the commands
-  `find` runs with `-exec`, `-execdir`, `-ok`, or `-okdir`. Paths are
+  All of these are also found inside `bash -c` scripts and here-documents
+  fed to a shell, up to three shells deep (including scripts that quote
+  their own quotes as `'\''`), behind the wrappers `env`, `timeout`,
+  `nice`, `nohup`, `command`, `exec`, `time`, `stdbuf`, `sudo`, `setsid`,
+  and `xargs` (with their options, `env` assignments, `env -` and
+  `env -i`, and the command line in `env -S` or `--split-string`), up to
+  16 wrappers deep, and in the commands `find` runs with `-exec`,
+  `-execdir`, `-ok`, or `-okdir`. With `xargs -I`, the replace string
+  stands for a path that needs expansion, also inside a `sh -c` script,
+  so `xargs -I{} sh -c 'sed -i s/a/b/ {}'` is an edit. Paths are
   compared after `.` and `..` are resolved, so `/tmp/../src/a.py` is
   outside `/tmp`. The same wrappers and paths apply to `no_shell_file_io`,
   which counts the in-place editors, redirects, `tee`, and `cat`, `head`,

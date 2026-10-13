@@ -179,9 +179,20 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 			}
 		}
 	}
-	journals, _ := filepath.Glob(filepath.Join(store, "bundles", "*", "journal.json"))
+	journals, err := filepath.Glob(filepath.Join(store, "bundles", "*", "journal.json"))
+	if err != nil {
+		return nil, err
+	}
 	for _, j := range journals {
-		readJournalFailures(j, landed, s.JournalOnly)
+		if err := readJournalFailures(j, landed, s.JournalOnly); err != nil {
+			return nil, err
+		}
+	}
+	// With a candidate-prompt arm, per-case rates are per case and arm, so
+	// a build comparison of two such runs compares each arm with itself.
+	arms := map[string]bool{}
+	for _, t := range s.TrialsList {
+		arms[t.VariantID] = true
 	}
 	armPass, armTotal := map[string]int{}, map[string]int{}
 	casePass, caseTotal := map[string]int{}, map[string]int{}
@@ -202,6 +213,9 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 		graded++
 		armTotal[t.VariantID]++
 		caseKey := t.TaskID
+		if len(arms) > 1 {
+			caseKey += " [" + t.VariantID + "]"
+		}
 		caseTotal[caseKey]++
 		if t.TaskSuccess {
 			passed++
@@ -324,24 +338,33 @@ func applyMeasurements(t *trialSummary, path string) error {
 	return nil
 }
 
+// lastErrorLine returns the last stdout.log line that mentions an error or
+// a failure, or else the last non-empty line, such as a deadline message.
 func lastErrorLine(log []byte) string {
-	var last string
+	var lastError, lastLine string
 	scanner := bufio.NewScanner(bytes.NewReader(log))
 	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		lastLine = line
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "error") || strings.Contains(lower, "fail") {
-			last = strings.TrimSpace(line)
+			lastError = line
 		}
 	}
-	return truncate(last, 300)
+	if lastError == "" {
+		lastError = lastLine
+	}
+	return truncate(lastError, 300)
 }
 
-func readJournalFailures(path string, landed map[string]bool, out map[string]string) {
+func readJournalFailures(path string, landed map[string]bool, out map[string]string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return
+		return xerrors.Errorf("read %s: %w", path, err)
 	}
 	var j struct {
 		Entries []struct {
@@ -350,8 +373,8 @@ func readJournalFailures(path string, landed map[string]bool, out map[string]str
 			Error   string `json:"error"`
 		} `json:"entries"`
 	}
-	if json.Unmarshal(data, &j) != nil {
-		return
+	if err := json.Unmarshal(data, &j); err != nil {
+		return xerrors.Errorf("parse %s: %w", path, err)
 	}
 	for _, e := range j.Entries {
 		if landed[e.TrialID] || e.Status == "completed" || e.Status == "skipped" {
@@ -359,6 +382,7 @@ func readJournalFailures(path string, landed map[string]bool, out map[string]str
 		}
 		out[e.TrialID] = strings.TrimSpace(e.Status + ": " + truncate(e.Error, 300))
 	}
+	return nil
 }
 
 func pct(r rate) string {

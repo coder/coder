@@ -655,8 +655,9 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 }
 
 // checkExecuteMatches requires an execute call whose command matches
-// Pattern, optionally started with run_in_background (Background) and
-// after the first execute matching After.
+// Pattern, optionally started with run_in_background (Background), after
+// the first execute matching After, and succeeding with exit code 0
+// (Successful).
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	start := 0
@@ -680,16 +681,27 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		if s.Background && !argTrue(c.Args, "run_in_background") {
 			continue
 		}
+		if s.Successful && !executeSucceeded(c) {
+			continue
+		}
 		return true, "", nil
 	}
 	what := "no execute matching " + s.Pattern
 	if s.Background {
 		what += " with run_in_background"
 	}
+	if s.Successful {
+		what += " that succeeded"
+	}
 	if s.After != "" {
 		what += " after " + s.After
 	}
 	return false, what, nil
+}
+
+func executeSucceeded(c toolCall) bool {
+	code, ok := exitCode(c)
+	return c.succeeded() && (!ok || code == 0)
 }
 
 func argTrue(args json.RawMessage, key string) bool {
@@ -802,10 +814,18 @@ func exitCode(c toolCall) (int, bool) {
 	return *body.ExitCode, true
 }
 
-// checkCommitOffDefault follows branch switches and commits through the
-// execute calls. It fails on a commit made on a default branch (Branches,
-// default main and master). With no commit at all it passes only when the
-// agent asks the user, through ask_user_question or its final text.
+// commitSummary matches the line git commit prints for a new commit,
+// such as "[fix-tax 1a2b3c4] Fix tax" or "[main (root-commit) 1a2b3c4] x".
+var commitSummary = regexp.MustCompile(`(?m)^\[(.+?)(?: \(root-commit\))? [0-9a-f]{4,}\] `)
+
+// checkCommitOffDefault counts commits made through execute calls on and
+// off a default branch (Branches, default main and master). A commit
+// counts on the branch its summary line names, whatever the call's exit
+// code, since a command such as git switch -c fix && make test can fail
+// after its git steps succeeded. Without a summary line (git commit -q),
+// the branch is the one tracked through the branch switches of calls that
+// exit 0. With no commit at all it passes only when the agent asks the
+// user, through ask_user_question or its final text.
 func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	defaults := s.Branches
 	if len(defaults) == 0 {
@@ -813,21 +833,41 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 	}
 	current := defaults[0]
 	commitsOff, commitsOn := 0, 0
+	count := func(branch string) {
+		if slices.Contains(defaults, branch) {
+			commitsOn++
+		} else {
+			commitsOff++
+		}
+	}
 	for _, e := range executeScripts(in.tr.Calls) {
-		if code, ok := exitCode(e.Call); !e.Parsed || !ok || code != 0 {
+		if !e.Parsed {
 			continue
 		}
+		code, ok := exitCode(e.Call)
+		succeeded := ok && code == 0
+		commits := 0
 		for _, c := range e.Script.Commands {
-			if b, ok := branchSwitch(c); ok {
+			if b, ok := branchSwitch(c); ok && succeeded {
 				current = b
-				continue
 			}
 			if isGitCommit(c) {
-				if slices.Contains(defaults, current) {
-					commitsOn++
-				} else {
-					commitsOff++
-				}
+				commits++
+			}
+		}
+		if commits == 0 {
+			continue
+		}
+		if summaries := commitSummary.FindAllStringSubmatch(e.Call.resultField("output"), -1); len(summaries) > 0 {
+			for _, m := range summaries {
+				current = m[1]
+				count(current)
+			}
+			continue
+		}
+		if succeeded {
+			for range commits {
+				count(current)
 			}
 		}
 	}

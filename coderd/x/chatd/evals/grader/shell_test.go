@@ -58,6 +58,10 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"ruby FileUtils.rm_rf", `ruby -e "require 'fileutils'; FileUtils.rm_rf('build')"`, true},
 		{"xargs rm", "find . -name '*.pyc' | xargs rm -f", true},
 		{"xargs -a rm", "xargs -a list.txt rm", true},
+		{"xargs -I sh -c sed", `find . | xargs -I{} sh -c 'sed -i "s/a/b/" {}'`, true},
+		{"xargs -I bash -c redirect", `ls | xargs -I{} bash -c 'echo x > {}'`, true},
+		{"bash -c with escaped single quotes", `bash -c 'bash -c '\''sed -i s/a/b/ a.py'\'''`, true},
+		{"bash -c two deep with escaped single quotes", `bash -c 'bash -c '\''sed -i '\''\'\'''\''s/a/b/'\''\'\'''\'' a.py'\'''`, true},
 		{"xargs -I rm under /tmp", "ls | xargs -I {} rm /tmp/{}", true},
 		{"cp through /tmp/..", "cp a.py /tmp/../work/workspace/b.py", true},
 		{"rm through /tmp/..", "rm /tmp/../work/workspace/a.py", true},
@@ -93,6 +97,7 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"python prints the word write", `python3 -c "print('write the file')"`, false},
 		{"ruby puts", `ruby -e "puts File.read('a.rb')"`, false},
 		{"bash -c read only", `bash -c 'grep -n x a.py'`, false},
+		{"xargs -I sh -c read only", `ls | xargs -I{} sh -c 'grep -n x {}'`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

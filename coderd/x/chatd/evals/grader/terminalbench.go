@@ -225,9 +225,20 @@ func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
 	if out, err := runGit(ctx, tmp, "clone", "-q", "--bare", appDir, seedRepo); err != nil {
 		return tbSeed{}, xerrors.Errorf("clone seed: %s: %w", truncate(string(out), 400), err)
 	}
-	timeout, _ := strconv.ParseFloat(toml["verifier.timeout_sec"], 64)
-	memory, _ := strconv.Atoi(toml["environment.memory_mb"])
-	cpus, _ := strconv.Atoi(toml["environment.cpus"])
+	// A missing limit means the verifier default (zero); a present but
+	// unparsable one is an import error rather than a silent default.
+	timeout, err := tomlValue(toml, "verifier.timeout_sec", func(v string) (float64, error) { return strconv.ParseFloat(v, 64) })
+	if err != nil {
+		return tbSeed{}, err
+	}
+	memory, err := tomlValue(toml, "environment.memory_mb", strconv.Atoi)
+	if err != nil {
+		return tbSeed{}, err
+	}
+	cpus, err := tomlValue(toml, "environment.cpus", strconv.Atoi)
+	if err != nil {
+		return tbSeed{}, err
+	}
 	return tbSeed{
 		Image:            image,
 		SeedRepo:         "file://" + seedRepo,
@@ -240,6 +251,27 @@ func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
 		CPUs:             cpus,
 		Placeholder:      placeholder,
 	}, nil
+}
+
+func tomlValue[T any](toml map[string]string, key string, parse func(string) (T, error)) (T, error) {
+	var zero T
+	raw, ok := toml[key]
+	if !ok {
+		return zero, nil
+	}
+	v, err := parse(raw)
+	if err != nil {
+		return zero, xerrors.Errorf("task.toml %s = %q: %w", key, raw, err)
+	}
+	return v, nil
+}
+
+// removeContainer is the deferred cleanup of a container this grader
+// started. A failure is logged so a leaked container is visible.
+func removeContainer(ref string) {
+	if out, err := runDocker(context.Background(), time.Minute, "rm", "-f", ref); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "chatd-eval-grader: docker rm -f %s: %v: %s\n", ref, err, truncate(strings.TrimSpace(string(out)), 400))
+	}
 }
 
 // addEmptySeedPlaceholder adds emptySeedPlaceholder to dir when dir has no
@@ -279,9 +311,7 @@ func copyAppFromImage(ctx context.Context, image, dst string) error {
 		return xerrors.Errorf("docker create: %s: %w", truncate(string(out), 400), err)
 	}
 	id := strings.TrimSpace(string(out))
-	defer func() {
-		_, _ = runDocker(context.Background(), time.Minute, "rm", "-f", id)
-	}()
+	defer removeContainer(id)
 	if out, err := runDocker(ctx, 10*time.Minute, "cp", id+":/app", dst); err != nil {
 		return xerrors.Errorf("docker cp /app: %s: %w", truncate(string(out), 400), err)
 	}
@@ -387,9 +417,7 @@ func verifyInTaskImage(ctx context.Context, seed tbSeed, appDir, solutionDir, lo
 	if err != nil {
 		return res, xerrors.Errorf("start verifier container: %s: %w", truncate(string(out), 400), err)
 	}
-	defer func() {
-		_, _ = runDocker(context.Background(), time.Minute, "rm", "-f", name)
-	}()
+	defer removeContainer(name)
 	if out, err := runDocker(ctx, time.Minute, "exec", name, "sh", "-c", "rm -rf /app && mkdir -p /app /logs/verifier"); err != nil {
 		return res, xerrors.Errorf("reset /app: %s: %w", truncate(string(out), 400), err)
 	}
@@ -516,7 +544,15 @@ func gradeTerminalBench(req graderRequest, stderr io.Writer) (graderVerdict, err
 		return graderVerdict{Passed: false, Reason: "verifier failed to run: " + err.Error()}, nil
 	}
 	_, _ = fmt.Fprintf(stderr, "terminal-bench %s: reward %q, logs %s\n", task, res.Reward, res.LogsDir)
-	reward, _ := strconv.ParseFloat(res.Reward, 64)
+	// No reward.txt means the tests did not finish: reward 0. Any other
+	// value that is not a number is a verifier defect, not a task failure.
+	reward := 0.0
+	if res.Reward != "" {
+		reward, err = strconv.ParseFloat(res.Reward, 64)
+		if err != nil {
+			return graderVerdict{}, xerrors.Errorf("terminal-bench %s: reward %q is not a number (verifier logs: %s): %w", task, res.Reward, res.LogsDir, err)
+		}
+	}
 	return graderVerdict{
 		Passed:  res.Reward == "1",
 		Reason:  fmt.Sprintf("reward %q (verifier logs: %s)", res.Reward, res.LogsDir),

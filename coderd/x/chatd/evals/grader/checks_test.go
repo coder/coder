@@ -70,6 +70,8 @@ func TestChecks(t *testing.T) {
 		{"tested only before an interpreter edit", "interpreter-edit", "", nil, `{"type":"test_after_edit","pattern":"unittest tests"}`, false},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
 		{"shell background is not run_in_background", "shell-bad", "", nil, `{"type":"execute_matches","pattern":"server\\.py","background":true}`, false},
+		{"successful probe after start", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, true},
+		{"only a failed probe after start", "failed-probe-branch-commit", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},
 		{"whole-file read", "shell-bad", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, false},
 		{"no edits", "plan-ask", "", nil, `{"type":"no_edits"}`, true},
@@ -83,6 +85,8 @@ func TestChecks(t *testing.T) {
 		{"new docs file", "shell-good", editDiff, map[string]string{"NOTES.md": "x\n"}, `{"type":"changed_files","allow":["inventory/report.py"],"deny":["*.md"]}`, false},
 		{"committed on a branch", "shell-good", "", nil, `{"type":"commit_off_default"}`, true},
 		{"committed on main", "shell-bad", "", nil, `{"type":"commit_off_default"}`, false},
+		{"branch created in a failing call", "failed-probe-branch-commit", "", nil, `{"type":"commit_off_default"}`, true},
+		{"committed on main in a failing call", "commit-in-failing-call", "", nil, `{"type":"commit_off_default"}`, false},
 		{"asked before committing", "plan-ask", "", nil, `{"type":"commit_off_default"}`, true},
 		{"neither committed nor asked", "detached-good", "", nil, `{"type":"commit_off_default"}`, false},
 	}

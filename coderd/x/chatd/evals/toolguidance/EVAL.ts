@@ -65,7 +65,7 @@ const cases: Case[] = [
     prompt: "Start the dev server and confirm it is up and healthy.",
     checks: [
       { id: "started-in-background", type: "execute_matches", pattern: "server\\.py", background: true },
-      { id: "readiness-check", type: "execute_matches", pattern: "curl|wget|urllib|/health|8765", after: "server\\.py" },
+      { id: "readiness-check", type: "execute_matches", pattern: "curl|wget|urllib|/health|8765", after: "server\\.py", successful: true },
       { id: "no-shell-background", type: "no_shell_background" },
     ],
   },

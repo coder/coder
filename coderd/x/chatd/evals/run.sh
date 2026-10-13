@@ -158,6 +158,11 @@ done
 [[ -z $max_usd || $max_usd =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--max-usd must be a number"
 [[ $prompt_mode == append || $prompt_mode == replace ]] || die "--prompt-mode must be append or replace"
 [[ $model == *:* ]] || die "--model must be provider:model, for example anthropic:claude-sonnet-5-5"
+# Grading must not run as root (see grade_isolated); check before any build
+# or paid trial.
+if [[ $validate_only -eq 0 && $self_check -eq 0 && $(id -u) -eq 0 ]]; then
+	die "grading must not run as root; run as an unprivileged user"
+fi
 if [[ -z $concurrency ]]; then
 	concurrency=$(($(nproc) / 2))
 	((concurrency >= 1)) || concurrency=1
@@ -476,7 +481,6 @@ validate_suite() {
 # code, so they never run on this host.
 grade_isolated() {
 	local store=$1 digest=$2 dest=$3 image=$4 name rc=0
-	[[ $(id -u) -ne 0 ]] || die "grading must not run as root"
 	name=chatd-evals-grade-$$-$RANDOM
 	docker run -d --name "$name" --pull=never --network none \
 		--user "$(id -u):$(id -g)" --read-only \
@@ -485,7 +489,7 @@ grade_isolated() {
 		--security-opt no-new-privileges --cap-drop ALL \
 		-v "$store:/store:ro" -v "$AEGIS:/usr/local/bin/aegis:ro" -v "$GRADER:$GRADER:ro" \
 		-e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-		--entrypoint sleep "$image" infinity >/dev/null
+		--entrypoint sleep "$image" infinity >/dev/null || return 1
 	docker exec -w /work "$name" aegis collect --store /store \
 		--bundle "/store/bundle-assets/$digest/eval_bundle.json" --out derived --regrade \
 		--allow-unsafe-host-graders --allow-unsafe-host-subprocess-graders \
@@ -516,8 +520,10 @@ grade_isolated() {
 }
 
 # run_suite runs, grades, and summarizes one suite on the current subject.
+# Callers run it as `run_suite ... || status=1`, which turns off errexit
+# inside it, so every step's status goes into rc explicitly.
 run_suite() {
-	local suite=$1 label=$2 dir file digest dest store rc=0 arms run_args
+	local suite=$1 label=$2 dir file digest dest store rc=0 grade_rc=0 arms run_args grading
 	dir=$(suite_dir "$suite")
 	file=$EVALS_DIR/$dir/EVAL.ts
 	dest=$out/$label/$suite
@@ -533,16 +539,29 @@ run_suite() {
 	[[ $rc -eq 0 ]] || log "$label/$suite: aegis run exited $rc; grading the trials that landed"
 	[[ -d $store/bundles ]] || die "$label/$suite: no trials landed (see $dest/run.log)"
 	log "$label/$suite: grading"
-	rm -rf "$dest/grading"
+	# Grade next to the earlier grading and replace it only when grading
+	# succeeds, so a resume that cannot be graded (another bundle digest,
+	# for one) keeps the earlier verdicts.
+	grading=$dest/grading.new.$$
+	rm -rf "$grading"
 	if [[ $suite == terminal-bench ]]; then
-		mkdir -p "$dest/grading"
+		mkdir -p "$grading"
 		"$AEGIS" collect --store "$store" --bundle "$store/bundle-assets/$digest/eval_bundle.json" \
-			--out "$dest/grading/derived" --regrade \
-			--allow-unsafe-host-subprocess-graders --allow-subprocess-binary "$GRADER" >&2 || rc=$?
+			--out "$grading/derived" --regrade \
+			--allow-unsafe-host-subprocess-graders --allow-subprocess-binary "$GRADER" >&2 || grade_rc=$?
 	else
-		grade_isolated "$store" "$digest" "$dest/grading" "$SUBJECT_IMAGE" || rc=$?
+		grade_isolated "$store" "$digest" "$grading" "$SUBJECT_IMAGE" || grade_rc=$?
 	fi
-	arms=$(jq -r '.experiment.variants | length' "$store/bundle-assets/$digest/eval_bundle.json")
+	if [[ $grade_rc -eq 0 || ! -d $dest/grading ]]; then
+		rm -rf "$dest/grading"
+		mv "$grading" "$dest/grading" || rc=1
+	else
+		rm -rf "$dest/grading.failed"
+		mv "$grading" "$dest/grading.failed" || rc=1
+		log "$label/$suite: grading failed; keeping the earlier grading, this attempt is in $dest/grading.failed"
+	fi
+	[[ $grade_rc -eq 0 ]] || rc=$grade_rc
+	arms=$(jq -r '.experiment.variants | length' "$store/bundle-assets/$digest/eval_bundle.json") || return 1
 	if [[ -n $prompt_file && $arms -lt 2 ]]; then
 		log "$label/$suite: --prompt-file is set but the bundle declares $arms arm(s); no contrast report"
 		rc=1
@@ -554,7 +573,7 @@ run_suite() {
 				--out-dir "$dest/report" --store "$dest/report-history" >&2 || rc=$?
 	fi
 	"$GRADER" summarize --store "$store" --derived "$dest/grading/derived" --label "$label $SUBJECT_VERSION" \
-		--json "$dest/summary.json" | tee "$dest/summary.txt"
+		--json "$dest/summary.json" | tee "$dest/summary.txt" || rc=$?
 	return "$rc"
 }
 
