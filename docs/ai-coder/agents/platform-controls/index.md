@@ -68,7 +68,8 @@ This setting is available under **Admin settings** > **AI** > **Coder Agents** >
 
 Organization administrators can also set organization instructions that apply only to chats in their organization.
 Coder adds them after the deployment system prompt and never uses them in place of it.
-Set them under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
+Set them in the **Organization instructions** section of the same page.
+If you have access to more than one organization, select the organization first.
 
 Coder stores both prompts when it creates a chat, in this order:
 
@@ -217,7 +218,6 @@ runtime configuration for those features is available under **Admin settings** >
 See the following pages for experiment-gated features:
 
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
-- [Automations](../automations.md) (`--experiments=chat-automations`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 

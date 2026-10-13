@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Outlet, useParams } from "react-router";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
 import type { Chat, WorkspaceBuild } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockWorkspace,
@@ -412,5 +412,68 @@ describe("ChatTopBar archive and delete", () => {
 			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
 			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 		}
+	});
+});
+
+describe("ChatTopBar PR chip", () => {
+	it("links every tracked PR as a menu anchor when the chat tracks several", async () => {
+		const user = userEvent.setup();
+
+		// Both PRs share a title, so the numbers must name them apart.
+		const primary = { ...MockChatDiffStatus };
+		const secondary = {
+			...MockChatDiffStatus,
+			url: "https://github.com/coder/coder/pull/456",
+			pr_number: 456,
+			git_branch: "feat/two",
+		};
+		renderTopBar({
+			...chat,
+			diff_statuses: [primary, secondary],
+		});
+
+		await user.click(await screen.findByRole("button", { name: /2 PRs/ }));
+		const menu = await screen.findByRole("menu");
+
+		// Real anchors: middle-click and copy-link work, and the
+		// destination is announced.
+		expect(
+			within(menu).getByRole("menuitem", { name: /PR #123/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/123");
+		expect(
+			within(menu).getByRole("menuitem", { name: /PR #456/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/456");
+	});
+
+	it("names the repository when two origins carry the same PR", async () => {
+		const user = userEvent.setup();
+
+		// The PR number repeats across repositories, so only the
+		// repository names keep the entries apart.
+		const forked = {
+			...MockChatDiffStatus,
+			remote_origin: "https://github.com/coder/other-project.git",
+			git_branch: "feat/two",
+			url: "https://github.com/coder/other-project/pull/123",
+		};
+		renderTopBar({
+			...chat,
+			diff_statuses: [MockChatDiffStatus, forked],
+		});
+
+		await user.click(await screen.findByRole("button", { name: /2 PRs/ }));
+		const menu = await screen.findByRole("menu");
+
+		expect(
+			within(menu).getByRole("menuitem", { name: /coder\/coder · PR #123/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/123");
+		expect(
+			within(menu).getByRole("menuitem", {
+				name: /coder\/other-project · PR #123/,
+			}),
+		).toHaveAttribute(
+			"href",
+			"https://github.com/coder/other-project/pull/123",
+		);
 	});
 });

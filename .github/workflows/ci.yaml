@@ -1599,7 +1599,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
-          keep-younger-than: 7 # days
+          keep-younger-than: 30 # days
           keep-tags: latest
           keep-tags-regexes: ^pr
           prune-tags-regexes: |

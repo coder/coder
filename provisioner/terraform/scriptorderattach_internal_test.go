@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -21,8 +22,20 @@ func scriptOrderAttachTestScripts(addresses ...string) map[string]*proto.Script 
 	return scripts
 }
 
-func scriptOrderAttachTestStartGraph(runtime string, dependencies ...ScriptOrderDependency) ScriptOrderGraph {
-	return ScriptOrderGraph{RuntimeAddress: runtime, Phase: ScriptOrderPhaseStart, Dependencies: dependencies}
+func scriptOrderAttachTestDependency(
+	dependentAddress string,
+	prerequisiteAddress string,
+	requirement scriptorder.Requirement,
+) scriptorder.Dependency {
+	return scriptorder.Dependency{
+		DependentAddress:    dependentAddress,
+		PrerequisiteAddress: prerequisiteAddress,
+		Requirement:         requirement,
+	}
+}
+
+func scriptOrderAttachTestStartGraph(runtime string, dependencies ...scriptorder.Dependency) scriptorder.Graph {
+	return scriptorder.Graph{RuntimeAddress: runtime, Phase: scriptorder.PhaseStart, Dependencies: dependencies}
 }
 
 func scriptOrderAttachTestPrerequisites(script *proto.Script) []string {
@@ -39,8 +52,8 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 	t.Run("OneEdge", func(t *testing.T) {
 		t.Parallel()
 		scripts := scriptOrderAttachTestScripts("coder_script.clone_repo", "coder_script.install_tools")
-		order := ScriptOrder{Graphs: []ScriptOrderGraph{scriptOrderAttachTestStartGraph("coder_agent.main",
-			scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.clone_repo", ScriptOrderRequirementSuccess),
+		order := scriptorder.Order{Graphs: []scriptorder.Graph{scriptOrderAttachTestStartGraph("coder_agent.main",
+			scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.clone_repo", scriptorder.RequirementSuccess),
 		)}}
 
 		require.NoError(t, attachScriptOrderDependencies(order, scripts))
@@ -55,8 +68,8 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 	t.Run("CompletionRequirement", func(t *testing.T) {
 		t.Parallel()
 		scripts := scriptOrderAttachTestScripts("coder_script.clone_repo", "coder_script.post_setup")
-		order := ScriptOrder{Graphs: []ScriptOrderGraph{scriptOrderAttachTestStartGraph("coder_agent.main",
-			scriptOrderGraphTestDependency("coder_script.post_setup", "coder_script.clone_repo", ScriptOrderRequirementCompletion),
+		order := scriptorder.Order{Graphs: []scriptorder.Graph{scriptOrderAttachTestStartGraph("coder_agent.main",
+			scriptOrderAttachTestDependency("coder_script.post_setup", "coder_script.clone_repo", scriptorder.RequirementCompletion),
 		)}}
 
 		require.NoError(t, attachScriptOrderDependencies(order, scripts))
@@ -73,10 +86,10 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 			"module.git_clone.coder_script.clone",
 		)
 		// Deliberately not in sorted order.
-		order := ScriptOrder{Graphs: []ScriptOrderGraph{scriptOrderAttachTestStartGraph("coder_agent.main",
-			scriptOrderGraphTestDependency("coder_script.build", "coder_script.z_clone", ScriptOrderRequirementSuccess),
-			scriptOrderGraphTestDependency("coder_script.build", "module.git_clone.coder_script.clone", ScriptOrderRequirementCompletion),
-			scriptOrderGraphTestDependency("coder_script.build", "coder_script.a_auth", ScriptOrderRequirementSuccess),
+		order := scriptorder.Order{Graphs: []scriptorder.Graph{scriptOrderAttachTestStartGraph("coder_agent.main",
+			scriptOrderAttachTestDependency("coder_script.build", "coder_script.z_clone", scriptorder.RequirementSuccess),
+			scriptOrderAttachTestDependency("coder_script.build", "module.git_clone.coder_script.clone", scriptorder.RequirementCompletion),
+			scriptOrderAttachTestDependency("coder_script.build", "coder_script.a_auth", scriptorder.RequirementSuccess),
 		)}}
 
 		require.NoError(t, attachScriptOrderDependencies(order, scripts))
@@ -92,10 +105,10 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 		t.Parallel()
 		// clone -> install -> build, plus an explicit clone -> build.
 		scripts := scriptOrderAttachTestScripts("coder_script.clone_repo", "coder_script.install_tools", "coder_script.build")
-		order := ScriptOrder{Graphs: []ScriptOrderGraph{scriptOrderAttachTestStartGraph("coder_agent.main",
-			scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.clone_repo", ScriptOrderRequirementSuccess),
-			scriptOrderGraphTestDependency("coder_script.build", "coder_script.install_tools", ScriptOrderRequirementSuccess),
-			scriptOrderGraphTestDependency("coder_script.build", "coder_script.clone_repo", ScriptOrderRequirementSuccess),
+		order := scriptorder.Order{Graphs: []scriptorder.Graph{scriptOrderAttachTestStartGraph("coder_agent.main",
+			scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.clone_repo", scriptorder.RequirementSuccess),
+			scriptOrderAttachTestDependency("coder_script.build", "coder_script.install_tools", scriptorder.RequirementSuccess),
+			scriptOrderAttachTestDependency("coder_script.build", "coder_script.clone_repo", scriptorder.RequirementSuccess),
 		)}}
 
 		require.NoError(t, attachScriptOrderDependencies(order, scripts))
@@ -112,18 +125,18 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 			"coder_script.db_init", "coder_script.db_seed",
 			"coder_script.save_state", "coder_script.stop_db",
 		)
-		order := ScriptOrder{Graphs: []ScriptOrderGraph{
+		order := scriptorder.Order{Graphs: []scriptorder.Graph{
 			scriptOrderAttachTestStartGraph("coder_agent.main",
-				scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.clone_repo", ScriptOrderRequirementSuccess),
+				scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.clone_repo", scriptorder.RequirementSuccess),
 			),
 			scriptOrderAttachTestStartGraph("coder_agent.db",
-				scriptOrderGraphTestDependency("coder_script.db_seed", "coder_script.db_init", ScriptOrderRequirementSuccess),
+				scriptOrderAttachTestDependency("coder_script.db_seed", "coder_script.db_init", scriptorder.RequirementSuccess),
 			),
 			{
 				RuntimeAddress: "coder_agent.main",
-				Phase:          ScriptOrderPhaseStop,
-				Dependencies: []ScriptOrderDependency{
-					scriptOrderGraphTestDependency("coder_script.stop_db", "coder_script.save_state", ScriptOrderRequirementCompletion),
+				Phase:          scriptorder.PhaseStop,
+				Dependencies: []scriptorder.Dependency{
+					scriptOrderAttachTestDependency("coder_script.stop_db", "coder_script.save_state", scriptorder.RequirementCompletion),
 				},
 			},
 		}}
@@ -142,7 +155,7 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 		t.Parallel()
 		scripts := scriptOrderAttachTestScripts("coder_script.clone_repo")
 
-		require.NoError(t, attachScriptOrderDependencies(ScriptOrder{}, scripts))
+		require.NoError(t, attachScriptOrderDependencies(scriptorder.Order{}, scripts))
 
 		require.Empty(t, scripts["coder_script.clone_repo"].Dependencies)
 	})
@@ -152,34 +165,34 @@ func TestAttachScriptOrderDependencies(t *testing.T) {
 
 		tests := []struct {
 			name        string
-			edge        ScriptOrderDependency
+			edge        scriptorder.Dependency
 			errContains string
 		}{
 			{
 				name:        "UnknownDependent",
-				edge:        scriptOrderGraphTestDependency("coder_script.ghost", "coder_script.clone_repo", ScriptOrderRequirementSuccess),
+				edge:        scriptOrderAttachTestDependency("coder_script.ghost", "coder_script.clone_repo", scriptorder.RequirementSuccess),
 				errContains: `dependent script "coder_script.ghost" not found`,
 			},
 			{
 				name:        "UnknownPrerequisite",
-				edge:        scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.ghost", ScriptOrderRequirementSuccess),
+				edge:        scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.ghost", scriptorder.RequirementSuccess),
 				errContains: `prerequisite script "coder_script.ghost" not found`,
 			},
 			{
 				name:        "UnknownRequirement",
-				edge:        scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.clone_repo", ScriptOrderRequirement("always")),
+				edge:        scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.clone_repo", scriptorder.Requirement("always")),
 				errContains: `unknown script dependency requirement "always"`,
 			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				good := scriptOrderGraphTestDependency("coder_script.install_tools", "coder_script.clone_repo", ScriptOrderRequirementSuccess)
+				good := scriptOrderAttachTestDependency("coder_script.install_tools", "coder_script.clone_repo", scriptorder.RequirementSuccess)
 				// A good edge on either side of the bad one must not be
 				// attached once an error is found.
-				for _, edges := range [][]ScriptOrderDependency{{tt.edge, good}, {good, tt.edge}} {
+				for _, edges := range [][]scriptorder.Dependency{{tt.edge, good}, {good, tt.edge}} {
 					scripts := scriptOrderAttachTestScripts("coder_script.clone_repo", "coder_script.install_tools")
-					order := ScriptOrder{Graphs: []ScriptOrderGraph{scriptOrderAttachTestStartGraph("coder_agent.main", edges...)}}
+					order := scriptorder.Order{Graphs: []scriptorder.Graph{scriptOrderAttachTestStartGraph("coder_agent.main", edges...)}}
 
 					err := attachScriptOrderDependencies(order, scripts)
 
@@ -197,12 +210,12 @@ func TestScriptDependencyRequirementProto(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		requirement ScriptOrderRequirement
+		requirement scriptorder.Requirement
 		want        proto.ScriptDependencyRequirement
 		wantErr     bool
 	}{
-		{requirement: ScriptOrderRequirementSuccess, want: scriptOrderAttachTestSuccess},
-		{requirement: ScriptOrderRequirementCompletion, want: scriptOrderAttachTestCompletion},
+		{requirement: scriptorder.RequirementSuccess, want: scriptOrderAttachTestSuccess},
+		{requirement: scriptorder.RequirementCompletion, want: scriptOrderAttachTestCompletion},
 		{requirement: "", wantErr: true},
 		{requirement: "always", wantErr: true},
 	}
