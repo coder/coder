@@ -56,6 +56,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -1366,19 +1367,11 @@ func TestArchiveStateRejectsChildChat(t *testing.T) {
 			replica := newTestServer(t, db, ps, uuid.New())
 			ctx := testutil.Context(t, testutil.WaitLong)
 			user, org, model := seedChatDependencies(t, db)
-			parent := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
-				Title:             "parent",
-			})
+			parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
 			child := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
-				Title:             "child",
-				ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-				RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+				OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID,
+				ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+				RootChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
 			})
 			if tc.childArchived {
 				_, err := db.ArchiveChatByID(ctx, child.ID)
@@ -1955,7 +1948,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	const text = "investigate the flaky workspace upload tests today"
 
-	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, *chatd.Server, database.Chat) {
+	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, dbpubsub.Pubsub, *chatd.Server, database.Chat) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		server := newTestServer(t, db, ps, uuid.New())
@@ -1969,7 +1962,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 			ModelConfigID:  model.ID,
 		})
 		require.NoError(t, err)
-		return ctx, db, server, chat
+		return ctx, db, ps, server, chat
 	}
 	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
 		t.Helper()
@@ -1984,7 +1977,16 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PlaceholderTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, ps, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		titleEvents := make(chan codersdk.ChatWatchEvent, 1)
+		cancel, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), func(_ context.Context, payload []byte) {
+			var event codersdk.ChatWatchEvent
+			if json.Unmarshal(payload, &event) == nil && event.Kind == codersdk.ChatWatchEventKindTitleChange {
+				titleEvents <- event
+			}
+		})
+		require.NoError(t, err)
+		defer cancel()
 
 		result := send(ctx, t, server, chat.ID)
 		require.True(t, result.FirstUserTurn)
@@ -1993,11 +1995,13 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		stored, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+		// The sidebar learns the fallback title from a title_change event.
+		require.Equal(t, chatprompt.FallbackTitle(text), testutil.RequireReceive(ctx, t, titleEvents).Chat.Title)
 	})
 
 	t.Run("ExistingTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
+		ctx, db, _, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
 
 		result := send(ctx, t, server, chat.ID)
 		require.False(t, result.FirstUserTurn)
@@ -2010,7 +2014,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PriorVisibleMessage", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, _, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		send(ctx, t, server, chat.ID)
 		// Reset to an idle chat that still carries the placeholder
@@ -2034,6 +2038,82 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
 	})
+}
+
+// TestArchivedChatRejectsMutations verifies that every mutation verb
+// refuses an archived chat with ErrChatArchived inside its transaction,
+// with hooks disabled so the pre-dispatch admission check cannot mask a
+// missing in-transaction check.
+func TestArchivedChatRejectsMutations(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	message := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
+	_, err := db.ArchiveChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	chat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	content := []codersdk.ChatMessagePart{codersdk.ChatMessageText("after archive")}
+	for name, call := range map[string]func() error{
+		"SendMessage": func() error {
+			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content})
+			return err
+		},
+		"EditMessage": func() error {
+			_, err := server.EditMessage(ctx, chatd.EditMessageOptions{ChatID: chat.ID, EditedMessageID: message.ID, Content: content})
+			return err
+		},
+		"PromoteQueued": func() error {
+			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
+			return err
+		},
+		"SubmitToolResults": func() error {
+			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
+		},
+		"CompactChat": func() error {
+			_, err := server.CompactChat(ctx, chat)
+			return err
+		},
+		"ClearChat": func() error {
+			_, err := server.ClearChat(ctx, chat)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			require.ErrorIs(t, call(), chatd.ErrChatArchived)
+		})
+	}
+}
+
+// TestArchiveChatDeletesDebugRuns verifies that archiving schedules the
+// debug-row cleanup for the archived chat.
+func TestArchiveChatDeletesDebugRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	// Stamped outside the clock-skew buffer so the cleanup deletes it
+	// instead of leaving it for the stale sweeper.
+	staleStart := sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID: chat.ID, Kind: "chat_turn", Status: "completed", StartedAt: staleStart, UpdatedAt: staleStart,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, replica.ArchiveChat(ctx, chat))
+	chatd.WaitUntilIdleForTest(replica)
+
+	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "archive must delete the chat's debug runs")
 }
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
