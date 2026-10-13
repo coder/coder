@@ -22,7 +22,6 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
 	createChatStore,
-	selectChatStatus,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -235,29 +234,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("shows a compaction as running from submit until the next status", async () => {
-		const store = seededStore([]);
-		let resolveCompact: () => void = () => {};
-		const compact = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveCompact = resolve;
-				}),
-		);
-
-		const submitted = submitChatTurn(
-			buildParams({ message: "/compact", store, compact }),
-		);
-		expect(selectChatStatus(store.getSnapshot())).toBe("running");
-
-		resolveCompact();
-		await submitted;
-		expect(selectChatStatus(store.getSnapshot())).toBe("running");
-		store.applyServerChatStatus("waiting");
-		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
-	});
-
-	it("restores the status when a compaction fails", async () => {
+	it("reports a failed compaction without sending", async () => {
 		const store = seededStore([]);
 		const compact = vi.fn().mockRejectedValue(new Error("compact failed"));
 		const sendMessage = vi.fn();
@@ -269,7 +246,6 @@ describe("submitChatTurn", () => {
 		).rejects.toThrow("compact failed");
 
 		expect(sendMessage).not.toHaveBeenCalled();
-		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 		expect(toast.error).toHaveBeenCalled();
 	});
 
@@ -362,11 +338,10 @@ describe("submitChatTurn", () => {
 		);
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
-		expect(selectChatStatus(store.getSnapshot())).toBe("running");
 
 		resolveEdit();
 		await submitted;
-		// A status ends only the pending turn.
+		// A status does not end the pending edit.
 		store.applyServerChatStatus("running");
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
@@ -403,7 +378,6 @@ describe("submitChatTurn", () => {
 
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(visibleTexts(store)).toEqual(["first", "answer"]);
-		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 	});
 
 	it("removes a failed send and reports it", async () => {
@@ -420,12 +394,11 @@ describe("submitChatTurn", () => {
 		).rejects.toThrow("send failed");
 
 		expect(visibleTexts(store)).toEqual(["first"]);
-		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
 	});
 
-	it("shows a sent message and a running turn from submit until the stream reports it", async () => {
+	it("shows a sent message from submit until the stream reports it", async () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
 		let resolveSend: () => void = () => {};
 		const sendMessage = vi.fn(
@@ -443,7 +416,6 @@ describe("submitChatTurn", () => {
 			}),
 		);
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-		expect(selectChatStatus(store.getSnapshot())).toBe("running");
 
 		resolveSend();
 		await submitted;
