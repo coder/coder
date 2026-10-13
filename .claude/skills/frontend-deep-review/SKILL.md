@@ -53,6 +53,7 @@ exported symbols.
 ```sh
 if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; fi
 BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName 2>/dev/null || echo main)
+git fetch origin "$BASE_REF"
 BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git merge-base HEAD "$BASE_REF")
 echo "$BASE"
 git diff --stat "$BASE" -- site/ | tail -1
@@ -62,9 +63,10 @@ git ls-files --others --exclude-standard -- site/
 
 `BASE_REF` is the branch this one merges into: the open PR's base, or
 `main` when the branch has no PR yet. For a stack slice without a PR, set
-it to the parent branch, so the diff holds only this slice. The first line
-fetches full history in a shallow clone, where `git merge-base` cannot
-reach the fork point.
+it to the parent branch, so the diff holds only this slice; when that parent
+exists only locally, the fetch fails and the merge base falls back to the
+local branch. The first line fetches full history in a shallow clone,
+where `git merge-base` cannot reach the fork point.
 
 `git diff <commit>` compares that commit with the working tree, so it
 includes staged and unstaged edits, but not untracked files. Add the files
@@ -91,7 +93,8 @@ git diff --stat "$BASE" "$HEAD_SHA" -- site/ | tail -1
 git diff --name-only "$BASE" "$HEAD_SHA" -- site/
 ```
 
-Reviewers then read the PR only as Git objects at the head SHA. They read
+Reviewers then read the PR only as Git objects at the head SHA, and what
+it deletes at `BASE`. They read
 the rules (the reviewer prompt, the role files, and the three rule files
 above) at `RULES_SHA`, the base branch tip, so the PR cannot rewrite the
 rules it is reviewed against and they are the rules it would merge under.
