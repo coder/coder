@@ -7,9 +7,10 @@ import type { EditingTarget } from "../components/ChatConversation/types";
 
 /**
  * What the user chose for the composer in this chat session. "follow" means
- * the composer is untouched, so it edits the row the server marks. "draft"
- * means the user is writing a new message. A target means the user opened
- * an edit on that row.
+ * the composer edits the row the server marks; the composer leaves it for
+ * "draft" when the marked row changes while the user has changed the editor.
+ * "draft" means the user is writing a new message. A target means the user
+ * opened an edit on that row.
  */
 export type ComposerMode = EditingTarget | "draft" | "follow";
 
@@ -45,11 +46,11 @@ export const deriveQueuedMessageUnderEditID = (
 };
 
 /**
- * The row the composer edits. An untouched composer follows the owner's
+ * The row the composer edits. A composer in follow mode follows the owner's
  * marked row. A queued choice stays in effect while the server marks that
  * row or its begin is in flight, and is null once the server no longer
- * marks it. The composer decides what a closed edit leaves behind (see
- * useConversationEditingState).
+ * marks it. The composer decides what a closed edit leaves behind, and
+ * whether a changed editor follows (see useConversationEditingState).
  */
 export const deriveComposerTarget = (
 	composerMode: ComposerMode,
