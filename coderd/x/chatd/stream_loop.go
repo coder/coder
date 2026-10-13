@@ -1,11 +1,11 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"maps"
 	"net/http"
 	"slices"
 
@@ -44,21 +44,20 @@ type streamLocalState struct {
 	generationAttempt int64
 	lastPartSeq       int64
 	// attemptRetired is set once the stream observes that the current
-	// generation attempt can no longer produce live output: a retry payload
-	// was recorded for it, or the chat stopped running. Its remaining
-	// in-flight parts are dropped until a new history version or generation
-	// attempt starts a fresh preview episode. It stays set when a pending
-	// retry is later canceled (interrupt, error), since the failed attempt
-	// does not come back.
+	// generation attempt failed: a retry payload was recorded for it, or
+	// the chat entered the error status. Its remaining in-flight parts
+	// are dropped until a new history version or generation attempt
+	// starts a fresh preview episode. It stays set when a pending retry
+	// is later canceled (interrupt, error), since the failed attempt does
+	// not come back.
 	attemptRetired bool
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
 	// openedWithSnapshotVersion reports whether the client opened the stream
-	// with a snapshot version. Only then may history_reset carry
-	// from_message_id, which older clients would read as a full reset, and
-	// only then does the checkpoint's turn replace the status, error, retry
-	// and action_required events those clients read.
+	// with a snapshot version. Only then do versioned events carry
+	// snapshot_version, and history_reset carry from_message_id without the
+	// full history that older clients expect after it.
 	openedWithSnapshotVersion bool
 }
 
@@ -77,10 +76,7 @@ type streamDBSnapshot struct {
 
 	changedMessages []database.ChatMessage
 	historyReset    bool
-	// On a history reset, resetMessages replace the client's messages with
-	// IDs at or above resetFromID. A zero resetFromID replaces all of them.
-	resetFromID   int64
-	resetMessages []database.ChatMessage
+	fullHistory     []database.ChatMessage
 
 	queue []database.ChatQueuedMessage
 
@@ -95,8 +91,8 @@ type StreamCursor struct {
 	// without holding every earlier message.
 	AfterMessageID int64
 	// SnapshotVersion is the chat's snapshot version the client's state
-	// reflects. If it is set, the stream sends only changes made after it,
-	// and a history reset starts at the lowest changed message ID.
+	// reflects. If it is set, the first sync sends every change made at or
+	// after it, since the client can hold only part of one commit's changes.
 	SnapshotVersion int64
 }
 
@@ -106,12 +102,11 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 		afterMessageID: cursor.AfterMessageID,
 	}
 	if cursor.SnapshotVersion > 0 {
-		// A message's revision is the snapshot version of the transaction
-		// that last wrote it, so rows changed after the cursor have
-		// revisions above it. The first sync replaces these with the chat's
-		// own versions.
-		state.historyVersion = cursor.SnapshotVersion
-		state.queueVersion = cursor.SnapshotVersion
+		// A message's revision and the chat's queue version are the snapshot
+		// version of the commit that wrote them, so the first sync sends the
+		// rows and queue above SnapshotVersion-1.
+		state.historyVersion = cursor.SnapshotVersion - 1
+		state.queueVersion = cursor.SnapshotVersion - 1
 		state.afterMessageID = 0
 		state.openedWithSnapshotVersion = true
 	}
@@ -212,19 +207,13 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				return xerrors.Errorf("get changed chat messages: %w", err)
 			}
 			snapshot.historyReset = l.historyResetRequired(snapshot.changedMessages)
-			if snapshot.historyReset {
-				// Rows below the lowest changed ID have not changed since
-				// l.state.historyVersion, so a partial reset can start there.
-				// changedMessages is ordered by ID.
-				if l.state.openedWithSnapshotVersion {
-					snapshot.resetFromID = snapshot.changedMessages[0].ID
-				}
-				snapshot.resetMessages, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			if snapshot.historyReset && !l.state.openedWithSnapshotVersion {
+				snapshot.fullHistory, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
-					AfterID: max(snapshot.resetFromID-1, 0),
+					AfterID: 0,
 				})
 				if err != nil {
-					return xerrors.Errorf("get chat history for reset: %w", err)
+					return xerrors.Errorf("get full chat history: %w", err)
 				}
 			}
 		}
@@ -237,10 +226,21 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 
 		if chat.Status == database.ChatStatusRequiresAction {
-			snapshot.actionRequired, err = StreamActionRequired(ctx, tx, chat)
+			history := snapshot.fullHistory
+			if len(history) == 0 {
+				history, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+					ChatID:  l.chatID,
+					AfterID: 0,
+				})
+				if err != nil {
+					return xerrors.Errorf("get requires_action history: %w", err)
+				}
+			}
+			actionRequired, err := l.actionRequiredFromHistory(chat, history)
 			if err != nil {
 				return err
 			}
+			snapshot.actionRequired = actionRequired
 		}
 		return nil
 	})
@@ -293,20 +293,7 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 	return cursor, true, nil
 }
 
-// StreamActionRequired returns the dynamic tool calls a chat in
-// requires_action waits on, read from the chat's history.
-func StreamActionRequired(ctx context.Context, db database.Store, chat database.Chat) (*codersdk.ChatStreamActionRequired, error) {
-	history, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get requires_action history: %w", err)
-	}
-	return actionRequiredFromHistory(chat, history)
-}
-
-func actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
+func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
 	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
 	if err != nil {
 		return nil, xerrors.Errorf("parse dynamic tools for stream: %w", err)
@@ -331,52 +318,94 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	events := make([]codersdk.ChatStreamEvent, 0)
 	historyChanged := chat.HistoryVersion > l.state.historyVersion
 	generationChanged := chat.GenerationAttempt != l.state.generationAttempt
-	initialSync := !l.state.initialMessageSyncDone
 
 	if historyChanged {
 		events = append(events, l.messageEvents(snapshot)...)
 	}
-	if initialSync {
+	if !l.state.initialMessageSyncDone {
 		l.state.initialMessageSyncDone = true
 	}
 
 	if chat.QueueVersion > l.state.queueVersion {
-		events = append(events, codersdk.ChatStreamEvent{
+		event := codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			ChatID:         l.chatID,
 			QueuedMessages: db2sdk.ChatQueuedMessages(snapshot.queue),
+		}
+		if l.state.openedWithSnapshotVersion {
+			event.SnapshotVersion = chat.QueueVersion
+		}
+		events = append(events, event)
+	}
+	if l.state.openedWithSnapshotVersion {
+		// A client resumes from the highest snapshot_version it received, so
+		// every lower one must reach it first. Within one version the stable
+		// sort keeps history_reset, then messages by ID, then queue_update.
+		slices.SortStableFunc(events, func(a, b codersdk.ChatStreamEvent) int {
+			return cmp.Compare(a.SnapshotVersion, b.SnapshotVersion)
 		})
 	}
 
-	if !l.state.openedWithSnapshotVersion {
-		events = append(events, l.turnEvents(chat, snapshot.actionRequired)...)
+	if chat.Status != l.state.status {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeStatus,
+			ChatID: l.chatID,
+			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
+		})
 	}
 
-	wasRetired := l.state.attemptRetired
+	if chat.Status == database.ChatStatusError && chat.HistoryVersion > l.state.errorHistoryVersion {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: l.chatID,
+			Error:  l.chatError(chat),
+		})
+		l.state.errorHistoryVersion = chat.HistoryVersion
+	}
+
+	if chat.Status == database.ChatStatusRequiresAction && chat.HistoryVersion > l.state.actionRequiredHistoryVersion {
+		actionRequired := snapshot.actionRequired
+		if actionRequired == nil {
+			actionRequired = &codersdk.ChatStreamActionRequired{}
+		}
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeActionRequired,
+			ChatID:         l.chatID,
+			ActionRequired: actionRequired,
+		})
+		l.state.actionRequiredHistoryVersion = chat.HistoryVersion
+	}
+
+	// retry_state describes a pending retry of a running chat. Never
+	// announce it for a chat that stopped running, even if a stale payload
+	// is still stored.
+	if chat.RetryStateVersion > l.state.retryVersion && chat.Status == database.ChatStatusRunning {
+		if retry := l.retryEvent(chat); retry != nil {
+			events = append(events, *retry)
+		}
+	}
+
 	if historyChanged || generationChanged {
 		l.state.attemptRetired = false
 	}
 	// A retry payload is only recorded after the current generation
 	// attempt failed, and the chats trigger clears it when the attempt
-	// changes. Within one episode retry_state only changes when a retry is
-	// recorded for the current attempt or that pending retry is cleared,
-	// so an advanced retry_state_version also retires the attempt when the
+	// changes. Clients drop their preview on the retry event, so parts of
+	// the failed attempt that are still in flight must not reach them.
+	// Within one episode retry_state only changes when a retry is recorded
+	// for the current attempt or that pending retry is cleared, so an
+	// advanced retry_state_version also retires the attempt when the
 	// payload was cleared again before this sync.
 	//
-	// A chat that stopped running records a new generation attempt before
-	// it streams again, so any later part of the current attempt is from
-	// the stopped one.
+	// Clients also drop their preview on the error event, and an errored
+	// chat records a new generation attempt before it streams again, so
+	// any later part of the current attempt is from the failed one.
 	retryChangedInEpisode := chat.RetryStateVersion > l.state.retryVersion && !historyChanged && !generationChanged
-	stopped := chat.Status != database.ChatStatusRunning && chat.Status != database.ChatStatusInterrupting
-	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) || stopped {
+	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) || chat.Status == database.ChatStatusError {
 		l.state.attemptRetired = true
 	}
 
-	// preview_reset tells the client to discard its live output. The first
-	// sync sends it because the client's live output belongs to an earlier
-	// connection, whose parts this one replays from the start.
-	retiredNow := l.state.attemptRetired && !wasRetired
-	if initialSync || historyChanged || (generationChanged && chat.GenerationAttempt != 0) || retiredNow {
+	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
 		l.state.lastPartSeq = 0
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypePreviewReset,
@@ -391,32 +420,20 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	l.state.status = chat.Status
 	l.state.workerID = chat.WorkerID
 	l.state.generationAttempt = chat.GenerationAttempt
-	// Clients apply a sync and take their reconnect version at its
-	// checkpoint, so it must stay the last event of every applied sync.
-	return append(events, codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeCheckpoint,
-		ChatID: l.chatID,
-		Checkpoint: &codersdk.ChatStreamCheckpoint{
-			SnapshotVersion: chat.SnapshotVersion,
-			Turn:            StreamTurn(l.logger, chat, snapshot.actionRequired),
-		},
-	})
+	return events
 }
 
 func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {
+	if l.state.openedWithSnapshotVersion {
+		return l.versionedMessageEvents(snapshot.changedMessages)
+	}
 	if snapshot.historyReset {
-		event := codersdk.ChatStreamEvent{
+		events := []codersdk.ChatStreamEvent{{
 			Type:   codersdk.ChatStreamEventTypeHistoryReset,
 			ChatID: l.chatID,
-		}
-		if snapshot.resetFromID > 0 {
-			event.HistoryReset = &codersdk.ChatStreamHistoryReset{FromMessageID: snapshot.resetFromID}
-		}
-		events := []codersdk.ChatStreamEvent{event}
-		maps.DeleteFunc(l.state.knownMessages, func(id, _ int64) bool {
-			return id >= snapshot.resetFromID
-		})
-		for _, msg := range snapshot.resetMessages {
+		}}
+		clear(l.state.knownMessages)
+		for _, msg := range snapshot.fullHistory {
 			l.state.knownMessages[msg.ID] = msg.Revision
 			sdkMsg := db2sdk.ChatMessage(msg)
 			events = append(events, codersdk.ChatStreamEvent{
@@ -452,73 +469,45 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 	return events
 }
 
-// turnEvents reports turn changes as the status, error, action_required
-// and retry events of streams opened without a snapshot version.
-func (l *streamLoop) turnEvents(chat database.Chat, actionRequired *codersdk.ChatStreamActionRequired) []codersdk.ChatStreamEvent {
-	var events []codersdk.ChatStreamEvent
-	if chat.Status != l.state.status {
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeStatus,
-			ChatID: l.chatID,
-			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
-		})
-	}
-
-	if chat.Status == database.ChatStatusError && chat.HistoryVersion > l.state.errorHistoryVersion {
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: l.chatID,
-			Error:  chatStreamError(l.logger, chat),
-		})
-		l.state.errorHistoryVersion = chat.HistoryVersion
-	}
-
-	if chat.Status == database.ChatStatusRequiresAction && chat.HistoryVersion > l.state.actionRequiredHistoryVersion {
-		if actionRequired == nil {
-			actionRequired = &codersdk.ChatStreamActionRequired{}
+// versionedMessageEvents reports changed rows to a stream opened with a
+// snapshot version: one history_reset per edit, from the lowest ID it
+// removed, then a message per live row. An edit removes every message from
+// the edited one on, so each live row at or above that ID was written by
+// the edit or a later commit, and is among the changed rows.
+func (l *streamLoop) versionedMessageEvents(changed []database.ChatMessage) []codersdk.ChatStreamEvent {
+	var resets, messages []codersdk.ChatStreamEvent
+	resetVersions := make(map[int64]bool)
+	for _, msg := range changed {
+		if msg.Deleted {
+			// A soft-deleted row keeps the revision of the edit that deleted
+			// it, and changed is ordered by ID.
+			if !resetVersions[msg.Revision] {
+				resetVersions[msg.Revision] = true
+				resets = append(resets, codersdk.ChatStreamEvent{
+					Type:            codersdk.ChatStreamEventTypeHistoryReset,
+					ChatID:          l.chatID,
+					HistoryReset:    &codersdk.ChatStreamHistoryReset{FromMessageID: msg.ID},
+					SnapshotVersion: msg.Revision,
+				})
+			}
+			continue
 		}
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:           codersdk.ChatStreamEventTypeActionRequired,
-			ChatID:         l.chatID,
-			ActionRequired: actionRequired,
-		})
-		l.state.actionRequiredHistoryVersion = chat.HistoryVersion
-	}
-
-	// retry_state describes a pending retry of a running chat. Never
-	// announce it for a chat that stopped running, even if a stale payload
-	// is still stored.
-	if chat.RetryStateVersion > l.state.retryVersion && chat.Status == database.ChatStatusRunning {
-		if retry := chatStreamRetry(l.logger, chat); retry != nil {
-			events = append(events, codersdk.ChatStreamEvent{
-				Type:   codersdk.ChatStreamEventTypeRetry,
-				ChatID: l.chatID,
-				Retry:  retry,
-			})
+		if l.state.knownMessages[msg.ID] >= msg.Revision {
+			continue
 		}
+		l.state.knownMessages[msg.ID] = msg.Revision
+		sdkMsg := db2sdk.ChatMessage(msg)
+		messages = append(messages, codersdk.ChatStreamEvent{
+			Type:            codersdk.ChatStreamEventTypeMessage,
+			ChatID:          l.chatID,
+			Message:         &sdkMsg,
+			SnapshotVersion: msg.Revision,
+		})
 	}
-	return events
+	return append(resets, messages...)
 }
 
-// StreamTurn reports the chat's turn as the stream's checkpoint carries
-// it. actionRequired is the result of StreamActionRequired while the chat
-// is in requires_action.
-func StreamTurn(logger slog.Logger, chat database.Chat, actionRequired *codersdk.ChatStreamActionRequired) codersdk.ChatStreamTurn {
-	turn := codersdk.ChatStreamTurn{Status: codersdk.ChatStatus(chat.Status)}
-	switch chat.Status {
-	case database.ChatStatusError:
-		turn.Error = chatStreamError(logger, chat)
-	case database.ChatStatusRunning:
-		// retry_state describes a pending retry of a running chat. A
-		// stopped chat can still hold a stale payload.
-		turn.Retry = chatStreamRetry(logger, chat)
-	case database.ChatStatusRequiresAction:
-		turn.ActionRequired = actionRequired
-	}
-	return turn
-}
-
-func chatStreamError(logger slog.Logger, chat database.Chat) *codersdk.ChatError {
+func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
 	if !chat.LastError.Valid || len(chat.LastError.RawMessage) == 0 {
 		return &codersdk.ChatError{
 			Message: "The chat request failed unexpectedly.",
@@ -527,8 +516,8 @@ func chatStreamError(logger slog.Logger, chat database.Chat) *codersdk.ChatError
 	}
 	var payload codersdk.ChatError
 	if err := json.Unmarshal(chat.LastError.RawMessage, &payload); err != nil {
-		logger.Warn(context.Background(), "failed to parse chat stream last_error",
-			slog.F("chat_id", chat.ID),
+		l.logger.Warn(context.Background(), "failed to parse chat stream last_error",
+			slog.F("chat_id", l.chatID),
 			slog.Error(err),
 		)
 		return &codersdk.ChatError{
@@ -545,19 +534,23 @@ func chatStreamError(logger slog.Logger, chat database.Chat) *codersdk.ChatError
 	return &payload
 }
 
-func chatStreamRetry(logger slog.Logger, chat database.Chat) *codersdk.ChatStreamRetry {
+func (l *streamLoop) retryEvent(chat database.Chat) *codersdk.ChatStreamEvent {
 	if !chat.RetryState.Valid || len(chat.RetryState.RawMessage) == 0 {
 		return nil
 	}
 	var retry codersdk.ChatStreamRetry
 	if err := json.Unmarshal(chat.RetryState.RawMessage, &retry); err != nil {
-		logger.Warn(context.Background(), "failed to parse chat stream retry_state",
-			slog.F("chat_id", chat.ID),
+		l.logger.Warn(context.Background(), "failed to parse chat stream retry_state",
+			slog.F("chat_id", l.chatID),
 			slog.Error(err),
 		)
 		return nil
 	}
-	return &retry
+	return &codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeRetry,
+		ChatID: l.chatID,
+		Retry:  &retry,
+	}
 }
 
 func (l *streamLoop) part(part streamPart) (event codersdk.ChatStreamEvent, accepted bool, err error) {

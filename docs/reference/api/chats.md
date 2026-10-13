@@ -3021,35 +3021,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
     }
   ],
   "snapshot_version": 0,
-  "turn": {
-    "action_required": {
-      "tool_calls": [
-        {
-          "args": "string",
-          "tool_call_id": "string",
-          "tool_name": "string"
-        }
-      ]
-    },
-    "error": {
-      "detail": "string",
-      "kind": "generic",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
-    "retry": {
-      "attempt": 0,
-      "delay_ms": 0,
-      "error": "string",
-      "kind": "generic",
-      "provider": "string",
-      "retrying_at": "2019-08-24T14:15:22Z",
-      "status_code": 0
-    },
-    "status": "waiting"
-  },
   "turn_start_id": 0
 }
 ```
@@ -4084,11 +4055,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                          |
-|--------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                              |
-| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                        |
-| `snapshot_version` | query | integer      | false    | Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events |
+| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                                                                       |
+|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                                                                           |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                                                                     |
+| `snapshot_version` | query | integer      | false    | Send the changes made at or after this snapshot_version, taken from the newest messages page or the highest snapshot_version among the stream's events. The message, queue_update and history_reset events then carry snapshot_version, and history_reset carries from_message_id |
 
 ### Example responses
 
@@ -4107,38 +4078,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       ]
     },
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-    "checkpoint": {
-      "snapshot_version": 0,
-      "turn": {
-        "action_required": {
-          "tool_calls": [
-            {
-              "args": "string",
-              "tool_call_id": "string",
-              "tool_name": "string"
-            }
-          ]
-        },
-        "error": {
-          "detail": "string",
-          "kind": "generic",
-          "message": "string",
-          "provider": "string",
-          "retryable": true,
-          "status_code": 0
-        },
-        "retry": {
-          "attempt": 0,
-          "delay_ms": 0,
-          "error": "string",
-          "kind": "generic",
-          "provider": "string",
-          "retrying_at": "2019-08-24T14:15:22Z",
-          "status_code": 0
-        },
-        "status": "waiting"
-      }
-    },
     "error": {
       "detail": "string",
       "kind": "generic",
@@ -4375,6 +4314,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "retrying_at": "2019-08-24T14:15:22Z",
       "status_code": 0
     },
+    "snapshot_version": 0,
     "status": {
       "status": "waiting"
     },
@@ -4402,27 +4342,6 @@ Status Code **200**
 | `»»» tool_call_id`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» chat_id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» checkpoint`                     | [codersdk.ChatStreamCheckpoint](schemas.md#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                                                                                                                                                                                                                                                                                                                                    |
-| `»» snapshot_version`              | integer                                                                          | false    |              | Snapshot version is the chat's snapshot_version the sync applied. A client reconnects with the value of the last checkpoint it received.                                                                                                                                                                                                                                                                   |
-| `»» turn`                          | [codersdk.ChatStreamTurn](schemas.md#codersdkchatstreamturn)                     | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                                                                                                                                                                                                                         |
-| `»»» action_required`              | [codersdk.ChatStreamActionRequired](schemas.md#codersdkchatstreamactionrequired) | false    |              | Action required is set while the status is requires_action and lists the dynamic tool calls that wait for results.                                                                                                                                                                                                                                                                                         |
-| `»»»» tool_calls`                  | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» error`                        | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              | Error is set while the status is error.                                                                                                                                                                                                                                                                                                                                                                    |
-| `»»»» detail`                      | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
-| `»»»» kind`                        | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                                                                                                 |
-| `»»»» message`                     | string                                                                           | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                                                                                                                                                      |
-| `»»»» provider`                    | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
-| `»»»» retryable`                   | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
-| `»»»» status_code`                 | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
-| `»»» retry`                        | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              | Retry is set while the status is running and a retry of the failed attempt is pending.                                                                                                                                                                                                                                                                                                                     |
-| `»»»» attempt`                     | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |
-| `»»»» delay_ms`                    | integer                                                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» error`                       | string                                                                           | false    |              | Error is the normalized error message from the failed attempt.                                                                                                                                                                                                                                                                                                                                             |
-| `»»»» kind`                        | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the retry reason for consistent client rendering.                                                                                                                                                                                                                                                                                                                                          |
-| `»»»» provider`                    | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
-| `»»»» retrying_at`                 | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
-| `»»»» status_code`                 | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
-| `»»» status`                       | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» error`                          | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» detail`                        | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
 | `»» kind`                          | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                                                                                                 |
@@ -4431,7 +4350,7 @@ Status Code **200**
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
-| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow.                                                                                                                                                                                                                                       |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the edit removed. The client drops its messages with this ID or higher. Only messages written by the edit or a later commit follow.                                                                                                                                                                                                                               |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4515,18 +4434,19 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» snapshot_version`               | integer                                                                          | false    |              | Snapshot version is set on the message, queue_update and history_reset events of streams opened with a snapshot_version. It is the snapshot version of the commit that made the change. A client reconnects with the highest one it has received.                                                                                                                                                          |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                                                          |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                          |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                  |
-| `type`   | `action_required`, `checkpoint`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                             |
+| Property | Value(s)                                                                                                                                                                                                                                                                                            |
+|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
