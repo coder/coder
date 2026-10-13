@@ -45,21 +45,6 @@ var (
 	// no new chat may join one.
 	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
-	// ErrChatProjectNotFound is returned by [CreateChat] and
-	// [CreateChatWithID] when the new chat names a missing or deleted
-	// project.
-	ErrChatProjectNotFound = xerrors.New("chat project not found")
-
-	// ErrChatProjectDeleteConflict is returned by [DeleteChatProject]
-	// when its retry also deadlocks. Nothing was deleted, so the caller
-	// can retry.
-	ErrChatProjectDeleteConflict = xerrors.New("chat project delete conflicted with concurrent chat changes")
-
-	// ErrChatUpdatePublishFailed is returned by [DeleteChatProject] with
-	// the committed result when publishing chat:update fails. The chats'
-	// runners stop at their next heartbeat renewal instead.
-	ErrChatUpdatePublishFailed = xerrors.New("publish chat updates failed")
-
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")

@@ -20664,7 +20664,6 @@
 				"title_change",
 				"created",
 				"deleted",
-				"removed",
 				"diff_status_change",
 				"action_required",
 				"context_dirty"
@@ -20676,7 +20675,6 @@
 				"ChatWatchEventKindTitleChange",
 				"ChatWatchEventKindCreated",
 				"ChatWatchEventKindDeleted",
-				"ChatWatchEventKindRemoved",
 				"ChatWatchEventKindDiffStatusChange",
 				"ChatWatchEventKindActionRequired",
 				"ChatWatchEventKindContextDirty"

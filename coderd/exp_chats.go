@@ -1583,10 +1583,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if errors.Is(err, chatstate.ErrChatProjectNotFound) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
-			return
-		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
@@ -2640,11 +2636,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if writeChatInvalidState(ctx, rw, err) {
-				return
-			}
-			// The chat was purged, or its project was deleted, after the request loaded it.
-			if errors.Is(err, chatstate.ErrChatNotFound) {
-				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {

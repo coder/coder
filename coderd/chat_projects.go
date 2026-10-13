@@ -22,8 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/x/chatd"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -257,21 +255,9 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	var deleted chatstate.DeletedChatProject
-	var err error
-	if api.chatDaemon != nil {
-		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
-	} else {
-		deleted, err = chatd.DeleteChatProject(ctx, api.Logger, api.Database, api.Pubsub, project.ID)
-	}
+	err := api.Database.DeleteChatProjectByID(ctx, project.ID)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if errors.Is(err, chatstate.ErrChatProjectDeleteConflict) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Chat project delete conflicted with concurrent chat changes. Try again.",
-		})
 		return
 	}
 	if err != nil {
@@ -281,31 +267,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.auditChatProjectChatDeletes(ctx, r, project, deleted.Before)
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) auditChatProjectChatDeletes(ctx context.Context, r *http.Request, project database.ChatProject, chats []database.Chat) {
-	apiKey := httpmw.APIKey(r)
-	auditor := api.Auditor.Load()
-	auditCtx := context.WithoutCancel(ctx)
-	for _, chat := range chats {
-		if chat.IsSubChat() {
-			continue
-		}
-		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
-			Audit:          *auditor,
-			Log:            api.Logger,
-			UserID:         apiKey.UserID,
-			RequestID:      httpmw.RequestID(r),
-			Status:         http.StatusNoContent,
-			Action:         database.AuditActionDelete,
-			OrganizationID: project.OrganizationID,
-			IP:             r.RemoteAddr,
-			UserAgent:      r.UserAgent(),
-			Old:            chat,
-		})
-	}
 }
 
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {

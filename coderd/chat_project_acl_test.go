@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,12 +12,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestChatProjectSharing(t *testing.T) {
@@ -312,131 +308,6 @@ func TestChatProjectSharing(t *testing.T) {
 		acl, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Empty(t, acl.Users)
-	})
-
-	t.Run("DeleteHidesChats", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		mAudit := audit.NewMock()
-		store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-		client, db := newChatProjectClient(t, func(opts *coderdtest.Options) {
-			opts.Auditor = mAudit
-			opts.Database = store
-			opts.Pubsub = ps
-		})
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		project := createChatProject(t, client, firstUser.OrganizationID, "Deleted Project")
-		sharee, shareeUser := newChatProjectMember(t, client, firstUser.OrganizationID)
-		err := client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
-			UserRoles: map[string]codersdk.ChatProjectRole{shareeUser.ID.String(): codersdk.ChatProjectRoleUse},
-		})
-		require.NoError(t, err)
-		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
-		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
-		otherChat := createChatInProject(t, client, project.OrganizationID, nil)
-		//nolint:gocritic // Test seeds worker leases and reads hidden chats directly.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		}).WithAgent().Do()
-		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET workspace_id = $2 WHERE id = $1", ownerChat.ID, ws.Workspace.ID)
-		require.NoError(t, err)
-		shareeChild := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    project.OrganizationID,
-			OwnerID:           shareeUser.ID,
-			LastModelConfigID: shareeChat.LastModelConfigID,
-			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
-			ParentChatID:      uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
-		})
-
-		runnerID := uuid.New()
-		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = $2, runner_id = $3 WHERE id = $1", shareeChat.ID, uuid.New(), runnerID)
-		require.NoError(t, err)
-		require.NoError(t, db.UpsertChatHeartbeat(sysCtx, database.UpsertChatHeartbeatParams{ChatID: shareeChat.ID, RunnerID: runnerID}))
-
-		_, err = db.InsertChatQueuedMessage(sysCtx, database.InsertChatQueuedMessageParams{ChatID: shareeChild.ID, Content: json.RawMessage(`[]`)})
-		require.NoError(t, err)
-
-		events, closer, err := sharee.WatchChats(ctx)
-		require.NoError(t, err)
-		defer closer.Close()
-		mAudit.ResetLogs()
-		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
-
-		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID, shareeChild.ID} {
-			_, err := client.GetChat(ctx, id)
-			requireSDKError(t, err, http.StatusNotFound)
-			hidden, err := db.GetChatByID(sysCtx, id)
-			require.NoError(t, err, "chat rows stay until chat retention removes them")
-			require.True(t, hidden.Archived)
-			require.False(t, hidden.RunnerID.Valid, "clearing runner_id stops the runner")
-		}
-		byWorkspace, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
-		require.NoError(t, err)
-		require.Empty(t, byWorkspace)
-		_, err = client.GetChat(ctx, otherChat.ID)
-		require.NoError(t, err)
-		queued, err := db.CountChatQueuedMessages(sysCtx, shareeChild.ID)
-		require.NoError(t, err)
-		require.Zero(t, queued, "archived chats keep no queue")
-		err = client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: project.OrganizationID,
-			ProjectID:      &project.ID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "after delete"}},
-		})
-		requireSDKError(t, err, http.StatusNotFound)
-
-		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
-			require.True(t, mAudit.Contains(t, database.AuditLog{
-				Action:       database.AuditActionDelete,
-				ResourceType: database.ResourceTypeChat,
-				ResourceID:   id,
-				UserID:       firstUser.UserID,
-			}))
-		}
-		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: shareeChild.ID}))
-
-		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true}
-		for len(pending) > 0 {
-			select {
-			case event := <-events:
-				if event.Kind == codersdk.ChatWatchEventKindRemoved {
-					delete(pending, event.Chat.ID)
-				}
-			case <-ctx.Done():
-				t.Fatalf("missing removed events for %v", pending)
-			}
-		}
-	})
-
-	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		require.NoError(t, values.AI.BridgeConfig.Enabled.Set("false"))
-		values.Experiments = serpent.StringArray{string(codersdk.ExperimentChatProjects)}
-		rawClient, _, api := coderdtest.NewWithAPI(t, newChatTestOptions(t, values))
-		client := codersdk.NewExperimentalClient(rawClient)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		project := createChatProject(t, client, firstUser.OrganizationID, "No Gateway Project")
-		modelConfig := dbgen.ChatModelConfig(t, api.Database, database.ChatModelConfig{})
-		chat := dbgen.Chat(t, api.Database, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
-		})
-
-		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
-		_, err := client.GetChat(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("AdministratorCannotBindUnsharedProject", func(t *testing.T) {

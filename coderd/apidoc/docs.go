@@ -22791,7 +22791,6 @@ const docTemplate = `{
                 "title_change",
                 "created",
                 "deleted",
-                "removed",
                 "diff_status_change",
                 "action_required",
                 "context_dirty"
@@ -22803,7 +22802,6 @@ const docTemplate = `{
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
-                "ChatWatchEventKindRemoved",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"

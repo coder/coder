@@ -21,9 +21,8 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID uuid.UUID
-	OwnerID        uuid.UUID
-	// For sub-chats, ProjectID must be unset or equal the root's project.
+	OrganizationID    uuid.UUID
+	OwnerID           uuid.UUID
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -72,11 +71,6 @@ type CreateChatResult struct {
 //   - When RootChatID is set, the root chat must exist and must not be
 //     archived; otherwise CreateChat returns [ErrChatNotFound] or
 //     [ErrChatFamilyArchived].
-//   - When RootChatID is unset and ProjectID is set, the project must
-//     exist and must not be deleted; otherwise CreateChat returns
-//     [ErrChatProjectNotFound].
-//   - When RootChatID is set, ProjectID must be unset or equal the
-//     root's project; the insert trigger sets the sub-chat's project.
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -154,25 +148,6 @@ func insertChat(
 			}
 			if root.Archived {
 				return ErrChatFamilyArchived
-			}
-			// The insert trigger gives the child its root's project. A
-			// project delete locks every root in the project FOR UPDATE,
-			// which waits for this FOR SHARE lock. Either the delete
-			// committed first and the archived check above refuses the
-			// child, or the delete archives the child after this commit, so
-			// no project lock is needed.
-			if input.ProjectID.Valid && input.ProjectID != root.ProjectID {
-				return xerrors.New("chatstate: CreateChat called with a sub-chat ProjectID that differs from its root's")
-			}
-		} else if input.ProjectID.Valid {
-			// Held until commit so a concurrent project delete, which locks
-			// the project row, either archives this chat or is seen here as
-			// a missing project.
-			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return ErrChatProjectNotFound
-				}
-				return xerrors.Errorf("lock chat project: %w", err)
 			}
 		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{

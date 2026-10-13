@@ -3,11 +3,11 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
-	chatEntityKey,
-	chatProjectsKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 } from "./chats";
+
+export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
  * Lists chat projects the current user owns or that are shared with them.
@@ -64,40 +64,21 @@ export const updateChatProject = (queryClient: QueryClient) =>
 
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
-		// The reset runs here rather than in onSuccess, which callers replace.
-		mutationFn: async (project: TypesGen.ChatProject) => {
-			await API.experimental.deleteChatProject(
-				project.organization_id,
-				project.id,
-			);
-			resetDeletedProjectChats(queryClient, project.id);
-		},
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.deleteChatProject(project.organization_id, project.id),
 		onSettled: () =>
+			// Deleting a project clears project_id on its chats.
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
+				// Only the chats themselves carry project_id. Their nested
+				// queries (messages, ACL, diffs, ...) would refetch every loaded
+				// page for nothing.
+				queryClient.invalidateQueries({
+					queryKey: chatEntitiesFamilyKey,
+					predicate: ({ queryKey }) =>
+						queryKey.length === chatEntitiesFamilyKey.length + 1,
+				}),
 			]),
 	});
-
-// Invalidating would keep cached chats when their refetch 404s.
-const resetDeletedProjectChats = (
-	queryClient: QueryClient,
-	projectId: string,
-) => {
-	const chats = queryClient
-		.getQueriesData<TypesGen.Chat>({
-			queryKey: chatEntitiesFamilyKey,
-			predicate: ({ queryKey }) =>
-				queryKey.length === chatEntitiesFamilyKey.length + 1,
-		})
-		.flatMap(([, chat]) => (chat ? [chat] : []));
-	for (const chat of chats) {
-		if (chat.project_id === projectId) {
-			void queryClient.resetQueries({
-				queryKey: chatEntityKey(chat.id),
-				exact: true,
-			});
-		}
-	}
-};

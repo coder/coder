@@ -9,8 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
 // SetFamilyArchivedInput configures [SetFamilyArchived]. The struct
@@ -87,18 +85,6 @@ func SetFamilyArchived(
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
 		}
-		// A family archived by its project delete must stay archived; the
-		// root lock serializes this check with that delete.
-		if !input.Archived && root.ProjectID.Valid {
-			//nolint:gocritic // The caller authorized the root chat, not its project.
-			_, err := tx.GetChatProjectByID(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrChatNotFound
-			}
-			if err != nil {
-				return xerrors.Errorf("check root chat project: %w", err)
-			}
-		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
@@ -164,94 +150,4 @@ func SetFamilyArchived(
 		return familyChats, err
 	}
 	return familyChats, nil
-}
-
-// DeletedChatProject holds a deleted project's chats, sub-chats included.
-type DeletedChatProject struct {
-	// Before holds the chats as they were before the archive.
-	Before []database.Chat
-	// After holds the same chats after the archive.
-	After []database.Chat
-}
-
-// DeleteChatProject tombstones a project and archives every user's chats
-// in it with their sub-chats. ctx's actor must be allowed to delete the
-// project: the project lock and tombstone run as that actor, and the chat
-// reads and writes run as chatd. Each chat moves from any execution state
-// to [StateXW], or [StateXE0] from error, with no worker or runner and an
-// empty queue. A chat:update per chat is published after commit, so the
-// runners the chats named before the archive stop without waiting for
-// heartbeat renewal; if that fails, the committed result is returned with
-// [ErrChatUpdatePublishFailed]. The transaction is retried once on a
-// deadlock with a writer that locks a sub-chat before its root, such as a
-// chat purge, and returns [ErrChatProjectDeleteConflict] if that also
-// deadlocks.
-func DeleteChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) (DeletedChatProject, error) {
-	if store == nil {
-		return DeletedChatProject{}, xerrors.New("chatstate: DeleteChatProject called with nil store")
-	}
-	if publisher == nil {
-		return DeletedChatProject{}, xerrors.New("chatstate: DeleteChatProject called with nil publisher")
-	}
-	deleted, buffer, err := deleteChatProjectTx(ctx, store, publisher, projectID)
-	if database.IsDeadlockError(err) {
-		deleted, buffer, err = deleteChatProjectTx(ctx, store, publisher, projectID)
-	}
-	if database.IsDeadlockError(err) {
-		return DeletedChatProject{}, errors.Join(ErrChatProjectDeleteConflict, err)
-	}
-	if err != nil {
-		return DeletedChatProject{}, err
-	}
-	if err := buffer.Flush(); err != nil {
-		return deleted, errors.Join(ErrChatUpdatePublishFailed, err)
-	}
-	return deleted, nil
-}
-
-func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) (DeletedChatProject, *PublishBuffer, error) {
-	//nolint:gocritic // Sharees own some of the chats; the tombstone update authorizes the delete.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	buffer := NewPublishBuffer(publisher)
-	var deleted DeletedChatProject
-	err := store.InTx(func(tx database.Store) error {
-		// The project lock waits for root chat creations in the project, which
-		// hold it FOR SHARE, and makes a concurrent delete find no project.
-		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
-			return xerrors.Errorf("lock project: %w", err)
-		}
-		// Runs as the caller: this call is the delete authorization check.
-		if err := tx.UpdateChatProjectDeletedByID(ctx, projectID); err != nil {
-			return xerrors.Errorf("mark project deleted: %w", err)
-		}
-		if err := tx.LockChatProjectRootChats(chatdCtx, projectID); err != nil {
-			return xerrors.Errorf("lock project root chats: %w", err)
-		}
-		var err error
-		deleted.Before, err = tx.GetChatsByProjectID(chatdCtx, projectID)
-		if err != nil {
-			return xerrors.Errorf("get project chats: %w", err)
-		}
-		if err := tx.ArchiveChatsOfDeletedChatProject(chatdCtx, projectID); err != nil {
-			return xerrors.Errorf("archive project chats: %w", err)
-		}
-		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(chatdCtx, projectID); err != nil {
-			return xerrors.Errorf("clear project chat queues: %w", err)
-		}
-		deleted.After, err = tx.GetChatsByProjectID(chatdCtx, projectID)
-		if err != nil {
-			return xerrors.Errorf("reload project chats: %w", err)
-		}
-		for _, chat := range deleted.After {
-			if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
-				return xerrors.Errorf("buffer chat update: %w", err)
-			}
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		buffer.Discard()
-		return DeletedChatProject{}, nil, err
-	}
-	return deleted, buffer, nil
 }
