@@ -100,10 +100,9 @@ Look for:
 
 - A story whose mocked data cannot occur in production (an authorization combination the backend never returns).
 - A new story that adds no state the existing stories do not already show.
-- A missing story for a reachable branch the component handles (filtered results empty while data exists, error, disabled, mobile).
-- New stories for a code path that a later PR in the same stack deletes.
+- A missing story for a reachable branch the component handles (filtered results empty while data exists, error, disabled, mobile). Reachable means reachable in the revision under review: a state that a later PR in a stack is expected to remove still needs its story, because each slice must stand on its own (RO6).
 
-Fix: add one story per reachable meaningful state, remove impossible and duplicate stories, and skip new stories for behavior a later PR in the same stack removes.
+Fix: add one story per meaningful state the revision under review can reach, and remove impossible and duplicate stories.
 
 ## Not this role
 

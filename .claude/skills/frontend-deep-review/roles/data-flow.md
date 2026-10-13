@@ -76,7 +76,7 @@ Look for:
 - Show/hide logic for banners and hints derived by comparing a query or filter string to a hardcoded literal; ask what happens for equivalent inputs written differently.
 - A story matrix that covers loading and error but not the empty variants the code branches on.
 
-Fix: branch explicitly on `isLoading`, `error`, and each empty condition with deliberate copy, derive visibility from parsed data rather than string equality, and stop coalescing data that has not loaded yet into placeholder values (TN owns the coercion style, DF owns the missing branch). A nullable field the server did return still renders a visible fallback such as "N/A" (FE5).
+Fix: branch explicitly on `isLoading`, on `error` when there is no usable data, and on each empty condition with deliberate copy. When a background refetch fails, keep the cached data on screen and show the error beside it, because FE5 keeps valid data visible on refetch. Derive visibility from parsed data rather than string equality, and stop coalescing data that has not loaded yet into placeholder values (TN owns the coercion style, DF owns the missing branch). A nullable field the server did return still renders a visible fallback such as "N/A" (FE5).
 
 ### DF6: Never clobber user state on refetch or reconciliation
 
@@ -102,14 +102,14 @@ Look for:
 - A new `localStorage` or `sessionStorage` key for a user preference (button variant, layout width, full-width toggle, flags): ask whether it should be a persisted user setting in the database like existing preference settings.
 - Keys that are not scoped by user id, organization id, or workspace id when the value differs per user or resource; and legacy-key migration or removal done inline in a component (`removeItem(legacyKey)`) or via a registered "legacy keys" sweep with no owner.
 - Read paths that ignore the expiry the write path records, and expiry on data the user expects to keep (drafts). A custom change event next to the native `storage` event is not a duplicate: the native event fires only in other tabs.
-- `useEffect` that mirrors React state into storage with a "last persisted" ref instead of writing in the event handler that changes the state.
+- `useEffect` that mirrors React state into storage with a "last persisted" ref when one event handler is the only thing that changes the state and could write it instead.
 
-Fix: prefer a database-backed user setting for anything users expect to follow them; when storage is right, define the key once next to the code that reads it, with the user or resource scope in the key, write it in the event handler, make reads honour any expiry the write records, and keep migrations and legacy cleanup with the key definition rather than in components.
+Fix: prefer a database-backed user setting for anything users expect to follow them; when storage is right, define the key once next to the code that reads it, with the user or resource scope in the key, write it in the event handler when one handler changes the value (an effect stays the write point when several code paths do, per RP2), make reads honour any expiry the write records, and keep migrations and legacy cleanup with the key definition rather than in components.
 
 ## Not this role
 
 - Manual submit handling in a form component that should use formik or the form library (`setIsSubmitting` inside a form, "should we be using `useFormik`"): RP owns the form choice; DF only owns the mutation behind it.
-- `useEffect` plus `useRef` used to persist width to storage, and effects that call `refetch()` or drain `fetchNextPage()`: RP owns the effect misuse; DF flags the data consequence.
+- A `useEffect` plus `useRef` guard that persists state to storage, and effects that call `refetch()` or drain `fetchNextPage()`: RP owns the effect misuse; DF flags the data consequence.
 - Whether a `use*` hook should exist at all (single-purpose flag hooks, hooks that should be plain functions): RP.
 - `?? ""` and `?? organization` fallbacks on nullable query data: TN owns the coercion; DF owns the missing-data branch.
 - Story query wiring that pre-builds a query object instead of sharing a `Mock*` entity constant, and stories that read `.queryKey` from options builders: TS owns the fixture shape; DF owns the key export.

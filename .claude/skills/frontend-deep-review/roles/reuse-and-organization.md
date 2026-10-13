@@ -4,7 +4,7 @@ Lens: does this diff build, copy, or misplace something the codebase already has
 
 Boundaries: type shape and casts belong to TN, dead code and needless wrappers to SD, comment quality to CD, query and storage handling to DF, effects, rendering, and DOM behavior to RP, stories and tests to TS, styling and accessibility to SA. RO judges only whether code should exist here at all, whether it exists somewhere already, and whether it belongs in this PR.
 
-Reading order: start with the PR description and the review target's diff stat to see size and spread (add `--stat` to a `git diff <sha>` target, or count the file list for a `gh pr diff` target). Open added files first: the ones `git diff --diff-filter=A --name-only <sha> -- site/src` prints for a `git diff <sha>` target, the ones the diff shows as `new file` for a `gh pr diff` target, and every file the list marks `(new, untracked)`. A bare `git diff` shows only uncommitted edits, so always pass the target's commit. For each new component, hook, util, constant, or regex, grep `site/src/components/`, `site/src/hooks/`, `site/src/utils/`, and the sibling feature folder for the same name or behavior before reading the implementation. Then read every changed file that lives outside the feature folder the PR is about (`site/src/components/`, `site/src/utils/`, `site/src/testHelpers/`, `site/.storybook/`, `site/vite.config.mts`, `site/package.json`) in full and ask what in the PR needs it. For placement calls, list the destination folder and read the sibling files, not just the hunk.
+Reading order: start with the PR description and the review target's diff stat to see size and spread (`git diff --stat <commits> -- site/`, where `<commits>` is the one SHA or the two SHAs the target passes). Open added files first: the ones `git diff --diff-filter=A --name-only <commits> -- site/src` prints, and every file the list marks `(new, untracked)`. A bare `git diff` shows only uncommitted edits, so always pass the target's commits. For each new component, hook, util, constant, or regex, grep `site/src/components/`, `site/src/hooks/`, `site/src/utils/`, and the sibling feature folder for the same name or behavior before reading the implementation. Then read every changed file that lives outside the feature folder the PR is about (`site/src/components/`, `site/src/utils/`, `site/src/testHelpers/`, `site/.storybook/`, `site/vite.config.mts`, `site/package.json`) in full and ask what in the PR needs it. For placement calls, list the destination folder and read the sibling files, not just the hunk.
 
 ## Checkpoints
 
@@ -35,7 +35,7 @@ Look for:
 - A second parser, validator, or regex for a format the repo already handles (front matter, integer strings); grep for the regex literal and for the format name.
 - A new `Field`-style wrapper that re-implements `FormField`'s label, helper text, or error layout: the reviewers reject those on sight. A wrapper that renders `FormField` and adds behavior is fine (`PasswordField.tsx` adds a debounced password check).
 
-Fix: delete the copy and import the original. If the original lacks an option, add it to the original instead of forking it: in this PR when the option leaves current callers unchanged, and in its own PR when it changes the original's behavior (RO5).
+Fix: delete the copy and import the original. If the original lacks an option, add it to the original instead of forking it: in this PR when the option leaves current callers unchanged, and in its own PR when it changes what current callers get (RO5).
 
 ### RO3: Extract what the PR repeats
 
@@ -74,10 +74,10 @@ Look for:
 
 - Hunks in files the PR title does not explain: `site/.storybook/preview.tsx`, `site/vite.config.mts`, `site/src/testHelpers/handlers.ts`, `site/src/theme/index.ts`, import rewrites (`import React from "react"` replacing `import { StrictMode }`), removed dependencies. Ask of each: what in this PR breaks without it?
 - Whole-file deletions and blocks moved within a file with no mention in the description.
-- Edits to shared components under `site/src/components/` from a feature PR: additive props (`ariaLabel`, `disabled`) that leave current callers unchanged are fine, but logic or visual changes belong in their own PR.
+- Edits to shared components under `site/src/components/` from a feature PR. A backward-compatible extension the feature needs, such as an additive prop (`ariaLabel`, `disabled`) or a new variant that leaves current callers unchanged, ships with the feature. A change that alters what current callers render or do, or that the feature does not need, belongs in its own PR.
 - New pages or routes that render nothing yet, added ahead of the feature that needs them.
 
-Fix: revert the hunk (reviewers post an empty suggestion to do it) or move it to its own PR; shared component behavior changes get their own PR and a design check. When the PR does need a deletion or move, add the missing line to the PR description saying why.
+Fix: revert the hunk (reviewers post an empty suggestion to do it) or move it to its own PR; a shared component change that alters current callers gets its own PR and a design check. When the PR does need a deletion or move, add the missing line to the PR description saying why.
 
 ### RO6: Split PRs that are too large to review
 
@@ -98,4 +98,4 @@ Fix: split by concern (infrastructure, consumers, fixes) into a stack of PRs eac
 - Manual `scrollIntoView` where the primitive scrolls natively: RP owns the effect, SA asks whether CSS replaces it.
 - A story file defining a dozen helper components: RO flags the copies of real components, but story structure and what a story should contain is TS.
 - Knip exclusions carrying unused exports between stacked PRs: dead-code ownership is SD.
-- Whether a visual change to a shared `Select` or `OrganizationAutocomplete` looks right: SA; RO5 only asks that logic or visual changes to a shared component move to their own PR.
+- Whether a visual change to a shared `Select` or `OrganizationAutocomplete` looks right: SA; RO5 only asks that a shared component change that alters current callers move to its own PR.

@@ -60,15 +60,26 @@ includes staged and unstaged edits, but not untracked files. Add the files
 the `git ls-files` line prints to the changed file list, marked
 `(new, untracked)`, so reviewers read them whole.
 
-For a PR authored by someone else, use `gh pr diff <n> --name-only` and
-`gh pr diff <n>` instead, and check out the head branch so reviewers can
-read whole files.
+For a PR authored by someone else, pin its revision once instead, so every
+reviewer reads the same commits even if the author pushes during the
+review:
+
+```sh
+gh pr checkout <n> --detach
+git fetch origin "$(gh pr view <n> --json baseRefName --jq .baseRefName)"
+BASE=$(git merge-base HEAD FETCH_HEAD)
+HEAD_SHA=$(git rev-parse HEAD)
+echo "$BASE $HEAD_SHA"
+git diff --stat "$BASE" "$HEAD_SHA" -- site/ | tail -1
+git diff --name-only "$BASE" "$HEAD_SHA" -- site/
+```
 
 Record three things every reviewer needs:
 
-- the review target: the exact command that prints the diff, such as
-  `git diff <sha> -- site/` with the SHA that `echo "$BASE"` printed (a
-  sub-agent's shell does not have `$BASE`), or `gh pr diff <n>`,
+- the review target: the exact command that prints the diff, with the
+  SHAs that `echo` printed (a sub-agent's shell has neither variable):
+  `git diff <sha> -- site/` for your own branch, or
+  `git diff <base-sha> <head-sha> -- site/` for someone else's PR,
 - the changed file list,
 - the PR's stated purpose (title and description, or the user's summary).
 
@@ -140,7 +151,8 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   and list it with the reason below the verdict table, next to the step 3
   conflicts, so the role file can be corrected.
 - Someone else's PR (report mode): post findings as inline review comments
-  in the register human reviewers use (short, specific, with the fix).
+  on the pinned head SHA, so their lines match what reviewers read, in the
+  register human reviewers use (short, specific, with the fix).
   Group nits and PR-scope findings such as RO6 into the review summary.
   Never post any other finding you cannot point at a line.
 

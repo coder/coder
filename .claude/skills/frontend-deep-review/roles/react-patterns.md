@@ -29,7 +29,7 @@ FE parent: FE8
 
 Look for:
 
-- An effect that persists state (localStorage.setItem, save*) whenever the state changes, usually guarded by a lastPersistedRef. The write belongs in the event handler or setter that changes the state.
+- An effect that persists state (localStorage.setItem, save*) whenever the state changes, usually guarded by a lastPersistedRef, when one event handler or setter call is the only thing that changes that state: the write belongs there. An effect that is the single sync point for state several code paths change is synchronizing with an external system and stays (`RightPanel.tsx` persists a width that dragging, snapping, and resize clamping all set; `AgentCreateForm.tsx` persists an organization that the user and render-time reconciliation both change).
 - An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or mutation callback should own that step. An effect that consumes a deep-link parameter on arrival and replaces the URL is synchronizing with browser history, which no handler owns (`AgentCreatePage.tsx` strips its prompt and debug parameters with `navigate(..., { replace: true })`). `useQuery` has no `onSuccess` (TanStack Query v5 removed query callbacks), so never suggest one.
 - An effect that runs a migration or one-off transform on every render where query data exists, with a ref to make it run once.
 - Any effect the author could not explain in one sentence: ask which user action or mutation callback should own it.
