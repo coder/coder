@@ -1348,8 +1348,9 @@ func New(options *Options) *API {
 	// Coder session, so this route has no API key middleware. It lives
 	// outside the /api/experimental group because that group's rate limiter
 	// keys unauthenticated callers by path, which gives every automation id
-	// a fresh bucket; this limiter keys by caller alone.
-	r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
+	// a fresh bucket. This limiter keys by automation and caller IP, and
+	// requests for unknown automations share one bucket per IP.
+	r.With(api.chatAutomationEventRateLimit(options.APIRateLimit, time.Minute)).
 		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.

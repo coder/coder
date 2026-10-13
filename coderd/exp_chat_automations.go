@@ -759,19 +759,24 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// The caller has no Coder identity; the secret is checked against the
-	// stored hash before the automation is used in any other way.
-	//nolint:gocritic // Webhook callers authenticate only with the automation secret.
-	automation, err := api.Database.GetChatAutomationByID(dbauthz.AsChatd(ctx), automationID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
+	// stored hash before the automation is used in any other way. The rate
+	// limiter already read the automation.
+	lookup, ok := r.Context().Value(chatAutomationEventLookupKey{}).(chatAutomationEventLookup)
+	if !ok {
+		var err error
+		lookup, err = api.lookupChatAutomationEvent(ctx, r)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
+	automation := lookup.automation
 	// Hashed before either check, so both refusals do the same work.
 	hash := sha256.Sum256([]byte(secret))
 	// Unknown ids, other kinds, and wrong secrets get the same response,
 	// so callers cannot probe for automation ids. Only the metric, which
 	// callers cannot read, tells them apart.
-	if err != nil || automation.Kind != database.ChatAutomationKindWebhook {
+	if !lookup.found || automation.ID != automationID {
 		api.chatDaemon.RecordAutomationWebhookRejected(chatd.AutomationWebhookRejectedUnknownAutomation)
 		writeChatAutomationUnauthorized(ctx, rw)
 		return

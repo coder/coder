@@ -107,19 +107,51 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
 	})
 
-	t.Run("RateLimitedAcrossAutomations", func(t *testing.T) {
+	t.Run("RateLimitedPerAutomationAndCaller", func(t *testing.T) {
 		t.Parallel()
 		const limit = 2
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{APIRateLimit: limit}))
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) { o.APIRateLimit = limit })
+		ctx := testutil.Context(t, testutil.WaitLong)
+		first, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		second, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
 
-		// Each request uses a fresh automation id, so only a limiter that
-		// ignores the id can refuse the last one.
+		// Each automation has its own bucket for this caller, so the
+		// limit of one does not hold back the other.
 		for range limit {
-			status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+			status, body := postChatAutomationEvent(t, env.member, first.Automation.ID, first.WebhookSecret+"x", event)
 			require.Equal(t, http.StatusUnauthorized, status, string(body))
 		}
-		status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+		status, body := postChatAutomationEvent(t, env.member, first.Automation.ID, first.WebhookSecret, event)
 		require.Equal(t, http.StatusTooManyRequests, status, string(body))
+		status, body = postChatAutomationEvent(t, env.member, second.Automation.ID, second.WebhookSecret, event)
+		require.Equal(t, http.StatusAccepted, status, string(body))
+
+		// Requests for automations that do not exist share one bucket per
+		// caller, so a fresh random id gets no fresh bucket.
+		for range limit {
+			status, body := postChatAutomationEvent(t, env.member, uuid.New(), "", event)
+			require.Equal(t, http.StatusUnauthorized, status, string(body))
+		}
+		status, body = postChatAutomationEvent(t, env.member, uuid.New(), "", event)
+		require.Equal(t, http.StatusTooManyRequests, status, string(body))
+
+		// Refused requests count in the metric, by reason only.
+		families, err := env.api.PrometheusRegistry.Gather()
+		require.NoError(t, err)
+		var rateLimited float64
+		for _, family := range families {
+			if family.GetName() != "coderd_agents_automation_webhook_rejected_total" {
+				continue
+			}
+			for _, metric := range family.GetMetric() {
+				if metric.GetLabel()[0].GetValue() == "rate_limited" {
+					rateLimited = metric.GetCounter().GetValue()
+				}
+			}
+		}
+		require.Equal(t, 2.0, rateLimited)
 	})
 
 	t.Run("ExperimentOffForOwner", func(t *testing.T) {

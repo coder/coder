@@ -283,7 +283,8 @@ If the automation was deleted, the card reads **deleted automation**. Its ID sta
 | `502`  | Coder couldn't reach a chat lifecycle hook.                                                                                                                                                              |
 
 The events endpoint has its own rate limit.
-It counts requests per client IP address across all automations and uses the deployment's API rate limit, 512 requests per minute by default.
+It counts requests per automation and client IP address and uses the deployment's API rate limit, 512 requests per minute by default, so one sender can feed several automations.
+Requests for automations that don't exist share one count per IP address.
 
 Coder doesn't retry or deduplicate deliveries.
 If a sender retries after a timeout, the chat can receive the same event twice.
