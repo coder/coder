@@ -1,0 +1,35 @@
+{
+  "source": {
+    "repo": "https://github.com/harbor-framework/terminal-bench-2-1",
+    "commit": "7131e4375048a0e408a8fb404b5f499d726b695b",
+    "license": "Apache-2.0"
+  },
+  "tasks": [
+    {
+      "id": "regex-log",
+      "notes": "Write one regex that matches dates on lines with an IPv4 address. Pure text work, no installs."
+    },
+    {
+      "id": "constraints-scheduling",
+      "notes": "Find a meeting slot from calendar files and write an ICS file. Python stdlib is enough."
+    },
+    {
+      "id": "db-wal-recovery",
+      "notes": "Recover rows from a SQLite database and its write-ahead log into JSON. Binary seed files exercise the inline seed and capture round trip."
+    },
+    {
+      "id": "sqlite-db-truncate",
+      "notes": "Salvage rows from a truncated SQLite file. Binary seed file."
+    },
+    {
+      "id": "log-summary-date-ranges",
+      "notes": "Summarize log severities over date ranges into a CSV. The image build generates /app/logs, so the import copies it from the image."
+    }
+  ],
+  "excluded": [
+    {
+      "id": "merge-diff-arc-agi-task",
+      "reason": "The verifier inspects a git repository the agent creates under /app/repo. aegis captures the trial tree as a diff and an untracked archive against its own root repository and treats nested .git directories as git-blind content, so the nested repository's history is not guaranteed to survive capture and rehydration. Excluded until that round trip is verified."
+    }
+  ]
+}

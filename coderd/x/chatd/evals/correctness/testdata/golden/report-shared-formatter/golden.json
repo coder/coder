@@ -1,0 +1,4 @@
+{
+  "seed": "report",
+  "command": "node --test"
+}

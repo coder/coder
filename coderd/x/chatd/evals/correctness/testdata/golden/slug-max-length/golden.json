@@ -1,0 +1,4 @@
+{
+  "seed": "slug",
+  "command": "node --test"
+}

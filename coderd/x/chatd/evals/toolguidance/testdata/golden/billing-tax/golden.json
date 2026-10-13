@@ -1,0 +1,4 @@
+{
+  "seed": "billing",
+  "command": "python3 -m unittest discover -s tests -t . && grep -q \"^def late_fee(invoice, days_late):\" billing/invoice.py"
+}

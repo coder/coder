@@ -1,0 +1,4 @@
+{
+  "seed": "settings",
+  "command": "go build ./... && python3 tests_hidden/check_settings.py"
+}

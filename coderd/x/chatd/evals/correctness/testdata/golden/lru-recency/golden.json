@@ -1,0 +1,4 @@
+{
+  "seed": "lru",
+  "command": "go test ./..."
+}

@@ -1,0 +1,6 @@
+{
+  "worker": {
+    "name": "jobs",
+    "concurrency": 2
+  }
+}

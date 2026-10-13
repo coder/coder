@@ -1,0 +1,11 @@
+2026-10-02T08:14:51Z ERROR importer: batch 2026-10-02/legacy failed
+Traceback (most recent call last):
+  File "/srv/importer/run.py", line 41, in import_batch
+    invoices = parse_all(batch["records"])
+  File "/srv/importer/invoices/parse.py", line 21, in parse_all
+    return [parse_record(r) for r in records]
+  File "/srv/importer/invoices/parse.py", line 16, in parse_record
+    currency = record["currency"].upper()
+KeyError: 'currency'
+2026-10-02T08:14:51Z INFO importer: failing record {"number": "L-00917", "amount": "120.50", "source": "legacy-2019"}
+2026-10-02T08:14:52Z INFO importer: note from billing: exports from before 2020 never had a currency column, all of them were USD
