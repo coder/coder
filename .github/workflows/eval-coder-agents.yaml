@@ -1,21 +1,11 @@
-# Coder Agents eval: runs the same Harbor task suite against coderd built from
-# a baseline ref (main) and a candidate ref (the PR branch), each serving Coder
-# Agents, then reports whether the candidate is better or worse.
+# A/B Coder Agents on a PR branch vs main: each arm builds its own coderd,
+# runs the Terminal-Bench sample through Harbor with the Coder environment
+# provider (scripts/harbor-coder), and the comparison is posted on the PR.
 #
-# Triggers:
-#   - Comment `/coder-agents-eval` on a PR (optionally with `key=value` args:
-#     model, attempts, concurrency, baseline, suite, exclude). The commenter
-#     needs push access and the PR must come from this repository, because the
-#     candidate arm builds and runs the PR's code with access to the gateway
-#     token.
-#   - workflow_dispatch with the same options.
-#
-# Each arm builds its own coderd, serves it with embedded Postgres, points its
-# AI gateway at dogfood's gateway (authenticated with a Coder API key, so no
-# provider secret is involved), and runs Harbor with the Coder environment
-# provider (scripts/harbor-coder) so every trial runs in a Coder workspace on
-# the runner's Docker. The harness, tasks, and template always come from the
-# candidate ref so a PR that changes them is evaluated with its own changes.
+# Trigger by commenting `/coder-agents-eval` on a PR (push access required,
+# fork PRs refused since the candidate arm runs the PR's code with the gateway
+# token in scope), or via workflow_dispatch to compare the current ref to main.
+# Trials spend real model tokens, so this never runs automatically.
 
 name: eval/coder-agents
 
@@ -23,35 +13,6 @@ on:
   issue_comment:
     types: [created]
   workflow_dispatch:
-    inputs:
-      baseline_ref:
-        description: Baseline ref to compare against
-        default: main
-        type: string
-      candidate_ref:
-        description: Candidate ref (defaults to the ref this run was started from). Set equal to baseline_ref to measure the noise floor.
-        default: ""
-        type: string
-      model:
-        description: Chat model (Anthropic model id)
-        default: claude-haiku-4-5
-        type: string
-      attempts:
-        description: Attempts per task (-k)
-        default: "2"
-        type: string
-      concurrency:
-        description: Concurrent trials (-n)
-        default: "3"
-        type: string
-      suite:
-        description: "`local` for scripts/harbor-coder/tasks, or a Harbor registry dataset such as terminal-bench-sample@2.0"
-        default: local
-        type: string
-      exclude:
-        description: Comma-separated task name globs to exclude (e.g. known-broken tasks)
-        default: ""
-        type: string
 
 permissions: {}
 
@@ -59,11 +20,17 @@ concurrency:
   group: eval-coder-agents-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: false
 
+env:
+  # Two qemu tasks and build-cython-ext are broken upstream (bit-rotted apt
+  # sources and a git clone in the verifier) and fail under Harbor's own
+  # Docker environment too.
+  HARBOR_DATASET: terminal-bench-sample@2.0
+  HARBOR_EXCLUDE: "-x qemu-* -x build-cython-ext"
+
 jobs:
   resolve:
-    name: resolve
     if: >-
-      github.event_name != 'issue_comment' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.issue.pull_request && startsWith(github.event.comment.body, '/coder-agents-eval'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -71,120 +38,35 @@ jobs:
       contents: read
       pull-requests: write
     outputs:
-      baseline_ref: ${{ steps.args.outputs.baseline_ref }}
-      candidate_ref: ${{ steps.args.outputs.candidate_ref }}
-      candidate_label: ${{ steps.args.outputs.candidate_label }}
-      model: ${{ steps.args.outputs.model }}
-      attempts: ${{ steps.args.outputs.attempts }}
-      concurrency: ${{ steps.args.outputs.concurrency }}
-      suite: ${{ steps.args.outputs.suite }}
-      exclude: ${{ steps.args.outputs.exclude }}
-      pr_number: ${{ steps.args.outputs.pr_number }}
+      candidate_ref: ${{ steps.pr.outputs.sha || github.sha }}
+      candidate_label: ${{ steps.pr.outputs.ref || github.ref_name }}
+      pr_number: ${{ github.event.issue.number }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
-      - name: Verify commenter has push access
+      - name: Resolve PR
+        id: pr
         if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
           COMMENTER: ${{ github.event.comment.user.login }}
-        run: |
-          set -euo pipefail
-          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${COMMENTER}/permission" --jq '.user.permissions.push')"
-          if [[ "${can_push}" != "true" ]]; then
-            echo "::error title=Access Denied::${COMMENTER} does not have push access to ${GITHUB_REPOSITORY}"
-            exit 1
-          fi
-
-      - name: Resolve arguments
-        id: args
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
-          # Never interpolate the comment body into the script; read it from env.
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-          IN_BASELINE: ${{ inputs.baseline_ref }}
-          IN_CANDIDATE: ${{ inputs.candidate_ref }}
-          IN_MODEL: ${{ inputs.model }}
-          IN_ATTEMPTS: ${{ inputs.attempts }}
-          IN_CONCURRENCY: ${{ inputs.concurrency }}
-          IN_SUITE: ${{ inputs.suite }}
-          IN_EXCLUDE: ${{ inputs.exclude }}
-          TRIGGER_SHA: ${{ github.sha }}
-          TRIGGER_REF: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          baseline="main"; model="claude-haiku-4-5"; attempts="2"; concurrency="3"; suite="local"; exclude=""
-          if [[ "${EVENT_NAME}" != "issue_comment" ]]; then
-            baseline="${IN_BASELINE:-$baseline}"
-            model="${IN_MODEL:-$model}"
-            attempts="${IN_ATTEMPTS:-$attempts}"
-            concurrency="${IN_CONCURRENCY:-$concurrency}"
-            suite="${IN_SUITE:-$suite}"
-            exclude="${IN_EXCLUDE:-$exclude}"
-            candidate="${IN_CANDIDATE:-$TRIGGER_SHA}"
-            label="${IN_CANDIDATE:-$TRIGGER_REF}"
-            pr_number=""
-          else
-            # Refuse fork PRs: the candidate arm runs the PR's code with the
-            # gateway token in scope.
-            head_sha="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json headRefOid --jq .headRefOid)"
-            head_ref="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json headRefName --jq .headRefName)"
-            is_fork="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json isCrossRepository --jq .isCrossRepository)"
-            if [[ "${is_fork}" == "true" ]]; then
-              echo "::error::refusing to run on a pull request from a fork"
-              exit 1
-            fi
-            candidate="${head_sha}"
-            label="${head_ref}"
-            pr_number="${PR_NUMBER}"
-            # Optional `key=value` args after the command, e.g.
-            # `/coder-agents-eval suite=terminal-bench-sample@2.0 exclude=qemu-*,build-cython-ext`.
-            first_line="$(printf '%s\n' "${COMMENT_BODY}" | head -n1)"
-            for tok in ${first_line#/coder-agents-eval}; do
-              [[ "${tok}" =~ ^(model|attempts|concurrency|baseline|suite|exclude)=([A-Za-z0-9._/@*,-]+)$ ]] || {
-                echo "::error::unrecognized argument: ${tok}"; exit 1; }
-              case "${BASH_REMATCH[1]}" in
-                model) model="${BASH_REMATCH[2]}" ;;
-                attempts) attempts="${BASH_REMATCH[2]}" ;;
-                concurrency) concurrency="${BASH_REMATCH[2]}" ;;
-                baseline) baseline="${BASH_REMATCH[2]}" ;;
-                suite) suite="${BASH_REMATCH[2]}" ;;
-                exclude) exclude="${BASH_REMATCH[2]}" ;;
-              esac
-            done
-          fi
-          [[ "${attempts}" =~ ^[0-9]+$ && "${concurrency}" =~ ^[0-9]+$ ]] || {
-            echo "::error::attempts and concurrency must be integers"; exit 1; }
-          [[ "${suite}" =~ ^[A-Za-z0-9._@-]+$ && "${exclude}" =~ ^[A-Za-z0-9._*,-]*$ ]] || {
-            echo "::error::invalid suite or exclude"; exit 1; }
-          {
-            echo "baseline_ref=${baseline}"
-            echo "candidate_ref=${candidate}"
-            echo "candidate_label=${label}"
-            echo "model=${model}"
-            echo "attempts=${attempts}"
-            echo "concurrency=${concurrency}"
-            echo "suite=${suite}"
-            echo "exclude=${exclude}"
-            echo "pr_number=${pr_number}"
-          } | tee -a "${GITHUB_OUTPUT}"
-
-      - name: Acknowledge comment
-        if: github.event_name == 'issue_comment'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set -euo pipefail
-          gh api -X POST "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null
+          if [[ "$(gh api "/repos/${REPO}/collaborators/${COMMENTER}/permission" --jq .user.permissions.push)" != "true" ]]; then
+            echo "::error::${COMMENTER} does not have push access"; exit 1
+          fi
+          if [[ "$(gh pr view "${PR}" -R "${REPO}" --json isCrossRepository --jq .isCrossRepository)" == "true" ]]; then
+            echo "::error::refusing to run on a fork PR"; exit 1
+          fi
+          echo "sha=$(gh pr view "${PR}" -R "${REPO}" --json headRefOid --jq .headRefOid)" >> "${GITHUB_OUTPUT}"
+          echo "ref=$(gh pr view "${PR}" -R "${REPO}" --json headRefName --jq .headRefName)" >> "${GITHUB_OUTPUT}"
+          gh api -X POST "/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null
 
   run:
     name: run (${{ matrix.arm }})
@@ -206,141 +88,58 @@ jobs:
       - name: Checkout arm ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ matrix.arm == 'baseline' && needs.resolve.outputs.baseline_ref || needs.resolve.outputs.candidate_ref }}
+          ref: ${{ matrix.arm == 'baseline' && 'main' || needs.resolve.outputs.candidate_ref }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Checkout eval harness from candidate ref
+      # The harness always comes from the candidate so both arms run the same code.
+      - name: Checkout harness from candidate ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve.outputs.candidate_ref }}
           path: .eval-src
           sparse-checkout: scripts/harbor-coder
           persist-credentials: false
+      - run: rm -rf scripts/harbor-coder && cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
 
-      - name: Overlay eval harness
-        run: |
-          set -euo pipefail
-          rm -rf scripts/harbor-coder
-          cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
-
-      - name: Setup Go Paths
-        uses: ./.github/actions/setup-go-paths
-
-      - name: Set up mise tools
-        uses: ./.github/actions/setup-mise
+      - uses: ./.github/actions/setup-go-paths
+      - uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-
-      - name: Install Harbor with the Coder provider
-        run: |
-          set -euo pipefail
-          uv tool install --with-editable ./scripts/harbor-coder harbor
-          harbor --version
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv tool install --with-editable ./scripts/harbor-coder harbor
 
       - name: Build and serve coderd
         env:
           # A Coder API key for dogfood; the eval's coderd uses dogfood's AI
-          # gateway as its model upstream, so no provider key is needed.
+          # gateway as its model upstream, so no provider key is involved.
           HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
-          HARBOR_CODER_UPSTREAM_URL: ${{ vars.EVAL_AI_GATEWAY_URL }}
-          # TEMPORARY: borrow the triage account until EVAL_CODER_SESSION_TOKEN
-          # exists. Remove before merge.
-          BORROWED_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-          BORROWED_URL: ${{ secrets.TRAIAGE_CODER_URL }}
-          BORROWED_TOKEN_2: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-          BORROWED_URL_2: ${{ secrets.DOC_CHECK_CODER_URL }}
-          HARBOR_CODER_MODEL: ${{ needs.resolve.outputs.model }}
-        run: |
-          set -euo pipefail
-          probe() {
-            # 1-token request; prints HTTP status only.
-            curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
-              -H "Authorization: Bearer $1" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
-              -d '{"model":"claude-haiku-4-5","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}' \
-              "$2/v1/messages" || echo 000
-          }
-          if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
-            for pair in "TRAIAGE:${BORROWED_TOKEN}:${BORROWED_URL}" "DOC_CHECK:${BORROWED_TOKEN_2}:${BORROWED_URL_2}"; do
-              name="${pair%%:*}"; rest="${pair#*:}"; tok="${rest%%:*}"; url="${rest#*:}"
-              [[ -n "${tok}" && -n "${url}" ]] || continue
-              gw="${url%/}/api/v2/ai-gateway/anthropic"
-              code="$(probe "${tok}" "${gw}")"
-              echo "borrow ${name}: $(printf '%s' "${gw}" | sed -E 's|https?://([^/]+).*|\1|') -> ${code}"
-              if [[ "${code}" == "200" ]]; then
-                echo "::warning::EVAL_CODER_SESSION_TOKEN not set; borrowing ${name} token (temporary)"
-                export HARBOR_CODER_UPSTREAM_TOKEN="${tok}" HARBOR_CODER_UPSTREAM_URL="${gw}"
-                break
-              fi
-            done
-          fi
-          if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
-            echo "::error::EVAL_CODER_SESSION_TOKEN secret is not set"
-            exit 1
-          fi
-          [[ -n "${HARBOR_CODER_UPSTREAM_URL}" ]] || unset HARBOR_CODER_UPSTREAM_URL
-          ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env" 3000
+        run: ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env"
 
-      - name: Run Harbor suite
+      - name: Run Harbor
         env:
           ARM: ${{ matrix.arm }}
-          ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
-          CONCURRENCY: ${{ needs.resolve.outputs.concurrency }}
-          SUITE: ${{ needs.resolve.outputs.suite }}
-          EXCLUDE: ${{ needs.resolve.outputs.exclude }}
         run: |
           set -euo pipefail
           set -a; . "${RUNNER_TEMP}/coder.env"; set +a
-          BIN_DIR="$(dirname "${HARBOR_CODER_BIN}")"
-          export PATH="${BIN_DIR}:${PATH}"
-          source_args=(-p scripts/harbor-coder/tasks)
-          if [[ "${SUITE}" != "local" ]]; then
-            source_args=(-d "${SUITE}")
-          fi
-          exclude_args=()
-          IFS=',' read -ra globs <<< "${EXCLUDE}"
-          for g in "${globs[@]}"; do
-            [[ -n "${g}" ]] && exclude_args+=(-x "${g}")
-          done
-          harbor run \
-            "${source_args[@]}" "${exclude_args[@]}" \
+          export PATH="${HARBOR_CODER_BIN%/*}:${PATH}"
+          # shellcheck disable=SC2086
+          harbor run -d "${HARBOR_DATASET}" ${HARBOR_EXCLUDE} \
             --agent harbor_coder.agent:CoderAgentsAgent \
             --env harbor_coder.environment:CoderEnvironment \
-            --ek template="${HARBOR_CODER_TEMPLATE}" \
-            -k "${ATTEMPTS}" -n "${CONCURRENCY}" \
-            -o jobs --job-name "${ARM}"
-          # Harbor exits 0 even when every trial raised. A run with no scored
-          # trial is a broken harness, not a result.
-          scored=$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)
-          total=$(find "jobs/${ARM}" -mindepth 2 -maxdepth 2 -name result.json | wc -l)
-          echo "scored ${scored} of ${total} trials"
-          if [[ "${scored}" -eq 0 ]]; then
-            echo "::error::no trial produced a reward; first error:"
-            grep -h -m1 -A3 '"exception_message"' jobs/"${ARM}"/*/result.json | head -5 || true
-            exit 1
+            -k 2 -n 4 -o jobs --job-name "${ARM}"
+          # Harbor exits 0 even when every trial raised.
+          if [[ "$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)" -eq 0 ]]; then
+            echo "::error::no trial produced a reward"; exit 1
           fi
 
-      - name: Upload job results
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: harbor-${{ matrix.arm }}
           path: jobs/
-          if-no-files-found: warn
-
-      - name: Upload coderd log on failure
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coderd-log-${{ matrix.arm }}
-          path: .harbor-coder/coderd.log
-          if-no-files-found: ignore
 
   compare:
-    name: compare
     needs: [resolve, run]
     if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
@@ -353,61 +152,32 @@ jobs:
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
-
-      - name: Checkout harness
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve.outputs.candidate_ref }}
           sparse-checkout: scripts/harbor-coder
           persist-credentials: false
-
-      - name: Download results
-        id: download
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         continue-on-error: true
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: harbor-*
           path: jobs
           merge-multiple: true
-
       - name: Compare
-        id: compare
         env:
-          BASELINE_REF: ${{ needs.resolve.outputs.baseline_ref }}
-          CANDIDATE_LABEL: ${{ needs.resolve.outputs.candidate_label }}
-          RUN_RESULT: ${{ needs.run.result }}
+          LABEL: ${{ needs.resolve.outputs.candidate_label }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MODEL: ${{ needs.resolve.outputs.model }}
-          ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
-          SUITE: ${{ needs.resolve.outputs.suite }}
         run: |
           set -euo pipefail
           mkdir -p jobs/baseline jobs/candidate
-          {
-            PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
-              --baseline jobs/baseline --candidate jobs/candidate \
-              --labels "${BASELINE_REF}" "${CANDIDATE_LABEL}" \
-              --json-out comparison.json
-            echo
-            echo "Suite: \`${SUITE}\`, model: \`${MODEL}\`, attempts per task: ${ATTEMPTS}, run jobs: ${RUN_RESULT}. [Workflow run](${RUN_URL})"
-          } | tee report.md >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Post comparison on the PR
+          PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+            --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
+          printf '\n%s, haiku, 2 attempts per task. [Run](%s)\n' "${HARBOR_DATASET}" "${RUN_URL}" >> report.md
+          cat report.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Comment on PR
         if: needs.resolve.outputs.pr_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
-        run: |
-          set -euo pipefail
-          gh pr comment "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --body-file report.md
-
-      - name: Upload comparison
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: comparison
-          path: |
-            comparison.json
-            report.md
-          if-no-files-found: ignore
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.resolve.outputs.pr_number }}
+        run: gh pr comment "${PR}" -R "${REPO}" --body-file report.md

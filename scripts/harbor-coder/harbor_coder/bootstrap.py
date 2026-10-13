@@ -1,18 +1,10 @@
-"""Bootstrap a fresh coderd for Harbor evals.
+"""Bootstrap a fresh coderd for an eval run: first user, AI provider pointed
+at dogfood's gateway, default chat model, and the Harbor workspace template.
+Prints ``KEY=VALUE`` lines (CODER_URL, CODER_SESSION_TOKEN, HARBOR_CODER_TEMPLATE)
+for the caller to export.
 
-Idempotently: create the first user, log in, register an Anthropic provider
-and a default chat model, and push the Harbor workspace template. Prints
-``KEY=VALUE`` lines for the caller to export (``CODER_URL``,
-``CODER_SESSION_TOKEN``, ``HARBOR_CODER_TEMPLATE``, ``HARBOR_CODER_MODEL_CONFIG_ID``).
-
-Usage:
-    python -m harbor_coder.bootstrap --url http://localhost:3000 \
-        --template-dir scripts/harbor-coder/template --model claude-haiku-4-5
-
-Model traffic goes through an AI gateway. By default that is dogfood's
-(``https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic``), which accepts a
-Coder API key, so no provider key is involved: set ``HARBOR_CODER_UPSTREAM_TOKEN``
-to a dogfood token. Override the gateway with ``HARBOR_CODER_UPSTREAM_URL``.
+Env: ``HARBOR_CODER_UPSTREAM_TOKEN`` (a Coder API key for the gateway, required),
+``HARBOR_CODER_UPSTREAM_URL`` (default: dogfood's Anthropic gateway).
 """
 
 from __future__ import annotations
@@ -21,211 +13,116 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from harbor_coder.client import CoderAPIError, CoderClient
 
 DEFAULT_UPSTREAM_URL = "https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic"
-
-FIRST_USER = {
-    "email": "harbor@coder.invalid",
-    "username": "harbor",
-    "name": "Harbor Eval",
-    "password": "HarborEval-" + os.urandom(8).hex(),
-}
+FIRST_USER = {"email": "harbor@coder.invalid", "username": "harbor", "name": "Harbor Eval"}
 
 
-def _wait_healthy(url: str, timeout: float = 120) -> None:
-    import urllib.request
-
-    deadline = time.time() + timeout
-    last_err: Exception | None = None
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"{url}/healthz", timeout=5) as r:
-                if r.status == 200:
-                    return
-        except Exception as e:  # noqa: BLE001
-            last_err = e
-        time.sleep(2)
-    raise SystemExit(f"coderd at {url} not healthy after {timeout}s: {last_err}")
-
-
-async def _login(url: str, password_file: Path) -> str:
-    anon = CoderClient.__new__(CoderClient)
-    anon.url = url.rstrip("/")
-    anon.token = "none"
-
-    if password_file.exists():
-        FIRST_USER["password"] = password_file.read_text().strip()
-    else:
-        try:
-            await anon.request("POST", "/api/v2/users/first", body=FIRST_USER)
-        except CoderAPIError as e:
-            if e.status != 409:
-                raise
-        password_file.parent.mkdir(parents=True, exist_ok=True)
-        password_file.write_text(FIRST_USER["password"])
-        password_file.chmod(0o600)
-
-    login = await anon.request(
-        "POST",
-        "/api/v2/users/login",
-        body={"email": FIRST_USER["email"], "password": FIRST_USER["password"]},
-    )
-    return login["session_token"]
-
-
-def _probe_upstream(api_key: str, base_url: str) -> None:
-    """Send a one-token request through the upstream so a bad token or URL
-    fails here with a clear status instead of as N identical trial errors."""
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    host = urllib.parse.urlsplit(base_url).netloc
+def _probe_upstream(token: str, base_url: str) -> None:
+    """One-token request so a bad token fails here, not as N identical trial errors."""
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/v1/messages",
         data=json.dumps(
-            {
-                "model": "claude-haiku-4-5",
-                "max_tokens": 1,
-                "messages": [{"role": "user", "content": "hi"}],
-            }
+            {"model": "claude-haiku-4-5", "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
         ).encode(),
-        method="POST",
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {token}",
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            status = r.status
+        urllib.request.urlopen(req, timeout=60).close()
     except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")[:300]
         raise SystemExit(
-            f"upstream probe failed: {host} returned {e.code} for a 1-token request "
-            f"(token length {len(api_key)}): {body}"
-        ) from None
-    except urllib.error.URLError as e:
-        raise SystemExit(
-            f"upstream probe failed: cannot reach {host}: {e.reason}"
-        ) from None
-    print(f"upstream probe: {host} -> {status}", file=sys.stderr)
-
-
-async def _ensure_provider(client: CoderClient, api_key: str, base_url: str) -> str:
-    _probe_upstream(api_key, base_url)
-    try:
-        existing = await client.request("GET", "/api/v2/ai/providers/anthropic")
-        return existing["id"]
-    except CoderAPIError as e:
-        if e.status != 404:
-            raise
-    created = await client.request(
-        "POST",
-        "/api/v2/ai/providers",
-        body={
-            "type": "anthropic",
-            "name": "anthropic",
-            "display_name": "Anthropic",
-            "enabled": True,
-            "base_url": base_url,
-            "api_keys": [api_key],
-        },
-    )
-    return created["id"]
-
-
-async def _ensure_model(
-    client: CoderClient, org_id: str, provider_id: str, model: str
-) -> str:
-    listing = await client.request(
-        "GET", f"/api/v2/organizations/{org_id}/chats/models"
-    )
-    for m in listing.get("models") or []:
-        if m.get("model") == model and m.get("ai_provider_id") == provider_id:
-            return m["id"]
-    created = await client.request(
-        "POST",
-        f"/api/v2/organizations/{org_id}/chats/models",
-        body={
-            "ai_provider_id": provider_id,
-            "model": model,
-            "context_limit": 200_000,
-            "is_default": True,
-        },
-    )
-    return created["id"]
-
-
-def _push_template(url: str, token: str, name: str, template_dir: Path) -> None:
-    env = {**os.environ, "CODER_URL": url, "CODER_SESSION_TOKEN": token}
-    subprocess.run(
-        [
-            "coder",
-            "templates",
-            "push",
-            name,
-            "--directory",
-            str(template_dir),
-            "--yes",
-        ],
-        check=True,
-        env=env,
-        stdout=sys.stderr,
-    )
+            f"upstream probe: {base_url} returned {e.code}: {e.read().decode(errors='replace')[:200]}"
+        )
 
 
 async def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument(
-        "--url", default=os.environ.get("CODER_URL", "http://localhost:3000")
-    )
+    p.add_argument("--url", default="http://localhost:3000")
     p.add_argument("--template-dir", required=True, type=Path)
-    p.add_argument("--template-name", default="harbor-task")
     p.add_argument("--model", default="claude-haiku-4-5")
-    p.add_argument(
-        "--state-dir",
-        type=Path,
-        default=Path(os.environ.get("HARBOR_CODER_STATE_DIR", ".harbor-coder")),
-    )
+    p.add_argument("--state-dir", type=Path, default=Path(".harbor-coder"))
     args = p.parse_args()
 
-    upstream_token = os.environ.get("HARBOR_CODER_UPSTREAM_TOKEN")
-    if not upstream_token:
-        raise SystemExit(
-            "HARBOR_CODER_UPSTREAM_TOKEN is required (a Coder API key for the AI gateway)"
-        )
-    base_url = os.environ.get("HARBOR_CODER_UPSTREAM_URL", DEFAULT_UPSTREAM_URL)
+    upstream_token = os.environ.get("HARBOR_CODER_UPSTREAM_TOKEN") or sys.exit(
+        "HARBOR_CODER_UPSTREAM_TOKEN is required"
+    )
+    upstream_url = os.environ.get("HARBOR_CODER_UPSTREAM_URL", DEFAULT_UPSTREAM_URL)
+    _probe_upstream(upstream_token, upstream_url)
 
-    _wait_healthy(args.url)
-    token = await _login(args.url, args.state_dir / "first-user-password")
-    client = CoderClient(url=args.url, token=token)
+    deadline = time.time() + 120
+    while True:
+        try:
+            await asyncio.to_thread(lambda: urllib.request.urlopen(f"{args.url}/healthz", timeout=5).close())
+            break
+        except Exception:  # noqa: BLE001
+            if time.time() > deadline:
+                raise SystemExit(f"coderd at {args.url} not healthy")
+            await asyncio.sleep(2)
+
+    anon = CoderClient(url=args.url, token="none")
+    pw_file = args.state_dir / "first-user-password"
+    if pw_file.exists():
+        password = pw_file.read_text()
+    else:
+        password = "HarborEval-" + os.urandom(8).hex()
+        await anon.request("POST", "/api/v2/users/first", body={**FIRST_USER, "password": password})
+        pw_file.parent.mkdir(parents=True, exist_ok=True)
+        pw_file.write_text(password)
+        pw_file.chmod(0o600)
+    login = await anon.request(
+        "POST", "/api/v2/users/login", body={"email": FIRST_USER["email"], "password": password}
+    )
+    client = CoderClient(url=args.url, token=login["session_token"])
     org = await client.default_organization()
 
-    provider_id = await _ensure_provider(client, upstream_token, base_url)
-    model_id = await _ensure_model(client, org["id"], provider_id, args.model)
-    _push_template(args.url, token, args.template_name, args.template_dir)
-
-    out = {
-        "CODER_URL": args.url,
-        "CODER_SESSION_TOKEN": token,
-        "HARBOR_CODER_TEMPLATE": args.template_name,
-        "HARBOR_CODER_MODEL_CONFIG_ID": model_id,
-    }
-    for k, v in out.items():
-        print(f"{k}={v}")
-    print(
-        f"bootstrap: org={org['name']} provider={provider_id} model={args.model} "
-        f"template={args.template_name}",
-        file=sys.stderr,
-    )
+    try:
+        provider = await client.request("GET", "/api/v2/ai/providers/anthropic")
+    except CoderAPIError as e:
+        if e.status != 404:
+            raise
+        provider = await client.request(
+            "POST",
+            "/api/v2/ai/providers",
+            body={
+                "type": "anthropic",
+                "name": "anthropic",
+                "display_name": "Anthropic",
+                "enabled": True,
+                "base_url": upstream_url,
+                "api_keys": [upstream_token],
+            },
+        )
+    models = await client.request("GET", f"/api/v2/organizations/{org['id']}/chats/models")
+    if not any(m.get("model") == args.model for m in models.get("models") or []):
+        await client.request(
+            "POST",
+            f"/api/v2/organizations/{org['id']}/chats/models",
+            body={
+                "ai_provider_id": provider["id"],
+                "model": args.model,
+                "context_limit": 200_000,
+                "is_default": True,
+            },
+        )
+    push = await asyncio.create_subprocess_exec(
+        "coder", "templates", "push", "harbor-task", "--directory", str(args.template_dir), "--yes",
+        env={**os.environ, "CODER_URL": args.url, "CODER_SESSION_TOKEN": client.token},
+        stdout=sys.stderr,
+    )  # fmt: skip
+    if await push.wait() != 0:
+        raise SystemExit("coder templates push failed")
+    print(f"CODER_URL={args.url}\nCODER_SESSION_TOKEN={client.token}\nHARBOR_CODER_TEMPLATE=harbor-task")
 
 
 if __name__ == "__main__":

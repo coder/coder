@@ -42,9 +42,7 @@ class CoderClient:
     ) -> Any:
         url = f"{self.url}{path}"
         if query:
-            url += "?" + urllib.parse.urlencode(
-                {k: v for k, v in query.items() if v is not None}
-            )
+            url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
         data = None
         headers = {"Coder-Session-Token": self.token, "Accept": "application/json"}
         if body is not None:
@@ -55,9 +53,7 @@ class CoderClient:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as e:
-            raise CoderAPIError(
-                e.code, method, path, e.read().decode(errors="replace")
-            ) from None
+            raise CoderAPIError(e.code, method, path, e.read().decode(errors="replace")) from None
         if not raw:
             return None
         return json.loads(raw)
@@ -94,9 +90,7 @@ class CoderClient:
             build = ws.get("latest_build", {})
             job = build.get("job", {})
             if job.get("status") in ("failed", "canceled"):
-                raise RuntimeError(
-                    f"workspace build {job['status']}: {job.get('error')}"
-                )
+                raise RuntimeError(f"workspace build {job['status']}: {job.get('error')}")
             for res in build.get("resources", []) or []:
                 for agent in res.get("agents", []) or []:
                     last = agent.get("status", "unknown")
