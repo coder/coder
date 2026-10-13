@@ -212,7 +212,7 @@ func (c *agentConn) WatchACPSession(ctx context.Context, logger slog.Logger, id 
 	headers := c.extraHeaders.Clone()
 	c.headersMu.RUnlock()
 	u := "http://" + host + "/api/v0/acp/sessions/session/stream?" + acpQuery(id, opts.After).Encode()
-	conn, res, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: c.apiClient, HTTPHeader: headers})
+	conn, res, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: c.apiClient(ctx), HTTPHeader: headers})
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
