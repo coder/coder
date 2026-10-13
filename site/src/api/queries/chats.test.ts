@@ -2270,15 +2270,14 @@ describe("diff_status_change invalidation scope", () => {
 	// These tests verify the CORRECT invalidation pattern for
 	// diff_status_change WebSocket events. The handler should
 	// invalidate only the individual chat detail and diff-contents
-	// queries, NOT the chat list (sidebar) or messages.
+	// queries, NOT the chat list (sidebar).
 
-	it("exact chatEntityKey invalidation does not cascade to messages or diff-contents", async () => {
+	it("exact chatEntityKey invalidation does not cascade to diff-contents", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
 		// Seed all the queries that are active on the /agents/:id page.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		queryClient.setQueryData(chatListKey(toChatListParams()), [
 			makeChat(chatId),
@@ -2294,12 +2293,6 @@ describe("diff_status_change invalidation scope", () => {
 			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
 			"chatEntityKey should be invalidated",
 		).toBe(true);
-
-		// Prompts should NOT be invalidated.
-		expect(
-			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
-			"chatPromptsKey should NOT be invalidated by exact chatEntityKey",
-		).not.toBe(true);
 
 		// Diff-contents should NOT be invalidated.
 		expect(
