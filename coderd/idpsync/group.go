@@ -190,6 +190,17 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 				// notify the admin and user of this issue.
 				continue
 			}
+
+			// Settings can name groups that are in another organization or
+			// that do not exist. Only groups in this organization are synced;
+			// the rest are reported and dropped.
+			expectedGroups, outside, missing, err := PartitionOutInvalidSettings(ctx, tx, orgID, expectedGroups)
+			if err != nil {
+				return xerrors.Errorf("partition expected groups: %w", err)
+			}
+			s.logInvalidGroupSetting(ctx, "outside", orgID, user.ID, outside)
+			s.logInvalidGroupSetting(ctx, "missing", orgID, user.ID, missing)
+
 			// Everyone group is always implied, so include it.
 			expectedGroups = append(expectedGroups, ExpectedGroup{
 				OrganizationID: orgID,
@@ -256,6 +267,24 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 	}
 
 	return nil
+}
+
+// logInvalidGroupSetting warns that an organization's group sync settings
+// name groups that were not synced. kind is "outside" for groups in another
+// organization and "missing" for groups that do not exist. Nothing is logged
+// when groups is empty.
+func (s AGPLIDPSync) logInvalidGroupSetting(ctx context.Context, kind string, orgID, userID uuid.UUID, groups []ExpectedGroup) {
+	if len(groups) == 0 {
+		return
+	}
+	s.Logger.Warn(ctx, "group sync settings name groups that were not synced",
+		slog.F("invalid_group_setting", kind),
+		slog.F("organization_id", orgID),
+		slog.F("user_id", userID),
+		slog.F("group_ids", slice.List(groups, func(g ExpectedGroup) uuid.UUID {
+			return *g.GroupID
+		})),
+	)
 }
 
 // ApplyGroupDifference will add and remove the user from the specified groups.
