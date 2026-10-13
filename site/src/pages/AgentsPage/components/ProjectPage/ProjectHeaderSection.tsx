@@ -2,7 +2,6 @@ import { EllipsisVerticalIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	deleteChatProject,
@@ -19,6 +18,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { draftStorageKeys } from "../AgentCreateForm";
@@ -164,7 +164,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 		</>
 	);

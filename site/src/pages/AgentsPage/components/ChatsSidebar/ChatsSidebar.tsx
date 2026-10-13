@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjects,
@@ -12,6 +11,7 @@ import {
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
 import {
 	getDefaultOrganizationId,
 	useDashboard,
@@ -345,7 +345,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -83,3 +83,12 @@ export const WithoutUpdateOrDeletePermission: Story = {
 		},
 	},
 };
+
+export const WithoutDeletePermission: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			permissions: { update: true, delete: false, share: true },
+		},
+	},
+};

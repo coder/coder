@@ -143,8 +143,8 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, memberProject.ID, projects[0].ID)
-	// Like chats, the list holds only the caller's own projects, even for a
-	// site owner who can read others' projects by ID.
+	// The list holds projects the caller owns or holds a grant on, not every
+	// project a site owner can read by ID.
 	projects, err = client.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
