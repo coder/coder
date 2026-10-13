@@ -120,6 +120,22 @@ export const Loading: Story = {
 	},
 };
 
+export const OrganizationLoading: Story = {
+	args: {
+		personalSkills: [],
+		organizationSkillsEnabled: true,
+		isOrganizationLoading: true,
+	},
+};
+
+export const WorkspaceLoading: Story = {
+	args: {
+		personalSkills: [],
+		workspaceSkillsEnabled: true,
+		isWorkspaceLoading: true,
+	},
+};
+
 export const EmptyWithAllSources: Story = {
 	args: {
 		personalSkills: [],
