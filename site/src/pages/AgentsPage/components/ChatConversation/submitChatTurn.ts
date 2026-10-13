@@ -54,7 +54,8 @@ export type SubmitChatTurnParams = {
 	effectiveSelectedModel: string;
 	modelOptions: readonly ModelSelectorOption[];
 	effectiveReasoningEffort: string | undefined;
-	mcpServerIds: readonly string[];
+	// Undefined omits the field: with tool sets, MCP changes PATCH the chat.
+	mcpServerIds: readonly string[] | undefined;
 	editMessage: (args: {
 		messageId: number;
 		optimisticMessage?: TypesGen.ChatMessage;
@@ -333,7 +334,7 @@ export async function submitChatTurn(
 			reasoning_effort: isEditReasoningEffortDirtyRef.current
 				? effectiveReasoningEffort
 				: undefined,
-			mcp_server_ids: [...mcpServerIds],
+			mcp_server_ids: mcpServerIds ? [...mcpServerIds] : undefined,
 		};
 		const optimisticMessage = originalEditedMessage
 			? buildOptimisticEditedMessage({
@@ -375,7 +376,7 @@ export async function submitChatTurn(
 		content,
 		model_config_id: selectedModelConfigID,
 		reasoning_effort: effectiveReasoningEffort,
-		mcp_server_ids: [...mcpServerIds],
+		mcp_server_ids: mcpServerIds ? [...mcpServerIds] : undefined,
 		...planModeFieldsForCreateMessage(clearPlanMode),
 	};
 	clearChatErrorReason(agentId);

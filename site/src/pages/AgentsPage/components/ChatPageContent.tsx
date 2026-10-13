@@ -32,6 +32,7 @@ import {
 	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
+import type { ToolSetsMenuState } from "../utils/toolGroups";
 import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
@@ -341,6 +342,7 @@ type ChatPageInputProps = {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
+	toolSets?: ToolSetsMenuState;
 };
 
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
@@ -390,6 +392,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
+	toolSets,
 }) => {
 	const { user: currentUser } = useAuthenticated();
 	const organizationId = chat.organization_id;
@@ -865,6 +868,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			// Commands act on the whole chat, so they only make sense
 			// for new sends: hide them while editing a history message.
 			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
+			toolSets={toolSets}
 		/>
 	);
 

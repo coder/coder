@@ -43,6 +43,10 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
+import {
+	defaultToolGroupValues,
+	type ToolGroupValues,
+} from "../utils/toolGroups";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
@@ -79,6 +83,8 @@ export type CreateChatOptions = {
 	/** The project the chat joins, when the form composes for one. */
 	projectId?: string;
 	planMode?: TypesGen.ChatPlanMode;
+	/** Tool sets prototype: the current group values of the composer. */
+	toolGroups?: ToolGroupValues;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
 	// callback to upload against the new chat ID, then sends the first
@@ -323,7 +329,11 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	prefill,
 	fillWidth,
 }) => {
-	const { organizations, showOrganizations } = useDashboard();
+	const { organizations, showOrganizations, experiments } = useDashboard();
+	const toolSetsEnabled = experiments.includes("chat-tool-sets");
+	const [toolGroups, setToolGroups] = useState<ToolGroupValues>(
+		defaultToolGroupValues,
+	);
 	const lockedOrganizationId = project?.organization_id;
 	const draftKeys = draftStorageKeys(project?.id);
 	const {
@@ -723,7 +733,11 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
 					: undefined,
-			planMode: planModeEnabled ? "plan" : undefined,
+			planMode:
+				planModeEnabled && (!toolSetsEnabled || toolGroups.workspace)
+					? "plan"
+					: undefined,
+			toolGroups: toolSetsEnabled ? toolGroups : undefined,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
@@ -1028,6 +1042,15 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					modelCount={modelCount}
 					unsupportedProviderNames={unsupportedProviderNames}
 					aiGatewayDisabled={aiGatewayDisabled}
+					toolSets={
+						toolSetsEnabled
+							? {
+									values: toolGroups,
+									onChange: (group, enabled) =>
+										setToolGroups((prev) => ({ ...prev, [group]: enabled })),
+								}
+							: undefined
+					}
 				/>
 				{modelSelectorHelp ? (
 					<div className="px-3 pt-1 text-2xs text-content-secondary">

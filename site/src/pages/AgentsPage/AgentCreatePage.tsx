@@ -48,6 +48,7 @@ import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { type DeepLinkState, readDeepLinkState } from "./utils/deepLinkState";
 import { buildAgentChatPath } from "./utils/navigation";
+import { changedToolGroups } from "./utils/toolGroups";
 import {
 	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildPrompt,
@@ -268,8 +269,14 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		organizationId,
 		projectId: formProjectId,
 		planMode,
+		toolGroups,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
+		// The API stores only deviations from the defaults; the generated type
+		// is a full Record. Prototype only.
+		const changedGroups = toolGroups
+			? changedToolGroups(toolGroups)
+			: undefined;
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
 			content.push({ type: "text", text: message });
@@ -289,6 +296,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
+			tool_groups: changedGroups as
+				| Record<TypesGen.ChatToolGroup, boolean>
+				| undefined,
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
@@ -342,8 +352,12 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				// support value blocks inside try/catch.
 				const firstMessageReq: TypesGen.CreateChatMessageRequest = {
 					content,
+					// With tool sets the create request already stored the
+					// selection, so the first message does not repeat it.
 					mcp_server_ids:
-						mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+						!toolGroups && mcpServerIds && mcpServerIds.length > 0
+							? mcpServerIds
+							: undefined,
 					plan_mode: planMode === "plan" ? "plan" : undefined,
 					...(model ? { model_config_id: model } : {}),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),

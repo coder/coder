@@ -73,6 +73,7 @@ import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
 } from "./utils/sidebarTabStorage";
+import type { ToolSetsMenuState } from "./utils/toolGroups";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -179,6 +180,9 @@ type AgentChatPageViewProps = {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
+
+	// Tool sets prototype.
+	toolSets?: ToolSetsMenuState;
 };
 
 const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
@@ -318,6 +322,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
+	toolSets,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -971,6 +976,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										sshCommand={sshCommand}
 										attachedWorkspace={attachedWorkspace}
 										folder={preferredFolder}
+										toolSets={toolSets}
 									/>
 								</div>
 							)}

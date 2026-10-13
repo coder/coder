@@ -86,6 +86,10 @@ import {
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import {
+	switchableToolGroups,
+	type ToolSetsMenuState,
+} from "../utils/toolGroups";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -242,6 +246,9 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
+	// Tool sets prototype: when set, the + menu shows a Tools section,
+	// also in read-only views.
+	toolSets?: ToolSetsMenuState;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -564,6 +571,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 	fillWidth = false,
+	toolSets,
 }) => {
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -794,11 +802,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
-	const handleRemoveMcp = isReadOnlyView
-		? undefined
-		: (serverId: string) => handleMcpToggle(serverId, false);
+	const toolSetsLocked = toolSets?.lockedHint !== undefined;
+	const workspaceToolsOff =
+		toolSets !== undefined && !toolSets.values.workspace;
+	const handleRemoveMcp =
+		isReadOnlyView || toolSetsLocked
+			? undefined
+			: (serverId: string) => handleMcpToggle(serverId, false);
 
 	const handlePlanModeToggle = () => {
+		if (workspaceToolsOff) {
+			return;
+		}
 		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
@@ -1522,12 +1537,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									size="icon"
 									className={cn(
 										"size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0",
-										isReadOnlyView && "hidden",
+										isReadOnlyView && !toolSets && "hidden",
 									)}
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
-										!canUseWorkspacePicker
+										!canUseWorkspacePicker &&
+										!toolSets
 									}
 									aria-label="More options"
 								>
@@ -1562,7 +1578,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</div>
 								) : (
 									<>
-										{onAttach && (
+										{onAttach && !isReadOnlyView && (
 											<button
 												type="button"
 												onClick={() => {
@@ -1576,23 +1592,65 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										<button
-											type="button"
-											role="menuitemcheckbox"
-											aria-checked={planModeEnabled}
-											onClick={handlePlanModeToggle}
-											disabled={isDisabled}
-											className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											<PencilIcon className="size-3.5 shrink-0" />
-											<span>Plan first</span>
-											{planModeEnabled && (
-												<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-											)}
-										</button>
+										{!isReadOnlyView &&
+											(workspaceToolsOff ? (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															role="menuitemcheckbox"
+															aria-checked={planModeEnabled}
+															aria-disabled="true"
+															onClick={handlePlanModeToggle}
+															className="group flex h-8 w-full cursor-not-allowed items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary opacity-50 shadow-none"
+														>
+															<PencilIcon className="size-3.5 shrink-0" />
+															<span>Plan first</span>
+															{planModeEnabled && (
+																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+															)}
+														</button>
+													</TooltipTrigger>
+													<TooltipContent side="right">
+														Plan mode needs Workspace tools.
+													</TooltipContent>
+												</Tooltip>
+											) : (
+												<button
+													type="button"
+													role="menuitemcheckbox"
+													aria-checked={planModeEnabled}
+													onClick={handlePlanModeToggle}
+													disabled={isDisabled}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													<PencilIcon className="size-3.5 shrink-0" />
+													<span>Plan first</span>
+													{planModeEnabled && (
+														<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+													)}
+												</button>
+											))}
 										{workspaceOptions &&
 											onWorkspaceChange &&
-											(isBelowMdViewport() ? (
+											(workspaceToolsOff ? (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															aria-disabled="true"
+															className="group flex h-8 w-full cursor-not-allowed items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary opacity-50 shadow-none"
+														>
+															<MonitorIcon className="size-3.5 shrink-0" />
+															<span>Attach workspace</span>
+															<ChevronRightIcon className="ml-auto size-icon-sm" />
+														</button>
+													</TooltipTrigger>
+													<TooltipContent side="right">
+														Turn on Workspace tools to attach a workspace.
+													</TooltipContent>
+												</Tooltip>
+											) : isBelowMdViewport() ? (
 												<button
 													type="button"
 													disabled={!canUseWorkspacePicker}
@@ -1643,6 +1701,45 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 													</PopoverContent>
 												</Popover>
 											))}
+										{toolSets && (
+											<>
+												{!isReadOnlyView && <Separator className="my-1" />}
+												<div className="px-1 pt-1 text-xs font-medium text-content-primary">
+													Tools
+												</div>
+												<div className="px-1 pb-1 text-[11px] text-content-secondary">
+													{toolSets.lockedHint ??
+														"Changes apply to your next message."}
+												</div>
+												{switchableToolGroups.map((group) => {
+													const checked = toolSets.values[group.id];
+													return (
+														<div
+															key={group.id}
+															className="flex items-center gap-1.5 px-1 py-1.5"
+														>
+															<div className="flex min-w-0 flex-1 flex-col">
+																<span className="truncate text-xs text-content-secondary">
+																	{group.label}
+																</span>
+																<span className="truncate text-[11px] text-content-disabled">
+																	{group.description}
+																</span>
+															</div>
+															<Switch
+																size="sm"
+																checked={checked}
+																onCheckedChange={(next) =>
+																	toolSets.onChange(group.id, next)
+																}
+																disabled={toolSetsLocked}
+																aria-label={`${checked ? "Disable" : "Enable"} ${group.label}`}
+															/>
+														</div>
+													);
+												})}
+											</>
+										)}
 										{enabledMcpServers.length > 0 && (
 											<>
 												<Separator className="my-1" />
@@ -1722,7 +1819,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 																		onCheckedChange={(checked) =>
 																			handleMcpToggle(server.id, checked)
 																		}
-																		disabled={isDisabled || isForceOn}
+																		disabled={
+																			isDisabled || isForceOn || toolSetsLocked
+																		}
 																		aria-label={
 																			isForceOn
 																				? `${server.display_name} always on`

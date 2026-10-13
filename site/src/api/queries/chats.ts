@@ -1916,6 +1916,154 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
+type UpdateChatToolGroupsVariables = {
+	chatId: string;
+	group: TypesGen.ChatToolGroup;
+	// null resets the group to its default.
+	value: boolean | null;
+};
+
+// The API sends only the stored choices, so the generated full Record type
+// does not match the wire shape. Prototype only.
+const patchStoredToolGroups = (
+	stored: TypesGen.Chat["tool_groups"] | undefined,
+	group: TypesGen.ChatToolGroup,
+	value: boolean | null,
+): TypesGen.Chat["tool_groups"] => {
+	const next: Partial<Record<TypesGen.ChatToolGroup, boolean>> = {
+		...stored,
+	};
+	if (value === null) {
+		delete next[group];
+	} else {
+		next[group] = value;
+	}
+	return next as TypesGen.Chat["tool_groups"];
+};
+
+export const updateChatToolGroups = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, group, value }: UpdateChatToolGroupsVariables) =>
+		API.experimental.updateChat(chatId, {
+			tool_groups: { [group]: value } as Record<
+				TypesGen.ChatToolGroup,
+				boolean | null
+			>,
+		}),
+	onMutate: async ({ chatId, group, value }: UpdateChatToolGroupsVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? {
+							...chat,
+							tool_groups: patchStoredToolGroups(
+								chat.tool_groups,
+								group,
+								value,
+							),
+						}
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				tool_groups: patchStoredToolGroups(
+					previousChat.tool_groups,
+					group,
+					value,
+				),
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatToolGroupsVariables,
+		context: { previousChat?: TypesGen.Chat } | undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? { ...chat, tool_groups: previousChat.tool_groups }
+						: chat,
+				),
+			);
+			patchChatEntity(queryClient, chatId, () => previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatToolGroupsVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+	},
+});
+
+type UpdateChatMCPServersVariables = {
+	chatId: string;
+	mcpServerIds: string[];
+};
+
+export const updateChatMCPServers = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, mcpServerIds }: UpdateChatMCPServersVariables) =>
+		API.experimental.updateChat(chatId, { mcp_server_ids: mcpServerIds }),
+	onMutate: async ({ chatId, mcpServerIds }: UpdateChatMCPServersVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, mcp_server_ids: mcpServerIds } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				mcp_server_ids: mcpServerIds,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatMCPServersVariables,
+		context: { previousChat?: TypesGen.Chat } | undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? { ...chat, mcp_server_ids: previousChat.mcp_server_ids }
+						: chat,
+				),
+			);
+			patchChatEntity(queryClient, chatId, () => previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatMCPServersVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+	},
+});
+
 type ChatListSnapshot = ReadonlyArray<
 	readonly [QueryKey, InfiniteChatsCacheData]
 >;

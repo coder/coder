@@ -209,6 +209,7 @@ const makeChat = (
 	owner_username: "owner",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	tool_groups: {} as TypesGen.Chat["tool_groups"],
 	labels: {},
 	title: `Chat ${id}`,
 	title_source: "generated",

@@ -32,6 +32,7 @@ export const MockChat: Chat = {
 	shared: false,
 	pin_order: 0,
 	mcp_server_ids: [],
+	tool_groups: {} as Chat["tool_groups"],
 	labels: {},
 	has_unread: false,
 	client_type: "ui",

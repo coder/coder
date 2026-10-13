@@ -63,6 +63,7 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 		useDashboard: () => ({
 			organizations: [MockDefaultOrganization, MockOrganization2],
 			showOrganizations: dashboard.showOrganizations,
+			experiments: [],
 		}),
 	};
 });

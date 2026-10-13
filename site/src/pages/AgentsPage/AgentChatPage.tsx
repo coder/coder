@@ -25,7 +25,9 @@ import {
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
+	updateChatMCPServers,
 	updateChatPlanMode,
+	updateChatToolGroups,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
@@ -60,7 +62,10 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
+import {
+	getParentChatID,
+	getWorkspaceAgent,
+} from "./components/ChatConversation/chatHelpers";
 import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
@@ -99,6 +104,11 @@ import {
 	resolveModelSelector,
 } from "./utils/modelOptions";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
+import {
+	getEffectiveToolGroups,
+	type ToolSetsMenuState,
+	toolGroupPatchValue,
+} from "./utils/toolGroups";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
@@ -182,6 +192,7 @@ const AgentChatPage: React.FC = () => {
 			organization.id === chatOrganizationId && organization.is_default,
 	);
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
+	const toolSetsEnabled = experiments.includes("chat-tool-sets");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
@@ -192,8 +203,23 @@ const AgentChatPage: React.FC = () => {
 		string[] | null
 	>(null);
 
+	const updateChatMCPServersBase = updateChatMCPServers(queryClient);
+	const { mutate: updateChatMCPServersMutate } = useMutation({
+		...updateChatMCPServersBase,
+		onError: (error, variables, context) => {
+			updateChatMCPServersBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to update MCP servers."));
+		},
+	});
+
 	const handleMCPSelectionChange = (ids: string[]) => {
-		setSelectedMCPServerIds(ids);
+		if (toolSetsEnabled) {
+			// With tool sets, the chat stores the selection at once and the
+			// composer reads it back from chat.mcp_server_ids.
+			updateChatMCPServersMutate({ chatId: agentId, mcpServerIds: ids });
+		} else {
+			setSelectedMCPServerIds(ids);
+		}
 		if (chatOrganizationId) {
 			saveMCPSelection(chatOrganizationId, ids);
 		}
@@ -350,6 +376,32 @@ const AgentChatPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to update plan mode."));
 		},
 	});
+	const updateChatToolGroupsBase = updateChatToolGroups(queryClient);
+	const { mutate: updateChatToolGroupsMutate } = useMutation({
+		...updateChatToolGroupsBase,
+		onError: (error, variables, context) => {
+			updateChatToolGroupsBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to update tools."));
+		},
+	});
+	const toolSets: ToolSetsMenuState | undefined =
+		toolSetsEnabled && chat
+			? {
+					values: getEffectiveToolGroups(chat.tool_groups),
+					onChange: (group, enabled) =>
+						updateChatToolGroupsMutate({
+							chatId: agentId,
+							group,
+							value: toolGroupPatchValue(group, enabled),
+						}),
+					lockedHint: isViewerNotOwner
+						? "Only the chat owner can change tools."
+						: getParentChatID(chat) !== undefined
+							? "A sub-agent uses the tools of its parent."
+							: undefined,
+				}
+			: undefined;
+
 	const setCachedChatPlanMode = (
 		chatId: string,
 		planMode?: TypesGen.ChatPlanMode,
@@ -639,7 +691,7 @@ const AgentChatPage: React.FC = () => {
 		effectiveSelectedModel,
 		modelOptions,
 		effectiveReasoningEffort,
-		mcpServerIds: effectiveMCPServerIds,
+		mcpServerIds: toolSetsEnabled ? undefined : effectiveMCPServerIds,
 		editMessage,
 		sendMessage,
 		onRequestError: handleRequestError,
@@ -801,6 +853,7 @@ const AgentChatPage: React.FC = () => {
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
 					onMCPAuthComplete={handleMCPAuthComplete}
+					toolSets={toolSets}
 				/>
 			)}
 		</>

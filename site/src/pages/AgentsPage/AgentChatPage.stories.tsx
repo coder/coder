@@ -182,6 +182,7 @@ const baseChatFields = {
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
+	tool_groups: {} as TypesGen.Chat["tool_groups"],
 	labels: {},
 	title_source: "generated",
 	title_updated_at: "2026-02-18T00:00:00.000Z",
