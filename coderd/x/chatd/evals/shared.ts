@@ -161,25 +161,12 @@ export function configureSuite(evals: ExperimentBuilder, opts: SuiteOptions): Su
     args: { mode: "checks", checks: "{{checks}}" },
   });
   // Hidden tests run as a command grader in the rehydrated workspace, which
-  // run.sh executes only inside the isolated grading container. The grader
-  // environment has no HOME, so every toolchain cache points at /tmp.
+  // run.sh executes only inside the isolated grading container.
   const hiddenGrader = evals.customGrader("hidden_tests", {
     type: "command",
     run: "{{script}}",
     timeout_s: 600,
     params: ["script"],
-    env: {
-      GOCACHE: "/tmp/chatd-eval-go/cache",
-      GOPATH: "/tmp/chatd-eval-go/path",
-      GOMODCACHE: "/tmp/chatd-eval-go/mod",
-      GOFLAGS: "-mod=mod",
-      GOPROXY: "off",
-      GOTOOLCHAIN: "local",
-      GOTELEMETRY: "off",
-      XDG_CACHE_HOME: "/tmp/chatd-eval-xdg",
-      PYTHONDONTWRITEBYTECODE: "1",
-      NO_COLOR: "1",
-    },
   });
 
   evals.suite(opts.id, { setup: opts.setup ?? [], defaultGraders: [] });
@@ -240,6 +227,21 @@ export function configureSuite(evals: ExperimentBuilder, opts: SuiteOptions): Su
   return { checks, guardrails, hidden, addCase, wanted };
 }
 
+const hiddenTestEnv: Record<string, string> = {
+  HOME: "/tmp/chatd-eval-home",
+  GOCACHE: "/tmp/chatd-eval-go/cache",
+  GOPATH: "/tmp/chatd-eval-go/path",
+  GOMODCACHE: "/tmp/chatd-eval-go/mod",
+  GOFLAGS: "-mod=mod",
+  GOPROXY: "off",
+  GOTOOLCHAIN: "local",
+  GOTELEMETRY: "off",
+  XDG_CACHE_HOME: "/tmp/chatd-eval-xdg",
+  npm_config_cache: "/tmp/chatd-eval-npm",
+  PYTHONDONTWRITEBYTECODE: "1",
+  NO_COLOR: "1",
+};
+
 /**
  * Builds the hidden-test command for a golden case: it writes the files
  * under hidden/ into the graded workspace and runs golden.json's command.
@@ -252,7 +254,10 @@ export function hiddenTestScript(goldenDir: URL): string {
   if (typeof golden.command !== "string" || golden.command === "") {
     throw new Error(`${root}golden.json: command is required`);
   }
-  const lines = ["set -e"];
+  // The aegis collector runs command graders with only the base repo env,
+  // not the grader's own env map, and there is no HOME in the grading
+  // container, so the script points every toolchain cache at /tmp itself.
+  const lines = ["set -e", ...Object.entries(hiddenTestEnv).map(([k, v]) => `export ${k}='${v}'`)];
   const hiddenDir = join(root, "hidden");
   for (const file of listFiles(hiddenDir)) {
     const rel = relative(hiddenDir, file).split(sep).join("/");
