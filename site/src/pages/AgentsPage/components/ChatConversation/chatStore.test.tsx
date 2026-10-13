@@ -1545,7 +1545,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Stream state should still be present — the mismatched event
+		// Stream state should still be present: the mismatched event
 		// was filtered and did not trigger a stream reset.
 		await waitFor(() => {
 			expect(result.current.streamState?.blocks).toEqual([
@@ -1767,7 +1767,7 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Stream state should be null — the status change cleared it,
+		// Stream state should be null: the status change cleared it,
 		// and the deferred applyMessageParts should not have
 		// re-populated it.
 		await waitFor(() => {
