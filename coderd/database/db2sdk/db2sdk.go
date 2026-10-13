@@ -1806,6 +1806,45 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	}
 }
 
+func OrganizationAIModelPrices(dbPrices []database.GetOrganizationAIModelPricesRow) []codersdk.OrganizationAIModelPrice {
+	out := make([]codersdk.OrganizationAIModelPrice, 0, len(dbPrices))
+	for _, dbPrice := range dbPrices {
+		out = append(out, OrganizationAIModelPrice(dbPrice))
+	}
+	return out
+}
+
+func OrganizationAIModelPrice(dbPrice database.GetOrganizationAIModelPricesRow) codersdk.OrganizationAIModelPrice {
+	return codersdk.OrganizationAIModelPrice{
+		Scope:           aiModelPriceScope(dbPrice.Kind),
+		OrganizationID:  nullUUIDPtr(dbPrice.OrganizationID),
+		ProviderID:      nullUUIDPtr(dbPrice.ProviderID),
+		ProviderName:    dbPrice.ProviderName.String,
+		Provider:        dbPrice.Provider,
+		Model:           dbPrice.Model,
+		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
+		CreatedAt:       dbPrice.CreatedAt,
+		UpdatedAt:       dbPrice.UpdatedAt,
+	}
+}
+
+// aiModelPriceScope reports what a matched price applies to. Both site-wide
+// kinds share a scope, since the price's source tells them apart.
+func aiModelPriceScope(kind database.AIModelPriceKind) codersdk.AIModelPriceScope {
+	switch kind {
+	case database.AIModelPriceKindOrganizationProvider:
+		return codersdk.AIModelPriceScopeOrganizationProvider
+	case database.AIModelPriceKindOrganizationProviderType:
+		return codersdk.AIModelPriceScopeOrganizationProviderType
+	default:
+		return codersdk.AIModelPriceScopeSite
+	}
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil
