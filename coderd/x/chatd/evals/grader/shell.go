@@ -19,6 +19,22 @@ type shellCommand struct {
 	// Stdin holds the source text of here-documents and here-strings fed
 	// to the command.
 	Stdin []string
+	// Pos orders the command within its execute call (see scriptPos).
+	Pos scriptPos
+}
+
+// scriptPos is the source offset of a command or statement in an execute
+// command, preceded by the offsets of the shell commands that run it as a
+// nested script (bash -c '...'), so slices.Compare orders two positions of
+// one call the way the shell runs them. Wrapped commands share their
+// wrapper's position.
+type scriptPos []uint
+
+// outputRedirect is a file target of an output redirection.
+type outputRedirect struct {
+	Target string
+	// Pos is the position of the redirected statement.
+	Pos scriptPos
 }
 
 func (c shellCommand) program() string {
@@ -32,7 +48,7 @@ func (c shellCommand) program() string {
 type shellScript struct {
 	Commands []shellCommand
 	// OutputFiles lists file targets of output redirections.
-	OutputFiles []string
+	OutputFiles []outputRedirect
 	// Backgrounded is true when any statement ends with '&'.
 	Backgrounded bool
 }
@@ -62,7 +78,7 @@ func parseShell(src string) (shellScript, bool) {
 			call, _ := n.Cmd.(*syntax.CallExpr)
 			for _, r := range n.Redirs {
 				if target, ok := outputRedirectTarget(r); ok {
-					out.OutputFiles = append(out.OutputFiles, target)
+					out.OutputFiles = append(out.OutputFiles, outputRedirect{Target: target, Pos: scriptPos{n.Pos().Offset()}})
 				}
 				if call == nil {
 					continue
@@ -82,6 +98,7 @@ func parseShell(src string) (shellScript, bool) {
 				Args:   make([]string, 0, len(n.Args)),
 				Source: make([]string, 0, len(n.Args)),
 				Stdin:  stdin[n],
+				Pos:    scriptPos{n.Pos().Offset()},
 			}
 			for _, w := range n.Args {
 				cmd.Args = append(cmd.Args, literalWord(w))
@@ -178,10 +195,15 @@ func directlyWrapped(c shellCommand) []shellCommand {
 			split, hasSplit = value, true
 		case prog == "xargs" && name == "I":
 			replaceWith = value
-		case prog == "xargs" && (a == "-i" || a == "--replace"):
+		case prog == "xargs" && (strings.HasPrefix(a, "-i") || strings.HasPrefix(a, "--replace=")):
+			// -iSTR and --replace=STR attach the string; bare -i and
+			// --replace mean {}.
+			replaceWith = strings.TrimPrefix(strings.TrimPrefix(a, "--replace="), "-i")
+			if replaceWith == "" {
+				replaceWith = "{}"
+			}
+		case prog == "xargs" && a == "--replace":
 			replaceWith = "{}"
-		case prog == "xargs" && strings.HasPrefix(a, "--replace="):
-			replaceWith = strings.TrimPrefix(a, "--replace=")
 		}
 		i = next
 	}
@@ -191,7 +213,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin}
+	inner := shellCommand{Stdin: c.Stdin, Pos: c.Pos}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -309,7 +331,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, Pos: c.Pos})
 		}
 		i = end
 	}
@@ -475,9 +497,9 @@ var readCommandValueFlags = map[string]struct {
 // that chatd's prompt routes to read_file, edit_files, and write_file.
 func fileIOFindings(s shellScript) []string {
 	var out []string
-	for _, target := range s.OutputFiles {
-		if !harmlessOutput(target) {
-			out = append(out, "redirects output to "+target)
+	for _, r := range s.OutputFiles {
+		if !harmlessOutput(r.Target) {
+			out = append(out, "redirects output to "+r.Target)
 		}
 	}
 	for _, c := range s.Commands {
@@ -785,7 +807,8 @@ func interpreterEditFindings(s shellScript) []string {
 
 // withNestedShells returns s followed by the scripts that its shell
 // commands run: bash -c '...' arguments and here-documents fed to a
-// shell. Nesting stops after a few levels.
+// shell, positioned under the shell command that runs them. Nesting stops
+// after a few levels.
 func withNestedShells(s shellScript) []shellScript {
 	out := []shellScript{s}
 	for depth, next := 0, []shellScript{s}; depth < 3 && len(next) > 0; depth++ {
@@ -797,13 +820,63 @@ func withNestedShells(s shellScript) []shellScript {
 				}
 				for _, src := range append(codeArgs(c.Args, c.Args, "c", nil), c.Stdin...) {
 					if nested, ok := parseShell(src); ok && src != "" {
-						found = append(found, nested)
+						found = append(found, nestUnder(nested, c.Pos))
 					}
 				}
 			}
 		}
 		out = append(out, found...)
 		next = found
+	}
+	return out
+}
+
+// nestUnder prefixes every position in s with the position of the shell
+// command that runs it.
+func nestUnder(s shellScript, outer scriptPos) shellScript {
+	for i := range s.Commands {
+		s.Commands[i].Pos = append(slices.Clone(outer), s.Commands[i].Pos...)
+	}
+	for i := range s.OutputFiles {
+		s.OutputFiles[i].Pos = append(slices.Clone(outer), s.OutputFiles[i].Pos...)
+	}
+	return s
+}
+
+// fileEdit is a place in an execute command that changes files.
+type fileEdit struct {
+	Pos scriptPos
+	// Deletion is set for rm and find -delete, which also clean up
+	// scratch files after a test.
+	Deletion bool
+}
+
+// executeEdits returns the places where an execute command changes files:
+// redirects and tee outside /tmp and /dev, in-place editors, inline
+// interpreter code that writes, and shell file commands.
+func executeEdits(command string) []fileEdit {
+	script, ok := parseShell(command)
+	if !ok {
+		return nil
+	}
+	var out []fileEdit
+	for _, s := range withNestedShells(script) {
+		for _, r := range s.OutputFiles {
+			if !harmlessOutput(r.Target) {
+				out = append(out, fileEdit{Pos: r.Pos})
+			}
+		}
+		for _, c := range s.Commands {
+			one := shellScript{Commands: []shellCommand{c}}
+			writes := len(interpreterEditFindings(one)) > 0 || slices.ContainsFunc(fileIOFindings(one), func(f string) bool {
+				return !strings.Contains(f, " reads ")
+			})
+			if !writes && len(fileChangeFindings(one)) == 0 {
+				continue
+			}
+			prog := c.program()
+			out = append(out, fileEdit{Pos: c.Pos, Deletion: !writes && (prog == "rm" || prog == "find")})
+		}
 	}
 	return out
 }
@@ -936,14 +1009,22 @@ func hasPlusRefspec(args []string) bool {
 	return false
 }
 
+// detachedHead is the branch name git prints in the summary line of a
+// commit made on no branch.
+const detachedHead = "detached HEAD"
+
 // branchSwitch reports how a command changes the checked-out branch:
-// the new branch name, and whether the command switched at all.
+// the new branch name (detachedHead for --detach), and whether the
+// command switched at all.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
 	case "checkout", "switch":
 	default:
 		return "", false
+	}
+	if slices.Contains(args, "--detach") || (sub == "switch" && slices.Contains(args, "-d")) {
+		return detachedHead, true
 	}
 	for i, a := range args {
 		if a == "-b" || a == "-B" || a == "-c" || a == "-C" || a == "--create" || a == "--force-create" || a == "--orphan" {
@@ -966,4 +1047,41 @@ func branchSwitch(c shellCommand) (string, bool) {
 func isGitCommit(c shellCommand) bool {
 	sub, _ := gitSubcommand(c)
 	return sub == "commit"
+}
+
+// commitValueOptions lists the git commit long options that take a
+// separate value, so a message such as -m -q is not read as an option.
+var commitValueOptions = []string{
+	"--message", "--file", "--reuse-message", "--reedit-message", "--fixup", "--squash",
+	"--author", "--date", "--template", "--cleanup", "--trailer", "--pathspec-from-file",
+}
+
+// quietCommit reports whether git commit runs with -q or --quiet, which
+// print no summary line.
+func quietCommit(c shellCommand) bool {
+	_, args := gitSubcommand(c)
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			return false
+		}
+		if a == "--quiet" {
+			return true
+		}
+		if len(a) > 1 && a[0] == '-' && a[1] != '-' {
+			for _, letter := range a[1:] {
+				if letter == 'q' {
+					return true
+				}
+				// The rest of the cluster is this option's value.
+				if strings.ContainsRune("mFCctSu", letter) {
+					break
+				}
+			}
+		}
+		if takesValue(a, "mFCct", commitValueOptions) {
+			i++
+		}
+	}
+	return false
 }

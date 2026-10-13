@@ -33,9 +33,10 @@ const caseFilter = new Set(
 
 /**
  * USD per million tokens, from coderd/aibridge/prices/data/prices.json.
- * These extend aegis's built-in catalog (internal/trace/pricing.yaml).
- * `aegis validate` rejects a subject model priced in neither, so an
- * unpriced pin fails before any trial runs.
+ * These extend the pinned aegis's own catalog (internal/trace/pricing.yaml
+ * at AEGIS_REF_DEFAULT in run.sh). `aegis validate` rejects a subject model
+ * priced in neither, naming it, so an unpriced pin fails before any trial
+ * runs.
  */
 const pricing = {
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },

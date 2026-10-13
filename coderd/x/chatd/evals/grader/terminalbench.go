@@ -544,18 +544,24 @@ func gradeTerminalBench(req graderRequest, stderr io.Writer) (graderVerdict, err
 		return graderVerdict{Passed: false, Reason: "verifier failed to run: " + err.Error()}, nil
 	}
 	_, _ = fmt.Fprintf(stderr, "terminal-bench %s: reward %q, logs %s\n", task, res.Reward, res.LogsDir)
-	// No reward.txt means the tests did not finish: reward 0. Any other
-	// value that is not a number is a verifier defect, not a task failure.
+	return rewardVerdict(task, res.Reward, res.LogsDir)
+}
+
+// rewardVerdict turns the verifier's reward.txt content into a verdict.
+// No reward.txt means the tests did not finish: reward 0. Any other value
+// that is not a number is a verifier defect, not a task failure.
+func rewardVerdict(task, raw, logsDir string) (graderVerdict, error) {
 	reward := 0.0
-	if res.Reward != "" {
-		reward, err = strconv.ParseFloat(res.Reward, 64)
+	if raw != "" {
+		var err error
+		reward, err = strconv.ParseFloat(raw, 64)
 		if err != nil {
-			return graderVerdict{}, xerrors.Errorf("terminal-bench %s: reward %q is not a number (verifier logs: %s): %w", task, res.Reward, res.LogsDir, err)
+			return graderVerdict{}, xerrors.Errorf("terminal-bench %s: reward %q is not a number (verifier logs: %s): %w", task, raw, logsDir, err)
 		}
 	}
 	return graderVerdict{
-		Passed:  res.Reward == "1",
-		Reason:  fmt.Sprintf("reward %q (verifier logs: %s)", res.Reward, res.LogsDir),
+		Passed:  raw != "" && reward == 1,
+		Reason:  fmt.Sprintf("reward %q (verifier logs: %s)", raw, logsDir),
 		Metrics: map[string]any{"reward": reward},
 	}, nil
 }
@@ -598,16 +604,21 @@ func tbSelfCheckCommand(args []string, stdout io.Writer) error {
 		if !ok {
 			return xerrors.Errorf("task %q was not imported", id)
 		}
-		for _, run := range []struct{ label, want, solution string }{
-			{"solution", "1", seed.SolutionDir},
-			{"seed", "0", ""},
+		for _, run := range []struct {
+			label, want, solution string
+			reward                float64
+		}{
+			{"solution", "1", seed.SolutionDir, 1},
+			{"seed", "0", "", 0},
 		} {
 			got, logs, err := selfCheckOnce(ctx, *tbDir, id, run.label, seed, run.solution)
 			if err != nil {
 				return xerrors.Errorf("%s %s: %w", id, run.label, err)
 			}
 			status := "ok"
-			if got != run.want {
+			// The self-check needs a reward file: a verifier that never
+			// wrote one did not prove the seed fails.
+			if reward, err := strconv.ParseFloat(got, 64); err != nil || reward != run.reward {
 				status = "FAIL"
 				failures = append(failures, fmt.Sprintf("%s %s: reward %q, want %s (logs %s)", id, run.label, got, run.want, logs))
 			}

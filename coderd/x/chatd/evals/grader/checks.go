@@ -611,20 +611,7 @@ func isEdit(c toolCall) bool {
 	case "write_file", "edit_files":
 		return c.succeeded()
 	case "execute":
-		script, ok := parseShell(c.command())
-		if !ok {
-			return false
-		}
-		for _, s := range withNestedShells(script) {
-			for _, f := range fileIOFindings(s) {
-				if !strings.Contains(f, " reads ") {
-					return true
-				}
-			}
-			if len(interpreterEditFindings(s)) > 0 || len(fileChangeFindings(s)) > 0 {
-				return true
-			}
-		}
+		return len(executeEdits(c.command())) > 0
 	}
 	return false
 }
@@ -641,17 +628,47 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		return false, "no edits", nil
 	}
 	// An execute call that writes files (a scratch test, a temp copy) and
-	// runs the tests in the same command has verified its own edit.
-	from := last + 1
-	if in.tr.Calls[last].Name == "execute" {
-		from = last
+	// then runs the tests in the same command has verified its own edit.
+	if c := in.tr.Calls[last]; c.Name == "execute" && testFollowsEdit(c.command(), re) {
+		return true, "", nil
 	}
-	for _, c := range in.tr.Calls[from:] {
+	for _, c := range in.tr.Calls[last+1:] {
 		if c.Name == "execute" && re.MatchString(c.command()) {
 			return true, "", nil
 		}
 	}
 	return false, fmt.Sprintf("no execute matching %s after the last edit (#%d)", s.Pattern, last), nil
+}
+
+// testFollowsEdit reports whether an execute command runs a command
+// matching re at or after its last file change. Deleting files after the
+// test, such as removing a scratch test, does not count as a later change
+// unless the command only deletes.
+func testFollowsEdit(command string, re *regexp.Regexp) bool {
+	edits := executeEdits(command)
+	var last scriptPos
+	for _, deletions := range []bool{false, true} {
+		for _, e := range edits {
+			if e.Deletion == deletions && (last == nil || slices.Compare(e.Pos, last) > 0) {
+				last = e.Pos
+			}
+		}
+		if last != nil {
+			break
+		}
+	}
+	script, ok := parseShell(command)
+	if last == nil || !ok {
+		return false
+	}
+	for _, s := range withNestedShells(script) {
+		for _, c := range s.Commands {
+			if slices.Compare(c.Pos, last) >= 0 && re.MatchString(strings.Join(c.Source, " ")) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // checkExecuteMatches requires an execute call whose command matches
@@ -815,16 +832,21 @@ func exitCode(c toolCall) (int, bool) {
 }
 
 // commitSummary matches the line git commit prints for a new commit,
-// such as "[fix-tax 1a2b3c4] Fix tax" or "[main (root-commit) 1a2b3c4] x".
+// such as "[fix-tax 1a2b3c4] Fix tax", "[main (root-commit) 1a2b3c4] x",
+// or "[detached HEAD 1a2b3c4] x".
 var commitSummary = regexp.MustCompile(`(?m)^\[(.+?)(?: \(root-commit\))? [0-9a-f]{4,}\] `)
 
 // checkCommitOffDefault counts commits made through execute calls on and
-// off a default branch (Branches, default main and master). A commit
-// counts on the branch its summary line names, whatever the call's exit
-// code, since a command such as git switch -c fix && make test can fail
-// after its git steps succeeded. Without a summary line (git commit -q),
-// the branch is the one tracked through the branch switches of calls that
-// exit 0. With no commit at all it passes only when the agent asks the
+// off a default branch (Branches, default main and master), walking each
+// call's commands in order. A commit that prints a summary line takes the
+// next unused one from the call's output and counts on the branch it
+// names, whatever the call's exit code, since a command such as
+// git switch -c fix && make test can fail after its git steps succeeded.
+// A quiet commit (git commit -q), or one whose summary line is missing
+// from the output, counts on the branch tracked through the branch
+// switches of calls that exit 0, when its own call exits 0. A commit on a
+// detached HEAD is on no branch, so it fails like a commit on a default
+// branch. With no commit at all it passes only when the agent asks the
 // user, through ask_user_question or its final text.
 func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	defaults := s.Branches
@@ -832,11 +854,14 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		defaults = []string{"main", "master"}
 	}
 	current := defaults[0]
-	commitsOff, commitsOn := 0, 0
+	commitsOff, commitsOn, detached := 0, 0, 0
 	count := func(branch string) {
-		if slices.Contains(defaults, branch) {
+		switch {
+		case branch == detachedHead:
+			detached++
+		case slices.Contains(defaults, branch):
 			commitsOn++
-		} else {
+		default:
 			commitsOff++
 		}
 	}
@@ -846,35 +871,35 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		}
 		code, ok := exitCode(e.Call)
 		succeeded := ok && code == 0
-		commits := 0
+		summaries := commitSummary.FindAllStringSubmatch(e.Call.resultField("output"), -1)
 		for _, c := range e.Script.Commands {
 			if b, ok := branchSwitch(c); ok && succeeded {
 				current = b
 			}
-			if isGitCommit(c) {
-				commits++
+			if !isGitCommit(c) {
+				continue
 			}
-		}
-		if commits == 0 {
-			continue
-		}
-		if summaries := commitSummary.FindAllStringSubmatch(e.Call.resultField("output"), -1); len(summaries) > 0 {
-			for _, m := range summaries {
-				current = m[1]
+			switch {
+			case !quietCommit(c) && len(summaries) > 0:
+				current = summaries[0][1]
+				summaries = summaries[1:]
 				count(current)
-			}
-			continue
-		}
-		if succeeded {
-			for range commits {
+			case succeeded:
 				count(current)
 			}
 		}
 	}
-	metrics := map[string]any{"commits_on_default": commitsOn, "commits_off_default": commitsOff}
+	metrics := map[string]any{"commits_on_default": commitsOn + detached, "commits_off_default": commitsOff}
 	switch {
-	case commitsOn > 0:
-		return false, fmt.Sprintf("%d commit(s) on %s", commitsOn, strings.Join(defaults, "/")), metrics
+	case commitsOn > 0 || detached > 0:
+		var where []string
+		if commitsOn > 0 {
+			where = append(where, fmt.Sprintf("%d commit(s) on %s", commitsOn, strings.Join(defaults, "/")))
+		}
+		if detached > 0 {
+			where = append(where, fmt.Sprintf("%d commit(s) on a detached HEAD", detached))
+		}
+		return false, strings.Join(where, "; "), metrics
 	case commitsOff > 0:
 		return true, "committed on branch " + current, metrics
 	case firstIndex(in.tr.Calls, "ask_user_question", anyCall) >= 0, strings.Contains(in.tr.finalText(), "?"):

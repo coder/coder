@@ -25,6 +25,11 @@ func TestSummarizeRun(t *testing.T) {
 	// A failure line without the words error or fail still gives a reason.
 	writeTrial("case-a__control__r4", "AGENT_FAILED",
 		tarEntry{hdr: tar.Header{Name: "stdout.log", Typeflag: tar.TypeReg, Mode: 0o644}, body: "starting\nsidecar coderagents: get workspace: context deadline exceeded\n\n"})
+	// The server log aegis appends to a failure is not the failure.
+	writeTrial("case-a__control__r5", "AGENT_FAILED",
+		tarEntry{hdr: tar.Header{Name: "stdout.log", Typeflag: tar.TypeReg, Mode: 0o644}, body: "starting\n" +
+			"coderagents: coder server exited during startup (exit status 1)\nserver log tail:\n" +
+			"Using built-in PostgreSQL (/tmp/coder/postgres)\nfailed to open telemetry\nStarted HTTP listener\n"})
 	// Guardrails never decide task success, so the failed guardrail leaves
 	// the graded trial successful.
 	measured := filepath.Join(derived, "case-a__control__r1")
@@ -40,16 +45,17 @@ func TestSummarizeRun(t *testing.T) {
 
 	s, err := summarizeRun(store, derived, "candidate")
 	require.NoError(t, err)
-	require.Equal(t, 4, s.Trials)
+	require.Equal(t, 5, s.Trials)
 	require.Equal(t, map[string]string{"case-a__control__r3": "infra_failed: sandbox start timed out"}, s.JournalOnly)
-	require.Equal(t, 2, s.Ungraded)
-	require.Len(t, s.Failures, 2)
+	require.Equal(t, 3, s.Ungraded)
+	require.Len(t, s.Failures, 3)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)
 	require.Equal(t, "sidecar coderagents: get workspace: context deadline exceeded", s.Failures[1].FailReason)
+	require.Equal(t, "coderagents: coder server exited during startup (exit status 1)", s.Failures[2].FailReason)
 	require.Equal(t, rate{Passed: 1, Total: 1, Rate: 1, Low: s.Overall.Low, High: 1}, s.Overall)
 	require.Equal(t, 1, s.ByCase["case-a"].Passed)
 	require.Equal(t, 0, s.Graders["guardrails"].Passed)
-	require.InDelta(t, 0.75, s.CostUSD, 1e-9)
+	require.InDelta(t, 1.0, s.CostUSD, 1e-9)
 
 	var create toolRow
 	for _, row := range s.Tools {
@@ -82,6 +88,24 @@ func TestSummarizeRunKeepsArmsApart(t *testing.T) {
 		"case-a [candidate-prompt]": newRate(0, 1),
 		"case-a [control]":          newRate(1, 1),
 	}, s.ByCase)
+
+	// The bundle declares the arms: a candidate arm whose every trial
+	// failed before landing still keys the control rows by arm.
+	store, derived = t.TempDir(), t.TempDir()
+	writeSummaryTrial(t, store, "case-a__control__r1", "case-a", "control", "DONE")
+	dir := filepath.Join(derived, "case-a__control__r1")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "measurements.json"), []byte(`{"graders":{"checks":{"passed":true}}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp", "journal.json"), []byte(`{"entries":[`+
+		`{"trial_id":"case-a__control__r1","status":"completed"},`+
+		`{"trial_id":"case-a__candidate-prompt__r1","status":"infra_failed","error":"sandbox start timed out"}]}`), 0o600))
+	assets := filepath.Join(store, "bundle-assets", "0123abcd")
+	require.NoError(t, os.MkdirAll(assets, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(assets, "eval_bundle.json"), []byte(
+		`{"experiment":{"variants":[{"id":"control"},{"id":"candidate-prompt"}]}}`), 0o600))
+	s, err = summarizeRun(store, derived, "candidate")
+	require.NoError(t, err)
+	require.Equal(t, map[string]rate{"case-a [control]": newRate(1, 1)}, s.ByCase)
 }
 
 // A journal that exists but cannot be parsed hides infrastructure
@@ -93,6 +117,19 @@ func TestSummarizeRunRejectsCorruptJournal(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp", "journal.json"), []byte(`{"entries":[`), 0o600))
 	_, err := summarizeRun(store, "", "candidate")
 	require.ErrorContains(t, err, "journal.json")
+}
+
+// A store directory that cannot be read hides trials, so the summary
+// must fail, naming it, instead of reporting fewer trials.
+func TestSummarizeRunRejectsUnreadableStore(t *testing.T) {
+	t.Parallel()
+	store := t.TempDir()
+	writeSummaryTrial(t, store, "case-a__control__r1", "case-a", "control", "DONE")
+	// A regular file where an experiment directory belongs fails to read
+	// like a directory without permission, on every platform and as root.
+	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp2"), nil, 0o600))
+	_, err := summarizeRun(store, "", "candidate")
+	require.ErrorContains(t, err, "exp2")
 }
 
 func writeSummaryTrial(t *testing.T, store, id, task, variant, completion string, members ...tarEntry) {

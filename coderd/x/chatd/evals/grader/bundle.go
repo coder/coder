@@ -160,6 +160,15 @@ func parseDiff(diff []byte) (map[string][]string, map[string]bool) {
 			if current != "" {
 				deleted[current] = true
 			}
+		case !inHunk && strings.HasPrefix(line, "rename from "):
+			// The source of a rename no longer exists, so keep and path
+			// checks see both sides.
+			if p := unquoteGitPath(strings.TrimPrefix(line, "rename from ")); p != "" {
+				if _, ok := files[p]; !ok {
+					files[p] = nil
+				}
+				deleted[p] = true
+			}
 		case !inHunk && strings.HasPrefix(line, "rename to "):
 			if p := unquoteGitPath(strings.TrimPrefix(line, "rename to ")); p != "" {
 				current = p

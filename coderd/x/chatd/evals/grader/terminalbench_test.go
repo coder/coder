@@ -60,3 +60,30 @@ func TestEmptySeedPlaceholder(t *testing.T) {
 		})
 	}
 }
+
+// Task success is a full reward, however the verifier spells the number.
+func TestRewardVerdict(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		raw    string
+		passed bool
+		reward float64
+	}{
+		{"1", true, 1},
+		{"1.0", true, 1},
+		{"1.00", true, 1},
+		{"0", false, 0},
+		{"0.5", false, 0.5},
+		{"", false, 0},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			t.Parallel()
+			v, err := rewardVerdict("task", tc.raw, "/logs")
+			require.NoError(t, err)
+			require.Equal(t, tc.passed, v.Passed, v.Reason)
+			require.InDelta(t, tc.reward, v.Metrics["reward"], 1e-9)
+		})
+	}
+	_, err := rewardVerdict("task", "pass", "/logs")
+	require.ErrorContains(t, err, "not a number")
+}

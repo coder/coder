@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -144,11 +145,10 @@ func summarizeCommand(args []string, stdout io.Writer) error {
 }
 
 func summarizeRun(store, derived, label string) (*runSummary, error) {
-	bundles, err := filepath.Glob(filepath.Join(store, "bundles", "*", "*", "bundle.tar.zst"))
+	bundles, journals, err := storeFiles(store)
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(bundles)
 	s := &runSummary{
 		Label:       label,
 		Completions: map[string]int{},
@@ -179,10 +179,6 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 			}
 		}
 	}
-	journals, err := filepath.Glob(filepath.Join(store, "bundles", "*", "journal.json"))
-	if err != nil {
-		return nil, err
-	}
 	for _, j := range journals {
 		if err := readJournalFailures(j, landed, s.JournalOnly); err != nil {
 			return nil, err
@@ -190,7 +186,12 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 	}
 	// With a candidate-prompt arm, per-case rates are per case and arm, so
 	// a build comparison of two such runs compares each arm with itself.
-	arms := map[string]bool{}
+	// The bundle declares the arms, so an arm whose every trial failed
+	// before landing still counts.
+	arms, err := declaredArms(store)
+	if err != nil {
+		return nil, err
+	}
 	for _, t := range s.TrialsList {
 		arms[t.VariantID] = true
 	}
@@ -249,6 +250,90 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 	}
 	sort.Slice(s.Tools, func(i, j int) bool { return s.Tools[i].Tool < s.Tools[j].Tool })
 	return s, nil
+}
+
+// storeFiles lists a store's trial bundles and journals
+// (bundles/<experiment>/<trial>/bundle.tar.zst and
+// bundles/<experiment>/journal.json). A directory it cannot read is an
+// error: skipping it would drop its trials from the summary.
+func storeFiles(store string) (bundles, journals []string, err error) {
+	root := filepath.Join(store, "bundles")
+	experiments, err := os.ReadDir(root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, xerrors.Errorf("read %s: %w", root, err)
+	}
+	for _, exp := range experiments {
+		dir := filepath.Join(root, exp.Name())
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("read %s: %w", dir, err)
+		}
+		for _, e := range entries {
+			p := filepath.Join(dir, e.Name())
+			if e.Name() == "journal.json" {
+				journals = append(journals, p)
+				continue
+			}
+			if !e.IsDir() {
+				continue
+			}
+			bundle := filepath.Join(p, "bundle.tar.zst")
+			_, err := os.Stat(bundle)
+			switch {
+			case err == nil:
+				bundles = append(bundles, bundle)
+			case errors.Is(err, fs.ErrNotExist):
+			default:
+				return nil, nil, xerrors.Errorf("stat %s: %w", bundle, err)
+			}
+		}
+	}
+	sort.Strings(bundles)
+	return bundles, journals, nil
+}
+
+// declaredArms returns the variant ids that the store's eval bundles
+// (bundle-assets/<digest>/eval_bundle.json) declare.
+func declaredArms(store string) (map[string]bool, error) {
+	arms := map[string]bool{}
+	root := filepath.Join(store, "bundle-assets")
+	digests, err := os.ReadDir(root)
+	if errors.Is(err, fs.ErrNotExist) {
+		return arms, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("read %s: %w", root, err)
+	}
+	for _, d := range digests {
+		if !d.IsDir() {
+			continue
+		}
+		p := filepath.Join(root, d.Name(), "eval_bundle.json")
+		data, err := os.ReadFile(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("read %s: %w", p, err)
+		}
+		var bundle struct {
+			Experiment struct {
+				Variants []struct {
+					ID string `json:"id"`
+				} `json:"variants"`
+			} `json:"experiment"`
+		}
+		if err := json.Unmarshal(data, &bundle); err != nil {
+			return nil, xerrors.Errorf("parse %s: %w", p, err)
+		}
+		for _, v := range bundle.Experiment.Variants {
+			arms[v.ID] = true
+		}
+	}
+	return arms, nil
 }
 
 func summarizeTrial(bundlePath, derived string) (trialSummary, error) {
@@ -338,14 +423,23 @@ func applyMeasurements(t *trialSummary, path string) error {
 	return nil
 }
 
+// harnessLogTail starts the tail of a coder server or workspace agent log
+// that aegis appends to a failure message (logTail in its coderagents
+// driver).
+var harnessLogTail = regexp.MustCompile(`^(server|agent) log tail:$`)
+
 // lastErrorLine returns the last stdout.log line that mentions an error or
 // a failure, or else the last non-empty line, such as a deadline message.
+// Lines from an appended server or agent log are not the agent's failure.
 func lastErrorLine(log []byte) string {
 	var lastError, lastLine string
 	scanner := bufio.NewScanner(bytes.NewReader(log))
 	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		if harnessLogTail.MatchString(line) {
+			break
+		}
 		if line == "" {
 			continue
 		}

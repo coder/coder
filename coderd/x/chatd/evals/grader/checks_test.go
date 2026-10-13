@@ -3,8 +3,11 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -21,6 +24,29 @@ func TestChecks(t *testing.T) {
 		"deleted file mode 100644\n--- a/tests/test_report.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-a\n"
 	const testsEditDiff = "diff --git a/tests/test_report.py b/tests/test_report.py\n" +
 		"--- a/tests/test_report.py\n+++ b/tests/test_report.py\n@@ -1 +1,2 @@\n a\n+b\n"
+	const testsRenameDiff = "diff --git a/tests/test_report.py b/test_report.py\n" +
+		"similarity index 100%\nrename from tests/test_report.py\nrename to test_report.py\n"
+	// Synthetic transcripts of execute calls, keyed like the files in
+	// testdata/transcripts.
+	synthetic := map[string]string{
+		"quiet-commit-then-branch": executeTranscript(t, "Done.",
+			execCall{"git commit -qam wip && git checkout -b fix", "Switched to a new branch 'fix'\n", 0}),
+		"branch-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout -b fix && git commit -qam wip", "Switched to a new branch 'fix'\n", 0}),
+		"quiet-commit-beside-summary": executeTranscript(t, "Done.",
+			execCall{
+				"git checkout -b fix && git commit -m a && git checkout main && git commit -qm b",
+				"Switched to a new branch 'fix'\n[fix 1a2b3c4] a\n 1 file changed\nSwitched to branch 'main'\n", 0,
+			}),
+		"detached-commit": executeTranscript(t, "Done.",
+			execCall{"git switch --detach && git commit -am fix", "[detached HEAD 1a2b3c4] fix\n 1 file changed\n", 0}),
+		"test-then-shell-edit": executeTranscript(t, "Done.",
+			execCall{"pytest && sed -i s/a/b/ x.py", "1 passed\n", 0}),
+		"shell-edit-then-test": executeTranscript(t, "Done.",
+			execCall{"sed -i s/a/b/ x.py && pytest", "1 passed\n", 0}),
+		"shell-edit-test-edit": executeTranscript(t, "Done.",
+			execCall{"sed -i s/a/b/ x.py && pytest && sed -i s/b/c/ x.py", "1 passed\n", 0}),
+	}
 	cases := []struct {
 		name       string
 		transcript string
@@ -68,6 +94,9 @@ func TestChecks(t *testing.T) {
 		{"tested in the editing command", "edit-and-test", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
 		{"tested after an interpreter edit", "interpreter-edit", "", nil, `{"type":"test_after_edit","pattern":"unittest discover"}`, true},
 		{"tested only before an interpreter edit", "interpreter-edit", "", nil, `{"type":"test_after_edit","pattern":"unittest tests"}`, false},
+		{"tested before a shell edit in one call", "test-then-shell-edit", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, false},
+		{"tested after a shell edit in one call", "shell-edit-then-test", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, true},
+		{"edited again after the test in one call", "shell-edit-test-edit", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, false},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
 		{"shell background is not run_in_background", "shell-bad", "", nil, `{"type":"execute_matches","pattern":"server\\.py","background":true}`, false},
 		{"successful probe after start", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, true},
@@ -82,18 +111,28 @@ func TestChecks(t *testing.T) {
 		{"deleted tests", "shell-good", testsDiff, nil, `{"type":"changed_files","deny":["tests/"]}`, false},
 		{"kept tests edited", "shell-good", testsEditDiff, nil, `{"type":"changed_files","keep":["tests/"]}`, true},
 		{"kept tests deleted", "shell-good", testsDiff, nil, `{"type":"changed_files","keep":["tests/"]}`, false},
+		{"kept tests moved out", "shell-good", testsRenameDiff, nil, `{"type":"changed_files","keep":["tests/"]}`, false},
 		{"new docs file", "shell-good", editDiff, map[string]string{"NOTES.md": "x\n"}, `{"type":"changed_files","allow":["inventory/report.py"],"deny":["*.md"]}`, false},
 		{"committed on a branch", "shell-good", "", nil, `{"type":"commit_off_default"}`, true},
 		{"committed on main", "shell-bad", "", nil, `{"type":"commit_off_default"}`, false},
 		{"branch created in a failing call", "failed-probe-branch-commit", "", nil, `{"type":"commit_off_default"}`, true},
 		{"committed on main in a failing call", "commit-in-failing-call", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit before a branch switch", "quiet-commit-then-branch", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a branch switch", "branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, true},
+		{"quiet commit beside a summary line", "quiet-commit-beside-summary", "", nil, `{"type":"commit_off_default"}`, false},
+		{"commit on a detached HEAD", "detached-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"asked before committing", "plan-ask", "", nil, `{"type":"commit_off_default"}`, true},
 		{"neither committed nor asked", "detached-good", "", nil, `{"type":"commit_off_default"}`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			bundle := writeBundle(t, tc.transcript, tc.diff, tc.untracked)
+			var bundle string
+			if data, ok := synthetic[tc.transcript]; ok {
+				bundle = writeBundleData(t, []byte(data), tc.diff, tc.untracked)
+			} else {
+				bundle = writeBundle(t, tc.transcript, tc.diff, tc.untracked)
+			}
 			in, err := loadGradeInput(bundle, "")
 			require.NoError(t, err)
 			specs, err := parseChecks([]byte(`[` + addID(tc.check) + `]`))
@@ -103,6 +142,20 @@ func TestChecks(t *testing.T) {
 			require.NotEmpty(t, res.Reason)
 		})
 	}
+}
+
+// Each commit counts once, whether git prints a summary line for it or
+// it runs quietly.
+func TestCommitOffDefaultCountsEachCommit(t *testing.T) {
+	t.Parallel()
+	transcript := executeTranscript(t, "Done.", execCall{"git commit -m a && git commit -qm b", "[main 1a2b3c4] a\n 1 file changed\n", 0})
+	in, err := loadGradeInput(writeBundleData(t, []byte(transcript), "", nil), "")
+	require.NoError(t, err)
+	specs, err := parseChecks([]byte(`[{"id":"c","type":"commit_off_default"}]`))
+	require.NoError(t, err)
+	res := runCheck(in, specs[0])
+	require.False(t, res.Passed)
+	require.Equal(t, 2, res.Metrics["commits_on_default"], "reason: %s", res.Reason)
 }
 
 func TestParseChecksRejects(t *testing.T) {
@@ -136,11 +189,22 @@ func addID(check string) string {
 // agent_native.ndjson, changes.diff, and untracked.tar.zst.
 func writeBundle(t *testing.T, transcript, diff string, untracked map[string]string) string {
 	t.Helper()
-	dir := t.TempDir()
+	var data []byte
 	if transcript != "" {
-		data, err := os.ReadFile(filepath.Join("testdata", "transcripts", transcript+".ndjson"))
+		var err error
+		data, err = os.ReadFile(filepath.Join("testdata", "transcripts", transcript+".ndjson"))
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, transcriptFile), data, 0o600))
+	}
+	return writeBundleData(t, data, diff, untracked)
+}
+
+// writeBundleData is writeBundle with the transcript's content; nil
+// leaves the bundle without one.
+func writeBundleData(t *testing.T, transcript []byte, diff string, untracked map[string]string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if transcript != nil {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, transcriptFile), transcript, 0o600))
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(dir, changesFile), []byte(diff), 0o600))
 	if len(untracked) > 0 {
@@ -151,6 +215,42 @@ func writeBundle(t *testing.T, transcript, diff string, untracked map[string]str
 		require.NoError(t, os.WriteFile(filepath.Join(dir, untrackedFile), tarZst(t, entries), 0o600))
 	}
 	return dir
+}
+
+// execCall is one execute call of a synthetic transcript.
+type execCall struct {
+	command  string
+	output   string
+	exitCode int
+}
+
+// executeTranscript builds a transcript in which the agent runs calls in
+// order and then answers with final.
+func executeTranscript(t *testing.T, final string, calls ...execCall) string {
+	t.Helper()
+	const chatID = "00000000-0000-0000-0000-000000000001"
+	var lines []string
+	add := func(v any) {
+		data, err := json.Marshal(v)
+		require.NoError(t, err)
+		lines = append(lines, string(data))
+	}
+	add(map[string]any{"schema": transcriptSchema, "type": "chat", "chat": map[string]any{"id": chatID, "status": "waiting"}})
+	id := 0
+	message := func(role string, part map[string]any) {
+		id++
+		add(map[string]any{"schema": transcriptSchema, "type": "message", "message": map[string]any{
+			"id": id, "chat_id": chatID, "created_at": "2026-10-13T00:00:00Z", "role": role, "content": []any{part},
+		}})
+	}
+	message("user", map[string]any{"type": "text", "text": "task prompt"})
+	for i, c := range calls {
+		callID := fmt.Sprintf("call_%d", i+1)
+		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": "execute", "args": map[string]any{"command": c.command}})
+		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": "execute", "result": map[string]any{"output": c.output, "exit_code": c.exitCode}})
+	}
+	message("assistant", map[string]any{"type": "text", "text": final})
+	return strings.Join(lines, "\n") + "\n"
 }
 
 type tarEntry struct {

@@ -40,7 +40,7 @@ Usage: run.sh [options]
                       CACHE is $CHATD_EVAL_CACHE or ~/.cache/chatd-evals)
   --validate-only     compile and validate the suites, then exit
   --self-check        terminal-bench: verify reference solutions, no model
-  --keep              keep temporary worktrees and grading containers
+  --keep              keep temporary worktrees
 EOF
 }
 
@@ -156,6 +156,7 @@ done
 [[ $repeats =~ ^[1-9][0-9]*$ ]] || die "--repeats must be a positive integer"
 [[ -z $concurrency || $concurrency =~ ^[1-9][0-9]*$ ]] || die "--concurrency must be a positive integer"
 [[ -z $max_usd || $max_usd =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--max-usd must be a number"
+[[ -z $max_usd || ! $max_usd =~ ^0+([.]0+)?$ ]] || die "--max-usd must be greater than 0"
 [[ $prompt_mode == append || $prompt_mode == replace ]] || die "--prompt-mode must be append or replace"
 [[ $model == *:* ]] || die "--model must be provider:model, for example anthropic:claude-sonnet-5-5"
 # Grading must not run as root (see grade_isolated); check before any build
@@ -244,8 +245,14 @@ done
 mkdir -p "$CACHE"
 
 cleanup_paths=()
+# Grading containers hold nothing worth keeping, so they go whatever
+# --keep says, also when run.sh is interrupted.
+cleanup_containers=()
 cleanup() {
-	local p
+	local p c
+	for c in "${cleanup_containers[@]}"; do
+		docker rm -f "$c" >/dev/null || echo "run.sh: docker rm -f $c failed; remove the container by hand" >&2
+	done
 	if [[ $keep -eq 1 ]]; then
 		return
 	fi
@@ -352,7 +359,7 @@ build_subject() {
 	if [[ -z $want ]]; then
 		src=$REPO_ROOT
 		sha=$(git -C "$src" rev-parse HEAD)
-		id=${sha:0:7}
+		id=$sha
 		# Dirty trees get a version of their own so a declared version never
 		# names two different builds. The evals directory is not part of the
 		# coder binary, so editing suites does not force a rebuild.
@@ -368,18 +375,20 @@ build_subject() {
 		fi
 	else
 		sha=$(git -C "$REPO_ROOT" rev-parse --verify "$want^{commit}") || die "unknown ref $want"
-		id=${sha:0:7}
+		id=$sha
 		# The worktree is created only when the binary needs a build.
 		src=""
 	fi
-	# Stamp the version: go build does not embed VCS data from every
-	# checkout (a linked worktree, for one), and an unstamped build reports
-	# a bare 0.0.0-devel that two different commits would share.
+	# Stamp the version with the full commit: go build does not embed VCS
+	# data from every checkout (a linked worktree, for one), an unstamped
+	# build reports a bare 0.0.0-devel that two different commits would
+	# share, and two commits can share a short prefix. The version names the
+	# cached binary and the image tag.
 	version=0.0.0-devel+$id
 	bin=$CACHE/coder/coder-$id
 	mkdir -p "$CACHE/coder"
 	if [[ ! -x $bin || $id == *.dirty.* || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
-		log "building coder $id"
+		log "building coder ${id:0:7}${id:40}"
 		if [[ -z $src ]]; then
 			mkdir -p "$CACHE/worktrees"
 			src=$(mktemp -d "$CACHE/worktrees/$sha.XXXXXX")
@@ -480,7 +489,7 @@ validate_suite() {
 # size-capped tmpfs. Hidden tests and suite setup execute agent-modified
 # code, so they never run on this host.
 grade_isolated() {
-	local store=$1 digest=$2 dest=$3 image=$4 name rc=0
+	local store=$1 digest=$2 dest=$3 image=$4 name rc=0 kept c
 	name=chatd-evals-grade-$$-$RANDOM
 	docker run -d --name "$name" --pull=never --network none \
 		--user "$(id -u):$(id -g)" --read-only \
@@ -490,6 +499,7 @@ grade_isolated() {
 		-v "$store:/store:ro" -v "$AEGIS:/usr/local/bin/aegis:ro" -v "$GRADER:$GRADER:ro" \
 		-e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 		--entrypoint sleep "$image" infinity >/dev/null || return 1
+	cleanup_containers+=("$name")
 	docker exec -w /work "$name" aegis collect --store /store \
 		--bundle "/store/bundle-assets/$digest/eval_bundle.json" --out derived --regrade \
 		--allow-unsafe-host-graders --allow-unsafe-host-subprocess-graders \
@@ -513,8 +523,14 @@ grade_isolated() {
 		rm -rf "$dest"
 		rc=1
 	fi
-	if [[ $keep -eq 0 ]]; then
-		docker rm -f "$name" >/dev/null
+	if docker rm -f "$name" >/dev/null; then
+		kept=()
+		for c in "${cleanup_containers[@]}"; do
+			[[ $c == "$name" ]] || kept+=("$c")
+		done
+		cleanup_containers=("${kept[@]}")
+	else
+		echo "run.sh: docker rm -f $name failed; retrying at exit" >&2
 	fi
 	return "$rc"
 }
@@ -555,10 +571,17 @@ run_suite() {
 	if [[ $grade_rc -eq 0 || ! -d $dest/grading ]]; then
 		rm -rf "$dest/grading"
 		mv "$grading" "$dest/grading" || rc=1
+		# A failed attempt that this grading supersedes would only mislead.
+		[[ $grade_rc -ne 0 ]] || rm -rf "$dest/grading.failed"
 	else
 		rm -rf "$dest/grading.failed"
-		mv "$grading" "$dest/grading.failed" || rc=1
-		log "$label/$suite: grading failed; keeping the earlier grading, this attempt is in $dest/grading.failed"
+		if [[ -n $(find "$grading" -type f -print -quit 2>/dev/null) ]]; then
+			mv "$grading" "$dest/grading.failed" || rc=1
+			log "$label/$suite: grading failed; keeping the earlier grading, this attempt is in $dest/grading.failed"
+		else
+			rm -rf "$grading"
+			log "$label/$suite: grading failed before collection wrote any output; keeping the earlier grading"
+		fi
 	fi
 	[[ $grade_rc -eq 0 ]] || rc=$grade_rc
 	arms=$(jq -r '.experiment.variants | length' "$store/bundle-assets/$digest/eval_bundle.json") || return 1
@@ -585,26 +608,33 @@ compare_suite() {
 		--json "$out/comparison-$suite.json" | tee "$out/comparison-$suite.txt"
 }
 
-bootstrap_aegis
-if [[ $validate_only -eq 1 ]]; then
-	# Validation compiles with the release defaults in shared.ts, which also
-	# proves every suite compiles without run.sh's environment.
+# validate_selected compiles and validates every selected suite with the
+# current CHATD_EVAL_* environment.
+validate_selected() {
+	local s
 	for s in "${selected[@]}"; do
 		log "validating $s"
 		validate_suite "$EVALS_DIR/$(suite_dir "$s")/EVAL.ts" >/dev/null || die "$s does not validate"
 	done
-	exit 0
-fi
-runner_image
-build_grader
+}
 
-export CHATD_EVAL_GRADER=$GRADER CHATD_EVAL_MODEL=$model CHATD_EVAL_REPEATS=$repeats
+bootstrap_aegis
+# The inputs a run compiles into its suites. --validate-only checks the same
+# configuration, so a pin or budget that cannot run fails there too.
+export CHATD_EVAL_MODEL=$model CHATD_EVAL_REPEATS=$repeats
 export CHATD_EVAL_MAX_USD=$max_usd CHATD_EVAL_PROMPT_FILE=$prompt_file CHATD_EVAL_PROMPT_MODE=$prompt_mode
 CHATD_EVAL_CASES=$(
 	IFS=,
 	echo "${cases[*]-}"
 )
 export CHATD_EVAL_CASES
+if [[ $validate_only -eq 1 ]]; then
+	validate_selected
+	exit 0
+fi
+runner_image
+build_grader
+export CHATD_EVAL_GRADER=$GRADER
 
 if [[ " ${selected[*]} " == *" terminal-bench "* ]]; then
 	terminal_bench_import
@@ -617,6 +647,9 @@ if [[ " ${selected[*]} " == *" terminal-bench "* ]]; then
 		exit 0
 	fi
 fi
+# A configuration that cannot validate fails here, before the results
+# directory and the coder build.
+validate_selected
 
 # The default output lives in the cache: under a checkout it would be
 # untracked content that marks the next default build dirty.
