@@ -122,6 +122,23 @@ func (o UserAIBudgetOverride) Auditable(username, groupName string) AuditableUse
 	}
 }
 
+// AuditableChatProjectInstructions is the audit-log representation of
+// ChatProjectInstruction. It adds the project's name so audit entries name
+// the project instead of only its UUID.
+type AuditableChatProjectInstructions struct {
+	ChatProjectInstruction
+	ProjectName string `json:"project_name"`
+}
+
+// Auditable returns the audit-log representation of the instructions for
+// the named project.
+func (i ChatProjectInstruction) Auditable(projectName string) AuditableChatProjectInstructions {
+	return AuditableChatProjectInstructions{
+		ChatProjectInstruction: i,
+		ProjectName:            projectName,
+	}
+}
+
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
 func (g Group) Auditable(members []GroupMember) AuditableGroup {

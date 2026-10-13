@@ -3233,6 +3233,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -3328,6 +3329,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
+  "narration": true,
   "parsed_commands": [
     [
       "string"
@@ -3388,6 +3390,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `narration`                    | boolean                                                      | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
@@ -3502,6 +3505,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -3583,6 +3587,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -4866,6 +4871,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `owner_id`        | string | false    |              |                                                                                               |
 | `updated_at`      | string | false    |              |                                                                                               |
 
+## codersdk.ChatProjectInstructions
+
+```json
+{
+  "instructions": "string",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                         | Required | Restrictions | Description                                                                                                                  |
+|----------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `instructions` | string                                       | false    |              |                                                                                                                              |
+| `project_id`   | string                                       | false    |              |                                                                                                                              |
+| `updated_at`   | string                                       | false    |              |                                                                                                                              |
+| `updated_by`   | [codersdk.MinimalUser](#codersdkminimaluser) | false    |              | Updated by is the user who last changed the instructions. It is nil when the instructions are unset or the user was deleted. |
+
 ## codersdk.ChatProjectMemory
 
 ```json
@@ -4964,6 +4994,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -5127,6 +5158,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -5206,6 +5238,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -5272,6 +5305,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -5387,6 +5421,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
+    "narration": true,
     "parsed_commands": [
       [
         "string"
@@ -6245,6 +6280,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -6325,6 +6361,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -6406,6 +6443,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -9331,6 +9369,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -9411,6 +9450,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -14143,9 +14183,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -16540,6 +16580,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.UpdateChatProjectInstructionsRequest
+
+```json
+{
+  "instructions": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `instructions` | string | false    |              |             |
+
 ## codersdk.UpdateChatProjectRequest
 
 ```json
@@ -18358,11 +18412,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "scripts": [
               {
                 "cron": "string",
+                "dependencies": [
+                  {
+                    "prerequisite_resource_address": "string",
+                    "requirement": "success"
+                  }
+                ],
                 "display_name": "string",
                 "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -18652,11 +18713,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "scripts": [
     {
       "cron": "string",
+      "dependencies": [
+        {
+          "prerequisite_resource_address": "string",
+          "requirement": "success"
+        }
+      ],
       "display_name": "string",
       "exit_code": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "log_path": "string",
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "resource_address": "string",
       "run_on_start": true,
       "run_on_stop": true,
       "script": "string",
@@ -19288,11 +19356,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "cron": "string",
+  "dependencies": [
+    {
+      "prerequisite_resource_address": "string",
+      "requirement": "success"
+    }
+  ],
   "display_name": "string",
   "exit_code": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "log_path": "string",
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+  "resource_address": "string",
   "run_on_start": true,
   "run_on_stop": true,
   "script": "string",
@@ -19304,20 +19379,52 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type                                                                       | Required | Restrictions | Description |
-|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
-| `cron`               | string                                                                     | false    |              |             |
-| `display_name`       | string                                                                     | false    |              |             |
-| `exit_code`          | integer                                                                    | false    |              |             |
-| `id`                 | string                                                                     | false    |              |             |
-| `log_path`           | string                                                                     | false    |              |             |
-| `log_source_id`      | string                                                                     | false    |              |             |
-| `run_on_start`       | boolean                                                                    | false    |              |             |
-| `run_on_stop`        | boolean                                                                    | false    |              |             |
-| `script`             | string                                                                     | false    |              |             |
-| `start_blocks_login` | boolean                                                                    | false    |              |             |
-| `status`             | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
-| `timeout`            | integer                                                                    | false    |              |             |
+| Name                 | Type                                                                                        | Required | Restrictions | Description                                                                                                                                                                                  |
+|----------------------|---------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cron`               | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `dependencies`       | array of [codersdk.WorkspaceAgentScriptDependency](#codersdkworkspaceagentscriptdependency) | false    |              | Dependencies lists the scripts this one waits for, as the provisioner resolved them. It is omitted when empty.                                                                               |
+| `display_name`       | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `exit_code`          | integer                                                                                     | false    |              |                                                                                                                                                                                              |
+| `id`                 | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `log_path`           | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `log_source_id`      | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `resource_address`   | string                                                                                      | false    |              | Resource address is the full Terraform address of the coder_script resource, for example "module.git_clone.coder_script.clone". It is empty for scripts that are not coder_script resources. |
+| `run_on_start`       | boolean                                                                                     | false    |              |                                                                                                                                                                                              |
+| `run_on_stop`        | boolean                                                                                     | false    |              |                                                                                                                                                                                              |
+| `script`             | string                                                                                      | false    |              |                                                                                                                                                                                              |
+| `start_blocks_login` | boolean                                                                                     | false    |              |                                                                                                                                                                                              |
+| `status`             | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus)                  | false    |              |                                                                                                                                                                                              |
+| `timeout`            | integer                                                                                     | false    |              |                                                                                                                                                                                              |
+
+## codersdk.WorkspaceAgentScriptDependency
+
+```json
+{
+  "prerequisite_resource_address": "string",
+  "requirement": "success"
+}
+```
+
+### Properties
+
+| Name                            | Type                                                                                                     | Required | Restrictions | Description |
+|---------------------------------|----------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `prerequisite_resource_address` | string                                                                                                   | false    |              |             |
+| `requirement`                   | [codersdk.WorkspaceAgentScriptDependencyRequirement](#codersdkworkspaceagentscriptdependencyrequirement) | false    |              |             |
+
+## codersdk.WorkspaceAgentScriptDependencyRequirement
+
+```json
+"success"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                |
+|-------------------------|
+| `completion`, `success` |
 
 ## codersdk.WorkspaceAgentScriptStatus
 
@@ -19689,11 +19796,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "scripts": [
             {
               "cron": "string",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "string",
+                  "requirement": "success"
+                }
+              ],
               "display_name": "string",
               "exit_code": 0,
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",
@@ -20186,11 +20300,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "scripts": [
         {
           "cron": "string",
+          "dependencies": [
+            {
+              "prerequisite_resource_address": "string",
+              "requirement": "success"
+            }
+          ],
           "display_name": "string",
           "exit_code": 0,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "log_path": "string",
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+          "resource_address": "string",
           "run_on_start": true,
           "run_on_stop": true,
           "script": "string",
@@ -20538,11 +20659,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "scripts": [
                   {
                     "cron": "string",
+                    "dependencies": [],
                     "display_name": "string",
                     "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "resource_address": "string",
                     "run_on_start": true,
                     "run_on_stop": true,
                     "script": "string",

@@ -630,6 +630,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/instructions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project instructions",
+                "operationId": "get-chat-project-instructions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectInstructions"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project instructions",
+                "operationId": "update-chat-project-instructions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project instructions request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectInstructionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectInstructions"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project instructions",
+                "operationId": "delete-chat-project-instructions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chats/projects/{project}/memories": {
             "get": {
                 "produces": [
@@ -21303,6 +21443,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "narration": {
+                    "description": "Narration marks assistant text that the model labeled as commentary\non its work rather than its answer. Only providers that label their\noutput set it.",
+                    "type": "boolean"
+                },
                 "parsed_commands": {
                     "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Program names are normalized to their base\nname (e.g. /usr/bin/go becomes go). Only populated when ToolName\nis \"execute\" and the command parses successfully; nil otherwise.",
                     "type": "array",
@@ -22176,6 +22320,30 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectInstructions": {
+            "type": "object",
+            "properties": {
+                "instructions": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updated_by": {
+                    "description": "UpdatedBy is the user who last changed the instructions. It is nil\nwhen the instructions are unset or the user was deleted.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
                 }
             }
         },
@@ -29156,6 +29324,7 @@ const docTemplate = `{
                 "chat_instruction_settings",
                 "chat_operational_settings",
                 "chat_organization_system_prompt",
+                "chat_project_instructions",
                 "experiment_rule"
             ],
             "x-enum-varnames": [
@@ -29203,6 +29372,7 @@ const docTemplate = `{
                 "ResourceTypeChatInstructionSettings",
                 "ResourceTypeChatOperationalSettings",
                 "ResourceTypeChatOrganizationSystemPrompt",
+                "ResourceTypeChatProjectInstructions",
                 "ResourceTypeExperimentRule"
             ]
         },
@@ -31052,6 +31222,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatProjectInstructionsRequest": {
+            "type": "object",
+            "properties": {
+                "instructions": {
                     "type": "string"
                 }
             }
@@ -33282,6 +33460,13 @@ const docTemplate = `{
                 "cron": {
                     "type": "string"
                 },
+                "dependencies": {
+                    "description": "Dependencies lists the scripts this one waits for, as the\nprovisioner resolved them. It is omitted when empty.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependency"
+                    }
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -33298,6 +33483,10 @@ const docTemplate = `{
                 "log_source_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "resource_address": {
+                    "description": "ResourceAddress is the full Terraform address of the coder_script\nresource, for example \"module.git_clone.coder_script.clone\". It is\nempty for scripts that are not coder_script resources.",
+                    "type": "string"
                 },
                 "run_on_start": {
                     "type": "boolean"
@@ -33318,6 +33507,28 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptDependency": {
+            "type": "object",
+            "properties": {
+                "prerequisite_resource_address": {
+                    "type": "string"
+                },
+                "requirement": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependencyRequirement"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentScriptDependencyRequirement": {
+            "type": "string",
+            "enum": [
+                "success",
+                "completion"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptDependencyRequirementSuccess",
+                "WorkspaceAgentScriptDependencyRequirementCompletion"
+            ]
         },
         "codersdk.WorkspaceAgentScriptStatus": {
             "type": "string",

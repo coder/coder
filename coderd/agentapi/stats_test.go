@@ -344,7 +344,6 @@ func TestUpdateStats(t *testing.T) {
 		// need to overwrite the cached fields for this test, but the struct has a lock
 		ws := agentapi.CachedWorkspaceFields{}
 		ws.UpdateValues(workspace)
-		// ws.AutostartSchedule = workspace.AutostartSchedule
 
 		api := agentapi.StatsAPI{
 			AgentID:   agent.ID,
