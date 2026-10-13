@@ -58,7 +58,7 @@ FE parent: none
 
 Look for:
 
-- New `types.ts`, `*Constants.ts`, or const-only modules: who imports each export, and is there more than one consumer? A single consumer means co-locate, except `Mock*` entity fixtures, which FE9 keeps in `site/src/testHelpers/` even with one consumer; no functions alongside the consts means the module has no reason to exist.
+- New `types.ts`, `*Constants.ts`, or const-only modules: who imports each export, and is there more than one consumer? A single consumer means co-locate, except `Mock*` entity fixtures, which FE9 keeps in `site/src/testHelpers/` even with one consumer. A const-only module that several files import is a fine shared home (`ChatElements/tools/previewConstants.ts`).
 - New files under `site/src/utils/`: does the file name describe every export? Functions that return a `className`, rendering predicates, or agent lookups do not belong in `utils/` or in a module named for something else (`workspaceApps`, `portForward`, `budget`).
 - Central registries (every storage key for the whole app in one file) instead of definitions next to the component that reads the state.
 - New top-level or config files: do they match the format and location of their siblings (`.jsonc`), and could the contents go in an existing file (`theme/index.ts`, `components/Badge/Badge.tsx`)?
@@ -98,4 +98,4 @@ Fix: split by concern (infrastructure, consumers, fixes) into a stack of PRs eac
 - Manual `scrollIntoView` where the primitive scrolls natively: RP owns the effect, SA asks whether CSS replaces it.
 - A story file defining a dozen helper components: RO flags the copies of real components, but story structure and what a story should contain is TS.
 - Knip exclusions carrying unused exports between stacked PRs: dead-code ownership is SD.
-- Whether a visual change to a shared `Select` or `OrganizationAutocomplete` looks right: SA; RO5 only asks for the justification of touching the shared component.
+- Whether a visual change to a shared `Select` or `OrganizationAutocomplete` looks right: SA; RO5 only asks that logic or visual changes to a shared component move to their own PR.

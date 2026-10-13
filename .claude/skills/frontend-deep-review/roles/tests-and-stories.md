@@ -62,7 +62,7 @@ Look for:
 - Single-use constants in a story file that only alias a value (`const chatId = MockChat.id`), and unchanged tests that only move in the diff while their subject stays put. A named fixture variant is what FE9 asks for (TS3) even when one story uses it, and a test that moves with its renamed or relocated subject is fine.
 - A tiny wrapper exported from the implementation module solely for tests, and tests that exercise that helper or a library (DOMPurify, backend filtering) rather than frontend behavior. A reset export that clears module-private state stays (`_resetForTesting` in `chime.ts`), as SD2 says.
 
-Fix: render the real components with args, hard-code test inputs, inline single-use values, move test-only helpers that touch no module state into a separate test-support file or delete them, and delete tests that have no frontend behavior to check.
+Fix: render the real components with args, hard-code test inputs, inline single-use values, move test-only helpers that touch no module state into a separate test-support file or delete them, leave a tiny production wrapper to SD2 (which inlines it), and delete tests that have no frontend behavior to check.
 
 ### TS5: Callback and logic checks go to Vitest, rendered UI goes to Storybook
 

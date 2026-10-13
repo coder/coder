@@ -100,7 +100,7 @@ FE parent: none
 
 Look for:
 
-- A new file of 200 to 1200 lines (utils, hooks, storage, "API" layers) introduced by a PR whose user-facing change is small. Ask whether it is the simplest design for what the product needs now.
+- A new file of 200 to 1200 lines (utils, hooks, storage, "API" layers) introduced by a PR whose user-facing change is small. Ask whether it is the simplest design for what the product needs now. A generated file (a `Code generated ... DO NOT EDIT` header, such as `api/rbacresourcesGenerated.ts`) is exempt, because its fix belongs in the generator input.
 - Logic pulled out of a component into a helper file or a React context with one consumer, a second `cva` definition for classes applied to the same element, or a generic version of a function with exactly one specialization.
 - Module-level mutable state or builders in stories that exist only to share setup between two stories.
 - A refactor of working code in the same PR as a feature, with no second caller motivating it.

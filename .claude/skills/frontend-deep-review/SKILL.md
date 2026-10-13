@@ -101,9 +101,8 @@ Then:
   constant with a restating comment is SD1 and CD1). Keep both IDs on one
   finding.
 - Resolve conflicts. If two roles disagree (for example RO3 wants duplicated
-  JSX extracted while SD7 calls the extraction premature, or TN4 reads a new
-  `mockX` fixture as a second naming style while TS3 requires the prefix),
-  decide using the role text and record the decision.
+  JSX extracted while SD7 calls the extraction premature), decide using the
+  role text and record the decision.
 - Copy each reviewer's "Conflicts with repository rules" entries below the
   verdict table: each one names a checkpoint whose role file needs
   correcting.

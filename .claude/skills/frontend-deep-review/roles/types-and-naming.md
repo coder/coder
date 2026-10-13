@@ -32,7 +32,7 @@ Look for:
 - `!!x` in new code: the codebase preference is `Boolean(x)`.
 - `String(x)` or `x === undefined ? undefined : String(x)` where `x` is already `string | undefined`; check the declared type before accepting the cast.
 - `?? ""`, `|| "fallback"`, `?? otherValue`, and `"" satisfies T` sentinels: ask under what scenario the left side is missing and whether the fallback is reachable. A visible fallback such as "N/A" or "Unknown" for nullable display text is required by FE5, so keep it. A hardcoded literal that duplicates an existing default constant must reference the constant.
-- `x === false` or `x !== false` on a `boolean`: write `!x` or `x`.
+- `x === false` or `x !== false` on a non-optional `boolean`: write `!x` or `x`. On an optional field, `x !== false` treats a missing value as true, so it stays (`info.enabled !== false` in `modelOptions.ts`).
 
 Fix: Delete the coercion when the declared type already rules out the missing case. When the fallback is reachable, keep the visible fallback FE5 requires for display text; otherwise make the source non-nullable, or name the default as a constant and reference it.
 

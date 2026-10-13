@@ -33,7 +33,7 @@ Look for:
 - Ternary or `&&` chains selecting classes per variant (`variant === "complete" && "border-..."`) or a `variantClasses` lookup object where the codebase uses `cva`; a second `cva` whose classes land on the same element as the first.
 - Consumers of a primitive passing layout it should own (`max-h-[90vh]`, `grid-rows-[...]` on `DialogContent`), and helpers in `utils/` that return class names.
 
-Fix: inline the classes at the use site, or if two places must stay in sync, make a shared component or add a `cva` variant on the primitive so consumers do not remember the classes.
+Fix: inline the classes at the use site, or if two places must stay in sync, make a shared component or add a `cva` variant on the primitive so consumers do not remember the classes. Delete layout a consumer repeats from the primitive (`DialogContent` already gets `max-h-[90vh]` from `dialogVariants` in `Dialog.tsx`).
 
 ### SA3: Style with Tailwind, not inline style, emotion, MUI, theme objects, or global CSS
 

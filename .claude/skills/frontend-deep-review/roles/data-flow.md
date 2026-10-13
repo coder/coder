@@ -34,7 +34,7 @@ Look for:
 - Request ordering built by hand: a `useRef<Promise>` chain, `.then(() => mutate(...))`, or a queue of pending submits sitting next to a mutation. Mutations that share a `scope` id already run one at a time. A ref guard next to a mutation that ignores a repeated event while a request is in flight is correct, because every `mutate` call starts a new request (`inFlightBootstrapRef` in `AgentEmbedPage.tsx` ignores repeated bootstrap messages).
 - `AbortController` plumbing around a read that a query could own: a query function receives a `signal` and React Query cancels it. A controller that lets a mutation be cancelled on a repeat click or unmount is correct, because `useMutation` cancels nothing (`ExportAllDebugRunsButton` in `DebugPanel.tsx`).
 
-Fix: move the call into a `useMutation` (defined in `api/queries/` when it is reusable), read `isPending` and `error` from the mutation, and delete the local flags, refs, and promise chains that duplicate them; give calls that must run in order a shared `scope` id. Move a read with its own `AbortController` into a query function that passes React Query's `signal` (DF4), not into a mutation. For forms, let the form library own submitting state (RP owns the form choice).
+Fix: move the call into a `useMutation` (defined in `api/queries/` when it is reusable), read `isPending` and `error` from the mutation, and delete the local flags, refs, and promise chains that duplicate them; give calls that must run in order a shared `scope` id. Move a read with its own `AbortController` into a `useQuery` keyed by what it reads, whose query function passes React Query's `signal` (DF4), so React Query cancels the old read when the key changes or the component unmounts; do not move it into a mutation. For forms, let the form library own submitting state (RP owns the form choice).
 
 ### DF3: Handle the mutation result in one place and invalidate precisely
 
@@ -88,7 +88,7 @@ Look for:
 - `queryClient.setQueryData` on a list key that merges local, queued, or optimistic entries with server pages; trace what happens to an entry the user just added or edited when the next refetch or stream event lands.
 - Suppression or promotion bookkeeping (`suppressQueuedMessageID`, "promoted head", pending id sets) spread across a store and a page: ask where the single source of truth for in-progress user input is.
 - Storage or cache expiry that deletes drafts, selections, or half-finished edits on a timer or sweep rather than on user action.
-- Forms or selections initialised from `query.data` without a key or guard, so a background refetch re-initialises them.
+- Forms or selections that an effect or formik's `enableReinitialize` re-seeds from `query.data`, so a background refetch overwrites in-progress edits. A plain `useState(query.data)` initialiser runs once and does not re-seed (`DefaultModelSettings.tsx` keeps its unsaved selection in such state for this reason).
 
 Fix: keep in-progress user input in one owner (form state or a store) that the server merge reads but never overwrites, reconcile server data against it in one obvious function, and do not expire user drafts without a user-facing reason.
 
