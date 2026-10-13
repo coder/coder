@@ -87,10 +87,142 @@ func parseShell(src string) (shellScript, bool) {
 				cmd.Source = append(cmd.Source, wordSource(w))
 			}
 			out.Commands = append(out.Commands, cmd)
+			out.Commands = append(out.Commands, wrappedCommands(cmd)...)
 		}
 		return true
 	})
 	return out, true
+}
+
+// wrapperOptions lists, per wrapper program, the short option letters and
+// long options that take a separate value, and the operands the wrapper
+// reads before the command it runs (timeout's duration).
+var wrapperOptions = map[string]struct {
+	short    string
+	long     []string
+	operands int
+}{
+	"env":     {short: "uCS", long: []string{"--unset", "--chdir", "--split-string"}},
+	"timeout": {short: "ks", long: []string{"--kill-after", "--signal"}, operands: 1},
+	"nice":    {short: "n", long: []string{"--adjustment"}},
+	"nohup":   {},
+	"command": {},
+	"exec":    {short: "a"},
+	"time":    {short: "of", long: []string{"--format", "--output"}},
+	"stdbuf":  {short: "ioe", long: []string{"--input", "--output", "--error"}},
+	"sudo":    {short: "CDghpRrTtUu", long: []string{"--close-from", "--chdir", "--group", "--host", "--prompt", "--chroot", "--role", "--command-timeout", "--type", "--other-user", "--user"}},
+	"setsid":  {},
+	"xargs":   {short: "InPLsdEa", long: []string{"--max-args", "--max-procs", "--max-lines", "--max-chars", "--delimiter", "--eof", "--arg-file"}},
+}
+
+// wrappedCommands returns the commands that c runs on its behalf: the
+// command after a wrapper such as env, timeout, sudo, or xargs, and the
+// commands find runs with -exec, -execdir, -ok, or -okdir. The inner
+// commands inherit c's stdin, and wrappers of wrappers are followed.
+func wrappedCommands(c shellCommand) []shellCommand {
+	var out []shellCommand
+	for depth, next := 0, []shellCommand{c}; depth < 4 && len(next) > 0; depth++ {
+		var found []shellCommand
+		for _, cmd := range next {
+			found = append(found, directlyWrapped(cmd)...)
+		}
+		out = append(out, found...)
+		next = found
+	}
+	return out
+}
+
+func directlyWrapped(c shellCommand) []shellCommand {
+	prog := c.program()
+	if prog == "find" {
+		return findExecCommands(c)
+	}
+	opts, ok := wrapperOptions[prog]
+	if !ok {
+		return nil
+	}
+	i := 1
+	for i < len(c.Args) {
+		a := c.Args[i]
+		if a == "--" {
+			i++
+			break
+		}
+		if len(a) < 2 || a[0] != '-' {
+			break
+		}
+		// command -v and -V only describe the command.
+		if prog == "command" && (strings.ContainsRune(a, 'v') || strings.ContainsRune(a, 'V')) {
+			return nil
+		}
+		i++
+		if takesValue(a, opts.short, opts.long) {
+			i++
+		}
+	}
+	if prog == "env" || prog == "sudo" {
+		for i < len(c.Args) && isAssignment(c.Args[i]) {
+			i++
+		}
+	}
+	i += opts.operands
+	if i >= len(c.Args) {
+		return nil
+	}
+	return []shellCommand{{Args: c.Args[i:], Source: c.Source[i:], Stdin: c.Stdin}}
+}
+
+// takesValue reports whether option a consumes the next argument: a long
+// option without an attached value, or a short option cluster whose last
+// letter takes a value.
+func takesValue(a, short string, long []string) bool {
+	if strings.HasPrefix(a, "--") {
+		for _, l := range long {
+			if a == l {
+				return true
+			}
+		}
+		return false
+	}
+	for j := 1; j < len(a); j++ {
+		if strings.IndexByte(short, a[j]) >= 0 {
+			return j == len(a)-1
+		}
+	}
+	return false
+}
+
+var assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+
+func isAssignment(a string) bool {
+	return assignment.MatchString(a)
+}
+
+// findExecCommands returns the commands find runs with -exec, -execdir,
+// -ok, or -okdir, each ending at ; or +.
+func findExecCommands(c shellCommand) []shellCommand {
+	var out []shellCommand
+	for i := 1; i < len(c.Args); i++ {
+		switch c.Args[i] {
+		case "-exec", "-execdir", "-ok", "-okdir":
+		default:
+			continue
+		}
+		start := i + 1
+		end := start
+		for end < len(c.Args) && !isFindTerminator(c.Args[end]) {
+			end++
+		}
+		if end > start {
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin})
+		}
+		i = end
+	}
+	return out
+}
+
+func isFindTerminator(a string) bool {
+	return a == ";" || a == `\;` || a == "+"
 }
 
 // pipedSource returns the program text a pipeline stage feeds to the
@@ -252,6 +384,167 @@ func fileIOFindings(s shellScript) []string {
 	return out
 }
 
+// fileCommandValueFlags lists, per shell file command, the short option
+// letters and long options that take a separate value.
+var fileCommandValueFlags = map[string]struct {
+	short string
+	long  []string
+}{
+	"cp":       {"St", []string{"--suffix", "--target-directory"}},
+	"mv":       {"St", []string{"--suffix", "--target-directory"}},
+	"ln":       {"St", []string{"--suffix", "--target-directory"}},
+	"install":  {"gmoStZ", []string{"--group", "--mode", "--owner", "--suffix", "--target-directory"}},
+	"rm":       {},
+	"touch":    {"drt", []string{"--date", "--reference"}},
+	"truncate": {"rs", []string{"--reference", "--size"}},
+	"patch":    {"BDdFgiopVrYz", []string{"--prefix", "--ifdef", "--directory", "--fuzz", "--get", "--input", "--output", "--strip", "--version-control", "--reject-file", "--basename-prefix", "--suffix"}},
+}
+
+// commandOperands splits args (without the program) into operands and
+// the values of value-taking options, keyed by option letter or long
+// name. Expanded words become "<expanded>" operands.
+func commandOperands(args []string, short string, long []string) ([]string, map[string]string) {
+	var operands []string
+	values := map[string]string{}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			for _, op := range args[i+1:] {
+				operands = append(operands, expandedOperand(op))
+			}
+			return operands, values
+		case strings.HasPrefix(a, "--"):
+			name, value, attached := strings.Cut(a, "=")
+			if attached {
+				values[name] = value
+			} else if takesValue(a, short, long) && i+1 < len(args) {
+				values[name] = args[i+1]
+				i++
+			}
+		case len(a) > 1 && a[0] == '-':
+			for j := 1; j < len(a); j++ {
+				if strings.IndexByte(short, a[j]) < 0 {
+					continue
+				}
+				if j < len(a)-1 {
+					values[a[j:j+1]] = a[j+1:]
+				} else if i+1 < len(args) {
+					values[a[j:j+1]] = args[i+1]
+					i++
+				}
+				break
+			}
+		default:
+			operands = append(operands, expandedOperand(a))
+		}
+	}
+	return operands, values
+}
+
+func expandedOperand(a string) string {
+	if a == "" {
+		return "<expanded>"
+	}
+	return a
+}
+
+// fileChangeFindings reports shell commands that create, change, move,
+// or delete files outside /tmp and /dev. Only test_after_edit uses them:
+// chatd's prompt routes file reads and edits to its file tools but does
+// not ask the model to avoid cp, mv, or rm.
+func fileChangeFindings(s shellScript) []string {
+	var out []string
+	for _, c := range s.Commands {
+		prog := c.program()
+		if len(c.Args) == 0 {
+			continue
+		}
+		if sub, args := gitSubcommand(c); sub == "apply" {
+			if containsArg(args, "--check") || (!containsArg(args, "--apply") && hasFlag(args, "--stat", "--numstat", "--summary")) {
+				continue
+			}
+			out = append(out, "git apply changes files")
+			continue
+		}
+		if prog == "find" {
+			if starts := findStartingPoints(c.Args[1:]); containsArg(c.Args[1:], "-delete") && !allHarmless(starts) {
+				out = append(out, "find -delete removes files")
+			}
+			continue
+		}
+		flags, ok := fileCommandValueFlags[prog]
+		if !ok {
+			continue
+		}
+		operands, values := commandOperands(c.Args[1:], flags.short, flags.long)
+		targets := operands
+		switch prog {
+		case "cp", "ln", "install":
+			if dir, ok := targetDirectory(values); ok {
+				targets = []string{dir}
+			} else if len(operands) > 1 && (prog != "install" || !hasShortFlagLetter(c.Args[1:], 'd')) {
+				targets = operands[len(operands)-1:]
+			}
+		case "mv":
+			if dir, ok := targetDirectory(values); ok {
+				targets = append(targets, dir)
+			}
+		case "patch":
+			if containsArg(c.Args[1:], "--dry-run") {
+				continue
+			}
+			if len(targets) > 1 {
+				targets = targets[:1]
+			}
+			if dir, ok := values["d"]; ok {
+				targets = []string{dir}
+			} else if dir, ok := values["--directory"]; ok {
+				targets = []string{dir}
+			} else if len(targets) == 0 {
+				targets = []string{"."}
+			}
+		}
+		if len(targets) > 0 && !allHarmless(targets) {
+			out = append(out, prog+" changes files")
+		}
+	}
+	return out
+}
+
+func targetDirectory(values map[string]string) (string, bool) {
+	if dir, ok := values["t"]; ok {
+		return dir, true
+	}
+	dir, ok := values["--target-directory"]
+	return dir, ok
+}
+
+// findStartingPoints returns find's path operands, which come before its
+// first expression; with none, find searches the current directory.
+func findStartingPoints(args []string) []string {
+	var out []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") || a == "(" || a == `\(` || a == "!" {
+			break
+		}
+		out = append(out, expandedOperand(a))
+	}
+	if len(out) == 0 {
+		return []string{"."}
+	}
+	return out
+}
+
+func allHarmless(paths []string) bool {
+	for _, p := range paths {
+		if p != "/tmp" && !harmlessOutput(p) {
+			return false
+		}
+	}
+	return true
+}
+
 var (
 	interpreterProgram = regexp.MustCompile(`^(python[0-9.]*|node|nodejs|ruby|perl|php[0-9.]*)$`)
 	shellProgram       = regexp.MustCompile(`^(bash|dash|ksh|zsh|sh)$`)
@@ -265,7 +558,7 @@ var (
 		`\b(write|writelines|write_text|write_bytes|writeFile|writeFileSync|writeSync|appendFile|appendFileSync|createWriteStream|fwrite|fputs|file_put_contents|syswrite|truncate|ftruncate|unlink|unlinkSync|rename|renameSync|rmSync|rmtree|copyfile|copyFile|copyFileSync)\s*\(`,
 		`\bos\.(remove|removedirs|replace|rmdir)\b`,
 		`\bshutil\.(move|copy\w*)\b`,
-		`\bFileUtils\.\w+`,
+		`\bFileUtils\.(cp|cp_r|cp_lr|copy|copy_file|copy_entry|mv|move|rm|rm_f|rm_r|rm_rf|rmtree|remove|remove_dir|remove_file|remove_entry|remove_entry_secure|touch|ln|ln_s|ln_sf|link|symlink|install)\b`,
 		`\bFile\.delete\b`,
 		// open with a write, append, create, or update mode: Python,
 		// Ruby, PHP, and Node calls, pathlib's Path.open, and Perl's

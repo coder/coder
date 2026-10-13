@@ -622,7 +622,7 @@ func isEdit(c toolCall) bool {
 					return true
 				}
 			}
-			if len(interpreterEditFindings(s)) > 0 {
+			if len(interpreterEditFindings(s)) > 0 || len(fileChangeFindings(s)) > 0 {
 				return true
 			}
 		}

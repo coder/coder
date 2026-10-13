@@ -121,7 +121,7 @@ and scope guidance in an attached workspace.
 | `explain-reads-with-read-file` | reads with `read_file`, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
 | `rename-across-files` | searches through `execute` with rg or grep, edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file`, no shell redirection; hidden tests pass | line 56 |
-| `slow-tests-wait` | follows up a backgrounded run, no duplicate run, reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
+| `slow-tests-wait` | no duplicate run while one is still running; any run left in the background is followed up with `process_output` or `process_signal` (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
 | `dev-server-readiness` | `run_in_background`, a readiness probe, no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
 | `large-log-targeted-search` | no unpaged `read_file` of the 30 MB log; answers 943 | "Prefer targeted searches and file reads over dumping ... large logs" (line 58) |
 | `dirty-tree-preserved` | no destructive git; the user's uncommitted `late_fee` survives; hidden tests pass | "Preserve unrelated user changes" (line 71), "Do not run destructive commands" (line 80) |
@@ -329,22 +329,50 @@ suite run: aegis stops scheduling trials when the cap is reached.
   chatd behavior, and the seeds keep it on purpose, so the evals measure
   what users get. It costs the most in `attached-no-reclone` (a model that
   never finds the checkout gives up), `slow-tests-wait`, and
-  `plan-mode-proposes`, and it adds `find`, `ls`, and `cat` exploration
-  that `no_shell_file_io` counts in the lifecycle and tool-guidance suites.
-- `test_after_edit` sees edits made with `write_file`, `edit_files`, shell
-  redirection or in-place editors, and Python, Node, Ruby, Perl, or PHP
-  inline code that writes files. Inline code is a here-document, a
-  here-string, `echo` or here-document text piped in, or a code flag such
-  as `-c`, `-e`, `--eval`, or `php -r`, also inside `bash -c` or a
-  here-document fed to a shell. The code counts as an edit when it calls a
-  write, append, delete, rename, or copy function such as `write_text`,
-  `appendFileSync`, `file_put_contents`, or `os.remove`, or opens a file
-  in a write mode (`open(p, "w")`, Perl `open($fh, ">", $p)`). This is a
-  pattern match on the program text, not a trace of what ran: it misses
-  edits made by running a script file (`python3 /tmp/fix.py`,
-  `cat fix.py | python3`), by helpers whose names it does not know, or
-  through other tools such as `make`, and it counts read-only code that
-  calls a function with one of those names, such as a pandas `rename()`.
+  `plan-mode-proposes`, and it adds filesystem exploration whose `cat`,
+  `head`, and `tail` reads (also through `xargs` or `find -exec`)
+  `no_shell_file_io` counts in the lifecycle and tool-guidance suites.
+- `test_after_edit` decides what an edit is from the tool calls alone. A
+  call counts as an edit when it is one of these, and nothing else counts:
+  - `write_file` or `edit_files` that succeeds.
+  - An `execute` command that redirects output or runs `tee` to a path
+    outside `/tmp` and `/dev`, or edits in place with `sed -i`, `perl -i`,
+    or `awk -i inplace`.
+  - An `execute` command that runs `cp`, `mv`, `rm`, `touch`, `truncate`,
+    `ln`, or `install` on a path outside `/tmp` and `/dev` (the destination
+    for `cp`, `ln`, and `install`; every operand for the others), or
+    `find ... -delete` from such a path. An operand that needs expansion,
+    such as `$f`, counts as outside. `patch` counts unless it runs with
+    `--dry-run` or patches a file or a `-d` directory under `/tmp`;
+    `git apply` counts wherever it applies, unless it runs with `--check`,
+    or with `--stat`, `--numstat`, or `--summary` and without `--apply`.
+  - Python, Node, Ruby, Perl, or PHP inline code that writes files. Inline
+    code is a here-document, a here-string, `echo` or here-document text
+    piped in, or a code flag (`-c`, `-e`, `-E`, `-p`, `--eval`, `--print`,
+    `php -r`). The code counts when its text calls a write, append, delete,
+    rename, or copy function such as `write_text`, `appendFileSync`,
+    `file_put_contents`, `os.remove`, `shutil.copy`, or a file-changing
+    `FileUtils` method (`FileUtils.rm_rf`, but not `FileUtils.pwd`), or
+    opens a file in a write mode (`open(p, "w")`, Perl
+    `open($fh, ">", $p)`). Writes to stdout and stderr do not count.
+
+  All of these are also found inside `bash -c` and here-documents fed to a
+  shell, behind the wrappers `env`, `timeout`, `nice`, `nohup`, `command`,
+  `exec`, `time`, `stdbuf`, `sudo`, `setsid`, and `xargs` (with their
+  options and `env` assignments), and in the commands `find` runs with
+  `-exec`, `-execdir`, `-ok`, or `-okdir`. The same wrappers apply to
+  `no_shell_file_io`, which counts the in-place editors, redirects, `tee`,
+  and `cat`, `head`, `tail`, `less`, or `more` reads, but not `cp`, `mv`,
+  `rm`, or the other file commands above. Known misses: edits made by
+  running a script file (`python3 /tmp/fix.py`, `cat fix.py | python3`) or
+  a module (`python3 -m json.tool in.json out.json`), edits through other
+  tools such as `make`, and helpers whose names it does not know, such as
+  `sqlite3` writes or pandas `df.to_csv`. The inline-code match is on the
+  program text, not on what ran, so read-only code counts as an edit when
+  its text contains one of the call names or write modes anywhere,
+  including strings, comments, and regular expressions (such as
+  `re.findall(r'\.write\(', text)`), or calls a read-only function that
+  shares a name, such as a pandas `rename()`.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case

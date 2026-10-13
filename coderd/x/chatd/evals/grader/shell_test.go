@@ -33,6 +33,44 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"bash -c nested python", `bash -c "python3 -c \"open('a.py', 'w').write('x')\""`, true},
 		{"bash -lc nested sed", `bash -lc 'sed -i s/a/b/ a.py'`, true},
 		{"redirect", "echo x > a.py", true},
+		{"env python", `env python3 -c "open('a.py', 'w').write('x')"`, true},
+		{"env with options and assignments", `env -i -u HOME PATH=/usr/bin python3 -c "open('a.py', 'w').write('x')"`, true},
+		{"timeout python", `timeout 60 python3 -c "open('a.py', 'w').write('x')"`, true},
+		{"timeout with signal", `timeout -s KILL 60 python3 -c "open('a.py', 'w').write('x')"`, true},
+		{"sudo env nested wrappers", `sudo -u root env A=1 python3 -c "open('a.py', 'w').write('x')"`, true},
+		{"xargs sed", `find . -name '*.py' | xargs sed -i 's/a/b/'`, true},
+		{"xargs -I sed", `ls *.py | xargs -I {} sed -i 's/a/b/' {}`, true},
+		{"find -exec sed plus", `find . -name '*.py' -exec sed -i 's/a/b/' {} +`, true},
+		{"find -exec sed semicolon", `find . -name '*.py' -exec sed -i 's/a/b/' {} \;`, true},
+		{"cp in workspace", "cp a.py b.py", true},
+		{"mv in workspace", "mv a.py b.py", true},
+		{"mv out of the workspace", "mv a.py /tmp/a.py", true},
+		{"rm in workspace", "rm -rf build", true},
+		{"rm expanded operand", `rm "$f"`, true},
+		{"touch", "touch a.py", true},
+		{"truncate", "truncate -s 0 app.log", true},
+		{"ln", "ln -s a.py b.py", true},
+		{"patch from stdin", "patch -p1 < fix.diff", true},
+		{"git apply", "git apply fix.diff", true},
+		{"git apply of a patch under /tmp", "git apply /tmp/fix.diff", true},
+		{"git apply --stat --apply", "git apply --stat --apply fix.diff", true},
+		{"find -delete", "find . -name '*.orig' -delete", true},
+		{"ruby FileUtils.rm_rf", `ruby -e "require 'fileutils'; FileUtils.rm_rf('build')"`, true},
+		{"cp backup to /tmp", "cp a.py /tmp/a.py.bak", false},
+		{"cp -t /tmp", "cp -t /tmp a.py b.py", false},
+		{"mv within /tmp", "mv /tmp/a /tmp/b", false},
+		{"rm under /tmp", "rm -f /tmp/out.txt /dev/shm/x", false},
+		{"find -delete under /tmp", "find /tmp/build -name '*.o' -delete", false},
+		{"patch --dry-run", "patch --dry-run -p1 < fix.diff", false},
+		{"patch into /tmp", "patch -d /tmp/copy -p1 < fix.diff", false},
+		{"git apply --check", "git apply --check fix.diff", false},
+		{"git apply --stat", "git apply --stat fix.diff", false},
+		{"ruby FileUtils.pwd", `ruby -e "require 'fileutils'; puts FileUtils.pwd"`, false},
+		{"env python reads", `env python3 -c "print(open('a.py').read())"`, false},
+		{"timeout tests", "timeout 120 python3 -m unittest", false},
+		{"command -v", "command -v python3", false},
+		{"xargs grep", "find . -name '*.py' | xargs grep -n x", false},
+		{"find -exec grep", "find . -name '*.py' -exec grep -n x {} +", false},
 		{"python reads a file", `python3 -c "print(open('a.py').read())"`, false},
 		{"python reads with an explicit mode", `python3 -c "print(open('a.py', 'rb').read())"`, false},
 		{"python writes to stdout", `python3 -c "import sys; sys.stdout.write('done')"`, false},
@@ -48,6 +86,35 @@ func TestExecuteEditDetection(t *testing.T) {
 			args, err := json.Marshal(map[string]string{"command": tc.command})
 			require.NoError(t, err)
 			require.Equal(t, tc.edit, isEdit(toolCall{Name: "execute", Args: args}))
+		})
+	}
+}
+
+// no_shell_file_io follows the prompt's routing of file reads and edits
+// to the file tools. In-place editors run through a wrapper or find are
+// still shell edits; cp, mv, and rm are not file reads or edits the
+// prompt routes to those tools.
+func TestShellFileIODetection(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		command string
+		finding bool
+	}{
+		{"xargs sed", `find . -name '*.py' | xargs sed -i 's/a/b/'`, true},
+		{"find -exec sed", `find . -name '*.py' -exec sed -i 's/a/b/' {} +`, true},
+		{"env cat", "env LC_ALL=C cat a.py", true},
+		{"cp", "cp a.py b.py", false},
+		{"mv", "mv a.py b.py", false},
+		{"rm", "rm a.py", false},
+		{"xargs grep", "find . -name '*.py' | xargs grep -n x", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			script, ok := parseShell(tc.command)
+			require.True(t, ok)
+			require.Equal(t, tc.finding, len(fileIOFindings(script)) > 0, "findings: %v", fileIOFindings(script))
 		})
 	}
 }
