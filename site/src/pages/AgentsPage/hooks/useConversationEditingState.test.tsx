@@ -1063,28 +1063,54 @@ describe("useConversationEditingState", () => {
 			},
 		);
 
+		// An edit is opened with Edit, or followed because the server marked
+		// its row while the composer was in follow mode.
 		it.each([
-			["modified text stays as a new-message draft and no edit opens", "typed"],
-			["unmodified text follows the edit to the newly marked row", "none"],
+			[
+				"modified text stays as a new-message draft and no edit opens",
+				"edit",
+				"typed",
+			],
+			[
+				"unmodified text follows the edit to the newly marked row",
+				"edit",
+				"none",
+			],
 			[
 				"text typed and deleted again follows the edit to the newly marked row",
+				"edit",
+				"reverted",
+			],
+			[
+				"modified text of a followed edit stays as a new-message draft and no edit opens",
+				"follow",
+				"typed",
+			],
+			[
+				"text typed into a followed edit and deleted again follows the edit to the newly marked row",
+				"follow",
 				"reverted",
 			],
 		] as const)(
 			"when another client moves the edit to a different row, %s",
-			async (_name, edit) => {
+			async (_name, opened, edit) => {
+				// A stored draft leaves the composer unchanged, so it can follow.
+				localStorage.setItem(expectedKey, "draft");
 				const {
 					unmount,
 					current,
 					editorText,
 					beginEdit,
 					markOnServer,
-					type,
 					change,
 				} = renderEditingWithEditor();
 
-				await type("draft");
-				await beginEdit(42, "queued text");
+				if (opened === "edit") {
+					await beginEdit(42, "queued text");
+				} else {
+					await markOnServer(42, "queued text");
+				}
+				expect(editorText()).toBe("queued text");
 				await change(edit);
 				const textWhileEditing = editorText();
 
@@ -1095,6 +1121,12 @@ describe("useConversationEditingState", () => {
 					modify ? null : { kind: "queued", id: 6 },
 				);
 				expect(editorText()).toBe(modify ? textWhileEditing : "other row");
+				if (modify) {
+					expect(current().composerMode).toBe("draft");
+					expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
+						textWhileEditing,
+					);
+				}
 
 				// The followed edit is untouched too, so its end gives the draft back.
 				if (!modify) {
