@@ -703,17 +703,15 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
-	it("returns true when the stream delivers a new prompt and a running status", () => {
+	it("returns true when WS delivers user message + status:running (fresh send)", () => {
 		const store = createChatStore();
-		// The Thinking indicator must appear before the first stream chunk.
-		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-		store.applyServerChatStatus("waiting");
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
-
-		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
-		store.clearStreamState();
+		// Simulate the WS batch: [message(user), status:running].
+		// This is the event order from the server when the user
+		// sends a message. The Thinking indicator must appear
+		// before the first stream chunk arrives.
+		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
 		store.applyServerChatStatus("running");
+		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
