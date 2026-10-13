@@ -4,7 +4,7 @@ import {
 	organizationSkillACL,
 	organizationSkillACLAvailable,
 	updateOrganizationSkillACL,
-} from "#/api/queries/skills";
+} from "#/api/queries/organizationSkills";
 import { ACLPrincipalAutocomplete } from "../components/ACLPrincipalAutocomplete";
 import { selectedPrincipal, sharingDialogData } from "../components/aclSharing";
 import { ResourceSharingDialog } from "../components/ResourceSharingDialog";

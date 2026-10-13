@@ -10,7 +10,8 @@ import { createRef } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
-import { skillList, userSkills } from "#/api/queries/skills";
+import { organizationSkills } from "#/api/queries/organizationSkills";
+import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
@@ -190,10 +191,9 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(userSkills().queryKey, []);
-		queryClient.setQueryData(
-			skillList({ type: "organization", organizationId: "org-1" }).queryKey,
-			[{ ...MockSkill, name: "release-notes" }],
-		);
+		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
+			{ ...MockSkill, name: "release-notes" },
+		]);
 
 		render(
 			<AppProviders queryClient={queryClient}>

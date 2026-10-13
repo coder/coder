@@ -11,6 +11,7 @@ import {
 import { MockSkill } from "#/testHelpers/skills";
 import {
 	fullSkillAccess,
+	organizationSkillsScope,
 	type SkillAccess,
 	type SkillsCopy,
 } from "../utils/skills";
@@ -37,7 +38,7 @@ const renderTable = (access: SkillAccess) => {
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<SkillsTable
-				owner={{ type: "organization", organizationId: MockOrganization.id }}
+				scope={organizationSkillsScope(MockOrganization.id)}
 				copy={copy}
 				access={access}
 			/>

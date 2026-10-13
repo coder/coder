@@ -1,4 +1,25 @@
 import frontMatter from "front-matter";
+import type { QueryClient } from "react-query";
+import {
+	createOrganizationSkill,
+	deleteOrganizationSkill,
+	organizationSkill,
+	organizationSkills,
+	updateOrganizationSkill,
+} from "#/api/queries/organizationSkills";
+import {
+	createUserSkill,
+	deleteUserSkill,
+	updateUserSkill,
+	userSkill,
+	userSkills,
+} from "#/api/queries/userSkills";
+import type {
+	CreateSkillRequest,
+	Skill,
+	SkillMetadata,
+	UpdateSkillRequest,
+} from "#/api/typesGenerated";
 
 export const SKILL_MAX_SIZE_BYTES = 64 * 1024;
 const SKILL_MAX_NAME_BYTES = 256;
@@ -245,3 +266,50 @@ export const readOnlySkillAccess: SkillAccess = {
 	update: false,
 	delete: false,
 };
+
+type SkillsQuery<TData> = {
+	queryKey: readonly unknown[];
+	queryFn: () => Promise<TData>;
+};
+
+export type SkillsScope = {
+	list: SkillsQuery<SkillMetadata[]>;
+	detail: (name: string) => SkillsQuery<Skill>;
+	create: (queryClient: QueryClient) => {
+		mutationFn: (req: CreateSkillRequest) => Promise<Skill>;
+		onSuccess: (skill: Skill) => unknown;
+	};
+	update: (queryClient: QueryClient) => {
+		mutationFn: (args: {
+			name: string;
+			req: UpdateSkillRequest;
+		}) => Promise<Skill>;
+		onSuccess: (
+			skill: Skill,
+			args: { name: string; req: UpdateSkillRequest },
+		) => unknown;
+		onSettled: () => Promise<unknown>;
+	};
+	remove: (queryClient: QueryClient) => {
+		mutationFn: (name: string) => Promise<unknown>;
+		onSuccess: (data: unknown, name: string) => unknown;
+	};
+};
+
+export const userSkillsScope = (user = "me"): SkillsScope => ({
+	list: userSkills(user),
+	detail: (name) => userSkill(name, user),
+	create: (queryClient) => createUserSkill(queryClient, user),
+	update: (queryClient) => updateUserSkill(queryClient, user),
+	remove: (queryClient) => deleteUserSkill(queryClient, user),
+});
+
+export const organizationSkillsScope = (
+	organizationId: string,
+): SkillsScope => ({
+	list: organizationSkills(organizationId),
+	detail: (name) => organizationSkill(organizationId, name),
+	create: (queryClient) => createOrganizationSkill(queryClient, organizationId),
+	update: (queryClient) => updateOrganizationSkill(queryClient, organizationId),
+	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
+});

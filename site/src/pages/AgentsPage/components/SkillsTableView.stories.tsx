@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
-import { fullSkillAccess, readOnlySkillAccess } from "../utils/skills";
+import {
+	fullSkillAccess,
+	readOnlySkillAccess,
+	userSkillsScope,
+} from "../utils/skills";
 import {
 	type SkillEditorState,
 	SkillsTableView,
@@ -53,7 +57,7 @@ const MockDebugHTTPSkill = {
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
-	owner: { type: "user", user: "me" },
+	scope: userSkillsScope(),
 	skills: MockPersonalSkills,
 	copy: {
 		noun: "Personal skill",

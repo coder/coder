@@ -4,7 +4,8 @@ import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { skillList, userSkills } from "#/api/queries/skills";
+import { organizationSkills } from "#/api/queries/organizationSkills";
+import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
 	SkillMetadata,
@@ -269,7 +270,7 @@ describe("ChatMessageInput", () => {
 			queryClient.setQueryData(userSkills().queryKey, personal);
 			if (organization) {
 				queryClient.setQueryData(
-					skillList({ type: "organization", organizationId }).queryKey,
+					organizationSkills(organizationId).queryKey,
 					organization,
 				);
 			} else {

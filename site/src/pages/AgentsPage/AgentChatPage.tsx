@@ -33,7 +33,8 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { skillList, userSkills } from "#/api/queries/skills";
+import { organizationSkills } from "#/api/queries/organizationSkills";
+import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -325,7 +326,7 @@ const AgentChatPage: React.FC = () => {
 		staleTime: 60_000,
 	});
 	const organizationSkillsQuery = useQuery({
-		...skillList({ type: "organization", organizationId: chatOrganizationId }),
+		...organizationSkills(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
