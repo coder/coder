@@ -15,7 +15,7 @@ FE parent: FE3
 
 Look for:
 
-- A module-level or function-level const (className string, copy string, tooltip text, ternary result, fixture id) referenced exactly once. Grep the identifier: one hit means inline it, unless the name carries meaning the literal does not (a limit, a unit, a protocol value), which site/AGENTS.md allows. A module-level array, object, or function also stays when its stable reference matters: outside the React Compiler directories, inlining `[]` creates a new value on every render (`emptyPresets` in `CreateWorkspacePage.tsx` feeds a `useMemo` dependency list).
+- A module-level or function-level const (className string, copy string, tooltip text, ternary result, fixture id) referenced exactly once. Grep the identifier: one hit besides the declaration means inline it, unless the name carries meaning the literal does not (a limit, a unit, a protocol value), which site/AGENTS.md allows. A module-level array, object, or function also stays when its stable reference matters: outside the React Compiler directories, inlining `[]` creates a new value on every render (`emptyPresets` in `CreateWorkspacePage.tsx` feeds a `useMemo` dependency list).
 - Tailwind class strings hoisted into `const xClassName = "..."`, `*_CLASS_NAME`, or `*Classes` constants, especially when a comment or the identifier is the only justification.
 - A variable that names a sub-expression (`const foo = a ? b : c`) used once on the next few lines, or destructured aliases (`const agentId = chat.id`) that replace a single property access.
 - Exported constants (copy strings, flags) consumed in exactly one file: inline the value when the name adds nothing; when the name carries meaning, RO4 moves the constant next to its consumer instead.

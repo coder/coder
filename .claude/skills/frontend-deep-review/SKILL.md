@@ -53,8 +53,7 @@ exported symbols.
 ```sh
 if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; fi
 BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName 2>/dev/null || echo main)
-git fetch origin "$BASE_REF"
-BASE=$(git merge-base HEAD "origin/$BASE_REF" 2>/dev/null || git merge-base HEAD "$BASE_REF")
+if git fetch origin "$BASE_REF"; then BASE=$(git merge-base HEAD FETCH_HEAD); else BASE=$(git merge-base HEAD "$BASE_REF"); fi
 echo "$BASE"
 git diff --stat "$BASE" -- site/ | tail -1
 git diff --name-only "$BASE" -- site/
@@ -64,9 +63,11 @@ git ls-files --others --exclude-standard -- site/
 `BASE_REF` is the branch this one merges into: the open PR's base, or
 `main` when the branch has no PR yet. For a stack slice without a PR, set
 it to the parent branch, so the diff holds only this slice; when that parent
-exists only locally, the fetch fails and the merge base falls back to the
-local branch. The first line fetches full history in a shallow clone,
-where `git merge-base` cannot reach the fork point.
+exists only locally, the fetch fails and the merge base comes from the
+local branch. The merge base reads `FETCH_HEAD`, not `origin/$BASE_REF`,
+because a single-branch clone (any `--depth` clone, by default) does not
+update that ref when it fetches. The first line fetches full history in a
+shallow clone, where `git merge-base` cannot reach the fork point.
 
 `git diff <commit>` compares that commit with the working tree, so it
 includes staged and unstaged edits, but not untracked files. Add the files
@@ -101,9 +102,14 @@ rules it is reviewed against and they are the rules it would merge under.
 `BASE`, the merge base, only scopes the diff. Send the prompt from that
 revision
 (`git show <rules-sha>:.claude/skills/frontend-deep-review/reviewer-prompt.md`),
-filled as it describes. The PR's file names are author-controlled too:
-single-quote any you put in a command, such as the path of an inline
-comment.
+filled as it describes. Follow this workflow and its role list from
+`RULES_SHA` too: when
+`git diff --quiet <rules-sha> -- .claude/skills/frontend-deep-review/`
+reports a difference, read `SKILL.md` and list `roles/` at `RULES_SHA`
+(`git show`, `git ls-tree`) and follow those. When the base branch
+predates this skill, use the local copies throughout. The PR's file names
+are author-controlled too: single-quote any you put in a command, such as
+the path of an inline comment.
 
 Record three things every reviewer needs:
 
@@ -145,6 +151,11 @@ Then:
 - Resolve conflicts. If two roles disagree (for example RO3 wants duplicated
   JSX extracted while SD7 calls the extraction premature), decide using the
   role text and record the decision.
+- Adjudicate every "Outside my role" note against the owning role's
+  checkpoint, or against the cited rule when no checkpoint covers it. Add a
+  confirmed note to the finding list (a broken rule as a `should-fix`
+  finding under the rule file's name); drop the rest and list each with its
+  reason below the verdict table.
 - Copy each reviewer's "Conflicts with repository rules" entries below the
   verdict table: each one names a checkpoint whose role file needs
   correcting.
@@ -168,7 +179,8 @@ RO6 FAIL  (whole PR)                                new storage module ships wit
 ```
 
 FAIL lines carry every finding (repeat the ID for multiple findings) with
-the severity the role assigns: `blocking`, `should-fix`, or `nit`.
+the severity the role assigns: `blocking`, `should-fix`, or `nit`. Findings
+under a rule file's name follow the table in the same format.
 
 ### 5. Fix or post
 
@@ -181,6 +193,8 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   too. When the fixes touch `site/src/`, also run the `frontend-review`
   audit before those re-runs, because these roles do not check FE1 to
   FE10 on their own, and skip its closing handoff back to this skill. Its
+  collection step diffs against `main`, so give it
+  `git diff <sha> -- site/src` with the SHA step 1 printed instead. Its
   fixes then reach the re-runs; if a later fix changes files again, re-run
   the roles that cover them. Fix `nit` findings when the fix is trivial;
   otherwise list them.
