@@ -42,10 +42,10 @@ export const AISettingsSidebar: React.FC = () => {
 					accessibleOrgsQuery.permissionsByOrganization,
 				).length > 0
 			}
-			skillOrganizationNames={readableSkillsOrganizations(
+			skillOrganizations={readableSkillsOrganizations(
 				organizations,
 				accessibleOrgsQuery.permissionsByOrganization,
-			).map((organization) => organization.name)}
+			)}
 		/>
 	);
 };

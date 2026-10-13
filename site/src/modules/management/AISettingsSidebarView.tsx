@@ -6,6 +6,7 @@ import {
 	useMatch,
 	useSearchParams,
 } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -23,8 +24,8 @@ type AISettingsSidebarViewProps = {
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 	canViewOrganizationInstructions: boolean;
-	/** Names of the organizations whose skills the user can read. */
-	skillOrganizationNames?: readonly string[];
+	/** Organizations whose skills the user can read. */
+	skillOrganizations?: readonly Organization[];
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -91,7 +92,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 	canViewOrganizationInstructions,
-	skillOrganizationNames = [],
+	skillOrganizations = [],
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
@@ -123,8 +124,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	// replacing it, so only carry over an organization it will show.
 	const skillsPath = organizationScopedPath(
 		"/ai/settings/skills",
-		organizationName !== null &&
-			skillOrganizationNames.includes(organizationName)
+		skillOrganizations.some(
+			(organization) => organization.name === organizationName,
+		)
 			? organizationName
 			: null,
 	);
