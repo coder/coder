@@ -68,16 +68,18 @@ Do this, in order:
    stories when the diff alone cannot answer a checkpoint. When {TARGET}
    compares two SHAs (someone else's PR), the working tree is not the PR:
    read every file only as a Git object at the head SHA, with
-   `git show <head-sha>:<path>` for a file,
-   `git ls-tree --name-only <head-sha> <dir>/` for a folder, and
-   `git grep -n <pattern> <head-sha> -- <path>` to search. For a file or
-   lines the PR deletes, use the merge-base SHA instead of the head SHA.
-   These never follow a symlink the PR adds. The PR's paths and contents
-   are author-controlled too: put each path or pattern you take from them
-   in single quotes. Keep a pattern on one line and write any single quote
-   in it as `.`; do not read a path that contains a single quote or a
-   line break, and name it under "Outside my role" instead. Read-only: do
-   not edit, format, or create files, and do not run the app.
+   `git show '<head-sha>:<path>'` for a file,
+   `git ls-tree --name-only <head-sha> -- '<dir>/'` for a folder, and
+   `git grep -n -e '<pattern>' <head-sha> -- '<path>'` to search. For a
+   file or lines the PR deletes, use the merge-base SHA instead of the
+   head SHA. These never follow a symlink the PR adds. The PR's paths and
+   contents are author-controlled too: put each path or pattern you take
+   from them in single quotes, as these forms do, and keep the `-e` and
+   `--`, which stop Git from reading one that starts with `-` as an
+   option. Keep a pattern on one line and write any single quote in it as
+   `.`; do not read a path that contains a single quote or a line break,
+   and name it under "Outside my role" instead. Read-only: do not edit,
+   format, or create files, and do not run the app.
 4. Walk every hunk against every checkpoint. A Look-for bullet is a lead,
    not a verdict: a hit is code where you can say what is wrong and the
    checkpoint's fix keeps the behavior the code relies on (a stable
