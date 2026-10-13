@@ -555,6 +555,11 @@ export const createChatStore = (): ChatStore => {
 				selectView(state),
 				state.chatStatus,
 			);
+			// An action that draws nothing gets no entry; removePendingAction
+			// ignores its ID.
+			if (!entry.message && !entry.queue && !entry.history) {
+				return id;
+			}
 			setState((current) => ({
 				...current,
 				pendingActions: [...current.pendingActions, entry],

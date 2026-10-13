@@ -877,10 +877,29 @@ describe("pending actions", () => {
 			"running",
 		);
 
-		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 10 });
+		const before = store.getSnapshot();
+		const pendingID = store.addPendingAction({
+			kind: "promoteQueued",
+			queuedMessageID: 10,
+		});
 
 		// The head does not move, so the commit sends no queue update.
-		expect(visible(store).queue).toEqual(["q10", "q11"]);
+		expect(store.getSnapshot()).toBe(before);
+		store.removePendingAction(pendingID);
+		expect(store.getSnapshot()).toBe(before);
+	});
+
+	it("draws nothing for a promoted row the queue no longer holds", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10")],
+			"error",
+		);
+
+		const before = store.getSnapshot();
+		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+
+		expect(store.getSnapshot()).toBe(before);
 	});
 
 	it("removes a failed action's overlay", () => {
