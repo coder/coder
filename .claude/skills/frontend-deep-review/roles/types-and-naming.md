@@ -57,7 +57,7 @@ FE parent: none
 
 Look for:
 
-- Components declared as `({ a, b }: Props) =>` with no `React.FC`, or as `FC<{ inline: string }>` with the props shape inlined. The codebase convention is a named `XProps` type and `React.FC<XProps>`; in a file whose existing components are bare typed arrows (`site/src/components/Tabs/Tabs.tsx`), match the file instead, as site/AGENTS.md asks.
+- Components declared as `({ a, b }: Props) =>` with no `React.FC`, or as `FC<{ inline: string }>` with the props shape inlined. The codebase convention is a named `XProps` type and `React.FC<XProps>`; in a file whose existing components are bare typed arrows (`site/src/components/Tabs/Tabs.tsx`), match the file instead, as site/AGENTS.md asks. A generic component such as `Timeline = <TData,>({ ... }: TimelineProps<TData>)` (`Timeline.tsx`) stays a typed arrow, because `React.FC` cannot declare type parameters.
 - `interface XProps` for props, and diffs that swap `React.FC` for a bare `FC` import: the convention is `type` and the `React` namespace; treat a change away from it as a regression.
 - Generics narrowed to `string` (or another concrete type) when the implementation does not depend on it, and multi-line `NonNullable<ComponentPropsWithRef<...>[...]>` gymnastics to express a simple requirement.
 - Two styles for the same thing inside one PR (one query key `as const`, another not): pick the existing convention and apply it everywhere. Fixture names are exempt: they are TS3's checkpoint, and a new `mockX` fixture beside pre-existing unprefixed fixtures is the convention arriving, not a second style.

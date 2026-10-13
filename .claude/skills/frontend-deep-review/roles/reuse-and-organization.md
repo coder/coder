@@ -15,7 +15,8 @@ FE parent: FE3
 
 Look for:
 
-- Hand-rolled snippets whose job an existing helper already does: `error instanceof Error ? error.message : ...` (`getErrorMessage`), `crypto.randomUUID()` (`generateUUID` in `site/src/utils/random.ts`), `navigator.clipboard.*` (`useClipboard`), and `typeof x === "string" && ...` type guards where a yup schema already describes the shape.
+- Hand-rolled snippets whose job an existing helper already does: `error instanceof Error ? error.message : ...` (`getErrorMessage`), `crypto.randomUUID()` (`generateUUID` in `site/src/utils/random.ts`), `navigator.clipboard.writeText` (`useClipboard`), and `typeof x === "string" && ...` type guards where a yup schema already describes the shape.
+- A direct `navigator.clipboard.readText()` call: suggest `readFromClipboard` from `useClipboard` only when its fallback to the last in-app copy on insecure origins is wanted. A read with its own permission handling stays direct (`useDesktopConnection.ts`).
 - New local constants that already exist elsewhere (`NIL_UUID`, `"me"`, page limits); grep the literal value across `site/src` before accepting the definition.
 - JSX that assembles a dialog, copy button, lightbox, alert, or list scrolling by hand when `ConfirmDialog`, `CopyButton`, `Lightbox`, `ErrorAlert`, or the primitive's native behavior already covers it.
 - New entries in `site/package.json`: ask whether an existing dependency already serves the purpose.
@@ -32,7 +33,7 @@ Look for:
 - A new file or exported component whose name is an existing name plus a prefix or qualifier (`NewPasswordField` next to `PasswordField`, a second `SelectField` or `FormField`): open the original and diff behavior, not just names. RO1 covers a hand-rolled snippet inside otherwise new code; RO2 covers a whole second implementation of something that already has a home.
 - Story files that define their own `*Field`, `SelectField`, or input wrappers instead of importing the real components.
 - A second parser, validator, or regex for a format the repo already handles (front matter, integer strings); grep for the regex literal and for the format name.
-- Any `Field`-style form wrapper outside `FormField`: the reviewers reject new ones on sight.
+- A new `Field`-style wrapper that re-implements `FormField`'s label, helper text, or error layout: the reviewers reject those on sight. A wrapper that renders `FormField` and adds behavior is fine (`PasswordField.tsx` adds a debounced password check).
 
 Fix: delete the copy and import the original. If the original lacks an option, add the option to the original in the same PR and explain it, instead of forking it.
 
@@ -57,7 +58,7 @@ FE parent: none
 
 Look for:
 
-- New `types.ts`, `*Constants.ts`, or const-only modules: who imports each export, and is there more than one consumer? A single consumer means co-locate; no functions alongside the consts means the module has no reason to exist.
+- New `types.ts`, `*Constants.ts`, or const-only modules: who imports each export, and is there more than one consumer? A single consumer means co-locate, except `Mock*` entity fixtures, which FE9 keeps in `site/src/testHelpers/` even with one consumer; no functions alongside the consts means the module has no reason to exist.
 - New files under `site/src/utils/`: does the file name describe every export? Functions that return a `className`, rendering predicates, or agent lookups do not belong in `utils/` or in a module named for something else (`workspaceApps`, `portForward`, `budget`).
 - Central registries (every storage key for the whole app in one file) instead of definitions next to the component that reads the state.
 - New top-level or config files: do they match the format and location of their siblings (`.jsonc`), and could the contents go in an existing file (`theme/index.ts`, `components/Badge/Badge.tsx`)?

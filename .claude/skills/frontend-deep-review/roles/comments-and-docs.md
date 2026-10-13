@@ -29,7 +29,7 @@ FE parent: FE4
 
 Look for:
 
-- A "why" comment above an ordinary call: a cache invalidation, a useState, a className, a navigate, an event listener, a story export. Ask whether a reader of the surrounding code would have wondered; if not, the comment is noise even when every word is true.
+- A "why" comment above an ordinary call: a cache invalidation, a useState, a className, a navigate, an event listener, a story export. Ask whether a reader of the surrounding code would have wondered; if not, the comment is noise even when every word is true. A comment above a story's `play` that names the state the screenshot needs stays, because the steps alone do not say it (the FE1 example in `FRONTEND_PATTERNS.md`).
 - Comments that record PR history or authoring context: "moved here because", "intentionally not ported", "matching the behavior of the Provider form", "Generated once per mount via lazy state init". That belongs in the PR description or commit message.
 - Prop and field comments that explain one caller's situation or a backend condition ("This can be true even when providers/models exist in the DB catalog"), and banner or divider comments (`// -----`) between declarations.
 - Pre-existing comments the diff touches: if the diff edits a comment that adds nothing, the reviewers ask for it to go rather than be extended.
@@ -60,7 +60,7 @@ Look for:
 
 - A comment that states a fact the adjacent code disproves: "doesn't query the story canvas" above `within(canvasElement).getByRole`, a doc block above a predicate whose first branch does the opposite, "passing null removes the key" on a setter typed `(value: T)`.
 - Sentences that make no sense when read literally ("Reused as the confirm handler when omitted"), or that label a live option as "legacy".
-- Comments that pin a number, an experiment name, a Tailwind class arithmetic, or a backend rule ("The server enforces a maximum of 2000", "when the experiment goes stable", "h-7 matches one input row") that another PR can change without touching this file.
+- Comments that pin a number, an experiment name, a Tailwind class arithmetic, or a backend rule ("The server enforces a maximum of 2000", "when the experiment goes stable", "h-7 matches one input row") that another PR can change without touching this file. A comment naming an external constraint the code here is built around stays, as FE4 asks (`api.ts` fetches in batches of 100, "the backend cap"); check its number against the source and flag it only when it is wrong or unsourced.
 - TODO comments the diff touches or sits beside, especially ones addressed to a person: ask whether the TODO is still relevant and delete it if nobody can say.
 
 Fix: correct the sentence so it matches the code, or delete it; for stale-prone facts, delete the comment and let the code or the referenced constant speak. Resolve or remove the TODO.
@@ -86,9 +86,9 @@ FE parent: FE4
 
 Look for:
 
-- A useEffect, a migration call, memoization in a React Compiler directory, or another pattern the FE rules discourage that ships with no comment, or with a one-liner a reader cannot connect to the code ("Generated X is alphabetical, not display order").
+- A useEffect, a migration call, memoization outside the React Compiler directories (inside them, RP4 removes it instead), or another pattern the FE rules discourage that ships with no comment, or with a one-liner a reader cannot connect to the code ("Generated X is alphabetical, not display order").
 - A justification that names a mechanism without the reason ("external to the compiler's static analysis"); if a reviewer would have to ask "why does that matter here?", it is not a justification yet.
-- A component or helper whose props (`text`, `query`) cannot be understood from the signature and whose comment does not say how they are used.
+- A component or helper whose props (`text`, `query`) cannot be understood from the signature: ask for a TN5 rename first, and for a comment only on the behavior a name cannot carry.
 
 Fix: write one or two sentences stating the constraint and the consequence of removing the code; if you cannot, the code probably should not exist (hand that to RP or SD).
 

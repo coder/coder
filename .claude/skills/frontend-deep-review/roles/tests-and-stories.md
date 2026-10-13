@@ -29,7 +29,7 @@ FE parent: FE10
 
 Look for:
 
-- `tagName`, `getBoundingClientRect`, `scrollWidth`/`clientWidth`, `getAllByRole(...).toHaveLength`, or a storage key exported from the component so a test can read it: these test the implementation, not what the user sees.
+- `tagName`, `getBoundingClientRect`, `scrollWidth`/`clientWidth`, or `getAllByRole(...).toHaveLength`: these report what the DOM renders, which the story's screenshot already captures (FE1). Reading a storage key to check the persisted value is fine: that is the state change FE1 asks a behavior test to assert.
 - `within(canvasElement.ownerDocument.body)` or `within(document.body)` to reach portal content: import and use `screen`.
 - `waitFor(() => expect(x.getByText(...)).toBeVisible())` replacing an existing `await findByText(...)`: same assertion dressed up, no behavior change.
 - A bare `await findByRole(...)` whose purpose (waiting versus asserting existence) is not clear from the surrounding steps.
@@ -57,12 +57,12 @@ FE parent: FE1
 
 Look for:
 
-- Helper or stateful wrapper components defined inside a *.stories.tsx, especially ones that re-create an existing Input, Select, or Label.
+- Helper or stateful wrapper components defined inside a *.stories.tsx, especially ones that re-create an existing Input, Select, or Label. A wrapper that only holds the value a controlled component needs for its play to work is fine (`StatefulProvisionerTagsField` in `ProvisionerTagsField.stories.tsx`).
 - Test helpers built from regexes, derived class lists, or `JSON.parse(JSON.stringify(...))` where a hard-coded value or `structuredClone` reads plainly.
 - Single-use constants in a story file (`const chatId = MockChat.id`) and tests that only move in the diff without changing.
-- `_resetXForTesting` or a tiny wrapper exported from the implementation module solely for tests, and tests that exercise that helper or a library (DOMPurify, backend filtering) rather than frontend behavior.
+- A tiny wrapper exported from the implementation module solely for tests, and tests that exercise that helper or a library (DOMPurify, backend filtering) rather than frontend behavior. A reset export that clears module-private state stays (`_resetForTesting` in `chime.ts`), as SD2 says.
 
-Fix: render the real components with args, hard-code test inputs, inline single-use values, move test-only helpers into a separate test-support file or delete them, and delete tests that have no frontend behavior to check.
+Fix: render the real components with args, hard-code test inputs, inline single-use values, move test-only helpers that touch no module state into a separate test-support file or delete them, and delete tests that have no frontend behavior to check.
 
 ### TS5: Callback and logic checks go to Vitest, rendered UI goes to Storybook
 
@@ -75,7 +75,7 @@ Look for:
 - A story that exists only to check an attribute or a non-visual side effect (`data-bwignore`, a persisted value).
 - A *.test.tsx that renders a component and asserts on rendered text or presence: the visual state belongs in a story.
 
-Fix: move callback and side-effect assertions into a Vitest test of the handler or hook, and move rendered-state checks into a story without assertions.
+Fix: move callback and side-effect assertions into a Vitest test that checks the handler's call or the hook's state, and move rendered-state checks into a story without assertions. An attribute check has no Vitest home, because FE1 bans attribute-presence assertions: delete the attribute-only story instead of porting the check.
 
 ### TS6: Mock at the query boundary with exported keys, wired inline per story
 
@@ -87,7 +87,7 @@ Look for:
 - A shared pre-wired query object or helper (`spawnModelConfigsQuery`, `aiSpendQuery(overrides)`) instead of a `mockX` data constant plus an inline `{ key, data }` in each story's `parameters.queries`.
 - A key built as a string literal (`["chat-model-configs"]`) or by constructing query options only to read `.queryKey` (`mcpServerConfigs(id).queryKey`): import the exported key constant.
 - `spyOn(API, ...)` where `parameters.queries` covers the same data, and a module-level `let capturedQueryClient` or similar used to reach into the cache from a story.
-- Empty wiring left behind (`queries: []`).
+- Empty wiring left behind (`queries: []`) when the meta seeds no `parameters.queries`. Storybook replaces array parameters instead of merging them, so under a meta that seeds queries an empty array clears them on purpose (`OrganizationModelsLayout.stories.tsx`).
 
 Fix: share the entity fixture, wire `{ key: exportedKey, data: mockX }` inline per story, delete cache-capturing module state, and prefer `parameters.queries` over spies unless the story needs a pending or failing request.
 

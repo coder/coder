@@ -43,11 +43,11 @@ FE parent: FE8
 
 Look for:
 
-- A suppression of oxlint's `react/exhaustive-deps` rule. If the value is stable, add it; if it is not, the effect is wrong.
+- A suppression of the exhaustive-deps lint rule, whichever linter the checkout enables it in: oxlint's `react/exhaustive-deps` (`site/.oxlintrc.jsonc`) or Biome's `lint/correctness/useExhaustiveDependencies`. If the value is stable, add it; if it is not, the effect is wrong.
 - An effect that only copies state or a prop into a ref (widthRef.current = width, formValuesRef, dragged.current = true). Ask who reads the ref; usually it exists to dodge a dependency array. Use useEffectEvent or read the value directly.
-- addEventListener, ResizeObserver, or popup windows set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource.
+- addEventListener, ResizeObserver, or a popup's message listener or close polling set up outside an effect, or inside one with no cleanup, or with cleanup in a different effect than the one that created the resource. The `window.open` call itself belongs in the click handler: browsers block popups opened outside a user gesture (`useMCPOAuthFlow.ts`).
 - Helper functions declared inside the effect body that capture no props or state: hoist them to module level. A helper that reads props or state stays inside the effect, as React recommends.
-- DOM found via querySelector instead of a ref: attach a ref or ref callback instead.
+- An element the component renders itself found via querySelector instead of a ref: attach a ref or ref callback. Nodes a library creates (cmdk group headings, a noVNC canvas) cannot take a ref, so querying them from a ref on the nearest element the component owns is correct.
 
 Fix: make the dependency list honest, delete ref-sync effects, keep setup and cleanup in the same effect, and use a ref callback for measurements that only need the mounted element.
 
@@ -62,7 +62,7 @@ Look for:
 - A new useCallback, useMemo, or memo() outside those directories with no stated reason: ask for one. Nothing memoizes these files automatically, so do not ask to remove memoization that has a reason.
 - memo() on a child whose parent passes a new function or object on every render: the memo never hits.
 - useMemo(() => generateId(), []) used for a stable identity. useMemo is a performance hint React may discard; use useState with an initialiser, or React.useId() for DOM and ARIA ids (FE6).
-- In a compiled directory, a component or hook with a `try` block that has a `finally` clause or contains a `? :`, `&&`, `||`, `??`, or `?.` expression: the compiler skips the whole function, and `pnpm lint:compiler` reports it.
+- In a compiled directory, a component or hook whose `try` statement has a `finally` clause, or whose `try` block itself contains a `? :`, `&&`, `||`, `??`, or `?.` expression: the compiler skips the whole function, and `pnpm lint:compiler` reports it. The same operators outside the `try` block, and `if` statements inside it, compile fine.
 - Functions that capture no component variables defined inside the component. Hoist them to module level.
 
 Fix: in a compiled directory, remove the memoization (except memo() on list items) and restructure the `try` (for example as `.then().catch().finally()`); elsewhere, keep memoization only with a short comment saying why. Anywhere, use useState for values that must never change and hoist functions that capture nothing.
@@ -74,13 +74,13 @@ FE parent: FE3
 
 Look for:
 
-- A new use* file with one call site. Ask what breaks if the body is inlined.
+- A new use* file with one call site that owns no React state or effect. Ask what breaks if the body is inlined.
 - A hook that wraps a single useQuery or useMutation, or that re-fetches data the caller already holds.
 - A hook that returns JSX or a render function. That is a component.
 - A hook or context provider introduced to avoid passing one value through a few props. Ask whether the value can be computed once at a higher level instead.
 - A hook whose only job is one storage flag. Ask whether the component can hold the state and call plain get and set functions from a module next to the feature code (as site/src/pages/AgentsPage/utils/*Storage.ts do).
 
-Fix: replace with a function that takes the already-fetched data or mutations as arguments, or inline it at the call site; keep a hook only when it owns React state or an effect that several components share.
+Fix: replace with a function that takes the already-fetched data or mutations as arguments, or inline it at the call site. Keep a hook that owns React state or an effect even when one component calls it (`useMCPOAuthFlow.ts` keeps its message listener out of `AgentChatInput.tsx`), except the single storage flag above.
 
 ### RP6: Split components that have grown past one screen of logic or markup
 

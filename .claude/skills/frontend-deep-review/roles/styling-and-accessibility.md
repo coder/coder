@@ -43,7 +43,7 @@ FE parent: none
 Look for:
 
 - New `style={{ ... }}` props whose values are static and have a utility equivalent, including `style` used only to read a CSS variable (`height: "var(--header-height)"`). Inline `style` stays for values computed at runtime (a percentage from data, a user-chosen color, a virtualizer's row position), because Tailwind only generates classes it finds in the source.
-- `css={...}`, `theme.palette.*`, `useTheme`, or `@mui` imports in changed files.
+- `css={...}` or `@mui` imports in changed files, and `useTheme` or `theme.palette.*` reads whose value ends up in a class or style a Tailwind token covers. The in-repo `useTheme` from `#/theme/context` is correct for a library that takes a JS value, such as Mermaid's `theme` option (`MermaidDiagram.tsx`); `site/src/theme/palette.ts` lists those consumers.
 - New entries in `site/src/theme/roles.ts` or other theme color objects.
 - Edits to `site/src/index.css`, new global class names consumed from components, and JS that writes `document.documentElement.style` properties.
 
@@ -56,7 +56,7 @@ FE parent: none
 
 Look for:
 
-- `ResizeObserver`, `clientWidth`, `scrollIntoView`, or computed `calc()` strings that set a width, height, or scroll position a class (`w-full`, `last-of-type:`, native listbox scrolling) would handle.
+- `ResizeObserver`, `clientWidth`, `scrollIntoView`, or computed `calc()` strings that set a width, height, or scroll position a class (`w-full`, `last-of-type:`, native listbox scrolling) would handle. Measurement stays when code counts or compares sizes (how many blocks fit in `WorkspaceTiming/Chart/Blocks.tsx`, which tabs overflow in `useKebabMenu.ts`), and `scrollIntoView` stays when it reveals the item JS marks active (`SkillsTriggerMenu.tsx`).
 - An index-based flag (`!isLast && <div className="h-4" />`) that a CSS selector expresses.
 - Conditional padding or margin added to a shared wrapper (`pb-5`) and whether it shifts neighboring items.
 - Prose that is wrapped in `<code>`, `font-mono`, or `text-xs` when it should read as a sentence.
@@ -72,7 +72,7 @@ Look for:
 
 - `invert`, color, or filter classes that suit only one theme, especially on `ExternalImage`, which already adapts icons to the theme through `site/src/theme/externalImages.ts`. Ask for a semantic theme token or that mechanism; site/AGENTS.md forbids the `dark:` prefix, so never ask for one.
 - A new icon in `site/src/theme/icons.json` that does not look right in every theme in the default full-color mode (a black or single-color logo) and has no entry in `defaultParametersForBuiltinIcons` in `site/src/theme/externalImages.ts`. Icons that look right everywhere need no entry; most existing icons have none.
-- New theme variants that redefine every variable instead of overriding only the values that differ, and any change that removes or renames the `auto` theme option.
+- New theme variants that redefine every variable instead of overriding only the values that differ, and any change that removes or renames the legacy `auto` values in `LEGACY_AUTO_SYNC` (`site/src/theme/index.ts`), which map stored preferences to the sync option.
 - Hardcoded `fontFamily` or color strings passed to third-party renderers (Mermaid, terminals) when a Tailwind or CSS variable could be inherited.
 
 Fix: use the semantic token or the theme-aware primitive instead of a fixed color or filter; register icons that need a non-default mode in externalImages.ts; base new themes on an existing one; read fonts and colors from CSS variables where the library allows.
@@ -84,17 +84,17 @@ FE parent: FE6
 
 Look for:
 
-- `<div role="button" tabIndex={0} onKeyDown=...>` or `<div role="radiogroup" aria-label=...>` where `<button>`, `<fieldset>` with `<legend>`, or an existing primitive gives the role, name, and keyboard handling for free.
+- `<div role="button" tabIndex={0} onKeyDown=...>` or `<div role="radiogroup" aria-label=...>` where `<button>`, `<fieldset>` with `<legend>`, or an existing primitive gives the role, name, and keyboard handling for free. Do not suggest `<button>` for a control inside another interactive element, such as the clear control inside the `Autocomplete.tsx` trigger: nested buttons are invalid HTML.
 - `aria-label` values that replace rather than contain the visible label; `aria-*` props on primitives (cmdk) that overwrite them.
 - Interactive elements reachable only by pointer, and dialogs or route changes that drop focus.
 - Visually hidden interactive elements still in the tab order.
 
-Fix: use the native element (add the Tailwind reset classes if the browser default looks wrong), keep the visible label inside the accessible name, and verify Tab, Enter, Space, and Escape reach and operate the control.
+Fix: use the native element where it does not nest inside another interactive element (add the Tailwind reset classes if the browser default looks wrong), keep the visible label inside the accessible name, and verify the keys the element or its ARIA pattern defines: Tab reaches it, Enter and Space press a button, Enter follows a link, arrow keys move within a radio group or menu, and Escape closes a dialog, popover, or menu.
 
 ## Not this role
 
 - Design approval and PR scope when a core component outside the feature area is modified (Select separator restyle): RO.
 - Effects that write `--mobile-dropdown-bottom` to `document.documentElement`, ResizeObserver and `scrollIntoView` hooks: RP owns the effect and ref mechanics; SA only asks whether CSS replaces them.
-- Class-name helper functions living in `site/src/utils/budget.ts`: RO owns the file placement.
+- Where a class-name helper file lives (`site/src/utils/` or the feature folder): RO owns the file placement.
 - A second `cva` or an exported className constant that adds nothing: SD shares the inlining call.
 - Reviewer requests for the reason behind an off-scale value or a global CSS edit to be recorded: CD.

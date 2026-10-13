@@ -8,7 +8,9 @@ description: Parallel multi-reviewer audit of a frontend diff under site/ agains
 Reviews a `site/` diff the way this repository's frontend maintainers do.
 Every checkpoint in `roles/` is a pattern maintainers flagged in code
 review. The goal is to catch and fix those findings before a human reviewer
-posts them.
+posts them. Identifiers quoted in a checkpoint's examples come from those
+reviews, and some have since been renamed or removed: the pattern is what
+a checkpoint checks, not the name.
 
 The review is split into eight reviewer roles so it can run as parallel
 sub-agents. Each role owns a numbered checkpoint set:
@@ -80,11 +82,12 @@ account for most of the size.
 
 Run the eight roles as read-only sub-agents that share this checkout, as
 many at once as the harness allows. Queue the rest and start each one when
-a slot frees. Use the prompt in `reviewer-prompt.md`, filling in the role
-file, the target, and the file list. Every role runs on every frontend
-diff; a role with nothing to flag reports "No findings" quickly. If your
-harness cannot spawn sub-agents, work through the role files one at a time
-using the same prompt.
+a slot frees. Use the prompt in `reviewer-prompt.md`, filling all four
+placeholders: the role file, the target, the file list, and the PR's stated
+purpose. Every role runs on every frontend diff; a role with nothing to
+flag reports "No findings" quickly. If your harness cannot spawn
+sub-agents, work through the role files one at a time using the same
+prompt.
 
 Each reviewer returns its findings in its final message. Do not ask
 read-only reviewers to write files.
@@ -129,9 +132,13 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   finding with the smallest correct change, then re-run every role that
   failed and every role whose checkpoints cover code the fixes changed (an
   extraction for RO3 can add TN or RP findings). When unsure, re-run all
-  eight. Fix `nit` findings when the fix is trivial; otherwise list them.
-  Stop when the table is all PASS or N/A, or every remaining FAIL has a
-  one-line justification that will go in the PR description.
+  eight. When the fixes touch `site/src/`, also re-run `frontend-review`,
+  because these roles do not check FE1 to FE10 on their own. Fix `nit`
+  findings when the fix is trivial; otherwise list them.
+  Stop when no `blocking` or `should-fix` FAIL remains, as `site/AGENTS.md`
+  requires. A finding you judge wrong is not a FAIL to justify: drop it,
+  and list it with the reason below the verdict table, next to the step 3
+  conflicts, so the role file can be corrected.
 - Someone else's PR (report mode): post findings as inline review comments
   in the register human reviewers use (short, specific, with the fix).
   Group nits and PR-scope findings such as RO6 into the review summary.

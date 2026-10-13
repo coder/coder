@@ -35,17 +35,20 @@ Changed files under site/:
 Do this, in order:
 
 1. Read {ROLE_FILE} completely. Every checkpoint in it applies to every
-   frontend diff.
+   frontend diff. Identifiers in its examples come from past reviews and
+   may no longer exist in the tree: match the pattern, not the name.
 2. Read the FE rule summary in `site/AGENTS.md` of the checkout under review
    (and `.claude/docs/FRONTEND_PATTERNS.md` for examples) once, so you know
    the FE rule each checkpoint expands. These files outrank the role file:
    where a checkpoint contradicts them, apply the repository rule and list
    the checkpoint under "Conflicts with repository rules".
-3. Get the diff for the target, restricted to site/, and read every file
-   marked `(new, untracked)` in full. Follow the role file's "Reading
-   order": open whole files, sibling folders, existing components, or
-   stories when the diff alone cannot answer a checkpoint. Read-only: do
-   not edit, format, or create files, and do not run the app.
+3. Get the diff for the target and review only the sections for files
+   under site/ (`gh pr diff` has no path filter, so skip the rest
+   yourself). Read every file marked `(new, untracked)` in full. Follow
+   the role file's "Reading order": open whole files, sibling folders,
+   existing components, or stories when the diff alone cannot answer a
+   checkpoint. Read-only: do not edit, format, or create files, and do not
+   run the app.
 4. Walk every hunk against every checkpoint. For each hit, record the
    checkpoint ID, the severity (the role file's default unless the
    consequence is user-visible, which raises it, or the code is pre-existing

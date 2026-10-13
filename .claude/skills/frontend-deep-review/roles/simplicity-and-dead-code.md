@@ -31,7 +31,7 @@ Look for:
 
 - One-line functions whose body is a single call, property access, or comparison (`const getX = (c) => c.getQueryData(key(id))`, `const stop = (e) => e.stopPropagation()`, `(v) => v === "a" || v === "b"`). Ask what the name adds over the expression.
 - A helper left behind after a refactor whose body collapsed to `return option.displayName` or `return stored`.
-- Custom hooks that only call another hook and return its result, and helpers exported solely so a test can import them.
+- Custom hooks that only call another hook and return its result, and helpers exported solely so a test can import them. A reset export that clears module-private state for tests stays, because no other file can reach that state (`_resetForTesting` in `chime.ts`).
 - Fragment or `<div className="flex">` wrappers around a single child, and `asChild` applied to an element the primitive would already render.
 - A single-purpose re-export or rename (`const fooKey = (id) => getFooKey(id)`), or a family of local helpers that a new shared primitive already covers.
 
@@ -60,9 +60,9 @@ FE parent: FE3
 Look for:
 
 - `typeof window === "undefined"` checks anywhere under `site/src/`: the app is a SPA and the branch never runs.
-- Guards whose false branch is already the natural result: `if (value.length === 0) return value` before `.map`, `|| !addr` after `typeof addr !== "object"`, a `String(x)` on a value already typed `string | undefined`, a cleanup that cannot register because of an earlier return, `process.exit(0)` as the last statement.
-- Props accepted but never read (`condensed: _condensed`), props added with no caller, empty story parameters (`queries: []`), aliased imports (`x as xPath`) that only rename, and knip exclusions that hide unused exports.
-- Backward-compat redirects and legacy-format branches for routes or data that are not stable or are about to be dropped; try/catch around reads that cannot throw in supported browsers; lint suppressions where the fix is smaller than the comment.
+- Guards whose false branch is already the natural result: `if (value.length === 0) return value` before `.map`, a `String(x)` on a value already typed `string | undefined`, a cleanup that cannot register because of an earlier return, `process.exit(0)` as the last statement.
+- Props accepted but never read (`condensed: _condensed`), props added with no caller, empty story parameters (`queries: []` under a meta that seeds no queries; see TS6), aliased imports (`x as xPath`) that only rename, and knip exclusions that hide unused exports.
+- Backward-compat redirects and legacy-format branches for routes or data that are not stable or are about to be dropped; try/catch around reads that cannot throw in supported browsers (storage access can: `localStorage` throws a `SecurityError` when the browser denies storage, as `reasoningEffort.test.ts` simulates); lint suppressions where the fix is smaller than the comment.
 
 Fix: delete it. Fix the lint rule instead of suppressing it, remove the prop from the type, and drop compat aliases for unstable routes.
 
@@ -73,8 +73,8 @@ FE parent: none
 
 Look for:
 
-- Deep copies written by hand or as `JSON.parse(JSON.stringify(x))` where `structuredClone` or an object spread does the job; `[...arr].sort()` where `toSorted` exists.
-- `typeof error === "object" && error !== null && "name" in error` style guards instead of catching and narrowing on the error type (`instanceof`, `isAxiosError`).
+- Deep copies written by hand or as `JSON.parse(JSON.stringify(x))` where `structuredClone` does the job; `[...arr].sort()` where `toSorted` exists. An object spread copies only the top level, so it cannot replace a deep copy whose nested fields are written later (`applyKnownModelDefaults.ts`).
+- `typeof error === "object" && error !== null && "name" in error` style guards instead of catching and narrowing on the error type (`instanceof`, `isAxiosError`). Structural guards are correct for parsed data that was never thrown, such as the response body `isApiErrorResponse` checks in `api/errors.ts`.
 - Several regexes or `replace` calls (`replace(/^0+/, "")`) that hand-parse one value where a single helper taking the string and returning the parsed value or `undefined` would read better; a hand-written tokenizer or matcher that recreates regex. Parsing is not validation: `Number.parseInt("12abc", 10)` is 12 and `Number("0x50")` is 80, so a replacement must still reject every input the old check rejected (keep `/^\d+$/` when the whole string must be digits).
 - npm scripts chaining `cd .. && ... && cd site` where a tool flag (`make -C ..`) exists. Do not suggest `fetch(dataUrl)` in place of manual data-URL decoding: the production CSP's `connect-src` excludes `data:`, so the fetch fails.
 

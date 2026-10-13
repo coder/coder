@@ -31,10 +31,10 @@ Look for:
 
 - An `async` handler that calls `API.*` directly and brackets it with `setIsSubmitting(true/false)`, `setIsExportingAll`, or a `useRef(false)` in-flight guard, usually inside a `try/catch/finally`.
 - A component that receives or derives its own pending boolean when the `useMutation` it wraps already exposes `isPending`.
-- Request ordering or dedupe built by hand: a `useRef<Promise>` chain, `.then(() => mutate(...))`, or a queue of pending submits sitting next to a mutation.
-- `AbortController` plumbing around an `API.*` call inside a component or hook that is not a query function.
+- Request ordering built by hand: a `useRef<Promise>` chain, `.then(() => mutate(...))`, or a queue of pending submits sitting next to a mutation. Mutations that share a `scope` id already run one at a time. A ref guard next to a mutation that ignores a repeated event while a request is in flight is correct, because every `mutate` call starts a new request (`inFlightBootstrapRef` in `AgentEmbedPage.tsx` ignores repeated bootstrap messages).
+- `AbortController` plumbing around a read that a query could own: a query function receives a `signal` and React Query cancels it. A controller that lets a mutation be cancelled on a repeat click or unmount is correct, because `useMutation` cancels nothing (`ExportAllDebugRunsButton` in `DebugPanel.tsx`).
 
-Fix: move the call into a `useMutation` (defined in `api/queries/` when it is reusable), read `isPending` and `error` from the mutation, and delete the local flags, refs, and promise chains. For forms, let the form library own submitting state (RP owns the form choice).
+Fix: move the call into a `useMutation` (defined in `api/queries/` when it is reusable), read `isPending` and `error` from the mutation, and delete the local flags, refs, and promise chains that duplicate them; give calls that must run in order a shared `scope` id. For forms, let the form library own submitting state (RP owns the form choice).
 
 ### DF3: Handle the mutation result in one place and invalidate precisely
 
@@ -43,7 +43,7 @@ FE parent: FE7
 
 Look for:
 
-- Per-call `mutate(id, { onSuccess, onError })` blocks inside JSX or click handlers that close dialogs, toast, and navigate; especially several copies in one file.
+- The same per-call `mutate(id, { onSuccess, onError })` callbacks repeated at several call sites. One call site that toasts and closes its dialog in a per-call `onSuccess` is the default FE7 asks for (`MCPServerSharingDialog.tsx`).
 - `await mutateAsync()` where no later step needs the result for control flow (FE7 asks for `mutate()` with callbacks there), `try/catch` around it written inline in markup, or a `catch` that only toasts when the `useMutation` definition already has (or should have) `onSuccess`/`onError`.
 - Hand-written `MutationOptions<Awaited<ReturnType<typeof API.x>>, unknown, {...}>` generics instead of `mutationOptions(...)`.
 - `invalidateQueries` on a key that also covers queries the mutation cannot have changed, with no stated reason, or a missing invalidation for a query that holds the changed data (the list that shows an updated item, the second of two chained requests).
