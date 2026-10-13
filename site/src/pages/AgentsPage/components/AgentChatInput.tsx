@@ -257,12 +257,11 @@ export type AttachedWorkspaceInfo = {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-// The badge row clips overflow, so pill focus rings are drawn inset.
+// Inset because the badge row clips overflow.
 const pillFocusRingClasses =
 	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
 
-// Rings the whole pill when a control inside it, such as the dismiss
-// button, has keyboard focus.
+// Rings the pill when its dismiss button has focus.
 const pillFocusWithinRingClasses =
 	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
 
@@ -596,13 +595,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
-	// The editor is focused programmatically on load and after sends, and
-	// browsers treat every contenteditable focus as focus-visible. Track
-	// whether focus arrived via Tab so the composer ring only marks
-	// keyboard navigation; the caret already marks other focus.
+	// Browsers treat any contenteditable focus as focus-visible, including
+	// autofocus, so only ring focus that arrived via Tab.
 	const lastInputWasTabRef = useRef(false);
-	const [isEditorKeyboardFocused, setIsEditorKeyboardFocused] =
-		useState(false);
+	const [isEditorKeyboardFocused, setIsEditorKeyboardFocused] = useState(false);
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			lastInputWasTabRef.current = event.key === "Tab";

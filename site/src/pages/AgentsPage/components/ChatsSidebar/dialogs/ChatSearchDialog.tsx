@@ -96,9 +96,7 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	// Radix only restores focus to a Dialog.Trigger, and this dialog opens
-	// from the sidebar button or the Ctrl+K shortcut instead. Remember what
-	// had focus on open so dismissing returns keyboard users there.
+	// Radix only restores focus to a Dialog.Trigger, which this dialog lacks.
 	const returnFocusRef = useRef<{
 		element: HTMLElement;
 		pathname: string;
@@ -142,8 +140,7 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 				onCloseAutoFocus={(event) => {
 					const returnFocus = returnFocusRef.current;
 					returnFocusRef.current = null;
-					// Selecting a result navigates; the destination page owns
-					// focus then.
+					// Picking a result navigates; leave focus to the new page.
 					if (
 						!returnFocus?.element.isConnected ||
 						returnFocus.pathname !== window.location.pathname
