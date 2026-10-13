@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useCallback, useEffect, useEffectEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
@@ -21,10 +21,8 @@ import {
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
-	selectChatStatus,
 	selectIsLoaded,
 	selectLoad,
-	selectRetryState,
 	selectStreamError,
 	selectStreamState,
 	useChatSelector,
@@ -49,8 +47,8 @@ const isUnversionedEvent = (event: TypesGen.ChatStreamEvent): boolean =>
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectStreamError(state) === null &&
 	(selectStreamState(state) !== null ||
-		selectRetryState(state) !== null ||
-		isActiveChatStatus(selectChatStatus(state)));
+		state.retryState !== null ||
+		isActiveChatStatus(state.chatStatus));
 
 export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
@@ -68,7 +66,7 @@ export const useChatStore = (
 	load: ChatStoreLoad;
 	retryLoad: () => void;
 	clearStreamError: () => void;
-	loadOlderMessages: () => void;
+	loadOlderMessages: () => Promise<unknown>;
 	isLoadingOlderMessages: boolean;
 	hasLoadOlderMessagesError: boolean;
 } => {
@@ -100,14 +98,19 @@ export const useChatStore = (
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
-	const onDurableMessages = useEffectEvent(
+	const onDurableMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
+			if (messages.length === 0) {
+				return;
+			}
 			// Refresh the dedicated prompt-history cache when a user message arrives.
-			if (messages.some((msg) => msg.role === "user")) {
+			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
+			if (hasNewUserPrompt) {
 				void invalidateChatPrompts(queryClient, chatID);
 			}
 			void invalidateChatSearches(queryClient);
 		},
+		[chatID, queryClient],
 	);
 
 	// A store loads its newest page once; afterwards only the stream writes it.
@@ -116,7 +119,7 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	const {
-		mutate: loadOlderMessages,
+		mutateAsync: loadOlderMessages,
 		isPending: isLoadingOlderMessages,
 		isError: hasLoadOlderMessagesError,
 	} = useMutation({
@@ -254,14 +257,12 @@ export const useChatStore = (
 			// Consecutive messages are upserted together: one Map copy and one
 			// sort instead of one per message.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
-			const durable: TypesGen.ChatMessage[] = [];
 			let needsStreamReset = false;
-			let historyReset = false;
 
 			const flushMessages = () => {
 				if (pendingMessages.length > 0) {
 					store.upsertDurableMessages(pendingMessages);
-					durable.push(...pendingMessages.splice(0));
+					onDurableMessages(pendingMessages.splice(0));
 				}
 			};
 
@@ -307,7 +308,7 @@ export const useChatStore = (
 						store.resetHistoryFrom(
 							streamEvent.history_reset?.from_message_id ?? 0,
 						);
-						historyReset = true;
+						void invalidateChatSearches(queryClient);
 						needsStreamReset = false;
 						continue;
 					}
@@ -373,10 +374,14 @@ export const useChatStore = (
 							// ungated because the next turn can send a part
 							// before its running status.
 							discardBufferedParts();
+							store.applyServerChatStatus("error");
 							store.setTurnError(reason);
 							store.clearStreamState();
 							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
+							updateSidebarChat((chat) =>
+								chat.status === "error" ? chat : { ...chat, status: "error" },
+							);
 							continue;
 						}
 						case "retry": {
@@ -425,13 +430,6 @@ export const useChatStore = (
 					}
 				}
 			});
-
-			if (durable.length > 0) {
-				onDurableMessages(durable);
-			}
-			if (historyReset) {
-				void invalidateChatSearches(queryClient);
-			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
@@ -474,7 +472,14 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 			}
 		};
-	}, [aiGatewayDisabled, chatID, initialDataLoaded, queryClient, store]);
+	}, [
+		aiGatewayDisabled,
+		chatID,
+		initialDataLoaded,
+		onDurableMessages,
+		queryClient,
+		store,
+	]);
 	return {
 		store,
 		load,
@@ -482,7 +487,8 @@ export const useChatStore = (
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
-		loadOlderMessages: () => loadOlderMessages(),
+		// hasLoadOlderMessagesError reports a failed page.
+		loadOlderMessages: () => loadOlderMessages().catch(() => undefined),
 		isLoadingOlderMessages,
 		hasLoadOlderMessagesError,
 	};
