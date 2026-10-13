@@ -54,6 +54,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentWorkspaceBrowser:          "Workspace Browser",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))

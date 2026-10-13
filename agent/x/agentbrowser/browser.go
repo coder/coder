@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	_ "embed"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -363,10 +364,11 @@ func (b *Browser) findBinary() (string, error) {
 	return "", ErrBrowserNotFound
 }
 
-func randomHex(n int) string {
-	buf := make([]byte, n)
-	_, _ = rand.Read(buf)
-	return hex.EncodeToString(buf)
+// logIfErr records best-effort failures that need no other handling.
+func (s *session) logIfErr(msg string, err error) {
+	if err != nil {
+		s.logger.Debug(s.ctx, msg, slog.Error(err))
+	}
 }
 
 // session is one running Chrome process with a content tab and a helper
@@ -435,8 +437,8 @@ func (b *Browser) launch(ctx context.Context, width, height int) (*session, erro
 		logger:       b.opts.Logger,
 		ctx:          sessCtx,
 		cancel:       cancel,
-		nonce:        "coder-browser-" + randomHex(8),
-		token:        randomHex(16),
+		nonce:        "coder-browser-" + rand.Text(),
+		token:        rand.Text(),
 		popups:       make(map[target.ID]struct{}),
 		input:        make(chan ClientMessage, inputQueueSize),
 		contentReady: make(chan struct{}),
@@ -452,7 +454,11 @@ func (b *Browser) launch(ctx context.Context, width, height int) (*session, erro
 	mux.HandleFunc("/helper", s.serveHelperPage)
 	mux.HandleFunc("/ws", s.serveHelperWS)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	go func() { _ = s.srv.Serve(ln) }()
+	go func() {
+		if err := s.srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+			s.logIfErr("browser helper server stopped", err)
+		}
+	}()
 
 	// Chrome reads commands from fd 3 and writes responses to fd 4.
 	cmdR, cmdW, err := os.Pipe()
@@ -529,14 +535,19 @@ func (s *session) close() {
 	s.closeOnce.Do(func() {
 		s.cancel()
 		if s.cdp != nil {
-			_ = s.cdp.Call(context.Background(), "", "Browser.close", nil, nil)
+			closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := s.cdp.Call(closeCtx, "", "Browser.close", nil, nil)
+			cancel()
+			s.logIfErr("close browser over cdp", err)
 			_ = s.cdp.Close()
 		}
 		if s.srv != nil {
 			_ = s.srv.Close()
 		}
 		if s.cmd != nil && s.cmd.Process != nil {
-			_ = s.cmd.Process.Kill()
+			if err := s.cmd.Process.Kill(); !errors.Is(err, os.ErrProcessDone) {
+				s.logIfErr("kill browser process", err)
+			}
 		}
 	})
 }
@@ -649,10 +660,10 @@ func (s *session) startCapture(ctx context.Context, width, height int) error {
 	s.helperWS = nil
 	s.helperMu.Unlock()
 	if oldWS != nil {
-		_ = oldWS.CloseNow()
+		s.logIfErr("close old helper websocket", oldWS.CloseNow())
 	}
 	if oldTarget != "" {
-		_ = s.call(ctx, "", "Target.closeTarget", target.CloseTarget(oldTarget), nil)
+		s.logIfErr("close old helper tab", s.call(ctx, "", "Target.closeTarget", target.CloseTarget(oldTarget), nil))
 	}
 
 	var created target.CreateTargetReturns
@@ -680,7 +691,10 @@ func (s *session) startCapture(ctx context.Context, width, height int) error {
 		}
 	}
 
-	nonceJSON, _ := json.Marshal(s.nonce)
+	nonceJSON, err := json.Marshal(s.nonce)
+	if err != nil {
+		return xerrors.Errorf("marshal nonce: %w", err)
+	}
 	oldTitle, err := s.evaluate(ctx, s.contentSession,
 		`(() => { const t = document.title; document.title = `+string(nonceJSON)+`; return t; })()`, false)
 	if err != nil {
@@ -692,22 +706,18 @@ func (s *session) startCapture(ctx context.Context, width, height int) error {
 	defer func() {
 		restoreCtx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer cancel()
-		_, _ = s.evaluate(restoreCtx, s.contentSession,
+		_, err := s.evaluate(restoreCtx, s.contentSession,
 			`if (document.title === `+string(nonceJSON)+`) document.title = `+string(oldTitle), false)
+		s.logIfErr("restore content tab title", err)
 	}()
 
 	res, err := s.evaluate(ctx, helperSession,
-		"coderStart("+itoa(width)+","+itoa(height)+")", true)
+		"coderStart("+strconv.Itoa(width)+","+strconv.Itoa(height)+")", true)
 	if err != nil {
 		return err
 	}
 	s.logger.Info(ctx, "browser capture started", slog.F("result", string(res)))
 	return nil
-}
-
-func itoa(i int) string {
-	b, _ := json.Marshal(i)
-	return string(b)
 }
 
 // restartCapture recovers from a helper or capture failure. If capture
@@ -743,7 +753,8 @@ func (s *session) serveHelperPage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = rw.Write(helperHTML)
+	_, err := rw.Write(helperHTML)
+	s.logIfErr("write helper page", err)
 }
 
 func (s *session) validToken(r *http.Request) bool {
@@ -773,7 +784,7 @@ func (s *session) serveHelperWS(rw http.ResponseWriter, r *http.Request) {
 	s.helperWS = conn
 	s.helperMu.Unlock()
 	if old != nil {
-		_ = old.CloseNow()
+		s.logIfErr("close replaced helper websocket", old.CloseNow())
 	}
 
 	defer func() {
@@ -783,7 +794,7 @@ func (s *session) serveHelperWS(rw http.ResponseWriter, r *http.Request) {
 			s.helperWS = nil
 		}
 		s.helperMu.Unlock()
-		_ = conn.CloseNow()
+		s.logIfErr("close helper websocket", conn.CloseNow())
 		if !replaced {
 			s.restartCapture("helper disconnected")
 		}
@@ -824,11 +835,15 @@ func (s *session) sendHelper(msg map[string]any) {
 	if conn == nil {
 		return
 	}
-	data, _ := json.Marshal(msg)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		s.logIfErr("marshal helper message", err)
+		return
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer cancel()
-		_ = conn.Write(ctx, websocket.MessageText, data)
+		s.logIfErr("send helper message", conn.Write(ctx, websocket.MessageText, data))
 	}()
 }
 
@@ -1017,7 +1032,8 @@ func (s *session) handleEvent(msg cdpMessage) {
 			return
 		}
 		accept := ev.Type == page.DialogTypeAlert || ev.Type == page.DialogTypeBeforeunload
-		_ = s.call(ctx, s.contentSession, "Page.handleJavaScriptDialog", page.HandleJavaScriptDialog(accept), nil)
+		s.logIfErr("dismiss javascript dialog",
+			s.call(ctx, s.contentSession, "Page.handleJavaScriptDialog", page.HandleJavaScriptDialog(accept), nil))
 	}
 }
 
@@ -1027,9 +1043,9 @@ func (s *session) redirectPopup(ctx context.Context, info *target.Info) {
 	s.popupsMu.Lock()
 	delete(s.popups, info.TargetID)
 	s.popupsMu.Unlock()
-	_ = s.call(ctx, "", "Target.closeTarget", target.CloseTarget(info.TargetID), nil)
+	s.logIfErr("close popup tab", s.call(ctx, "", "Target.closeTarget", target.CloseTarget(info.TargetID), nil))
 	if u, err := normalizeURL(info.URL); err == nil {
-		_ = s.call(ctx, s.contentSession, "Page.navigate", page.Navigate(u), nil)
+		s.logIfErr("open popup url", s.call(ctx, s.contentSession, "Page.navigate", page.Navigate(u), nil))
 	}
 }
 
