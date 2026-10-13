@@ -24,12 +24,6 @@ export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 				description: getErrorDetail(error),
 			});
 		},
-		// Refetching also drops a skill that was deleted elsewhere.
-		onSettled: () =>
-			queryClient.invalidateQueries({
-				queryKey: scope.list.queryKey,
-				exact: true,
-			}),
 	});
 
 	return (

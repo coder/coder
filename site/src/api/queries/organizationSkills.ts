@@ -8,28 +8,6 @@ const organizationSkillsKey = (organizationId: string) =>
 const organizationSkillKey = (organizationId: string, name: string) =>
 	[...organizationSkillsKey(organizationId), name] as const;
 
-const toSkillMetadata = (skill: TypesGen.Skill): TypesGen.SkillMetadata => ({
-	id: skill.id,
-	name: skill.name,
-	description: skill.description,
-	enabled: skill.enabled,
-	created_at: skill.created_at,
-	updated_at: skill.updated_at,
-});
-
-const sortSkillMetadata = (
-	skills: TypesGen.SkillMetadata[],
-): TypesGen.SkillMetadata[] =>
-	skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
-
-const upsertSkillMetadata = (
-	skills: TypesGen.SkillMetadata[],
-	skill: TypesGen.SkillMetadata,
-): TypesGen.SkillMetadata[] => {
-	const withoutSkill = skills.filter(({ name }) => name !== skill.name);
-	return sortSkillMetadata([...withoutSkill, skill]);
-};
-
 export const organizationSkills = (organizationId: string) => ({
 	queryKey: organizationSkillsKey(organizationId),
 	queryFn: (): Promise<TypesGen.SkillMetadata[]> =>
@@ -106,26 +84,11 @@ export const createOrganizationSkill = (
 ) => ({
 	mutationFn: (req: TypesGen.CreateSkillRequest) =>
 		API.experimental.createOrganizationSkill(organizationId, req),
-	onSuccess: (skill: TypesGen.Skill) => {
-		const skills = queryClient.getQueryData<TypesGen.SkillMetadata[]>(
-			organizationSkillsKey(organizationId),
-		);
-		if (skills) {
-			queryClient.setQueryData(
-				organizationSkillsKey(organizationId),
-				upsertSkillMetadata(skills, toSkillMetadata(skill)),
-			);
-		} else {
-			void queryClient.invalidateQueries({
-				queryKey: organizationSkillsKey(organizationId),
-				exact: true,
-			});
-		}
-		queryClient.setQueryData(
-			organizationSkillKey(organizationId, skill.name),
-			skill,
-		);
-	},
+	onSuccess: () =>
+		queryClient.invalidateQueries({
+			queryKey: organizationSkillsKey(organizationId),
+			exact: true,
+		}),
 });
 
 type UpdateOrganizationSkillArgs = {
@@ -139,14 +102,16 @@ export const updateOrganizationSkill = (
 ) => ({
 	mutationFn: ({ name, req }: UpdateOrganizationSkillArgs) =>
 		API.experimental.updateOrganizationSkill(organizationId, name, req),
+	// The detail query is inactive once the editor closes, so invalidating it
+	// would not refetch it and the next open would show the old content.
 	onSuccess: (skill: TypesGen.Skill, { name }: UpdateOrganizationSkillArgs) => {
 		queryClient.setQueryData(organizationSkillKey(organizationId, name), skill);
-		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
-			organizationSkillsKey(organizationId),
-			(skills) =>
-				skills ? upsertSkillMetadata(skills, toSkillMetadata(skill)) : skills,
-		);
 	},
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: organizationSkillsKey(organizationId),
+			exact: true,
+		}),
 });
 
 export const deleteOrganizationSkill = (
@@ -161,9 +126,9 @@ export const deleteOrganizationSkill = (
 		queryClient.removeQueries({
 			queryKey: organizationSkillKey(organizationId, name),
 		});
-		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
-			organizationSkillsKey(organizationId),
-			(skills) => skills?.filter((skill) => skill.name !== name),
-		);
+		return queryClient.invalidateQueries({
+			queryKey: organizationSkillsKey(organizationId),
+			exact: true,
+		});
 	},
 });

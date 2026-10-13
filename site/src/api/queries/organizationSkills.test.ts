@@ -42,7 +42,7 @@ const toMetadata = (skill: Skill): SkillMetadata => ({
 });
 
 describe("organization skill ACL queries", () => {
-	it("removes a deleted skill's ACL caches", () => {
+	it("removes a deleted skill's ACL caches", async () => {
 		const queryClient = createTestQueryClient();
 		const aclKey = organizationSkillACL("org", "alpha").queryKey;
 		const availableKey = organizationSkillACLAvailable("org", "alpha", {
@@ -54,13 +54,17 @@ describe("organization skill ACL queries", () => {
 		queryClient.setQueryData(aclKey, { users: [], groups: [] });
 		queryClient.setQueryData(availableKey, { users: [], groups: [] });
 
-		deleteOrganizationSkill(queryClient, "org").onSuccess(undefined, "alpha");
+		await deleteOrganizationSkill(queryClient, "org").onSuccess(
+			undefined,
+			"alpha",
+		);
 
 		expect(queryClient.getQueryData(aclKey)).toBeUndefined();
 		expect(queryClient.getQueryData(availableKey)).toBeUndefined();
 		expect(
-			queryClient.getQueryData(organizationSkills("org").queryKey),
-		).toEqual([]);
+			queryClient.getQueryState(organizationSkills("org").queryKey)
+				?.isInvalidated,
+		).toBe(true);
 	});
 
 	it("invalidates the skill list and detail after saving the ACL", async () => {

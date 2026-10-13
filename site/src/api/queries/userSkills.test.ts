@@ -53,78 +53,57 @@ describe("user skill queries", () => {
 		]);
 	});
 
-	it("adds a created skill to the sorted list cache", () => {
+	it("invalidates the list after a create", async () => {
 		const queryClient = createTestQueryClient();
-		const alpha = makeSkill("alpha");
-		const zeta = makeSkill("zeta");
-		queryClient.setQueryData(userSkills().queryKey, [toMetadata(zeta)]);
+		queryClient.setQueryData(userSkills().queryKey, []);
 
-		createUserSkill(queryClient).onSuccess(alpha);
+		await createUserSkill(queryClient).onSuccess();
 
-		expect(queryClient.getQueryData(userSkills().queryKey)).toEqual([
-			toMetadata(alpha),
-			toMetadata(zeta),
-		]);
-		expect(queryClient.getQueryData(userSkill("alpha").queryKey)).toEqual(
-			alpha,
-		);
+		expect(
+			queryClient.getQueryState(userSkills().queryKey)?.isInvalidated,
+		).toBe(true);
 	});
 
-	it("leaves an unloaded list cache unset after a create", () => {
-		const queryClient = createTestQueryClient();
-
-		createUserSkill(queryClient).onSuccess(makeSkill("alpha"));
-
-		expect(queryClient.getQueryData(userSkills().queryKey)).toBeUndefined();
-	});
-
-	it("updates list and detail caches for an updated skill", () => {
+	it("writes the detail and invalidates the list after an update", async () => {
 		const queryClient = createTestQueryClient();
 		const alpha = makeSkill("alpha");
-		const beta = makeSkill("beta");
 		const updatedAlpha = makeSkill("alpha", {
 			description: "updated description",
 			content:
 				"---\nname: alpha\ndescription: updated description\n---\nUpdated\n",
 			updated_at: "2026-05-21T01:00:00Z",
 		});
-		queryClient.setQueryData(userSkills().queryKey, [
-			toMetadata(alpha),
-			toMetadata(beta),
-		]);
+		queryClient.setQueryData(userSkills().queryKey, [toMetadata(alpha)]);
 		queryClient.setQueryData(userSkill("alpha").queryKey, alpha);
 
-		updateUserSkill(queryClient).onSuccess(updatedAlpha, {
+		const options = updateUserSkill(queryClient);
+		options.onSuccess(updatedAlpha, {
 			name: "alpha",
 			req: { content: updatedAlpha.content },
 		});
+		await options.onSettled();
 
-		expect(queryClient.getQueryData(userSkills().queryKey)).toEqual([
-			toMetadata(updatedAlpha),
-			toMetadata(beta),
-		]);
 		expect(queryClient.getQueryData(userSkill("alpha").queryKey)).toEqual(
 			updatedAlpha,
 		);
+		expect(
+			queryClient.getQueryState(userSkills().queryKey)?.isInvalidated,
+		).toBe(true);
 	});
 
-	it("removes a deleted skill from list and detail caches", () => {
+	it("removes a deleted skill's detail and invalidates the list", async () => {
 		const queryClient = createTestQueryClient();
 		const alpha = makeSkill("alpha");
-		const beta = makeSkill("beta");
-		queryClient.setQueryData(userSkills().queryKey, [
-			toMetadata(alpha),
-			toMetadata(beta),
-		]);
+		queryClient.setQueryData(userSkills().queryKey, [toMetadata(alpha)]);
 		queryClient.setQueryData(userSkill("alpha").queryKey, alpha);
 
-		deleteUserSkill(queryClient).onSuccess(undefined, "alpha");
+		await deleteUserSkill(queryClient).onSuccess(undefined, "alpha");
 
-		expect(queryClient.getQueryData(userSkills().queryKey)).toEqual([
-			toMetadata(beta),
-		]);
 		expect(
 			queryClient.getQueryData(userSkill("alpha").queryKey),
 		).toBeUndefined();
+		expect(
+			queryClient.getQueryState(userSkills().queryKey)?.isInvalidated,
+		).toBe(true);
 	});
 });

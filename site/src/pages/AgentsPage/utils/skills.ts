@@ -289,6 +289,7 @@ export type SkillsScope = {
 			skill: Skill,
 			args: { name: string; req: UpdateSkillRequest },
 		) => unknown;
+		onSettled: () => Promise<unknown>;
 	};
 	remove: (queryClient: QueryClient) => {
 		mutationFn: (name: string) => Promise<unknown>;
