@@ -1660,6 +1660,21 @@ func (api *API) InterruptChatAsUser(ctx context.Context, userID, chatID uuid.UUI
 	return api.interruptChat(ctx, chat)
 }
 
+// UpdateChatAsUser updates a chat as userID with the validation, the errors,
+// and the audit entry of PATCH /api/v2/chats/{chat}. See CreateChatAsUser.
+func (api *API) UpdateChatAsUser(ctx context.Context, userID, chatID uuid.UUID, req codersdk.UpdateChatRequest) error {
+	ctx, chat, err := api.actAsUserOnChat(ctx, userID, chatID)
+	if err != nil {
+		return err
+	}
+	if err := api.checkUpdateChat(ctx, chat); err != nil {
+		return err
+	}
+	updated, err := api.updateChat(ctx, userID, chat, req)
+	api.auditChatAsUser(ctx, userID, database.AuditActionWrite, chat, updated, http.StatusNoContent, err)
+	return err
+}
+
 // Errors implement httperror.Responder.
 func (api *API) actAsUserOnChat(ctx context.Context, userID, chatID uuid.UUID) (context.Context, database.Chat, error) {
 	ctx, err := api.actAsUser(ctx, userID)
