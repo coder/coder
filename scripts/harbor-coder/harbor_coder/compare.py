@@ -19,6 +19,7 @@ def _summarize(job_dir: Path) -> dict:
     by_task: dict[str, list[float]] = defaultdict(list)
     cost = 0.0
     infra = 0
+    models: set[str] = set()
     for f in sorted(job_dir.glob("*/result.json")):
         t = json.loads(f.read_text())
         if t.get("exception_info") and not (t.get("agent_execution") or {}).get("started_at"):
@@ -26,7 +27,10 @@ def _summarize(job_dir: Path) -> dict:
             continue
         rewards = (t.get("verifier_result") or {}).get("rewards") or {}
         by_task[t.get("task_name") or "?"].append(float(rewards.get("reward", 0.0)))
-        cost += (t.get("agent_result") or {}).get("cost_usd") or 0.0
+        agent = t.get("agent_result") or {}
+        cost += agent.get("cost_usd") or 0.0
+        if m := (agent.get("metadata") or {}).get("model"):
+            models.add(m)
     rewards = [r for rs in by_task.values() for r in rs]
     return {
         "by_task": by_task,
@@ -34,6 +38,7 @@ def _summarize(job_dir: Path) -> dict:
         "n": len(rewards),
         "infra": infra,
         "cost": cost,
+        "model": ", ".join(sorted(models)) or "-",
     }
 
 
@@ -67,6 +72,7 @@ def main() -> None:
         f"| | {lb} | {lc} |",
         "| --- | ---: | ---: |",
         f"| Task success | {base['mean']:.2f} | {cand['mean']:.2f} |",
+        f"| Model | {base['model']} | {cand['model']} |",
         f"| Trials scored | {base['n']} | {cand['n']} |",
         f"| Infra errors (excluded) | {base['infra']} | {cand['infra']} |",
         f"| Cost | ${base['cost']:.2f} | ${cand['cost']:.2f} |",

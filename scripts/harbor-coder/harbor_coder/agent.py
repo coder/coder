@@ -23,6 +23,7 @@ class CoderAgentsAgent(BaseAgent):
         super().__init__(*args, **kwargs)
         self.client = CoderClient()
         self._version: str | None = None
+        self._model: str | None = None
 
     @staticmethod
     def name() -> str:
@@ -35,6 +36,12 @@ class CoderAgentsAgent(BaseAgent):
         self._version = (await self.client.request("GET", "/api/v2/buildinfo")).get("version")
         if not getattr(environment, "workspace_id", None):
             raise RuntimeError("coder-agents requires --env harbor_coder.environment:CoderEnvironment")
+        org = await self.client.default_organization()
+        models = await self.client.request("GET", f"/api/v2/organizations/{org['id']}/chats/models")
+        self._model = next((m["model"] for m in models.get("models") or [] if m.get("is_default")), None)
+        if self._model is None:
+            raise RuntimeError("no default chat model configured on the coderd under test")
+        self.logger.info(f"coder-agents model: {self._model}")
 
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
         workdir = (
@@ -57,7 +64,7 @@ class CoderAgentsAgent(BaseAgent):
             }
         )
         chat_id = chat["id"]
-        context.metadata = {"chat_id": chat_id}
+        context.metadata = {"chat_id": chat_id, "model": self._model}
         status = "running"
         try:
             while (status := (await self.client.chat(chat_id)).get("status")) not in ("waiting", "error"):

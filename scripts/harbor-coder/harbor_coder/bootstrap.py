@@ -110,11 +110,13 @@ async def main() -> None:
                 "api_keys": [upstream_token],
             },
         )
-    models = await client.request("GET", f"/api/v2/organizations/{org['id']}/chats/models")
-    if not any(m.get("model") == args.model for m in models.get("models") or []):
+    models_path = f"/api/v2/organizations/{org['id']}/chats/models"
+    models = (await client.request("GET", models_path)).get("models") or []
+    existing = next((m for m in models if m.get("model") == args.model), None)
+    if existing is None:
         await client.request(
             "POST",
-            f"/api/v2/organizations/{org['id']}/chats/models",
+            models_path,
             body={
                 "ai_provider_id": provider["id"],
                 "model": args.model,
@@ -122,6 +124,15 @@ async def main() -> None:
                 "is_default": True,
             },
         )
+    elif not existing.get("is_default"):
+        # Creating a model only becomes the default when it is the first one;
+        # a rerun with a different model must move the default explicitly.
+        await client.request("PATCH", f"{models_path}/{existing['id']}", body={"is_default": True})
+    models = (await client.request("GET", models_path)).get("models") or []
+    default = next((m["model"] for m in models if m.get("is_default")), None)
+    if default != args.model:
+        raise SystemExit(f"default chat model is {default!r}, expected {args.model!r}")
+    print(f"default chat model: {default}", file=sys.stderr)
     push = await asyncio.create_subprocess_exec(
         "coder", "templates", "push", "harbor-task", "--directory", str(args.template_dir), "--yes",
         env={**os.environ, "CODER_URL": args.url, "CODER_SESSION_TOKEN": client.token},
