@@ -1,8 +1,0 @@
-date,region,product,units,unit_price
-2026-01-03,west,widget,10,2.50
-2026-01-03,east,widget,4,2.50
-2026-01-04,west,gadget,1,19.99
-2026-01-05,east,gadget,3,19.99
-2026-01-05,east,widget,7,2.50
-2026-01-06,north,widget,0,2.50
-2026-01-07,west,gizmo,2,7.25
