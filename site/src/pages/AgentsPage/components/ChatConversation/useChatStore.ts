@@ -229,19 +229,20 @@ export const useChatStore = (
 			if (disposed) {
 				return;
 			}
-			if (
-				payload.parseError ||
-				!payload.parsedMessage ||
-				payload.parsedMessage.some(isUnversionedEvent)
-			) {
+			if (payload.parseError || !payload.parsedMessage) {
 				// A lost frame can hold events that a later event's version would
-				// skip on reconnect, and an unversioned event comes from an older
-				// server, so both resync from the last applied version.
+				// skip on reconnect, so resync from the last applied version.
 				discardBufferedParts();
 				store.setStreamError({
 					kind: "generic",
 					message: "Failed to parse chat stream update.",
 				});
+				socket.close();
+				return;
+			}
+			// An older replica answered; reconnect until a current one does.
+			if (payload.parsedMessage.some(isUnversionedEvent)) {
+				discardBufferedParts();
 				socket.close();
 				return;
 			}
