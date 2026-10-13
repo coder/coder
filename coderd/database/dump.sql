@@ -643,6 +643,7 @@ CREATE TYPE resource_type AS ENUM (
     'chat_automation',
     'chat_project_memory',
     'chat_organization_system_prompt',
+    'chat_project_instructions',
     'organization_skill'
 );
 

@@ -250,6 +250,20 @@ describe("parseMessageContent", () => {
 		});
 	});
 
+	it("keeps whitespace-only parts between text parts", () => {
+		// Interrupted turns are saved with one part per streamed delta.
+		const result = parseMessageContent([
+			{ type: "text", text: "\n" },
+			{ type: "text", text: "writing." },
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Like this" },
+		]);
+		expect(result.markdown).toBe("writing.\n\nLike this");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "writing.\n\nLike this" },
+		]);
+	});
+
 	it("parses a reasoning block", () => {
 		const result = parseMessageContent([
 			{ type: "reasoning", text: "Let me think..." },
