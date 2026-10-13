@@ -185,19 +185,6 @@ export const ParsedCommands: Story = {
 	},
 };
 
-/** parsedCommands paired with modelIntent. */
-export const ParsedCommandsWithIntent: Story = {
-	args: {
-		command: "cd /repo && go test -race ./coderd/...",
-		status: "running",
-		modelIntent: "Running the unit tests",
-		parsedCommands: [
-			["cd", "/repo"],
-			["go", "test"],
-		],
-	},
-};
-
 export const LongUnbrokenLineOutput: Story = {
 	decorators: [
 		(Story) => (

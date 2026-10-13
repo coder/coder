@@ -54,6 +54,35 @@ func (p pattern) key() string {
 	return fmt.Sprintf("%d %s", p.kind, p.prefix)
 }
 
+// covers reports whether every path q matches is also matched by p, which
+// makes q unreachable when p is earlier in the file. Redirects are applied in
+// order and the first matching rule wins, so a broad pattern placed above a
+// narrower rule swallows it.
+//
+// An exact p never covers anything but an identical exact q, which the
+// duplicate check already reports. In particular an exact rule above a
+// wildcard on the same prefix is deliberate: it claims the bare prefix and
+// leaves the subtree to the wildcard.
+func (p pattern) covers(q pattern) bool {
+	switch p.kind {
+	case kindWildcard:
+		// p matches its prefix and everything beneath it, and q only ever
+		// matches paths at or beneath its own prefix.
+		return q.prefix == p.prefix || strings.HasPrefix(q.prefix, p.prefix+"/")
+	case kindRegexWildcard:
+		// p matches everything strictly beneath its prefix, so it covers q
+		// only when q's paths are all strictly beneath it too.
+		if strings.HasPrefix(q.prefix, p.prefix+"/") {
+			return true
+		}
+		// On the same prefix, p misses the bare prefix that a wildcard q
+		// matches, so it covers only another regex wildcard.
+		return q.prefix == p.prefix && q.kind == kindRegexWildcard
+	default:
+		return false
+	}
+}
+
 type destination struct {
 	external bool
 	// raw is the destination as written, for messages.
@@ -408,7 +437,39 @@ func checkShadowing(src pattern, live map[string]bool) string {
 	return fmt.Sprintf("source hides a live docs page: %s%s; remove the redirect, or remove the page from docs/manifest.json first", hidden[0], more)
 }
 
-// checkAcrossRules finds duplicate sources, chains, and loops.
+// checkOrder reports rules that can never apply because an earlier rule
+// already matches every URL they would. The website applies redirects in file
+// order and the first match wins, so rules have to run from most specific to
+// least: a trailing wildcard above a rule inside its subtree swallows it.
+//
+// Each unreachable rule is reported once, against the first rule that covers
+// it. Pairs with the same source are left to the duplicate check.
+func checkOrder(rules []rule) []problem {
+	var problems []problem
+	for j, later := range rules {
+		for _, earlier := range rules[:j] {
+			if earlier.src.key() == later.src.key() {
+				continue
+			}
+			if !earlier.src.covers(later.src) {
+				continue
+			}
+			problems = append(problems, problem{
+				index:  later.index,
+				source: later.source,
+				message: fmt.Sprintf(
+					"unreachable: rule [%d] (source %q) comes first and matches every URL this rule would; order rules from most specific to least",
+					earlier.index, earlier.source,
+				),
+			})
+			break
+		}
+	}
+	return problems
+}
+
+// checkAcrossRules finds duplicate sources, unreachable rules, chains, and
+// loops.
 func checkAcrossRules(rules []rule) []problem {
 	var problems []problem
 
@@ -425,6 +486,8 @@ func checkAcrossRules(rules []rule) []problem {
 		}
 		seen[k] = r.index
 	}
+
+	problems = append(problems, checkOrder(rules)...)
 
 	// next[i] is the rule whose source the destination of rule i lands on.
 	// Only exact internal destinations are followed. Where a pattern

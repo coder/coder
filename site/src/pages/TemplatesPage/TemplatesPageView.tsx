@@ -181,6 +181,8 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const organizationLabel =
+		template.organization_display_name || template.organization_name;
 	const developerCount = formatTemplateActiveDevelopersLabel(
 		template.active_user_count,
 	);
@@ -228,9 +230,15 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
-						title={template.organization_display_name}
+						title={organizationLabel}
 						subtitle={`Used by ${developerCount}`}
-						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={template.organization_icon}
+								fallback={organizationLabel}
+							/>
+						}
 					/>
 				) : (
 					developerCount

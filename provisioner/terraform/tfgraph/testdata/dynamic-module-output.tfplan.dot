@@ -1,0 +1,32 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] provider[\"terraform.io/builtin/terraform\"]" [label = "provider[\"terraform.io/builtin/terraform\"]", shape = "diamond"]
+		"[root] terraform_data.agent" [label = "terraform_data.agent", shape = "box"]
+		"[root] terraform_data.agent (expand)" [label = "terraform_data.agent", shape = "box"]
+		"[root] terraform_data.other" [label = "terraform_data.other", shape = "box"]
+		"[root] terraform_data.other (expand)" [label = "terraform_data.other", shape = "box"]
+		"[root] terraform_data.script (expand)" [label = "terraform_data.script", shape = "box"]
+		"[root] terraform_data.script[\"primary\"]" [label = "terraform_data.script", shape = "box"]
+		"[root] module.rep (close)" -> "[root] module.rep.output.agent_id (expand)"
+		"[root] module.rep (close)" -> "[root] module.rep.output.obj (expand)"
+		"[root] module.rep (close)" -> "[root] module.rep.output.other_id (expand)"
+		"[root] module.rep.output.agent_id (expand)" -> "[root] module.rep.var.agent_id (expand)"
+		"[root] module.rep.output.obj (expand)" -> "[root] module.rep.var.agent_id (expand)"
+		"[root] module.rep.output.obj (expand)" -> "[root] module.rep.var.other_id (expand)"
+		"[root] module.rep.output.other_id (expand)" -> "[root] module.rep.var.other_id (expand)"
+		"[root] module.rep.var.agent_id (expand)" -> "[root] module.rep (expand)"
+		"[root] module.rep.var.agent_id (expand)" -> "[root] terraform_data.agent"
+		"[root] module.rep.var.other_id (expand)" -> "[root] module.rep (expand)"
+		"[root] module.rep.var.other_id (expand)" -> "[root] terraform_data.other"
+		"[root] provider[\"terraform.io/builtin/terraform\"] (close)" -> "[root] terraform_data.script[\"primary\"]"
+		"[root] root" -> "[root] provider[\"terraform.io/builtin/terraform\"] (close)"
+		"[root] terraform_data.agent (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+		"[root] terraform_data.agent" -> "[root] terraform_data.agent (expand)"
+		"[root] terraform_data.other (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+		"[root] terraform_data.other" -> "[root] terraform_data.other (expand)"
+		"[root] terraform_data.script (expand)" -> "[root] module.rep (close)"
+		"[root] terraform_data.script[\"primary\"]" -> "[root] terraform_data.script (expand)"
+	}
+}

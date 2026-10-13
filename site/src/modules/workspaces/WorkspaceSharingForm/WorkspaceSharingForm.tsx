@@ -142,7 +142,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 type WorkspaceSharingFormProps = {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -158,7 +158,7 @@ type WorkspaceSharingFormProps = {
 export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
-	canUpdatePermissions,
+	canShareWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,
@@ -256,7 +256,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
 										disabled={updatingGroupId === group.id}
@@ -268,7 +268,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -304,7 +304,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
 										disabled={updatingUserId === user.id}
@@ -316,7 +316,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -350,7 +350,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		return (
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
-				{canUpdatePermissions && addMemberForm}
+				{canShareWorkspace && addMemberForm}
 				{showRestartWarning && (
 					<Alert severity="warning">
 						Workspace restart required for the removal to take effect.
@@ -369,7 +369,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
-			{canUpdatePermissions && addMemberForm}
+			{canShareWorkspace && addMemberForm}
 			{showRestartWarning && (
 				<Alert severity="warning">
 					Workspace restart required for the removal to take effect.

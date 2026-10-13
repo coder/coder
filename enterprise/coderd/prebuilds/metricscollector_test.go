@@ -172,6 +172,16 @@ func TestMetricsCollector(t *testing.T) {
 			eligible:        []bool{false},
 		},
 	}
+	db, pubsub := dbtestutil.NewDB(t)
+	createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
+	for _, test := range tests {
+		for _, user := range slices.Concat(test.ownerIDs, test.initiatorIDs) {
+			if !slices.Contains(createdUsers, user) {
+				dbgen.User(t, db, database.User{ID: user})
+				createdUsers = append(createdUsers, user)
+			}
+		}
+	}
 	for _, test := range tests {
 		for _, transition := range test.transitions {
 			for _, jobStatus := range test.jobStatuses {
@@ -194,7 +204,7 @@ func TestMetricsCollector(t *testing.T) {
 										}
 									})
 									clock := quartz.NewMock(t)
-									db, pubsub := dbtestutil.NewDB(t)
+									db := dbtestutil.StartRolledBackTx(t, db)
 									cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 									reconciler := prebuilds.NewStoreReconciler(
 										db, pubsub, cache, codersdk.PrebuildsConfig{}, logger,
@@ -207,16 +217,6 @@ func TestMetricsCollector(t *testing.T) {
 										nil,
 									)
 									ctx := testutil.Context(t, testutil.WaitLong)
-
-									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
-									for _, user := range slices.Concat(test.ownerIDs, test.initiatorIDs) {
-										if !slices.Contains(createdUsers, user) {
-											dbgen.User(t, db, database.User{
-												ID: user,
-											})
-											createdUsers = append(createdUsers, user)
-										}
-									}
 
 									collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
 									registry := prometheus.NewPedanticRegistry()

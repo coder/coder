@@ -2,7 +2,6 @@ import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -234,7 +233,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	parsedCommands,
 	startedAt,
 	shellToolDisplayMode,
@@ -250,7 +248,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
-			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
 			startedAt={startedAt}
 			shellToolDisplayMode={shellToolDisplayMode}
@@ -263,7 +260,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
@@ -283,7 +279,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 		<ProcessOutputTool
 			output={output}
 			command={command || undefined}
-			modelIntent={modelIntent}
 			status={status}
 			processRunning={processRunning}
 			exitCode={exitCode}
@@ -762,7 +757,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	reasoning,
 	isError,
-	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -798,7 +792,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 			advice={advice}
 			reasoning={reasoning}
 			errorMessage={errorMessage || undefined}
-			modelIntent={modelIntent}
 		/>
 	);
 };
@@ -882,14 +875,11 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 				{label}
 			</div>
 		)}
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel={`Contents of ${file.name}`}
+			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
-			scrollBarClassName="w-1.5"
-			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer
 				file={file}
@@ -901,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 						: (file) => <DiffFileHeader file={file} />
 				}
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	</>
 );
 
@@ -1023,7 +1013,6 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 							name={name}
 							args={args}
 							result={result}
-							isError={isError}
 							mcpSlug={mcpServer?.slug}
 						/>
 					)

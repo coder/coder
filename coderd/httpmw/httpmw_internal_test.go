@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -209,7 +210,51 @@ func TestNormalizePathSegments(t *testing.T) {
 	}
 }
 
-// TestExtractExpectedAudience tests audience extraction from HTTP requests
+func TestBuildWWWAuthenticateHeaderResourceMetadata(t *testing.T) {
+	t.Parallel()
+
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		path        string
+		metadataURL string
+		expectedURL string
+	}{
+		{path: "/api/experimental/mcp/http"},
+		{path: "/api/experimental/mcp/http/"},
+		{path: "/api/experimental/mcp/http/child"},
+		{path: "/api/experimental/mcp/http?toolset=chatgpt"},
+		{path: "/api/experimental/mcp/http-extra"},
+		{path: "/api/v2/users/me"},
+		{
+			path: "/reports", metadataURL: "https://discovery.example.com/reports",
+			expectedURL: "https://discovery.example.com/reports",
+		},
+		{
+			path: "/reports/", metadataURL: "https://discovery.example.com/reports/",
+			expectedURL: "https://discovery.example.com/reports/",
+		},
+		{
+			path: "/reports?resource_metadata=https://untrusted.example.com", metadataURL: "https://discovery.example.com/reports",
+			expectedURL: "https://discovery.example.com/reports",
+		},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodPost, "https://untrusted.example.com"+tc.path, nil)
+			expectedURL := tc.expectedURL
+			if expectedURL == "" {
+				expectedURL = "https://coder.example.com/.well-known/oauth-protected-resource"
+			}
+			for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+				header := buildWWWAuthenticateHeader(accessURL, tc.metadataURL, req, code, codersdk.Response{})
+				require.Contains(t, header, `resource_metadata="`+expectedURL+`"`)
+			}
+		})
+	}
+}
+
+// TestExtractExpectedAudience tests audience extraction from HTTP requests.
 func TestExtractExpectedAudience(t *testing.T) {
 	t.Parallel()
 
@@ -235,6 +280,27 @@ func TestExtractExpectedAudience(t *testing.T) {
 			expected: "https://api.example.com/",
 		},
 		{
+			name:     "MCPWithoutOverride",
+			scheme:   "https",
+			host:     "example.com",
+			path:     "/api/experimental/mcp/http",
+			expected: "https://example.com/",
+		},
+		{
+			name:     "MCPWithTrailingSlashWithoutOverride",
+			scheme:   "https",
+			host:     "example.com",
+			path:     "/api/experimental/mcp/http/",
+			expected: "https://example.com/",
+		},
+		{
+			name:     "MCPPrefixLookalike",
+			scheme:   "https",
+			host:     "example.com",
+			path:     "/api/experimental/mcp/http-extra",
+			expected: "https://example.com/",
+		},
+		{
 			name:     "WithPort",
 			scheme:   "http",
 			host:     "localhost:8080",
@@ -256,6 +322,11 @@ func TestExtractExpectedAudience(t *testing.T) {
 
 			result := extractExpectedAudience(nil, req)
 			assert.Equal(t, tc.expected, result)
+
+			accessURL, err := url.Parse(tc.scheme + "://" + tc.host)
+			require.NoError(t, err)
+			req.Host = "untrusted.example.com"
+			assert.Equal(t, tc.expected, extractExpectedAudience(accessURL, req))
 		})
 	}
 }
