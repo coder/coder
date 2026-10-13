@@ -8866,15 +8866,6 @@ func (q *sqlQuerier) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UU
 	return err
 }
 
-const deleteAllChatQueuedMessages = `-- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = $1
-`
-
-func (q *sqlQuerier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAllChatQueuedMessages, chatID)
-	return err
-}
-
 const deleteAllChatQueuedMessagesReturningCount = `-- name: DeleteAllChatQueuedMessagesReturningCount :execrows
 DELETE FROM chat_queued_messages
 WHERE chat_id = $1::uuid
@@ -8898,20 +8889,6 @@ WHERE chat_id = $1::uuid
 // has no snapshot.
 func (q *sqlQuerier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatContextResourcesByChatID, chatID)
-	return err
-}
-
-const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
-`
-
-type DeleteChatQueuedMessageParams struct {
-	ID     int64     `db:"id" json:"id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessage, arg.ID, arg.ChatID)
 	return err
 }
 
@@ -13088,33 +13065,6 @@ func (q *sqlQuerier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = $1
-    ORDER BY cqm.created_at ASC, cqm.id ASC
-    LIMIT 1
-)
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
-`
-
-func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
-	row := q.db.QueryRowContext(ctx, popNextQueuedMessage, chatID)
-	var i ChatQueuedMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.Content,
-		&i.CreatedAt,
-		&i.ModelConfigID,
-		&i.Position,
-		&i.CreatedBy,
-		&i.ReasoningEffort,
-	)
-	return i, err
-}
-
 const reindexStaleChatMessagesSearchTsv = `-- name: ReindexStaleChatMessagesSearchTsv :execrows
 WITH batch AS (
     SELECT id FROM chat_messages
@@ -13196,31 +13146,6 @@ func (q *sqlQuerier) RenewChatHeartbeats(ctx context.Context, arg RenewChatHeart
 		return nil, err
 	}
 	return items, nil
-}
-
-const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows
-UPDATE chat_queued_messages AS target
-SET created_at = (
-    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
-    FROM chat_queued_messages AS inner_cqm
-    WHERE inner_cqm.chat_id = $1
-)
-WHERE target.id = $2 AND target.chat_id = $1
-`
-
-type ReorderChatQueuedMessageToFrontParams struct {
-	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
-	TargetID int64     `db:"target_id" json:"target_id"`
-}
-
-// Mutates only created_at on the target row; ids are unchanged so
-// consumers can keep tracking queued messages by id.
-func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToFront, arg.ChatID, arg.TargetID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const reorderChatQueuedMessageToHead = `-- name: ReorderChatQueuedMessageToHead :execrows
