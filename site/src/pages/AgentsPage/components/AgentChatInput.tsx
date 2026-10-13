@@ -596,6 +596,27 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	// The editor is focused programmatically on load and after sends, and
+	// browsers treat every contenteditable focus as focus-visible. Track
+	// whether focus arrived via Tab so the composer ring only marks
+	// keyboard navigation; the caret already marks other focus.
+	const lastInputWasTabRef = useRef(false);
+	const [isEditorKeyboardFocused, setIsEditorKeyboardFocused] =
+		useState(false);
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			lastInputWasTabRef.current = event.key === "Tab";
+		};
+		const handlePointerDown = () => {
+			lastInputWasTabRef.current = false;
+		};
+		document.addEventListener("keydown", handleKeyDown, true);
+		document.addEventListener("pointerdown", handlePointerDown, true);
+		return () => {
+			document.removeEventListener("keydown", handleKeyDown, true);
+			document.removeEventListener("pointerdown", handlePointerDown, true);
+		};
+	}, []);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1385,7 +1406,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[[contenteditable]:focus]:ring-2 has-[[contenteditable]:focus]:ring-content-link",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs",
+					isEditorKeyboardFocused && "ring-2 ring-content-link",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingHistoryMessage || warning) &&
@@ -1393,6 +1415,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					isReadOnlyView && "border border-solid border-border",
 				)}
 				onKeyDown={handleComposerKeyDown}
+				onFocus={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(lastInputWasTabRef.current);
+					}
+				}}
+				onBlur={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(false);
+					}
+				}}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
