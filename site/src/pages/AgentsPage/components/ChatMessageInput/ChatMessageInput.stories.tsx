@@ -158,7 +158,7 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 
 // Enough skills to overflow the menu's max height so arrow-key
 // navigation has to scroll the list.
-const manyPersonalSkills: TypesGen.UserSkillMetadata[] = Array.from(
+const manyPersonalSkills: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 15 },
 	(_, index) => ({
 		...MockSkill,
@@ -473,7 +473,7 @@ const mockMobileMatchMedia = (): (() => void) => {
 	};
 };
 
-const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
+const longSkillList: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
 		...MockSkill,

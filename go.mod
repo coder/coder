@@ -111,8 +111,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    with no results so chatd keeps them in saved history.
 // 13) coder/fantasy#66, capture OpenAI Responses message phase on text
 //    parts and replay it on assistant input messages in both store modes.
-// See: https://github.com/coder/fantasy/commits/351055280157
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261009165329-351055280157
+// 14) coder/fantasy#63, capture finalized OpenAI Responses reasoning
+//    (item ID, encrypted content, summary) and replay it in full
+//    regardless of store. Skip hosted search references from unstored
+//    source responses.
+// See: https://github.com/coder/fantasy/commits/6ba868142390
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261011102151-6ba868142390
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
