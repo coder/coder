@@ -971,6 +971,38 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectKeptFields:   []string{"output_config"},
 		},
 		{
+			// Bedrock rejects thinking.type "enabled" for Opus 5 with a 400.
+			name:               "opus_5_model_with_enabled_thinking_is_sent_unchanged",
+			bedrockModel:       "anthropic.claude-opus-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "enabled",
+			expectBudgetTokens: 5000,
+		},
+		{
+			name:                "global_opus_5_model_converts_adaptive_thinking_to_enabled_and_drops_output_config",
+			bedrockModel:        "global.anthropic.claude-opus-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}`,
+			expectThinkingType:  "enabled",
+			expectBudgetTokens:  5000,
+			expectRemovedFields: []string{"output_config"},
+		},
+		{
+			// Bedrock rejects thinking.type "enabled" for Haiku 5.5 with a 400.
+			name:               "haiku_5_5_model_with_enabled_thinking_is_sent_unchanged",
+			bedrockModel:       "anthropic.claude-haiku-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "enabled",
+			expectBudgetTokens: 5000,
+		},
+		{
+			name:                "regional_haiku_5_5_model_converts_adaptive_thinking_to_enabled_and_drops_output_config",
+			bedrockModel:        "us.anthropic.claude-haiku-5-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"}}`,
+			expectThinkingType:  "enabled",
+			expectBudgetTokens:  2000,
+			expectRemovedFields: []string{"output_config"},
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
