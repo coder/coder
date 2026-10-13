@@ -405,7 +405,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
-		{"Migration000619Skills", 619, testMigration000619Skills},
+		{"Migration000620Skills", 620, testMigration000620Skills},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1842,8 +1842,8 @@ func testMigration000606ChatDiffStatusOriginCredentials(t *testing.T, sqlDB *sql
 	}
 }
 
-func testMigration000619Skills(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
-	const migrationVersion = 619
+func testMigration000620Skills(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 620
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	insertUser := func() uuid.UUID {
@@ -1984,7 +1984,7 @@ func testMigration000619Skills(t *testing.T, sqlDB *sql.DB, next migrationSteppe
 		orgSkillID, org)
 	require.NoError(t, err)
 
-	downSQL, err := os.ReadFile("000619_skills.down.sql")
+	downSQL, err := os.ReadFile("000620_skills.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -1995,7 +1995,7 @@ func testMigration000619Skills(t *testing.T, sqlDB *sql.DB, next migrationSteppe
 	require.False(t, skillExists(userSkillsTable, orgSkillID))
 	softDeleteRemovesSkills(userSkillsTable)
 
-	upSQL, err := os.ReadFile("000619_skills.up.sql")
+	upSQL, err := os.ReadFile("000620_skills.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)

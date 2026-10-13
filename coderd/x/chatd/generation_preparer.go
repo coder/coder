@@ -311,19 +311,20 @@ func (server *Server) prepareGeneration(
 	}
 
 	var (
-		prompt             []fantasy.Message
-		instruction        string
-		mcpTools           []fantasy.AgentTool
-		mcpSummaries       []mcpclient.ConnectSummary
-		inlineMCPTools     []fantasy.AgentTool
-		inlineMCPSummaries []mcpclient.ConnectSummary
-		workspaceMCPTools  []fantasy.AgentTool
-		workspaceSkills    []chattool.SkillMeta
-		personalSkills     []skillspkg.Skill
-		orgSkills          []skillspkg.Skill
-		orgSkillReader     rbac.Subject
-		resolvedUserPrompt string
-		planPathBlock      string
+		prompt              []fantasy.Message
+		instruction         string
+		mcpTools            []fantasy.AgentTool
+		mcpSummaries        []mcpclient.ConnectSummary
+		inlineMCPTools      []fantasy.AgentTool
+		inlineMCPSummaries  []mcpclient.ConnectSummary
+		workspaceMCPTools   []fantasy.AgentTool
+		workspaceSkills     []chattool.SkillMeta
+		personalSkills      []skillspkg.Skill
+		orgSkills           []skillspkg.Skill
+		orgSkillReader      rbac.Subject
+		resolvedUserPrompt  string
+		projectInstructions string
+		planPathBlock       string
 	)
 
 	// Drop provider-executed tool history produced by a different provider
@@ -439,6 +440,10 @@ func (server *Server) prepareGeneration(
 		var err error
 		resolvedUserPrompt, err = server.resolveUserPrompt(ctx, chat.OwnerID)
 		return err
+	})
+	g2.Go(func() error {
+		projectInstructions = server.resolveProjectInstructions(ctx, logger, chat)
+		return nil
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
@@ -565,6 +570,7 @@ func (server *Server) prepareGeneration(
 		instruction,
 		initialResolvedSkills,
 		memoryIndex,
+		projectInstructions,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
