@@ -3168,7 +3168,7 @@ describe("chat stream contract", () => {
 		expect(result.current.error).toBeNull();
 	});
 
-	it("handles a versioned event without a version like a parse failure", async () => {
+	it("drops a frame with an unversioned event and reconnects without an error", async () => {
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
@@ -3190,15 +3190,14 @@ describe("chat stream contract", () => {
 		});
 		expect(sockets[0].close).toHaveBeenCalled();
 		expect(result.current.messageIDs).toEqual([1]);
-		expect(result.current.error).toMatchObject({
-			message: "Failed to parse chat stream update.",
-		});
+		expect(result.current.error).toBeNull();
 		act(() => {
 			sockets[0].emitClose();
 		});
 
 		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
 		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+		expect(result.current.error).toBeNull();
 	});
 
 	it("fails the load of a newest page without a version", async () => {
