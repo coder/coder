@@ -114,8 +114,7 @@ export type PendingAction =
 	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
 	| { kind: "send"; message: TypesGen.ChatMessage }
 	| { kind: "deleteQueued"; queuedMessageID: number }
-	| { kind: "promoteQueued"; queuedMessageID: number }
-	| { kind: "compact" };
+	| { kind: "promoteQueued"; queuedMessageID: number };
 
 type QueueEdit = (
 	rows: readonly TypesGen.ChatQueuedMessage[],
@@ -135,8 +134,6 @@ type PendingEntry = {
 	queue?: QueueEdit;
 	// The history from an edited message on, replaced by a history reset.
 	history?: { fromID: number; draft?: TypesGen.ChatMessage };
-	// Replaced by the next status.
-	turn?: TypesGen.ChatStatus;
 };
 
 type PendingPart = Exclude<keyof PendingEntry, "id">;
@@ -531,18 +528,12 @@ export const createChatStore = (): ChatStore => {
 			);
 		},
 		applyServerChatStatus: (status) => {
-			batch(() => {
-				setState((current) => {
-					const turnError = status === "error" ? current.turnError : null;
-					if (
-						current.chatStatus === status &&
-						current.turnError === turnError
-					) {
-						return current;
-					}
-					return { ...current, chatStatus: status, turnError };
-				});
-				endPending(["turn"]);
+			setState((current) => {
+				const turnError = status === "error" ? current.turnError : null;
+				if (current.chatStatus === status && current.turnError === turnError) {
+					return current;
+				}
+				return { ...current, chatStatus: status, turnError };
 			});
 		},
 		setTurnError: (reason) => {
@@ -558,7 +549,12 @@ export const createChatStore = (): ChatStore => {
 		},
 		addPendingAction: (action) => {
 			const id = nextPendingActionID++;
-			const entry = pendingEntry(id, action, selectView(state));
+			const entry = pendingEntry(
+				id,
+				action,
+				selectView(state),
+				state.chatStatus,
+			);
 			setState((current) => ({
 				...current,
 				pendingActions: [...current.pendingActions, entry],
@@ -715,14 +711,7 @@ export const createChatStore = (): ChatStore => {
 
 type ChatView = Pick<
 	ChatStoreState,
-	| "messagesByID"
-	| "orderedMessageIDs"
-	| "chatStatus"
-	| "queuedMessages"
-	| "streamState"
-	| "streamError"
-	| "turnError"
-	| "retryState"
+	"messagesByID" | "orderedMessageIDs" | "queuedMessages" | "streamState"
 >;
 
 // Cached per state object so selectors return the same values on every call,
@@ -774,11 +763,11 @@ const pendingEntry = (
 	id: number,
 	action: PendingAction,
 	shown: ChatView,
+	status: TypesGen.ChatStatus | null,
 ): PendingEntry => {
 	// Above every stored message ID: it collides with none, and a later edit
 	// hides it with the rest of the history.
 	const eagerID = Number.MAX_SAFE_INTEGER - id;
-	const status = shown.chatStatus;
 	const running = status === "running" || status === "interrupting";
 	switch (action.kind) {
 		case "send": {
@@ -797,14 +786,9 @@ const pendingEntry = (
 						shown: sentQueuedMessage(eagerID, head),
 						queue: (rows) => [...withoutRow(head.id)(rows), row],
 					},
-					turn: "running",
 				};
 			}
-			return {
-				id,
-				message: { shown: sent },
-				turn: "running",
-			};
+			return { id, message: { shown: sent } };
 		}
 		case "promoteQueued": {
 			const target = shown.queuedMessages.find(
@@ -813,8 +797,8 @@ const pendingEntry = (
 			if (!target) {
 				return { id };
 			}
-			// A running chat moves the row to the head and stops the turn. A row
-			// already at the head does not move and sends no queue update.
+			// A running chat moves the row to the head. A row already at the head
+			// does not move and sends no queue update.
 			if (running) {
 				return {
 					id,
@@ -822,7 +806,6 @@ const pendingEntry = (
 						shown.queuedMessages[0] === target
 							? undefined
 							: (rows) => [target, ...withoutRow(target.id)(rows)],
-					turn: "interrupting",
 				};
 			}
 			return {
@@ -831,7 +814,6 @@ const pendingEntry = (
 					shown: sentQueuedMessage(eagerID, target),
 					queue: withoutRow(target.id),
 				},
-				turn: "running",
 			};
 		}
 		case "edit":
@@ -843,12 +825,9 @@ const pendingEntry = (
 				},
 				// Clearing an empty queue sends no queue update.
 				queue: shown.queuedMessages.length > 0 ? () => [] : undefined,
-				turn: "running",
 			};
 		case "deleteQueued":
 			return { id, queue: withoutRow(action.queuedMessageID) };
-		case "compact":
-			return { id, turn: "running" };
 	}
 };
 
@@ -861,19 +840,17 @@ const endPendingParts = (
 		const message = ended.includes("message") ? undefined : entry.message;
 		const queue = ended.includes("queue") ? undefined : entry.queue;
 		const history = ended.includes("history") ? undefined : entry.history;
-		const turn = ended.includes("turn") ? undefined : entry.turn;
-		if (!message && !queue && !history && !turn) {
+		if (!message && !queue && !history) {
 			return [];
 		}
 		if (
 			message === entry.message &&
 			queue === entry.queue &&
-			history === entry.history &&
-			turn === entry.turn
+			history === entry.history
 		) {
 			return [entry];
 		}
-		return [{ id: entry.id, message, queue, history, turn }];
+		return [{ id: entry.id, message, queue, history }];
 	});
 
 // The stored state with each pending entry drawn over it in request order.
@@ -888,18 +865,14 @@ const selectView = (state: ChatStoreState): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
 		orderedMessageIDs: state.orderedMessageIDs,
-		chatStatus: state.chatStatus,
 		queuedMessages: state.queuedMessages,
 		streamState: state.streamState,
-		streamError: state.streamError,
-		turnError: state.turnError,
-		retryState: state.retryState,
 	};
 	const show = (message: TypesGen.ChatMessage) => {
 		view.messagesByID = new Map(view.messagesByID).set(message.id, message);
 		view.orderedMessageIDs = [...view.orderedMessageIDs, message.id];
 	};
-	for (const { message, queue, history, turn } of state.pendingActions) {
+	for (const { message, queue, history } of state.pendingActions) {
 		if (history) {
 			view.messagesByID = new Map(
 				[...view.messagesByID].filter(([id]) => id < history.fromID),
@@ -921,12 +894,6 @@ const selectView = (state: ChatStoreState): ChatView => {
 		if (message?.queue) {
 			view.queuedMessages = message.queue(view.queuedMessages);
 		}
-		if (turn) {
-			view.chatStatus = turn;
-			view.turnError = null;
-			view.retryState = null;
-			view.streamError = null;
-		}
 	}
 	views.set(state, view);
 	return view;
@@ -940,19 +907,15 @@ export const selectStreamState = (state: ChatStoreState) =>
 	selectView(state).streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
 	selectView(state).streamState !== null;
-export const selectChatStatus = (state: ChatStoreState) =>
-	selectView(state).chatStatus;
+export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 // A failure of this client, or else the error the chat's turn ended with.
-export const selectStreamError = (state: ChatStoreState) => {
-	const view = selectView(state);
-	return view.streamError ?? view.turnError;
-};
+export const selectStreamError = (state: ChatStoreState) =>
+	state.streamError ?? state.turnError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	selectView(state).queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
-export const selectRetryState = (state: ChatStoreState) =>
-	selectView(state).retryState;
+export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
 export const selectHasMoreMessages = (state: ChatStoreState) =>
@@ -985,7 +948,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 	if (view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
-	return view.chatStatus === "running";
+	return state.chatStatus === "running";
 };
 
 export const useChatSelector = <T>(
