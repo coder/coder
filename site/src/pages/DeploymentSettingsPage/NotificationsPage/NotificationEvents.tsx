@@ -69,7 +69,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 							target="_blank"
 							rel="noreferrer"
 						>
-							View webhook docs
+							Go to webhook docs
 							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
@@ -88,7 +88,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 							target="_blank"
 							rel="noreferrer"
 						>
-							View SMTP docs
+							Go to SMTP docs
 							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}

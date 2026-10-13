@@ -427,7 +427,7 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									View scope docs
+									Go to scope docs
 									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							}

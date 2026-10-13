@@ -494,7 +494,7 @@ const ProvisionerWarning: React.FC = () => {
 					target="_blank"
 					rel="noreferrer"
 				>
-					View provisioner docs
+					Go to provisioner docs
 					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			}

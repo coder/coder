@@ -50,7 +50,7 @@ export const AIGovernanceSettingsPageView: React.FC<
 										target="_blank"
 										rel="noreferrer"
 									>
-										View setup guide
+										Go to setup guide
 										<span className="sr-only"> (opens in new tab)</span>
 									</Link>
 								}
