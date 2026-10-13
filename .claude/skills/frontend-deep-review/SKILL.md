@@ -190,6 +190,10 @@ the severity the role assigns: `blocking`, `should-fix`, or `nit`.
   on the pinned head SHA, so their lines match what reviewers read, in the
   register human reviewers use (short, specific, with the fix). Post a
   `(deleted)` finding on the removed line, on the left side of the diff.
+  Before posting, check the PR head again
+  (`gh pr view <n> --json headRefOid --jq .headRefOid`): if it is no
+  longer `HEAD_SHA`, review the new head instead of posting findings for a
+  superseded commit.
   Group nits and PR-scope findings such as RO6 into the review summary.
   Never post any other finding you cannot point at a line.
 

@@ -74,12 +74,10 @@ Do this, in order:
    file or lines the PR deletes, use the merge-base SHA instead of the
    head SHA. These never follow a symlink the PR adds. The PR's paths and
    contents are author-controlled too: put each path or pattern you take
-   from them in single quotes, as these forms do, and keep the `-e` and
-   `--`, which stop Git from reading one that starts with `-` as an
-   option. Keep a pattern on one line and write any single quote in it as
-   `.`; do not read a path that contains a single quote or a line break,
-   and name it under "Outside my role" instead. Read-only: do not edit,
-   format, or create files, and do not run the app.
+   from them in single quotes, as these forms do, writing any single
+   quote inside one as `'\''`, and keep the `-e` and `--`, which stop Git
+   from reading one that starts with `-` as an option. Read-only: do not
+   edit, format, or create files, and do not run the app.
 4. Walk every hunk against every checkpoint. A Look-for bullet is a lead,
    not a verdict: a hit is code where you can say what is wrong and the
    checkpoint's fix keeps the behavior the code relies on (a stable
