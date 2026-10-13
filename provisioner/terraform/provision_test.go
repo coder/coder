@@ -378,26 +378,41 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 	tests := []struct {
 		name          string
 		stateJSON     string
+		transition    proto.WorkspaceTransition
 		planFirst     bool
+		wantGraphCall bool
 		errorContains string
 	}{
 		{
 			// State JSON omits configuration, so the preceding plan must
 			// supply it for script-order conversion.
-			name:      "StateGraphUsesCachedPlanConfiguration",
-			stateJSON: stateJSON,
-			planFirst: true,
+			name:          "StateGraphUsesCachedPlanConfiguration",
+			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_START,
+			planFirst:     true,
+			wantGraphCall: true,
 		},
 		{
 			name:          "MissingPlanConfiguration",
 			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_START,
 			errorContains: "state graph requires a preceding successful plan",
 		},
 		{
 			name:          "AgentBindingError",
 			stateJSON:     mismatchedAgentStateJSON,
+			transition:    proto.WorkspaceTransition_START,
 			planFirst:     true,
+			wantGraphCall: true,
 			errorContains: "does not match any workspace agent or devcontainer subagent",
+		},
+		{
+			// STOP uses ordinary conversion and must not require a cached plan
+			// configuration for script ordering.
+			name:          "StopSkipsScriptOrderConversion",
+			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_STOP,
+			wantGraphCall: true,
 		},
 	}
 	for _, test := range tests {
@@ -450,7 +465,7 @@ esac
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
 			if test.planFirst {
-				require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+				require.NoError(t, sendPlan(sess, test.transition))
 				_, response := readProvisionLog(t, sess)
 				plan := response.GetPlan()
 				require.NotNil(t, plan)
@@ -460,7 +475,7 @@ esac
 			require.NoError(t, sess.Send(&proto.Request{
 				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
 					Metadata: &proto.Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_START,
+						WorkspaceTransition: test.transition,
 					},
 					Source: proto.GraphSource_SOURCE_STATE,
 				}},
@@ -484,7 +499,7 @@ esac
 				require.Equal(t, []string{"show -json -no-color"}, commands)
 			}
 
-			if test.planFirst {
+			if test.wantGraphCall {
 				graphArgs, err := os.ReadFile(graphArgsPath)
 				require.NoError(t, err)
 				require.Equal(t, "graph -type=plan\n", string(graphArgs))
