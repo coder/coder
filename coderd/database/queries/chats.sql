@@ -2151,33 +2151,6 @@ SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY position ASC, id ASC;
 
--- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
-
--- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = @chat_id;
-
--- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.created_at ASC, cqm.id ASC
-    LIMIT 1
-)
-RETURNING *;
-
--- name: ReorderChatQueuedMessageToFront :execrows
--- Mutates only created_at on the target row; ids are unchanged so
--- consumers can keep tracking queued messages by id.
-UPDATE chat_queued_messages AS target
-SET created_at = (
-    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
-    FROM chat_queued_messages AS inner_cqm
-    WHERE inner_cqm.chat_id = @chat_id
-)
-WHERE target.id = @target_id AND target.chat_id = @chat_id;
-
 -- name: GetLastChatMessageByRole :one
 -- The returned id becomes both an AfterID cursor and last_read_message_id, so
 -- "last" must use id order.
