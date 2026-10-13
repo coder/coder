@@ -10859,7 +10859,7 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
 	})
 
-	t.Run("NonPositiveSnapshotVersionReturns400", func(t *testing.T) {
+	t.Run("InvalidSnapshotVersionReturns400", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10872,7 +10872,7 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		for _, version := range []string{"0", "-1"} {
+		for _, version := range []string{"0", "-1", "abc"} {
 			res, err := client.Request(
 				ctx,
 				http.MethodGet,
@@ -10922,7 +10922,6 @@ func TestStreamChat(t *testing.T) {
 			err  error
 			want int
 		}{
-			{name: "ChatGone", err: sql.ErrNoRows, want: http.StatusNotFound},
 			{name: "ReadFails", err: xerrors.New("read failed"), want: http.StatusInternalServerError},
 		} {
 			t.Run(tt.name, func(t *testing.T) {

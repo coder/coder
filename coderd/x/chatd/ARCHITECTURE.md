@@ -1246,7 +1246,7 @@ When a client connects, the endpoint:
 
 When the endpoint exits, it deregisters from the sync poller, unsubscribes from pubsub, stops the stream loop, stops the relay forwarder, and closes request resources.
 
-If the pubsub subscription or the initial database fetch fails, the endpoint responds with an HTTP error instead of upgrading the connection: 404 if the chat no longer exists, 500 for any other failure, and no response if the client has gone away.
+If the pubsub subscription or the initial database fetch fails, the endpoint responds with 500 instead of upgrading the connection.
 
 ## Local stream state
 

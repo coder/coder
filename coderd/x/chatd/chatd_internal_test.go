@@ -1894,14 +1894,14 @@ func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
 
-	snapshot, events, cancel, err := server.Subscribe(ctx, chatID, nil, StreamCursor{})
-	require.True(t, dbauthz.IsNotAuthorizedError(err), "got %v", err)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
+	require.False(t, ok)
 	require.Nil(t, snapshot)
 	require.Nil(t, events)
 	require.Nil(t, cancel)
 }
 
-func TestSubscribeReturnsTransientLookupFailure(t *testing.T) {
+func TestSubscribeRejectsTransientLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -1913,10 +1913,8 @@ func TestSubscribeReturnsTransientLookupFailure(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, xerrors.New("transient lookup failure"))
 
-	// A setup failure is an error for the caller to report, not a chat
-	// error event a client would show as the chat's state.
-	snapshot, events, cancel, err := server.Subscribe(ctx, chatID, nil, StreamCursor{})
-	require.ErrorContains(t, err, "transient lookup failure")
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0, 0)
+	require.False(t, ok)
 	require.Nil(t, snapshot)
 	require.Nil(t, events)
 	require.Nil(t, cancel)
