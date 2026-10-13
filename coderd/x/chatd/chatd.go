@@ -3859,16 +3859,11 @@ func (p *Server) fetchOrganizationSkillMetadata(
 	ctx context.Context,
 	owner rbac.Subject,
 	organizationID uuid.UUID,
-	logger slog.Logger,
-) []skillspkg.Skill {
+) ([]skillspkg.Skill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
 	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
 	if err != nil {
-		logger.Warn(ctx, "failed to load organization skill metadata",
-			slog.F("organization_id", organizationID),
-			slog.Error(err),
-		)
-		return nil
+		return nil, xerrors.Errorf("list organization skill metadata: %w", err)
 	}
 
 	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
@@ -3882,7 +3877,7 @@ func (p *Server) fetchOrganizationSkillMetadata(
 			Source:      skillspkg.SourceOrganization,
 		})
 	}
-	return organizationSkills
+	return organizationSkills, nil
 }
 
 func (p *Server) loadOrganizationSkillBody(

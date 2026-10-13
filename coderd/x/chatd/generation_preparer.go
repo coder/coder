@@ -430,11 +430,10 @@ func (server *Server) prepareGeneration(
 		var err error
 		orgSkillReader, err = server.chatOwnerSubject(ctx, chat.OwnerID)
 		if err != nil {
-			logger.Warn(ctx, "failed to load organization skills", slog.Error(err))
-			return nil
+			return err
 		}
-		orgSkills = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID, logger)
-		return nil
+		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		return err
 	})
 	g2.Go(func() error {
 		var err error

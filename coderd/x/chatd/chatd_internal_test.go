@@ -2080,6 +2080,21 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 	})
 }
 
+func TestFetchOrganizationSkillMetadataListFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := &Server{db: db}
+	organizationID := uuid.New()
+	listErr := xerrors.New("boom")
+
+	db.EXPECT().ListOrganizationSkillMetadataByOrganizationID(gomock.Any(), organizationID).Return(nil, listErr)
+
+	_, err := server.fetchOrganizationSkillMetadata(context.Background(), rbac.Subject{ID: uuid.NewString()}, organizationID)
+	require.ErrorIs(t, err, listErr)
+}
+
 func TestLoadPersonalSkillBody(t *testing.T) {
 	t.Parallel()
 
