@@ -431,7 +431,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		_, err = f.db.GetChatAutomationByID(ctx, schedule.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
-		logs := f.auditor.AuditLogs()
+		logs := f.changeAudits()
 		require.Len(t, logs, 2)
 		require.Equal(t, database.AuditActionWrite, logs[0].Action)
 		require.Equal(t, webhook.ID, logs[0].ResourceID)
@@ -509,7 +509,7 @@ func TestManageAutomationsTool(t *testing.T) {
 				row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
 				require.NoError(t, err)
 				require.True(t, row.Enabled)
-				require.Empty(t, f.auditor.AuditLogs())
+				require.Empty(t, f.changeAudits())
 			})
 		}
 	})
@@ -549,7 +549,7 @@ func TestManageAutomationsTool(t *testing.T) {
 			}
 			f.requireUnchanged(ctx, t, automation)
 		}
-		require.Empty(t, f.auditor.AuditLogs())
+		require.Empty(t, f.changeAudits())
 	})
 
 	t.Run("AutomationReachedTurn", func(t *testing.T) {
@@ -595,7 +595,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		f.requireUnchanged(ctx, t, targetsChat)
 		require.Len(t, f.ownerAutomations(ctx, t), 3)
 		require.Equal(t, inputs, f.inputs(ctx, t))
-		require.Empty(t, f.auditor.AuditLogs())
+		require.Empty(t, f.changeAudits())
 
 		require.ElementsMatch(t, []uuid.UUID{targetsChat.ID, createdChat.ID}, f.listIDs(ctx, t, f.chat.ID))
 		for _, action := range []string{"get", "disable", "delete"} {
@@ -606,7 +606,7 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		content, isError := f.call(ctx, t, f.chat.ID, "disable", createdChat.ID)
 		require.False(t, isError, content)
-		logs := f.auditor.AuditLogs()
+		logs := f.changeAudits()
 		require.Len(t, logs, 1)
 		requireAuditFields(t, logs[0], map[string]string{
 			"chat_id":       f.chat.ID.String(),
@@ -624,7 +624,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.False(t, isError, content)
 		_, err = f.db.GetChatAutomationByID(ctx, targetsChat.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
-		require.Len(t, f.auditor.AuditLogs(), 2)
+		require.Len(t, f.changeAudits(), 2)
 	})
 
 	t.Run("CreateContainment", func(t *testing.T) {
@@ -671,7 +671,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		}
 		require.Len(t, f.ownerAutomations(ctx, t), 4)
 
-		logs := f.auditor.AuditLogs()
+		logs := f.changeAudits()
 		require.Len(t, logs, 4)
 		for i, want := range []struct {
 			automation database.ChatAutomation
@@ -717,7 +717,7 @@ func TestManageAutomationsTool(t *testing.T) {
 			require.Contains(t, content, tc.want, tc.name)
 			f.requireUnchanged(ctx, t, tc.row)
 		}
-		require.Empty(t, f.auditor.AuditLogs())
+		require.Empty(t, f.changeAudits())
 
 		content, isError := f.callArgs(ctx, t, f.chat.ID, manageAutomationsArgs{
 			Action: "update", AutomationID: heartbeat.ID.String(), Prompt: ptr.Ref("Check the deploy."),
@@ -744,7 +744,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, row.Enabled)
 
-		logs := f.auditor.AuditLogs()
+		logs := f.changeAudits()
 		require.Len(t, logs, 2)
 		for _, log := range logs {
 			require.Equal(t, database.AuditActionWrite, log.Action)
@@ -888,7 +888,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.Len(t, f.createdChats(ctx, t), chats+1)
 		// Like the run endpoint, only the created chat is audited, and the
 		// entry also names the calling chat.
-		logs := f.auditor.AuditLogs()
+		logs := f.changeAudits()
 		require.Len(t, logs, 1)
 		require.Equal(t, database.AuditActionCreate, logs[0].Action)
 		require.Equal(t, database.ResourceTypeChat, logs[0].ResourceType)
@@ -907,7 +907,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.Equal(t, f.chat.ID, result.ChatID)
 		require.NotEqual(t, uuid.Nil, result.InputID)
 		require.Equal(t, 1, f.inputs(ctx, t))
-		require.Len(t, f.auditor.AuditLogs(), 1, "a run to an existing chat changes no configuration")
+		require.Len(t, f.changeAudits(), 1, "a run to an existing chat changes no configuration")
 	})
 
 	t.Run("RejectsFieldsThatDoNotApply", func(t *testing.T) {
@@ -935,7 +935,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		}
 		f.requireUnchanged(ctx, t, heartbeat)
 		require.Len(t, f.ownerAutomations(ctx, t), 1)
-		require.Empty(t, f.auditor.AuditLogs())
+		require.Empty(t, f.changeAudits())
 	})
 
 	t.Run("RunNowQueueFull", func(t *testing.T) {
@@ -1163,7 +1163,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			f.requireUnchanged(ctx, t, retargeted)
 			require.Len(t, f.createdChats(ctx, t), chats)
 			require.Equal(t, inputs, f.ownerInputs(ctx, t))
-			require.Empty(t, f.auditor.AuditLogs())
+			require.Empty(t, f.changeAudits())
 		})
 	}
 }
@@ -1239,7 +1239,7 @@ func TestManageAutomationsToolAuditsLockedRow(t *testing.T) {
 			require.NoError(t, renameErr)
 			require.False(t, isError, content)
 
-			logs := f.auditor.AuditLogs()
+			logs := f.changeAudits()
 			require.Len(t, logs, 1)
 			var diff audit.Map
 			require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))

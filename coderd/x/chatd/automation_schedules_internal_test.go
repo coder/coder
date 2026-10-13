@@ -452,7 +452,7 @@ func TestAutomationScheduleScan(t *testing.T) {
 					require.Equal(t, "Standup · 1 Jun 19:01 JST", chats[0].Title)
 					// Like a chat created through the chat API, the chat is
 					// audited once, as created by the owner.
-					logs := f.auditor.AuditLogs()
+					logs := f.changeAudits()
 					require.Len(t, logs, 1)
 					require.Equal(t, database.AuditActionCreate, logs[0].Action)
 					require.Equal(t, database.ResourceTypeChat, logs[0].ResourceType)

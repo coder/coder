@@ -33,6 +33,19 @@ func (f *scheduleFixture) runAudits(t *testing.T, automationID uuid.UUID) ([]dat
 	return logs, fields
 }
 
+// changeAudits returns the audit entries other than the start entries of
+// automation runs, which TestAutomationRunAudit covers.
+func (f *scheduleFixture) changeAudits() []database.AuditLog {
+	var logs []database.AuditLog
+	for _, entry := range f.auditor.AuditLogs() {
+		if entry.ResourceType == database.ResourceTypeChatAutomation && entry.Action == database.AuditActionStart {
+			continue
+		}
+		logs = append(logs, entry)
+	}
+	return logs
+}
+
 // TestAutomationRunAudit checks that every run of an automation, accepted,
 // skipped, missed, or refused, leaves one start entry for the automation,
 // attributed to its owner.
