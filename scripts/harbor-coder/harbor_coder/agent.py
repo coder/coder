@@ -5,8 +5,7 @@ talks to coderd over REST. It requires ``CoderEnvironment`` so that the chat
 can be bound to the trial's workspace; the agent's tool calls then land in the
 container that Harbor's verifier inspects.
 
-Configure with ``--ak``: ``system_prompt`` (extra per-chat system text),
-``model_config_id``, ``reasoning_effort``, ``poll_sec``.
+Configure with ``--ak``: ``model_config_id``, ``reasoning_effort``, ``poll_sec``.
 """
 
 from __future__ import annotations
@@ -112,14 +111,12 @@ class CoderAgentsAgent(BaseAgent):
     def __init__(
         self,
         *args: Any,
-        system_prompt: str | None = None,
         model_config_id: str | None = None,
         reasoning_effort: str | None = None,
         poll_sec: float = 3.0,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
-        self.system_prompt = system_prompt
         self.model_config_id = model_config_id
         self.reasoning_effort = reasoning_effort
         self.poll_sec = float(poll_sec)
@@ -179,8 +176,6 @@ class CoderAgentsAgent(BaseAgent):
                 }
             ],
         }
-        if self.system_prompt:
-            body["system_prompt"] = self.system_prompt
         if self.model_config_id:
             body["model_config_id"] = self.model_config_id
         if self.reasoning_effort:

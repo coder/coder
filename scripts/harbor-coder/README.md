@@ -2,7 +2,7 @@
 
 A/B harness for Coder Agents system prompt changes, built on
 [Harbor](https://github.com/harbor-framework/harbor). It answers: with this
-prompt (or this branch), does the agent complete tasks better, cheaper, or
+branch, does the agent complete tasks better, cheaper, or
 with different behavior than before?
 
 - `harbor_coder.environment:CoderEnvironment`: a Harbor environment provider
@@ -11,8 +11,6 @@ with different behavior than before?
   Agents (the coderd chat agent) against that workspace and records tokens,
   cost, and behavioral signals (steps, tool calls, whether it ran tests,
   whether it stopped to ask).
-- `harbor_coder.prompt`: replace or reset the deployment system prompt, for
-  prompt iteration without rebuilding coderd.
 - `harbor_coder.bootstrap`: configures a fresh coderd (first user, Anthropic
   provider, chat model, workspace template) for eval runs.
 - `harbor_coder.compare`: diffs two Harbor job directories into a Markdown
@@ -44,28 +42,14 @@ key (`HARBOR_CODER_UPSTREAM_TOKEN`; the `EVAL_CODER_SESSION_TOKEN` secret in
 CI). No provider API key is involved, and spend is attributed through the
 gateway like any other Coder Agents traffic.
 
-## Two ways to A/B a prompt
+## What is under test
 
-**Branch vs main (the workflow).** Change `DefaultSystemPrompt` in
-`coderd/x/chatd/prompt.go` on a branch and dispatch the workflow. Each arm
-builds its own coderd, so anything the branch changes (prompt assembly,
-tools, model handling) is part of the comparison.
-
-**Prompt text vs prompt text (local, fast).** Against one running coderd,
-swap the deployment prompt between runs:
-
-```sh
-uv tool run --from harbor python -m harbor_coder.prompt --reset
-harbor run ... --job-name baseline
-uv tool run --from harbor python -m harbor_coder.prompt --file candidate-prompt.md
-harbor run ... --job-name candidate
-uv tool run --from harbor python -m harbor_coder.compare --baseline jobs/baseline --candidate jobs/candidate
-```
-
-`--file` replaces the built-in default (`include_default_system_prompt=false`);
-`--append-file` layers on top of it. Chats snapshot the prompt at creation, so
-apply it before each run. This loop takes about two minutes per arm for the
-six-task suite on haiku.
+The prompt lives in Go (`DefaultSystemPrompt` in `coderd/x/chatd/prompt.go`
+and the per-turn assembly around it), so a prompt change is a branch, and the
+unit of comparison is a coderd build. Each arm builds its own coderd, so
+anything the branch changes (prompt text, prompt assembly, tools, model
+handling) is part of the comparison. There is deliberately no way to inject
+prompt text from outside the build.
 
 ## How it fits together
 
@@ -105,8 +89,8 @@ harbor run -p scripts/harbor-coder/tasks \
   --ek template="$HARBOR_CODER_TEMPLATE" -k 2 -n 3 -o jobs --job-name main
 ```
 
-Run again on another checkout (or with `--ak system_prompt=...`) under a
-different `--job-name`, then:
+Run again from another checkout (rebuild `.harbor-coder/coder` from the other
+branch, restart `serve-coderd.sh`) under a different `--job-name`, then:
 
 ```sh
 uv tool run --from harbor python -m harbor_coder.compare \
@@ -137,7 +121,6 @@ Pass with `--ak key=value`:
 
 | Option | Purpose |
 | --- | --- |
-| `system_prompt` | Extra per-chat system prompt (`CreateChatRequest.system_prompt`). Appended to the deployment default, not a replacement. |
 | `model_config_id` | Chat model config; defaults to the org default. |
 | `reasoning_effort` | Passed through to the chat. |
 
