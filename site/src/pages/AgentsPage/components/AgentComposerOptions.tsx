@@ -37,7 +37,7 @@ const AgentComposerOptionsFrame = ({
 );
 
 /** Model catalog selection and reasoning controls, independent of tool state. */
-type AgentComposerModelProps = {
+export type AgentComposerModelProps = {
 	selectedModel: string;
 	onModelChange: (value: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
