@@ -1,12 +1,43 @@
 package workspacesdk
 
 import (
+	"io"
+	"net/http"
 	neturl "net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// chunkReader returns one chunk per Read, like a chunked response body.
+type chunkReader struct {
+	chunks []string
+	eof    bool
+}
+
+func (r *chunkReader) Read(p []byte) (int, error) {
+	if len(r.chunks) == 0 {
+		r.eof = true
+		return 0, io.EOF
+	}
+	n := copy(p, r.chunks[0])
+	r.chunks = r.chunks[1:]
+	return n, nil
+}
+
+func (*chunkReader) Close() error { return nil }
+
+func TestDecodeAgentJSONReadsToEOF(t *testing.T) {
+	t.Parallel()
+
+	// The decoder has the whole value after the first chunk.
+	body := &chunkReader{chunks: []string{`{"a":1}`, "\n"}}
+	var v struct{ A int }
+	require.NoError(t, decodeAgentJSON(&http.Response{Body: body}, &v))
+	require.Equal(t, 1, v.A)
+	require.True(t, body.eof, "http.Transport reuses a connection only after its body is read to EOF")
+}
 
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()
