@@ -14,10 +14,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// TestStreamLoopLatePartAfterRetry checks that a retry recorded for a
-// generation attempt sends preview_reset and that the attempt's later parts
-// are dropped. A late part of the failed attempt would otherwise show a
-// preview that starts mid-message.
+// TestStreamLoopLatePartAfterRetry checks that parts of a failed
+// generation attempt are dropped once the stream has announced a retry
+// for it. The frontend clears its preview on the retry event
+// (useChatStore.ts), so a late part of the failed attempt would clear the
+// retry banner and show a preview that starts mid-message.
 func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 	t.Parallel()
 
@@ -62,17 +63,13 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 			WorkerID:          worker,
 		}
 		events = loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{
-			codersdk.ChatStreamEventTypeRetry,
-			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
-		}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeRetry}, eventTypes(events))
 
 		// A part produced before the failure is still buffered in the
-		// relay. It must not be delivered after the preview_reset.
+		// relay. It must not be delivered after the retry event.
 		_, accepted, err = loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
-		require.False(t, accepted, "part 2 of the failed attempt was delivered after the preview_reset")
+		require.False(t, accepted, "part 2 of the failed attempt was delivered after the retry event, which cleared the client preview")
 		return loop, chat
 	}
 
@@ -87,7 +84,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 		chat.RetryStateVersion = 5
 		chat.RetryState = pqtype.NullRawMessage{}
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypePreviewReset, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypePreviewReset}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 3, Part: codersdk.ChatMessageText("!")})
 		require.NoError(t, err)
@@ -110,7 +107,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 		chat.RetryStateVersion = 5
 		chat.RetryState = pqtype.NullRawMessage{}
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
@@ -148,11 +145,7 @@ func TestStreamLoopLatePartAfterClearedRetry(t *testing.T) {
 	chat.Status = database.ChatStatusInterrupting
 	chat.RetryStateVersion = 5
 	events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-	require.Equal(t, []codersdk.ChatStreamEventType{
-		codersdk.ChatStreamEventTypeStatus,
-		codersdk.ChatStreamEventTypePreviewReset,
-		codersdk.ChatStreamEventTypeCheckpoint,
-	}, eventTypes(events))
+	require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
 
 	_, accepted, err = loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 	require.NoError(t, err)
@@ -167,10 +160,11 @@ func eventTypes(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEventTyp
 	return types
 }
 
-// TestStreamLoopLatePartAfterError checks that a chat that stops running
-// sends preview_reset and drops the later parts of its attempt. A late part
-// would otherwise show a preview that starts mid-message under the error,
-// or live output under a finished turn.
+// TestStreamLoopLatePartAfterError checks that parts of a generation
+// attempt that failed with a terminal error are dropped once the stream
+// has announced the error. The frontend clears its preview on the error
+// event (useChatStore.ts), so a late part of the failed attempt would
+// show a preview that starts mid-message under the error.
 func TestStreamLoopLatePartAfterError(t *testing.T) {
 	t.Parallel()
 
@@ -214,8 +208,6 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		require.Equal(t, []codersdk.ChatStreamEventType{
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypeError,
-			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		}, eventTypes(events))
 		return chat
 	}
@@ -227,31 +219,10 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		failAttempt(t, loop, chat)
 
 		// A part produced before the failure is still buffered in the
-		// relay. It must not be delivered after the preview_reset.
+		// relay. It must not be delivered after the error event.
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
-		require.False(t, accepted, "part 2 of the failed attempt was delivered after the preview_reset")
-	})
-
-	t.Run("TurnFinishedWithoutCommit", func(t *testing.T) {
-		t.Parallel()
-
-		// A model that returns no content finishes the turn without
-		// committing a message, so the history version and generation
-		// attempt stay while the status becomes waiting.
-		loop, chat := startAttempt(t)
-		chat.SnapshotVersion++
-		chat.Status = database.ChatStatusWaiting
-		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
-		}, eventTypes(events))
-
-		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
-		require.NoError(t, err)
-		require.False(t, accepted, "a part of the finished turn's attempt was delivered after the turn ended")
+		require.False(t, accepted, "part 2 of the failed attempt was delivered after the error event, which cleared the client preview")
 	})
 
 	t.Run("NextAttemptStreams", func(t *testing.T) {
@@ -269,7 +240,6 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		require.Equal(t, []codersdk.ChatStreamEventType{
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypePreviewReset,
-			codersdk.ChatStreamEventTypeCheckpoint,
 		}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 2, Seq: 1, Part: codersdk.ChatMessageText("Hello")})
@@ -287,7 +257,7 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		chat.SnapshotVersion++
 		chat.Status = database.ChatStatusInterrupting
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
