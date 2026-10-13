@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
 
-// checkSpec is one entry of the grader.args.checks DSL. Each type reads
-// the fields it documents in README.md and rejects unknown fields.
+// checkSpec is one entry of the grader.args.checks DSL, mirrored by the
+// Check type in shared.ts. Decoding rejects unknown fields.
 type checkSpec struct {
 	ID      string `json:"id"`
 	Type    string `json:"type"`
@@ -44,7 +45,6 @@ type checkSpec struct {
 
 type checkResult struct {
 	ID      string
-	Type    string
 	Observe bool
 	Passed  bool
 	Reason  string
@@ -136,7 +136,7 @@ func runCheck(in *gradeInput, s checkSpec) checkResult {
 	if ok && reason == "" {
 		reason = "ok"
 	}
-	return checkResult{ID: s.ID, Type: s.Type, Observe: s.Observe, Passed: ok, Reason: reason, Metrics: metrics}
+	return checkResult{ID: s.ID, Observe: s.Observe, Passed: ok, Reason: reason, Metrics: metrics}
 }
 
 func toolSet(s checkSpec) map[string]bool {
@@ -166,12 +166,12 @@ func anyCall(toolCall) bool { return true }
 func successfulCall(c toolCall) bool { return c.succeeded() }
 
 func checkToolSequence(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
+	match := anyCall
+	if s.Successful {
+		match = successfulCall
+	}
 	prev := -1
 	for _, name := range s.Tools {
-		match := anyCall
-		if s.Successful {
-			match = successfulCall
-		}
 		idx := firstIndex(in.tr.Calls, name, match)
 		if idx < 0 {
 			return false, name + " never called", nil
@@ -272,18 +272,17 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
-	calls, failures := 0, 0
+	failures := 0
 	for _, c := range in.tr.Calls {
 		if !tools[c.Name] {
 			continue
 		}
-		calls++
 		if c.succeeded() {
 			return true, "", nil
 		}
 		failures++
 	}
-	if calls == 0 {
+	if failures == 0 {
 		return false, "never called", nil
 	}
 	return false, fmt.Sprintf("all %d call(s) failed", failures), nil
@@ -812,14 +811,6 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 	if len(defaults) == 0 {
 		defaults = []string{"main", "master"}
 	}
-	isDefault := func(b string) bool {
-		for _, d := range defaults {
-			if b == d {
-				return true
-			}
-		}
-		return false
-	}
 	current := defaults[0]
 	commitsOff, commitsOn := 0, 0
 	for _, e := range executeScripts(in.tr.Calls) {
@@ -832,7 +823,7 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 				continue
 			}
 			if isGitCommit(c) {
-				if isDefault(current) {
+				if slices.Contains(defaults, current) {
 					commitsOn++
 				} else {
 					commitsOff++

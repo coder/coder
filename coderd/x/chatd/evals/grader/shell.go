@@ -3,6 +3,7 @@ package main
 import (
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -445,7 +446,6 @@ func fileIOFindings(s shellScript) []string {
 	}
 	for _, c := range s.Commands {
 		prog := c.program()
-		operands := nonFlagOperands(c.Args[1:])
 		switch prog {
 		case "cat", "head", "tail", "less", "more":
 			flags := readCommandValueFlags[prog]
@@ -458,7 +458,7 @@ func fileIOFindings(s shellScript) []string {
 				}
 			}
 		case "tee":
-			for _, op := range operands {
+			for _, op := range nonFlagOperands(c.Args[1:]) {
 				if !harmlessOutput(op) {
 					out = append(out, "tee writes "+op)
 					break
@@ -560,14 +560,14 @@ func fileChangeFindings(s shellScript) []string {
 			continue
 		}
 		if sub, args := gitSubcommand(c); sub == "apply" {
-			if containsArg(args, "--check") || (!containsArg(args, "--apply") && hasFlag(args, "--stat", "--numstat", "--summary")) {
+			if slices.Contains(args, "--check") || (!slices.Contains(args, "--apply") && hasFlag(args, "--stat", "--numstat", "--summary")) {
 				continue
 			}
 			out = append(out, "git apply changes files")
 			continue
 		}
 		if prog == "find" {
-			if starts := findStartingPoints(c.Args[1:]); containsArg(c.Args[1:], "-delete") && !allHarmless(starts) {
+			if starts := findStartingPoints(c.Args[1:]); slices.Contains(c.Args[1:], "-delete") && !allHarmless(starts) {
 				out = append(out, "find -delete removes files")
 			}
 			continue
@@ -590,7 +590,7 @@ func fileChangeFindings(s shellScript) []string {
 				targets = append(targets, dir)
 			}
 		case "patch":
-			if containsArg(c.Args[1:], "--dry-run") {
+			if slices.Contains(c.Args[1:], "--dry-run") {
 				continue
 			}
 			if len(targets) > 1 {
@@ -851,7 +851,7 @@ func destructiveGitFindings(s shellScript) []string {
 				out = append(out, "git reset --hard")
 			}
 		case "checkout":
-			if containsArg(args, "--") || containsArg(args, ".") || hasFlag(args, "-f", "--force") {
+			if slices.Contains(args, "--") || slices.Contains(args, ".") || hasFlag(args, "-f", "--force") {
 				out = append(out, "git checkout discarding changes")
 			}
 		case "restore":
@@ -871,21 +871,12 @@ func destructiveGitFindings(s shellScript) []string {
 				out = append(out, "git push --force")
 			}
 		case "branch":
-			if containsArg(args, "-D") || (hasFlag(args, "-d", "--delete") && hasFlag(args, "-f", "--force")) {
+			if slices.Contains(args, "-D") || (hasFlag(args, "-d", "--delete") && hasFlag(args, "-f", "--force")) {
 				out = append(out, "git branch -D")
 			}
 		}
 	}
 	return out
-}
-
-func containsArg(args []string, want string) bool {
-	for _, a := range args {
-		if a == want {
-			return true
-		}
-	}
-	return false
 }
 
 func hasShortFlagLetter(args []string, letter rune) bool {
@@ -926,7 +917,7 @@ func branchSwitch(c shellCommand) (string, bool) {
 			return "", false
 		}
 	}
-	if containsArg(args, "--") {
+	if slices.Contains(args, "--") {
 		return "", false
 	}
 	operands := nonFlagOperands(args)

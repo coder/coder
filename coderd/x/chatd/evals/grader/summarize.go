@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -468,10 +470,5 @@ func writeComparison(w io.Writer, cand, base *runSummary) {
 }
 
 func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }

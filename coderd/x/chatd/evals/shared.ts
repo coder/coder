@@ -78,7 +78,7 @@ export interface Case {
   seed: string;
   prompt: string;
   subjectEnv?: Record<string, string>;
-  /** Required and observe-only behavior checks; they count toward task success. */
+  /** Behavior checks; required ones decide task success, observe-only ones are only reported. */
   checks?: Check[];
   /** Checks reported as guardrails; they never decide task success. */
   guardrails?: Check[];
@@ -108,9 +108,7 @@ export interface SuiteOptions {
 }
 
 export interface SuiteHandles {
-  checks: (list: Check[]) => AuthoringGraderRef;
   guardrails: (list: Check[]) => AuthoringGraderRef;
-  hidden: (golden: string) => AuthoringGraderRef;
   addCase: (c: Case) => void;
   wanted: (id: string) => boolean;
 }
@@ -225,7 +223,7 @@ export function configureSuite(evals: ExperimentBuilder, opts: SuiteOptions): Su
       },
     );
   };
-  return { checks, guardrails, hidden, addCase, wanted };
+  return { guardrails, addCase, wanted };
 }
 
 const hiddenTestEnv: Record<string, string> = {

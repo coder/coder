@@ -68,14 +68,11 @@ type workspaceState struct {
 
 // toolCall pairs a model tool call with its result.
 type toolCall struct {
-	Seq            int
-	ID             string
-	Name           string
-	Args           json.RawMessage
-	ParsedCommands [][]string
-	Result         json.RawMessage
-	HasResult      bool
-	IsError        bool
+	Name      string
+	Args      json.RawMessage
+	Result    json.RawMessage
+	HasResult bool
+	IsError   bool
 }
 
 // failure classifies a call as failed and returns the reason, or "" when
@@ -119,17 +116,13 @@ func (c toolCall) command() string {
 	return args.Command
 }
 
-func (c toolCall) resultField(key string) string {
-	var body map[string]json.RawMessage
-	if err := json.Unmarshal(c.Result, &body); err != nil {
-		return ""
-	}
-	return jsonString(body[key])
-}
+func (c toolCall) resultField(key string) string { return objectField(c.Result, key) }
 
-func (c toolCall) argField(key string) string {
+func (c toolCall) argField(key string) string { return objectField(c.Args, key) }
+
+func objectField(raw json.RawMessage, key string) string {
 	var body map[string]json.RawMessage
-	if err := json.Unmarshal(c.Args, &body); err != nil {
+	if err := json.Unmarshal(raw, &body); err != nil {
 		return ""
 	}
 	return jsonString(body[key])
@@ -253,11 +246,8 @@ func pairToolCalls(messages []codersdk.ChatMessage) []toolCall {
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeToolCall:
 				calls = append(calls, toolCall{
-					Seq:            len(calls),
-					ID:             part.ToolCallID,
-					Name:           part.ToolName,
-					Args:           part.Args,
-					ParsedCommands: part.ParsedCommands,
+					Name: part.ToolName,
+					Args: part.Args,
 				})
 				if part.ToolCallID != "" {
 					byID[part.ToolCallID] = len(calls) - 1
@@ -283,7 +273,6 @@ func pairToolCalls(messages []codersdk.ChatMessage) []toolCall {
 func parseTrialToolCalls(data []byte) (*transcript, error) {
 	var trial struct {
 		ToolCalls []struct {
-			ID     string          `json:"id"`
 			Name   string          `json:"name"`
 			Input  json.RawMessage `json:"input"`
 			Result struct {
@@ -296,10 +285,8 @@ func parseTrialToolCalls(data []byte) (*transcript, error) {
 		return nil, xerrors.Errorf("parse trial.json: %w", err)
 	}
 	tr := &transcript{Source: sourceTrialJSON}
-	for i, c := range trial.ToolCalls {
+	for _, c := range trial.ToolCalls {
 		tr.Calls = append(tr.Calls, toolCall{
-			Seq:       i,
-			ID:        c.ID,
 			Name:      c.Name,
 			Args:      c.Input,
 			Result:    json.RawMessage("{}"),
@@ -317,11 +304,7 @@ func (tr *transcript) assistantTexts() []string {
 		if msg.Role != codersdk.ChatMessageRoleAssistant {
 			continue
 		}
-		for _, part := range msg.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
-				out = append(out, part.Text)
-			}
-		}
+		out = append(out, textParts(msg)...)
 	}
 	return out
 }
@@ -333,17 +316,21 @@ func (tr *transcript) finalText() string {
 		if msg.Role != codersdk.ChatMessageRoleAssistant {
 			continue
 		}
-		var parts []string
-		for _, part := range msg.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
-				parts = append(parts, part.Text)
-			}
-		}
-		if len(parts) > 0 {
+		if parts := textParts(msg); len(parts) > 0 {
 			return strings.Join(parts, "\n")
 		}
 	}
 	return ""
+}
+
+func textParts(msg codersdk.ChatMessage) []string {
+	var parts []string
+	for _, part := range msg.Content {
+		if part.Type == codersdk.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
+			parts = append(parts, part.Text)
+		}
+	}
+	return parts
 }
 
 type toolStat struct {

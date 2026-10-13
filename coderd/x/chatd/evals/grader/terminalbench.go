@@ -356,7 +356,6 @@ func materializeSeed(ctx context.Context, seed tbSeed, dst string) error {
 type verifyResult struct {
 	Reward  string
 	LogsDir string
-	Output  string
 }
 
 // verifyInTaskImage runs the task's tests against appDir inside the task
@@ -415,7 +414,6 @@ func verifyInTaskImage(ctx context.Context, seed tbSeed, appDir, solutionDir, lo
 	if err != nil {
 		_, _ = fmt.Fprintf(&transcript, "test.sh: %v\n", err)
 	}
-	res.Output = transcript.String()
 	if err := os.MkdirAll(logsOut, 0o755); err != nil {
 		return res, err
 	}
@@ -568,17 +566,16 @@ func tbSelfCheckCommand(args []string, stdout io.Writer) error {
 			{"solution", "1", seed.SolutionDir},
 			{"seed", "0", ""},
 		} {
-			label, want := run.label, run.want
-			got, logs, err := selfCheckOnce(ctx, *tbDir, id, label, seed, run.solution)
+			got, logs, err := selfCheckOnce(ctx, *tbDir, id, run.label, seed, run.solution)
 			if err != nil {
-				return xerrors.Errorf("%s %s: %w", id, label, err)
+				return xerrors.Errorf("%s %s: %w", id, run.label, err)
 			}
 			status := "ok"
-			if got != want {
+			if got != run.want {
 				status = "FAIL"
-				failures = append(failures, fmt.Sprintf("%s %s: reward %q, want %s (logs %s)", id, label, got, want, logs))
+				failures = append(failures, fmt.Sprintf("%s %s: reward %q, want %s (logs %s)", id, run.label, got, run.want, logs))
 			}
-			_, _ = fmt.Fprintf(stdout, "%-28s %-9s reward=%-3s want=%s %s\n", id, label, got, want, status)
+			_, _ = fmt.Fprintf(stdout, "%-28s %-9s reward=%-3s want=%s %s\n", id, run.label, got, run.want, status)
 		}
 	}
 	if len(failures) > 0 {

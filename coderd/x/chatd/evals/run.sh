@@ -517,7 +517,7 @@ grade_isolated() {
 
 # run_suite runs, grades, and summarizes one suite on the current subject.
 run_suite() {
-	local suite=$1 label=$2 dir file digest dest store rc=0 arms
+	local suite=$1 label=$2 dir file digest dest store rc=0 arms run_args
 	dir=$(suite_dir "$suite")
 	file=$EVALS_DIR/$dir/EVAL.ts
 	dest=$out/$label/$suite

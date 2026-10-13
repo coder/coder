@@ -37,9 +37,8 @@ const (
 
 // gradeInput is the evidence one check run reads.
 type gradeInput struct {
-	tr        *transcript
-	bundleDir string
-	changes   *workspaceChanges
+	tr      *transcript
+	changes *workspaceChanges
 }
 
 func loadGradeInput(bundleDir, tracePath string) (*gradeInput, error) {
@@ -51,7 +50,7 @@ func loadGradeInput(bundleDir, tracePath string) (*gradeInput, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &gradeInput{tr: tr, bundleDir: bundleDir, changes: changes}, nil
+	return &gradeInput{tr: tr, changes: changes}, nil
 }
 
 // workspaceChanges is the trial's end state relative to the seed:
@@ -222,11 +221,6 @@ func cleanArchiveName(name string) (string, error) {
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
 		return "", xerrors.Errorf("unsafe archive entry %q", name)
 	}
-	for _, part := range strings.Split(clean, "/") {
-		if part == ".." {
-			return "", xerrors.Errorf("unsafe archive entry %q", name)
-		}
-	}
 	first, _, _ := strings.Cut(clean, "/")
 	if strings.EqualFold(first, ".git") {
 		return "", xerrors.Errorf("archive entry %q writes the workspace .git", name)
@@ -282,7 +276,7 @@ func readTarZstMembers(archive string, names ...string) (map[string][]byte, erro
 	defer f.Close()
 	out := map[string][]byte{}
 	err = walkTarZst(f, func(hdr *tar.Header, body io.Reader) error {
-		name := strings.TrimPrefix(path.Clean(hdr.Name), "./")
+		name := path.Clean(hdr.Name)
 		if hdr.Typeflag != tar.TypeReg || !want[name] {
 			return nil
 		}
