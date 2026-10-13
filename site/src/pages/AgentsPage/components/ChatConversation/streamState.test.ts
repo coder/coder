@@ -931,21 +931,19 @@ describe("applyMessagePartToStreamState", () => {
 
 	it("keeps streamed text together and its citations after it", () => {
 		let state: StreamState | null = null;
-		state = applyMessagePartToStreamState(state, {
-			type: "text",
-			text: "Go 1.27 ",
-		});
-		state = applyMessagePartToStreamState(state, {
-			type: "source",
-			url: "https://go.dev/doc/go1.27",
-			title: "Go 1.27",
-		});
-		state = applyMessagePartToStreamState(state, {
-			type: "text",
-			text: "is out.",
-		});
+		const parts: ChatMessagePart[] = [
+			{ type: "text", text: "Go 1.27 " },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "is out." },
+			// A paragraph break streamed as its own delta stays in the text.
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Go 1.28 is next." },
+		];
+		for (const part of parts) {
+			state = applyMessagePartToStreamState(state, part);
+		}
 		expect(state!.blocks).toEqual([
-			{ type: "response", text: "Go 1.27 is out." },
+			{ type: "response", text: "Go 1.27 is out.\n\nGo 1.28 is next." },
 			{
 				type: "sources",
 				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
