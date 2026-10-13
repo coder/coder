@@ -637,11 +637,6 @@ WHERE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
-    AND NOT EXISTS (
-        SELECT 1
-        FROM chat_projects
-        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
-    )
     AND CASE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
@@ -2314,12 +2309,6 @@ WHERE
         SELECT chat_id
         FROM chat_file_links
         WHERE file_id = @file_id::uuid
-    )
-    -- Chats of a deleted project stay archived until chat retention removes them.
-    AND NOT EXISTS (
-        SELECT 1
-        FROM chat_projects
-        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
     )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter
