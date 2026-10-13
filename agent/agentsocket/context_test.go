@@ -85,6 +85,22 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 					Kind:   agentcontext.KindInstructionFile,
 					Source: "/home/coder/.coder/AGENTS.md",
 					Status: agentcontext.StatusOK,
+				}, {
+					ID:         "skill:" + sourcePath + "/.agents/plugins/acme/skills/deploy",
+					Kind:       agentcontext.KindSkill,
+					Source:     sourcePath + "/.agents/plugins/acme/skills/deploy",
+					SourcePath: sourcePath,
+					Status:     agentcontext.StatusOK,
+					Name:       "deploy",
+					PluginName: "acme",
+				}, {
+					ID:            "plugin:" + sourcePath + "/.agents/plugins/acme",
+					Kind:          agentcontext.KindPlugin,
+					Source:        sourcePath + "/.agents/plugins/acme",
+					SourcePath:    sourcePath,
+					Status:        agentcontext.StatusOK,
+					Name:          "acme",
+					PluginVersion: "1.2.0",
 				}},
 			},
 		}
@@ -125,10 +141,12 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 		snap, err := client.GetContextSnapshot(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 7, snap.Version)
-		require.Len(t, snap.Resources, 2)
+		require.Len(t, snap.Resources, 4)
 		require.Equal(t, agentcontext.KindInstructionFile.String(), snap.Resources[0].Kind)
 		require.Equal(t, sourcePath, snap.Resources[0].SourcePath)
 		require.EqualValues(t, 42, snap.Resources[0].SizeBytes)
+		require.Equal(t, "acme", snap.Resources[2].PluginName)
+		require.Equal(t, "1.2.0", snap.Resources[3].PluginVersion)
 
 		// Remove the source; removing again reports not found.
 		require.NoError(t, client.RemoveContextSource(ctx, sourcePath))
