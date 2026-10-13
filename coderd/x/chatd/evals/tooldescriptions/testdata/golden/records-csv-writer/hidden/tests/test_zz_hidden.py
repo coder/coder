@@ -2,7 +2,7 @@ import csv
 import io
 import unittest
 
-from records.exporters.csv.writer import write_rows
+from records.exporters.spreadsheet.writer import write_rows
 
 
 class HiddenWriterTest(unittest.TestCase):

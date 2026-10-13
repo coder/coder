@@ -37,7 +37,7 @@ const cases: Case[] = [
     id: "write-file-nested-path",
     seed: "records@v1",
     prompt:
-      "Add records/exporters/csv/writer.py with write_rows(rows): it takes a list of dicts and returns CSV text whose header comes from the first row's keys, or an empty string for no rows.",
+      "Add records/exporters/spreadsheet/writer.py with write_rows(rows): it takes a list of dicts and returns CSV text whose header comes from the first row's keys, or an empty string for no rows.",
     golden: "records-csv-writer",
     checks: [{ id: "write-file-used", type: "tool_succeeded", tool: "write_file" }],
     guardrails: [toolErrors("write_file"), toolErrors(undefined, 3)],
