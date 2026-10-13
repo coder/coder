@@ -17,7 +17,7 @@ export function useAgentsPWA() {
 		const prevManifestHref = manifest?.getAttribute("href") ?? "";
 
 		if (manifest) {
-			manifest.setAttribute("href", "/agents/manifest.webmanifest");
+			manifest.setAttribute("href", "/manifest.json");
 		}
 
 		// -- Injected elements --------------------------------------------------

@@ -774,7 +774,6 @@ func New(options *Options) *API {
 	}
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:                  siteCacheDir,
-		AccessURL:                 options.AccessURL,
 		Database:                  options.Database,
 		Authorizer:                options.Authorizer,
 		SiteFS:                    site.FS(),

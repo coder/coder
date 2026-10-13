@@ -13,7 +13,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -74,7 +73,6 @@ func init() {
 
 type Options struct {
 	CacheDir                  string
-	AccessURL                 *url.URL
 	Database                  database.Store
 	Authorizer                rbac.Authorizer
 	SiteFS                    fs.FS
@@ -179,11 +177,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// First check if it's a file we have in our templates
 	if h.serveHTML(rw, r, reqFile, state) {
-		return
-	}
-
-	if app, ok := webManifestApps[reqFile]; ok {
-		h.serveWebManifest(rw, r, app)
 		return
 	}
 

@@ -162,10 +162,6 @@ export default defineConfig({
 						target: process.env.CODER_HOST || "http://localhost:3000",
 						secure: process.env.NODE_ENV === "production",
 					},
-					"^(/agents)?/manifest\\.webmanifest$": {
-						target: process.env.CODER_HOST || "http://localhost:3000",
-						secure: process.env.NODE_ENV === "production",
-					},
 				},
 		allowedHosts: [".coder", ".dogfood.cdr.dev"],
 	},
