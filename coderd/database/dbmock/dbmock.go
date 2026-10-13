@@ -2156,6 +2156,21 @@ func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
 }
 
+// GetAIModelPriceForProvider mocks base method.
+func (m *MockStore) GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelPriceForProvider", ctx, arg)
+	ret0, _ := ret[0].(database.GetAIModelPriceForProviderRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelPriceForProvider indicates an expected call of GetAIModelPriceForProvider.
+func (mr *MockStoreMockRecorder) GetAIModelPriceForProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceForProvider", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceForProvider), ctx, arg)
+}
+
 // GetAIModelPrices mocks base method.
 func (m *MockStore) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
 	m.ctrl.T.Helper()

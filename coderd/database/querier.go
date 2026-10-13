@@ -349,14 +349,24 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the requested model, falling back to the
-	// model reported by the provider when the requested model has no price.
+	// Returns the site-wide price in effect for the requested model, falling back
+	// to the model reported by the provider when the requested model has no price.
 	// Rows are ordered by model first, then by source, so the lookup order is:
 	//   1. Custom price for the requested model.
 	//   2. Price book price for the requested model.
 	//   3. Custom price for the provider-reported model.
 	//   4. Price book price for the provider-reported model.
+	// Token usage is priced with GetAIModelPriceForProvider, which also considers
+	// organization prices.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	// Returns the price in effect for the model served by the configured provider,
+	// most specific first: the organization's price for the provider, the
+	// organization's price for the provider type, a site-wide custom price, then
+	// the price book. The requested model is preferred over the model reported
+	// by the provider, whatever the kind of price. A NULL organization_id matches
+	// no organization price, so only site-wide prices apply. Each branch is a
+	// primary key lookup.
+	GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
 	// model carrying both prices reports the one from the named source.
@@ -978,7 +988,12 @@ type sqlcQuerier interface {
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// Returns the models used since the given time that hold no price, most used
-	// first. openai-compat providers cannot be priced, so their models are excluded.
+	// first. Only providers whose type is in priceable_providers are reported.
+	// A model counts as priced when the site-wide catalog prices it for the
+	// provider type, or when any organization prices it for the configured
+	// provider. The latter is the only way to price an openai-compat provider.
+	// Organization provider type prices apply to one organization only, so they
+	// leave the model unpriced elsewhere and do not count.
 	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
