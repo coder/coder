@@ -463,10 +463,14 @@ func TestSyncGroupsOutsideOrganization(t *testing.T) {
 	outsideB := ids.ID("outside-b")
 	deleted := ids.ID("deleted")
 	never := ids.ID("never")
+	// namedX is a group in organization A whose name matches the IdP group,
+	// so it is synced by name when "x" has no mapping.
+	namedX := ids.ID("named-x")
 
 	testCases := []struct {
 		Name string
-		// Mapping is what organization A maps the IdP group "x" to.
+		// Mapping is what organization A maps the IdP group "x" to. When
+		// empty, "x" has no mapping entry at all.
 		Mapping []uuid.UUID
 		// OtherSyncOn enables group sync in organization B. Its settings
 		// map nothing, so it never expects the user in outsideB.
@@ -520,6 +524,19 @@ func TestSyncGroupsOutsideOrganization(t *testing.T) {
 			Missing: []uuid.UUID{deleted},
 		},
 		{
+			Name:    "OnlyMissing",
+			Mapping: []uuid.UUID{deleted, never},
+			Missing: []uuid.UUID{deleted, never},
+		},
+		{
+			// With no IDs to look up, nothing is partitioned out, and the
+			// user is added only to the group matched by name. If the
+			// inside groups were taken from an unfiltered lookup, the user
+			// would be added to every group in the organization.
+			Name:    "NoMappedUUIDs",
+			ExpectA: []uuid.UUID{namedX},
+		},
+		{
 			Name:    "AllThree",
 			Mapping: []uuid.UUID{insideA1, outsideB, never},
 			ExpectA: []uuid.UUID{insideA1},
@@ -556,14 +573,19 @@ func TestSyncGroupsOutsideOrganization(t *testing.T) {
 			s := idpsync.NewAGPLSync(sink.Logger(), runtimeconfig.NewManager(), idpsync.DeploymentSyncSettings{})
 			user := dbgen.User(t, db, database.User{})
 
+			var mappingA map[string][]uuid.UUID
+			if len(tc.Mapping) > 0 {
+				mappingA = map[string][]uuid.UUID{"x": tc.Mapping}
+			}
 			orgA, orgB := uuid.New(), uuid.New()
 			SetupOrganization(t, s, db, user, orgA, orgSetupDefinition{
 				GroupSettings: &codersdk.GroupSyncSettings{
 					Field:   "groups",
-					Mapping: map[string][]uuid.UUID{"x": tc.Mapping},
+					Mapping: mappingA,
 				},
 				Groups: map[uuid.UUID]bool{insideA1: false, insideA2: false},
 			})
+			dbgen.Group(t, db, database.Group{ID: namedX, Name: "x", OrganizationID: orgA})
 			var settingsB *codersdk.GroupSyncSettings
 			if tc.OtherSyncOn {
 				settingsB = &codersdk.GroupSyncSettings{Field: "groups"}
