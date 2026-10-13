@@ -194,7 +194,9 @@ under a rule file's name follow the table in the same format.
   audit before those re-runs, because these roles do not check FE1 to
   FE10 on their own, and skip its closing handoff back to this skill. Its
   collection step diffs against `main`, so give it
-  `git diff <sha> -- site/src` with the SHA step 1 printed instead. Its
+  `git diff <sha> -- site/src` with the SHA step 1 printed instead, plus
+  the `(new, untracked)` files under `site/src/` in the rebuilt file list,
+  which that diff omits. Its
   fixes then reach the re-runs; if a later fix changes files again, re-run
   the roles that cover them. Fix `nit` findings when the fix is trivial;
   otherwise list them.
