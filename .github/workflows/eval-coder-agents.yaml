@@ -1,6 +1,6 @@
 # A/B Coder Agents on a PR branch vs main: each arm builds its own coderd,
-# runs the Terminal-Bench sample through Harbor with the Coder environment
-# provider (scripts/harbor-coder), and the comparison is posted on the PR.
+# runs Terminal-Bench 2.0 through Harbor with the Coder environment provider
+# (scripts/harbor-coder), and the comparison is posted on the PR.
 #
 # Trigger by commenting `/coder-agents-eval` on a PR (push access required,
 # fork PRs refused since the candidate arm runs the PR's code with the gateway
@@ -21,11 +21,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Two qemu tasks and build-cython-ext are broken upstream (bit-rotted apt
-  # sources and a git clone in the verifier) and fail under Harbor's own
-  # Docker environment too.
-  HARBOR_DATASET: terminal-bench-sample@2.0
+  HARBOR_DATASET: terminal-bench@2.0
+  # qemu-* and build-cython-ext are broken upstream (bit-rotted apt sources
+  # and a git clone in the verifier) and fail under Harbor's own Docker too.
   HARBOR_EXCLUDE: "-x qemu-* -x build-cython-ext"
+  HARBOR_CODER_MODEL: claude-opus-5-5
+  # One attempt per task: Opus trials average ~14 minutes, so 86 of them at
+  # 8 concurrent is 2 to 3 hours per arm. Raise once the noise floor is known.
+  HARBOR_ATTEMPTS: "1"
+  HARBOR_CONCURRENCY: "8"
 
 jobs:
   resolve:
@@ -72,7 +76,7 @@ jobs:
     name: run (${{ matrix.arm }})
     needs: resolve
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    timeout-minutes: 90
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
@@ -127,7 +131,7 @@ jobs:
           harbor run -d "${HARBOR_DATASET}" ${HARBOR_EXCLUDE} \
             --agent harbor_coder.agent:CoderAgentsAgent \
             --env harbor_coder.environment:CoderEnvironment \
-            -k 2 -n 4 -o jobs --job-name "${ARM}"
+            -k "${HARBOR_ATTEMPTS}" -n "${HARBOR_CONCURRENCY}" -o jobs --job-name "${ARM}"
           # Harbor exits 0 even when every trial raised.
           if [[ "$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)" -eq 0 ]]; then
             echo "::error::no trial produced a reward"; exit 1
@@ -172,7 +176,7 @@ jobs:
           mkdir -p jobs/baseline jobs/candidate
           PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
             --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
-          printf '\n%s, haiku, 2 attempts per task. [Run](%s)\n' "${HARBOR_DATASET}" "${RUN_URL}" >> report.md
+          printf '\n%s, %s, %s attempt(s) per task. [Run](%s)\n' "${HARBOR_DATASET}" "${HARBOR_CODER_MODEL}" "${HARBOR_ATTEMPTS}" "${RUN_URL}" >> report.md
           cat report.md >> "${GITHUB_STEP_SUMMARY}"
       - name: Comment on PR
         if: needs.resolve.outputs.pr_number != ''
