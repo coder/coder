@@ -125,6 +125,31 @@ export const MockAzureProviderState: ProviderState = {
 	models: [],
 };
 
+const MockOpenAICompatProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockOpenAIProviderDescriptor,
+	id: "prov-openai-compat",
+	type: "openai-compat",
+	display_name: "Internal Gateway",
+};
+
+export const mockOpenAICompatModel: ChatModel = {
+	...mockGPT5,
+	id: "model-openai-compat",
+	ai_provider_id: "prov-openai-compat",
+	model: "llama-3.3-70b",
+	display_name: "Llama 3.3 70B",
+	is_default: false,
+};
+
+export const MockOpenAICompatProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-compat",
+	provider: "openai-compat",
+	label: "Internal Gateway",
+	providerDescriptor: MockOpenAICompatProviderDescriptor,
+	models: [mockOpenAICompatModel],
+};
+
 const MockDisabledProviderDescriptor: ChatModelProviderDescriptor = {
 	...MockOpenAIProviderDescriptor,
 	id: "prov-openai-disabled",

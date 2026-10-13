@@ -123,6 +123,7 @@ export const MockWorkingBlock: WorkingBlock = {
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
+	endsWithAnswer: false,
 	isLive: false,
 	isPartial: false,
 };
@@ -184,6 +185,137 @@ export const MockWorkingMessages: TypesGen.ChatMessage[] = [
 		role: "assistant",
 		created_at: workingFixtureTime(14),
 		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+/**
+ * MockWorkingMessages whose final answer also reasoned, narrated, and searched
+ * the web from 13s to 16s before writing its text.
+ */
+export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "reasoning",
+				text: "Checking the release notes",
+				created_at: workingFixtureTime(13),
+				completed_at: workingFixtureTime(14),
+			},
+			{ type: "text", text: "Looking up the release notes." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{
+				type: "source",
+				url: "https://changelog.example.com",
+				title: "Coder changelog",
+			},
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{
+				type: "reasoning",
+				text: "Comparing the two sources",
+				created_at: workingFixtureTime(15),
+				completed_at: workingFixtureTime(16),
+			},
+			{
+				type: "text",
+				text: "The workspace runs the latest Coder release.",
+			},
+		],
+	},
+];
+
+/**
+ * MockWorkingMessages whose final answer searched the web from 14s to 15s and
+ * cited nothing.
+ */
+export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{ type: "text", text: "No release notes mention the workspace." },
+		],
+	},
+];
+
+/**
+ * A turn without tools whose answer narrates, then searches the web from 1s to
+ * 3s before writing its text, with no reasoning.
+ */
+export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(4),
+		content: [
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "latest coder release" },
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(3),
+			},
+			{ type: "text", text: "The latest Coder release is v2.30." },
+		],
 	},
 ];
 

@@ -1,6 +1,5 @@
 import type React from "react";
 import { useMutation } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import type {
@@ -8,6 +7,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useProxy } from "#/contexts/ProxyContext";
 import {
 	getAppHref,

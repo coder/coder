@@ -902,6 +902,82 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 	})
 }
 
+func TestBindingCompactionTriggerSource(t *testing.T) {
+	t.Parallel()
+
+	// Rows must match the binding tests in
+	// site/src/pages/AgentsPage/compactionTriggers.test.ts.
+
+	trigger := func(threshold int32, limit int64) compactionTrigger {
+		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
+	}
+	override := func(limit int64) compactionTrigger {
+		return trigger(compactionOverrideWindowPercent, limit)
+	}
+
+	cases := []struct {
+		name     string
+		chat     compactionTrigger
+		override compactionTrigger
+		want     compactionTriggerSource
+	}{
+		{
+			name:     "lower override point wins",
+			chat:     trigger(70, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "lower chat point wins over higher override point",
+			chat:     trigger(70, 80_000),
+			override: override(80_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "tie prefers the chat trigger",
+			chat:     trigger(80, 100_000),
+			override: override(100_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat trigger disabled by threshold 100 yields override",
+			chat:     trigger(100, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "chat trigger disabled by zero limit yields override",
+			chat:     trigger(70, 0),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "override disabled by zero limit yields chat",
+			chat:     trigger(70, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "both disabled yields chat",
+			chat:     trigger(100, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat threshold zero fires immediately and wins",
+			chat:     trigger(0, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceChat,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, bindingCompactionTriggerSource(tc.chat, tc.override))
+		})
+	}
+}
+
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 	t.Parallel()
 

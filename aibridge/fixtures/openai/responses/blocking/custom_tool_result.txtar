@@ -1,0 +1,120 @@
+Follow-up turn after a custom (freeform) tool call. The last input item is a
+custom_tool_call_output, as sent by Codex after it executes a custom tool such
+as apply_patch.
+
+-- request --
+{
+  "input": [
+    {
+      "type": "message",
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Use the code_exec tool to print hello world to the console."
+        }
+      ]
+    },
+    {
+      "type": "custom_tool_call",
+      "call_id": "call_haf8njtwrVZ1754Gm6fjAtuA",
+      "name": "code_exec",
+      "input": "print(\"hello world\")"
+    },
+    {
+      "type": "custom_tool_call_output",
+      "call_id": "call_haf8njtwrVZ1754Gm6fjAtuA",
+      "output": "hello world"
+    }
+  ],
+  "model": "gpt-5",
+  "tools": [
+    {
+      "type": "custom",
+      "name": "code_exec",
+      "description": "Executes arbitrary Python code."
+    }
+  ]
+}
+
+-- non-streaming --
+{
+  "id": "resp_09c614364030cdf00069694260a1b281a0b3c2d1e0f9a8b7c6",
+  "object": "response",
+  "created_at": 1768505950,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1768505952,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-2025-08-07",
+  "output": [
+    {
+      "id": "msg_09c614364030cdf00069694261c3d481a0a1b2c3d4e5f6a7b8",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "The code printed \"hello world\" to the console."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "custom",
+      "description": "Executes arbitrary Python code.",
+      "format": {
+        "type": "text"
+      },
+      "name": "code_exec"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 112,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 14,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 126
+  },
+  "user": null,
+  "metadata": {}
+}

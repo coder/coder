@@ -454,7 +454,7 @@ func (a *agent) init() {
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
-	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
@@ -1853,6 +1853,16 @@ func (a *agent) createTailnet(
 	}()
 
 	if err = a.trackGoroutine(func() {
+		// The SSH server should close all listeners passed into it, but we are
+		// seeing cases in CI where the upgrade listener is never closed during
+		// tests.  For now, ensure it is closed as a precaution.
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = sshUpgradeListener.Close()
+		}()
 		_ = a.sshServer.Serve(sshUpgradeListener)
 	}); err != nil {
 		return nil, err
@@ -1864,7 +1874,6 @@ func (a *agent) createTailnet(
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
-			_ = sshUpgradeListener.Close()
 			_ = ptyUpgradeListener.Close()
 		}()
 		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)
