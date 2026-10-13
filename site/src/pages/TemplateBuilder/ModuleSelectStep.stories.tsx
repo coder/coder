@@ -92,6 +92,15 @@ export const FilteredByCategory: Story = {
 	},
 };
 
+export const KeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("radio", { name: /All \(5\)/ });
+		canvas.getByPlaceholderText("Search modules...").focus();
+		await userEvent.tab();
+	},
+};
+
 // Searching "code" matches only code-server (IDE) and Claude Code (AI), so
 // those counts drop while non-matching categories fall to zero but stay
 // visible.
