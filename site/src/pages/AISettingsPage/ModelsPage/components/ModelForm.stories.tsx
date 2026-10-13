@@ -298,7 +298,7 @@ export const Edit: Story = {
 
 // openai-compat has no bundled icon, so the helper text under the provider
 // select is the only place the form shows the exact type used for pricing.
-export const EditOpenAICompatProvider: Story = {
+export const ShowProviderType: Story = {
 	args: {
 		providerStates: [MockOpenAIProviderState, MockOpenAICompatProviderState],
 		selectedProviderState: MockOpenAICompatProviderState,

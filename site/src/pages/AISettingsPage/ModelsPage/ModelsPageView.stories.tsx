@@ -12,13 +12,11 @@ import {
 	MockAnthropicProviderState,
 	MockBedrockProviderState,
 	MockDisabledProviderState,
-	MockOpenAICompatProviderState,
 	MockOpenAIProviderState,
 	mockBedrockClaude,
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
-	mockOpenAICompatModel,
 	mockOrphanedModel,
 	mockProviderDisabledModel,
 } from "./testFixtures";
@@ -216,27 +214,6 @@ export const OrphanedModelShowsUnset: Story = {
 		await expect(
 			within(row).getByRole("button", { name: "Unavailable" }),
 		).toBeInTheDocument();
-	},
-};
-
-// openai-compat falls back to the generic icon, so hovering it is how an
-// admin finds the exact provider type for pricing.
-export const OpenAICompatProviderTypeTooltip: Story = {
-	args: {
-		models: [mockGPT5, mockOpenAICompatModel],
-		providerStates: [MockOpenAIProviderState, MockOpenAICompatProviderState],
-		providerTypeByID: new Map<string, string>([
-			["prov-openai", "openai"],
-			["prov-openai-compat", "openai-compat"],
-		]),
-	},
-	parameters: { pixel: { exclude: false } },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(
-			canvas.getByRole("img", { name: "Provider type: openai-compat" }),
-		);
-		await within(document.body).findByRole("tooltip");
 	},
 };
 

@@ -31,7 +31,7 @@ export const ModelFormProviderSelect: React.FC<{
 			(isEditing && ps.key === selectedProviderKey),
 	);
 	// Model prices are keyed by provider type, so surface the exact type
-	// string for use with `coder exp ai-model-prices update --provider`.
+	// string for setting model pricing.
 	const selectedProviderType = providerStates.find(
 		(ps) => ps.key === selectedProviderKey,
 	)?.provider;
