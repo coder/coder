@@ -2336,9 +2336,10 @@ export const WebSearchRunning: Story = {
 	},
 };
 
-// OpenAI found pages carry no titles, so pills show hostname plus path. The
-// ftp page renders as text, not a link. Padded, repeated, and empty queries
-// are each listed once or not at all.
+// OpenAI found pages carry no titles, so pills show hostname plus path, or
+// the URL when it has no hostname. The ftp and data pages render as text, not
+// links. Padded, repeated, and empty queries are each listed once or not at
+// all.
 export const WebSearchQueriesAndFoundPages: Story = {
 	args: {
 		name: "web_search",
@@ -2358,6 +2359,7 @@ export const WebSearchQueriesAndFoundPages: Story = {
 			{ url: "https://coder.com/changelog", title: "" },
 			{ url: "https://coder.com/docs/ai-coder/ai-gateway", title: "" },
 			{ url: "ftp://example.com/release.txt", title: "" },
+			{ url: "data:text/html,unsafe", title: "" },
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -2444,6 +2446,17 @@ export const WebSearchError: Story = {
 		isError: true,
 		args: { type: "search", queries: ["coder release notes"] },
 		result: { error: "web search failed: upstream timeout" },
+	},
+};
+
+export const WebSearchOpenPageError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: { error: "web search failed" },
 	},
 };
 
