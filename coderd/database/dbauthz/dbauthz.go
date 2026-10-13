@@ -7499,17 +7499,6 @@ func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg databas
 	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
 }
 
-func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.SoftDeleteContextFileMessages(ctx, chatID)
-}
-
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	// Internal bookkeeping called from wsbuilder.Builder.Build inside the
 	// same transaction as an already-authorized InsertWorkspaceBuild.

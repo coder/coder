@@ -1466,7 +1466,6 @@ type sqlcQuerier interface {
 	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
-	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
 	// Marks agents from all prior builds of this workspace as deleted,
 	// preserving only agents belonging to @current_build_id. Called from
 	// provisionerdserver when a workspace build completes, after the new
