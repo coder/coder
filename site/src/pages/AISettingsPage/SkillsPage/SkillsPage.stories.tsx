@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { organizationsPermissions } from "#/api/queries/organizations";
-import { skillList } from "#/api/queries/skills";
 import {
 	MockDefaultOrganization,
 	MockNoOrganizationPermissions,
@@ -54,10 +54,7 @@ export const OrganizationAdmin: Story = {
 				data: { [MockDefaultOrganization.id]: MockOrganizationPermissions },
 			},
 			{
-				key: skillList({
-					type: "organization",
-					organizationId: MockDefaultOrganization.id,
-				}).queryKey,
+				key: organizationSkills(MockDefaultOrganization.id).queryKey,
 				data: mockOrganizationSkills,
 			},
 		],
@@ -80,10 +77,7 @@ export const MultipleOrganizations: Story = {
 				},
 			},
 			{
-				key: skillList({
-					type: "organization",
-					organizationId: MockOrganization2.id,
-				}).queryKey,
+				key: organizationSkills(MockOrganization2.id).queryKey,
 				data: mockOrganizationSkills,
 			},
 		],

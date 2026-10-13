@@ -5,14 +5,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import {
-	createSkill,
-	deleteSkill,
-	type SkillOwner,
-	skill,
-	skillList,
-	updateSkill,
-} from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import {
 	parseSkillMarkdown,
@@ -20,6 +12,7 @@ import {
 	type SkillAccess,
 	type SkillFormValues,
 	type SkillsCopy,
+	type SkillsScope,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
@@ -101,7 +94,7 @@ const exportSkillsArchive = async (
 };
 
 type SkillsTableProps = {
-	owner: SkillOwner;
+	scope: SkillsScope;
 	copy: SkillsCopy;
 	access: SkillAccess;
 	enabledOnly?: boolean;
@@ -111,7 +104,7 @@ type SkillsTableProps = {
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
-	owner,
+	scope,
 	copy,
 	access,
 	enabledOnly = false,
@@ -122,7 +115,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
-	const skillsQuery = useQuery(skillList(owner));
+	const skillsQuery = useQuery(scope.list);
 	const skills = (skillsQuery.data ?? []).filter(
 		(skill) => !enabledOnly || skill.enabled,
 	);
@@ -134,11 +127,11 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			? dialogState.name
 			: "";
 	const editSkillQuery = useQuery({
-		...skill(owner, editName),
+		...scope.detail(editName),
 		enabled: Boolean(editName),
 	});
 
-	const createMutationOptions = createSkill(queryClient, owner);
+	const createMutationOptions = scope.create(queryClient);
 	const createMutation = useMutation({
 		...createMutationOptions,
 		onSuccess: async (_skill, variables) => {
@@ -153,7 +146,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
-	const updateMutationOptions = updateSkill(queryClient, owner);
+	const updateMutationOptions = scope.update(queryClient);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
@@ -182,7 +175,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
-	const deleteMutationOptions = deleteSkill(queryClient, owner);
+	const deleteMutationOptions = scope.remove(queryClient);
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
@@ -211,7 +204,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(skill(owner, name)).then((detail) => detail.content);
+		queryClient.fetchQuery(scope.detail(name)).then((detail) => detail.content);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),
@@ -346,7 +339,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 
 	return (
 		<SkillsTableView
-			owner={owner}
+			scope={scope}
 			skills={skills}
 			copy={copy}
 			access={access}

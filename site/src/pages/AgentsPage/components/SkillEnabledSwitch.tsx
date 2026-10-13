@@ -1,24 +1,24 @@
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { type SkillOwner, skillList, updateSkill } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
+import type { SkillsScope } from "../utils/skills";
 
 type SkillEnabledSwitchProps = {
-	owner: SkillOwner;
+	scope: SkillsScope;
 	skill: SkillMetadata;
 	disabled: boolean;
 };
 
 export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
-	owner,
+	scope,
 	skill,
 	disabled,
 }) => {
 	const queryClient = useQueryClient();
 	const toggleMutation = useMutation({
-		...updateSkill(queryClient, owner),
+		...scope.update(queryClient),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to update ${skill.name}.`), {
 				description: getErrorDetail(error),
@@ -27,7 +27,7 @@ export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 		// Refetching also drops a skill that was deleted elsewhere.
 		onSettled: () =>
 			queryClient.invalidateQueries({
-				queryKey: skillList(owner).queryKey,
+				queryKey: scope.list.queryKey,
 				exact: true,
 			}),
 	});

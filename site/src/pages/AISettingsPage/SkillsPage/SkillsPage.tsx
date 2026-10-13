@@ -9,7 +9,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { SkillsTable } from "#/pages/AgentsPage/components/SkillsTable";
-import type { SkillAccess } from "#/pages/AgentsPage/utils/skills";
+import {
+	organizationSkillsScope,
+	type SkillAccess,
+} from "#/pages/AgentsPage/utils/skills";
 import { pageTitle } from "#/utils/page";
 import { OrganizationPicker } from "../MCPServersPage/components/OrganizationPicker";
 import {
@@ -130,10 +133,7 @@ const OrganizationSkills: React.FC<OrganizationSkillsProps> = ({
 	return (
 		<>
 			<SkillsTable
-				owner={{
-					type: "organization",
-					organizationId: organization.id,
-				}}
+				scope={organizationSkillsScope(organization.id)}
 				copy={{
 					noun: "Organization skill",
 					title: "Skills",

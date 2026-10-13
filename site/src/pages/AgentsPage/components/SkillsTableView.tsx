@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import type { SkillOwner } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -42,6 +41,7 @@ import {
 	type SkillAccess,
 	type SkillFormValues,
 	type SkillsCopy,
+	type SkillsScope,
 } from "../utils/skills";
 import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
@@ -84,7 +84,7 @@ export type SkillDeleteState = {
 };
 
 export type SkillsTableViewProps = {
-	owner: SkillOwner;
+	scope: SkillsScope;
 	skills: readonly SkillMetadata[];
 	copy: SkillsCopy;
 	access: SkillAccess;
@@ -246,7 +246,7 @@ const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 };
 
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
-	owner,
+	scope,
 	skills,
 	copy,
 	access,
@@ -396,7 +396,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 								</TableCell>
 								<TableCell>
 									<SkillEnabledSwitch
-										owner={owner}
+										scope={scope}
 										skill={skill}
 										disabled={!access.update}
 									/>

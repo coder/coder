@@ -1,12 +1,17 @@
 import { useQueries } from "react-query";
-import { skillList } from "#/api/queries/skills";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RetryButton } from "./components/RetryButton";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
-import { fullSkillAccess, readOnlySkillAccess } from "./utils/skills";
+import {
+	fullSkillAccess,
+	organizationSkillsScope,
+	readOnlySkillAccess,
+	userSkillsScope,
+} from "./utils/skills";
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();
@@ -17,7 +22,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 	);
 	const organizationSkillQueries = useQueries({
 		queries: memberOrganizations.map((organization) =>
-			skillList({ type: "organization", organizationId: organization.id }),
+			organizationSkills(organization.id),
 		),
 	});
 	const visibleOrganizations = memberOrganizations.flatMap(
@@ -35,7 +40,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 	return (
 		<div className="flex flex-col gap-12">
 			<SkillsTable
-				owner={{ type: "user", user: "me" }}
+				scope={userSkillsScope()}
 				copy={{
 					noun: "Personal skill",
 					title: "Personal skills",
@@ -85,10 +90,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 							return (
 								<SkillsTable
 									key={organization.id}
-									owner={{
-										type: "organization",
-										organizationId: organization.id,
-									}}
+									scope={organizationSkillsScope(organization.id)}
 									copy={{
 										noun: "Organization skill",
 										title: organizationName,
