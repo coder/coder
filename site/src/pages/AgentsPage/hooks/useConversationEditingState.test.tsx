@@ -6,7 +6,12 @@ import {
 	$isTextNode,
 	getNearestEditorFromDOMNode,
 } from "lexical";
-import { createRef, useImperativeHandle, useState } from "react";
+import {
+	createRef,
+	useImperativeHandle,
+	useLayoutEffect,
+	useState,
+} from "react";
 import { QueryClientProvider } from "react-query";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -115,10 +120,14 @@ const EditingWithEditor = ({
 	serverMarkedID,
 	marker,
 	ref,
+	onCommit,
 }: ServerProps & {
 	chatID: string;
 	contents: ReadonlyMap<number, string>;
 	ref: React.Ref<EditingHarnessHandle>;
+	// Called with the editing target of every commit, including commits a
+	// layout effect replaces before paint.
+	onCommit: (editingTarget: EditingTarget | null) => void;
 }) => {
 	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
 	const [inputValueRef] = useState(() => ({ current: "" }));
@@ -146,6 +155,9 @@ const EditingWithEditor = ({
 		composerMode,
 		setComposerMode,
 	}));
+	useLayoutEffect(() => {
+		onCommit(editing.editingTarget);
+	});
 	return (
 		<ChatMessageInput
 			ref={chatInputRef}
@@ -282,12 +294,14 @@ describe("useConversationEditingState", () => {
 		const handle = createRef<EditingHarnessHandle>();
 		const contents = new Map<number, string>();
 		const queryClient = createTestQueryClient();
+		const committedTargets: (EditingTarget | null)[] = [];
 		const ui = (props: ServerProps) => (
 			<QueryClientProvider client={queryClient}>
 				<EditingWithEditor
 					ref={handle}
 					chatID={chatID}
 					contents={contents}
+					onCommit={(editingTarget) => committedTargets.push(editingTarget)}
 					{...props}
 				/>
 			</QueryClientProvider>
@@ -383,6 +397,7 @@ describe("useConversationEditingState", () => {
 			change,
 			addFileReference,
 			removeFirstFileReference,
+			committedTargets,
 		};
 	};
 
@@ -1134,8 +1149,14 @@ describe("useConversationEditingState", () => {
 				if (storedDraft) {
 					localStorage.setItem(expectedKey, storedDraft);
 				}
-				const { unmount, current, editorText, markOnServer, change } =
-					renderEditingWithEditor();
+				const {
+					unmount,
+					current,
+					editorText,
+					markOnServer,
+					change,
+					committedTargets,
+				} = renderEditingWithEditor();
 				expect(editorText()).toBe(storedDraft);
 				await change(edit);
 				const textBeforeMarker = editorText();
@@ -1143,6 +1164,12 @@ describe("useConversationEditingState", () => {
 				await markOnServer(6, "other row");
 
 				if (edit === "typed") {
+					// No commit shows the edit, so edit chrome such as the row's
+					// Edit button and the slash command menu stay as they were.
+					expect(committedTargets).not.toContainEqual({
+						kind: "queued",
+						id: 6,
+					});
 					expect(current().editingTarget).toBeNull();
 					expect(editorText()).toBe(textBeforeMarker);
 					expect(parseStoredDraft(localStorage.getItem(expectedKey)).text).toBe(
