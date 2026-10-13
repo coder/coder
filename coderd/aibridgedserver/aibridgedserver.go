@@ -78,7 +78,7 @@ type store interface {
 	// each token usage record.
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
 	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
-	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
+	GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
@@ -442,6 +442,10 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CostMicros:            cost.costMicros,
 			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
 			PricedModel:           cost.pricedModel,
+			PriceKind:             cost.priceKind,
+			PriceOrganizationID:   cost.priceOrganizationID,
+			PriceProviderID:       cost.priceProviderID,
+			PriceProvider:         cost.priceProvider,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
