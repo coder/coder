@@ -32,10 +32,17 @@ func TestSummarizeRun(t *testing.T) {
 	require.NoError(t, os.MkdirAll(measured, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(measured, "measurements.json"), []byte(
 		`{"graders":{"checks":{"passed":true},"hidden_tests":{"passed":true},"guardrails":{"passed":false,"guardrail":true}}}`), 0o600))
+	// A trial that never landed a bundle is only in the journal; it must
+	// still count as a failed trial with its reason.
+	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp", "journal.json"), []byte(`{"entries":[`+
+		`{"trial_id":"case-a__control__r1","status":"completed","attempts":1},`+
+		`{"trial_id":"case-a__control__r2","status":"completed","attempts":1},`+
+		`{"trial_id":"case-a__control__r3","status":"infra_failed","attempts":3,"error":"sandbox start timed out"}]}`), 0o600))
 
 	s, err := summarizeRun(store, derived, "candidate")
 	require.NoError(t, err)
-	require.Equal(t, 2, s.Trials)
+	require.Equal(t, 3, s.Trials)
+	require.Equal(t, map[string]string{"case-a__control__r3": "infra_failed: sandbox start timed out"}, s.JournalOnly)
 	require.Equal(t, 1, s.Ungraded)
 	require.Len(t, s.Failures, 1)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)
