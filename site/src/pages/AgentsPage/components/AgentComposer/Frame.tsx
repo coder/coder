@@ -157,6 +157,43 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 	};
 }
 
+const stopFrameEvent = (event: React.SyntheticEvent) => {
+	event.stopPropagation();
+};
+
+const stopFrameEscape = (event: React.KeyboardEvent) => {
+	if (event.key === "Escape") {
+		event.stopPropagation();
+	}
+};
+
+/**
+ * Wraps dialogs rendered inside the frame. Dialogs portal out of the
+ * frame's DOM but still bubble React events through it, so this stops the
+ * events the frame handles: Escape and file drops inside a dialog do not
+ * cancel an edit, interrupt the stream, or attach files.
+ */
+export function FrameEventBoundary({
+	children,
+	className,
+}: {
+	children: React.ReactNode;
+	className?: string;
+}) {
+	return (
+		<div
+			role="presentation"
+			className={className}
+			onKeyDown={stopFrameEscape}
+			onDragOver={stopFrameEvent}
+			onDragLeave={stopFrameEvent}
+			onDrop={stopFrameEvent}
+		>
+			{children}
+		</div>
+	);
+}
+
 /** Anchors composer interactions and synchronizes mobile dropdown geometry. */
 export function Frame({
 	children,
