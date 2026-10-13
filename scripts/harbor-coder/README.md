@@ -31,6 +31,11 @@ each, and posts the comparison to the step summary. Trigger it manually;
 trials spend real model tokens. Set `candidate_ref` equal to `baseline_ref`
 once to measure the noise floor before trusting small deltas.
 
+Model calls go through dogfood's AI gateway, authenticated with a Coder API
+key (`HARBOR_CODER_UPSTREAM_TOKEN`; the `EVAL_CODER_SESSION_TOKEN` secret in
+CI). No provider API key is involved, and spend is attributed through the
+gateway like any other Coder Agents traffic.
+
 ## Two ways to A/B a prompt
 
 **Branch vs main (the workflow).** Change `DefaultSystemPrompt` in
@@ -80,8 +85,8 @@ cd scripts/harbor-coder
 uv tool install --with-editable . harbor
 
 cd ../..
-export ANTHROPIC_API_KEY=...            # or a gateway token
-export ANTHROPIC_BASE_URL=...           # optional
+export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h)  # dogfood AI gateway auth
+# HARBOR_CODER_UPSTREAM_URL overrides the default dogfood gateway
 ./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env 3000
 
 set -a; . .harbor-coder/env; set +a

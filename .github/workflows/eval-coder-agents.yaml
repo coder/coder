@@ -3,8 +3,9 @@
 # the branch is better or worse. Trials spend real model tokens, so this is
 # manual only.
 #
-# Each arm builds its own coderd, serves it with embedded Postgres, registers
-# the Anthropic provider + model, and runs Harbor with the Coder environment
+# Each arm builds its own coderd, serves it with embedded Postgres, points its
+# AI gateway at dogfood's gateway (authenticated with a Coder API key, so no
+# provider secret is involved), and runs Harbor with the Coder environment
 # provider (scripts/harbor-coder) so every trial runs in a Coder workspace on
 # the runner's Docker.
 
@@ -100,16 +101,18 @@ jobs:
 
       - name: Build and serve coderd
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.EVAL_ANTHROPIC_API_KEY }}
-          ANTHROPIC_BASE_URL: ${{ secrets.EVAL_ANTHROPIC_BASE_URL }}
+          # A Coder API key for dogfood; the eval's coderd uses dogfood's AI
+          # gateway as its model upstream, so no provider key is needed.
+          HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
+          HARBOR_CODER_UPSTREAM_URL: ${{ vars.EVAL_AI_GATEWAY_URL }}
           HARBOR_CODER_MODEL: ${{ inputs.model }}
         run: |
           set -euo pipefail
-          if [[ -z "${ANTHROPIC_API_KEY}" ]]; then
-            echo "::error::EVAL_ANTHROPIC_API_KEY secret is not set"
+          if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
+            echo "::error::EVAL_CODER_SESSION_TOKEN secret is not set"
             exit 1
           fi
-          [[ -n "${ANTHROPIC_BASE_URL}" ]] || unset ANTHROPIC_BASE_URL
+          [[ -n "${HARBOR_CODER_UPSTREAM_URL}" ]] || unset HARBOR_CODER_UPSTREAM_URL
           ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env" 3000
 
       - name: Run Harbor suite

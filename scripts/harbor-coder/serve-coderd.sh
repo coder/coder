@@ -5,7 +5,8 @@
 #
 # Usage: scripts/harbor-coder/serve-coderd.sh <env-file> [port]
 #
-# Requires ANTHROPIC_API_KEY in the environment for the bootstrap step.
+# Requires HARBOR_CODER_UPSTREAM_TOKEN (a Coder API key for the AI gateway) for
+# the bootstrap step; HARBOR_CODER_UPSTREAM_URL overrides the dogfood gateway.
 set -euo pipefail
 
 ENV_FILE="${1:?env file path required}"

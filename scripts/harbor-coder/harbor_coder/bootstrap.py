@@ -9,8 +9,10 @@ Usage:
     python -m harbor_coder.bootstrap --url http://localhost:3000 \
         --template-dir scripts/harbor-coder/template --model claude-haiku-4-5
 
-Secrets are read from the environment only: ``ANTHROPIC_API_KEY`` (required)
-and optionally ``ANTHROPIC_BASE_URL``.
+Model traffic goes through an AI gateway. By default that is dogfood's
+(``https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic``), which accepts a
+Coder API key, so no provider key is involved: set ``HARBOR_CODER_UPSTREAM_TOKEN``
+to a dogfood token. Override the gateway with ``HARBOR_CODER_UPSTREAM_URL``.
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ import time
 from pathlib import Path
 
 from harbor_coder.client import CoderAPIError, CoderClient
+
+DEFAULT_UPSTREAM_URL = "https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic"
 
 FIRST_USER = {
     "email": "harbor@coder.invalid",
@@ -151,17 +155,19 @@ async def main() -> None:
     )
     args = p.parse_args()
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise SystemExit("ANTHROPIC_API_KEY is required")
-    base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+    upstream_token = os.environ.get("HARBOR_CODER_UPSTREAM_TOKEN")
+    if not upstream_token:
+        raise SystemExit(
+            "HARBOR_CODER_UPSTREAM_TOKEN is required (a Coder API key for the AI gateway)"
+        )
+    base_url = os.environ.get("HARBOR_CODER_UPSTREAM_URL", DEFAULT_UPSTREAM_URL)
 
     _wait_healthy(args.url)
     token = await _login(args.url, args.state_dir / "first-user-password")
     client = CoderClient(url=args.url, token=token)
     org = await client.default_organization()
 
-    provider_id = await _ensure_provider(client, api_key, base_url)
+    provider_id = await _ensure_provider(client, upstream_token, base_url)
     model_id = await _ensure_model(client, org["id"], provider_id, args.model)
     _push_template(args.url, token, args.template_name, args.template_dir)
 
