@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
