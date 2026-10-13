@@ -291,6 +291,12 @@ export const EditDialogOpen: Story = {
 	},
 };
 
+export const ReadOnly: Story = {
+	args: {
+		access: readOnlySkillAccess,
+	},
+};
+
 export const ViewDialogOpen: Story = {
 	args: {
 		access: readOnlySkillAccess,

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
@@ -63,17 +63,12 @@ describe("SkillsTable enabled toggle", () => {
 		]);
 	});
 
-	it("does not send an update when the user cannot edit", async () => {
-		const { user, updateSkill } = renderTable({
-			...fullSkillAccess,
-			update: false,
-		});
+	it("shows a read-only status instead of a switch when the user cannot edit", async () => {
+		renderTable({ ...fullSkillAccess, update: false });
 
-		await user.click(
-			await screen.findByRole("switch", { name: "Enable review-sql" }),
-		);
-
-		expect(updateSkill).not.toHaveBeenCalled();
+		const row = await screen.findByRole("row", { name: /review-sql/ });
+		expect(within(row).getByRole("img")).toHaveAccessibleName("Enabled");
+		expect(within(row).queryByRole("switch")).toBeNull();
 	});
 });
 
