@@ -211,6 +211,10 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "title": "string",
     "title_source": "fallback",
     "title_updated_at": "2019-08-24T14:15:22Z",
+    "tool_groups": {
+      "property1": true,
+      "property2": true
+    },
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -348,6 +352,8 @@ Status Code **200**
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» title_source`           | [codersdk.ChatTitleSource](schemas.md#codersdkchattitlesource)                     | false    |              | Title source is where Title came from. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order fallback, generated, user.                                                                                        |
 | `» title_updated_at`       | string(date-time)                                                                  | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
+| `» tool_groups`            | object                                                                             | false    |              | Tool groups holds the owner's stored tool group choices, only the groups that differ from the catalog default. Never nil. Experimental.                                                                                                                                    |
+| `»» [any property]`        | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`               | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
@@ -432,6 +438,10 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "reasoning_effort": "string",
   "system_prompt": "string",
   "title": "string",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -603,6 +613,10 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "title": "string",
       "title_source": "fallback",
       "title_updated_at": "2019-08-24T14:15:22Z",
+      "tool_groups": {
+        "property1": true,
+        "property2": true
+      },
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -747,6 +761,10 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "title": "string",
   "title_source": "fallback",
   "title_updated_at": "2019-08-24T14:15:22Z",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1675,6 +1693,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "title": "string",
     "title_source": "fallback",
     "title_updated_at": "2019-08-24T14:15:22Z",
+    "tool_groups": {
+      "property1": true,
+      "property2": true
+    },
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -1871,6 +1893,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "title": "string",
       "title_source": "fallback",
       "title_updated_at": "2019-08-24T14:15:22Z",
+      "tool_groups": {
+        "property1": true,
+        "property2": true
+      },
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2015,6 +2041,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "title": "string",
   "title_source": "fallback",
   "title_updated_at": "2019-08-24T14:15:22Z",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2054,10 +2084,17 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
     "property1": "string",
     "property2": "string"
   },
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "pin_order": 0,
   "plan_mode": "plan",
   "read": true,
   "title": "string",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -2253,6 +2290,10 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "title": "string",
       "title_source": "fallback",
       "title_updated_at": "2019-08-24T14:15:22Z",
+      "tool_groups": {
+        "property1": true,
+        "property2": true
+      },
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2397,6 +2438,10 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "title": "string",
   "title_source": "fallback",
   "title_updated_at": "2019-08-24T14:15:22Z",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2678,6 +2723,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "title": "string",
       "title_source": "fallback",
       "title_updated_at": "2019-08-24T14:15:22Z",
+      "tool_groups": {
+        "property1": true,
+        "property2": true
+      },
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2822,6 +2871,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "title": "string",
   "title_source": "fallback",
   "title_updated_at": "2019-08-24T14:15:22Z",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -3878,6 +3931,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "title": "string",
       "title_source": "fallback",
       "title_updated_at": "2019-08-24T14:15:22Z",
+      "tool_groups": {
+        "property1": true,
+        "property2": true
+      },
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -4022,6 +4079,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "title": "string",
   "title_source": "fallback",
   "title_updated_at": "2019-08-24T14:15:22Z",
+  "tool_groups": {
+    "property1": true,
+    "property2": true
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"

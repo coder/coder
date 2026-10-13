@@ -5201,6 +5201,7 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+	ToolGroups               json.RawMessage         `db:"tool_groups" json:"tool_groups"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5507,7 +5508,8 @@ type ChatTable struct {
 	// Rows from before this column existed are fallback regardless of who set their title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
-	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
+	TitleUpdatedAt time.Time       `db:"title_updated_at" json:"title_updated_at"`
+	ToolGroups     json.RawMessage `db:"tool_groups" json:"tool_groups"`
 }
 
 type ChatUsageLimitConfig struct {

@@ -209,6 +209,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// ToolGroups holds the owner's stored tool group choices, only the
+	// groups that differ from the catalog default. Never nil.
+	// Experimental.
+	ToolGroups map[ChatToolGroup]bool `json:"tool_groups"`
 	// InlineMCPServers lists the inline MCP servers declared on the chat,
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
@@ -813,6 +817,8 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
+	// ToolGroups sets tool group choices for the new chat. Experimental.
+	ToolGroups map[ChatToolGroup]bool `json:"tool_groups,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -874,6 +880,11 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ToolGroups patches the stored tool group choices. A null value
+	// resets that group to its default. Experimental.
+	ToolGroups map[ChatToolGroup]*bool `json:"tool_groups,omitempty"`
+	// MCPServerIDs replaces the chat's selected MCP servers. Experimental.
+	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message

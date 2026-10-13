@@ -1958,6 +1958,12 @@ func ChatWithDiffStatuses(
 		labels = map[string]string{}
 	}
 	lastError := decodeChatLastError(c.LastError)
+	toolGroups := map[codersdk.ChatToolGroup]bool{}
+	if len(c.ToolGroups) > 0 {
+		if err := json.Unmarshal(c.ToolGroups, &toolGroups); err != nil || toolGroups == nil {
+			toolGroups = map[codersdk.ChatToolGroup]bool{}
+		}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
@@ -1978,6 +1984,7 @@ func ChatWithDiffStatuses(
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+		ToolGroups:        toolGroups,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String

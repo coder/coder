@@ -10696,6 +10696,21 @@ func (mr *MockStoreMockRecorder) UpdateChatTitleByID(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTitleByID", reflect.TypeOf((*MockStore)(nil).UpdateChatTitleByID), ctx, arg)
 }
 
+// UpdateChatToolGroupsByID mocks base method.
+func (m *MockStore) UpdateChatToolGroupsByID(ctx context.Context, arg database.UpdateChatToolGroupsByIDParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatToolGroupsByID", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatToolGroupsByID indicates an expected call of UpdateChatToolGroupsByID.
+func (mr *MockStoreMockRecorder) UpdateChatToolGroupsByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatToolGroupsByID", reflect.TypeOf((*MockStore)(nil).UpdateChatToolGroupsByID), ctx, arg)
+}
+
 // UpdateChatWorkspaceBinding mocks base method.
 func (m *MockStore) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

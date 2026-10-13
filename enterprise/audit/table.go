@@ -464,6 +464,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"title":                       ActionSecret, // May contain sensitive content.
 		"title_source":                ActionTrack,
 		"title_updated_at":            ActionIgnore, // Ordering key for title events.
+		"tool_groups":                 ActionTrack,
 		"status":                      ActionIgnore, // Churns every message.
 		"worker_id":                   ActionIgnore, // Internal.
 		"started_at":                  ActionIgnore,

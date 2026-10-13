@@ -1083,6 +1083,8 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// ToolGroups holds the stored tool group choices. Nil stores {}.
+	ToolGroups map[codersdk.ChatToolGroup]bool
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1414,6 +1416,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Valid:      len(opts.DynamicTools) > 0,
 		},
 		ClientType:      opts.ClientType,
+		ToolGroups:      opts.ToolGroups,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,

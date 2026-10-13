@@ -2134,6 +2134,12 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
+	 * ToolGroups holds the owner's stored tool group choices, only the
+	 * groups that differ from the catalog default. Never nil.
+	 * Experimental.
+	 */
+	readonly tool_groups: Record<ChatToolGroup, boolean>;
+	/**
 	 * InlineMCPServers lists the inline MCP servers declared on the chat,
 	 * without headers. Only the single-chat GET sets it.
 	 * Experimental.
@@ -3840,6 +3846,54 @@ export interface ChatToolCallPart {
 	readonly created_at?: string;
 }
 
+// From codersdk/chattoolgroups.go
+export type ChatToolGroup =
+	| "advisor"
+	| "memory"
+	| "planning"
+	| "skills"
+	| "subagents"
+	| "tool_search"
+	| "web_search"
+	| "workspace";
+
+// From codersdk/chattoolgroups.go
+/**
+ * ChatToolGroupInfo describes one tool group in the catalog.
+ */
+export interface ChatToolGroupInfo {
+	readonly id: ChatToolGroup;
+	readonly label: string;
+	readonly description: string;
+	/**
+	 * DefaultOn is the state of the group when the chat stores no choice.
+	 */
+	readonly default_on: boolean;
+	/**
+	 * Switchable reports whether the chat owner can change the group.
+	 */
+	readonly switchable: boolean;
+	/**
+	 * Needs lists groups that must be on for this group to be on.
+	 */
+	readonly needs?: readonly ChatToolGroup[];
+	/**
+	 * Experiment, when set, must be enabled for the group to be switchable.
+	 */
+	readonly experiment?: Experiment;
+}
+
+export const ChatToolGroups: ChatToolGroup[] = [
+	"advisor",
+	"memory",
+	"planning",
+	"skills",
+	"subagents",
+	"tool_search",
+	"web_search",
+	"workspace",
+];
+
 // From codersdk/chats.go
 export interface ChatToolResultPart {
 	readonly type: "tool-result";
@@ -4317,6 +4371,10 @@ export interface CreateChatRequest {
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ToolGroups sets tool group choices for the new chat. Experimental.
+	 */
+	readonly tool_groups?: Record<ChatToolGroup, boolean>;
 }
 
 // From codersdk/users.go
@@ -5511,6 +5569,7 @@ export type Experiment =
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
+	| "chat-tool-sets"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5591,6 +5650,7 @@ export const Experiments: Experiment[] = [
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
+	"chat-tool-sets",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
@@ -10695,6 +10755,15 @@ export interface UpdateChatRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ToolGroups patches the stored tool group choices. A null value
+	 * resets that group to its default. Experimental.
+	 */
+	readonly tool_groups?: Record<ChatToolGroup, boolean | null>;
+	/**
+	 * MCPServerIDs replaces the chat's selected MCP servers. Experimental.
+	 */
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go

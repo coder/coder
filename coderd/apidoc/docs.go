@@ -20724,6 +20724,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "tool_groups": {
+                    "description": "ToolGroups holds the owner's stored tool group choices, only the\ngroups that differ from the catalog default. Never nil.\nExperimental.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -23220,6 +23227,13 @@ const docTemplate = `{
                     "description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed and must then be non-empty\nand at most 200 Unicode code points (MaxChatTitleRunes), else the\nrequest fails with 400. When omitted, the title is derived from the\nfirst prompt and may later be replaced by a generated title.",
                     "type": "string"
                 },
+                "tool_groups": {
+                    "description": "ToolGroups sets tool group choices for the new chat. Experimental.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
                 "unsafe_dynamic_tools": {
                     "description": "UnsafeDynamicTools declares client-executed tools that the\nLLM can invoke. This API is highly experimental and highly\nsubject to change.",
                     "type": "array",
@@ -24904,7 +24918,8 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-tool-sets"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24914,6 +24929,7 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "ExperimentChatToolSets": "Lets chat owners turn groups of built-in tools on or off per chat.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -24942,7 +24958,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Lets chat owners turn groups of built-in tools on or off per chat."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24961,7 +24978,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatToolSets"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -31274,6 +31292,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs replaces the chat's selected MCP servers. Experimental.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "pin_order": {
                     "description": "PinOrder controls the chat's pinned state and position.\n- nil: no change to pin state.\n- 0: unpin the chat.\n- \u003e0 (chat is unpinned): pin the chat, appending it to\n  the end of the pinned list. The specific value is\n  ignored; the server assigns the next available position.\n- \u003e0 (chat is already pinned): move the chat to the\n  requested position, shifting neighbors as needed. The\n  value is clamped to [1, pinned_count].",
                     "type": "integer"
@@ -31293,6 +31319,13 @@ const docTemplate = `{
                 "title": {
                     "description": "Title, when set, is stored as the user title even when its text is\nunchanged, so a generated title never replaces it afterwards. It is\nvalidated like CreateChatRequest.Title.",
                     "type": "string"
+                },
+                "tool_groups": {
+                    "description": "ToolGroups patches the stored tool group choices. A null value\nresets that group to its default. Experimental.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
                 },
                 "workspace_id": {
                     "type": "string",

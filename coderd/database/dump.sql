@@ -2354,6 +2354,7 @@ CREATE TABLE chats (
     project_id uuid,
     title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
     title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tool_groups jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2486,7 +2487,8 @@ CREATE VIEW chats_expanded AS
     c.context_error,
     c.compaction_requested_at,
     c.title_source,
-    c.title_updated_at
+    c.title_updated_at,
+    c.tool_groups
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

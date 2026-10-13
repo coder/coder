@@ -1616,6 +1616,9 @@ type sqlcQuerier interface {
 	// Writes only when @title_source ranks at or above the current source.
 	// chat_title_source declares its values in rank order.
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
+	// Merges @tool_groups into the stored choices. A JSON null value removes
+	// that key, so the group falls back to its default.
+	UpdateChatToolGroupsByID(ctx context.Context, arg UpdateChatToolGroupsByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

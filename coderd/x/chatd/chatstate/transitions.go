@@ -40,7 +40,9 @@ type CreateChatInput struct {
 	Labels           pqtype.NullRawMessage
 	DynamicTools     pqtype.NullRawMessage
 	ClientType       database.ChatClientType
-	InitialMessages  []Message
+	// ToolGroups holds the stored tool group choices. Nil stores {}.
+	ToolGroups      map[codersdk.ChatToolGroup]bool
+	InitialMessages []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 	// InitialStatus selects the chat's starting execution state:
@@ -127,6 +129,14 @@ func insertChat(
 			"initial status must be waiting or running",
 		)
 	}
+	var toolGroups pqtype.NullRawMessage
+	if input.ToolGroups != nil {
+		raw, err := json.Marshal(input.ToolGroups)
+		if err != nil {
+			return CreateChatResult{}, xerrors.Errorf("marshal tool groups: %w", err)
+		}
+		toolGroups = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
 	var result CreateChatResult
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
@@ -170,6 +180,7 @@ func insertChat(
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
 			ClientType:        input.ClientType,
+			ToolGroups:        toolGroups,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

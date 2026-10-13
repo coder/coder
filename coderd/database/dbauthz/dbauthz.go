@@ -7931,6 +7931,17 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatTitleByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatToolGroupsByID(ctx context.Context, arg database.UpdateChatToolGroupsByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatToolGroupsByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {

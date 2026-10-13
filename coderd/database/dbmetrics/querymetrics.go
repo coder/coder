@@ -5641,6 +5641,14 @@ func (m queryMetricsStore) UpdateChatTitleByID(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatToolGroupsByID(ctx context.Context, arg database.UpdateChatToolGroupsByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatToolGroupsByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatToolGroupsByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatToolGroupsByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatWorkspaceBinding(ctx, arg)

@@ -5515,6 +5515,7 @@ const (
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatToolSets              Experiment = "chat-tool-sets"              // Lets chat owners turn groups of built-in tools on or off per chat.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5551,6 +5552,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatToolSets:
+		return "Chat Tool Sets"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5578,6 +5581,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
+	ExperimentChatToolSets,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5594,6 +5598,7 @@ var ExperimentsSafe = Experiments{
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
 	ExperimentMCPToolSearch,
+	ExperimentChatToolSets,
 }
 
 // Experiments is a list of experiments.

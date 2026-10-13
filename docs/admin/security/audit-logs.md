@@ -260,6 +260,7 @@ Actions: `create`, `write`
 <tr><td><code>title</code></td><td>Yes</td></tr>
 <tr><td><code>title_source</code></td><td>Yes</td></tr>
 <tr><td><code>title_updated_at</code></td><td>No</td></tr>
+<tr><td><code>tool_groups</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>worker_id</code></td><td>No</td></tr>
