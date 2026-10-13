@@ -923,7 +923,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								}
 							/>
 							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+								<div className="-mt-0.5 shrink-0 overflow-y-auto px-4 pt-0.5 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 									<ChatPageInput
 										chat={chat}
 										store={store}
@@ -1084,7 +1084,7 @@ export const AgentChatPageLoadingView: React.FC<
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+				<div className="-mt-0.5 shrink-0 overflow-y-auto px-4 pt-0.5 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
 						inputRef={inputRef}
