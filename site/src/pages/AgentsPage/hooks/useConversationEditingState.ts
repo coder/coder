@@ -343,7 +343,10 @@ export function useConversationEditingState(deps: {
 		editorInitialValue,
 		initialEditorState,
 		remountKey,
-		editingTarget: target,
+		// The target the editor holds, which lags a new target until the load
+		// effect runs before paint. A target the editor declines to load, as a
+		// changed composer declines a newly marked row, never shows edit chrome.
+		editingTarget: loadedTarget?.target ?? null,
 		editingFileBlocks: loadedTarget?.fileBlocks ?? noFileBlocks,
 		handleCancelEdit,
 		handleSendFromInput,
