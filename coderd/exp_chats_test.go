@@ -1924,6 +1924,24 @@ func TestCreateChatAsUser(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			StatusCode:     http.StatusCreated,
 		}))
+
+		httpChat, err := memberClient.CreateChat(ctx, helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		createAudit := func(chatID uuid.UUID) database.AuditLog {
+			for _, log := range mAudit.AuditLogs() {
+				if log.ResourceID == chatID && log.Action == database.AuditActionCreate {
+					return log
+				}
+			}
+			t.Fatalf("no create audit entry for chat %s", chatID)
+			return database.AuditLog{}
+		}
+		inProcess, overHTTP := createAudit(chat.ID), createAudit(httpChat.ID)
+		require.Equal(t, overHTTP.Action, inProcess.Action)
+		require.Equal(t, overHTTP.ResourceType, inProcess.ResourceType)
+		require.Equal(t, overHTTP.UserID, inProcess.UserID)
+		require.Equal(t, overHTTP.OrganizationID, inProcess.OrganizationID)
+		require.Equal(t, overHTTP.StatusCode, inProcess.StatusCode)
 	})
 
 	t.Run("ValidationError", func(t *testing.T) {
