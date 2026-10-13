@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import type { SkillsScope } from "../utils/skills";
 
 type SkillEnabledSwitchProps = {

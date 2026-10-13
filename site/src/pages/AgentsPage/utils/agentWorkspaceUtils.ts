@@ -1,5 +1,4 @@
 import type { QueryClient } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
 import { ArchiveAndDeleteError } from "#/api/queries/chats";
@@ -10,6 +9,7 @@ import {
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 /**
  * Returns the moment a workspace's identity transferred to its

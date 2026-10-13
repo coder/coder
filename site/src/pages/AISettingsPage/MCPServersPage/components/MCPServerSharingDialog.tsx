@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	mcpServerConfigACL,
 	mcpServerConfigACLAvailable,
 	updateMCPServerConfigACL,
 } from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
 import { ACLPrincipalAutocomplete } from "../../components/ACLPrincipalAutocomplete";
 import {
 	selectedPrincipal,

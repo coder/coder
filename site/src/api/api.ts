@@ -3286,7 +3286,6 @@ class ExperimentalApiMethods {
 			offset?: number;
 			q?: string;
 			project_id?: string;
-			automation_id?: string;
 		},
 		signal?: AbortSignal,
 	): Promise<TypesGen.Chat[]> => {
@@ -3358,6 +3357,7 @@ class ExperimentalApiMethods {
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatMessagesResponse> => {
 		const params = new URLSearchParams();
 		if (opts?.before_id) {
@@ -3371,7 +3371,9 @@ class ExperimentalApiMethods {
 		}
 		const query = params.toString();
 		const url = `/api/v2/chats/${chatId}/messages${query ? `?${query}` : ""}`;
-		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url, {
+			signal,
+		});
 		return response.data;
 	};
 
@@ -4025,74 +4027,6 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatModel>(
 			chatModelPath(organizationId, modelId),
 		);
-		return response.data;
-	};
-
-	getChatAutomations = async (
-		organizationId: string,
-	): Promise<TypesGen.ChatAutomation[]> => {
-		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
-		);
-		return response.data;
-	};
-
-	createChatAutomation = async (
-		organizationId: string,
-		req: TypesGen.CreateChatAutomationRequest,
-	): Promise<TypesGen.CreateChatAutomationResponse> => {
-		const response =
-			await this.axios.post<TypesGen.CreateChatAutomationResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
-				req,
-			);
-		return response.data;
-	};
-
-	previewChatAutomationSchedule = async (
-		organizationId: string,
-		req: TypesGen.ChatAutomationSchedulePreviewRequest,
-		signal?: AbortSignal,
-	): Promise<TypesGen.ChatAutomationSchedulePreviewResponse> => {
-		const response =
-			await this.axios.post<TypesGen.ChatAutomationSchedulePreviewResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/schedule-preview`,
-				req,
-				{ signal },
-			);
-		return response.data;
-	};
-
-	updateChatAutomation = async (
-		organizationId: string,
-		automationId: string,
-		req: TypesGen.UpdateChatAutomationRequest,
-	): Promise<TypesGen.ChatAutomation> => {
-		const response = await this.axios.patch<TypesGen.ChatAutomation>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
-			req,
-		);
-		return response.data;
-	};
-
-	runChatAutomation = async (
-		organizationId: string,
-		automationId: string,
-	): Promise<TypesGen.ChatAutomationRunResponse> => {
-		const response = await this.axios.post<TypesGen.ChatAutomationRunResponse>(
-			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/runs`,
-		);
-		return response.data;
-	};
-
-	rotateChatAutomationSecret = async (
-		organizationId: string,
-		automationId: string,
-	): Promise<TypesGen.RotateChatAutomationSecretResponse> => {
-		const response =
-			await this.axios.post<TypesGen.RotateChatAutomationSecretResponse>(
-				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/secret/rotate`,
-			);
 		return response.data;
 	};
 
