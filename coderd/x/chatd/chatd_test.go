@@ -1898,8 +1898,8 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
-	require.NoError(t, err)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
+	require.True(t, ok)
 	t.Cleanup(cancel)
 
 	// Passive server: status is always Pending.
@@ -3669,8 +3669,8 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
-	require.NoError(t, err)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
+	require.True(t, ok)
 	t.Cleanup(cancel)
 
 	// Snapshot should have events (at minimum: status + message).
@@ -3752,8 +3752,8 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
-	require.NoError(t, err)
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0, 0)
+	require.True(t, ok)
 	cancelAll()
 
 	allMessages := filterMessageEvents(allSnapshot)
@@ -3761,8 +3761,8 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Subscribe with afterMessageID set to the second message's ID.
 	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, err := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{AfterMessageID: msg2.ID})
-	require.NoError(t, err)
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID, 0)
+	require.True(t, ok)
 	cancelPartial()
 
 	partialMessages := filterMessageEvents(partialSnapshot)
@@ -10674,8 +10674,8 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, err := creator.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
-	require.NoError(t, err)
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0, 0)
+	require.True(t, ok)
 	t.Cleanup(cancel)
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -13865,8 +13865,8 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, err := server.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
-	require.NoError(t, err)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0, 0)
+	require.True(t, ok)
 	liveCollectorDone := make(chan struct{})
 	go func() {
 		defer close(liveCollectorDone)

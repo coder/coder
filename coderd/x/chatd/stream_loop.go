@@ -83,39 +83,31 @@ type streamDBSnapshot struct {
 	actionRequired *codersdk.ChatStreamActionRequired
 }
 
-// StreamCursor describes the chat state a stream client already has.
-type StreamCursor struct {
-	// AfterMessageID is the newest message ID the client holds. An initial
-	// sync without a history reset skips messages at or below it. It is
-	// ignored when SnapshotVersion is set, because a client can hold an ID
-	// without holding every earlier message.
-	AfterMessageID int64
-	// SnapshotVersion is the chat's snapshot version the client's state
-	// reflects. If it is set, the first sync sends every change made at or
-	// after it, since the client can hold only part of one commit's changes.
-	SnapshotVersion int64
-}
-
-func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cursor StreamCursor) *streamLoop {
-	state := streamLocalState{
-		knownMessages:  make(map[int64]int64),
-		afterMessageID: cursor.AfterMessageID,
-	}
-	if cursor.SnapshotVersion > 0 {
-		// A message's revision and the chat's queue version are the snapshot
-		// version of the commit that wrote them, so the first sync sends the
-		// rows and queue above SnapshotVersion-1.
-		state.historyVersion = cursor.SnapshotVersion - 1
-		state.queueVersion = cursor.SnapshotVersion - 1
-		state.afterMessageID = 0
-		state.openedWithSnapshotVersion = true
-	}
-	return &streamLoop{
+// newStreamLoop returns a loop for a client that holds the messages up to
+// afterMessageID or, when snapshotVersion is set, the chat's state at
+// snapshotVersion. afterMessageID is then ignored, because a client can hold a
+// message ID without every earlier message.
+func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, afterMessageID, snapshotVersion int64) *streamLoop {
+	loop := &streamLoop{
 		chatID: chat.ID,
 		db:     db,
 		logger: logger,
-		state:  state,
+		state: streamLocalState{
+			knownMessages:  make(map[int64]int64),
+			afterMessageID: afterMessageID,
+		},
 	}
+	if snapshotVersion > 0 {
+		// A message's revision and the chat's queue version are the snapshot
+		// version of the commit that wrote them. The first sync sends those
+		// at or after snapshotVersion, since a client can hold only part of
+		// one commit's changes.
+		loop.state.historyVersion = snapshotVersion - 1
+		loop.state.queueVersion = snapshotVersion - 1
+		loop.state.afterMessageID = 0
+		loop.state.openedWithSnapshotVersion = true
+	}
+	return loop
 }
 
 func streamSyncHintFromUpdate(update coderdpubsub.ChatStateUpdateMessage) streamSyncHint {

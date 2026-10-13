@@ -3954,10 +3954,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cursor chatd.StreamCursor
+	var afterMessageID int64
 	if v := r.URL.Query().Get("after_id"); v != "" {
 		var err error
-		cursor.AfterMessageID, err = strconv.ParseInt(v, 10, 64)
+		afterMessageID, err = strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid after_id parameter.",
@@ -3966,10 +3966,11 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var snapshotVersion int64
 	if v := r.URL.Query().Get("snapshot_version"); v != "" {
 		var err error
-		cursor.SnapshotVersion, err = strconv.ParseInt(v, 10, 64)
-		if err != nil || cursor.SnapshotVersion < 1 {
+		snapshotVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || snapshotVersion < 1 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid snapshot_version parameter.",
 				Detail:  "snapshot_version must be a positive integer.",
@@ -3979,31 +3980,21 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	// A chat's snapshot version never decreases, so a cursor above it was
 	// never issued for this chat.
-	if cursor.SnapshotVersion > chat.SnapshotVersion {
+	if snapshotVersion > chat.SnapshotVersion {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid snapshot_version parameter.",
-			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d.", cursor.SnapshotVersion, chat.SnapshotVersion),
+			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d.", snapshotVersion, chat.SnapshotVersion),
 		})
 		return
 	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, err := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, cursor)
-	if err != nil {
-		switch {
-		case ctx.Err() != nil:
-			// The client went away during setup.
-		case errors.Is(err, sql.ErrNoRows):
-			// The chat was deleted after the route loaded it.
-			httpapi.ResourceNotFound(rw)
-		default:
-			logger.Error(ctx, "failed to subscribe to chat stream", slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to open chat stream.",
-				Detail:  err.Error(),
-			})
-		}
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID, snapshotVersion)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat streaming is not available.",
+		})
 		return
 	}
 	defer cancelSub()
