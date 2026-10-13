@@ -280,7 +280,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
 										isCloseable &&
-											"rounded-r-none border-r-0 pr-2.5 focus-visible:ring-0",
+											"rounded-r-none border-r-0 pr-2.5 focus-visible:ring-inset",
 									)}
 								>
 									{tab.icon}
@@ -309,9 +309,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 							return (
 								<div
 									key={tab.id}
-									// The tab and its close button read as one pill, so
-									// keyboard focus on either rings the whole pill.
-									className="flex shrink-0 items-center rounded-md has-focus-visible:ring-2 has-focus-visible:ring-content-link"
+									className="flex shrink-0 items-center"
 								>
 									{tabButton}
 									<Button
@@ -326,7 +324,10 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 											isActive &&
 												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-											"focus-visible:ring-0 focus-visible:bg-surface-tertiary focus-visible:text-content-primary",
+											// The tab and close button are separate focus targets,
+											// so each draws an inset ring within its own half of
+											// the pill, like the add-tab split button.
+											"focus-visible:ring-inset",
 										)}
 									>
 										<XIcon />
