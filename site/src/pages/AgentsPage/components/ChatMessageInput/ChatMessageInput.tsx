@@ -409,7 +409,8 @@ const EnterKeyPlugin: React.FC<{
 };
 
 // Fires the onChange callback with the editor's plain-text content
-// on every update.
+// on every update of the mounted editor. Registered in a layout effect so
+// it is in place before ValueSyncPlugin seeds the editor.
 const ContentChangePlugin: React.FC<{
 	onChange: (
 		content: string,
@@ -419,8 +420,15 @@ const ContentChangePlugin: React.FC<{
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		return editor.registerUpdateListener(({ editorState }) => {
+			// Unmounting the editor, as a remountKey change does, detaches its
+			// root and Lexical commits once more before this listener is
+			// removed. That update carries the outgoing editor's content and
+			// would overwrite what the parent tracks for the incoming editor.
+			if (editor.getRootElement() === null) {
+				return;
+			}
 			editorState.read(() => {
 				const root = $getRoot();
 				const content = root.getTextContent();
@@ -468,6 +476,12 @@ const getRestorableRootChildren = (
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
+//
+// The seed commits synchronously in a layout effect, so onChange reports
+// it during the commit that mounts this editor, before any parent layout
+// effect runs. A parent that loads other text in its layout effect, and so
+// remounts the editor again, never sees this editor's seed after its own
+// load.
 const ValueSyncPlugin: React.FC<{
 	initialValue: string;
 	initialEditorState?: string;
@@ -475,7 +489,7 @@ const ValueSyncPlugin: React.FC<{
 	const [editor] = useLexicalComposerContext();
 	const hasInitialized = useRef(false);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (hasInitialized.current) {
 			return;
 		}
@@ -490,18 +504,25 @@ const ValueSyncPlugin: React.FC<{
 			return;
 		}
 
-		editor.update(() => {
-			const root = $getRoot();
-			root.clear();
-			if (restoredChildren) {
+		if (restoredChildren) {
+			editor.update(() => {
+				const root = $getRoot();
+				root.clear();
 				root.append(...restoredChildren.map($parseSerializedNode));
-				return;
-			}
-			const paragraph = $createParagraphNode();
-			const textNode = $createTextNode(initialValue);
-			paragraph.append(textNode);
-			root.append(paragraph);
-		});
+			});
+			return;
+		}
+		editor.update(
+			() => {
+				const root = $getRoot();
+				root.clear();
+				const paragraph = $createParagraphNode();
+				const textNode = $createTextNode(initialValue);
+				paragraph.append(textNode);
+				root.append(paragraph);
+			},
+			{ discrete: true },
+		);
 	}, [editor, initialValue, initialEditorState]);
 
 	return null;
