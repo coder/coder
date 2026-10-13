@@ -49,7 +49,10 @@ import {
 	BoardColumnTag,
 	BoardGroupEntry,
 } from "../../../exp/chatBoard/BoardGroupEntry";
-import { boardSidebarChats } from "../../../exp/chatBoard/boardGroups";
+import {
+	boardSidebarChats,
+	groupUpdatedAt,
+} from "../../../exp/chatBoard/boardGroups";
 import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
 import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
@@ -420,7 +423,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					key: group,
 					label: group,
 					chats: unfiledOwnedChats.filter(
-						(chat) => getTimeGroup(chat.updated_at) === group,
+						(chat) => getTimeGroup(groupUpdatedAt(chat, boardGroups)) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
