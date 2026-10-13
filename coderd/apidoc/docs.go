@@ -975,6 +975,227 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/skills": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "List organization skills",
+                "operationId": "list-organization-skills",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.SkillMetadata"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Create an organization skill",
+                "operationId": "create-an-organization-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create organization skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/skills/{skillName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get an organization skill by name",
+                "operationId": "get-an-organization-skill-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Delete an organization skill",
+                "operationId": "delete-an-organization-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update an organization skill",
+                "operationId": "update-an-organization-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/email": {
             "put": {
                 "consumes": [
@@ -1036,7 +1257,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.UserSkillMetadata"
+                                "$ref": "#/definitions/codersdk.SkillMetadata"
                             }
                         }
                     }
@@ -1076,7 +1297,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateUserSkillRequest"
+                            "$ref": "#/definitions/codersdk.CreateSkillRequest"
                         }
                     }
                 ],
@@ -1084,7 +1305,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -1128,7 +1349,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -1210,7 +1431,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserSkillRequest"
+                            "$ref": "#/definitions/codersdk.UpdateSkillRequest"
                         }
                     }
                 ],
@@ -1218,7 +1439,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -23476,6 +23697,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateTemplateRequest": {
             "type": "object",
             "required": [
@@ -23925,15 +24155,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.CreateUserSkillRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 }
             }
@@ -29700,6 +29921,61 @@ const docTemplate = `{
                 "SharedWorkspaceActorTypeUser"
             ]
         },
+        "codersdk.Skill": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.SkillMetadata": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.SlimRole": {
             "type": "object",
             "properties": {
@@ -31510,6 +31786,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateTemplateACL": {
             "type": "object",
             "properties": {
@@ -31828,15 +32116,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateUserSkillRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 }
             }
@@ -32549,55 +32828,6 @@ const docTemplate = `{
                 "file_path_delivery_enabled": {
                     "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.UserSkill": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.UserSkillMetadata": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },

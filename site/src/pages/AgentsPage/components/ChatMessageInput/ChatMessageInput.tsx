@@ -547,7 +547,7 @@ type ChatMessageInputProps = Omit<
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
-	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
+	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
 	/**
 	 * Workspace skill menu data from the chat's pinned context, so the
 	 * menu matches read_skill resolution. Undefined while the chat
