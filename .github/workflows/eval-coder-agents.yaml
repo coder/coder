@@ -1,0 +1,187 @@
+# Coder Agents eval: runs the same Harbor task suite against coderd built from
+# main and from the PR branch, each serving Coder Agents, then reports whether
+# the branch is better or worse. Trials spend real model tokens, so this is
+# manual only.
+#
+# Each arm builds its own coderd, serves it with embedded Postgres, registers
+# the Anthropic provider + model, and runs Harbor with the Coder environment
+# provider (scripts/harbor-coder) so every trial runs in a Coder workspace on
+# the runner's Docker.
+
+name: eval/coder-agents
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Baseline ref to compare against
+        default: main
+        type: string
+      model:
+        description: Chat model (Anthropic model id)
+        default: claude-haiku-4-5
+        type: string
+      attempts:
+        description: Attempts per task (-k)
+        default: "2"
+        type: string
+      concurrency:
+        description: Concurrent trials (-n)
+        default: "3"
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: eval-coder-agents-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: run (${{ matrix.arm }})
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [baseline, candidate]
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # coderd under test comes from the arm's ref; the eval harness, tasks,
+      # and template always come from the triggering ref so both arms run
+      # identical trials.
+      - name: Checkout arm ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.arm == 'baseline' && inputs.baseline_ref || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout eval harness from triggering ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .eval-src
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+
+      - name: Overlay eval harness
+        run: |
+          set -euo pipefail
+          rm -rf scripts/harbor-coder
+          cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
+
+      - name: Setup Go Paths
+        uses: ./.github/actions/setup-go-paths
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Install Harbor with the Coder provider
+        run: |
+          set -euo pipefail
+          uv tool install --with-editable ./scripts/harbor-coder harbor
+          harbor --version
+
+      - name: Build and serve coderd
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.EVAL_ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ secrets.EVAL_ANTHROPIC_BASE_URL }}
+          HARBOR_CODER_MODEL: ${{ inputs.model }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANTHROPIC_API_KEY}" ]]; then
+            echo "::error::EVAL_ANTHROPIC_API_KEY secret is not set"
+            exit 1
+          fi
+          [[ -n "${ANTHROPIC_BASE_URL}" ]] || unset ANTHROPIC_BASE_URL
+          ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env" 3000
+
+      - name: Run Harbor suite
+        env:
+          ARM: ${{ matrix.arm }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+        run: |
+          set -euo pipefail
+          set -a; . "${RUNNER_TEMP}/coder.env"; set +a
+          BIN_DIR="$(dirname "${HARBOR_CODER_BIN}")"
+          export PATH="${BIN_DIR}:${PATH}"
+          harbor run \
+            -p scripts/harbor-coder/tasks \
+            --agent harbor_coder.agent:CoderAgentsAgent \
+            --env harbor_coder.environment:CoderEnvironment \
+            --ek template="${HARBOR_CODER_TEMPLATE}" \
+            -k "${ATTEMPTS}" -n "${CONCURRENCY}" \
+            -o jobs --job-name "${ARM}"
+
+      - name: Upload job results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: harbor-${{ matrix.arm }}
+          path: jobs/
+          if-no-files-found: warn
+
+      - name: Upload coderd log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coderd-log-${{ matrix.arm }}
+          path: .harbor-coder/coderd.log
+          if-no-files-found: ignore
+
+  compare:
+    name: compare
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+
+      - name: Download results
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: harbor-*
+          path: jobs
+          merge-multiple: true
+
+      - name: Compare and summarize
+        env:
+          BASELINE_REF: ${{ inputs.baseline_ref }}
+        run: |
+          set -euo pipefail
+          ls jobs
+          PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+            --baseline jobs/baseline --candidate jobs/candidate \
+            --labels "${BASELINE_REF}" "${GITHUB_REF_NAME}" \
+            --json-out comparison.json | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload comparison
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: comparison
+          path: comparison.json

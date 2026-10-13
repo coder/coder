@@ -59,6 +59,11 @@ build/
 dist/
 out/
 
+# Local state for scripts/harbor-coder (coderd binary, logs, credentials, jobs)
+.harbor-coder/
+scripts/harbor-coder/**/__pycache__/
+scripts/harbor-coder/*.egg-info/
+
 # Bundle analysis
 site/stats/
 
