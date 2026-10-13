@@ -14,7 +14,7 @@ type EarlierMessagesProps = {
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
-	onFetchMoreMessages: () => void;
+	onFetchMoreMessages: () => Promise<unknown>;
 };
 
 /**
@@ -58,7 +58,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 			return;
 		}
 		const frame = requestAnimationFrame(() => {
-			onFetchMoreMessages();
+			void onFetchMoreMessages();
 		});
 		return () => cancelAnimationFrame(frame);
 	}, [shouldLoadEarlierMessages, onFetchMoreMessages]);
@@ -88,7 +88,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 				variant="outline"
 				size="sm"
 				className="bg-surface-primary shadow-xs"
-				onClick={onFetchMoreMessages}
+				onClick={() => void onFetchMoreMessages()}
 			>
 				<RotateCcwIcon />
 				Retry loading earlier messages

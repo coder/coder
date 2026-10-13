@@ -119,7 +119,7 @@ type ChatPageTimelineProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => void;
+	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,

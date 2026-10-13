@@ -55,7 +55,6 @@ import {
 } from "./components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
-	type PendingAction,
 	selectChatStatus,
 	selectHasMoreMessages,
 	useChatSelector,
@@ -497,32 +496,30 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	// The stream delivers the queue change; the pending action shows it until
-	// then, or until the request fails.
-	const runQueueAction = async (
-		action: PendingAction,
-		request: () => Promise<unknown>,
-	) => {
-		const pendingID = store.addPendingAction(action);
+	const handleDeleteQueuedMessage = async (id: number) => {
+		const pendingID = store.addPendingAction({
+			kind: "deleteQueued",
+			queuedMessageID: id,
+		});
 		try {
-			await request();
+			await deleteQueuedMessage(id);
 		} catch (error) {
 			store.removePendingAction(pendingID);
 			throw error;
 		}
 	};
 
-	const handleDeleteQueuedMessage = (id: number) =>
-		runQueueAction({ kind: "deleteQueued", queuedMessageID: id }, () =>
-			deleteQueuedMessage(id),
-		);
-
 	const handlePromoteQueuedMessage = async (id: number) => {
+		const pendingID = store.addPendingAction({
+			kind: "promoteQueued",
+			queuedMessageID: id,
+		});
+		store.clearStreamError();
+		clearChatErrorReason(agentId);
 		try {
-			await runQueueAction({ kind: "promoteQueued", queuedMessageID: id }, () =>
-				promoteQueuedMessage(id),
-			);
+			await promoteQueuedMessage(id);
 		} catch (error) {
+			store.removePendingAction(pendingID);
 			handleRequestError(error);
 			throw error;
 		}
@@ -548,8 +545,8 @@ const AgentChatPage: React.FC = () => {
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
 
-	// Signal ready only after the store has loaded its messages, so the DOM
-	// actually contains them when the parent scrolls.
+	// Signal ready only after the store has synced fetched messages,
+	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (chatReadyFiredRef.current === agentId || load.status !== "loaded") {
