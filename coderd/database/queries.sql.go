@@ -1477,7 +1477,7 @@ func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAI
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, price_kind, price_organization_id, price_provider_id, price_provider
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -1512,6 +1512,10 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.CostMicros,
 			&i.ProviderModel,
 			&i.PricedModel,
+			&i.PriceKind,
+			&i.PriceOrganizationID,
+			&i.PriceProviderID,
+			&i.PriceProvider,
 		); err != nil {
 			return nil, err
 		}
@@ -1733,7 +1737,7 @@ INSERT INTO aibridge_token_usages (
   $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
   $10, $11, $12, $13, $14, $15, $16, $17
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, price_kind, price_organization_id, price_provider_id, price_provider
 `
 
 type InsertAIBridgeTokenUsageParams struct {
@@ -1795,6 +1799,10 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.CostMicros,
 		&i.ProviderModel,
 		&i.PricedModel,
+		&i.PriceKind,
+		&i.PriceOrganizationID,
+		&i.PriceProviderID,
+		&i.PriceProvider,
 	)
 	return i, err
 }
@@ -2597,7 +2605,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model, price_kind, price_organization_id, price_provider_id, price_provider
 FROM
 	aibridge_token_usages
 WHERE
@@ -2634,6 +2642,10 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.CostMicros,
 			&i.ProviderModel,
 			&i.PricedModel,
+			&i.PriceKind,
+			&i.PriceOrganizationID,
+			&i.PriceProviderID,
+			&i.PriceProvider,
 		); err != nil {
 			return nil, err
 		}

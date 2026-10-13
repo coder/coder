@@ -10,6 +10,13 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_model_price_kind AS ENUM (
+    'organization_provider',
+    'organization_provider_type',
+    'site_custom',
+    'site_default'
+);
+
 CREATE TYPE ai_model_price_source AS ENUM (
     'default',
     'custom'
@@ -1642,6 +1649,43 @@ COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to
 
 COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
+CREATE TABLE ai_org_model_prices (
+    organization_id uuid NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_org_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_org_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_org_model_prices_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_org_model_prices_output_price_check CHECK ((output_price >= 0)),
+    CONSTRAINT ai_org_model_prices_provider_check CHECK ((provider <> 'openai-compat'::text))
+);
+
+COMMENT ON TABLE ai_org_model_prices IS 'Per-model token prices for every provider of a type within one organization. Overrides site-wide prices in ai_model_prices.';
+
+CREATE TABLE ai_org_provider_model_prices (
+    organization_id uuid NOT NULL,
+    provider_id uuid NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_org_provider_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_org_provider_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_org_provider_model_prices_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_org_provider_model_prices_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_org_provider_model_prices IS 'Per-model token prices for one configured AI provider within one organization. Overrides organization provider type prices and site-wide prices.';
+
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     provider_id uuid NOT NULL,
@@ -1789,6 +1833,10 @@ CREATE TABLE aibridge_token_usages (
     cost_micros bigint,
     provider_model text,
     priced_model text,
+    price_kind ai_model_price_kind,
+    price_organization_id uuid,
+    price_provider_id uuid,
+    price_provider text,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1803,6 +1851,14 @@ COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the 
 COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
 
 COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
+
+COMMENT ON COLUMN aibridge_token_usages.price_kind IS 'Kind of price used to compute cost_micros. NULL when no price matched.';
+
+COMMENT ON COLUMN aibridge_token_usages.price_organization_id IS 'Organization of the matched price. Set only for organization prices.';
+
+COMMENT ON COLUMN aibridge_token_usages.price_provider_id IS 'Configured provider of the matched price. Set only for organization provider prices.';
+
+COMMENT ON COLUMN aibridge_token_usages.price_provider IS 'Provider type of the matched price. Set for every matched price.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
@@ -4411,6 +4467,12 @@ ALTER TABLE ONLY ai_gateway_keys
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
+ALTER TABLE ONLY ai_org_model_prices
+    ADD CONSTRAINT ai_org_model_prices_pkey PRIMARY KEY (organization_id, provider, model);
+
+ALTER TABLE ONLY ai_org_provider_model_prices
+    ADD CONSTRAINT ai_org_provider_model_prices_pkey PRIMARY KEY (organization_id, provider_id, model);
+
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
 
@@ -4870,6 +4932,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
+CREATE INDEX idx_ai_org_provider_model_prices_provider_id ON ai_org_provider_model_prices USING btree (provider_id);
+
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
@@ -5309,6 +5373,15 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_org_model_prices
+    ADD CONSTRAINT ai_org_model_prices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_org_provider_model_prices
+    ADD CONSTRAINT ai_org_provider_model_prices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_org_provider_model_prices
+    ADD CONSTRAINT ai_org_provider_model_prices_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
