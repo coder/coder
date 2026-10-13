@@ -10767,28 +10767,35 @@ func TestStreamChat(t *testing.T) {
 					resets++
 					require.NotNil(t, event.HistoryReset, "the reset replaced the whole history")
 					require.Equal(t, fromID, event.HistoryReset.FromMessageID)
+					require.Positive(t, event.SnapshotVersion)
 				case codersdk.ChatStreamEventTypeMessage:
 					require.GreaterOrEqual(t, event.Message.ID, fromID, "a message below the edit was resent")
+					require.Positive(t, event.SnapshotVersion)
 				}
 			}
 			require.Equal(t, 1, resets)
 		}
-		requireNoHistory := func(events []codersdk.ChatStreamEvent) {
+		// A resume at or after a commit resends that commit's messages, which
+		// the tab holds.
+		requireOnlyResent := func(held []int64, events []codersdk.ChatStreamEvent) {
 			t.Helper()
 			for _, event := range events {
 				require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "the stream reset the history")
-				require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type, "the stream resent a message the tab holds")
+				if event.Message != nil {
+					require.Contains(t, held, event.Message.ID, "the stream sent a message the tab did not hold")
+				}
 			}
 		}
 
-		// Opening a chat edited earlier must send no history, even though the
-		// rows the edit soft-deleted are still in the chat.
+		// Opening a chat edited earlier must not reset the history, even though
+		// the rows the edit soft-deleted are still in the chat.
 		edit(lastPromptID(newestPage()), "edited once")
 		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
 		page := newestPage()
 		live := newChatTab(page)
+		pageIDs := live.sortedIDs()
 		applied, events := live.connect(ctx, t, client, chat.ID)
-		requireNoHistory(applied)
+		requireOnlyResent(pageIDs, applied)
 
 		// An edit while the stream is open resets the history from the
 		// edited message.
@@ -10796,17 +10803,16 @@ func TestStreamChat(t *testing.T) {
 		editedID := lastPromptID(page)
 		edit(editedID, "edited twice")
 		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
-		want := newestPage().SnapshotVersion
+		wantIDs := liveChatMessageIDs(ctx, t, client, chat.ID)
 		applied = live.applyUntil(ctx, t, events, func(codersdk.ChatStreamEvent) bool {
-			return live.version >= want
+			return slices.Equal(wantIDs, live.sortedIDs())
 		})
 		requireResetFrom(applied, editedID)
-		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
 
-		// Reconnecting with the version from the last checkpoint sends
-		// nothing.
+		// Reconnecting with the highest snapshot version the tab received
+		// does not reset the history again.
 		applied, _ = live.connect(ctx, t, client, chat.ID)
-		requireNoHistory(applied)
+		requireOnlyResent(wantIDs, applied)
 
 		// A tab that missed the edit and then sent a message holds both the
 		// deleted messages and a newer message ID. Its reconnect must still
@@ -10821,8 +10827,10 @@ func TestStreamChat(t *testing.T) {
 		legacy := newChatTab(newestPage())
 		legacy.withoutSnapshotVersion = true
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
+		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, applied[0].Type)
+		require.Nil(t, applied[0].HistoryReset, "a client without snapshot_version must get the full reset")
 		for _, event := range applied {
-			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "a client that holds message after_id got a history reset")
+			require.Zero(t, event.SnapshotVersion, "a %s event carries snapshot_version on a stream opened without it", event.Type)
 		}
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
 	})
@@ -11369,375 +11377,6 @@ func TestInterruptChat(t *testing.T) {
 		_, err := client.InterruptChat(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
 	})
-}
-
-// TestChatStreamObserverSeesActions checks the stream contract for a
-// viewer that did not act. For each case below, a read-only shared viewer
-// has a stream open on the chat while the owner acts over REST. The
-// viewer's stream must deliver the action's state change and a checkpoint
-// at or above the chat's snapshot_version after the action, and the
-// viewer's state at that checkpoint must equal the chat's.
-func TestChatStreamObserverSeesActions(t *testing.T) {
-	t.Parallel()
-
-	type env struct {
-		ctx    context.Context
-		client *codersdk.ExperimentalClient
-		db     database.Store
-		user   codersdk.CreateFirstUserResponse
-		model  codersdk.ChatModel
-	}
-	// scenario is a chat set up for one action. act performs the action
-	// as the owner and returns the snapshot_version it committed. check
-	// asserts the observer's state after the checkpoint that covers it.
-	type scenario struct {
-		chatID uuid.UUID
-		act    func() int64
-		check  func(t *testing.T, tab *chatTab, before []int64, applied []codersdk.ChatStreamEvent)
-	}
-
-	text := func(s string) []codersdk.ChatInputPart {
-		return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: s}}
-	}
-	newChat := func(t *testing.T, e env, status database.ChatStatus) database.Chat {
-		t.Helper()
-		return dbgen.Chat(t, e.db, database.Chat{
-			OrganizationID:    e.user.OrganizationID,
-			OwnerID:           e.user.UserID,
-			LastModelConfigID: e.model.ID,
-			Title:             "stream observer test",
-			Status:            status,
-		})
-	}
-	addMessage := func(t *testing.T, e env, chatID uuid.UUID, role database.ChatMessageRole, s string) database.ChatMessage {
-		t.Helper()
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
-		require.NoError(t, err)
-		msg := database.ChatMessage{
-			ChatID:        chatID,
-			ModelConfigID: uuid.NullUUID{UUID: e.model.ID, Valid: true},
-			Role:          role,
-			Content:       content,
-		}
-		if role == database.ChatMessageRoleUser {
-			msg.CreatedBy = uuid.NullUUID{UUID: e.user.UserID, Valid: true}
-		}
-		return dbgen.ChatMessage(t, e.db, msg)
-	}
-	// addTurn gives a chat a user prompt and an assistant reply, so it has
-	// something to edit, compact or clear.
-	addTurn := func(t *testing.T, e env, chatID uuid.UUID) database.ChatMessage {
-		t.Helper()
-		prompt := addMessage(t, e, chatID, database.ChatMessageRoleUser, "question")
-		_ = addMessage(t, e, chatID, database.ChatMessageRoleAssistant, "answer")
-		return prompt
-	}
-	// setRunning marks the chat as owned by a worker that does not exist,
-	// so nothing but the test changes it.
-	setRunning := func(t *testing.T, e env, chatID uuid.UUID) {
-		t.Helper()
-		_, err := e.db.UpdateChatStatus(dbauthz.AsSystemRestricted(e.ctx), database.UpdateChatStatusParams{
-			ID:          chatID,
-			Status:      database.ChatStatusRunning,
-			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
-			HeartbeatAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
-		})
-		require.NoError(t, err)
-	}
-	queue := func(t *testing.T, e env, chatID uuid.UUID, s string) int64 {
-		t.Helper()
-		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
-		require.NoError(t, err)
-		return insertTestChatQueuedMessage(e.ctx, t, e.db, chatID, content, e.model.ID).ID
-	}
-	// do sends an action request for chatID, requires wantStatus, decodes
-	// the body into out when out is not nil, and returns the chat's
-	// snapshot version after the action. The chat worker is disabled, so
-	// nothing else commits in between.
-	do := func(t *testing.T, e env, method string, chatID uuid.UUID, path string, req any, wantStatus int, out any) int64 {
-		t.Helper()
-		res, err := e.client.Request(e.ctx, method, fmt.Sprintf("/api/v2/chats/%s/%s", chatID, path), req)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, wantStatus, res.StatusCode)
-		if out != nil {
-			require.NoError(t, json.NewDecoder(res.Body).Decode(out))
-		}
-		chat, err := e.db.GetChatByID(dbauthz.AsSystemRestricted(e.ctx), chatID)
-		require.NoError(t, err)
-		return chat.SnapshotVersion
-	}
-	hasEvent := func(applied []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) bool {
-		return slices.ContainsFunc(applied, func(event codersdk.ChatStreamEvent) bool { return event.Type == eventType })
-	}
-
-	for _, tt := range []struct {
-		name  string
-		setup func(t *testing.T, e env) scenario
-	}{
-		{
-			name: "SendToIdleChat",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						var resp codersdk.CreateChatMessageResponse
-						w := do(t, e, http.MethodPost, chat.ID, "messages", codersdk.CreateChatMessageRequest{Content: text("hello")}, http.StatusOK, &resp)
-						require.False(t, resp.Queued)
-						return w
-					},
-					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-						require.Len(t, tab.ids, len(before)+1, "the sent message")
-					},
-				}
-			},
-		},
-		{
-			name: "SendToRunningChatQueues",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				setRunning(t, e, chat.ID)
-				var queuedID int64
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						var resp codersdk.CreateChatMessageResponse
-						w := do(t, e, http.MethodPost, chat.ID, "messages", codersdk.CreateChatMessageRequest{
-							Content:      text("later"),
-							BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-						}, http.StatusOK, &resp)
-						require.True(t, resp.Queued)
-						require.NotNil(t, resp.QueuedMessage)
-						queuedID = resp.QueuedMessage.ID
-						return w
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, []int64{queuedID}, tab.queue)
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "Edit",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				prompt := addTurn(t, e, chat.ID)
-				var editedID int64
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						var resp codersdk.EditChatMessageResponse
-						w := do(t, e, http.MethodPatch, chat.ID, fmt.Sprintf("messages/%d", prompt.ID), codersdk.EditChatMessageRequest{Content: text("edited question")}, http.StatusOK, &resp)
-						editedID = resp.Message.ID
-						return w
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, applied []codersdk.ChatStreamEvent) {
-						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeHistoryReset))
-						require.False(t, tab.ids[prompt.ID], "the edited message is replaced")
-						require.True(t, tab.ids[editedID], "the replacement arrives")
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "DeleteQueued",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusError)
-				queuedID := queue(t, e, chat.ID, "to delete")
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodDelete, chat.ID, fmt.Sprintf("queue/%d", queuedID), nil, http.StatusNoContent, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Empty(t, tab.queue)
-						require.Equal(t, codersdk.ChatStatusError, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "PromoteFromRunningChat",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				setRunning(t, e, chat.ID)
-				first := queue(t, e, chat.ID, "first")
-				second := queue(t, e, chat.ID, "second")
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, fmt.Sprintf("queue/%d/promote", second), nil, http.StatusAccepted, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, []int64{second, first}, tab.queue, "the promoted message moves to the head")
-						require.Equal(t, codersdk.ChatStatusInterrupting, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "PromoteFromErrorChat",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusError)
-				_ = addMessage(t, e, chat.ID, database.ChatMessageRoleUser, "failed prompt")
-				queuedID := queue(t, e, chat.ID, "promoted")
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, fmt.Sprintf("queue/%d/promote", queuedID), nil, http.StatusAccepted, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
-						require.Empty(t, tab.queue)
-						require.Len(t, tab.ids, len(before)+1, "the promoted message joins the history")
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "Interrupt",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				setRunning(t, e, chat.ID)
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, "interrupt", nil, http.StatusOK, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, codersdk.ChatStatusInterrupting, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "Compact",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				_ = addTurn(t, e, chat.ID)
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, "compact", nil, http.StatusOK, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "Clear",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				_ = addTurn(t, e, chat.ID)
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, "clear", nil, http.StatusOK, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, before []int64, applied []codersdk.ChatStreamEvent) {
-						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeMessage), "the clear marker")
-						require.Greater(t, len(tab.ids), len(before))
-						require.Equal(t, codersdk.ChatStatusWaiting, tab.status)
-					},
-				}
-			},
-		},
-		{
-			name: "ToolResults",
-			setup: func(t *testing.T, e env) scenario {
-				chat := setupRequiresAction(e.ctx, t, e.db, e.user.UserID, e.user.OrganizationID, e.model.ID, "my_dynamic_tool", []string{"call_observed"})
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, "tool-results", codersdk.SubmitToolResultsRequest{
-							Results: []codersdk.ToolResult{{ToolCallID: "call_observed", Output: json.RawMessage(`"done"`)}},
-						}, http.StatusNoContent, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
-						require.Len(t, tab.ids, len(before)+1, "the tool result")
-						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
-					},
-				}
-			},
-		},
-		{
-			// A waiting chat with a queued message is an invalid state.
-			name: "ReconcileInvalid",
-			setup: func(t *testing.T, e env) scenario {
-				chat := newChat(t, e, database.ChatStatusWaiting)
-				queuedID := queue(t, e, chat.ID, "stranded")
-				return scenario{
-					chatID: chat.ID,
-					act: func() int64 {
-						return do(t, e, http.MethodPost, chat.ID, "reconcile-invalid", nil, http.StatusOK, nil)
-					},
-					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
-						require.Equal(t, []int64{queuedID}, tab.queue, "reconcile keeps the queue")
-						require.Equal(t, codersdk.ChatStatusError, tab.status)
-					},
-				}
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
-			user := coderdtest.CreateFirstUser(t, client.Client)
-			e := env{ctx: ctx, client: client, db: db, user: user, model: createChatModel(t, client)}
-			s := tt.setup(t, e)
-
-			observerRaw, observerUser := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID)
-			observer := codersdk.NewExperimentalClient(observerRaw)
-			err := db.UpdateChatACLByID(dbauthz.As(ctx, rbac.Subject{
-				ID:    user.UserID.String(),
-				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
-				Scope: rbac.ScopeAll,
-			}), database.UpdateChatACLByIDParams{
-				ID: s.chatID,
-				UserACL: database.ChatACL{
-					observerUser.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
-				},
-				GroupACL: database.ChatACL{},
-			})
-			require.NoError(t, err)
-
-			page, err := observer.GetChatMessages(ctx, s.chatID, nil)
-			require.NoError(t, err)
-			tab := newChatTab(page)
-			_, events := tab.connect(ctx, t, observer, s.chatID)
-			before := tab.sortedIDs()
-			beforeSnapshot := tab.version
-
-			w := s.act()
-			require.Greater(t, w, beforeSnapshot, "the action must commit a newer snapshot")
-			applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
-				return event.Type == codersdk.ChatStreamEventTypeCheckpoint && event.Checkpoint.SnapshotVersion >= w
-			})
-			s.check(t, tab, before, applied)
-
-			// At the checkpoint the observer holds what the chat holds.
-			current, err := client.GetChatMessages(ctx, s.chatID, nil)
-			require.NoError(t, err)
-			queueIDs := make([]int64, 0, len(current.QueuedMessages))
-			for _, queued := range current.QueuedMessages {
-				queueIDs = append(queueIDs, queued.ID)
-			}
-			require.Equal(t, queueIDs, tab.queue)
-			require.ElementsMatch(t, liveChatMessageIDs(ctx, t, client, s.chatID), tab.sortedIDs())
-			chat, err := client.GetChat(ctx, s.chatID)
-			require.NoError(t, err)
-			require.Equal(t, chat.Status, tab.status)
-		})
-	}
 }
 
 func TestCompactChat(t *testing.T) {
@@ -15286,28 +14925,18 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 }
 
 // chatTab models the state a web client tab keeps for one chat: the IDs
-// of the messages it holds, its snapshot version, and the status and queue
-// the stream last reported.
+// of the messages it holds and its snapshot version.
 type chatTab struct {
 	ids     map[int64]bool
 	version int64
 	// withoutSnapshotVersion opens the stream without snapshot_version, as
 	// clients that predate it do.
 	withoutSnapshotVersion bool
-
-	status codersdk.ChatStatus
-	queue  []int64
 }
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
-	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion, queue: []int64{}}
-	if page.Turn != nil {
-		tab.status = page.Turn.Status
-	}
+	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion}
 	tab.hold(page.Messages...)
-	for _, queued := range page.QueuedMessages {
-		tab.queue = append(tab.queue, queued.ID)
-	}
 	return tab
 }
 
@@ -15322,8 +14951,8 @@ func (tab *chatTab) sortedIDs() []int64 {
 }
 
 // connect opens the stream with the tab's newest message ID and snapshot
-// version, and applies events through the checkpoint that ends the initial
-// sync.
+// version, and applies events through the status event, which every initial
+// sync sends after its versioned events.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
@@ -15335,7 +14964,7 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = closer.Close() })
 	applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
-		return event.Type == codersdk.ChatStreamEventTypeCheckpoint
+		return event.Type == codersdk.ChatStreamEventTypeStatus
 	})
 	return applied, events
 }
@@ -15361,6 +14990,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				require.FailNow(t, "stream closed early", progress())
 			}
 			applied = append(applied, event)
+			tab.version = max(tab.version, event.SnapshotVersion)
 			switch event.Type {
 			case codersdk.ChatStreamEventTypeHistoryReset:
 				var fromID int64
@@ -15370,16 +15000,6 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
-			case codersdk.ChatStreamEventTypeQueueUpdate:
-				tab.queue = make([]int64, 0, len(event.QueuedMessages))
-				for _, queued := range event.QueuedMessages {
-					tab.queue = append(tab.queue, queued.ID)
-				}
-			case codersdk.ChatStreamEventTypeCheckpoint:
-				if event.Checkpoint != nil {
-					tab.version = event.Checkpoint.SnapshotVersion
-					tab.status = event.Checkpoint.Turn.Status
-				}
 			}
 			if done(event) {
 				return applied
@@ -18872,77 +18492,77 @@ func TestGetChatsByWorkspace(t *testing.T) {
 	})
 }
 
-// setupRequiresAction creates a chat via the DB with dynamic tools,
-// inserts an assistant message containing tool-call parts for each
-// given toolCallID, and sets the chat status to requires_action.
-// It returns the chat row so callers can exercise the endpoint.
-//
-// Callers must build their coderd with withChatWorkerDisabled: an
-// unowned requires_action chat is a worker acquisition candidate,
-// and a takeover would synthesize tool cancellations and change the
-// chat status underneath the test.
-func setupRequiresAction(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	ownerID uuid.UUID,
-	organizationID uuid.UUID,
-	modelConfigID uuid.UUID,
-	dynamicToolName string,
-	toolCallIDs []string,
-) database.Chat {
-	t.Helper()
-
-	// Marshal dynamic tools into the chat row.
-	dynamicTools := []mcp.Tool{{
-		Name:        dynamicToolName,
-		Description: "a test dynamic tool",
-		InputSchema: map[string]any{"type": "object"},
-	}}
-	dtJSON, err := json.Marshal(dynamicTools)
-	require.NoError(t, err)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    organizationID,
-		OwnerID:           ownerID,
-		LastModelConfigID: modelConfigID,
-		Title:             "tool-results-test",
-		DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
-	})
-
-	// Build assistant message with tool-call parts.
-	parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
-	for _, id := range toolCallIDs {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: id,
-			ToolName:   dynamicToolName,
-			Args:       json.RawMessage(`{"key":"value"}`),
-		})
-	}
-	content, err := chatprompt.MarshalParts(parts)
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		Content:       content,
-	})
-
-	// Transition to requires_action.
-	chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusRequiresAction,
-	})
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
-
-	return chat
-}
-
 func TestSubmitToolResults(t *testing.T) {
 	t.Parallel()
+
+	// setupRequiresAction creates a chat via the DB with dynamic tools,
+	// inserts an assistant message containing tool-call parts for each
+	// given toolCallID, and sets the chat status to requires_action.
+	// It returns the chat row so callers can exercise the endpoint.
+	//
+	// Callers must build their coderd with withChatWorkerDisabled: an
+	// unowned requires_action chat is a worker acquisition candidate,
+	// and a takeover would synthesize tool cancellations and change the
+	// chat status underneath the test.
+	setupRequiresAction := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		organizationID uuid.UUID,
+		modelConfigID uuid.UUID,
+		dynamicToolName string,
+		toolCallIDs []string,
+	) database.Chat {
+		t.Helper()
+
+		// Marshal dynamic tools into the chat row.
+		dynamicTools := []mcp.Tool{{
+			Name:        dynamicToolName,
+			Description: "a test dynamic tool",
+			InputSchema: map[string]any{"type": "object"},
+		}}
+		dtJSON, err := json.Marshal(dynamicTools)
+		require.NoError(t, err)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    organizationID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "tool-results-test",
+			DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
+		})
+
+		// Build assistant message with tool-call parts.
+		parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
+		for _, id := range toolCallIDs {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: id,
+				ToolName:   dynamicToolName,
+				Args:       json.RawMessage(`{"key":"value"}`),
+			})
+		}
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       content,
+		})
+
+		// Transition to requires_action.
+		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRequiresAction,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
+
+		return chat
+	}
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
