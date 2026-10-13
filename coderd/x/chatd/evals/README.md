@@ -54,6 +54,12 @@ temporary paths. Give each its own `--out`. On a cold cache, run
 `--validate-only` once first so concurrent runs do not each build aegis.
 Terminal-Bench imports rewrite the shared import directory, so run at most
 one `terminal-bench` suite or `--self-check` per cache at a time.
+Concurrent runs on one host work but can show infrastructure failures:
+when a run starts, the pinned aegis docker provider removes every aegis
+network with no container attached and every created or exited trial
+container (`sweepStale` in `internal/provider/docker/gc.go`), including
+ones another run has just made, so that run's trial can fail with an
+error such as `network ... not found`.
 
 ## Options
 
@@ -342,7 +348,8 @@ suite run: aegis stops scheduling trials when the cap is reached.
     `ln`, or `install` on a path outside `/tmp` and `/dev` (the destination
     for `cp`, `ln`, and `install`; every operand for the others), or
     `find ... -delete` from such a path. An operand that needs expansion,
-    such as `$f`, counts as outside. `patch` counts unless it runs with
+    such as `$f`, counts as outside, and so do the operands `xargs` reads
+    from its input or from `-a FILE`. `patch` counts unless it runs with
     `--dry-run` or patches a file or a `-d` directory under `/tmp`;
     `git apply` counts wherever it applies, unless it runs with `--check`,
     or with `--stat`, `--numstat`, or `--summary` and without `--apply`.
@@ -359,10 +366,15 @@ suite run: aegis stops scheduling trials when the cap is reached.
   All of these are also found inside `bash -c` and here-documents fed to a
   shell, behind the wrappers `env`, `timeout`, `nice`, `nohup`, `command`,
   `exec`, `time`, `stdbuf`, `sudo`, `setsid`, and `xargs` (with their
-  options and `env` assignments), and in the commands `find` runs with
-  `-exec`, `-execdir`, `-ok`, or `-okdir`. The same wrappers apply to
-  `no_shell_file_io`, which counts the in-place editors, redirects, `tee`,
-  and `cat`, `head`, `tail`, `less`, or `more` reads, but not `cp`, `mv`,
+  options, `env` assignments, `env -` and `env -i`, and the command line in
+  `env -S` or `--split-string`), nested to any depth, and in the commands
+  `find` runs with `-exec`, `-execdir`, `-ok`, or `-okdir`. Paths are
+  compared after `.` and `..` are resolved, so `/tmp/../src/a.py` is
+  outside `/tmp`. The same wrappers and paths apply to `no_shell_file_io`,
+  which counts the in-place editors, redirects, `tee`, and `cat`, `head`,
+  `tail`, `less`, or `more` with a file operand (one that needs expansion
+  or that `xargs` supplies counts; the count after `head -n` or `tail -n`
+  does not, so `git log | head -n 5` is not a read), but not `cp`, `mv`,
   `rm`, or the other file commands above. Known misses: edits made by
   running a script file (`python3 /tmp/fix.py`, `cat fix.py | python3`) or
   a module (`python3 -m json.tool in.json out.json`), edits through other

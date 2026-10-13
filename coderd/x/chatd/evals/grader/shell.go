@@ -118,10 +118,12 @@ var wrapperOptions = map[string]struct {
 // wrappedCommands returns the commands that c runs on its behalf: the
 // command after a wrapper such as env, timeout, sudo, or xargs, and the
 // commands find runs with -exec, -execdir, -ok, or -okdir. The inner
-// commands inherit c's stdin, and wrappers of wrappers are followed.
+// commands inherit c's stdin, and wrappers of wrappers are followed to
+// any depth: each unwrap drops the wrapper's own name, so the literal
+// text left to unwrap shrinks every time.
 func wrappedCommands(c shellCommand) []shellCommand {
 	var out []shellCommand
-	for depth, next := 0, []shellCommand{c}; depth < 4 && len(next) > 0; depth++ {
+	for next := []shellCommand{c}; len(next) > 0; {
 		var found []shellCommand
 		for _, cmd := range next {
 			found = append(found, directlyWrapped(cmd)...)
@@ -141,12 +143,22 @@ func directlyWrapped(c shellCommand) []shellCommand {
 	if !ok {
 		return nil
 	}
+	var (
+		split       string
+		hasSplit    bool
+		replaceWith string
+	)
 	i := 1
 	for i < len(c.Args) {
 		a := c.Args[i]
 		if a == "--" {
 			i++
 			break
+		}
+		// env - is the old spelling of env -i.
+		if prog == "env" && a == "-" {
+			i++
+			continue
 		}
 		if len(a) < 2 || a[0] != '-' {
 			break
@@ -155,10 +167,18 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		if prog == "command" && (strings.ContainsRune(a, 'v') || strings.ContainsRune(a, 'V')) {
 			return nil
 		}
-		i++
-		if takesValue(a, opts.short, opts.long) {
-			i++
+		name, value, next := optionValue(c.Args, i, opts.short, opts.long)
+		switch {
+		case prog == "env" && (name == "S" || name == "--split-string"):
+			split, hasSplit = value, true
+		case prog == "xargs" && name == "I":
+			replaceWith = value
+		case prog == "xargs" && (a == "-i" || a == "--replace"):
+			replaceWith = "{}"
+		case prog == "xargs" && strings.HasPrefix(a, "--replace="):
+			replaceWith = strings.TrimPrefix(a, "--replace=")
 		}
+		i = next
 	}
 	if prog == "env" || prog == "sudo" {
 		for i < len(c.Args) && isAssignment(c.Args[i]) {
@@ -166,10 +186,70 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	if i >= len(c.Args) {
+	inner := shellCommand{Stdin: c.Stdin}
+	if hasSplit {
+		// env -S splits its value into words the way the shell would, then
+		// runs them followed by the remaining arguments.
+		if script, ok := parseShell(split); ok && len(script.Commands) > 0 {
+			inner.Args = append(inner.Args, script.Commands[0].Args...)
+			inner.Source = append(inner.Source, script.Commands[0].Source...)
+		}
+	}
+	if i < len(c.Args) {
+		inner.Args = append(inner.Args, c.Args[i:]...)
+		inner.Source = append(inner.Source, c.Source[i:]...)
+	}
+	if len(inner.Args) == 0 {
 		return nil
 	}
-	return []shellCommand{{Args: c.Args[i:], Source: c.Source[i:], Stdin: c.Stdin}}
+	if prog == "xargs" {
+		// xargs supplies operands from its input, which the grader cannot
+		// see, so they become one operand that needs expansion: replacing
+		// each word that holds the -I string, or appended at the end.
+		if replaceWith == "" {
+			inner.Args = append(inner.Args, "")
+			inner.Source = append(inner.Source, "")
+		} else {
+			for k, a := range inner.Args {
+				if strings.Contains(a, replaceWith) {
+					inner.Args[k] = ""
+				}
+			}
+		}
+	}
+	return []shellCommand{inner}
+}
+
+// optionValue reads the option at args[i]: its name (a long option
+// before any =, or the first value-taking letter of a short cluster), its
+// value when it takes one, attached or as the next word, and the index of
+// the next unread word.
+func optionValue(args []string, i int, short string, long []string) (name, value string, next int) {
+	a := args[i]
+	next = i + 1
+	if strings.HasPrefix(a, "--") {
+		n, v, attached := strings.Cut(a, "=")
+		if attached {
+			return n, v, next
+		}
+		if takesValue(a, short, long) && next < len(args) {
+			return n, args[next], next + 1
+		}
+		return n, "", next
+	}
+	for j := 1; j < len(a); j++ {
+		if strings.IndexByte(short, a[j]) < 0 {
+			continue
+		}
+		if j < len(a)-1 {
+			return a[j : j+1], a[j+1:], next
+		}
+		if next < len(args) {
+			return a[j : j+1], args[next], next + 1
+		}
+		return a[j : j+1], "", next
+	}
+	return "", "", next
 }
 
 // takesValue reports whether option a consumes the next argument: a long
@@ -335,10 +415,23 @@ func literalWord(w *syntax.Word) string {
 	return sb.String()
 }
 
-// harmlessOutput reports redirect targets that are not workspace files:
-// devices and scratch files under /tmp.
+// harmlessOutput reports paths that are not workspace files: devices and
+// scratch files under /tmp. The path is cleaned first, so /tmp/../work is
+// a workspace path.
 func harmlessOutput(target string) bool {
-	return strings.HasPrefix(target, "/dev/") || strings.HasPrefix(target, "/tmp/")
+	clean := path.Clean(target)
+	return clean == "/tmp" || clean == "/dev" || strings.HasPrefix(clean, "/dev/") || strings.HasPrefix(clean, "/tmp/")
+}
+
+// readCommandValueFlags lists, per shell file reader, the short option
+// letters and long options that take a separate value, so piped
+// head -n 5 has no file operand.
+var readCommandValueFlags = map[string]struct {
+	short string
+	long  []string
+}{
+	"head": {"nc", []string{"--lines", "--bytes"}},
+	"tail": {"ncs", []string{"--lines", "--bytes", "--sleep-interval", "--pid", "--max-unchanged-stats"}},
 }
 
 // fileIOFindings reports file reads and writes done through the shell
@@ -355,8 +448,14 @@ func fileIOFindings(s shellScript) []string {
 		operands := nonFlagOperands(c.Args[1:])
 		switch prog {
 		case "cat", "head", "tail", "less", "more":
-			if len(operands) > 0 {
-				out = append(out, prog+" reads "+operands[0])
+			flags := readCommandValueFlags[prog]
+			read, _ := commandOperands(c.Args[1:], flags.short, flags.long)
+			for _, op := range read {
+				// - is standard input.
+				if op != "-" {
+					out = append(out, prog+" reads "+op)
+					break
+				}
 			}
 		case "tee":
 			for _, op := range operands {
@@ -538,7 +637,7 @@ func findStartingPoints(args []string) []string {
 
 func allHarmless(paths []string) bool {
 	for _, p := range paths {
-		if p != "/tmp" && !harmlessOutput(p) {
+		if !harmlessOutput(p) {
 			return false
 		}
 	}
