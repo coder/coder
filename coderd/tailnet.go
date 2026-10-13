@@ -273,16 +273,18 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	return s.acquireAgentConn(ctx, agentID, 0)
 }
 
-// keepAliveAPIIdleConnTimeout is below
-// workspacesdk.AgentHTTPAPIServerIdleTimeout, so coderd closes an idle
-// connection before the workspace agent does. When a request arrives, the
-// workspace agent has been idle for the gap plus one round trip, so the 5 s
-// margin covers round trips up to 5 s.
+// keepAliveAPIIdleConnTimeout must stay below the idle timeout of every
+// workspace agent build coderd talks to, or a request can be sent on a
+// connection the workspace agent already closed and fail. Every build so far
+// uses 20 s. It is a literal because a value derived from
+// workspacesdk.AgentHTTPAPIServerIdleTimeout would rise with it, past what
+// older workspace agents allow. A request reaches the workspace agent after
+// coderd's idle time plus one round trip, so the 5 s margin covers round
+// trips up to 5 s.
 const keepAliveAPIIdleConnTimeout = 15 * time.Second
 
-// keepAliveAgentConn is AgentConn whose connection keeps connections to the
-// workspace agent's HTTP API server open between requests, for callers that
-// send many requests on one connection.
+// keepAliveAgentConn is AgentConn with APIIdleConnTimeout set, for callers
+// that send many requests on one connection.
 func (s *ServerTailnet) keepAliveAgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	return s.acquireAgentConn(ctx, agentID, keepAliveAPIIdleConnTimeout)
 }
