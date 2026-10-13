@@ -26,7 +26,7 @@ people with read access to it.
 ## Quick start
 
 ```sh
-# Compile and validate every suite; no build, no model calls.
+# Compile and validate every suite: no coder build, no model calls.
 coderd/x/chatd/evals/run.sh --validate-only
 
 # One cheap case against this checkout, uncommitted changes included.
@@ -40,10 +40,18 @@ coderd/x/chatd/evals/run.sh
 The first run clones coder/aegis at the pinned commit, builds its CLI and
 runner image, and builds coder from your checkout. Later runs reuse the
 cache in `${CHATD_EVAL_CACHE:-$HOME/.cache/chatd-evals}`. Results land in
-`runs/<timestamp>/` under that cache unless you pass `--out`, and run.sh
-prints the path. Keep `--out` outside the coder checkout: untracked output
-there makes the next default run see a dirty tree and rebuild coder.
-`--validate-only` and `--self-check` write no results directory.
+`runs/<timestamp>-<pid>/` under that cache unless you pass `--out`, and
+run.sh prints the path. Keep `--out` outside the coder checkout: untracked
+output there makes the next default run see a dirty tree and rebuild coder.
+`--validate-only` and `--self-check` write no results directory. Even
+`--validate-only` needs the aegis CLI, so on a cold cache it also clones
+and builds aegis, which takes several minutes.
+
+Several runs may share one cache at once: each builds into its own
+temporary paths. Give each its own `--out`. On a cold cache, run
+`--validate-only` once first so concurrent runs do not each build aegis.
+Terminal-Bench imports rewrite the shared import directory, so run at most
+one `terminal-bench` suite or `--self-check` per cache at a time.
 
 ## Options
 
@@ -59,8 +67,8 @@ there makes the next default run see a dirty tree and rebuild coder.
 | `--max-usd N` | per suite | Budget cap for each suite run. |
 | `--prompt-file PATH` | none | Adds a `candidate-prompt` arm with this system prompt. |
 | `--prompt-mode MODE` | `append` | `append` adds the file to the default prompt; `replace` replaces it. |
-| `--out DIR` | `<cache>/runs/<timestamp>` | Results directory. Keep it outside the coder checkout. |
-| `--validate-only` | | Compiles and validates the suites, then exits. |
+| `--out DIR` | `<cache>/runs/<timestamp>-<pid>` | Results directory. Keep it outside the coder checkout. |
+| `--validate-only` | | Compiles and validates the suites, then exits. Builds aegis on a cold cache. |
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees and the grading container. |
 
@@ -217,7 +225,8 @@ coderd/x/chatd/evals/run.sh --prompt-file /tmp/prompt.md --prompt-mode append
 
 Each build becomes its own aegis experiment because the image and the
 declared version differ. `--baseline-ref` prints a per-case table of both
-runs with overall rates and 95% Wilson intervals. `--prompt-file` adds a
+runs with overall rates and 95% Wilson intervals, labeled with each build's
+version, and writes it to `<out>/comparison-<suite>.txt` and `.json`. `--prompt-file` adds a
 second arm to the same experiment, so run.sh also writes the aegis report
 with the paired contrast to `<out>/candidate/<suite>/report/`.
 
@@ -260,6 +269,8 @@ Terminal-Bench verifier logs are under
    `go test ./coderd/x/chatd/evals/...`.
 4. Add the case to the suite's `cases` array with a natural prompt and the
    checks from `grader/checks.go`. A short comment cites the guidance.
+   `run.sh --case` finds case ids by the `id` field on its own line in that
+   array, so keep that layout.
 5. Run `run.sh --validate-only`, then one trial with `--case` on a cheap
    model.
 
@@ -307,6 +318,22 @@ suite run: aegis stops scheduling trials when the cap is reached.
 - Development builds differ from releases only in authorization recording
   and the HTTP experiment-gate bypass.
 - The runner image has no `rg`, so "search with rg or grep" accepts either.
+- chatd does not tell the model its working directory when the workspace
+  has no instruction file such as `AGENTS.md`: `context_prompt.go` drops
+  the whole workspace-context block, operating system and directory
+  included, when no context files are pinned. No seed has an instruction
+  file, so models guess (often `/aegis-home`) and search the filesystem
+  before they find the checkout at the agent directory. This is existing
+  chatd behavior, and the seeds keep it on purpose, so the evals measure
+  what users get. It costs the most in `attached-no-reclone` (a model that
+  never finds the checkout gives up), `slow-tests-wait`, and
+  `plan-mode-proposes`, and it adds `find`, `ls`, and `cat` exploration
+  that `no_shell_file_io` counts in the lifecycle and tool-guidance suites.
+- `test_after_edit` sees edits made with `write_file`, `edit_files`, shell
+  redirection or in-place editors, and interpreters that run inline code
+  (a here-document, a here-string, or `-c` or `-e`) that writes files. It
+  misses an edit made by running a script file, for example
+  `python3 /tmp/fix.py`.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case

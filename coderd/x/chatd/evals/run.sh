@@ -36,7 +36,7 @@ Usage: run.sh [options]
   --max-usd N         budget cap per suite run
   --prompt-file PATH  add a candidate-prompt arm with this system prompt
   --prompt-mode MODE  append (default) or replace the default system prompt
-  --out DIR           output directory (default CACHE/runs/<timestamp>, where
+  --out DIR           output directory (default CACHE/runs/<timestamp>-<pid>, where
                       CACHE is $CHATD_EVAL_CACHE or ~/.cache/chatd-evals)
   --validate-only     compile and validate the suites, then exit
   --self-check        terminal-bench: verify reference solutions, no model
@@ -116,8 +116,8 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--prompt-file)
 		[[ $# -ge 2 ]] || die "--prompt-file needs a value"
+		[[ -f $2 ]] || die "prompt file $2 not found"
 		prompt_file=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
-		[[ -f $prompt_file ]] || die "prompt file $2 not found"
 		shift 2
 		;;
 	--prompt-mode)
@@ -175,15 +175,22 @@ suite_dir() {
 	esac
 }
 
-# suite_has_case reports whether a suite defines case id $2. Case ids appear
-# as id: "..." in EVAL.ts, or in terminalbench/tasks.json.
+# suite_has_case reports whether a suite defines case id $2. Case ids are
+# the top-level id: "..." fields of the cases array in EVAL.ts (check ids
+# sit deeper or share a line with other fields), or ids in
+# terminalbench/tasks.json.
 suite_has_case() {
 	local dir
 	dir=$(suite_dir "$1")
 	if [[ $1 == terminal-bench ]]; then
 		jq -e --arg id "$2" '.tasks | any(.id == $id)' "$EVALS_DIR/$dir/tasks.json" >/dev/null
 	else
-		grep -qF "id: \"$2\"" "$EVALS_DIR/$dir/EVAL.ts"
+		awk -v want="    id: \"$2\"," '
+			/^const cases/ { in_cases = 1; next }
+			in_cases && /^\];/ { in_cases = 0 }
+			in_cases && $0 == want { found = 1 }
+			END { exit !found }
+		' "$EVALS_DIR/$dir/EVAL.ts"
 	fi
 }
 
@@ -250,11 +257,12 @@ trap cleanup EXIT
 aegis_env() {
 	local dir=$1
 	shift
-	(cd "$dir" && env -u GOROOT -u GOBIN MISE_TRUSTED_CONFIG_PATHS="$dir" MISE_YES=1 "$@")
+	(cd "$dir" && env -u GOROOT -u GOBIN MISE_TRUSTED_CONFIG_PATHS="$dir" MISE_YES=1 \
+		MISE_TASK_RUN_AUTO_INSTALL=false MISE_EXEC_AUTO_INSTALL=false "$@")
 }
 
 bootstrap_aegis() {
-	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src
+	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src tmp
 	src=$AEGIS_REPO
 	if [[ -n ${CHATD_EVAL_AEGIS_DIR:-} ]]; then
 		# The checkout the user passed in is only read: clone its commit.
@@ -264,17 +272,28 @@ bootstrap_aegis() {
 	AEGIS_DIR=$CACHE/aegis/$ref
 	if [[ ! -f $AEGIS_DIR/.chatd-evals-ready ]]; then
 		log "building aegis $ref"
-		rm -rf "$AEGIS_DIR.tmp"
-		git clone -q "$src" "$AEGIS_DIR.tmp"
-		git -C "$AEGIS_DIR.tmp" checkout -q --detach "$ref"
+		mkdir -p "$CACHE/aegis"
+		# A per-run build directory keeps concurrent runs on a cold cache from
+		# clobbering each other's half-built checkout.
+		tmp=$(mktemp -d "$AEGIS_DIR.tmp.XXXXXX")
+		cleanup_paths+=("$tmp")
+		git clone -q "$src" "$tmp"
+		git -C "$tmp" checkout -q --detach "$ref"
 		{
-			aegis_env "$AEGIS_DIR.tmp" mise install
-			aegis_env "$AEGIS_DIR.tmp" mise run evals-build
-			aegis_env "$AEGIS_DIR.tmp" mise exec -- env CGO_ENABLED=0 GOOS=linux go build -o bin/aegis ./cmd/aegis
+			# Only the tools these steps use: a bare mise install would also
+			# install every tool in the user's global mise config.
+			aegis_env "$tmp" mise install go node pnpm
+			aegis_env "$tmp" mise run evals-build
+			aegis_env "$tmp" mise exec -- env CGO_ENABLED=0 GOOS=linux go build -o bin/aegis ./cmd/aegis
 		} >&2
-		touch "$AEGIS_DIR.tmp/.chatd-evals-ready"
-		rm -rf "$AEGIS_DIR"
-		mv "$AEGIS_DIR.tmp" "$AEGIS_DIR"
+		touch "$tmp/.chatd-evals-ready"
+		# A concurrent run that finished first may already be using its copy.
+		if [[ -f $AEGIS_DIR/.chatd-evals-ready ]]; then
+			rm -rf "$tmp"
+		else
+			rm -rf "$AEGIS_DIR"
+			mv "$tmp" "$AEGIS_DIR"
+		fi
 	fi
 	AEGIS=$AEGIS_DIR/bin/aegis
 	NODE_BIN=$(aegis_env "$AEGIS_DIR" mise where node)/bin
@@ -282,14 +301,16 @@ bootstrap_aegis() {
 }
 
 runner_image() {
-	local arch go_bin
+	local arch go_path
 	arch=$(docker version --format '{{.Server.Arch}}')
-	go_bin=$(aegis_env "$AEGIS_DIR" mise where go)/bin
-	RUNNER_TAG=$(aegis_env "$AEGIS_DIR" env PATH="$go_bin:$NODE_BIN:$PATH" bash images/runner/content-tag.sh "$arch")
+	# content-tag.sh, also run by the image task, refuses a go on PATH that
+	# differs from the aegis pin, and a host go may come first on PATH.
+	go_path=$(aegis_env "$AEGIS_DIR" mise where go)/bin:$NODE_BIN:$PATH
+	RUNNER_TAG=$(aegis_env "$AEGIS_DIR" env PATH="$go_path" bash images/runner/content-tag.sh "$arch")
 	RUNNER_IMAGE=aegis-runner:$RUNNER_TAG
 	if ! docker image inspect "$RUNNER_IMAGE" >/dev/null 2>&1; then
 		log "building runner image $RUNNER_IMAGE"
-		aegis_env "$AEGIS_DIR" mise run image >&2
+		aegis_env "$AEGIS_DIR" env PATH="$go_path" mise run image >&2
 	fi
 }
 
@@ -297,8 +318,10 @@ build_grader() {
 	GRADER=$CACHE/bin/chatd-eval-grader
 	mkdir -p "$CACHE/bin"
 	log "building chatd-eval-grader"
-	(cd "$REPO_ROOT" && CGO_ENABLED=0 GOOS=linux go build -o "$GRADER.new" ./coderd/x/chatd/evals/grader)
-	mv "$GRADER.new" "$GRADER"
+	# Per-run temporary names let concurrent runs share the cache; mv
+	# replaces the binary atomically.
+	(cd "$REPO_ROOT" && CGO_ENABLED=0 GOOS=linux go build -o "$GRADER.new.$$" ./coderd/x/chatd/evals/grader)
+	mv "$GRADER.new.$$" "$GRADER"
 }
 
 # build_subject sets SUBJECT_IMAGE, SUBJECT_VERSION, and SUBJECT_CUSTOM for
@@ -331,13 +354,8 @@ build_subject() {
 	else
 		sha=$(git -C "$REPO_ROOT" rev-parse --verify "$want^{commit}") || die "unknown ref $want"
 		id=${sha:0:7}
-		src=$CACHE/worktrees/$sha
-		if [[ ! -x $CACHE/coder/coder-$id ]]; then
-			rm -rf "$src"
-			git -C "$REPO_ROOT" worktree prune
-			git -C "$REPO_ROOT" worktree add -q --detach "$src" "$sha"
-			cleanup_paths+=("$src")
-		fi
+		# The worktree is created only when the binary needs a build.
+		src=""
 	fi
 	# Stamp the version: go build does not embed VCS data from every
 	# checkout (a linked worktree, for one), and an unstamped build reports
@@ -347,8 +365,15 @@ build_subject() {
 	mkdir -p "$CACHE/coder"
 	if [[ ! -x $bin || $id == *.dirty.* || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
 		log "building coder $id"
-		(cd "$src" && CGO_ENABLED=0 go build -ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=$version'" -o "$bin.new" ./enterprise/cmd/coder)
-		mv "$bin.new" "$bin"
+		if [[ -z $src ]]; then
+			mkdir -p "$CACHE/worktrees"
+			src=$(mktemp -d "$CACHE/worktrees/$sha.XXXXXX")
+			cleanup_paths+=("$src")
+			git -C "$REPO_ROOT" worktree prune
+			git -C "$REPO_ROOT" worktree add -q --detach "$src" "$sha"
+		fi
+		(cd "$src" && CGO_ENABLED=0 go build -ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=$version'" -o "$bin.new.$$" ./enterprise/cmd/coder)
+		mv "$bin.new.$$" "$bin"
 	fi
 	SUBJECT_VERSION=$("$bin" version --output json | jq -r '.version | ltrimstr("v")')
 	[[ $SUBJECT_VERSION == "$version" ]] || die "$bin reports version $SUBJECT_VERSION, want $version"
@@ -395,15 +420,21 @@ map_credentials() {
 }
 
 terminal_bench_import() {
-	local repo=$CACHE/terminal-bench/repo-${TB_COMMIT:0:7} args=() c
+	local repo=$CACHE/terminal-bench/repo-${TB_COMMIT:0:7} args=() c tmp
 	if [[ ! -d $repo/tasks ]]; then
 		log "fetching Terminal-Bench ${TB_COMMIT:0:7}"
-		rm -rf "$repo.tmp"
-		git init -q "$repo.tmp"
-		git -C "$repo.tmp" fetch -q --depth 1 "$TB_REPO" "$TB_COMMIT"
-		git -C "$repo.tmp" checkout -q --detach FETCH_HEAD
-		rm -rf "$repo"
-		mv "$repo.tmp" "$repo"
+		mkdir -p "$CACHE/terminal-bench"
+		tmp=$(mktemp -d "$repo.tmp.XXXXXX")
+		cleanup_paths+=("$tmp")
+		git init -q "$tmp"
+		git -C "$tmp" fetch -q --depth 1 "$TB_REPO" "$TB_COMMIT"
+		git -C "$tmp" checkout -q --detach FETCH_HEAD
+		if [[ -d $repo/tasks ]]; then
+			rm -rf "$tmp"
+		else
+			rm -rf "$repo"
+			mv "$tmp" "$repo"
+		fi
 	fi
 	TB_DIR=$CACHE/terminal-bench/import-${TB_COMMIT:0:7}
 	for c in "${cases[@]}"; do
@@ -501,14 +532,18 @@ run_suite() {
 	else
 		grade_isolated "$store" "$digest" "$dest/grading" "$SUBJECT_IMAGE" || rc=$?
 	fi
-	arms=$(jq -r '.variants | length' "$store/bundle-assets/$digest/eval_bundle.json")
+	arms=$(jq -r '.experiment.variants | length' "$store/bundle-assets/$digest/eval_bundle.json")
+	if [[ -n $prompt_file && $arms -lt 2 ]]; then
+		log "$label/$suite: --prompt-file is set but the bundle declares $arms arm(s); no contrast report"
+		rc=1
+	fi
 	if [[ $arms -ge 2 ]]; then
 		"$AEGIS" trials --store "$store" --derived "$dest/grading/derived" \
 			--bundle "$store/bundle-assets/$digest/eval_bundle.json" --out "$dest/trials.json" >&2 &&
 			"$AEGIS" report --in "$dest/trials.json" --bundle "$store/bundle-assets/$digest/eval_bundle.json" \
 				--out-dir "$dest/report" --store "$dest/report-history" >&2 || rc=$?
 	fi
-	"$GRADER" summarize --store "$store" --derived "$dest/grading/derived" --label "$label" \
+	"$GRADER" summarize --store "$store" --derived "$dest/grading/derived" --label "$label $SUBJECT_VERSION" \
 		--json "$dest/summary.json" | tee "$dest/summary.txt"
 	return "$rc"
 }
@@ -516,8 +551,8 @@ run_suite() {
 compare_suite() {
 	local suite=$1
 	"$GRADER" summarize --store "$out/candidate/$suite/store" --derived "$out/candidate/$suite/grading/derived" \
-		--label candidate --baseline-store "$out/baseline/$suite/store" \
-		--baseline-derived "$out/baseline/$suite/grading/derived" --baseline-label baseline \
+		--label "candidate $CANDIDATE_VERSION" --baseline-store "$out/baseline/$suite/store" \
+		--baseline-derived "$out/baseline/$suite/grading/derived" --baseline-label "baseline $BASELINE_VERSION" \
 		--json "$out/comparison-$suite.json" | tee "$out/comparison-$suite.txt"
 }
 
@@ -557,7 +592,7 @@ fi
 # The default output lives in the cache: under a checkout it would be
 # untracked content that marks the next default build dirty.
 if [[ -z $out ]]; then
-	out=$CACHE/runs/$(date -u +%Y%m%dT%H%M%SZ)
+	out=$CACHE/runs/$(date -u +%Y%m%dT%H%M%SZ)-$$
 fi
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
@@ -568,12 +603,14 @@ map_credentials
 status=0
 build_subject "$ref"
 log "candidate build: coder $SUBJECT_VERSION ($SUBJECT_IMAGE)"
+CANDIDATE_VERSION=$SUBJECT_VERSION
 for s in "${selected[@]}"; do
 	run_suite "$s" candidate || status=1
 done
 if [[ -n $baseline_ref ]]; then
 	build_subject "$baseline_ref"
 	log "baseline build: coder $SUBJECT_VERSION ($SUBJECT_IMAGE)"
+	BASELINE_VERSION=$SUBJECT_VERSION
 	for s in "${selected[@]}"; do
 		run_suite "$s" baseline || status=1
 	done
