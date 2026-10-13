@@ -33,6 +33,14 @@ type buildCommitStepMessagesInput struct {
 	logger                 slog.Logger
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
+	reasoningProvenance    reasoningProvenance
+}
+
+func stampReasoningProvenance(part *codersdk.ChatMessagePart, provenance reasoningProvenance) {
+	part.ProviderIdentity = provenance.ProviderIdentity
+	part.ProviderModel = provenance.Model
+	part.ProviderCredential = provenance.Credential
+	part.ReasoningEpoch = provenance.Epoch
 }
 
 type stepMessagesForCommit struct {
@@ -50,6 +58,19 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
 	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
+	stamped := false
+	for i := range assistantParts {
+		if assistantParts[i].Type == codersdk.ChatMessagePartTypeReasoning {
+			stampReasoningProvenance(&assistantParts[i], input.reasoningProvenance)
+			stamped = true
+		}
+	}
+	// Without a stamp, a step that produced no reasoning would lose the
+	// rejection epoch, and the next step would replay the rejected
+	// reasoning again.
+	if !stamped && input.reasoningProvenance.Epoch > 0 && len(assistantParts) > 0 {
+		stampReasoningProvenance(&assistantParts[0], input.reasoningProvenance)
+	}
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
