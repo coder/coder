@@ -1,0 +1,192 @@
+<!doctype html>
+<title>coder-browser-helper</title>
+<script>
+	// Captures the content tab with getDisplayMedia, encodes it with
+	// WebCodecs and streams the chunks to the agent over a loopback
+	// WebSocket. The agent drives this page over CDP.
+	"use strict";
+	const token = new URLSearchParams(location.search).get("token");
+	const codecs = ["avc1.640033", "vp8"];
+	let ws = null;
+	let track = null;
+	let enc = null;
+	let encCfg = null;
+	let codec = null;
+	let last = null;
+	let forceKey = true;
+	let running = false;
+
+	function send(obj) {
+		if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+	}
+
+	function encoderConfig(c, width, height) {
+		const cfg = {
+			codec: c,
+			width,
+			height,
+			bitrate: Math.max(1_000_000, width * height * 3),
+			framerate: 30,
+			latencyMode: "realtime",
+		};
+		if (c.startsWith("avc1")) cfg.avc = { format: "annexb" };
+		return cfg;
+	}
+
+	async function pickCodec(width, height) {
+		for (const c of codecs) {
+			try {
+				const r = await VideoEncoder.isConfigSupported(encoderConfig(c, width, height));
+				if (r.supported) return c;
+			} catch (_) {}
+		}
+		throw new Error("no supported video encoder");
+	}
+
+	function ensureEncoder(width, height) {
+		width &= ~1;
+		height &= ~1;
+		if (enc && enc.state !== "closed" && encCfg && encCfg.width === width && encCfg.height === height) {
+			return;
+		}
+		if (!enc || enc.state === "closed") {
+			enc = new VideoEncoder({
+				output: (chunk) => {
+					if (!ws || ws.readyState !== WebSocket.OPEN) return;
+					const buf = new Uint8Array(1 + chunk.byteLength);
+					buf[0] = chunk.type === "key" ? 1 : 0;
+					chunk.copyTo(buf.subarray(1));
+					ws.send(buf);
+				},
+				error: (e) => {
+					send({ type: "error", message: "encoder: " + e.message });
+					encCfg = null;
+					forceKey = true;
+				},
+			});
+		}
+		encCfg = encoderConfig(codec, width, height);
+		enc.configure(encCfg);
+		forceKey = true;
+		send({ type: "config", codec, width, height });
+	}
+
+	function encode(frame, key) {
+		ensureEncoder(frame.displayWidth, frame.displayHeight);
+		enc.encode(frame, { keyFrame: key });
+	}
+
+	async function pump(reader) {
+		while (running) {
+			const { value: frame, done } = await reader.read();
+			if (done) break;
+			if (last) last.close();
+			last = frame.clone();
+			// Drop frames before encoding when behind. Dropping encoded
+			// chunks instead would corrupt the decoder's reference chain.
+			if (!forceKey && ((enc && enc.encodeQueueSize > 2) || ws.bufferedAmount > 4 << 20)) {
+				frame.close();
+				continue;
+			}
+			const key = forceKey;
+			forceKey = false;
+			try {
+				encode(frame, key);
+			} catch (e) {
+				send({ type: "error", message: "encode: " + e.message });
+				forceKey = true;
+			}
+			frame.close();
+		}
+	}
+
+	function requestKey() {
+		forceKey = true;
+		// Static pages produce no new frames, so re-encode the last one.
+		setTimeout(() => {
+			if (!forceKey || !last || !running) return;
+			forceKey = false;
+			const frame = last.clone();
+			try {
+				encode(frame, true);
+			} catch (e) {
+				forceKey = true;
+			}
+			frame.close();
+		}, 100);
+	}
+
+	function sizeConstraints(width, height) {
+		return {
+			width: { ideal: width, max: width },
+			height: { ideal: height, max: height },
+			frameRate: { ideal: 30, max: 30 },
+		};
+	}
+
+	async function resize(width, height) {
+		if (!track) return;
+		try {
+			await track.applyConstraints(sizeConstraints(width, height));
+		} catch (e) {
+			send({ type: "error", message: "resize: " + e.message });
+		}
+		requestKey();
+	}
+
+	function stop() {
+		running = false;
+		if (track) track.stop();
+		track = null;
+		if (enc && enc.state !== "closed") enc.close();
+		enc = null;
+		encCfg = null;
+		if (last) last.close();
+		last = null;
+		if (ws) ws.close();
+		ws = null;
+	}
+
+	// Called by the agent with a user gesture. Resolves once capture runs.
+	window.coderStart = async (width, height) => {
+		stop();
+		ws = new WebSocket(`ws://${location.host}/ws?token=${encodeURIComponent(token)}`);
+		ws.binaryType = "arraybuffer";
+		await new Promise((resolve, reject) => {
+			ws.onopen = resolve;
+			ws.onerror = () => reject(new Error("helper websocket failed"));
+		});
+		ws.onmessage = (e) => {
+			const m = JSON.parse(e.data);
+			if (m.type === "key") requestKey();
+			else if (m.type === "size") resize(m.width, m.height);
+		};
+		const thisWS = ws;
+		ws.onclose = () => {
+			if (ws === thisWS) stop();
+		};
+		codec = await pickCodec(width, height);
+		const stream = await navigator.mediaDevices.getDisplayMedia({
+			video: sizeConstraints(width, height),
+			audio: false,
+			selfBrowserSurface: "exclude",
+			surfaceSwitching: "exclude",
+			monitorTypeSurfaces: "exclude",
+		});
+		track = stream.getVideoTracks()[0];
+		const thisTrack = track;
+		track.onended = () => {
+			if (track !== thisTrack) return;
+			send({ type: "error", message: "capture ended" });
+			stop();
+		};
+		running = true;
+		forceKey = true;
+		pump(new MediaStreamTrackProcessor({ track }).readable.getReader()).catch((e) => {
+			send({ type: "error", message: "pump: " + e.message });
+			stop();
+		});
+		const s = track.getSettings();
+		return JSON.stringify({ codec, width: s.width, height: s.height, surface: s.displaySurface });
+	};
+</script>

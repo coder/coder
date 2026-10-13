@@ -53,6 +53,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	getAgentConnectivityIssues,
@@ -69,6 +70,7 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
+import { BrowserLink } from "./BrowserLink/BrowserLink";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
@@ -146,6 +148,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 	initialMetadata,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const { experiments } = useDashboard();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -493,6 +496,13 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 
 						{agent.display_apps.includes("web_terminal") && (
 							<TerminalLink
+								workspaceName={workspace.name}
+								agentName={agent.name}
+								userName={workspace.owner_name}
+							/>
+						)}
+						{experiments.includes("workspace-browser") && (
+							<BrowserLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								userName={workspace.owner_name}

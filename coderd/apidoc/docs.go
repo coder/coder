@@ -15340,6 +15340,36 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaceagents/{workspaceagent}/browser": {
+            "get": {
+                "description": "Streams a headless Chrome tab running in the workspace.\nExperimental: the protocol is private to the dashboard.",
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Open workspace browser stream",
+                "operationId": "open-workspace-browser-stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaceagents/{workspaceagent}/connection": {
             "get": {
                 "produces": [
@@ -24892,7 +24922,8 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "workspace-browser"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24909,6 +24940,7 @@ const docTemplate = `{
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentWorkspaceBrowser": "Shows the built-in workspace browser in the dashboard.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -24930,7 +24962,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Shows the built-in workspace browser in the dashboard."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24949,7 +24982,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentWorkspaceBrowser"
             ]
         },
         "codersdk.ExperimentRule": {

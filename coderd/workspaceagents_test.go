@@ -3,12 +3,14 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -4358,4 +4360,82 @@ func TestWorkspaceAgentsExternalAuthMultipleTemplates(t *testing.T) {
 	require.NoError(t, err2)
 	require.Equal(t, id1+"-token", resp1.AccessToken, "workspace built from template 1 must always get provider 1's token")
 	require.Equal(t, id2+"-token", resp2.AccessToken, "workspace built from template 2 must always get provider 2's token")
+}
+
+func TestWorkspaceAgentBrowser(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	profileDir := t.TempDir()
+	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+		o.BrowserProfileDir = profileDir
+	})
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	agentID := resources[0].Agents[0].ID
+
+	dial := func(ctx context.Context, c *codersdk.Client) (*websocket.Conn, *http.Response, error) {
+		u, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/browser", agentID))
+		require.NoError(t, err)
+		return websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{codersdk.SessionTokenHeader: []string{c.SessionToken()}},
+		})
+	}
+
+	t.Run("Forbidden", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		other, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, res, err := dial(ctx, other)
+		require.Error(t, err)
+		require.NotNil(t, res)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("Stream", func(t *testing.T) {
+		t.Parallel()
+		hasChrome := false
+		for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
+			if _, err := exec.LookPath(name); err == nil {
+				hasChrome = true
+			}
+		}
+		if !hasChrome {
+			t.Skip("Chrome is not installed")
+		}
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		conn, res, err := dial(ctx, client)
+		require.NoError(t, err)
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+		conn.SetReadLimit(-1)
+		nc := websocket.NetConn(ctx, conn, websocket.MessageBinary)
+		defer nc.Close()
+
+		// Wait for the encoder config and a keyframe, relayed through
+		// coderd as a byte stream of [type][len u32][payload] frames.
+		var sawConfig, sawKey bool
+		for !sawConfig || !sawKey {
+			var hdr [5]byte
+			_, err := io.ReadFull(nc, hdr[:])
+			require.NoError(t, err)
+			payload := make([]byte, binary.BigEndian.Uint32(hdr[1:5]))
+			_, err = io.ReadFull(nc, payload)
+			require.NoError(t, err)
+			switch hdr[0] {
+			case 1:
+				sawKey = sawKey || payload[0]&1 != 0
+			case 2:
+				sawConfig = sawConfig || strings.Contains(string(payload), `"type":"config"`)
+				require.NotContains(t, string(payload), `"type":"error"`)
+			}
+		}
+	})
 }

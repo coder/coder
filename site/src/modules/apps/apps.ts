@@ -85,6 +85,20 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+type GetBrowserHrefParams = {
+	username: string;
+	workspace: string;
+	agent?: string;
+};
+
+export const getBrowserHref = ({
+	username,
+	workspace,
+	agent,
+}: GetBrowserHrefParams) => {
+	return `/@${username}/${workspace}${agent ? `.${agent}` : ""}/browser`;
+};
+
 // Open `about:blank` first to detect a popup blocker. If it opens, we
 // null out `opener` (durable on the opened window); and navigate `popup`
 // to the target URL. The Coder UI keeps access to `popup`s handle

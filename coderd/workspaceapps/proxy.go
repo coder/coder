@@ -164,6 +164,7 @@ func (s *Server) Attach(r chi.Router) {
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", servePathApps)
 
 	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
+	r.Get("/api/v2/workspaceagents/{workspaceagent}/browser", s.workspaceAgentBrowser)
 }
 
 // originLocalURL returns p as a relative URL rooted at the current origin,
@@ -839,6 +840,96 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
+}
+
+// @Summary Open workspace browser stream
+// @Description Streams a headless Chrome tab running in the workspace.
+// @Description Experimental: the protocol is private to the dashboard.
+// @ID open-workspace-browser-stream
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 101
+// @Router /api/v2/workspaceagents/{workspaceagent}/browser [get]
+func (s *Server) workspaceAgentBrowser(rw http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	s.websocketWaitMutex.Lock()
+	s.websocketWaitGroup.Add(1)
+	s.websocketWaitMutex.Unlock()
+	defer s.websocketWaitGroup.Done()
+
+	// The browser reaches everything the workspace can, including local
+	// files, so it is authorized like the terminal (SSH permission) and
+	// never honors app sharing levels.
+	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
+		Logger:              s.Logger,
+		Cookies:             s.cookies,
+		CookieCfg:           s.CookiesConfig,
+		SignedTokenProvider: s.SignedTokenProvider,
+		DashboardURL:        s.DashboardURL,
+		PathAppBaseURL:      s.AccessURL,
+		AppHostname:         s.Hostname,
+		AppRequest: Request{
+			AccessMethod:  AccessMethodTerminal,
+			BasePath:      r.URL.Path,
+			AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+		},
+		AppPath:  "",
+		AppQuery: "",
+	})
+	if !ok {
+		return
+	}
+	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+		OriginPatterns: []string{
+			s.DashboardURL.Host,
+			s.AccessURL.Host,
+		},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Viewers only send small control messages.
+	conn.SetReadLimit(1 << 20)
+
+	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	ctx = s.WSWatcher.Watch(ctx, s.Logger, conn)
+
+	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
+	if err != nil {
+		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
+		return
+	}
+	defer release()
+
+	browserConn, err := agentConn.ConnectBrowser(ctx)
+	if err != nil {
+		log.Debug(ctx, "connect to workspace browser", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err))
+		return
+	}
+	defer browserConn.Close()
+
+	report := newStatsReportFromSignedToken(*appToken)
+	s.collectStats(report)
+	defer func() {
+		report.SessionEndedAt = dbtime.Now()
+		s.collectStats(report)
+	}()
+
+	agentssh.Bicopy(ctx, wsNetConn, browserConn)
 }
 
 func (s *Server) collectStats(stats StatsReport) {

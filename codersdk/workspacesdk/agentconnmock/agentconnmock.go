@@ -143,6 +143,21 @@ func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
 }
 
+// ConnectBrowser mocks base method.
+func (m *MockAgentConn) ConnectBrowser(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConnectBrowser", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConnectBrowser indicates an expected call of ConnectBrowser.
+func (mr *MockAgentConnMockRecorder) ConnectBrowser(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectBrowser", reflect.TypeOf((*MockAgentConn)(nil).ConnectBrowser), ctx)
+}
+
 // ConnectDesktopVNC mocks base method.
 func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	m.ctrl.T.Helper()

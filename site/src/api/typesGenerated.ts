@@ -5506,6 +5506,7 @@ export type Experiment =
 	| "mcp-tool-search"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "workspace-browser"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5586,6 +5587,7 @@ export const Experiments: Experiment[] = [
 	"mcp-tool-search",
 	"no_nats_pubsub",
 	"notifications",
+	"workspace-browser",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",

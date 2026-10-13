@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/agent/x/agentbrowser"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -125,6 +126,9 @@ type Options struct {
 	// StatsReportInterval is the interval for the connstats callback
 	// installed at statsReporter creation.
 	StatsReportInterval time.Duration
+	// BrowserProfileDir holds the workspace browser's Chrome profile.
+	// Defaults to a directory under the user's config dir.
+	BrowserProfileDir string
 }
 
 type Client interface {
@@ -218,6 +222,7 @@ func New(options Options) Agent {
 		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		scriptDataDir:          options.ScriptDataDir,
+		browserProfileDir:      options.BrowserProfileDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
@@ -269,6 +274,7 @@ type agent struct {
 	logDir                string
 	tempDir               string
 	scriptDataDir         string
+	browserProfileDir     string
 	listeningPortsHandler listeningPortsHandler
 	subsystems            []codersdk.AgentSubsystem
 
@@ -345,6 +351,7 @@ type agent struct {
 	processAPI       *agentproc.API
 	toolCalls        *agenttoolcall.Table
 	desktopAPI       *agentdesktop.API
+	browserAPI       *agentbrowser.API
 	mcpManager       *agentmcp.Manager
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
@@ -460,6 +467,13 @@ func (a *agent) init() {
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
+	a.browserAPI = agentbrowser.NewAPI(a.logger.Named("browser"), agentbrowser.New(agentbrowser.Options{
+		Logger:       a.logger.Named("browser"),
+		Execer:       a.execer,
+		Clock:        a.clock,
+		ScriptBinDir: a.scriptRunner.ScriptBinDir(),
+		ProfileDir:   a.browserProfileDir,
+	}))
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
@@ -2289,6 +2303,10 @@ func (a *agent) Close() error {
 
 	if err := a.desktopAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
+	}
+
+	if err := a.browserAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "browser API close", slog.Error(err))
 	}
 
 	if err := a.mcpManager.Close(); err != nil {

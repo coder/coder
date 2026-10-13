@@ -135,6 +135,7 @@ type AgentConn interface {
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
+	ConnectBrowser(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
 	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
@@ -853,6 +854,42 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	}
 
 	// No read limit — RFB framebuffer updates can be large.
+	conn.SetReadLimit(-1)
+
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// ConnectBrowser opens a WebSocket to the agent's workspace browser stream
+// and returns a net.Conn carrying the agent's framed browser protocol.
+func (c *agentConn) ConnectBrowser(ctx context.Context) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(ctx),
+		CompressionMode: websocket.CompressionDisabled,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s/api/v0/browser/stream", host)
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// Video keyframes can be large.
 	conn.SetReadLimit(-1)
 
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
