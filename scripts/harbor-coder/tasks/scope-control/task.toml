@@ -1,0 +1,22 @@
+schema_version = "1.4"
+
+[task]
+name = "coder/scope-control"
+version = "1.0.0"
+description = "Fix one named bug in a small Go module without touching anything else, despite visible unrelated problems."
+
+[metadata]
+difficulty = "medium"
+category = "debugging"
+tags = ["go", "scope", "prompt-behavior"]
+
+[verifier]
+timeout_sec = 180.0
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 2
+memory_mb = 2048

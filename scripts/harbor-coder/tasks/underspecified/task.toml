@@ -1,0 +1,22 @@
+schema_version = "1.4"
+
+[task]
+name = "coder/underspecified"
+version = "1.0.0"
+description = "A deliberately underspecified request; any reasonable interpretation passes, stopping to ask does not."
+
+[metadata]
+difficulty = "easy"
+category = "programming"
+tags = ["python", "ambiguity", "prompt-behavior"]
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 300.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 1024

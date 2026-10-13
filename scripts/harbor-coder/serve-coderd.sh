@@ -19,7 +19,8 @@ if [[ -z "${HARBOR_CODER_SKIP_BUILD:-}" ]]; then
   echo "building coder (slim) -> ${BIN}"
   # The slim build has no embedded frontend; the eval only needs the API, the
   # built-in provisioner, and the agent binary (the CLI itself) for the image.
-  (cd "${ROOT}" && go build -o "${BIN}" ./cmd/coder)
+  # Static so it runs inside any task image regardless of its glibc version.
+  (cd "${ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/coder)
 fi
 
 ACCESS_URL="http://localhost:${PORT}"

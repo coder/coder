@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
+import time
 from typing import Any
 
 from harbor.agents.base import BaseAgent
@@ -24,15 +26,85 @@ from harbor_coder.client import CoderAPIError, CoderClient
 
 _TERMINAL = {"waiting", "error"}
 
+# Commands that count as the agent verifying its own work.
+_TEST_COMMAND = re.compile(
+    r"\b(pytest|go test|npm test|pnpm test|yarn test|cargo test|make test|"
+    r"python -m unittest|python3 -m unittest|jest|vitest)\b"
+)
+_EDIT_TOOLS = {"write_file", "edit_files"}
+_EXEC_TOOLS = {"execute"}
+_READ_TOOLS = {"read_file"}
+
+
+def _summarize_behavior(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Behavioral signals a system prompt change is likely to move, even
+    when pass/fail does not."""
+    n_turns = n_tool_calls = n_exec = n_edit = n_read = n_test_cmds = 0
+    n_tool_errors = 0
+    edited_paths: set[str] = set()
+    last_assistant_had_tools = False
+    last_text = ""
+    for m in messages:
+        if m.get("role") == "tool":
+            for part in m.get("content") or []:
+                if part.get("type") == "tool-result" and part.get("is_error"):
+                    n_tool_errors += 1
+            continue
+        if m.get("role") != "assistant":
+            continue
+        n_turns += 1
+        had_tools = False
+        for part in m.get("content") or []:
+            ptype = part.get("type")
+            if ptype == "text" and part.get("text"):
+                last_text = part["text"]
+            if ptype != "tool-call":
+                continue
+            had_tools = True
+            n_tool_calls += 1
+            name = part.get("tool_name") or ""
+            args = part.get("args") or {}
+            if name in _EXEC_TOOLS:
+                n_exec += 1
+                if _TEST_COMMAND.search(str(args.get("command", ""))):
+                    n_test_cmds += 1
+            elif name in _EDIT_TOOLS:
+                n_edit += 1
+                if name == "write_file" and args.get("path"):
+                    edited_paths.add(args["path"])
+                for f in args.get("files") or []:
+                    if isinstance(f, dict) and f.get("path"):
+                        edited_paths.add(f["path"])
+            elif name in _READ_TOOLS:
+                n_read += 1
+        last_assistant_had_tools = had_tools
+    # A final turn with no tool calls that asks something means the agent
+    # stopped for input instead of finishing. Questions often end in a list
+    # of options rather than a trailing "?", so look at the whole message.
+    tail = last_text.rstrip().lower()
+    asked = (not last_assistant_had_tools) and (
+        tail.endswith("?") or "clarif" in tail or tail.count("?") >= 2
+    )
+    return {
+        "n_turns": n_turns,
+        "n_tool_calls": n_tool_calls,
+        "n_exec": n_exec,
+        "n_edit": n_edit,
+        "n_read": n_read,
+        "n_test_commands": n_test_cmds,
+        "n_tool_errors": n_tool_errors,
+        "ran_tests": n_test_cmds > 0,
+        "asked_question": asked,
+        "edited_paths": sorted(edited_paths),
+    }
+
+
+# Context only, no behavioral steering: the system prompt under test must be
+# what decides scope, verification, and whether to ask or proceed.
 _INSTRUCTION_TEMPLATE = """\
-You are being evaluated on a task inside the workspace attached to this chat.
-Work only in that workspace. The task's working directory is `{workdir}`; \
-relative paths in the task refer to it. Do not ask clarifying questions: make \
-reasonable assumptions and complete the task end to end, then stop.
-
-# Task
-
 {instruction}
+
+(Working directory: `{workdir}`. Relative paths above refer to it.)
 """
 
 
@@ -116,6 +188,7 @@ class CoderAgentsAgent(BaseAgent):
 
         chat = await self.client.create_chat(body)
         chat_id = chat["id"]
+        started = time.monotonic()
         context.metadata = {
             "chat_id": chat_id,
             "chat_url": f"{self.client.url}/agents/{chat_id}",
@@ -125,6 +198,7 @@ class CoderAgentsAgent(BaseAgent):
         try:
             final = await self._wait_for_turn(chat_id, context)
         finally:
+            context.metadata["agent_seconds"] = round(time.monotonic() - started, 1)
             # Always collect what exists so a timeout still yields usage data.
             await self._collect(chat_id, context)
             try:
@@ -167,8 +241,8 @@ class CoderAgentsAgent(BaseAgent):
             messages = []
 
         n_in = n_out = n_cache = 0
-        tool_calls = 0
         last_text: str | None = None
+        behavior = _summarize_behavior(messages)
         for m in messages:
             usage = m.get("usage") or {}
             n_in += usage.get("input_tokens") or 0
@@ -178,19 +252,17 @@ class CoderAgentsAgent(BaseAgent):
             )
             if m.get("role") == "assistant":
                 for part in m.get("content") or []:
-                    if part.get("type") == "tool-call":
-                        tool_calls += 1
-                    elif part.get("type") == "text" and part.get("text"):
+                    if part.get("type") == "text" and part.get("text"):
                         last_text = part["text"]
 
         # Harbor defines n_input_tokens as including cached tokens.
         context.n_input_tokens = n_in + n_cache
         context.n_output_tokens = n_out
         context.n_cache_tokens = n_cache
+        context.metadata.update(behavior)
         context.metadata.update(
             {
                 "n_messages": len(messages),
-                "n_tool_calls": tool_calls,
                 "final_assistant_text": (last_text or "")[:2000],
             }
         )

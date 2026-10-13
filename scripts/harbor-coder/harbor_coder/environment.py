@@ -248,41 +248,71 @@ class CoderEnvironment(BaseEnvironment):
         self.logger.info(
             f"Creating workspace {self.workspace_name} from {self.template}"
         )
-        res = await self._run_local(*argv)
-        if res.return_code != 0:
-            raise RuntimeError(
-                f"coder create failed ({res.return_code}):\n{res.stdout}\n{res.stderr}"
+        # Provider downloads during terraform init hit registries that
+        # return transient 5xx under concurrency; retry before failing.
+        for attempt in range(3):
+            res = await self._run_local(*argv)
+            if res.return_code == 0:
+                break
+            transient = "initialize terraform" in (res.stderr + res.stdout)
+            if attempt == 2 or not transient:
+                raise RuntimeError(
+                    f"coder create failed ({res.return_code}):\n{res.stdout}\n{res.stderr}"
+                )
+            self.logger.warning(
+                "coder create hit a transient terraform init error, retrying"
             )
+            await self._run_local(
+                self.coder_binary, "delete", self.workspace_name, "--yes"
+            )
+            await asyncio.sleep(5 * (attempt + 1))
 
         me = await self.client.request("GET", "/api/v2/users/me")
         self.workspace_owner = me["username"]
         ws = await self.client.workspace_by_name("me", self.workspace_name)
         self.workspace_id = ws["id"]
-        await self.client.wait_for_agent(
-            self.workspace_id, self.agent_connect_timeout_sec
-        )
-
-        # The agent reports connected slightly before SSH is accepted.
-        for attempt in range(30):
-            probe = await self._ssh("true", timeout_sec=30)
-            if probe.return_code == 0:
-                break
-            await asyncio.sleep(2)
-        else:
-            raise RuntimeError(f"coder ssh never succeeded: {probe.stderr}")
+        try:
+            await self._wait_ready()
+        except BaseException:
+            # Harbor only calls stop() after a successful start(), so a
+            # workspace whose agent never connects would otherwise leak.
+            await self._delete_workspace(warn_only=True)
+            raise
 
         await self.ensure_dirs(self._mount_targets(writable_only=True))
         await self._upload_environment_dir_after_start()
+
+    async def _wait_ready(self) -> None:
+        await self.client.wait_for_agent(
+            self.workspace_id, self.agent_connect_timeout_sec
+        )
+        # The agent reports connected slightly before SSH is accepted.
+        probe = None
+        for _ in range(30):
+            probe = await self._ssh("true", timeout_sec=30)
+            if probe.return_code == 0:
+                return
+            await asyncio.sleep(2)
+        raise RuntimeError(
+            f"coder ssh never succeeded: {probe.stderr if probe else ''}"
+        )
+
+    async def _delete_workspace(self, *, warn_only: bool) -> None:
+        res = await self._run_local(
+            self.coder_binary, "delete", self.workspace_name, "--yes"
+        )
+        if res.return_code != 0:
+            msg = f"coder delete {self.workspace_name} failed: {res.stderr}"
+            if warn_only:
+                self.logger.warning(msg)
+            else:
+                raise RuntimeError(msg)
 
     async def stop(self, delete: bool) -> None:
         if not self.workspace_id:
             return
         if delete:
-            res = await self._run_local(
-                self.coder_binary, "delete", self.workspace_name, "--yes"
-            )
-            if res.return_code != 0:
-                self.logger.warning(f"coder delete failed: {res.stderr}")
+            await self._delete_workspace(warn_only=False)
         else:
             res = await self._run_local(
                 self.coder_binary, "stop", self.workspace_name, "--yes"

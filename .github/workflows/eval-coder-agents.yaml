@@ -17,6 +17,10 @@ on:
         description: Baseline ref to compare against
         default: main
         type: string
+      candidate_ref:
+        description: Candidate ref (defaults to the ref this run was started from). Set equal to baseline_ref to measure the noise floor.
+        default: ""
+        type: string
       model:
         description: Chat model (Anthropic model id)
         default: claude-haiku-4-5
@@ -59,7 +63,7 @@ jobs:
       - name: Checkout arm ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ matrix.arm == 'baseline' && inputs.baseline_ref || github.sha }}
+          ref: ${{ matrix.arm == 'baseline' && inputs.baseline_ref || (inputs.candidate_ref || github.sha) }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -172,12 +176,13 @@ jobs:
       - name: Compare and summarize
         env:
           BASELINE_REF: ${{ inputs.baseline_ref }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref || github.ref_name }}
         run: |
           set -euo pipefail
           ls jobs
           PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
             --baseline jobs/baseline --candidate jobs/candidate \
-            --labels "${BASELINE_REF}" "${GITHUB_REF_NAME}" \
+            --labels "${BASELINE_REF}" "${CANDIDATE_REF}" \
             --json-out comparison.json | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload comparison
