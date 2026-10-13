@@ -8,7 +8,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
-import { appendTextBlock, placeCitationsAfterText } from "./blockUtils";
+import { appendResponseText, appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -256,9 +256,8 @@ export const parseMessageContent = (
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
-				parsed.blocks = appendTextBlock(
+				parsed.blocks = appendResponseText(
 					parsed.blocks,
-					"response",
 					part.text,
 					part.narration,
 				);
@@ -377,7 +376,6 @@ export const parseMessageContent = (
 			}
 		}
 	}
-	parsed.blocks = placeCitationsAfterText(parsed.blocks);
 	return parsed;
 };
 
