@@ -18284,14 +18284,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per app however many of its sessions were open,
-		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- A minute counts once per family, however many of its apps were
+		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			app_name,
+			COALESCE($3::jsonb ->> app_name, 'unknown') AS family,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -18307,22 +18307,22 @@ WITH
 			AND was.created_at < $2::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, app_name
+			was.template_id, was.user_id, family
 	),
-	app_usage AS (
+	app_family_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
+			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				app_name,
+				family,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, app_name
-		) AS app_seconds
+				template_id, family
+		) AS family_seconds
 		GROUP BY
 			template_id
 	),
@@ -18339,35 +18339,38 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_usage.session_app_usage_seconds
+	app_family_usage.session_family_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one app; both sides come from
+	-- Every counted template has at least one family; both sides come from
 	-- insights.
-	app_usage
+	app_family_usage
 ON
-	app_usage.template_id = active_users.template_id
+	app_family_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
+	StartTime   time.Time       `db:"start_time" json:"start_time"`
+	EndTime     time.Time       `db:"end_time" json:"end_time"`
+	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
-	ActiveUsers            int64          `db:"active_users" json:"active_users"`
-	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	TemplateID                uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers               int64          `db:"active_users" json:"active_users"`
+	SessionFamilyUsageSeconds StringMapOfInt `db:"session_family_usage_seconds" json:"session_family_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 //
-// Session usage comes out per app name, as in GetTemplateInsights, so either
-// query reports the same family totals once the names are grouped.
+// Session usage is reported per app family. It reads the raw agent stats
+// because the rollup stores minutes per app, which can't show whether two
+// apps of one family were open in the same minute. @app_families maps each
+// app name to its family; names missing from the map count as unknown.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime, arg.AppFamilies)
 	if err != nil {
 		return nil, err
 	}
@@ -18375,7 +18378,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionFamilyUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -42228,7 +42231,7 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
 SELECT
-	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id, workspace_agent_scripts.resource_address, workspace_agent_scripts.dependencies,
 	workspace_agent_script_timings.exit_code,
 	workspace_agent_script_timings.status
 	FROM workspace_agent_scripts
@@ -42252,6 +42255,8 @@ type GetWorkspaceAgentScriptsByAgentIDsRow struct {
 	TimeoutSeconds   int32                                `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string                               `db:"display_name" json:"display_name"`
 	ID               uuid.UUID                            `db:"id" json:"id"`
+	ResourceAddress  string                               `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage                      `db:"dependencies" json:"dependencies"`
 	ExitCode         sql.NullInt32                        `db:"exit_code" json:"exit_code"`
 	Status           NullWorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
@@ -42278,6 +42283,8 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ResourceAddress,
+			&i.Dependencies,
 			&i.ExitCode,
 			&i.Status,
 		); err != nil {
@@ -42296,7 +42303,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id)
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id, resource_address, dependencies)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	$2 :: timestamptz AS created_at,
@@ -42309,8 +42316,12 @@ SELECT
 	unnest($9 :: boolean [ ]) AS run_on_stop,
 	unnest($10 :: integer [ ]) AS timeout_seconds,
 	unnest($11 :: text [ ]) AS display_name,
-	unnest($12 :: uuid [ ]) AS id
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id
+	unnest($12 :: uuid [ ]) AS id,
+	unnest($13 :: text [ ]) AS resource_address,
+	-- The driver accepts a text array more reliably than a jsonb array,
+	-- so each element is cast to jsonb inside the query.
+	unnest($14 :: text [ ]) :: jsonb AS dependencies
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id, workspace_agent_scripts.resource_address, workspace_agent_scripts.dependencies
 `
 
 type InsertWorkspaceAgentScriptsParams struct {
@@ -42326,6 +42337,8 @@ type InsertWorkspaceAgentScriptsParams struct {
 	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      []string    `db:"display_name" json:"display_name"`
 	ID               []uuid.UUID `db:"id" json:"id"`
+	ResourceAddress  []string    `db:"resource_address" json:"resource_address"`
+	Dependencies     []string    `db:"dependencies" json:"dependencies"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
@@ -42342,6 +42355,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		pq.Array(arg.TimeoutSeconds),
 		pq.Array(arg.DisplayName),
 		pq.Array(arg.ID),
+		pq.Array(arg.ResourceAddress),
+		pq.Array(arg.Dependencies),
 	)
 	if err != nil {
 		return nil, err
@@ -42363,6 +42378,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ResourceAddress,
+			&i.Dependencies,
 		); err != nil {
 			return nil, err
 		}

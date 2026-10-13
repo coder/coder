@@ -40,3 +40,6 @@ children:
   - title: Antigravity
     description: Access your Coder workspace with the Antigravity agentic code editor over SSH.
     path: ./user-guides/workspace-access/antigravity.md
+  - title: Claude Desktop
+    description: Let Claude Desktop access your Coder workspaces.
+    path: ./user-guides/workspace-access/claude-desktop.md

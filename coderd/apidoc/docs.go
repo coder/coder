@@ -21301,6 +21301,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "narration": {
+                    "description": "Narration marks assistant text that the model labeled as commentary\non its work rather than its answer. Only providers that label their\noutput set it.",
+                    "type": "boolean"
+                },
                 "parsed_commands": {
                     "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Program names are normalized to their base\nname (e.g. /usr/bin/go becomes go). Only populated when ToolName\nis \"execute\" and the command parses successfully; nil otherwise.",
                     "type": "array",
@@ -33280,6 +33284,13 @@ const docTemplate = `{
                 "cron": {
                     "type": "string"
                 },
+                "dependencies": {
+                    "description": "Dependencies lists the scripts this one waits for, as the\nprovisioner resolved them. It is omitted when empty.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependency"
+                    }
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -33296,6 +33307,10 @@ const docTemplate = `{
                 "log_source_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "resource_address": {
+                    "description": "ResourceAddress is the full Terraform address of the coder_script\nresource, for example \"module.git_clone.coder_script.clone\". It is\nempty for scripts that are not coder_script resources.",
+                    "type": "string"
                 },
                 "run_on_start": {
                     "type": "boolean"
@@ -33316,6 +33331,28 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptDependency": {
+            "type": "object",
+            "properties": {
+                "prerequisite_resource_address": {
+                    "type": "string"
+                },
+                "requirement": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptDependencyRequirement"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentScriptDependencyRequirement": {
+            "type": "string",
+            "enum": [
+                "success",
+                "completion"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptDependencyRequirementSuccess",
+                "WorkspaceAgentScriptDependencyRequirementCompletion"
+            ]
         },
         "codersdk.WorkspaceAgentScriptStatus": {
             "type": "string",
