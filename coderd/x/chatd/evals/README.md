@@ -175,6 +175,11 @@ the agent's final `/app` from the seed, `changes.diff`, and
 `untracked.tar.zst`, and runs the task's `tests/test.sh` in the task image.
 Task success means reward 1.
 
+Some tasks, such as `regex-log`, start with an empty `/app`. The aegis
+sidecar refuses a seed commit without files, so the importer adds an empty
+`.gitkeep` to such a seed, and the verifier removes it again before it runs
+the task tests. Agents see that file in their working directory.
+
 Selection rule: tasks that a capable engineer solves in about an hour with
 the tools in the runner image. Rejected classes: tasks that install
 packages or need network while solving, compile large toolchains, run

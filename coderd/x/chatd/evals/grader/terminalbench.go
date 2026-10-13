@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,6 +35,9 @@ const (
 	// tbVerifierPad covers the verifier's tool installs on top of the
 	// task's own verifier timeout.
 	tbVerifierPad = 5 * time.Minute
+	// emptySeedPlaceholder stands in for an empty /app, because the aegis
+	// sidecar refuses a seed whose baseline commit has no files.
+	emptySeedPlaceholder = ".gitkeep"
 )
 
 var safeTaskID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
@@ -60,6 +64,9 @@ type tbSeed struct {
 	VerifierTimeoutS int    `json:"verifier_timeout_s"`
 	MemoryMB         int    `json:"memory_mb"`
 	CPUs             int    `json:"cpus"`
+	// Placeholder records that the importer added emptySeedPlaceholder,
+	// which verification removes again before running the task tests.
+	Placeholder bool `json:"placeholder,omitempty"`
 }
 
 type tbSeeds struct {
@@ -200,6 +207,10 @@ func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
 	}); err != nil {
 		return tbSeed{}, err
 	}
+	placeholder, err := addEmptySeedPlaceholder(appDir)
+	if err != nil {
+		return tbSeed{}, err
+	}
 	sha, err := commitSeed(ctx, appDir)
 	if err != nil {
 		return tbSeed{}, err
@@ -227,7 +238,37 @@ func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
 		VerifierTimeoutS: int(timeout),
 		MemoryMB:         memory,
 		CPUs:             cpus,
+		Placeholder:      placeholder,
 	}, nil
+}
+
+// addEmptySeedPlaceholder adds emptySeedPlaceholder to dir when dir has no
+// entries and reports whether it did.
+func addEmptySeedPlaceholder(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	if len(entries) > 0 {
+		return false, nil
+	}
+	if err := os.WriteFile(filepath.Join(dir, emptySeedPlaceholder), nil, 0o600); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// removeEmptySeedPlaceholder undoes addEmptySeedPlaceholder in a tree
+// about to be verified, so the task tests see the /app the task defines.
+func removeEmptySeedPlaceholder(dir string, seed tbSeed) error {
+	if !seed.Placeholder {
+		return nil
+	}
+	err := os.Remove(filepath.Join(dir, emptySeedPlaceholder))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // copyAppFromImage copies an image's /app into dst without running the
@@ -465,6 +506,9 @@ func gradeTerminalBench(req graderRequest, stderr io.Writer) (graderVerdict, err
 	if err := os.RemoveAll(filepath.Join(appDir, ".git")); err != nil {
 		return graderVerdict{}, err
 	}
+	if err := removeEmptySeedPlaceholder(appDir, seed); err != nil {
+		return graderVerdict{}, err
+	}
 	logs := filepath.Join(tbDir, "verifier-logs", sanitizePathPart(req.Trial.ExperimentID), sanitizePathPart(req.Trial.ID))
 	if err := os.RemoveAll(logs); err != nil {
 		return graderVerdict{}, err
@@ -556,6 +600,9 @@ func selfCheckOnce(ctx context.Context, tbDir, id, label string, seed tbSeed, so
 		return "", "", err
 	}
 	if err := os.RemoveAll(filepath.Join(appDir, ".git")); err != nil {
+		return "", "", err
+	}
+	if err := removeEmptySeedPlaceholder(appDir, seed); err != nil {
 		return "", "", err
 	}
 	logs := filepath.Join(tbDir, "selfcheck-logs", id, label)
