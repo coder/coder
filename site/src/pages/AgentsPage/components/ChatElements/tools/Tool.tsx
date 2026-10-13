@@ -1196,7 +1196,7 @@ export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
  * Picks the renderer for a tool call. A client dynamic tool can also be
  * named web_search, so only provider-executed calls get the web search row.
  */
-export const getToolRenderer = (
+const getToolRenderer = (
 	name: string,
 	providerExecuted: boolean | undefined,
 ): React.FC<ToolRendererProps> => {
