@@ -15,7 +15,7 @@ from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
-from harbor_coder.client import CoderClient
+from harbor_coder.client import CoderAPIError, CoderClient
 
 
 class CoderAgentsAgent(BaseAgent):
@@ -58,21 +58,33 @@ class CoderAgentsAgent(BaseAgent):
         )
         chat_id = chat["id"]
         context.metadata = {"chat_id": chat_id}
+        status = "running"
         try:
             while (status := (await self.client.chat(chat_id)).get("status")) not in ("waiting", "error"):
                 await asyncio.sleep(3)
         except asyncio.CancelledError:
             # Harbor's timeout: stop the agent so it cannot keep mutating the
-            # workspace while the verifier runs.
-            await asyncio.shield(self.client.interrupt_chat(chat_id))
+            # workspace while the verifier runs, and wait for it to actually
+            # stop since interrupt is asynchronous server-side.
+            await asyncio.shield(self._interrupt_and_settle(chat_id))
             status = "timeout"
             raise
         finally:
             context.metadata["final_status"] = status
-            await self._collect(chat_id, context)
-            await self.client.archive_chat(chat_id)
+            await asyncio.shield(self._collect(chat_id, context))
+            try:
+                await asyncio.shield(self.client.archive_chat(chat_id))
+            except CoderAPIError as e:
+                self.logger.warning(f"archive chat {chat_id}: {e}")
         if status == "error":
             raise RuntimeError(f"chat ended in error: {(await self.client.chat(chat_id)).get('last_error')}")
+
+    async def _interrupt_and_settle(self, chat_id: str) -> None:
+        await self.client.interrupt_chat(chat_id)
+        for _ in range(20):
+            if (await self.client.chat(chat_id)).get("status") in ("waiting", "error"):
+                return
+            await asyncio.sleep(1)
 
     async def _collect(self, chat_id: str, context: AgentContext) -> None:
         messages = await self.client.chat_messages(chat_id)

@@ -88,6 +88,13 @@ async def main() -> None:
 
     try:
         provider = await client.request("GET", "/api/v2/ai/providers/anthropic")
+        # Replace the stored key: the token is short-lived, and a rerun
+        # against an existing coderd must not keep a stale one.
+        await client.request(
+            "PATCH",
+            f"/api/v2/ai/providers/{provider['id']}",
+            body={"base_url": upstream_url, "api_keys": [{"api_key": upstream_token}]},
+        )
     except CoderAPIError as e:
         if e.status != 404:
             raise
