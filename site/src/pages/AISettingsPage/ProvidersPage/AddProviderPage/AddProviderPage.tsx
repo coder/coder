@@ -25,8 +25,8 @@ const AddProviderPage: React.FC = () => {
 					</Button>
 				</Link>
 				<Alert severity="warning">
-					We don't support this provider type. Go back to providers and choose
-					one from Add provider.
+					Coder doesn't support this provider type. Go back to providers and
+					choose one from Add provider.
 				</Alert>
 			</div>
 		);

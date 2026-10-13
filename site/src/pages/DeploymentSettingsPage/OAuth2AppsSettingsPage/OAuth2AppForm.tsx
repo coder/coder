@@ -427,16 +427,16 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									Learn more
-									<span className="sr-only"> (link opens in new tab)</span>
+									View scope docs
+									<span className="sr-only"> (opens in new tab)</span>
 								</Link>
 							}
 						>
 							<AlertTitle>This change can block new authorizations</AlertTitle>
 							<AlertDescription>
-								Self-registered applications often request every available
-								scope. If this one does, new authorizations will fail once this
-								list is narrower. Existing tokens keep their scopes.
+								If a self-registered application requests every available scope,
+								new authorizations fail once this list is narrower. Existing
+								tokens keep their scopes.
 							</AlertDescription>
 						</Alert>
 					)}

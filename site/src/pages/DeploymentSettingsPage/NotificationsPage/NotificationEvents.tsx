@@ -75,7 +75,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 					}
 				>
 					Webhook notifications are turned on, but no webhook endpoint is set.
-					They won't be delivered until one is set.
+					Coder can't deliver them until you set one.
 				</Alert>
 			)}
 
@@ -94,7 +94,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 					}
 				>
 					SMTP notifications are turned on, but the SMTP server settings are
-					incomplete. Emails won't be sent until they're set.
+					incomplete, so Coder can't send emails.
 				</Alert>
 			)}
 

@@ -179,7 +179,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 				{searchParams.has("created") && (
 					<Alert severity="info" dismissible>
-						Generate a client secret below to start using this application.
+						Generate a client secret to start using this application.
 					</Alert>
 				)}
 
@@ -270,8 +270,8 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 						{isPublicClient ? (
 							<Alert severity="info">
-								This public client uses PKCE instead of a client secret. Client
-								type can't be changed, so register a new confidential
+								This public client uses PKCE instead of a client secret. You
+								can't change the client type, so register a new confidential
 								application if you need one.
 							</Alert>
 						) : (

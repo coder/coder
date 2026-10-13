@@ -269,7 +269,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 						<AlertDescription>
 							This text has {systemInvisibleCharCount} invisible Unicode{" "}
 							{systemInvisibleCharCount !== 1 ? "characters" : "character"} that
-							could hide content. They'll be removed when you save.
+							could hide content. Saving removes them.
 						</AlertDescription>
 					</Alert>
 				)}
@@ -296,7 +296,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 						<AlertDescription>
 							This text has {planModeInvisibleCharCount} invisible Unicode{" "}
 							{planModeInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
-							that could hide content. They'll be removed when you save.
+							that could hide content. Saving removes them.
 						</AlertDescription>
 					</Alert>
 				)}

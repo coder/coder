@@ -97,7 +97,7 @@ export const OrganizationInstructionsSettings: React.FC<
 							<AlertDescription>
 								This text has {invisibleCharCount} invisible Unicode{" "}
 								{invisibleCharCount !== 1 ? "characters" : "character"} that
-								could hide content. They'll be removed when you save.
+								could hide content. Saving removes them.
 							</AlertDescription>
 						</Alert>
 					)}
