@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"go.opentelemetry.io/otel/codes"
@@ -1891,7 +1892,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	}
 }
 
-func TestWorkspaceContextReusedAcrossGenerationSteps(t *testing.T) {
+func TestAgentConnReusedAcrossGenerationSteps(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1932,17 +1933,17 @@ func TestWorkspaceContextReusedAcrossGenerationSteps(t *testing.T) {
 			return workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil
 		}).AnyTimes()
 	mockConn.EXPECT().StartProcess(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil).AnyTimes()
+		Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil).Times(1)
 	exitCode := 0
 	mockConn.EXPECT().ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
-		Return(workspacesdk.ProcessOutputResponse{Output: "hi\n", ExitCode: &exitCode}, nil).AnyTimes()
+		Return(workspacesdk.ProcessOutputResponse{Output: "hi\n", ExitCode: &exitCode}, nil).Times(1)
 
 	var dials, releases atomic.Int32
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
+			assert.Equal(t, dbAgent.ID, agentID)
 			dials.Add(1)
 			return mockConn, func() { releases.Add(1) }, nil
 		}
@@ -1951,7 +1952,7 @@ func TestWorkspaceContextReusedAcrossGenerationSteps(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
-		Title:          "workspace-context-reuse",
+		Title:          "agent-conn-reuse",
 		ModelConfigID:  model.ID,
 		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 		InitialUserContent: []codersdk.ChatMessagePart{
@@ -1971,9 +1972,7 @@ func TestWorkspaceContextReusedAcrossGenerationSteps(t *testing.T) {
 	}
 	require.Equal(t, int32(1), lsCalls.Load(), "the home directory should be read from the agent once")
 	require.Equal(t, int32(1), dials.Load(), "the steps of one turn should share one agent connection")
-	require.Eventually(t, func() bool {
-		return releases.Load() == 1
-	}, testutil.WaitShort, testutil.IntervalFast, "the connection should be released when the turn ends")
+	require.Equal(t, int32(1), releases.Load(), "the connection should be released when the runner exits")
 }
 
 func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
