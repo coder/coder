@@ -616,12 +616,16 @@ func isEdit(c toolCall) bool {
 		if !ok {
 			return false
 		}
-		for _, f := range fileIOFindings(script) {
-			if !strings.Contains(f, " reads ") {
+		for _, s := range withNestedShells(script) {
+			for _, f := range fileIOFindings(s) {
+				if !strings.Contains(f, " reads ") {
+					return true
+				}
+			}
+			if len(interpreterEditFindings(s)) > 0 {
 				return true
 			}
 		}
-		return len(interpreterEditFindings(script)) > 0
 	}
 	return false
 }

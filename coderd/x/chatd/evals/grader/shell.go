@@ -47,6 +47,13 @@ func parseShell(src string) (shellScript, bool) {
 	stdin := map[*syntax.CallExpr][]string{}
 	syntax.Walk(f, func(node syntax.Node) bool {
 		switch n := node.(type) {
+		case *syntax.BinaryCmd:
+			if n.Op != syntax.Pipe && n.Op != syntax.PipeAll {
+				return true
+			}
+			if call, ok := n.Y.Cmd.(*syntax.CallExpr); ok {
+				stdin[call] = append(stdin[call], pipedSource(n.X)...)
+			}
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
 				out.Backgrounded = true
@@ -84,6 +91,39 @@ func parseShell(src string) (shellScript, bool) {
 		return true
 	})
 	return out, true
+}
+
+// pipedSource returns the program text a pipeline stage feeds to the
+// next one: here-documents and here-strings of its last command, and the
+// arguments of echo or printf.
+func pipedSource(st *syntax.Stmt) []string {
+	for {
+		bin, ok := st.Cmd.(*syntax.BinaryCmd)
+		if !ok {
+			break
+		}
+		st = bin.Y
+	}
+	var out []string
+	for _, r := range st.Redirs {
+		switch r.Op {
+		case syntax.Hdoc, syntax.DashHdoc:
+			out = append(out, wordSource(r.Hdoc))
+		case syntax.WordHdoc:
+			out = append(out, wordSource(r.Word))
+		}
+	}
+	call, ok := st.Cmd.(*syntax.CallExpr)
+	if !ok || len(call.Args) == 0 {
+		return out
+	}
+	switch path.Base(literalWord(call.Args[0])) {
+	case "echo", "printf":
+		for _, w := range call.Args[1:] {
+			out = append(out, wordSource(w))
+		}
+	}
+	return out
 }
 
 // wordSource returns w as shell source text, quotes and expansions
@@ -133,6 +173,10 @@ func isAllDigits(s string) bool {
 	return true
 }
 
+// dblQuoteEscape resolves the backslash escapes bash honors inside
+// double quotes.
+var dblQuoteEscape = strings.NewReplacer(`\\`, `\`, `\"`, `"`, "\\$", "$", "\\`", "`", "\\\n", "")
+
 func literalWord(w *syntax.Word) string {
 	if w == nil {
 		return ""
@@ -150,7 +194,7 @@ func literalWord(w *syntax.Word) string {
 				if !ok {
 					return ""
 				}
-				_, _ = sb.WriteString(lit.Value)
+				_, _ = sb.WriteString(dblQuoteEscape.Replace(lit.Value))
 			}
 		default:
 			return ""
@@ -209,16 +253,89 @@ func fileIOFindings(s shellScript) []string {
 }
 
 var (
-	interpreterProgram = regexp.MustCompile(`^(python[0-9.]*|node|nodejs|ruby|perl|php)$`)
+	interpreterProgram = regexp.MustCompile(`^(python[0-9.]*|node|nodejs|ruby|perl|php[0-9.]*)$`)
+	shellProgram       = regexp.MustCompile(`^(bash|dash|ksh|zsh|sh)$`)
 	// Writes to the process's own output streams are not file edits.
-	streamWrite = regexp.MustCompile(`(?i)std(out|err)\.write`)
-	fileWrite   = regexp.MustCompile(`(?i)write|truncate|unlink|rename|os\.replace|shutil\.(move|copy)`)
+	streamWrite = regexp.MustCompile(`(?i)std(out|err)\.(sys)?write(lines)?`)
+	// fileWrite matches calls that change files. Names must be whole
+	// identifiers, so rewrite_rules or csv.writer do not count, and a
+	// bare name needs a call, so the word "write" in a string does not.
+	fileWrite = regexp.MustCompile(strings.Join([]string{
+		`\.(write|writelines|syswrite)\b`,
+		`\b(write|writelines|write_text|write_bytes|writeFile|writeFileSync|writeSync|appendFile|appendFileSync|createWriteStream|fwrite|fputs|file_put_contents|syswrite|truncate|ftruncate|unlink|unlinkSync|rename|renameSync|rmSync|rmtree|copyfile|copyFile|copyFileSync)\s*\(`,
+		`\bos\.(remove|removedirs|replace|rmdir)\b`,
+		`\bshutil\.(move|copy\w*)\b`,
+		`\bFileUtils\.\w+`,
+		`\bFile\.delete\b`,
+		// open with a write, append, create, or update mode: Python,
+		// Ruby, PHP, and Node calls, pathlib's Path.open, and Perl's
+		// two- and three-argument open with or without parentheses.
+		`\b(f?open|openSync)\s*\((?:[^()]|\([^()]*\))*?,\s*(mode\s*=\s*)?` + openMode,
+		`\.open\s*\(\s*(mode\s*=\s*)?` + openMode,
+		`\bopen\s+(my\s+)?[$\w]+\s*,\s*` + openMode,
+	}, "|"))
 )
 
+const openMode = `['"]([rbt]*[wax+][rwabtx+]*|\+?>[^'"]*|\+<[^'"]*)['"]`
+
+// inlineCodeFlags lists, per interpreter, the short flag letters and long
+// flags whose next argument is program text.
+var inlineCodeFlags = map[string]struct {
+	short string
+	long  []string
+}{
+	"python": {"c", nil},
+	"node":   {"ep", []string{"--eval", "--print"}},
+	"ruby":   {"e", nil},
+	"perl":   {"eE", nil},
+	"php":    {"r", nil},
+}
+
+func interpreterFamily(prog string) string {
+	switch {
+	case strings.HasPrefix(prog, "python"):
+		return "python"
+	case strings.HasPrefix(prog, "node"):
+		return "node"
+	case strings.HasPrefix(prog, "php"):
+		return "php"
+	}
+	return prog
+}
+
+// codeArgs returns the words that hold program text: the word after a
+// code flag (python -c, node --eval, perl -ne, php -r), or the attached
+// value of a long flag (--eval=...). args are the resolved literals used
+// to find the flags; words, the same command as resolved literals or as
+// source text, supply the result.
+func codeArgs(args, words []string, short string, long []string) []string {
+	var out []string
+	for i := 1; i < len(args); i++ {
+		a := args[i]
+		takesNext := false
+		for _, l := range long {
+			if a == l {
+				takesNext = true
+			} else if strings.HasPrefix(a, l+"=") {
+				out = append(out, strings.TrimPrefix(words[i], l+"="))
+			}
+		}
+		if len(a) > 1 && a[0] == '-' && a[1] != '-' && strings.ContainsRune(short, rune(a[len(a)-1])) {
+			takesNext = true
+		}
+		if takesNext && i+1 < len(args) {
+			out = append(out, words[i+1])
+			i++
+		}
+	}
+	return out
+}
+
 // interpreterEditFindings reports interpreters that run inline code (a
-// here-document, a here-string, or a -c or -e argument) that writes files,
-// such as python3 - <<'EOF' ... open(p, "w").write(...) ... EOF. The
-// grader never sees these edits as file paths, only as program text.
+// here-document, a here-string, piped echo or here-document text, or a
+// code flag such as -c, -e, --eval, or -r) that writes files, such as
+// python3 - <<'EOF' ... open(p, "w").write(...) ... EOF. The grader never
+// sees these edits as file paths, only as program text.
 func interpreterEditFindings(s shellScript) []string {
 	var out []string
 	for _, c := range s.Commands {
@@ -226,18 +343,39 @@ func interpreterEditFindings(s shellScript) []string {
 		if !interpreterProgram.MatchString(prog) {
 			continue
 		}
-		code := append([]string{}, c.Stdin...)
-		for i := 1; i+1 < len(c.Args); i++ {
-			if c.Args[i] == "-c" || c.Args[i] == "-e" {
-				code = append(code, c.Source[i+1])
-			}
-		}
+		flags := inlineCodeFlags[interpreterFamily(prog)]
+		code := append(append([]string{}, c.Stdin...), codeArgs(c.Args, c.Source, flags.short, flags.long)...)
 		for _, src := range code {
 			if fileWrite.MatchString(streamWrite.ReplaceAllString(src, "")) {
 				out = append(out, prog+" inline code writes files")
 				break
 			}
 		}
+	}
+	return out
+}
+
+// withNestedShells returns s followed by the scripts that its shell
+// commands run: bash -c '...' arguments and here-documents fed to a
+// shell. Nesting stops after a few levels.
+func withNestedShells(s shellScript) []shellScript {
+	out := []shellScript{s}
+	for depth, next := 0, []shellScript{s}; depth < 3 && len(next) > 0; depth++ {
+		var found []shellScript
+		for _, script := range next {
+			for _, c := range script.Commands {
+				if !shellProgram.MatchString(c.program()) {
+					continue
+				}
+				for _, src := range append(codeArgs(c.Args, c.Args, "c", nil), c.Stdin...) {
+					if nested, ok := parseShell(src); ok && src != "" {
+						found = append(found, nested)
+					}
+				}
+			}
+		}
+		out = append(out, found...)
+		next = found
 	}
 	return out
 }
