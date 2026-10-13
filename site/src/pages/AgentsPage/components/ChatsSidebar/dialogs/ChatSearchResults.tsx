@@ -288,7 +288,10 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 			onClick={onSelect}
 			className={cn(
 				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
-				isSelected && "bg-surface-tertiary/40 text-content-primary",
+				// Focus stays in the search input (aria-activedescendant), so the
+				// selected row draws the keyboard focus ring itself.
+				isSelected &&
+					"bg-surface-tertiary/40 text-content-primary ring-2 ring-inset ring-content-link",
 			)}
 		>
 			<StatusIcon
