@@ -68,6 +68,7 @@ const (
 	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
 	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
 )
 
@@ -165,6 +166,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat operational settings"
 	case ResourceTypeChatOrganizationSystemPrompt:
 		return "chat organization system prompt"
+	case ResourceTypeChatProjectInstructions:
+		return "chat project instructions"
 	case ResourceTypeExperimentRule:
 		return "experiment rule"
 	default:

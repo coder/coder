@@ -199,14 +199,22 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Run("StripsProviderMetadata", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessagePart{
-			Type:             codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID:       "call-1",
-			ToolName:         "some_tool",
-			Args:             json.RawMessage(`{"key":"value"}`),
-			ProviderMetadata: json.RawMessage(`{"type":"ephemeral"}`),
+			Type:               codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:         "call-1",
+			ToolName:           "some_tool",
+			Args:               json.RawMessage(`{"key":"value"}`),
+			ProviderMetadata:   json.RawMessage(`{"type":"ephemeral"}`),
+			ProviderIdentity:   "provider-1",
+			ProviderModel:      "model-1",
+			ProviderCredential: "user",
+			ReasoningEpoch:     2,
 		}
 		part.StripInternal()
 		assert.Nil(t, part.ProviderMetadata)
+		assert.Empty(t, part.ProviderIdentity)
+		assert.Empty(t, part.ProviderModel)
+		assert.Empty(t, part.ProviderCredential)
+		assert.Zero(t, part.ReasoningEpoch)
 		// Public fields preserved.
 		assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
 		assert.Equal(t, "call-1", part.ToolCallID)
@@ -303,6 +311,10 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
+		"provider_identity":            "internal only, stripped by db2sdk before API responses",
+		"provider_model":               "internal only, stripped by db2sdk before API responses",
+		"provider_credential":          "internal only, stripped by db2sdk before API responses",
+		"reasoning_epoch":              "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
