@@ -198,9 +198,15 @@ func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
 // published concurrently, at most automationScheduleConcurrency at a
 // time, and the scan returns once all of them are done.
 func (p *Server) scanAutomationSchedules(ctx context.Context, batchSize int32) {
+	started := p.clock.Now()
 	var publishes errgroup.Group
 	publishes.SetLimit(automationScheduleConcurrency)
-	defer func() { _ = publishes.Wait() }()
+	defer func() {
+		_ = publishes.Wait()
+		if p.automationMetrics != nil {
+			p.automationMetrics.scanDuration.Observe(p.clock.Since(started).Seconds())
+		}
+	}()
 	now := dbtime.Time(p.clock.Now())
 	// The experiment is decided once per owner per scan. Owners with it
 	// off keep their cursors; a cursor that falls behind is missed once

@@ -241,6 +241,15 @@ coderd_agentapi_metadata_publish_errors_total 0
 # HELP coderd_agents_apps Agent applications with statuses.
 # TYPE coderd_agents_apps gauge
 coderd_agents_apps{agent_name="",username="",workspace_name="",app_name="",health=""} 0
+# HELP coderd_agents_automation_runs_total Chat automation runs by trigger (schedule, webhook, run_now), outcome (accepted, skipped, refused), and reason (none for accepted runs; missed for schedule occurrences older than the grace window).
+# TYPE coderd_agents_automation_runs_total counter
+coderd_agents_automation_runs_total{trigger="",outcome="",reason=""} 0
+# HELP coderd_agents_automation_scan_duration_seconds Duration of one scan for due chat automation schedules on this replica, including publishing the due occurrences.
+# TYPE coderd_agents_automation_scan_duration_seconds histogram
+coderd_agents_automation_scan_duration_seconds 0
+# HELP coderd_agents_automation_webhook_rejected_total Chat automation webhook requests rejected before they became a run, by reason (invalid_secret, unknown_automation, rate_limited).
+# TYPE coderd_agents_automation_webhook_rejected_total counter
+coderd_agents_automation_webhook_rejected_total{reason=""} 0
 # HELP coderd_agents_connection_latencies_seconds Agent connection latencies in seconds.
 # TYPE coderd_agents_connection_latencies_seconds gauge
 coderd_agents_connection_latencies_seconds{agent_name="",username="",workspace_name="",derp_region="",preferred=""} 0

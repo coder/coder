@@ -558,6 +558,16 @@ Every run of an automation is in the audit log as a **start** entry for the auto
 The entry's additional fields name the `trigger` (`schedule`, `webhook`, or `run_now`), the `outcome`, the `reason`, the `input_id`, and the `chat_id`, and webhook entries carry the sender's IP address and user agent.
 Requests with a wrong secret or for an automation that doesn't exist aren't audited.
 
+Coder also exports Prometheus metrics without per-automation or per-user labels:
+
+| Metric                                            | Labels                                                                                        |
+|---------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `coderd_agents_automation_runs_total`             | `trigger` (`schedule`, `webhook`, `run_now`), `outcome`, and `reason` (`none` when accepted). |
+| `coderd_agents_automation_webhook_rejected_total` | `reason`: `invalid_secret`, `unknown_automation`, or `rate_limited`.                          |
+| `coderd_agents_automation_scan_duration_seconds`  | None. A histogram of each replica's scan for due schedules.                                   |
+
+To get alerted when schedules miss their time, for example after an outage, alert on `increase(coderd_agents_automation_runs_total{reason="missed"}[15m]) > 0`.
+
 Skipped and missed schedule runs appear only in the logs of `coderd`, the process that runs the control plane, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
 A schedule doesn't run or produce logs when its target chat is archived or deleted, or when its owner isn't active.
 A refused webhook delivery appears in the HTTP response the sender receives.

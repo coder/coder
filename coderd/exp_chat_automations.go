@@ -754,6 +754,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 	}
 	secret, ok := chatAutomationBearerSecret(r)
 	if !ok {
+		api.chatDaemon.RecordAutomationWebhookRejected(chatd.AutomationWebhookRejectedInvalidSecret)
 		writeChatAutomationUnauthorized(ctx, rw)
 		return
 	}
@@ -765,11 +766,18 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	// Hashed before either check, so both refusals do the same work.
 	hash := sha256.Sum256([]byte(secret))
 	// Unknown ids, other kinds, and wrong secrets get the same response,
-	// so callers cannot probe for automation ids.
-	if err != nil || automation.Kind != database.ChatAutomationKindWebhook ||
-		subtle.ConstantTimeCompare(hash[:], automation.WebhookSecretHash) != 1 {
+	// so callers cannot probe for automation ids. Only the metric, which
+	// callers cannot read, tells them apart.
+	if err != nil || automation.Kind != database.ChatAutomationKindWebhook {
+		api.chatDaemon.RecordAutomationWebhookRejected(chatd.AutomationWebhookRejectedUnknownAutomation)
+		writeChatAutomationUnauthorized(ctx, rw)
+		return
+	}
+	if subtle.ConstantTimeCompare(hash[:], automation.WebhookSecretHash) != 1 {
+		api.chatDaemon.RecordAutomationWebhookRejected(chatd.AutomationWebhookRejectedInvalidSecret)
 		writeChatAutomationUnauthorized(ctx, rw)
 		return
 	}

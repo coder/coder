@@ -127,6 +127,10 @@ type scheduleFixture struct {
 	// created afterwards.
 	hookConsumer *httptest.Server
 
+	// registry, when set, collects the metrics of servers created
+	// afterwards.
+	registry *prometheus.Registry
+
 	// experiments are the deployment experiments of new servers,
 	// ExperimentsKnown when nil.
 	experiments codersdk.Experiments
@@ -165,6 +169,15 @@ func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Tim
 		auditor:    audit.NewMock(),
 		owner:      owner, org: org, model: model, chat: chat,
 	}
+}
+
+// prometheusRegistry returns f.registry as a Registerer, nil when unset so
+// servers register no metrics.
+func (f *scheduleFixture) prometheusRegistry() prometheus.Registerer {
+	if f.registry == nil {
+		return nil
+	}
+	return f.registry
 }
 
 // newServer returns an unstarted server, one instance of coderd.
@@ -211,6 +224,7 @@ func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap f
 		Clock:                      f.clock,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                static,
+		PrometheusRegistry:         f.prometheusRegistry(),
 		ExperimentEvaluator:        evaluator,
 		Authorizer:                 authorizer,
 		Auditor:                    &auditor,

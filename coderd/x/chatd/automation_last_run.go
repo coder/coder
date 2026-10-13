@@ -151,6 +151,7 @@ func (p *Server) recordAutomationRun(ctx context.Context, run automationRun) {
 		slog.F("outcome", run.outcome),
 		slog.F("reason", run.reason),
 	)
+	p.automationMetrics.recordRun(run)
 	//nolint:gocritic // Publishers have no user identity; chatd records the outcome of every owner's runs.
 	chatdCtx := dbauthz.AsChatd(writeCtx)
 	_, err := p.db.UpdateChatAutomationLastRunByID(chatdCtx, database.UpdateChatAutomationLastRunByIDParams{

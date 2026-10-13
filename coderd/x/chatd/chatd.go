@@ -220,6 +220,8 @@ type Server struct {
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
 	chatLimits             Limits
+	// automationMetrics counts automation runs and webhook rejections.
+	automationMetrics *automationMetrics
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
@@ -3155,6 +3157,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		clock:                    clk,
 		recordingSem:             make(chan struct{}, limits.MaxConcurrentRecordingUploads),
 		chatLimits:               limits,
+		automationMetrics:        newAutomationMetrics(cfg.PrometheusRegistry),
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
