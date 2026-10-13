@@ -9171,6 +9171,7 @@ export type ResourceType =
 	| "chat_operational_settings"
 	| "chat_organization_system_prompt"
 	| "chat_project"
+	| "chat_project_instructions"
 	| "chat_project_memory"
 	| "convert_login"
 	| "custom_role"
@@ -9218,6 +9219,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_operational_settings",
 	"chat_organization_system_prompt",
 	"chat_project",
+	"chat_project_instructions",
 	"chat_project_memory",
 	"convert_login",
 	"custom_role",

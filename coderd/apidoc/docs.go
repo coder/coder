@@ -30223,6 +30223,7 @@ const docTemplate = `{
                 "chat_instruction_settings",
                 "chat_operational_settings",
                 "chat_organization_system_prompt",
+                "chat_project_instructions",
                 "experiment_rule"
             ],
             "x-enum-varnames": [
@@ -30270,6 +30271,7 @@ const docTemplate = `{
                 "ResourceTypeChatInstructionSettings",
                 "ResourceTypeChatOperationalSettings",
                 "ResourceTypeChatOrganizationSystemPrompt",
+                "ResourceTypeChatProjectInstructions",
                 "ResourceTypeExperimentRule"
             ]
         },
