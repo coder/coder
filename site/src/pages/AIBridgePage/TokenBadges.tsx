@@ -24,7 +24,10 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<span>
+					<button
+						type="button"
+						className="m-0 flex items-center whitespace-nowrap border-0 bg-transparent p-0 text-inherit rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					>
 						<Badge className="gap-0.5 rounded-e-none">
 							<ArrowDownIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
@@ -37,7 +40,7 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 								{roundTokenDisplay(outputTokens)}
 							</span>
 						</Badge>
-					</span>
+					</button>
 				</TooltipTrigger>
 				<TooltipContent>
 					<div className="grid grid-cols-2 gap-8">

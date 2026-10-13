@@ -2,23 +2,18 @@
 title: "Reference architecture: up to 2,000 users"
 ---
 
-In the 2,000 users architecture, there is a moderate increase in traffic,
-suggesting a growing user base or expanding operations. This setup is
-well-suited for mid-sized companies experiencing growth or for universities
-seeking to accommodate their expanding user populations.
+In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.
+This setup is well-suited for mid-sized companies experiencing growth or for universities seeking to accommodate their expanding user populations.
 
-The recommendations on this page apply to deployments with up to the following limits. If your needs
-exceed any of these limits, consider increasing deployment resources or moving to the [next-higher
-architectural tier](./3k-users.md).
+The recommendations on this page apply to deployments with up to the following limits.
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./3k-users.md).
 
 | Users | Concurrent Running Workspaces | Concurrent Builds |
 |-------|-------------------------------|-------------------|
 | 2000  | 1200                          | 120               |
 
-**Observability**: Deploy monitoring solutions to gather Prometheus metrics and
-visualize them with Grafana to gain detailed insights into infrastructure and
-application behavior. This allows operators to respond quickly to incidents and
-continuously improve the reliability and performance of the platform.
+**Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations
 
@@ -39,8 +34,7 @@ continuously improve the reliability and performance of the platform.
 
 ### Workspace Proxies
 
-If you choose to deploy workspaces in multiple geographic regions, provision
-[Workspace Proxies](../../../admin/networking/workspace-proxies.md) in each region.
+If you choose to deploy workspaces in multiple geographic regions, provision [Workspace Proxies](../../../admin/networking/workspace-proxies.md) in each region.
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
@@ -69,8 +63,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 - If deploying on virtual machines, stack up to 30 provisioners per machine with a commensurate amount of memory and CPU.
 - Provisioners benefit from high performance disks like SSDs.
 - [Do not run provisioners on `coderd` nodes](../../operate/provisioners/index.md#disable-built-in-provisioners) at this scale.
-- If deploying workspaces to multiple clouds or multiple Kubernetes clusters, divide the provisioner replicas among the
-  clouds or clusters according to expected usage.
+- If deploying workspaces to multiple clouds or multiple Kubernetes clusters, divide the provisioner replicas among the clouds or clusters according to expected usage.
 
 ### Database
 
@@ -85,10 +78,9 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 ### Workspaces
 
-The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as
-such should be interpreted as the _bare minimum_ requirements for a Coder workspace. Size your workspaces to fit the use
-case your users will be undertaking. If in doubt, chose sizes based on the development environments your users are
-migrating from onto Coder.
+The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as such should be interpreted as the _bare minimum_ requirements for a Coder workspace.
+Size your workspaces to fit the use case your users will be undertaking.
+If in doubt, chose sizes based on the development environments your users are migrating from onto Coder.
 
 | vCPU | Memory      |
 |------|-------------|
@@ -96,7 +88,5 @@ migrating from onto Coder.
 
 ## Footnotes for AWS instance types
 
-- For production deployments, we recommend using non-burstable instance types,
-  such as `m5` or `c5`, instead of burstable instances, such as `t3`.
-  Burstable instances can experience significant performance degradation once
-  CPU credits are exhausted, leading to poor user experience under sustained load.
+- For production deployments, we recommend using non-burstable instance types, such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+  Burstable instances can experience significant performance degradation once CPU credits are exhausted, leading to poor user experience under sustained load.

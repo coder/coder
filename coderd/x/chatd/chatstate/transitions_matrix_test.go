@@ -57,10 +57,6 @@ const (
 	// FinishInterruption case that exercises the precondition
 	// rejecting outstanding non-dynamic tool calls.
 	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
-	// scenarioStaleAutomation marks cases seeded with a stale
-	// automation row at the queue head, which the queue promotion
-	// guard drops.
-	scenarioStaleAutomation scenario = "stale_automation"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -533,10 +529,9 @@ func remainingBodiesExcluding(bodies []string, exclude int) []string {
 
 // runPositiveCase seeds the chat, runs the transition, and asserts the
 // post-state plus case-specific effects.
-func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
+func runPositiveCase(t *testing.T, f *testFixture, spec transitionCaseSpec) {
 	t.Helper()
 	require.NotNil(t, spec.apply, "case %s missing apply", spec.subtestName())
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	seeder := spec.seed
@@ -571,9 +566,8 @@ func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
 // runDisallowedCase seeds the chat, runs the transition with default
 // inputs, and asserts that the chatstate package surfaces the right
 // sentinel error and rolled the snapshot bump back.
-func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.ExecutionState) {
+func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, from chatstate.ExecutionState) {
 	t.Helper()
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	seeded := seedState(t, f, from)
 	if seeded.exists {
@@ -628,6 +622,8 @@ func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.Exe
 func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	t.Parallel()
 
+	// Each case owns its chat and publisher; dependencies are read-only.
+	fixture := newTestFixture(t)
 	cases := matrixCases()
 
 	// Detect duplicate full keys and duplicate subtest names. The
@@ -737,7 +733,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 					actualPositive[tc.key()] = struct{}{}
 					mu.Unlock()
 				}
-				runPositiveCase(t, tc)
+				f := *fixture
+				f.Pub = newRecordingPubsub()
+				runPositiveCase(t, &f, tc)
 			})
 		}
 	})
@@ -769,7 +767,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 						mu.Lock()
 						actualDisallowed[disallowedCaseKey{transition: tr, from: from}] = struct{}{}
 						mu.Unlock()
-						runDisallowedCase(t, tr, from)
+						f := *fixture
+						f.Pub = newRecordingPubsub()
+						runDisallowedCase(t, &f, tr, from)
 					})
 				}
 			})
@@ -935,20 +935,6 @@ func matrixCases() []transitionCaseSpec {
 		// lands in E0; Invalid with non-empty queue lands in E1.
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
-
-		// Queue promotion guard cases: a stale automation row at the
-		// queue head is dropped instead of promoted. See
-		// automation_test.go.
-		sendMessageStaleHeadCase(),
-		promoteStaleCase(chatstate.StateE1, chatstate.StateE0, staleOnly),
-		promoteStaleCase(chatstate.StateE1, chatstate.StateE1, staleThenOrdinary),
-		promoteStaleCase(chatstate.StateR1, chatstate.StateR0, staleOnly),
-		promoteStaleCase(chatstate.StateR1, chatstate.StateR1, staleThenOrdinary),
-		promoteStaleCase(chatstate.StateI1, chatstate.StateI0, staleOnly),
-		promoteStaleCase(chatstate.StateA1, chatstate.StateA0, staleOnly),
-		promoteStaleCase(chatstate.StateA1, chatstate.StateA1, staleThenOrdinary),
-		finishStaleQueueCase(chatstate.TransitionFinishTurn, chatstate.StateR1),
-		finishStaleQueueCase(chatstate.TransitionFinishInterruption, chatstate.StateI1),
 	}
 }
 

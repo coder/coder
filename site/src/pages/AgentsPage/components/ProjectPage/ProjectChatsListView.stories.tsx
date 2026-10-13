@@ -18,6 +18,7 @@ const chats: Chat[] = [
 		status: "running",
 		diff_status: {
 			chat_id: "chat-running",
+			head_branch: "feature/deploy-retries",
 			url: "https://github.com/coder/coder/pull/1",
 			pull_request_state: "open",
 			pull_request_title: "Add retries to the deploy script",
@@ -79,13 +80,9 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		onLoadMore: fn(),
 		currentUser: MockUserOwner,
 		actions: {
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			requestPinAgent: fn(),
-			requestUnpinAgent: fn(),
+			clearChatErrorReason: fn(),
+			navigateAfterArchive: fn(),
 			onOpenRenameDialog: fn(),
-			isArchiving: false,
 		},
 		showCost: true,
 	},
@@ -112,6 +109,31 @@ export const RowActionsOpen: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", {
 				name: `Open chat actions for ${chats[0].title}`,
+			}),
+		);
+	},
+};
+
+export const CopySubmenuOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `Open chat actions for ${chats[0].title}`,
+			}),
+		);
+		await userEvent.click(
+			within(canvasElement.ownerDocument.body).getByRole("menuitem", {
+				name: "Copy",
+			}),
+		);
+	},
+};
+
+export const OtherOwnerActionsOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `Open chat actions for ${chats[2].title}`,
 			}),
 		);
 	},

@@ -49,7 +49,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrNoCredential)
 		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
 	})
@@ -64,7 +64,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrNoCredential)
 		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
 	})

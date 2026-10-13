@@ -26,6 +26,11 @@ const modulePath = "github.com/coder/coder/v2/"
 // caller to wrap the registerer, so the declaration alone does not spell the
 // published metric name. Scanning those files without the prefix would emit
 // names that no deployment ever exposes, which is worse than omitting them.
+//
+// Keys are slash-separated on every OS because they are matched against
+// directories derived from import paths. Build keys from file paths with
+// packageDir. The constant map built by collectPrefixInputs follows the same
+// rule.
 type prefixIndex map[string][]string
 
 // prefixFuncs are the registerer wrappers that prepend to every metric name
@@ -81,13 +86,12 @@ func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 	for round := range maxRounds {
 		changed := false
 		for _, pf := range files {
-			dir := filepath.Dir(pf.path)
-			prefixes, ok := index[dir]
+			prefixes, ok := index[pf.dir]
 			if !ok {
 				continue
 			}
 			for _, target := range forwardedPackages(pf) {
-				if target == dir {
+				if target == pf.dir {
 					continue
 				}
 				for _, prefix := range prefixes {
@@ -172,10 +176,16 @@ func isPrometheusRegisterer(expr ast.Expr) bool {
 	return ok && pkg.Name == "prometheus"
 }
 
+// packageDir returns the directory of a file path in the key form used by
+// prefixIndex and the constant map.
+func packageDir(path string) string {
+	return filepath.ToSlash(filepath.Dir(path))
+}
+
 // parsedFile is a parsed Go file plus the import information needed to resolve
 // a selector back to a package directory.
 type parsedFile struct {
-	path    string
+	dir     string // packageDir of the file's path
 	file    *ast.File
 	imports map[string]string // local name -> package directory
 }
@@ -201,11 +211,11 @@ func collectPrefixInputs(roots []string) (map[string]string, []parsedFile, error
 				return xerrors.Errorf("parsing %s: %w", path, err)
 			}
 
-			dir := filepath.Dir(path)
+			dir := packageDir(path)
 			for name, value := range stringConsts(file, func(string) bool { return true }, decodedStringLiteral) {
 				consts[dir+"."+name] = value
 			}
-			files = append(files, parsedFile{path: path, file: file, imports: fileImports(file)})
+			files = append(files, parsedFile{dir: dir, file: file, imports: fileImports(file)})
 			return nil
 		})
 		if err != nil {
@@ -348,7 +358,7 @@ func constString(expr ast.Expr, pf parsedFile, consts map[string]string) (string
 	return resolveStringReference(
 		expr,
 		func(name string) (string, bool) {
-			value, ok := consts[filepath.Dir(pf.path)+"."+name]
+			value, ok := consts[pf.dir+"."+name]
 			return value, ok
 		},
 		func(pkg, name string) (string, bool) {
