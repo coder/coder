@@ -3,6 +3,11 @@
 # Fails when a .golangci.yaml exclusions.paths entry matches a tracked Go
 # file. Entries are regexes, so an unanchored ".git" once hid every path
 # containing "<any char>git" from all linters.
+#
+# exclusions.rules[].path entries are unanchored regexes too, but this does not
+# check them because rules such as _test\.go match Go files on purpose. Anchor
+# them by hand: ^scripts/ means under scripts/, while the glob-like scripts/*
+# matches any path containing "scripts".
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

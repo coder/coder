@@ -183,7 +183,7 @@ linters:
         path: _test\.go
       - linters:
           - exhaustruct
-        path: scripts/*
+        path: ^scripts/
       - linters:
           - ALL
         path: scripts/rules.go
