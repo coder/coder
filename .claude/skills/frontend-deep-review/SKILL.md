@@ -52,7 +52,7 @@ exported symbols.
 
 ```sh
 if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; fi
-BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName 2>/dev/null || echo main)
+BASE_REF=$(gh pr view --json baseRefName --jq .baseRefName) || BASE_REF=main
 if git fetch origin "$BASE_REF"; then BASE=$(git merge-base HEAD FETCH_HEAD); else BASE=$(git merge-base HEAD "$BASE_REF"); fi
 echo "$BASE"
 git diff --stat "$BASE" -- site/ | tail -1
@@ -61,13 +61,18 @@ git ls-files --others --exclude-standard -- site/
 ```
 
 `BASE_REF` is the branch this one merges into: the open PR's base, or
-`main` when the branch has no PR yet. For a stack slice without a PR, set
-it to the parent branch, so the diff holds only this slice; when that parent
-exists only locally, the fetch fails and the merge base comes from the
-local branch. The merge base reads `FETCH_HEAD`, not `origin/$BASE_REF`,
-because a single-branch clone (any `--depth` clone, by default) does not
-update that ref when it fetches. The first line fetches full history in a
-shallow clone, where `git merge-base` cannot reach the fork point.
+`main` when the branch has no PR yet. `gh` exits 1 both when it finds no PR
+and when the lookup itself fails, so read its message: only
+`no pull requests found` means no PR. On any other error
+(`HTTP 401: Bad credentials`, a network failure), fix it and run the block
+again instead of reviewing against `main`. For a stack slice without a PR,
+set `BASE_REF` to the parent branch, so the diff holds only this slice;
+when that parent exists only locally, the fetch fails and the merge base
+comes from the local branch. The merge base reads `FETCH_HEAD`, not
+`origin/$BASE_REF`, because a single-branch clone (any `--depth` clone, by
+default) does not update that ref when it fetches. The first line fetches
+full history in a shallow clone, where `git merge-base` cannot reach the
+fork point.
 
 `git diff <commit>` compares that commit with the working tree, so it
 includes staged and unstaged edits, but not untracked files. Add the files
