@@ -2082,6 +2082,178 @@ func TestCreateChatAsUser(t *testing.T) {
 	})
 }
 
+func TestActOnChatAsUser(t *testing.T) {
+	t.Parallel()
+
+	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModel(t, client)
+
+	// newChat creates a running chat for a new member.
+	newChat := func(ctx context.Context, t *testing.T) (*codersdk.ExperimentalClient, codersdk.Chat) {
+		t.Helper()
+		memberClient, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		chat, err := api.CreateChatAsUser(ctx, member.ID, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		return codersdk.NewExperimentalClient(memberClient), chat
+	}
+	acquireChat := func(ctx context.Context, t *testing.T, chatID uuid.UUID) {
+		t.Helper()
+		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
+		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
+		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+			return err
+		}))
+	}
+	message := codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello again"}},
+	}
+
+	t.Run("Send", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, chat := newChat(ctx, t)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+
+		resp, err := api.SendChatMessageAsUser(ctx, chat.OwnerID, chat.ID, message)
+		require.NoError(t, err)
+		require.False(t, resp.Queued)
+		require.NotNil(t, resp.Message)
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
+	})
+
+	t.Run("SendBusyInterrupt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, chat := newChat(ctx, t)
+		acquireChat(ctx, t, chat.ID)
+		req := message
+		req.BusyBehavior = codersdk.ChatBusyBehaviorInterrupt
+
+		resp, err := api.SendChatMessageAsUser(ctx, chat.OwnerID, chat.ID, req)
+		require.NoError(t, err)
+		require.True(t, resp.Queued)
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusInterrupting, got.Status)
+	})
+
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, chat := newChat(ctx, t)
+		acquireChat(ctx, t, chat.ID)
+
+		interrupted, err := api.InterruptChatAsUser(ctx, chat.OwnerID, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, interrupted.ID)
+		require.Equal(t, codersdk.ChatStatusInterrupting, interrupted.Status)
+	})
+
+	t.Run("Refused", func(t *testing.T) {
+		t.Parallel()
+
+		send := func(ctx context.Context, userID, chatID uuid.UUID) error {
+			_, err := api.SendChatMessageAsUser(ctx, userID, chatID, message)
+			return err
+		}
+		interrupt := func(ctx context.Context, userID, chatID uuid.UUID) error {
+			_, err := api.InterruptChatAsUser(ctx, userID, chatID)
+			return err
+		}
+		otherUser := func(_ context.Context, t *testing.T, _ *codersdk.ExperimentalClient, _ codersdk.Chat) uuid.UUID {
+			_, other := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+			return other.ID
+		}
+		cases := []struct {
+			name        string
+			act         func(ctx context.Context, userID, chatID uuid.UUID) error
+			prepare     func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID
+			wantStatus  int
+			wantMessage string
+		}{
+			{
+				name: "SendArchivedChat",
+				act:  send,
+				prepare: func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
+					driveChatToWaiting(ctx, t, api, chat.ID)
+					require.NoError(t, memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+					return chat.OwnerID
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Cannot send messages to an archived chat.",
+			},
+			{
+				name:        "SendOtherUsersChat",
+				act:         send,
+				prepare:     otherUser,
+				wantStatus:  http.StatusNotFound,
+				wantMessage: "Resource not found",
+			},
+			{
+				name: "SendSiteOwnerNotChatOwner",
+				act:  send,
+				prepare: func(context.Context, *testing.T, *codersdk.ExperimentalClient, codersdk.Chat) uuid.UUID {
+					return firstUser.UserID
+				},
+				wantStatus:  http.StatusForbidden,
+				wantMessage: "Only the chat owner may send messages.",
+			},
+			{
+				name: "SendSuspendedUser",
+				act:  send,
+				prepare: func(ctx context.Context, t *testing.T, _ *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
+					_, err := client.UpdateUserStatus(ctx, chat.OwnerID.String(), codersdk.UserStatusSuspended)
+					require.NoError(t, err)
+					return chat.OwnerID
+				},
+				wantStatus:  http.StatusForbidden,
+				wantMessage: "not active",
+			},
+			{
+				name:        "InterruptOtherUsersChat",
+				act:         interrupt,
+				prepare:     otherUser,
+				wantStatus:  http.StatusNotFound,
+				wantMessage: "Resource not found",
+			},
+			{
+				name: "InterruptWaitingChat",
+				act:  interrupt,
+				prepare: func(ctx context.Context, t *testing.T, _ *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
+					driveChatToWaiting(ctx, t, api, chat.ID)
+					return chat.OwnerID
+				},
+				wantStatus:  http.StatusConflict,
+				wantMessage: "Chat is not in an interruptible state.",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				memberClient, chat := newChat(ctx, t)
+				userID := tc.prepare(ctx, t, memberClient, chat)
+
+				err := tc.act(ctx, userID, chat.ID)
+				responder, ok := httperror.IsResponder(err)
+				require.True(t, ok, "want a responder error, got %v", err)
+				status, resp := responder.Response()
+				require.Equal(t, tc.wantStatus, status)
+				require.Contains(t, resp.Message, tc.wantMessage)
+			})
+		}
+	})
+}
+
 func TestPostChats_OwnerID(t *testing.T) {
 	t.Parallel()
 
