@@ -125,31 +125,27 @@ const AddChatMemberForm: React.FC<AddChatMemberFormProps> = ({
 );
 
 type MemberIdentityProps =
-	| { kind: "group"; group: TypesGen.ChatGroup }
+	| { kind: "group"; group: TypesGen.ChatGroup; avatarAlt: string }
 	| { kind: "user"; user: TypesGen.ChatUser };
-
-const GroupIdentity: React.FC<{ group: TypesGen.ChatGroup }> = ({ group }) => {
-	const avatarAlt = useBuiltinImageAlt([group.avatar_url]);
-	return (
-		<AvatarData
-			title={group.display_name || group.name}
-			subtitle={getGroupSubtitle(group)}
-			src={group.avatar_url}
-			avatar={
-				<Avatar
-					src={group.avatar_url}
-					alt={avatarAlt.getAlt(group.avatar_url)}
-					fallback={group.display_name || group.name}
-					variant="icon"
-				/>
-			}
-		/>
-	);
-};
 
 const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
 	if (props.kind === "group") {
-		return <GroupIdentity group={props.group} />;
+		const { group, avatarAlt } = props;
+		return (
+			<AvatarData
+				title={group.display_name || group.name}
+				subtitle={getGroupSubtitle(group)}
+				src={group.avatar_url}
+				avatar={
+					<Avatar
+						src={group.avatar_url}
+						alt={avatarAlt}
+						fallback={group.display_name || group.name}
+						variant="icon"
+					/>
+				}
+			/>
+		);
 	}
 
 	const { user } = props;
@@ -245,6 +241,10 @@ export const ChatSharingPopoverContent: React.FC<
 	const acl = aclQuery.data;
 	const users = (acl?.users ?? []).filter((user) => user.id !== currentUser.id);
 	const groups = acl?.groups ?? [];
+	const groupAvatarAlt = useBuiltinImageAlt(
+		groups.map((group) => group.avatar_url),
+		open,
+	);
 	const excludeFromAutocomplete = [...users, ...groups, currentUser];
 
 	const handleAddMember = () => {
@@ -330,7 +330,7 @@ export const ChatSharingPopoverContent: React.FC<
 				{mutationError && <ErrorAlert error={mutationError} />}
 				{aclQuery.error && <ErrorAlert error={aclQuery.error} />}
 
-				{aclQuery.isLoading ? (
+				{aclQuery.isLoading || groupAvatarAlt.isLoading ? (
 					<div role="status" className="flex flex-col items-center gap-4 py-8">
 						<Spinner loading />
 						<span>Loading chat sharing</span>
@@ -368,7 +368,11 @@ export const ChatSharingPopoverContent: React.FC<
 										disabled={isMutating}
 										onRemove={() => handleRemoveGroup(group)}
 									>
-										<MemberIdentity kind="group" group={group} />
+										<MemberIdentity
+											kind="group"
+											group={group}
+											avatarAlt={groupAvatarAlt.getAlt(group.avatar_url)}
+										/>
 									</MobileMemberRow>
 								))}
 								{users.map((user) => (
@@ -404,7 +408,11 @@ export const ChatSharingPopoverContent: React.FC<
 										{groups.map((group) => (
 											<TableRow key={group.id}>
 												<TableCell className="py-2 w-[50%]">
-													<MemberIdentity kind="group" group={group} />
+													<MemberIdentity
+														kind="group"
+														group={group}
+														avatarAlt={groupAvatarAlt.getAlt(group.avatar_url)}
+													/>
 												</TableCell>
 												<TableCell className="py-2 w-[40%]">
 													<ReadRoleBadge />
