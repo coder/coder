@@ -1,17 +1,26 @@
 # Coder Agents eval: runs the same Harbor task suite against coderd built from
-# main and from the PR branch, each serving Coder Agents, then reports whether
-# the branch is better or worse. Trials spend real model tokens, so this is
-# manual only.
+# a baseline ref (main) and a candidate ref (the PR branch), each serving Coder
+# Agents, then reports whether the candidate is better or worse.
+#
+# Triggers:
+#   - Comment `/coder-agents-eval` on a PR (optionally with `key=value` args:
+#     model, attempts, concurrency, baseline). The commenter needs push access
+#     and the PR must come from this repository, because the candidate arm
+#     builds and runs the PR's code with access to the gateway token.
+#   - workflow_dispatch with the same options.
 #
 # Each arm builds its own coderd, serves it with embedded Postgres, points its
 # AI gateway at dogfood's gateway (authenticated with a Coder API key, so no
 # provider secret is involved), and runs Harbor with the Coder environment
 # provider (scripts/harbor-coder) so every trial runs in a Coder workspace on
-# the runner's Docker.
+# the runner's Docker. The harness, tasks, and template always come from the
+# candidate ref so a PR that changes them is evaluated with its own changes.
 
 name: eval/coder-agents
 
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       baseline_ref:
@@ -38,12 +47,127 @@ on:
 permissions: {}
 
 concurrency:
-  group: eval-coder-agents-${{ github.ref }}
+  group: eval-coder-agents-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: resolve
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && startsWith(github.event.comment.body, '/coder-agents-eval'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      baseline_ref: ${{ steps.args.outputs.baseline_ref }}
+      candidate_ref: ${{ steps.args.outputs.candidate_ref }}
+      candidate_label: ${{ steps.args.outputs.candidate_label }}
+      model: ${{ steps.args.outputs.model }}
+      attempts: ${{ steps.args.outputs.attempts }}
+      concurrency: ${{ steps.args.outputs.concurrency }}
+      pr_number: ${{ steps.args.outputs.pr_number }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Verify commenter has push access
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${COMMENTER}/permission" --jq '.user.permissions.push')"
+          if [[ "${can_push}" != "true" ]]; then
+            echo "::error title=Access Denied::${COMMENTER} does not have push access to ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+
+      - name: Resolve arguments
+        id: args
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          # Never interpolate the comment body into the script; read it from env.
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          IN_BASELINE: ${{ inputs.baseline_ref }}
+          IN_CANDIDATE: ${{ inputs.candidate_ref }}
+          IN_MODEL: ${{ inputs.model }}
+          IN_ATTEMPTS: ${{ inputs.attempts }}
+          IN_CONCURRENCY: ${{ inputs.concurrency }}
+          TRIGGER_SHA: ${{ github.sha }}
+          TRIGGER_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          baseline="main"; model="claude-haiku-4-5"; attempts="2"; concurrency="3"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            baseline="${IN_BASELINE:-$baseline}"
+            model="${IN_MODEL:-$model}"
+            attempts="${IN_ATTEMPTS:-$attempts}"
+            concurrency="${IN_CONCURRENCY:-$concurrency}"
+            candidate="${IN_CANDIDATE:-$TRIGGER_SHA}"
+            label="${IN_CANDIDATE:-$TRIGGER_REF}"
+            pr_number=""
+          else
+            # Refuse fork PRs: the candidate arm runs the PR's code with the
+            # gateway token in scope.
+            head_sha="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json headRefOid --jq .headRefOid)"
+            head_ref="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json headRefName --jq .headRefName)"
+            is_fork="$(gh pr view "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --json isCrossRepository --jq .isCrossRepository)"
+            if [[ "${is_fork}" == "true" ]]; then
+              echo "::error::refusing to run on a pull request from a fork"
+              exit 1
+            fi
+            candidate="${head_sha}"
+            label="${head_ref}"
+            pr_number="${PR_NUMBER}"
+            # Optional `key=value` args after the command, e.g.
+            # `/coder-agents-eval model=claude-sonnet-4-5 attempts=3`.
+            first_line="$(printf '%s\n' "${COMMENT_BODY}" | head -n1)"
+            for tok in ${first_line#/coder-agents-eval}; do
+              [[ "${tok}" =~ ^(model|attempts|concurrency|baseline)=([A-Za-z0-9._/-]+)$ ]] || {
+                echo "::error::unrecognized argument: ${tok}"; exit 1; }
+              case "${BASH_REMATCH[1]}" in
+                model) model="${BASH_REMATCH[2]}" ;;
+                attempts) attempts="${BASH_REMATCH[2]}" ;;
+                concurrency) concurrency="${BASH_REMATCH[2]}" ;;
+                baseline) baseline="${BASH_REMATCH[2]}" ;;
+              esac
+            done
+          fi
+          [[ "${attempts}" =~ ^[0-9]+$ && "${concurrency}" =~ ^[0-9]+$ ]] || {
+            echo "::error::attempts and concurrency must be integers"; exit 1; }
+          {
+            echo "baseline_ref=${baseline}"
+            echo "candidate_ref=${candidate}"
+            echo "candidate_label=${label}"
+            echo "model=${model}"
+            echo "attempts=${attempts}"
+            echo "concurrency=${concurrency}"
+            echo "pr_number=${pr_number}"
+          } | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Acknowledge comment
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null
+
   run:
     name: run (${{ matrix.arm }})
+    needs: resolve
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     timeout-minutes: 90
     permissions:
@@ -58,20 +182,17 @@ jobs:
         with:
           egress-policy: audit
 
-      # coderd under test comes from the arm's ref; the eval harness, tasks,
-      # and template always come from the triggering ref so both arms run
-      # identical trials.
       - name: Checkout arm ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ matrix.arm == 'baseline' && inputs.baseline_ref || (inputs.candidate_ref || github.sha) }}
+          ref: ${{ matrix.arm == 'baseline' && needs.resolve.outputs.baseline_ref || needs.resolve.outputs.candidate_ref }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Checkout eval harness from triggering ref
+      - name: Checkout eval harness from candidate ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
           path: .eval-src
           sparse-checkout: scripts/harbor-coder
           persist-credentials: false
@@ -105,7 +226,7 @@ jobs:
           # gateway as its model upstream, so no provider key is needed.
           HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
           HARBOR_CODER_UPSTREAM_URL: ${{ vars.EVAL_AI_GATEWAY_URL }}
-          HARBOR_CODER_MODEL: ${{ inputs.model }}
+          HARBOR_CODER_MODEL: ${{ needs.resolve.outputs.model }}
         run: |
           set -euo pipefail
           if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
@@ -118,8 +239,8 @@ jobs:
       - name: Run Harbor suite
         env:
           ARM: ${{ matrix.arm }}
-          ATTEMPTS: ${{ inputs.attempts }}
-          CONCURRENCY: ${{ inputs.concurrency }}
+          ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
+          CONCURRENCY: ${{ needs.resolve.outputs.concurrency }}
         run: |
           set -euo pipefail
           set -a; . "${RUNNER_TEMP}/coder.env"; set +a
@@ -151,45 +272,72 @@ jobs:
 
   compare:
     name: compare
-    needs: run
-    if: always()
+    needs: [resolve, run]
+    if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
-      - name: Checkout
+      - name: Checkout harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
           sparse-checkout: scripts/harbor-coder
           persist-credentials: false
 
       - name: Download results
+        id: download
+        continue-on-error: true
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: harbor-*
           path: jobs
           merge-multiple: true
 
-      - name: Compare and summarize
+      - name: Compare
+        id: compare
         env:
-          BASELINE_REF: ${{ inputs.baseline_ref }}
-          CANDIDATE_REF: ${{ inputs.candidate_ref || github.ref_name }}
+          BASELINE_REF: ${{ needs.resolve.outputs.baseline_ref }}
+          CANDIDATE_LABEL: ${{ needs.resolve.outputs.candidate_label }}
+          RUN_RESULT: ${{ needs.run.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MODEL: ${{ needs.resolve.outputs.model }}
+          ATTEMPTS: ${{ needs.resolve.outputs.attempts }}
         run: |
           set -euo pipefail
-          ls jobs
-          PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
-            --baseline jobs/baseline --candidate jobs/candidate \
-            --labels "${BASELINE_REF}" "${CANDIDATE_REF}" \
-            --json-out comparison.json | tee -a "${GITHUB_STEP_SUMMARY}"
+          mkdir -p jobs/baseline jobs/candidate
+          {
+            PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+              --baseline jobs/baseline --candidate jobs/candidate \
+              --labels "${BASELINE_REF}" "${CANDIDATE_LABEL}" \
+              --json-out comparison.json
+            echo
+            echo "Model: \`${MODEL}\`, attempts per task: ${ATTEMPTS}, run jobs: ${RUN_RESULT}. [Workflow run](${RUN_URL})"
+          } | tee report.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Post comparison on the PR
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh pr comment "${PR_NUMBER}" -R "${GITHUB_REPOSITORY}" --body-file report.md
 
       - name: Upload comparison
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison
-          path: comparison.json
+          path: |
+            comparison.json
+            report.md
+          if-no-files-found: ignore

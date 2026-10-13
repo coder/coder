@@ -27,9 +27,17 @@ with different behavior than before?
 
 The GitHub workflow `eval/coder-agents` (`.github/workflows/eval-coder-agents.yaml`)
 builds coderd from `main` and from a candidate ref, runs the suite against
-each, and posts the comparison to the step summary. Trigger it manually;
-trials spend real model tokens. Set `candidate_ref` equal to `baseline_ref`
-once to measure the noise floor before trusting small deltas.
+each, and posts the comparison. Trials spend real model tokens, so it never
+runs automatically.
+
+- **On a PR:** comment `/coder-agents-eval`. The PR branch is the candidate,
+  `main` is the baseline, and the comparison is posted back as a PR comment.
+  Optional args on the same line: `model=`, `attempts=`, `concurrency=`,
+  `baseline=` (for example `/coder-agents-eval model=claude-sonnet-4-5 attempts=3`).
+  The commenter needs push access and the PR must be from this repository.
+- **Manually:** `workflow_dispatch` with the same options; the result goes to
+  the step summary. Set `candidate_ref` equal to `baseline_ref` once to
+  measure the noise floor before trusting small deltas.
 
 Model calls go through dogfood's AI gateway, authenticated with a Coder API
 key (`HARBOR_CODER_UPSTREAM_TOKEN`; the `EVAL_CODER_SESSION_TOKEN` secret in
