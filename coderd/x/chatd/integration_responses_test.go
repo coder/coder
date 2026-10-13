@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -233,6 +234,89 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	require.True(t, *followup.Store)
 	require.NotEmpty(t, followup.Prompt)
 	requirePromptItemReferenceOrder(t, followup.Prompt, reasoningID, webSearchID)
+}
+
+func TestOpenAIResponsesNarrationKeepsPhase(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var recorder responsesRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if recorder.record(req) > 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("follow-up answer")...)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAIChunk{Choices: []chattest.OpenAIChunkChoice{{Index: 0, Delta: "Checking the docs.", Phase: "commentary"}}},
+			chattest.OpenAIChunk{Choices: []chattest.OpenAIChunkChoice{{Index: 1, Delta: "The docs cover it.", Phase: "final_answer"}}},
+		)
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, true, false)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "narration"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("do the docs cover this?"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var assistant []codersdk.ChatMessagePart
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleAssistant {
+			assistant = append(assistant, db2sdk.ChatMessage(message).Content...)
+		}
+	}
+	narration := codersdk.ChatMessageText("Checking the docs.")
+	narration.Narration = true
+	require.Equal(t, []codersdk.ChatMessagePart{
+		narration,
+		codersdk.ChatMessageText("The docs cover it."),
+	}, assistant)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("thanks"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	requests := recorder.all()
+	require.Len(t, requests, 2)
+	var replayed [][2]any
+	for _, item := range requests[1].Prompt {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok || chattest.StringResponseField(itemMap, "role") != "assistant" {
+			continue
+		}
+		replayed = append(replayed, [2]any{itemMap["content"], itemMap["phase"]})
+	}
+	require.Equal(t, [][2]any{
+		{"Checking the docs.", "commentary"},
+		{"The docs cover it.", "final_answer"},
+	}, replayed)
 }
 
 type recordedResponsesRequest struct {

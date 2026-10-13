@@ -21,6 +21,7 @@ import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
 	MinimalUser,
+	Preset,
 	Workspace,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -41,6 +42,8 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
+
+const emptyPresets: readonly Preset[] = [];
 
 const CreateWorkspacePage: React.FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -112,7 +115,7 @@ const CreateWorkspacePage: React.FC = () => {
 
 	const effectivePresetName = mode === "duplicate" ? undefined : presetName;
 
-	const presets = templateVersionPresetsQuery.data ?? [];
+	const presets = templateVersionPresetsQuery.data ?? emptyPresets;
 
 	const urlPresetResult = useMemo(() => {
 		if (!effectivePresetName) return { preset: undefined, error: undefined };

@@ -1,0 +1,29 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.main" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_devcontainer.repo (expand)" [label = "coder_devcontainer.repo", shape = "box"]
+		"[root] coder_devcontainer.repo[0]" [label = "coder_devcontainer.repo", shape = "box"]
+		"[root] coder_devcontainer.repo[1]" [label = "coder_devcontainer.repo", shape = "box"]
+		"[root] coder_script.dependent" [label = "coder_script.dependent", shape = "box"]
+		"[root] coder_script.dependent (expand)" [label = "coder_script.dependent", shape = "box"]
+		"[root] coder_script.prerequisite" [label = "coder_script.prerequisite", shape = "box"]
+		"[root] coder_script.prerequisite (expand)" [label = "coder_script.prerequisite", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_agent.main" -> "[root] coder_agent.main (expand)"
+		"[root] coder_devcontainer.repo (expand)" -> "[root] coder_agent.main"
+		"[root] coder_devcontainer.repo[0]" -> "[root] coder_devcontainer.repo (expand)"
+		"[root] coder_devcontainer.repo[1]" -> "[root] coder_devcontainer.repo (expand)"
+		"[root] coder_script.dependent (expand)" -> "[root] coder_devcontainer.repo[1]"
+		"[root] coder_script.dependent" -> "[root] coder_script.dependent (expand)"
+		"[root] coder_script.prerequisite (expand)" -> "[root] coder_devcontainer.repo[1]"
+		"[root] coder_script.prerequisite" -> "[root] coder_script.prerequisite (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_devcontainer.repo[0]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.dependent"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.prerequisite"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+	}
+}
