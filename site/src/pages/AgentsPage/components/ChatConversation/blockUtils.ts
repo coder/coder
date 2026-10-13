@@ -51,48 +51,23 @@ export const appendTextBlock = (
 };
 
 /**
- * Moves each block of answer citations after the response text that follows
- * it, merging the text around it when appendTextBlock would. Citations arrive
- * while their text streams: persisted messages store them before that text,
- * and a live stream splits the text around them.
+ * Appends answer text before a trailing block of citations, so citations
+ * follow the text they cite. They arrive while that text streams: persisted
+ * messages store them before it, and a live stream splits it around them.
+ * Returns `blocks` unchanged when nothing is appended.
  */
-export const placeCitationsAfterText = (
-	blocks: readonly RenderBlock[],
+export const appendResponseText = (
+	blocks: RenderBlock[],
+	text: string,
+	narration = false,
 ): RenderBlock[] => {
-	const placed: RenderBlock[] = [];
-	for (const block of blocks) {
-		const last = placed[placed.length - 1];
-		if (block.type === "response" && last?.type === "sources") {
-			placed.pop();
-			const previous = placed[placed.length - 1];
-			const merges =
-				previous?.type === "response" &&
-				!previous.beforeProviderTool &&
-				(previous.narration ?? false) === (block.narration ?? false);
-			if (merges) {
-				placed[placed.length - 1] = {
-					...block,
-					text: `${previous.text}${block.text}`,
-				};
-			} else {
-				placed.push(block);
-			}
-			placed.push(last);
-			continue;
-		}
-		if (block.type === "sources" && last?.type === "sources") {
-			const sources = [...last.sources];
-			for (const source of block.sources) {
-				if (!sources.some(({ url }) => url === source.url)) {
-					sources.push(source);
-				}
-			}
-			placed[placed.length - 1] = { type: "sources", sources };
-			continue;
-		}
-		placed.push(block);
+	const last = blocks[blocks.length - 1];
+	if (last?.type !== "sources") {
+		return appendTextBlock(blocks, "response", text, narration);
 	}
-	return placed;
+	const head = blocks.slice(0, -1);
+	const appended = appendTextBlock(head, "response", text, narration);
+	return appended === head ? blocks : [...appended, last];
 };
 
 type ToolGroupRenderBlock = {
