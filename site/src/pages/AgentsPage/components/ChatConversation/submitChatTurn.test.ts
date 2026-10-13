@@ -18,6 +18,7 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore } from "./chatStore";
 import {
+	buildEditModelOverrides,
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
 	submitChatTurn,
@@ -59,6 +60,7 @@ const buildParams = (
 		effectiveReasoningEffort: undefined,
 		mcpServerIds: ["mcp-1"],
 		editMessage: vi.fn().mockResolvedValue(undefined),
+		saveQueuedMessage: vi.fn().mockResolvedValue(undefined),
 		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
@@ -75,6 +77,43 @@ const buildParams = (
 		...overrides,
 	};
 };
+
+describe("buildEditModelOverrides", () => {
+	it.each([
+		{
+			name: "omits the effort until the user changes it",
+			isReasoningEffortDirty: false,
+			want: { model_config_id: pickerModel.id, reasoning_effort: undefined },
+		},
+		{
+			name: "sends the effort once the user changed it",
+			isReasoningEffortDirty: true,
+			want: { model_config_id: pickerModel.id, reasoning_effort: "high" },
+		},
+	])("$name", ({ isReasoningEffortDirty, want }) => {
+		expect(
+			buildEditModelOverrides({
+				pickerModelConfigID: pickerModel.id,
+				originalModelConfigID: "stale-model",
+				modelOptions: [pickerModel],
+				reasoningEffort: "high",
+				isReasoningEffortDirty,
+			}),
+		).toEqual(want);
+	});
+
+	it("omits the model when the backend keeps a selectable original", () => {
+		expect(
+			buildEditModelOverrides({
+				pickerModelConfigID: originalModel.id,
+				originalModelConfigID: originalModel.id,
+				modelOptions: [originalModel],
+				reasoningEffort: "high",
+				isReasoningEffortDirty: false,
+			}),
+		).toEqual({ model_config_id: undefined, reasoning_effort: undefined });
+	});
+});
 
 describe("resolveEditModelConfigID", () => {
 	it("uses the picker when the original model is no longer available", () => {
@@ -264,6 +303,37 @@ describe("submitChatTurn", () => {
 		expect(store.getSnapshot().queuedMessages).toEqual(
 			queueUpdate ? updated : [queued],
 		);
+	});
+
+	it("saves a queued row with the marker cleared and makes no chat send", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.setQueuedMessages([
+			{ ...MockChatQueuedMessage, id: 7, model_config_id: "stale-model" },
+		]);
+		const saveQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn();
+		const sendMessage = vi.fn();
+
+		await submitChatTurn(
+			buildParams({
+				message: "new text",
+				editingTarget: { kind: "queued", id: 7 },
+				store,
+				saveQueuedMessage,
+				editMessage,
+				sendMessage,
+			}),
+		);
+
+		expect(saveQueuedMessage).toHaveBeenCalledWith(7, {
+			content: [{ type: "text", text: "new text" }],
+			model_config_id: pickerModel.id,
+			reasoning_effort: undefined,
+			editing: false,
+		});
+		expect(editMessage).not.toHaveBeenCalled();
+		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
 	it("omits reasoning effort on edit until the picker is dirty", async () => {
