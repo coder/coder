@@ -1282,6 +1282,25 @@ describe("useConversationEditingState", () => {
 			},
 		);
 
+		// The editor is empty after the send; the stored draft it started from
+		// is no longer what it holds.
+		it("after a new message is sent, the empty composer follows a newly marked row", async () => {
+			localStorage.setItem(expectedKey, "saved draft");
+			const { unmount, current, editorText, markOnServer, change } =
+				renderEditingWithEditor();
+			await change("typed");
+			await act(async () => {
+				await current().handleSendFromInput({ message: editorText() ?? "" });
+			});
+			expect(editorText()).toBe("");
+
+			await markOnServer(6, "other row");
+
+			expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
+			expect(editorText()).toBe("other row");
+			unmount();
+		});
+
 		// The text is unchanged, so only the file references tell the change.
 		it("a stored draft that loses one of its file references keeps it when another client begins an edit", async () => {
 			const first = renderEditingWithEditor();
