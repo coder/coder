@@ -138,10 +138,14 @@ type Server struct {
 	ToolAllowList []string
 	ToolDenyList  []string
 	ModelIntent   bool
-	// InProcess, when set, is an MCP server in this process. mcpclient
-	// connects to it over an in-memory transport and ignores URL,
-	// Transport, and Headers.
-	InProcess *mcp.Server
+}
+
+// InProcessServer is an MCP server in this process. mcpclient connects to
+// it over an in-memory transport.
+type InProcessServer struct {
+	ID     uuid.UUID
+	Slug   string
+	Server *mcp.Server
 }
 
 // Transport selects the MCP HTTP transport used to reach a Server.
@@ -271,6 +275,30 @@ func ConnectInline(
 	)
 }
 
+// ConnectInProcess connects to MCP servers in this process. They need no
+// HTTP client or auth headers. Their tool counts, tool definitions, and
+// tool results have their own size caps.
+func ConnectInProcess(
+	ctx context.Context,
+	logger slog.Logger,
+	servers []InProcessServer,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	converted := make([]Server, 0, len(servers))
+	inProcessServers := make(map[uuid.UUID]*mcp.Server, len(servers))
+	for _, srv := range servers {
+		converted = append(converted, Server{ID: srv.ID, Slug: srv.Slug})
+		inProcessServers[srv.ID] = srv.Server
+	}
+	return connectAllWithHooks(
+		ctx, logger, converted, nil, uuid.Nil, nil, nil,
+		connectOptions{
+			timeout:          connectTimeout,
+			kind:             connectionKindInProcess,
+			inProcessServers: inProcessServers,
+		},
+	)
+}
+
 // connectHooks carries test-only instrumentation for connect
 // internals. The zero value is used in production.
 type connectHooks struct {
@@ -289,15 +317,21 @@ const (
 	// connectionKindInline is a server declared inline on a chat by the
 	// chat owner. It is untrusted and subject to caps and redaction.
 	connectionKindInline
+	// connectionKindInProcess is a server in this process. It is subject
+	// to caps.
+	connectionKindInProcess
 )
 
 // connectOptions carries the per-connect settings shared by every
-// server in one ConnectAll or ConnectInline call.
+// server in one ConnectAll, ConnectInline, or ConnectInProcess call.
 type connectOptions struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	hooks      connectHooks
 	kind       connectionKind
+	// inProcessServers holds the MCP server for each Server ID of a
+	// ConnectInProcess call.
+	inProcessServers map[uuid.UUID]*mcp.Server
 }
 
 func connectAllWithHooks(
@@ -485,35 +519,43 @@ func connectOne(
 	opts connectOptions,
 	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
+	limits, capped := opts.kind.toolLimits()
+	var (
+		tr  mcp.Transport
+		err error
+	)
+	if opts.kind == connectionKindInProcess {
+		tr, err = inMemoryTransport(ctx, opts.inProcessServers[srv.ID])
+	} else {
+		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
-	// When opted-in, merge Coder identity headers BEFORE the
-	// transport is created so any auth header already set above
-	// wins on a conflict. Conflict detection uses
-	// http.CanonicalHeaderKey because the upstream transport applies
-	// http.Header.Set, which canonicalizes keys; without that, an
-	// admin-configured header that differs only in case from a Coder
-	// identity header would land in the request map twice and the
-	// surviving value would be non-deterministic.
-	if srv.ForwardCoderHeaders {
-		canonicalAuth := make(map[string]struct{}, len(headers))
-		for k := range headers {
-			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-		}
-		for k, v := range coderHeaders {
-			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-				continue
+		// When opted-in, merge Coder identity headers BEFORE the
+		// transport is created so any auth header already set above
+		// wins on a conflict. Conflict detection uses
+		// http.CanonicalHeaderKey because the upstream transport applies
+		// http.Header.Set, which canonicalizes keys; without that, an
+		// admin-configured header that differs only in case from a Coder
+		// identity header would land in the request map twice and the
+		// surviving value would be non-deterministic.
+		if srv.ForwardCoderHeaders {
+			canonicalAuth := make(map[string]struct{}, len(headers))
+			for k := range headers {
+				canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
 			}
-			headers[k] = v
+			for k, v := range coderHeaders {
+				if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+					continue
+				}
+				headers[k] = v
+			}
 		}
-	}
 
-	maxResultBytes, maxEventSize := 0, 0
-	if opts.kind == connectionKindInline {
-		maxResultBytes = maxInlineToolResultBytes
-		maxEventSize = maxInlineHTTPResponseBytes
+		maxEventSize := 0
+		if opts.kind == connectionKindInline {
+			maxEventSize = maxInlineHTTPResponseBytes
+		}
+		tr, err = createTransport(srv, headers, opts.httpClient, maxEventSize)
 	}
-	tr, err := createTransport(ctx, srv, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -606,12 +648,12 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, maxResultBytes),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes),
 		)
 	}
 
-	if opts.kind == connectionKindInline {
-		if err := validateInlineToolDefinitions(tools); err != nil {
+	if capped {
+		if err := validateToolDefinitions(tools, limits); err != nil {
 			go func() { _ = session.Close() }()
 			return nil, nil, err
 		}
@@ -639,15 +681,54 @@ const (
 	maxInlineToolResultBytes      = 256 << 10
 )
 
-// validateInlineToolDefinitions rejects a tool list that exceeds
-// the inline server count or size caps. Sizes are measured on the
-// redacted definitions the model sees. The whole server is skipped
-// rather than truncated so the model never sees a partial tool set.
-func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
-	if len(tools) > maxInlineTools {
+// Caps for in-process servers. Their tool definitions and tool results
+// also reach the model and the chat messages.
+const (
+	maxInProcessTools                = 64
+	maxInProcessToolDefinitionBytes  = 64 << 10
+	maxInProcessToolDefinitionsBytes = 256 << 10
+	maxInProcessToolResultBytes      = 256 << 10
+)
+
+// toolLimits are the caps on the tools of one server.
+type toolLimits struct {
+	tools            int
+	definitionBytes  int
+	definitionsBytes int
+	resultBytes      int
+}
+
+// toolLimits returns the caps for kind, and false when kind has none.
+func (kind connectionKind) toolLimits() (toolLimits, bool) {
+	switch kind {
+	case connectionKindInline:
+		return toolLimits{
+			tools:            maxInlineTools,
+			definitionBytes:  maxInlineToolDefinitionBytes,
+			definitionsBytes: maxInlineToolDefinitionsBytes,
+			resultBytes:      maxInlineToolResultBytes,
+		}, true
+	case connectionKindInProcess:
+		return toolLimits{
+			tools:            maxInProcessTools,
+			definitionBytes:  maxInProcessToolDefinitionBytes,
+			definitionsBytes: maxInProcessToolDefinitionsBytes,
+			resultBytes:      maxInProcessToolResultBytes,
+		}, true
+	default:
+		return toolLimits{}, false
+	}
+}
+
+// validateToolDefinitions rejects a tool list that exceeds the count or
+// size caps in limits. Sizes are measured on the redacted definitions the
+// model sees. The whole server is skipped rather than truncated so the
+// model never sees a partial tool set.
+func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error {
+	if len(tools) > limits.tools {
 		return xerrors.Errorf(
-			"inline MCP server returned %d tools, maximum is %d",
-			len(tools), maxInlineTools,
+			"MCP server returned %d tools, maximum is %d",
+			len(tools), limits.tools,
 		)
 	}
 
@@ -655,42 +736,43 @@ func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
 	for _, tool := range tools {
 		definition, err := json.Marshal(tool.Info())
 		if err != nil {
-			return xerrors.Errorf("marshal inline MCP tool definition: %w", err)
+			return xerrors.Errorf("marshal MCP tool definition: %w", err)
 		}
-		if len(definition) > maxInlineToolDefinitionBytes {
+		if len(definition) > limits.definitionBytes {
 			return xerrors.Errorf(
-				"inline MCP tool definition exceeds maximum size of %d bytes",
-				maxInlineToolDefinitionBytes,
+				"MCP tool definition exceeds maximum size of %d bytes",
+				limits.definitionBytes,
 			)
 		}
 		totalBytes += len(definition)
-		if totalBytes > maxInlineToolDefinitionsBytes {
+		if totalBytes > limits.definitionsBytes {
 			return xerrors.Errorf(
-				"inline MCP tool definitions exceed maximum total size of %d bytes",
-				maxInlineToolDefinitionsBytes,
+				"MCP tool definitions exceed maximum total size of %d bytes",
+				limits.definitionsBytes,
 			)
 		}
 	}
 	return nil
 }
 
+// inMemoryTransport connects srv to a new in-memory pipe and returns the
+// client end. The server session ends when the client session closes the
+// pipe. jsonrpc2 keeps ctx values for tool handlers but not its
+// cancellation.
+func inMemoryTransport(ctx context.Context, srv *mcp.Server) (mcp.Transport, error) {
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	if _, err := srv.Connect(ctx, serverTransport, nil); err != nil {
+		return nil, xerrors.Errorf("connect in-process server: %w", err)
+	}
+	return clientTransport, nil
+}
+
 func createTransport(
-	ctx context.Context,
 	srv Server,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
 	maxEventSize int,
 ) (mcp.Transport, error) {
-	if srv.InProcess != nil {
-		// The server session ends when the client session closes the
-		// pipe. jsonrpc2 keeps ctx values for tool handlers but not its
-		// cancellation.
-		serverTransport, clientTransport := mcp.NewInMemoryTransports()
-		if _, err := srv.InProcess.Connect(ctx, serverTransport, nil); err != nil {
-			return nil, xerrors.Errorf("connect in-process server: %w", err)
-		}
-		return clientTransport, nil
-	}
 	signingSecret := ""
 	if srv.ForwardCoderHeaders {
 		signingSecret = srv.SigningSecret
@@ -927,18 +1009,18 @@ type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
-// AppendInline appends inline tools to an existing tool
-// list. When an inline tool has the same name as an existing
-// tool, the existing tool wins and the inline one is dropped
-// with a warning: org-configured and built-in tools must never be
-// shadowed by an end-user-chosen server.
-func AppendInline(
+// AppendTools appends tools to an existing tool list. When a new
+// tool has the same name as an earlier tool, the earlier tool wins and
+// the new one is dropped with a warning. Callers append tool sources in
+// order of trust, so a less trusted server, such as an end-user-chosen
+// one, never shadows a more trusted tool.
+func AppendTools(
 	ctx context.Context,
 	logger slog.Logger,
 	tools []fantasy.AgentTool,
-	inline []fantasy.AgentTool,
+	newTools []fantasy.AgentTool,
 ) []fantasy.AgentTool {
-	if len(inline) == 0 {
+	if len(newTools) == 0 {
 		return tools
 	}
 	existing := make(map[string]struct{}, len(tools))
@@ -946,7 +1028,7 @@ func AppendInline(
 		existing[tool.Info().Name] = struct{}{}
 	}
 	out := slices.Clone(tools)
-	for _, tool := range inline {
+	for _, tool := range newTools {
 		name := tool.Info().Name
 		if _, ok := existing[name]; ok {
 			var configID uuid.UUID
@@ -954,7 +1036,7 @@ func AppendInline(
 				configID = ident.MCPServerConfigID()
 			}
 			logger.Warn(ctx,
-				"inline MCP tool name collides with an existing tool; inline tool dropped",
+				"tool name collides with an earlier tool; MCP tool dropped",
 				slog.F("tool_name", name),
 				slog.F("config_id", configID),
 			)

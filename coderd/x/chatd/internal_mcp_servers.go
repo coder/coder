@@ -55,9 +55,9 @@ func validateInternalMCPServers(servers []InternalMCPServer) error {
 // chat in this step. A server whose ServerForChat fails is skipped and
 // returned as a failed ConnectSummary. The summary text is fixed so error
 // detail never reaches viewer-visible data.
-func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary) {
+func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, []mcpclient.ConnectSummary) {
 	var (
-		servers  []mcpclient.Server
+		servers  []mcpclient.InProcessServer
 		failures []mcpclient.ConnectSummary
 	)
 	for _, internal := range server.internalMCPServers {
@@ -76,10 +76,10 @@ func (server *Server) internalMCPServersForChat(ctx context.Context, chat databa
 		if mcpServer == nil {
 			continue
 		}
-		servers = append(servers, mcpclient.Server{
-			ID:        internal.id(),
-			Slug:      internal.Slug,
-			InProcess: mcpServer,
+		servers = append(servers, mcpclient.InProcessServer{
+			ID:     internal.id(),
+			Slug:   internal.Slug,
+			Server: mcpServer,
 		})
 	}
 	return servers, failures

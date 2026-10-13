@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -80,33 +79,6 @@ func TestConnectInline_Connects(t *testing.T) {
 	for _, h := range *recorded {
 		require.Equal(t, "secret", h.Get("X-Bot-Key"))
 	}
-}
-
-func TestConnectInline_InProcess(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-	srv := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
-	echo := echoTool()
-	srv.AddTool(echo.tool, echo.handler)
-	cfg := mcpclient.Server{ID: uuid.New(), Slug: "bot", InProcess: srv}
-
-	tools, summaries, cleanup := mcpclient.ConnectInline(ctx, logger, []mcpclient.Server{cfg}, nil, nil)
-
-	require.Len(t, summaries, 1)
-	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
-	require.Equal(t, []string{"bot__echo"}, toolNames(tools))
-	require.Len(t, slices.Collect(srv.Sessions()), 1)
-
-	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "bot__echo", Input: `{"input":"hi"}`})
-	require.NoError(t, err)
-	require.Equal(t, "echo: hi", resp.Content)
-
-	cleanup()
-	require.Eventually(t, func() bool {
-		return len(slices.Collect(srv.Sessions())) == 0
-	}, testutil.WaitShort, testutil.IntervalFast, "closing the client must end the server session")
 }
 
 func TestConnectInline_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
@@ -578,7 +550,7 @@ func (*stubTool) ProviderOptions() fantasy.ProviderOptions   { return nil }
 func (*stubTool) SetProviderOptions(fantasy.ProviderOptions) {}
 func (s *stubTool) MCPServerConfigID() uuid.UUID             { return s.configID }
 
-func TestAppendInline_ExistingToolsWin(t *testing.T) {
+func TestAppendTools_ExistingToolsWin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -588,7 +560,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	bPrime := &stubTool{name: "b", configID: uuid.New()}
 	c := &stubTool{name: "c", configID: uuid.New()}
 
-	got := mcpclient.AppendInline(ctx, logger,
+	got := mcpclient.AppendTools(ctx, logger,
 		[]fantasy.AgentTool{a, b},
 		[]fantasy.AgentTool{bPrime, c},
 	)
@@ -598,7 +570,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	require.Same(t, c, got[2])
 
 	orig := []fantasy.AgentTool{a}
-	require.Equal(t, orig, mcpclient.AppendInline(ctx, logger, orig, nil))
+	require.Equal(t, orig, mcpclient.AppendTools(ctx, logger, orig, nil))
 }
 
 func TestOrgConnectHasNoCaps(t *testing.T) {
