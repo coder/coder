@@ -34,6 +34,7 @@ import {
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	applyWatchedChatProjectDeleted,
 	archiveAndDeleteChat,
 	archiveChat,
 	type ChatListInput,
@@ -65,8 +66,10 @@ import {
 	chatModelACLKey,
 	chatModelKey,
 	chatProjectListFamilyKey,
+	chatProjectsKey,
 	chatPromptsKey,
 	chatSearch,
+	chatSearchFamilyKey,
 	chatsByWorkspace,
 	createChat,
 	createChatMessage,
@@ -4648,6 +4651,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
+			project_deleted: false,
 			diff_status_change: false,
 			status_change: true,
 			summary_change: false,
@@ -4727,6 +4731,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
+			project_deleted: false,
 			diff_status_change: true,
 			status_change: true,
 			summary_change: false,
@@ -5474,6 +5479,101 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 				`${label} entry should NOT be invalidated`,
 			).not.toBe(true);
 		}
+	});
+});
+
+describe("applyWatchedChatProjectDeleted", () => {
+	it("evicts the chat from every list, archived ones included", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatProjectsKey, []);
+		const chatId = "chat-1";
+		const other = makeChat("chat-2");
+		seedInfiniteChats(queryClient, [makeChat(chatId), other]);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })], {
+			archived: true,
+		});
+		queryClient.setQueryData<InfiniteData>(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId), other]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
+
+		applyWatchedChatProjectDeleted(queryClient, chatId);
+
+		expect(readInfiniteChats(queryClient)?.map((c) => c.id)).toEqual([
+			other.id,
+		]);
+		expect(readInfiniteChats(queryClient, { archived: true })).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages.flat()
+				.map((c) => c.id),
+		).toEqual([other.id]);
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
+		expect(queryClient.getQueryState(chatProjectsKey)?.isInvalidated).toBe(
+			true,
+		);
+	});
+
+	it.each([
+		["project list", chatProjectsKey],
+		["chat list", [...chatListFamilyKey, "burst"]],
+		["chat search", [...chatSearchFamilyKey, "burst"]],
+	])("refetches the %s once for a burst of events", async (_, queryKey) => {
+		const queryClient = createTestQueryClient();
+		let fetches = 0;
+		const refetch = createDeferred<unknown[]>();
+		const observer = new QueryObserver(queryClient, {
+			queryKey,
+			queryFn: () => {
+				fetches++;
+				return fetches === 1 ? [] : refetch.promise;
+			},
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isSuccess).toBe(true),
+		);
+
+		for (const chatId of ["chat-1", "chat-2", "chat-3"]) {
+			applyWatchedChatProjectDeleted(queryClient, chatId);
+		}
+		refetch.resolve([]);
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isFetching).toBe(false),
+		);
+
+		expect(fetches).toBe(2);
+		unsubscribe();
+	});
+
+	it("drops a first entity fetch that started before the delete", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const first = createDeferred<TypesGen.Chat>();
+		let fetches = 0;
+		const observer = new QueryObserver<TypesGen.Chat>(queryClient, {
+			queryKey: chatEntityKey(chatId),
+			queryFn: () => {
+				fetches++;
+				return fetches === 1
+					? first.promise
+					: Promise.reject(new Error("not found"));
+			},
+			retry: false,
+		});
+		const unsubscribe = observer.subscribe(() => {});
+
+		applyWatchedChatProjectDeleted(queryClient, chatId);
+		first.resolve(makeChat(chatId));
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isError).toBe(true),
+		);
+
+		expect(fetches).toBe(2);
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
+		unsubscribe();
 	});
 });
 

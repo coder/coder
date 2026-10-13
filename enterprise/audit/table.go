@@ -514,6 +514,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":      ActionIgnore,
 		"user_acl":        ActionTrack,
 		"group_acl":       ActionTrack,
+		"deleted":         ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,

@@ -2,9 +2,12 @@ package httpmw
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -41,6 +44,23 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 					Detail:  err.Error(),
 				})
 				return
+			}
+			// GetChatProjectByID returns no rows for a deleted project. A deleted
+			// project's chats keep their rows until chat retention removes them.
+			if chat.ProjectID.Valid {
+				//nolint:gocritic // The caller may not be able to read the project; only whether it is deleted is used.
+				_, err := db.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
+				if errors.Is(err, sql.ErrNoRows) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Internal error fetching chat project.",
+						Detail:  err.Error(),
+					})
+					return
+				}
 			}
 
 			ctx = context.WithValue(ctx, chatParamContextKey{}, chat)

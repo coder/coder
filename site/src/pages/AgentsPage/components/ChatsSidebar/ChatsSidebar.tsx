@@ -345,7 +345,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Its memories will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
+				info="Every chat in this project, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

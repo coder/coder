@@ -20,6 +20,7 @@ import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	applyWatchedChatProjectDeleted,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
@@ -343,12 +344,16 @@ const AgentsPageLayout: React.FC = () => {
 						);
 					}
 
+					if (chatEvent.kind === "project_deleted") {
+						applyWatchedChatProjectDeleted(queryClient, updatedChat.id);
+						return;
+					}
 					if (chatEvent.kind === "deleted") {
-						// The server publishes `deleted` when a chat is
-						// archived (one event per family member); there is
-						// no hard-delete wire event. Patch archive state in
-						// place so an open route stays mounted and flips to
-						// its read-only state.
+						// The server publishes `deleted` when a user or
+						// auto-archive archives a chat (one event per family
+						// member); a project delete sends `project_deleted`.
+						// Patch archive state in place so an open route stays
+						// mounted and flips to its read-only state.
 						applyWatchedChatArchived(queryClient, updatedChat);
 						return;
 					}

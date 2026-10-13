@@ -266,20 +266,22 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 		starter = newRecordingTaskStarter()
 	}
 	return chatWorkerOptions{
-		WorkerID:                   uuid.New(),
-		Store:                      f.db,
-		Pubsub:                     f.pubsub,
-		Logger:                     testutil.Logger(t),
-		TaskStarter:                starter,
-		AcquisitionInterval:        time.Hour,
-		AcquisitionBatchSize:       10,
-		RunnerSyncInterval:         time.Hour,
-		HeartbeatInterval:          time.Hour,
-		HeartbeatCleanupInterval:   time.Hour,
-		HeartbeatStaleSeconds:      30,
-		StateChannelSize:           16,
-		RunnerManagerChannelSize:   16,
-		AcquisitionWakeChannelSize: 1,
+		WorkerID:                 uuid.New(),
+		Store:                    f.db,
+		Pubsub:                   f.pubsub,
+		Logger:                   testutil.Logger(t),
+		TaskStarter:              starter,
+		AcquisitionInterval:      time.Hour,
+		AcquisitionBatchSize:     10,
+		RunnerSyncInterval:       time.Hour,
+		HeartbeatInterval:        time.Hour,
+		HeartbeatCleanupInterval: time.Hour,
+		HeartbeatStaleSeconds:    30,
+		// The sweep's ticker would otherwise cap mock clock advances.
+		DeletedChatProjectSweepInterval: time.Hour,
+		StateChannelSize:                16,
+		RunnerManagerChannelSize:        16,
+		AcquisitionWakeChannelSize:      1,
 	}
 }
 

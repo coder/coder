@@ -21,8 +21,9 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID    uuid.UUID
-	OwnerID           uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	// Ignored for sub-chats; the insert trigger sets their root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -71,6 +72,9 @@ type CreateChatResult struct {
 //   - When RootChatID is set, the root chat must exist and must not be
 //     archived; otherwise CreateChat returns [ErrChatNotFound] or
 //     [ErrChatFamilyArchived].
+//   - When RootChatID is unset and ProjectID is set, the project must
+//     exist and must not be deleted; otherwise CreateChat returns
+//     [ErrChatProjectNotFound].
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -148,6 +152,17 @@ func insertChat(
 			}
 			if root.Archived {
 				return ErrChatFamilyArchived
+			}
+			// No project lock: the project cleanup locks this root FOR
+			// UPDATE, so it either archived the root first (refused above)
+			// or archives this child after commit.
+		} else if input.ProjectID.Valid {
+			// Held until commit; see GetChatProjectByIDForShare.
+			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatProjectNotFound
+				}
+				return xerrors.Errorf("lock chat project: %w", err)
 			}
 		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{

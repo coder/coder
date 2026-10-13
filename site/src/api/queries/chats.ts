@@ -46,6 +46,8 @@ const chatsByWorkspaceFamilyKey = [
 
 export const chatEntitiesFamilyKey = ["chats", "entities"] as const;
 
+export const chatProjectsKey = ["chat-projects"] as const;
+
 export const chatEntityKey = (chatId: string) =>
 	[...chatEntitiesFamilyKey, chatId] as const;
 
@@ -552,6 +554,43 @@ export const applyWatchedChatArchived = (
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
+};
+
+/**
+ * Evicts the chat from every list, archived lists included, and resets its
+ * entity so an open route refetches and gets 404.
+ */
+export const applyWatchedChatProjectDeleted = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	removeChildFromParentInCache(queryClient, chatId);
+	const withoutChat = (page: TypesGen.Chat[]) => {
+		const next = page.filter((row) => row.id !== chatId);
+		return next.length === page.length ? page : next;
+	};
+	updateInfiniteChatsCache(queryClient, withoutChat);
+	queryClient.setQueriesData<TypesGen.Chat[]>(
+		{ queryKey: chatSearchFamilyKey },
+		(prev) => (prev ? withoutChat(prev) : prev),
+	);
+	removeChatFromChatsByWorkspace(queryClient, chatId);
+	// Invalidating would keep the cached chat when the refetch 404s.
+	void queryClient.resetQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
+	// A project delete sends one event per chat, so in-flight refetches,
+	// which already exclude these chats, are kept.
+	for (const queryKey of [
+		chatListFamilyKey,
+		chatProjectListFamilyKey,
+		chatsByWorkspaceFamilyKey,
+		chatSearchFamilyKey,
+		chatProjectsKey,
+	]) {
+		void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+	}
 };
 
 /**

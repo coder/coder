@@ -49,6 +49,24 @@ func TestAuditLogIsResourceDeleted(t *testing.T) {
 			require.Equal(t, tc.wantDeleted, deleted)
 		})
 	}
+
+	t.Run("DeletedProject", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		chatID := uuid.New()
+		projectID := uuid.New()
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).
+			Return(database.Chat{ID: chatID, ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}}, nil)
+		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{}, sql.ErrNoRows)
+
+		api := &API{
+			Options: &Options{Database: db, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})},
+		}
+		require.True(t, api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{
+			AuditLog: database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: chatID},
+		}), "a deleted project's chats are gone")
+	})
 }
 
 func TestAuditLogDescription(t *testing.T) {

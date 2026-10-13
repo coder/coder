@@ -255,7 +255,9 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	err := api.Database.DeleteChatProjectByID(ctx, project.ID)
+	// Only the tombstone runs in the request, so the delete cannot fail on
+	// chat locks.
+	_, err := api.Database.UpdateChatProjectDeletedByID(ctx, project.ID)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -266,6 +268,9 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	if api.chatDaemon != nil {
+		api.chatDaemon.ScheduleDeletedChatProjectCleanup(ctx, project.ID)
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }

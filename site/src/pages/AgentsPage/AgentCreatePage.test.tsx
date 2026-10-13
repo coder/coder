@@ -12,7 +12,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
+import { chatProjectsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
