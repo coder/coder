@@ -29,11 +29,15 @@ const (
 	// once per day, so hourly runs are more than enough to keep up
 	// while still catching chats that cross the threshold shortly
 	// after midnight.
-	defaultArchiveInterval         = time.Hour
-	defaultArchiveBatchSize        = int32(1000)
-	defaultStateChannelSize        = 64
-	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
-	defaultTaskRetryMaxBackoff     = 5 * time.Second
+	defaultArchiveInterval  = time.Hour
+	defaultArchiveBatchSize = int32(1000)
+	// The delete request schedules its own cleanup, so the sweep only
+	// catches cleanups that did not run or failed.
+	defaultDeletedChatProjectSweepInterval  = time.Minute
+	defaultDeletedChatProjectSweepBatchSize = int32(100)
+	defaultStateChannelSize                 = 64
+	defaultTaskRetryInitialBackoff          = 100 * time.Millisecond
+	defaultTaskRetryMaxBackoff              = 5 * time.Second
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -244,15 +248,19 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval      time.Duration
-	CapacityMetricsInterval  time.Duration
-	AcquisitionBatchSize     int32
-	ArchiveInterval          time.Duration
-	ArchiveBatchSize         int32
-	RunnerSyncInterval       time.Duration
-	HeartbeatInterval        time.Duration
-	HeartbeatCleanupInterval time.Duration
-	HeartbeatStaleSeconds    int32
+	AcquisitionInterval     time.Duration
+	CapacityMetricsInterval time.Duration
+	AcquisitionBatchSize    int32
+	ArchiveInterval         time.Duration
+	ArchiveBatchSize        int32
+	// DeletedChatProjectSweepInterval and DeletedChatProjectSweepBatchSize
+	// pace the sweep that archives the chats of deleted projects.
+	DeletedChatProjectSweepInterval  time.Duration
+	DeletedChatProjectSweepBatchSize int32
+	RunnerSyncInterval               time.Duration
+	HeartbeatInterval                time.Duration
+	HeartbeatCleanupInterval         time.Duration
+	HeartbeatStaleSeconds            int32
 	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
 	// stay well below the stale threshold so a slow tick fails and
 	// retries instead of letting every lease go stale.
@@ -297,6 +305,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.ArchiveBatchSize <= 0 {
 		o.ArchiveBatchSize = defaultArchiveBatchSize
+	}
+	if o.DeletedChatProjectSweepInterval <= 0 {
+		o.DeletedChatProjectSweepInterval = defaultDeletedChatProjectSweepInterval
+	}
+	if o.DeletedChatProjectSweepBatchSize <= 0 {
+		o.DeletedChatProjectSweepBatchSize = defaultDeletedChatProjectSweepBatchSize
 	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()

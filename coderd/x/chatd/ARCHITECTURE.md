@@ -482,6 +482,8 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
+Unarchiving a family whose root is in a deleted project fails as not found. Deleting a project archives its chats from any execution state outside this endpoint; see [Project deletion](#project-deletion).
+
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
 ### `POST /api/v2/chats/{chat}/messages`
@@ -1015,6 +1017,14 @@ Root chats in a project share durable memory; other chats have none. The agent s
 A project owner can share a project with users, groups, or the Everyone group, whose ID is the organization ID. The `use` role lets a sharee view the project and its memories and start chats in it; the `admin` role also lets them edit the project and its memories directly and change its ACL. Project responses carry the caller's `permissions` (update, delete, share), counting role grants, so clients hide actions that would fail. No ACL role can delete the project; its owner and administrators whose roles hold `chat_project` delete can. Sharing a project does not share the chats in it: each chat stays private to whoever started it.
 
 A `use` sharee cannot change memories over HTTP, but the agents in their chats can, because memory tools run as chatd. That makes `ChatProjectUsableBy` the only gate on agent memory access. It allows the project owner, or a user whose ACL entry grants read directly, through a group, or through the Everyone group. Role grants, such as an administrator's, do not count, so an administrator cannot bind a chat to a project that was not shared with them. Sharing itself is plain RBAC, so an administrator whose role holds `share` can still grant a group they belong to; keeping access control simple was preferred over closing that path. Chat creation checks `ChatProjectUsableBy` before binding a chat to a project, and `resolveProjectMemory` checks it again for the chat owner at every generation. A chat whose owner lost the share, or any chat not owned by the project owner while `--disable-chat-sharing` is set, keeps its project binding but runs without memory, starting with its next turn.
+
+###### Project deletion
+
+Deleting a project only tombstones it in the request: `UpdateChatProjectDeletedByID` sets `chat_projects.deleted` as the caller (the delete authorization check), and the API audits each root chat as deleted. Its row lock waits for root chat creations holding the project `FOR SHARE`, and later ones fail with `ErrChatProjectNotFound`. The request takes no chat locks, so it cannot fail on them. From then on chat lists, `ExtractChatParam`, and file download hide the project's chats, and `SetFamilyArchived` refuses to unarchive them, but chats already running finish their current turn.
+
+The handler then calls `Server.ScheduleDeletedChatProjectCleanup`, which runs `chatstate.ArchiveDeletedChatProject` in the background. In one transaction it locks the project's root chats, which waits for sub-chat creations holding a root `FOR SHARE`, moves every unarchived chat in the project from any execution state to XW (XE0 from error) with no worker or runner, and clears their queues. This is the one archive outside the `SetArchived` transitions above. It publishes a `chat:update` per chat after commit, so runners stop at once; after a failed publish, returned as `ErrChatUpdatePublishFailed`, they stop at their next heartbeat renewal because the chat no longer names their runner. It then publishes a `removed` watch event per chat and schedules their debug-data cleanup. A cleanup that fails, for example on a deadlock with a chat purge, or that never ran because the replica stopped, is retried by each worker's sweep, which every minute picks up deleted projects with unarchived chats (`GetDeletedChatProjectIDsWithUnarchivedChats`).
+
+Sub-chats carry their root's `project_id`, set by an insert trigger, so project membership is that column alone, and it survives retention deleting a root before its sub-chats. Archived chats follow chat retention like any others (never while chat retention is 0), and dbpurge deletes the project row, and its memories by cascade, once none are left.
 
 ##### Reasoning effort
 

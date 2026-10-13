@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -255,7 +256,10 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	err := api.Database.DeleteChatProjectByID(ctx, project.ID)
+	// Only the tombstone runs in the request, so the delete cannot fail on
+	// chat locks. The project's chats are hidden from now on, and the
+	// cleanup archives them.
+	err := api.Database.UpdateChatProjectDeletedByID(ctx, project.ID)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -267,7 +271,43 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	api.auditChatProjectChatDeletes(ctx, r, project)
+	if api.chatDaemon != nil {
+		api.chatDaemon.ScheduleDeletedChatProjectCleanup(ctx, project.ID)
+	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// auditChatProjectChatDeletes audits the project's root chats as deleted.
+// No root chat can join the project once the tombstone commits.
+func (api *API) auditChatProjectChatDeletes(ctx context.Context, r *http.Request, project database.ChatProject) {
+	//nolint:gocritic // Sharees own some of the chats.
+	chats, err := api.Database.GetChatsByProjectID(dbauthz.AsChatd(ctx), project.ID)
+	if err != nil {
+		api.Logger.Warn(ctx, "list deleted chat project chats for audit failed",
+			slog.F("project_id", project.ID), slog.Error(err))
+		return
+	}
+	apiKey := httpmw.APIKey(r)
+	auditor := api.Auditor.Load()
+	auditCtx := context.WithoutCancel(ctx)
+	for _, chat := range chats {
+		if chat.IsSubChat() {
+			continue
+		}
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			RequestID:      httpmw.RequestID(r),
+			Status:         http.StatusNoContent,
+			Action:         database.AuditActionDelete,
+			OrganizationID: project.OrganizationID,
+			IP:             r.RemoteAddr,
+			UserAgent:      r.UserAgent(),
+			Old:            chat,
+		})
+	}
 }
 
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {

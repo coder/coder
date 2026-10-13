@@ -48,6 +48,9 @@ const (
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// Each deleted project cascades up to chattool.MaxMemories memories of
+	// up to chattool.MaxMemoryBodyBytes, so the batch stays small.
+	deletedChatProjectsBatchSize = 100
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
@@ -325,6 +328,12 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to purge chats: %w", err)
 			}
 		}
+		// Runs after the chat purge so a project whose last archived chats
+		// just aged out goes in the same tick.
+		purgedDeletedChatProjects, err := tx.DeleteEmptyDeletedChatProjects(ctx, deletedChatProjectsBatchSize)
+		if err != nil {
+			return xerrors.Errorf("failed to delete chat projects marked deleted with no chats left: %w", err)
+		}
 		if purgeChatDebugRuns && chatDebugRetentionDays > 0 {
 			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
 			// updated_at is the retention clock, so the window starts after
@@ -390,6 +399,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("boundary_sessions", purgedBoundarySessions),
 			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
 			slog.F("chats", purgedChats),
+			slog.F("deleted_chat_projects", purgedDeletedChatProjects),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
@@ -406,6 +416,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
 			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("deleted_chat_projects").Add(float64(purgedDeletedChatProjects))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}

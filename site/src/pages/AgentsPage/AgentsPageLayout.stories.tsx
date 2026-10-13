@@ -912,6 +912,30 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
+export const RemovedWatchEventRemovesOpenChat: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats")
+			.mockResolvedValueOnce([watchedChat()])
+			.mockResolvedValue([]);
+		spyOn(API.experimental, "getChat").mockRejectedValue(
+			mockApiError({ message: "Resource not found." }),
+		);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("removed", watchedChat()),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			if (canvas.queryByText("Watched agent")) {
+				throw new Error("removed chat is still shown");
+			}
+		});
+	},
+};
+
 export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
