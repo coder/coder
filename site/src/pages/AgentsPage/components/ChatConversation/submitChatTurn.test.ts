@@ -11,7 +11,6 @@ import type {
 	ChatMessage,
 	ChatQueuedMessage,
 	ChatStatus,
-	ChatStreamCheckpoint,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
@@ -92,18 +91,10 @@ const seededStore = (
 		queued_messages: [],
 		has_more: false,
 		snapshot_version: 1,
-		turn: { status },
 	});
+	store.applyServerChatStatus(status);
 	return store;
 };
-
-const checkpoint = (
-	snapshotVersion: number,
-	status: ChatStatus = "waiting",
-): ChatStreamCheckpoint => ({
-	snapshot_version: snapshotVersion,
-	turn: { status },
-});
 
 const visibleTexts = (store: ReturnType<typeof createChatStore>) => {
 	const state = store.getSnapshot();
@@ -244,7 +235,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("shows a compaction as running from submit until the next checkpoint", async () => {
+	it("shows a compaction as running from submit until the next status", async () => {
 		const store = seededStore([]);
 		let resolveCompact: () => void = () => {};
 		const compact = vi.fn(
@@ -262,7 +253,7 @@ describe("submitChatTurn", () => {
 		resolveCompact();
 		await submitted;
 		expect(selectChatStatus(store.getSnapshot())).toBe("running");
-		store.applyCheckpoint(checkpoint(2));
+		store.applyServerChatStatus("waiting");
 		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 	});
 
@@ -375,8 +366,8 @@ describe("submitChatTurn", () => {
 
 		resolveEdit();
 		await submitted;
-		// A sync without a history reset ends only the pending turn.
-		store.applyCheckpoint(checkpoint(2, "running"));
+		// A status ends only the pending turn.
+		store.applyServerChatStatus("running");
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
 
@@ -384,11 +375,7 @@ describe("submitChatTurn", () => {
 			store.resetHistoryFrom(3);
 			store.upsertDurableMessages([textMessage(9, "user", "new")]);
 			store.setQueuedMessages([]);
-			store.applyCheckpoint(checkpoint(3, "running"), {
-				historyReset: true,
-				userMessage: true,
-				queueUpdate: true,
-			});
+			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(store.getSnapshot().pendingActions).toEqual([]);
@@ -464,7 +451,7 @@ describe("submitChatTurn", () => {
 
 		store.batch(() => {
 			store.upsertDurableMessages([textMessage(9, "user", "hello")]);
-			store.applyCheckpoint(checkpoint(2, "running"), { userMessage: true });
+			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 		expect(store.getSnapshot().pendingActions).toEqual([]);
@@ -475,7 +462,7 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn(async () => {
 			store.batch(() => {
 				store.upsertDurableMessages([textMessage(9, "user", "hello")]);
-				store.applyCheckpoint(checkpoint(2, "running"), { userMessage: true });
+				store.applyServerChatStatus("running");
 			});
 			return { queued: false };
 		});
@@ -501,7 +488,7 @@ describe("submitChatTurn", () => {
 
 		store.batch(() => {
 			store.setQueuedMessages([queued]);
-			store.applyCheckpoint(checkpoint(2, "running"), { queueUpdate: true });
+			store.applyServerChatStatus("running");
 		});
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
 		expect(store.getSnapshot().pendingActions).toEqual([]);

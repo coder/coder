@@ -1405,10 +1405,7 @@ export const WithMessageHistory: Story = {
 		store.batch(() => {
 			store.resetHistoryFrom(5);
 			store.upsertDurableMessages([{ ...edited, id: 7 }]);
-			store.applyCheckpoint(
-				{ snapshot_version: 2, turn: { status: "waiting" } },
-				{ historyReset: true, userMessage: true },
-			);
+			store.applyServerChatStatus("waiting");
 		});
 		await canvas.findByTestId("chat-message-message:7");
 
@@ -3133,7 +3130,6 @@ const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
 		},
 	],
 	has_more: false,
-	turn: { status: "error" },
 };
 
 export const QueuedSendPromotesPreviousHead: Story = {
@@ -3153,6 +3149,8 @@ export const QueuedSendPromotesPreviousHead: Story = {
 		).mockResolvedValue({ queued: true });
 
 		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
+		// The stream reports the chat's status on connect.
+		loadedChatStore(CHAT_ID)?.applyServerChatStatus("error");
 
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);

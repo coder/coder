@@ -1,11 +1,7 @@
 import isEqual from "lodash/isEqual";
 import { useSyncExternalStore } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-	normalizeChatErrorPayload,
-} from "./chatError";
+import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -64,12 +60,12 @@ const chatQueuedMessagesEqualByID = (
 
 const retryStatesEqual = (
 	left: RetryState | null,
-	right: RetryState | null,
+	right: RetryState,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!left) {
 		return false;
 	}
 	return (
@@ -98,28 +94,6 @@ const reconnectStatesEqual = (
 	);
 };
 
-const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
-	attempt: Math.max(1, retry.attempt),
-	error: retry.error.trim() || "Retrying request shortly.",
-	kind: retry.kind ?? "generic",
-	provider: retry.provider?.trim() || undefined,
-	retryingAt: retry.retrying_at.trim() || undefined,
-});
-
-const turnState = (
-	turn: TypesGen.ChatStreamTurn | undefined,
-): Pick<ChatStoreState, "chatStatus" | "turnError" | "retryState"> => ({
-	chatStatus: turn?.status ?? null,
-	turnError:
-		turn?.status === "error"
-			? (normalizeChatErrorPayload(turn.error) ?? {
-					kind: "generic",
-					message: "Chat processing failed.",
-				})
-			: null,
-	retryState: turn?.retry ? normalizeRetryState(turn.retry) : null,
-});
-
 /**
  * Whether the agent's turn is still in progress. `requires_action` counts:
  * the server is blocked on a client-executed tool call and accepts an
@@ -143,13 +117,6 @@ export type PendingAction =
 	| { kind: "promoteQueued"; queuedMessageID: number }
 	| { kind: "compact" };
 
-/** The kinds of update an applied sync contained, besides its checkpoint. */
-export type SyncedUpdates = {
-	userMessage?: boolean;
-	queueUpdate?: boolean;
-	historyReset?: boolean;
-};
-
 type QueueEdit = (
 	rows: readonly TypesGen.ChatQueuedMessage[],
 ) => readonly TypesGen.ChatQueuedMessage[];
@@ -168,9 +135,11 @@ type PendingEntry = {
 	queue?: QueueEdit;
 	// The history from an edited message on, replaced by a history reset.
 	history?: { fromID: number; draft?: TypesGen.ChatMessage };
-	// Replaced by every checkpoint.
+	// Replaced by the next status.
 	turn?: TypesGen.ChatStatus;
 };
+
+type PendingPart = Exclude<keyof PendingEntry, "id">;
 
 /** Progress of loading a store's newest messages page. */
 export type ChatStoreLoad =
@@ -226,18 +195,20 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	// Ends every pending part that the sync's checkpoint or updates replace.
-	applyCheckpoint: (
-		checkpoint: TypesGen.ChatStreamCheckpoint,
-		updates?: SyncedUpdates,
-	) => void;
-	// The snapshot version of the last applied page or checkpoint.
+	// Applies a status event; error lasts while it is error, retry while it
+	// is running.
+	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
+	setTurnError: (reason: ChatDetailError) => void;
+	// The highest snapshot version of the newest page and the applied events.
 	getSyncedSnapshotVersion: () => number;
+	advanceSnapshotVersion: (version: number) => void;
 	addPendingAction: (action: PendingAction) => number;
 	removePendingAction: (id: number) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
+	setRetryState: (state: RetryState) => void;
+	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState) => void;
 	clearReconnectState: () => void;
 	clearStreamState: () => void;
@@ -313,6 +284,15 @@ export const createChatStore = (): ChatStore => {
 		} else {
 			emit();
 		}
+	};
+
+	const endPending = (parts: readonly PendingPart[]): void => {
+		setState((current) => {
+			const pendingActions = endPendingParts(current.pendingActions, parts);
+			return arraysEqual(pendingActions, current.pendingActions)
+				? current
+				: { ...current, pendingActions };
+		});
 	};
 
 	const replaceMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
@@ -453,17 +433,27 @@ export const createChatStore = (): ChatStore => {
 		batch,
 		replaceMessages,
 		upsertDurableMessage,
-		upsertDurableMessages,
+		upsertDurableMessages: (messages) => {
+			batch(() => {
+				upsertDurableMessages(messages);
+				if (messages.some((message) => message.role === "user")) {
+					endPending(["message"]);
+				}
+			});
+		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
-			setState((current) => {
-				if (
-					chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
-				) {
-					return current;
-				}
-				return { ...current, queuedMessages };
+			batch(() => {
+				setState((current) => {
+					if (
+						chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
+					) {
+						return current;
+					}
+					return { ...current, queuedMessages };
+				});
+				endPending(["message", "queue"]);
 			});
 		},
 		seed: (page) => {
@@ -476,7 +466,6 @@ export const createChatStore = (): ChatStore => {
 				messagesByID: buildMessageMap(page.messages),
 				orderedMessageIDs: buildOrderedMessageIDs(page.messages),
 				queuedMessages: page.queued_messages,
-				...turnState(page.turn),
 				hasMoreMessages: page.has_more,
 				load: { status: "loaded" },
 			}));
@@ -507,11 +496,14 @@ export const createChatStore = (): ChatStore => {
 		},
 		resetHistoryFrom: (fromID) => {
 			historyResets++;
-			replaceMessages(
-				[...state.messagesByID.values()].filter(
-					(message) => message.id < fromID,
-				),
-			);
+			batch(() => {
+				replaceMessages(
+					[...state.messagesByID.values()].filter(
+						(message) => message.id < fromID,
+					),
+				);
+				endPending(["history"]);
+			});
 		},
 		getHistoryResetCount: () => historyResets,
 		prependOlderMessages: (messages, hasMore, resetCount) => {
@@ -528,33 +520,34 @@ export const createChatStore = (): ChatStore => {
 					: { ...current, hasMoreMessages: hasMore },
 			);
 		},
-		applyCheckpoint: ({ snapshot_version, turn }, updates = {}) => {
-			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, snapshot_version);
-			const { turnError: error, retryState: retry } = turnState(turn);
-			setState((current) => {
-				const pendingActions = endPendingParts(current.pendingActions, updates);
-				if (
-					arraysEqual(pendingActions, current.pendingActions) &&
-					current.chatStatus === turn.status &&
-					chatDetailErrorsEqual(current.turnError, error) &&
-					retryStatesEqual(current.retryState, retry)
-				) {
-					return current;
-				}
-				return {
-					...current,
-					pendingActions,
-					chatStatus: turn.status,
-					turnError: chatDetailErrorsEqual(current.turnError, error)
-						? current.turnError
-						: error,
-					retryState: retryStatesEqual(current.retryState, retry)
-						? current.retryState
-						: retry,
-				};
+		applyServerChatStatus: (status) => {
+			batch(() => {
+				setState((current) => {
+					const turnError = status === "error" ? current.turnError : null;
+					const retryState = status === "running" ? current.retryState : null;
+					if (
+						current.chatStatus === status &&
+						current.turnError === turnError &&
+						current.retryState === retryState
+					) {
+						return current;
+					}
+					return { ...current, chatStatus: status, turnError, retryState };
+				});
+				endPending(["turn"]);
 			});
 		},
+		setTurnError: (reason) => {
+			setState((current) =>
+				chatDetailErrorsEqual(current.turnError, reason)
+					? current
+					: { ...current, turnError: reason },
+			);
+		},
 		getSyncedSnapshotVersion: () => syncedSnapshotVersion,
+		advanceSnapshotVersion: (version) => {
+			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, version);
+		},
 		addPendingAction: (action) => {
 			const id = nextPendingActionID++;
 			const entry = pendingEntry(id, action, selectView(state));
@@ -610,6 +603,26 @@ export const createChatStore = (): ChatStore => {
 				streamError: null,
 			}));
 		},
+		setRetryState: (retryState) => {
+			setState((current) => {
+				if (retryStatesEqual(current.retryState, retryState)) {
+					return current;
+				}
+				return {
+					...current,
+					retryState,
+				};
+			});
+		},
+		clearRetryState: () => {
+			if (state.retryState === null) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				retryState: null,
+			}));
+		},
 		setReconnectState: (reconnectState) => {
 			setState((current) => {
 				if (reconnectStatesEqual(current.reconnectState, reconnectState)) {
@@ -643,7 +656,8 @@ export const createChatStore = (): ChatStore => {
 			if (
 				state.reconnectState === null &&
 				state.streamState === null &&
-				state.streamError === null
+				state.streamError === null &&
+				state.retryState === null
 			) {
 				return;
 			}
@@ -652,6 +666,7 @@ export const createChatStore = (): ChatStore => {
 				reconnectState: null,
 				streamState: null,
 				streamError: null,
+				retryState: null,
 			}));
 		},
 		setSubagentStatusOverride: (chatID, status) => {
@@ -671,6 +686,7 @@ export const createChatStore = (): ChatStore => {
 			if (
 				state.streamState === null &&
 				state.streamError === null &&
+				state.retryState === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
@@ -680,6 +696,7 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				streamState: null,
 				streamError: null,
+				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));
@@ -827,28 +844,28 @@ const pendingEntry = (
 	}
 };
 
-// Drops each part that one of a sync's updates replaces, and each entry
-// left with none.
+// Drops the ended parts from each entry, and each entry left with none.
 const endPendingParts = (
 	entries: readonly PendingEntry[],
-	{ userMessage, queueUpdate, historyReset }: SyncedUpdates,
+	ended: readonly PendingPart[],
 ): readonly PendingEntry[] =>
 	entries.flatMap((entry) => {
-		const message = userMessage || queueUpdate ? undefined : entry.message;
-		const queue = queueUpdate ? undefined : entry.queue;
-		const history = historyReset ? undefined : entry.history;
-		if (!message && !queue && !history) {
+		const message = ended.includes("message") ? undefined : entry.message;
+		const queue = ended.includes("queue") ? undefined : entry.queue;
+		const history = ended.includes("history") ? undefined : entry.history;
+		const turn = ended.includes("turn") ? undefined : entry.turn;
+		if (!message && !queue && !history && !turn) {
 			return [];
 		}
 		if (
-			entry.turn === undefined &&
 			message === entry.message &&
 			queue === entry.queue &&
-			history === entry.history
+			history === entry.history &&
+			turn === entry.turn
 		) {
 			return [entry];
 		}
-		return [{ id: entry.id, message, queue, history }];
+		return [{ id: entry.id, message, queue, history, turn }];
 	});
 
 // The stored state with each pending entry drawn over it in request order.
