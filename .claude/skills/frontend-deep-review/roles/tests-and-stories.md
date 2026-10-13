@@ -18,7 +18,7 @@ Look for:
 - A play function whose last statements are `expect(...).toBeVisible()`, `toBeInTheDocument()`, `not.toBeInTheDocument()`, `toBeNull()`, or `toHaveAttribute` on rendered content: the snapshot already captures this, so the assertions are noise.
 - A play that drives the UI into a state, asserts it, then drives it into a second state: split it into one story per state.
 - A story whose play only checks presence and performs no interaction, or a `findBy*` used as a disguised content assertion after the setup step.
-- The changed behavior has no story at all, or the story renders the closed or default state without opening the popover, submitting the form, or paginating.
+- A visual state the diff adds or changes has no story, or its story renders the closed or default state without opening the popover, submitting the form, or paginating. A change whose only outcome is non-visual (a callback, a request, persisted state) needs a Vitest test (TS5), not a story.
 
 Fix: keep the interactions (click, type, open) that put the component in the state to snapshot, delete the assertions, and add a separate story for each additional state. If the play only asserted presence, remove the play entirely, except a `findBy*` that waits for async data the snapshot needs (`EditOAuth2AppPageView.stories.tsx` waits for its query before Pixel captures).
 

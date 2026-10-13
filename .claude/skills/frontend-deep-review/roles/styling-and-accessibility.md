@@ -17,10 +17,10 @@ Look for:
 
 - Arbitrary values (`gap-[0.15rem]`, `py-[0.35rem]`, `md:w-[18rem]`, `[overflow-wrap:anywhere]`, `[filter:drop-shadow(...)]`) where a scale step or named utility exists (`gap-0.5`, `py-1.5`, `md:w-72`, `wrap-anywhere`, `drop-shadow-md`).
 - Classes added "everywhere" with no effect on that element (`min-w-0` on an element that is neither a flex item nor a grid item, a second `w-3.5 h-3.5` pair that `size-3.5` covers) and `!` modifiers that only existed to beat MUI styles.
-- Variant order that changes meaning (`after:hover:` vs `hover:after:`), paired `data-[state=open]`/`data-[state=closed]` classes out of order, and classes whose purpose the reviewer cannot state (`scroll-mt-44`).
+- Variant order that changes meaning (`after:hover:` vs `hover:after:`), and paired `data-[state=open]`/`data-[state=closed]` classes out of order.
 - Codemod or upgrade diffs that replace a composable class with a longer arbitrary one.
 
-Fix: use the nearest scale value or named utility, delete classes that have no effect on that element (check what each one changes, including where `scrollIntoView` lands), ask the author about a class whose purpose you cannot state, drop leftover `!`, and restore the shorter composable form. An off-scale value derived from a fixed size the layout must match (a card height, an image) is not a finding; the PR description should say what it is derived from.
+Fix: use the nearest scale value or named utility, delete classes after confirming they have no effect on that element (`scroll-mt-44` on the `MultiSelectCombobox.tsx` list changes where its `scrollIntoView` call lands), drop leftover `!`, and restore the shorter composable form. A class whose purpose you cannot state is a question, not a FAIL: in report mode ask the author, and in self-review find out what it does before deleting it. An off-scale value derived from a fixed size the layout must match (a card height, an image) is not a finding; the PR description should say what it is derived from.
 
 ### SA2: Put shared styling in a component or variant, not a className string
 
@@ -84,12 +84,12 @@ FE parent: FE6
 
 Look for:
 
-- `<div role="button" tabIndex={0} onKeyDown=...>` where `<button>` gives the role, name, and keyboard handling for free, and a hand-built `role="radiogroup"` where the `RadioGroup` primitive (`site/src/components/RadioGroup/`) or a `<fieldset>` with `<legend>` around native radio inputs does. Do not suggest `<button>` for a control inside another interactive element, such as the clear control inside the `Autocomplete.tsx` trigger: nested buttons are invalid HTML.
+- `<div role="button" tabIndex={0} onKeyDown=...>` where `<button>` gives the role, name, and keyboard handling for free, and a hand-built `role="radiogroup"` where the `RadioGroup` primitive (`site/src/components/RadioGroup/`) or a `<fieldset>` with `<legend>` around native radio inputs does. A control inside another interactive element, such as the `role="button"` clear control inside the `Autocomplete.tsx` trigger, is invalid either way: a `<button>` may contain neither interactive content nor an element with `tabindex`. Ask for the two controls to become siblings instead of swapping one element for another.
 - `aria-label` values that replace rather than contain the visible label; `aria-*` props on primitives (cmdk) that overwrite them.
 - Interactive elements reachable only by pointer, and dialogs or route changes that drop focus.
 - Visually hidden interactive elements still in the tab order.
 
-Fix: use the native element where it does not nest inside another interactive element (add the Tailwind reset classes if the browser default looks wrong), keep the visible label inside the accessible name, and verify the keys the element or its ARIA pattern defines: Tab reaches it, Enter and Space press a button, Enter follows a link, arrow keys move within a radio group or menu, and Escape closes a dialog, popover, or menu.
+Fix: use the native element (add the Tailwind reset classes if the browser default looks wrong), move a control nested inside another interactive element out beside it, keep the visible label inside the accessible name, and verify the keys the element or its ARIA pattern defines: Tab reaches it, Enter and Space press a button, Enter follows a link, arrow keys move within a radio group or menu, and Escape closes a dialog, popover, or menu.
 
 ## Not this role
 

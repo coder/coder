@@ -31,7 +31,7 @@ Look for:
 
 - A "why" comment above an ordinary call: a cache invalidation, a useState, a className, a navigate, an event listener, a story export. Ask whether a reader of the surrounding code would have wondered; if not, the comment is noise even when every word is true. A comment above a story's `play` that names the state the screenshot needs stays, because the steps alone do not say it (the FE1 example in `FRONTEND_PATTERNS.md`).
 - Comments that record PR history or authoring context: "moved here because", "intentionally not ported", "matching the behavior of the Provider form", "Generated once per mount via lazy state init". That belongs in the PR description or commit message.
-- Prop and field comments that explain one caller's situation or a backend condition ("This can be true even when providers/models exist in the DB catalog"), and banner or divider comments (`// -----`) between declarations.
+- Prop and field comments that explain one caller's situation, and banner or divider comments (`// -----`) between declarations. A comment stating which values the server can send, which every caller must handle ("This can be true even when providers/models exist in the DB catalog"), is an external constraint FE4 keeps; how coderd computes the value belongs in Go (CD5).
 - Pre-existing comments the diff touches: if the diff edits a comment that adds nothing, the reviewers ask for it to go rather than be extended.
 
 Fix: delete the comment outright; do not shorten it. Move any genuinely needed context to the PR description.
@@ -74,7 +74,7 @@ Look for:
 
 - A `@public` tag or a "Consumed by ... in a higher stack layer" note on an export that nothing outside the PR stack uses. knip skips exports tagged `@public`, so the tag hides dead code. Keep `@public` where a named external consumer needs the export, as in `site/src/api/api.ts`.
 - A type or interface doc block that describes what each method does instead of the method's own JSDoc doing it; a call-site comment in a test or page that explains a helper's behavior instead of sitting on the helper's definition.
-- Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere.
+- Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere. The values the frontend must handle are the exception CD2 keeps.
 - Module-level or config-file prose placed away from the section it governs (a cleanup note at the top of a file whose cleanup section sits at the bottom, a one-line policy at line 1 of a 300-line module).
 
 Fix: move the sentence to the declaration it describes and delete the original; drop stack-layer notes, and keep `@public` only on exports with a named external consumer.

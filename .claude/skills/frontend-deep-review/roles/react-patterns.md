@@ -30,7 +30,7 @@ FE parent: FE8
 Look for:
 
 - An effect that persists state (localStorage.setItem, save*) whenever the state changes, usually guarded by a lastPersistedRef. The write belongs in the event handler or setter that changes the state.
-- An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or mutation callback should own that step. `useQuery` has no `onSuccess` (TanStack Query v5 removed query callbacks), so never suggest one.
+- An effect that navigates, updates storage, or opens an editor as soon as a query result or route param is truthy. Ask which user action or mutation callback should own that step. An effect that consumes a deep-link parameter on arrival and replaces the URL is synchronizing with browser history, which no handler owns (`AgentCreatePage.tsx` strips its prompt and debug parameters with `navigate(..., { replace: true })`). `useQuery` has no `onSuccess` (TanStack Query v5 removed query callbacks), so never suggest one.
 - An effect that runs a migration or one-off transform on every render where query data exists, with a ref to make it run once.
 - Any effect the author could not explain in one sentence: ask which user action or mutation callback should own it.
 
@@ -104,7 +104,7 @@ Look for:
 
 - Several useState calls holding a draft, a toggled flag, and a "local edit" per field, with a save handler that clears them on success. That is a form; use formik.
 - setIsSubmitting(true/false) or an inFlight ref around a direct API call. useMutation already tracks pending state. A ref that ignores repeated events while a mutation is in flight is correct (DF2).
-- Submit logic that conditionally calls submitForm or setFieldValue from an onChange handler with no comment. Ask what the branch is for.
+- Submit logic that conditionally calls submitForm or setFieldValue from an onChange handler. Ask what the branch is for, and flag it only when the answer shows the form library already covers it.
 - A settings panel with one input and one save button. Still a form; the reviewers accepted skipping formik only for the smallest toggles.
 
 Fix: model the fields with useFormik and drive the submit through a useMutation; read isPending from the mutation and remove the manual flags.

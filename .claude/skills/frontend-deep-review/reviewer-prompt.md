@@ -49,7 +49,12 @@ Do this, in order:
    existing components, or stories when the diff alone cannot answer a
    checkpoint. Read-only: do not edit, format, or create files, and do not
    run the app.
-4. Walk every hunk against every checkpoint. For each hit, record the
+4. Walk every hunk against every checkpoint. A Look-for bullet is a lead,
+   not a verdict: a hit is code where you can say what is wrong and the
+   checkpoint's fix keeps the behavior the code relies on (a stable
+   reference, cancellation, a subscription, focus). Code with a reason
+   the bullet does not anticipate is not a hit, and a question you cannot
+   answer from the code is not a finding. For each hit, record the
    checkpoint ID, the severity (the role file's default unless the
    consequence is user-visible, which raises it, or the code is pre-existing
    and merely touched, which lowers it), the exact file:line in the new
