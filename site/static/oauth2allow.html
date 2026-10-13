@@ -1,217 +1,112 @@
 {{/* This template is used by application handlers to render allowing oauth2
 links */}}
 <!doctype html>
-<html lang="en">
+<html
+  lang="en"
+  class="{{ .ThemeDarkClass }}"
+  data-theme-light="{{ .ThemeLightClass }}"
+  data-theme-dark="{{ .ThemeDarkClass }}"
+>
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Application {{.AppName}}</title>
-    <style>
-      :root {
-        --surface-primary: #09090b;
-        --surface-secondary: #18181b;
-        --surface-invert-primary: #e4e4e7;
-        --surface-invert-secondary: #a1a1aa;
-        --content-primary: #ffffff;
-        --content-secondary: #a1a1aa;
-        --content-invert: #09090b;
-        --content-link: #60a5fa;
-        --border-default: #27272a;
-      }
-
-      * {
-        padding: 0;
-        margin: 0;
-        box-sizing: border-box;
-      }
-
-      html,
-      body {
-        background-color: var(--surface-primary);
-        color: var(--content-primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: system-ui, sans-serif;
-        font-size: 16px;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        /* A fixed height would let align-items: center push a long scope list
-           past both edges, leaving the top half unreachable by scrolling. */
-        min-height: 100%;
-      }
-
-      .container {
-        width: 100%;
-        max-width: 65ch;
-        padding: 16px;
-        text-align: center;
-      }
-
-      .icons-container {
-        align-items: center;
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin-bottom: 8px;
-      }
-
-      .coder-svg {
-        width: 48px;
-        height: 48px;
-      }
-
-      .app-icon {
-        width: 32px;
-        height: 32px;
-        object-fit: contain;
-      }
-
-      .connect-symbol {
-        color: var(--content-secondary);
-        font-size: 24px;
-        font-weight: 500;
-      }
-
-      h1 {
-        font-size: 24px;
-        line-height: 32px;
-        font-weight: 600;
-        margin-bottom: 4px;
-      }
-
-      p,
-      li {
-        color: var(--content-secondary);
-        font-size: 14px;
-        line-height: 24px;
-      }
-
-      .user-name {
-        color: var(--content-primary);
-        font-weight: 600;
-      }
-
-      #scope-list {
-        list-style: none;
-        margin-top: 24px;
-        padding: 16px;
-        border: 1px solid var(--border-default);
-        border-radius: 6px;
-        /* The container centres its text, which would stagger the left edges. */
-        text-align: left;
-      }
-
-      #scope-list li {
-        color: var(--content-primary);
-        font-family: ui-monospace, monospace;
-        font-size: 12px;
-        line-height: 20px;
-      }
-
-      #scope-disclaimer {
-        font-size: 12px;
-        line-height: 16px;
-        margin-top: 8px;
-      }
-
-      .button-group {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        margin-top: 24px;
-      }
-
-      .button-group a,
-      .button-group button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 128px;
-        height: 40px;
-        padding: 8px 12px;
-        border-radius: 6px;
-        border: 1px solid var(--border-default);
-        background-color: transparent;
-        color: var(--content-primary);
-        font-family: inherit;
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 24px;
-        text-decoration: none;
-        white-space: nowrap;
-        cursor: pointer;
-        transition: background-color 150ms;
-      }
-
-      .button-group a:hover,
-      .button-group button:hover {
-        background-color: var(--surface-secondary);
-      }
-
-      .button-group a:focus-visible,
-      .button-group button:focus-visible {
-        outline: none;
-        box-shadow: 0 0 0 2px var(--content-link);
-      }
-
-      .button-group .primary-button {
-        border-color: transparent;
-        background-color: var(--surface-invert-primary);
-        color: var(--content-invert);
-        font-weight: 600;
-      }
-
-      .button-group .primary-button:hover {
-        background-color: var(--surface-invert-secondary);
-      }
-    </style>
+    {{- range .Stylesheets }}
+    <link rel="stylesheet" crossorigin href="{{ . }}" />
+    {{- end }}
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var prefersLight = window.matchMedia("(prefers-color-scheme: light)");
+        function applyTheme() {
+          root.className = prefersLight.matches
+            ? root.dataset.themeLight
+            : root.dataset.themeDark;
+        }
+        applyTheme();
+        prefersLight.addEventListener("change", applyTheme);
+      })();
+    </script>
   </head>
-  <body>
-    <div class="container">
-      <div class="icons-container">
-        {{- if .AppIcon }}
-        <img class="app-icon" src="{{ .AppIcon }}" />
-        <div class="connect-symbol">+</div>
-        {{end}}
-        <img class="coder-svg" src="/icon/coder.svg" alt="Coder" />
+  {{- /* A fixed height would let items-center push a long scope list past
+  both edges, leaving the top half unreachable by scrolling. */}}
+  <body class="min-h-screen flex justify-center items-center text-center">
+    <main class="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
+      <div class="flex gap-2 flex-col items-center">
+        <div class="flex items-center gap-3">
+          {{- if .AppIcon }}
+          <img class="size-8 object-contain" src="{{ .AppIcon }}" alt="" />
+          <span class="text-2xl text-content-secondary" aria-hidden="true">+</span>
+          {{- end }}
+          <svg
+            class="h-12 aspect-square text-content-primary"
+            fill="currentColor"
+            viewBox="0 0 120 60"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img"
+          >
+            <title>Coder</title>
+            <path
+              d="M34.5381 0C54.5335 6.29882e-05 65.7432 10.1355 66.122 25.0544L48.853 25.6216C48.3984 17.3514 41.544 11.9189 34.5381 12.0809C24.919 12.2836 17.7989 19.1351 17.7988 29.9999C17.7988 40.8648 24.919 47.5951 34.5381 47.5951C41.544 47.5945 48.2468 42.4055 49.0043 34.1352L66.2733 34.5408C65.8189 49.7027 53.9276 60 34.5381 60C15.1484 60 0 48.2433 0 29.9999C7.1014e-05 11.6757 14.5426 0 34.5381 0ZM120 1.7728V58.5299H74.5559V1.7728H120Z"
+            />
+          </svg>
+        </div>
+        <div class="text-content-primary flex flex-col gap-1">
+          <h1 class="text-2xl font-semibold m-0">Authorize {{ .AppName }}</h1>
+          {{- if not .Unrestricted }}
+          <p id="description" class="leading-6 m-0 text-content-secondary text-sm">
+            Allow {{ .AppName }} to access your
+            <span class="font-semibold text-content-primary">{{ .Username }}</span>
+            account with these permissions?
+          </p>
+          {{- else }}
+          <p id="description" class="leading-6 m-0 text-content-secondary text-sm">
+            Allow {{ .AppName }} to have full access to your
+            <span class="font-semibold text-content-primary">{{ .Username }}</span>
+            account?
+          </p>
+          {{- end }}
+        </div>
       </div>
-      <h1>Authorize {{ .AppName }}</h1>
       {{- if not .Unrestricted }}
-      <p id="description">
-        Allow {{ .AppName }} to access your
-        <span class="user-name">{{ .Username }}</span> account with these
-        permissions?
-      </p>
-      {{- /* WebKit drops implicit list semantics when list-style is none,
-      leaving VoiceOver to announce the permissions as loose text. */}}
-      <ul id="scope-list" role="list">
-        {{- range .Scopes }}
-        <li role="listitem">{{ . }}</li>
-        {{- end }}
-      </ul>
-      {{- /* Scope identifiers read narrower than they grant: template:read
-      reaches every template in the deployment, not the one in play. */}}
-      <p id="scope-disclaimer">
-        These are technical permission names. Grant them only to an application
-        you trust.
-      </p>
-      {{- else }}
-      <p id="description">
-        Allow {{ .AppName }} to have full access to your
-        <span class="user-name">{{ .Username }}</span> account?
-      </p>
+      <div class="flex flex-col gap-2">
+        {{- /* WebKit drops implicit list semantics when list-style is none,
+        leaving VoiceOver to announce the permissions as loose text. */}}
+        <ul
+          id="scope-list"
+          role="list"
+          class="m-0 p-4 list-none text-left rounded-md border border-border border-solid"
+        >
+          {{- range .Scopes }}
+          <li role="listitem" class="text-xs font-mono leading-5 text-content-primary">{{ . }}</li>
+          {{- end }}
+        </ul>
+        {{- /* Scope identifiers read narrower than they grant: template:read
+        reaches every template in the deployment, not the one in play. */}}
+        <p id="scope-disclaimer" class="m-0 text-xs text-content-secondary">
+          These are technical permission names. Grant them only to an
+          application you trust.
+        </p>
+      </div>
       {{- end }}
-      <div class="button-group" id="button-group">
-        <a id="cancel-link" href="{{ .CancelURI }}">Cancel</a>
-        <form id="allow-form" method="POST" style="display: inline;">
+      <div id="button-group" class="flex flex-row flex-nowrap justify-center gap-2">
+        <a
+          id="cancel-link" href="{{ .CancelURI }}"
+          class="inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans border border-solid border-border rounded-md transition-colors shrink-0 text-sm font-medium cursor-pointer no-underline bg-transparent text-content-primary hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link min-w-32 h-10 px-3 py-2"
+          >Cancel</a
+        >
+        <form id="allow-form" method="POST" class="m-0">
           <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
-          <button type="submit" class="primary-button">Allow</button>
+          <button
+            type="submit"
+            class="inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans border-none rounded-md transition-colors shrink-0 text-sm font-semibold cursor-pointer bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link min-w-32 h-10 px-3 py-2"
+          >
+            Allow
+          </button>
         </form>
       </div>
-    </div>
+    </main>
     <script>
       (function () {
         var appName = "{{ .AppName }}";
