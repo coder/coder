@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -78,7 +79,48 @@ async def _login(url: str, password_file: Path) -> str:
     return login["session_token"]
 
 
+def _probe_upstream(api_key: str, base_url: str) -> None:
+    """Send a one-token request through the upstream so a bad token or URL
+    fails here with a clear status instead of as N identical trial errors."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    host = urllib.parse.urlsplit(base_url).netloc
+    req = urllib.request.Request(
+        f"{base_url.rstrip('/')}/v1/messages",
+        data=json.dumps(
+            {
+                "model": "claude-haiku-4-5",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            status = r.status
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:300]
+        raise SystemExit(
+            f"upstream probe failed: {host} returned {e.code} for a 1-token request "
+            f"(token length {len(api_key)}): {body}"
+        ) from None
+    except urllib.error.URLError as e:
+        raise SystemExit(
+            f"upstream probe failed: cannot reach {host}: {e.reason}"
+        ) from None
+    print(f"upstream probe: {host} -> {status}", file=sys.stderr)
+
+
 async def _ensure_provider(client: CoderClient, api_key: str, base_url: str) -> str:
+    _probe_upstream(api_key, base_url)
     try:
         existing = await client.request("GET", "/api/v2/ai/providers/anthropic")
         return existing["id"]

@@ -243,6 +243,7 @@ jobs:
               HARBOR_CODER_UPSTREAM_URL="${BORROWED_URL%/}/api/v2/ai-gateway/anthropic"
             fi
             export HARBOR_CODER_UPSTREAM_TOKEN HARBOR_CODER_UPSTREAM_URL
+            echo "upstream host: $(printf '%s' "${HARBOR_CODER_UPSTREAM_URL:-default}" | sed -E 's|https?://([^/]+).*|\1|')"
           fi
           if [[ -z "${HARBOR_CODER_UPSTREAM_TOKEN}" ]]; then
             echo "::error::EVAL_CODER_SESSION_TOKEN secret is not set"
@@ -268,6 +269,16 @@ jobs:
             --ek template="${HARBOR_CODER_TEMPLATE}" \
             -k "${ATTEMPTS}" -n "${CONCURRENCY}" \
             -o jobs --job-name "${ARM}"
+          # Harbor exits 0 even when every trial raised. A run with no scored
+          # trial is a broken harness, not a result.
+          scored=$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)
+          total=$(find "jobs/${ARM}" -mindepth 2 -maxdepth 2 -name result.json | wc -l)
+          echo "scored ${scored} of ${total} trials"
+          if [[ "${scored}" -eq 0 ]]; then
+            echo "::error::no trial produced a reward; first error:"
+            grep -h -m1 -A3 '"exception_message"' jobs/"${ARM}"/*/result.json | head -5 || true
+            exit 1
+          fi
 
       - name: Upload job results
         if: always()
