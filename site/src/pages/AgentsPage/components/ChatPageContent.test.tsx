@@ -227,10 +227,7 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
 		const store = createChatStore();
-		store.applyCheckpoint({
-			snapshot_version: 1,
-			turn: { status: "requires_action" },
-		});
+		store.applyServerChatStatus("requires_action");
 
 		renderChatPageInput(store, { onInterrupt });
 
@@ -283,8 +280,8 @@ describe("ChatPageInput", () => {
 			queued_messages: [],
 			has_more: false,
 			snapshot_version: 1,
-			turn: { status: "running" },
 		});
+		store.applyServerChatStatus("running");
 		store.addPendingAction({
 			kind: "send",
 			message: {

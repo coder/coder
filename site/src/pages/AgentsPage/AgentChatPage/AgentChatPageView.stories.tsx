@@ -870,7 +870,7 @@ const buildStoreWithMessages = (
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
-	store.applyCheckpoint({ snapshot_version: 0, turn: { status } });
+	store.applyServerChatStatus(status);
 	return store;
 };
 
@@ -1122,10 +1122,7 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		startEdgeStore.replaceMessages(
 			buildLongConversation(AGENT_ID, 40).slice(1),
 		);
-		startEdgeStore.applyCheckpoint({
-			snapshot_version: 0,
-			turn: { status: "waiting" },
-		});
+		startEdgeStore.applyServerChatStatus("waiting");
 		startEdgeFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1170,10 +1167,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
 		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		streamCompletionStore.applyCheckpoint({
-			snapshot_version: 0,
-			turn: { status: "waiting" },
-		});
+		streamCompletionStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 
@@ -1195,10 +1189,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 			streamCompletionStore.upsertDurableMessages([
 				buildMessage(41, "user", "Final question."),
 			]);
-			streamCompletionStore.applyCheckpoint({
-				snapshot_version: 0,
-				turn: { status: "running" },
-			});
+			streamCompletionStore.applyServerChatStatus("running");
 			streamCompletionStore.applyMessageParts([
 				{ type: "text", text: "Streaming the final answer." },
 			]);
@@ -1217,10 +1208,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 				buildMessage(42, "assistant", "Streaming the final answer."),
 			]);
 			streamCompletionStore.clearStreamState();
-			streamCompletionStore.applyCheckpoint({
-				snapshot_version: 0,
-				turn: { status: "waiting" },
-			});
+			streamCompletionStore.applyServerChatStatus("waiting");
 		});
 		await waitFor(() => {
 			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
@@ -1246,10 +1234,7 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
 		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		thinkingShiftStore.applyCheckpoint({
-			snapshot_version: 0,
-			turn: { status: "waiting" },
-		});
+		thinkingShiftStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 		await waitForScrollOverflow(viewport);
@@ -1263,10 +1248,7 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 			thinkingShiftStore.upsertDurableMessages([
 				buildMessage(41, "user", "Follow-up question."),
 			]);
-			thinkingShiftStore.applyCheckpoint({
-				snapshot_version: 0,
-				turn: { status: "running" },
-			});
+			thinkingShiftStore.applyServerChatStatus("running");
 		});
 		await canvas.findByTestId("chat-message-live-assistant");
 		await canvas.findByTestId("live-activity-slot");

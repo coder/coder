@@ -14,7 +14,7 @@ import {
 	createReconnectingWebSocket,
 	type ReconnectSchedule,
 } from "#/utils/reconnectingWebSocket";
-import type { ChatDetailError } from "./chatError";
+import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreLoad,
@@ -29,6 +29,15 @@ import {
 	selectStreamState,
 	useChatSelector,
 } from "./chatStore";
+import type { RetryState } from "./types";
+
+const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
+	attempt: Math.max(1, retry.attempt),
+	error: retry.error.trim() || "Retrying request shortly.",
+	kind: retry.kind ?? "generic",
+	provider: retry.provider?.trim() || undefined,
+	retryingAt: retry.retrying_at.trim() || undefined,
+});
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectStreamError(state) === null &&
@@ -152,10 +161,12 @@ export const useChatStore = (
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
-		// The events of the sync in progress. A sync ends with its checkpoint
-		// and is applied whole there, so the view never shows part of one. A
-		// sync cut off by a disconnect is dropped; the reconnect sends it again.
-		const syncEvents: TypesGen.ChatStreamEvent[] = [];
+		// Set when the stream reports "waiting", cleared by any other
+		// stream status. While set, parts are dropped: they are late
+		// leftovers from the finished turn.
+		let streamReportedWaiting = false;
+
+		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -166,8 +177,30 @@ export const useChatStore = (
 				if (disposed) {
 					return;
 				}
+				if (!shouldKeepMessagePart()) {
+					partsBuf.length = 0;
+					return;
+				}
 				store.applyMessageParts(partsBuf.splice(0));
 			}, 0);
+		};
+
+		// Immediate flush for non-message_part events that need
+		// the parts applied before they execute (e.g. a durable
+		// message commit right after the last part).
+		const flushMessageParts = () => {
+			if (partsBuf.length === 0) {
+				return;
+			}
+			if (partsFlushTimer !== null) {
+				clearTimeout(partsFlushTimer);
+				partsFlushTimer = null;
+			}
+			if (!shouldKeepMessagePart()) {
+				partsBuf.length = 0;
+				return;
+			}
+			store.applyMessageParts(partsBuf.splice(0));
 		};
 
 		// Discard buffered parts without applying them. Used when
@@ -182,88 +215,6 @@ export const useChatStore = (
 			}
 		};
 
-		const applyTurn = (turn: TypesGen.ChatStreamTurn) => {
-			updateSidebarChat((chat) =>
-				chat.status === turn.status ? chat : { ...chat, status: turn.status },
-			);
-			const error = store.getSnapshot().turnError;
-			if (error) {
-				setChatErrorReasonEvent(chatID, error);
-			} else {
-				clearChatErrorReasonEvent(chatID);
-			}
-		};
-
-		const applySync = (events: readonly TypesGen.ChatStreamEvent[]) => {
-			// Consecutive messages are upserted together: one Map copy and one
-			// sort instead of one per message.
-			const durable: TypesGen.ChatMessage[] = [];
-			const pendingMessages: TypesGen.ChatMessage[] = [];
-			const flushMessages = () => {
-				if (pendingMessages.length > 0) {
-					store.upsertDurableMessages(pendingMessages);
-					durable.push(...pendingMessages.splice(0));
-				}
-			};
-			let historyReset = false;
-			let queueUpdate = false;
-			let userMessage = false;
-			let turn: TypesGen.ChatStreamTurn | undefined;
-
-			for (const streamEvent of events) {
-				if (streamEvent.type === "message") {
-					if (streamEvent.message) {
-						pendingMessages.push(streamEvent.message);
-						if (streamEvent.message.role === "user") {
-							userMessage = true;
-						}
-					}
-					continue;
-				}
-				flushMessages();
-
-				switch (streamEvent.type) {
-					case "history_reset":
-						store.resetHistoryFrom(
-							streamEvent.history_reset?.from_message_id ?? 0,
-						);
-						historyReset = true;
-						continue;
-					case "queue_update":
-						store.setQueuedMessages(streamEvent.queued_messages ?? []);
-						queueUpdate = true;
-						continue;
-					case "preview_reset":
-						discardBufferedParts();
-						store.clearStreamState();
-						continue;
-					case "checkpoint":
-						if (streamEvent.checkpoint) {
-							store.applyCheckpoint(streamEvent.checkpoint, {
-								userMessage,
-								queueUpdate,
-								historyReset,
-							});
-							turn = streamEvent.checkpoint.turn;
-						}
-						continue;
-					default:
-						continue;
-				}
-			}
-			flushMessages();
-
-			if (turn) {
-				applyTurn(turn);
-			}
-			if (durable.length > 0) {
-				onDurableMessages(durable);
-			}
-			if (historyReset) {
-				void invalidateChatSearches(queryClient);
-			}
-		};
-
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 			socket: { close: () => void },
@@ -272,9 +223,8 @@ export const useChatStore = (
 				return;
 			}
 			if (payload.parseError || !payload.parsedMessage) {
-				// A later checkpoint would advance the reconnect version past
-				// the lost events, so resync from the last applied one instead.
-				syncEvents.length = 0;
+				// A lost frame can hold events that a later event's version would
+				// skip on reconnect, so resync from the last applied version.
 				discardBufferedParts();
 				store.setStreamError({
 					kind: "generic",
@@ -288,10 +238,38 @@ export const useChatStore = (
 			if (streamEvents.length === 0) {
 				return;
 			}
+			// Consecutive messages are upserted together: one Map copy and one
+			// sort instead of one per message.
+			const pendingMessages: TypesGen.ChatMessage[] = [];
+			const durable: TypesGen.ChatMessage[] = [];
+			let needsStreamReset = false;
+			let historyReset = false;
+
+			const flushMessages = () => {
+				if (pendingMessages.length > 0) {
+					store.upsertDurableMessages(pendingMessages);
+					durable.push(...pendingMessages.splice(0));
+				}
+			};
+
 			// Wrap all store mutations in a batch so subscribers
 			// are notified exactly once at the end, not per event.
 			store.batch(() => {
 				for (const streamEvent of streamEvents) {
+					if (streamEvent.type === "message_part") {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							continue;
+						}
+						if (!shouldKeepMessagePart()) {
+							continue;
+						}
+						const part = streamEvent.message_part?.part;
+						if (part) {
+							partsBuf.push(part);
+						}
+						continue;
+					}
+
 					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 						const nextStatus = streamEvent.status?.status;
 						if (streamEvent.type === "status" && nextStatus) {
@@ -299,28 +277,149 @@ export const useChatStore = (
 						}
 						continue;
 					}
-					// The server never sends a part inside a sync.
-					if (streamEvent.type === "message_part") {
-						const part = streamEvent.message_part?.part;
-						if (part) {
-							partsBuf.push(part);
-						}
+
+					if (streamEvent.snapshot_version !== undefined) {
+						store.advanceSnapshotVersion(streamEvent.snapshot_version);
+					}
+
+					// Every other event applies after the messages before it.
+					if (streamEvent.type !== "message") {
+						flushMessages();
+					}
+
+					if (streamEvent.type === "history_reset") {
+						discardBufferedParts();
+						store.clearStreamState();
+						store.resetHistoryFrom(
+							streamEvent.history_reset?.from_message_id ?? 0,
+						);
+						historyReset = true;
+						needsStreamReset = false;
 						continue;
 					}
-					syncEvents.push(streamEvent);
-					if (streamEvent.type === "checkpoint") {
-						applySync(syncEvents.splice(0));
+
+					if (streamEvent.type === "preview_reset") {
+						discardBufferedParts();
+						store.clearStreamState();
+						store.clearRetryState();
+						continue;
+					}
+
+					// Flush buffered parts before a durable message
+					// commits them. Other events must not flush because
+					// some clear the stream and a flush would restore it.
+					if (streamEvent.type === "message") {
+						flushMessageParts();
+					}
+
+					switch (streamEvent.type) {
+						case "message": {
+							const message = streamEvent.message;
+							if (!message) {
+								continue;
+							}
+							pendingMessages.push(message);
+							if (message.role === "assistant") {
+								needsStreamReset = true;
+							}
+							continue;
+						}
+						case "queue_update":
+							store.setQueuedMessages(streamEvent.queued_messages ?? []);
+							continue;
+						case "status": {
+							const nextStatus = streamEvent.status?.status;
+							if (!nextStatus) {
+								continue;
+							}
+
+							streamReportedWaiting = nextStatus === "waiting";
+							store.applyServerChatStatus(nextStatus);
+							if (nextStatus === "waiting") {
+								discardBufferedParts();
+							}
+							if (nextStatus !== "error") {
+								clearChatErrorReasonEvent(chatID);
+							}
+							updateSidebarChat((chat) =>
+								chat.status === nextStatus
+									? chat
+									: { ...chat, status: nextStatus },
+							);
+							continue;
+						}
+						case "error": {
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
+							// An error ends the turn. Clear the partial
+							// stream so no tool keeps spinning. Parts stay
+							// ungated because the next turn can send a part
+							// before its running status.
+							discardBufferedParts();
+							store.setTurnError(reason);
+							store.clearStreamState();
+							setChatErrorReasonEvent(chatID, reason);
+							continue;
+						}
+						case "retry": {
+							const retry = streamEvent.retry;
+							if (retry) {
+								discardBufferedParts();
+								store.clearStreamState();
+								store.setRetryState(normalizeRetryState(retry));
+							}
+							continue;
+						}
+						default:
+							continue;
 					}
 				}
 
-				// Schedule a coalesced flush for any remaining parts. If a sync
-				// already flushed or discarded them, this is a no-op.
+				// Schedule a coalesced flush for any remaining
+				// parts. If parts were already flushed by a
+				// non-message_part event above, this is a no-op.
 				schedulePartsFlush();
+
+				flushMessages();
+
+				// Clear stream state atomically with the durable
+				// message commit so subscribers never see a
+				// snapshot where both the committed message and
+				// the streaming output coexist. Previously this
+				// was deferred to a requestAnimationFrame, which
+				// left a window where ConversationTimeline and
+				// LiveStreamTail rendered the same content.
+				if (needsStreamReset) {
+					store.clearStreamState();
+					// If more message_part events arrived in this
+					// batch after the durable message, they belong
+					// to the next turn. Apply them immediately so
+					// the stream transitions from the old turn to
+					// the new one without a flash.
+					if (partsBuf.length > 0) {
+						if (partsFlushTimer !== null) {
+							clearTimeout(partsFlushTimer);
+							partsFlushTimer = null;
+						}
+						if (shouldKeepMessagePart()) {
+							store.applyMessageParts(partsBuf.splice(0));
+						}
+					}
+				}
 			});
+
+			if (durable.length > 0) {
+				onDurableMessages(durable);
+			}
+			if (historyReset) {
+				void invalidateChatSearches(queryClient);
+			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// The server sends only changes made after this version.
+				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
 				socket.addEventListener("message", (payload) =>
 					handleMessage(payload, socket),
@@ -340,9 +439,6 @@ export const useChatStore = (
 				// apply stale parts from the old connection
 				// into the fresh stream state.
 				discardBufferedParts();
-				// Drop the unfinished sync of the old socket; the new socket
-				// sends it again.
-				syncEvents.length = 0;
 			},
 			onDisconnect(reconnectState: ReconnectSchedule) {
 				// Only surface reconnecting when the disconnect
