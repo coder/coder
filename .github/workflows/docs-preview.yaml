@@ -1,7 +1,9 @@
 # Posts a docs-preview comment on docs PRs. For every changed page with a
 # docs/manifest.json route it lists a preview link on the PR's own preview
-# (coder-docs-pr-<number>.vercel.app, built and aliased by
-# docs-pr-preview-deploy.yaml) and a Markdown checkbox. Checkbox state round-trips
+# (coder-docs-pr-<number>.<DOCS_PREVIEW_DOMAIN>) and a Markdown checkbox.
+# docs-pr-preview-deploy.yaml calls this workflow only after it has deployed
+# and aliased that preview, so the comment never links to a site that does
+# not exist yet. Checkbox state round-trips
 # across pushes but resets when a page's content changes, so a checked box
 # means "reviewed the current revision." Pages with no manifest route
 # (docs/.style/** tooling, or not-yet-navigable pages) are dropped, since
@@ -22,17 +24,9 @@
 name: docs-preview
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths:
-      - "docs/**"
-      # docs/.style/** is contributor tooling that never deploys; skipping
-      # .style-only PRs avoids an empty preview list. Mixed PRs still run,
-      # and the selection logic below filters .style out.
-      - "!docs/.style/**"
+  # Called with the caller's pull_request event, whose docs/** paths filter
+  # (minus docs/.style/**, contributor tooling that never deploys) applies.
+  workflow_call:
 
 concurrency:
   group: docs-preview-${{ github.event.pull_request.number }}
@@ -43,6 +37,7 @@ permissions:
 
 jobs:
   docs-preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       # Job-level permissions replace the workflow defaults, so contents:
@@ -65,8 +60,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
         run: |
           set -euo pipefail
+
+          # A vercel.app name is first-come across every Vercel account, so
+          # only a Coder-owned domain is accepted.
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
 
           # DOCS_PREVIEW_MARKER locates this workflow's own comments;
           # STATE_PREFIX carries the last-seen `path -> blob sha` map. Keep
@@ -223,7 +227,7 @@ jobs:
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           # Computed early: the reference-page log below needs it too.
-          url_prefix="https://coder-docs-pr-${PR_NUMBER}.vercel.app"
+          url_prefix="https://coder-docs-pr-${PR_NUMBER}.${DOCS_PREVIEW_DOMAIN}"
 
           # Fetch the PR's changed files once, then derive the Markdown and
           # image sets from the same payload: one read halves the rate-limit
@@ -482,7 +486,7 @@ jobs:
             {
               printf '## Docs preview\n\n'
               # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
-              printf 'Links open this pull request'"'"'s preview at %s once its build finishes. A pull request from a fork builds after a maintainer adds the `docs-preview` label.\n\n' "$url_prefix"
+              printf 'Links open this pull request'"'"'s preview at %s, which updates with each push.\n\n' "$url_prefix"
               if [ -n "$page_block" ]; then
                 printf '%s\n' "$page_block"
               fi

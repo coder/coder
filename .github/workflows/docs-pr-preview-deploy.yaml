@@ -1,20 +1,21 @@
 # Builds a pull request's docs/ tree with docs-engine's offline export and
-# publishes it on Vercel's own domain, so each preview is its own site:
+# publishes it as its own site on the Coder-owned domain in the repository
+# variable DOCS_PREVIEW_DOMAIN:
 #
-#   coder-docs-pr-<number>.vercel.app             the PR head, re-aliased per build
-#   coder-docs-pr-<number>-<sha:0:9>.vercel.app   one per built commit
+#   coder-docs-pr-<number>.<domain>             the PR head, re-aliased per build
+#   coder-docs-pr-<number>-<sha:0:9>.<domain>   one per built commit
 #
-# docs-preview.yaml links each changed page to the first; the comment this
-# workflow keeps on the PR lists the second for every commit built.
-# docs-pr-preview-cleanup.yaml deletes them when the PR closes.
+# After a deploy succeeds, the comment job runs docs-preview.yaml, which links
+# each changed page to the first; the deploy job's own comment lists the
+# second for every commit built. docs-pr-preview-cleanup.yaml deletes them
+# when the PR closes.
 #
-# Gating: a PR from a branch in this repository builds on every push. A fork
-# PR builds only when a maintainer adds the docs-preview label, at exactly the
-# head commit the label was added on, and every later push to the fork removes
-# the label so each build follows a fresh review.
+# Only PRs from a branch in this repository build. Fork PRs get no preview:
+# their build would share the base branch's Actions cache scope and the
+# private engine source.
 #
-# Compiling Markdown runs the engine's plugins over it, so PR content is
-# untrusted and never shares a job with a secret:
+# Compiling Markdown runs the engine's plugins over it, so PR content never
+# shares a job with a secret:
 #   engine  mints a docs-engine read token and packs the engine source; never
 #           sees PR content.
 #   build   no secrets. Builds the export from the engine and the PR's docs/.
@@ -35,79 +36,53 @@ on:
     paths:
       - "docs/**"
       - "!docs/.style/**"
-  # zizmor: ignore[dangerous-triggers] Fork previews need the Vercel secret. No job that holds a secret checks out or runs PR content; the build job that does has no secrets and only reads the commit a maintainer labeled.
-  pull_request_target:
-    types:
-      - labeled
-      - synchronize
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event_name }}-${{ github.event.action }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions: {}
 
-env:
-  PREVIEW_LABEL: docs-preview
-
 jobs:
-  # A new commit on a fork needs a new review before it builds.
-  unlabel:
-    if: >-
-      github.event_name == 'pull_request_target' &&
-      github.event.action == 'synchronize' &&
-      github.event.pull_request.head.repo.full_name != github.repository &&
-      contains(github.event.pull_request.labels.*.name, 'docs-preview')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      - name: Remove the docs-preview label
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          gh api --method DELETE "repos/${REPO}/issues/${PR_NUMBER}/labels/${PREVIEW_LABEL}" >/dev/null
-          echo "Removed ${PREVIEW_LABEL} from #${PR_NUMBER}; a maintainer re-adds it to build the new head."
-
   engine:
-    if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' &&
-       github.event.action == 'labeled' &&
-       github.event.label.name == 'docs-preview' &&
-       github.event.pull_request.head.repo.full_name != github.repository)
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       digest: ${{ steps.pack.outputs.digest }}
+      domain: ${{ steps.domain.outputs.domain }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
-      # A branch PR may move the pin and preview the result, and one branched
-      # before the pin existed uses the base branch's. A fork PR always builds
-      # with the pin on the base branch.
+      # Checked first so a missing domain fails before the build. A vercel.app
+      # name is first-come across every Vercel account, so anyone could claim
+      # a preview's name before the deploy or after cleanup frees it.
+      - name: Check the preview domain
+        id: domain
+        env:
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
+        run: |
+          set -euo pipefail
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
+          echo "domain=${domain}" >> "$GITHUB_OUTPUT"
+
+      # A PR may move the pin and preview the result; one branched before the
+      # pin existed uses the base branch's.
       - name: Read the pinned docs-engine commit
         id: ref
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PIN_SOURCE: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
+          PIN_SOURCE: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
@@ -152,6 +127,7 @@ jobs:
 
   build:
     needs: engine
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -217,6 +193,7 @@ jobs:
 
   deploy:
     needs: [engine, build]
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: docs-preview
@@ -227,6 +204,7 @@ jobs:
       REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
+      DOMAIN: ${{ needs.engine.outputs.domain }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -287,8 +265,8 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${SHA:0:9}"
-          head_alias="coder-docs-pr-${PR_NUMBER}.vercel.app"
-          commit_alias="coder-docs-pr-${PR_NUMBER}-${short_sha}.vercel.app"
+          head_alias="coder-docs-pr-${PR_NUMBER}.${DOMAIN}"
+          commit_alias="coder-docs-pr-${PR_NUMBER}-${short_sha}.${DOMAIN}"
 
           vc() { npx --yes "vercel@${VERCEL_CLI_VERSION}" "$@" --token="$VERCEL_TOKEN"; }
           vercel_api() {
@@ -342,7 +320,7 @@ jobs:
           earlier=""
           if [ -n "$existing_id" ]; then
             earlier=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' \
-              | grep -E "^- \`[0-9a-f]{9}\` https://coder-docs-pr-${PR_NUMBER}-[0-9a-f]{9}\.vercel\.app$" \
+              | grep -E "^- \`[0-9a-f]{9}\` https://coder-docs-pr-${PR_NUMBER}-[0-9a-f]{9}\.${DOMAIN//./\\.}$" \
               | grep -vF "\`${SHORT_SHA}\`" || true)
           fi
           # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
@@ -358,3 +336,13 @@ jobs:
             gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" --raw-field body="$body" >/dev/null
             echo "Created the preview comment."
           fi
+
+  # Runs after a successful deploy, so its per-page links never point at a
+  # preview that does not exist yet.
+  comment:
+    needs: deploy
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/docs-preview.yaml

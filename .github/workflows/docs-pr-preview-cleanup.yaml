@@ -2,15 +2,16 @@
 #
 # On merge or close it deletes every deployment of that PR (tagged with the
 # deployment meta pr=<number>), and with them their
-# coder-docs-pr-<number>[-<sha>].vercel.app aliases. Once a week, and on
+# coder-docs-pr-<number>[-<sha>].<DOCS_PREVIEW_DOMAIN> aliases. Once a week, and on
 # demand, it grooms the whole preview project: any deployment whose PR is
 # closed goes, which catches a close event this workflow missed.
 #
-# Only the Vercel and GitHub APIs are called; nothing is checked out.
+# Only the Vercel and GitHub APIs are called; nothing is checked out and no
+# PR content runs. Fork PRs never get a preview, so their close is skipped.
 name: docs-pr-preview-cleanup
 
 on:
-  # zizmor: ignore[dangerous-triggers] Needed so a fork PR's previews are cleaned with the Vercel secret. Nothing from the PR is checked out or run.
+  # zizmor: ignore[dangerous-triggers] Runs from the base branch so a PR cannot change its own cleanup. Nothing from the PR is checked out or run.
   pull_request_target:
     types:
       - closed
@@ -26,6 +27,7 @@ permissions: {}
 
 jobs:
   cleanup:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: docs-preview
@@ -45,8 +47,15 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
         run: |
           set -euo pipefail
+
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
 
           vercel_api() {
             curl --fail-with-body -sS --retry 3 \
@@ -97,11 +106,11 @@ jobs:
           failed=0
           for pr in $closed; do
             removed=0
-            delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}.vercel.app?teamId=${VERCEL_ORG_ID}" || failed=1
+            delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}.${domain}?teamId=${VERCEL_ORG_ID}" || failed=1
             while IFS=$'\t' read -r id dep_pr sha; do
               [ "$dep_pr" = "$pr" ] || continue
               if [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
-                delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}-${sha:0:9}.vercel.app?teamId=${VERCEL_ORG_ID}" || failed=1
+                delete "https://api.vercel.com/v2/aliases/coder-docs-pr-${pr}-${sha:0:9}.${domain}?teamId=${VERCEL_ORG_ID}" || failed=1
               fi
               if delete "https://api.vercel.com/v13/deployments/${id}?teamId=${VERCEL_ORG_ID}"; then
                 removed=$((removed + 1))
