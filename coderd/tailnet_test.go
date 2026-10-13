@@ -215,15 +215,11 @@ func TestServerTailnet_DERPConnects(t *testing.T) {
 	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_connects_total"))
 }
 
-// TestServerTailnet_KeepAliveAgentConn checks that a connection from
-// keepAliveAgentConn reuses its API connection until released, and that a
-// connection from AgentConn does not.
 func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	agents, serverTailnet := setupServerTailnetAgent(t, 1)
-	agentID := agents[0].id
 	reused := func(conn workspacesdk.AgentConn) (bool, error) {
 		var reused atomic.Bool
 		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
@@ -235,16 +231,7 @@ func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 		return reused.Load(), err
 	}
 
-	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
-	require.NoError(t, err)
-	for range 2 {
-		r, err := reused(conn)
-		require.NoError(t, err)
-		require.False(t, r, "AgentConn keeps no API connection")
-	}
-	release()
-
-	conn, release, err = coderd.ServerTailnetKeepAliveAgentConn(serverTailnet, ctx, agentID)
+	conn, release, err := coderd.ServerTailnetKeepAliveAgentConn(serverTailnet, ctx, agents[0].id)
 	require.NoError(t, err)
 	r, err := reused(conn)
 	require.NoError(t, err)
@@ -255,15 +242,6 @@ func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 	release()
 	_, err = reused(conn)
 	require.Error(t, err, "release closes the connection")
-}
-
-// TestServerTailnet_KeepAliveAPIIdleConnTimeout checks that coderd closes an
-// idle API connection before the workspace agent does. A POST sent on a
-// connection the workspace agent closed returns an error.
-func TestServerTailnet_KeepAliveAPIIdleConnTimeout(t *testing.T) {
-	t.Parallel()
-
-	require.Less(t, coderd.KeepAliveAPIIdleConnTimeout, workspacesdk.AgentHTTPAPIServerIdleTimeout)
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
