@@ -248,8 +248,10 @@ func TestRefreshMCPTokenDatabaseError(t *testing.T) {
 			tc.expect(db)
 
 			server := loopbackMCPServer(db)
-			_, err := server.refreshMCPTokenIfNeeded(
-				context.Background(), slogtest.Make(t, nil), cfg, expiredMCPToken(cfg.ID),
+			_, err := server.refreshExpiredMCPTokens(
+				context.Background(), slogtest.Make(t, nil),
+				[]database.MCPServerConfig{cfg},
+				[]database.MCPServerUserToken{expiredMCPToken(cfg.ID)},
 			)
 			require.ErrorIs(t, err, sql.ErrConnDone)
 		})
