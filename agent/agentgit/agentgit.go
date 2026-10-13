@@ -67,7 +67,6 @@ type Handler struct {
 
 	mu              sync.Mutex
 	repoRoots       map[string]struct{}     // watched repo roots
-	pathRoots       map[string]string       // repo root each path resolved to in SetPaths
 	pendingRemovals map[string]struct{}     // roots dropped by SetPaths, not yet reported
 	lastSnapshots   map[string]repoSnapshot // last emitted snapshot per repo
 	lastScanAt      time.Time               // when the last scan completed
@@ -90,7 +89,6 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 		execer:          agentexec.DefaultExecer,
 		gitBin:          "git",
 		repoRoots:       make(map[string]struct{}),
-		pathRoots:       make(map[string]string),
 		pendingRemovals: make(map[string]struct{}),
 		lastSnapshots:   make(map[string]repoSnapshot),
 		scanTrigger:     make(chan struct{}, 1),
@@ -114,79 +112,33 @@ func (h *Handler) gitAvailable() bool {
 	return err == nil
 }
 
-// Subscribe processes a subscribe message, resolving paths to git repo
-// roots and adding new repos to the watch set. Returns true if any new
-// repo roots were added.
-func (h *Handler) Subscribe(paths []string) bool {
-	if !h.gitAvailable() {
-		return false
-	}
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	added := false
-	for _, p := range paths {
-		if !filepath.IsAbs(p) {
-			continue
-		}
-		p = filepath.Clean(p)
-
-		root, err := findRepoRoot(h.execer, h.gitBin, p)
-		if err != nil {
-			// Not a git path — silently ignore.
-			continue
-		}
-		if _, ok := h.repoRoots[root]; ok {
-			continue
-		}
-		h.repoRoots[root] = struct{}{}
-		added = true
-	}
-	return added
-}
-
 // SetPaths replaces the watch set with the repo roots that paths
 // resolve to, so the watched roots match what a new connection would
-// resolve from the same paths. Roots that no path resolves to anymore
-// are reported as removed by the next Scan. A path that fails to
-// resolve keeps its previous root while that root is still a
-// repository, so a transient resolution failure does not make a repo
-// disappear and reappear.
+// resolve from the same paths. Relative and non-git paths are
+// ignored. Roots that no path resolves to anymore are reported as
+// removed by the next Scan.
 func (h *Handler) SetPaths(paths []string) {
 	if !h.gitAvailable() {
 		return
 	}
 
-	h.mu.Lock()
-	prevPathRoots := h.pathRoots
-	h.mu.Unlock()
-
 	// Resolve outside the lock so scans are not blocked on git.
-	pathRoots := make(map[string]string, len(paths))
+	repoRoots := make(map[string]struct{})
 	for _, p := range paths {
 		if !filepath.IsAbs(p) {
 			continue
 		}
-		p = filepath.Clean(p)
-
-		root, err := findRepoRoot(h.execer, h.gitBin, p)
+		root, err := findRepoRoot(h.execer, h.gitBin, filepath.Clean(p))
 		if err != nil {
-			prev, ok := prevPathRoots[p]
-			if !ok || isRepoDeleted(h.execer, h.gitBin, prev) {
-				continue
-			}
-			root = prev
+			continue
 		}
-		pathRoots[p] = root
+		repoRoots[root] = struct{}{}
 	}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	repoRoots := make(map[string]struct{}, len(pathRoots))
-	for _, root := range pathRoots {
-		repoRoots[root] = struct{}{}
+	for root := range repoRoots {
 		delete(h.pendingRemovals, root)
 	}
 	for root := range h.repoRoots {
@@ -199,7 +151,6 @@ func (h *Handler) SetPaths(paths []string) {
 		h.pendingRemovals[root] = struct{}{}
 	}
 	h.repoRoots = repoRoots
-	h.pathRoots = pathRoots
 }
 
 // RequestScan pokes the scan trigger so the run loop performs a scan.
@@ -412,10 +363,18 @@ func isRepoDeleted(execer agentexec.Execer, gitBin string, repoRoot string) bool
 // findRepoRoot uses `git rev-parse --show-toplevel` to find the
 // repository root for the given path.
 func findRepoRoot(execer agentexec.Execer, gitBin string, p string) (string, error) {
-	// If p is a file, start from its parent directory.
+	// Start from the nearest existing directory, so a path whose file
+	// or directories were deleted still resolves to its repo.
 	dir := p
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		dir = filepath.Dir(dir)
+	for {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	cmd := execer.CommandContext(context.Background(), gitBin, "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
