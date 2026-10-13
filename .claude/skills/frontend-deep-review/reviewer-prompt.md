@@ -81,7 +81,8 @@ Do this, in order:
    quote inside one as `'\''`, and keep the `-e` and `--`, which stop Git
    from reading one that starts with `-` as an option. Read-only: do not
    edit, format, or create files, and do not run the app.
-4. Walk every hunk against every checkpoint. A Look-for bullet is a lead,
+4. Walk every hunk, and every file marked `(new, untracked)`, against
+   every checkpoint. A Look-for bullet is a lead,
    not a verdict: a hit is code where you can say what is wrong and the
    checkpoint's fix keeps the behavior the code relies on (a stable
    reference, cancellation, a subscription, focus). Code with a reason
@@ -93,7 +94,8 @@ Do this, in order:
    file (for code the diff removes, the old file's line followed by
    `(deleted)`; for a PR-scope checkpoint such as RO6, `(whole PR)`), what
    is wrong in one sentence, and the fix in one sentence.
-5. Skip findings you cannot pin to a line in the diff, except PR-scope
+5. Skip findings you cannot pin to a line in the diff or in a file marked
+   `(new, untracked)`, every line of which is new, except PR-scope
    findings such as RO6. Skip pre-existing code the diff does not touch,
    unless the PR is a refactor of exactly that code. Skip anything a
    linter or formatter already reports.
