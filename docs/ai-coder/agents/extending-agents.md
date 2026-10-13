@@ -198,7 +198,8 @@ Each organization can have up to 100 skills, and skills that are turned off coun
 
 ### Manage organization skills
 
-Manage organization skills from **Admin settings** > **AI** > **Coder Agents** > **Skills**, and choose the organization in the organization picker.
+Manage organization skills from **Admin settings** > **AI** > **Coder Agents** > **Skills**.
+If you can view the skills of more than one organization, choose the organization in the organization picker.
 The page address is `/ai/settings/skills?org=<organization-name>`.
 
 | Action                                                             | Built-in roles that can do it              |
@@ -234,11 +235,15 @@ It is experimental and might change.
 ### Find the organization skills you can use
 
 To check which organization skills you can use, open the **Agents** page and go to **Settings** > **Skills**.
-The **From your organizations** section lists, for each organization you belong to, the skills that are turned on and that you can use.
+The **From your organizations** section shows one organization at a time and lists that organization's skills that are turned on and that you can use.
 For site owners, organization admins, and auditors, it lists every organization skill that is turned on.
+If more than one of your organizations has such skills, choose an organization in the section's organization picker.
+The section starts on your default organization when that organization has such skills.
+An organization with no such skills doesn't appear in the picker, and the section doesn't appear when none of your organizations has any.
+
 To read a skill, open its row menu and select **View**, which shows its name, description, and body in a read-only dialog.
 To save its `SKILL.md` content as a file, select **Download** instead.
-An organization with no such skills doesn't appear in this section.
+To save all of the listed skills of the selected organization in one archive, select **Export all**.
 
 This section is read-only.
 Ask an organization admin to change an organization skill.
@@ -258,7 +263,10 @@ For site owners, organization admins, and auditors, the group lists every organi
 
 ### Turn a skill on or off
 
-Personal and organization skills each have an **Enabled** switch in their skills table.
+Personal and organization skills each have an **Enabled** column in their skills table.
+If you can edit the skill, the column shows a switch that turns the skill on or off.
+Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
+For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
