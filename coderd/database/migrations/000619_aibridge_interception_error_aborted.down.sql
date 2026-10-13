@@ -1,0 +1,1 @@
+-- No-op for aibridge_interception_error_type, enum values can't be dropped.

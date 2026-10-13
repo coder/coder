@@ -26,6 +26,7 @@ const (
 	AibridgeInterceptionErrorTypeServerError  AIBridgeInterceptionErrorType = "server_error"
 	AibridgeInterceptionErrorTypeTimeout      AIBridgeInterceptionErrorType = "timeout"
 	AibridgeInterceptionErrorTypeUnknown      AIBridgeInterceptionErrorType = "unknown"
+	AibridgeInterceptionErrorTypeAborted      AIBridgeInterceptionErrorType = "aborted"
 )
 
 func (e *AIBridgeInterceptionErrorType) Scan(src interface{}) error {
@@ -71,7 +72,8 @@ func (e AIBridgeInterceptionErrorType) Valid() bool {
 		AibridgeInterceptionErrorTypeOverloaded,
 		AibridgeInterceptionErrorTypeServerError,
 		AibridgeInterceptionErrorTypeTimeout,
-		AibridgeInterceptionErrorTypeUnknown:
+		AibridgeInterceptionErrorTypeUnknown,
+		AibridgeInterceptionErrorTypeAborted:
 		return true
 	}
 	return false
@@ -86,6 +88,7 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 		AibridgeInterceptionErrorTypeServerError,
 		AibridgeInterceptionErrorTypeTimeout,
 		AibridgeInterceptionErrorTypeUnknown,
+		AibridgeInterceptionErrorTypeAborted,
 	}
 }
 
@@ -4884,7 +4887,7 @@ type AIBridgeInterception struct {
 	AgentFirewallSessionID uuid.NullUUID `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
 	// The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.
 	AgentFirewallSequenceNumber sql.NullInt32 `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
-	// Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.
+	// Categorised terminal error for a failed interception, including aborted when the client went away before it completed; NULL when the interception succeeded.
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`

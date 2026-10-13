@@ -39,7 +39,8 @@ CREATE TYPE aibridge_interception_error_type AS ENUM (
     'overloaded',
     'server_error',
     'timeout',
-    'unknown'
+    'unknown',
+    'aborted'
 );
 
 CREATE TYPE api_key_scope AS ENUM (
@@ -1720,7 +1721,7 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent
 
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
 
-COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
+COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal error for a failed interception, including aborted when the client went away before it completed; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
