@@ -1852,12 +1852,12 @@ func TestResolveUserCompactionThreshold(t *testing.T) {
 	expectedKey := codersdk.CompactionThresholdKey(modelConfigID)
 
 	tests := []struct {
-		name        string
-		dbReturn    string
-		dbErr       error
-		wantVal     int32
-		wantOK      bool
-		wantWarnLog bool
+		name     string
+		dbReturn string
+		dbErr    error
+		wantVal  int32
+		wantOK   bool
+		wantErr  bool
 	}{
 		{
 			name:   "NoRowsReturnsDefault",
@@ -1881,10 +1881,9 @@ func TestResolveUserCompactionThreshold(t *testing.T) {
 			wantOK:   false,
 		},
 		{
-			name:        "UnexpectedDBError",
-			dbErr:       xerrors.New("connection refused"),
-			wantOK:      false,
-			wantWarnLog: true,
+			name:    "UnexpectedDBError",
+			dbErr:   xerrors.New("connection refused"),
+			wantErr: true,
 		},
 	}
 
@@ -1895,30 +1894,21 @@ func TestResolveUserCompactionThreshold(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mockDB := dbmock.NewMockStore(ctrl)
-			sink := testutil.NewFakeSink(t)
-
-			srv := &Server{
-				db:     mockDB,
-				logger: sink.Logger(),
-			}
+			srv := &Server{db: mockDB}
 
 			mockDB.EXPECT().GetUserChatCompactionThreshold(gomock.Any(), database.GetUserChatCompactionThresholdParams{
 				UserID: userID,
 				Key:    expectedKey,
 			}).Return(tc.dbReturn, tc.dbErr)
 
-			val, ok := srv.resolveUserCompactionThreshold(context.Background(), userID, modelConfigID)
+			val, ok, err := srv.resolveUserCompactionThreshold(context.Background(), userID, modelConfigID)
+			if tc.wantErr {
+				require.ErrorIs(t, err, tc.dbErr)
+			} else {
+				require.NoError(t, err)
+			}
 			require.Equal(t, tc.wantVal, val)
 			require.Equal(t, tc.wantOK, ok)
-
-			warns := sink.Entries(func(e slog.SinkEntry) bool {
-				return e.Level == slog.LevelWarn
-			})
-			if tc.wantWarnLog {
-				require.NotEmpty(t, warns, "expected a warning log entry")
-				return
-			}
-			require.Empty(t, warns, "unexpected warning log entry")
 		})
 	}
 }
@@ -2080,7 +2070,6 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		server := &Server{db: db}
 		userID := uuid.New()
 
@@ -2096,7 +2085,8 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 			},
 		)
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		got, err := server.fetchPersonalSkillMetadata(context.Background(), userID)
+		require.NoError(t, err)
 		require.Equal(t, []skillspkg.Skill{{
 			Name:        "personal-review",
 			Description: "Personal review process",
@@ -2109,19 +2099,14 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		sink := testutil.NewFakeSink(t)
-		logger := sink.Logger().Leveled(slog.LevelDebug)
 		server := &Server{db: db}
 		userID := uuid.New()
+		listErr := xerrors.New("boom")
 
-		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, xerrors.New("boom"))
+		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, listErr)
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
-		require.Empty(t, got)
-		warns := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Level == slog.LevelWarn && strings.Contains(e.Message, "personal skill metadata")
-		})
-		require.NotEmpty(t, warns)
+		_, err := server.fetchPersonalSkillMetadata(context.Background(), userID)
+		require.ErrorIs(t, err, listErr)
 	})
 }
 
@@ -3632,6 +3617,8 @@ func TestResolveModelConfigOrganizationScope(t *testing.T) {
 func TestResolveFallbackModelConfigID(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
+
 	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
 		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
 			p.Enabled = enabled
@@ -3653,7 +3640,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("EnabledLastModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3667,7 +3653,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3683,7 +3668,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3697,7 +3681,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NonDefaultOrgWithoutLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		otherOrgID := newModelConfigOrg(t, db)
@@ -3712,7 +3695,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3737,7 +3719,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultProviderRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3750,7 +3731,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3764,7 +3744,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitEnabledModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3778,7 +3757,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3798,7 +3776,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitUnrelatedOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3819,7 +3796,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// preflight must still be rejected inside the daemon.
 	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3834,7 +3810,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// inserting the chat and its initial messages.
 	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		owner := dbgen.User(t, db, database.User{})

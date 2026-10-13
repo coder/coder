@@ -48,8 +48,6 @@ type ModelSelectorProps = {
 	 * by the selected model's display name or the placeholder.
 	 */
 	triggerAriaLabel?: string;
-	triggerAriaInvalid?: boolean;
-	triggerAriaDescribedBy?: string;
 	disabled?: boolean;
 	placeholder?: string;
 	/**
@@ -71,12 +69,16 @@ type ModelSelectorProps = {
 };
 
 export const formatContextLimit = (tokens: number): string => {
-	if (tokens >= 1_000_000) {
-		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+	const roundedTokens = Math.round(tokens);
+	if (roundedTokens < 1_000) {
+		return `${roundedTokens}`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K`;
+	if (k < 1_000) {
+		return `${k}K`;
+	}
+	const m = tokens / 1_000_000;
+	return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 };
 
 const getProviderLabel = (
@@ -100,8 +102,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	value,
 	onValueChange,
 	triggerAriaLabel,
-	triggerAriaInvalid,
-	triggerAriaDescribedBy,
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
@@ -161,8 +161,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							? `${triggerAriaLabel}, ${triggerLabel}`
 							: triggerLabel
 					}
-					aria-invalid={triggerAriaInvalid}
-					aria-describedby={triggerAriaDescribedBy}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					aria-controls={open ? listboxId : undefined}

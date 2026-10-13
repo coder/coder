@@ -115,7 +115,7 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}

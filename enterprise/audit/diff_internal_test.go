@@ -2,7 +2,6 @@ package audit
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -174,65 +173,6 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
-
-	// We currently don't support nested structs.
-	// t.Run("NestedStruct", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	type bar struct {
-	// 		Baz string `json:"baz"`
-	// 	}
-
-	// 	type foo struct {
-	// 		Bar *bar `json:"bar"`
-	// 	}
-
-	// 	table := auditMap(map[any]map[string]Action{
-	// 		&foo{}: {
-	// 			"bar": ActionTrack,
-	// 		},
-	// 		&bar{}: {
-	// 			"baz": ActionTrack,
-	// 		},
-	// 	})
-
-	// 	runDiffValuesTests(t, table, []diffTest{
-	// 		{
-	// 			name: "LeftEmpty",
-	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "", New: "baz"},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightEmpty",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "LeftNil",
-	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightNil",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 	})
-	// })
 }
 
 type diffTest struct {
@@ -719,46 +659,6 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		require.NotContains(t, string(raw), secret)
 	}
 	require.Contains(t, string(raw), "client-id")
-}
-
-func Test_chatAutomationSecretFieldsRedacted(t *testing.T) {
-	t.Parallel()
-
-	fields := AuditableResources[structName(reflect.TypeFor[database.ChatAutomation]())]
-	require.Equal(t, Action(ActionSecret), fields["webhook_secret_hash"])
-	require.Equal(t, Action(ActionSecret), fields["prompt"])
-
-	oldHash := []byte("old-webhook-secret-hash")
-	newHash := []byte("new-webhook-secret-hash")
-	left := database.ChatAutomation{
-		ID:                   uuid.UUID{1},
-		Name:                 "deploy-hook",
-		Kind:                 database.ChatAutomationKindWebhook,
-		WebhookSecretHash:    oldHash,
-		WebhookSecretVersion: 1,
-		Prompt:               "old private prompt text",
-	}
-	right := left
-	right.WebhookSecretHash = newHash
-	right.WebhookSecretVersion = 2
-	right.Prompt = "new private prompt text"
-
-	diff := diffValues(left, right, AuditableResources)
-	require.Equal(t, audit.Map{
-		"webhook_secret_hash":    audit.OldNew{Old: []byte(nil), New: []byte(nil), Secret: true},
-		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
-		"prompt":                 audit.OldNew{Old: "", New: "", Secret: true},
-	}, diff)
-
-	// The persisted diff is JSON; neither hash nor prompt may appear in any
-	// encoding.
-	raw, err := json.Marshal(diff)
-	require.NoError(t, err)
-	require.NotContains(t, string(raw), "private prompt text")
-	for _, hash := range [][]byte{oldHash, newHash} {
-		require.NotContains(t, string(raw), string(hash))
-		require.NotContains(t, string(raw), base64.StdEncoding.EncodeToString(hash))
-	}
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

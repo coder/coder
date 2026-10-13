@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -30,6 +31,14 @@ type Option func(*Handler)
 func WithClock(c quartz.Clock) Option {
 	return func(h *Handler) {
 		h.clock = c
+	}
+}
+
+// WithExecer sets the agentexec.Execer used to run git. Defaults to
+// agentexec.DefaultExecer.
+func WithExecer(execer agentexec.Execer) Option {
+	return func(h *Handler) {
+		h.execer = execer
 	}
 }
 
@@ -53,6 +62,7 @@ const (
 type Handler struct {
 	logger slog.Logger
 	clock  quartz.Clock
+	execer agentexec.Execer
 	gitBin string // path to git binary; empty means "git" (from PATH)
 
 	mu            sync.Mutex
@@ -74,6 +84,7 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 	h := &Handler{
 		logger:        logger,
 		clock:         quartz.NewReal(),
+		execer:        agentexec.DefaultExecer,
 		gitBin:        "git",
 		repoRoots:     make(map[string]struct{}),
 		lastSnapshots: make(map[string]repoSnapshot),
@@ -116,7 +127,7 @@ func (h *Handler) Subscribe(paths []string) bool {
 		}
 		p = filepath.Clean(p)
 
-		root, err := findRepoRoot(h.gitBin, p)
+		root, err := findRepoRoot(h.execer, h.gitBin, p)
 		if err != nil {
 			// Not a git path — silently ignore.
 			continue
@@ -169,7 +180,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	}
 	results := make([]scanResult, 0, len(roots))
 	for _, root := range roots {
-		changes, err := getRepoChanges(ctx, h.logger, h.gitBin, root)
+		changes, err := getRepoChanges(ctx, h.logger, h.execer, h.gitBin, root)
 		results = append(results, scanResult{root: root, changes: changes, err: err})
 	}
 
@@ -179,7 +190,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 	for _, res := range results {
 		if res.err != nil {
-			if isRepoDeleted(h.gitBin, res.root) {
+			if isRepoDeleted(h.execer, h.gitBin, res.root) {
 				// Repo root or .git directory was removed.
 				// Emit a removal entry, then evict from watch set.
 				removal := codersdk.WorkspaceAgentRepoChanges{
@@ -297,7 +308,7 @@ func (h *Handler) rateLimitedScan(ctx context.Context, scanFn func()) {
 //     gitdir was removed. In this case .git exists on disk but
 //     `git rev-parse --git-dir` fails because the referenced
 //     directory is gone.
-func isRepoDeleted(gitBin string, repoRoot string) bool {
+func isRepoDeleted(execer agentexec.Execer, gitBin string, repoRoot string) bool {
 	if _, err := os.Stat(repoRoot); os.IsNotExist(err) {
 		return true
 	}
@@ -310,7 +321,7 @@ func isRepoDeleted(gitBin string, repoRoot string) bool {
 	// git object store lives elsewhere. Validate that the target is
 	// still reachable by running git rev-parse.
 	if err == nil && !fi.IsDir() {
-		cmd := exec.CommandContext(context.Background(), gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
+		cmd := execer.CommandContext(context.Background(), gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
 		if err := cmd.Run(); err != nil {
 			return true
 		}
@@ -320,13 +331,13 @@ func isRepoDeleted(gitBin string, repoRoot string) bool {
 
 // findRepoRoot uses `git rev-parse --show-toplevel` to find the
 // repository root for the given path.
-func findRepoRoot(gitBin string, p string) (string, error) {
+func findRepoRoot(execer agentexec.Execer, gitBin string, p string) (string, error) {
 	// If p is a file, start from its parent directory.
 	dir := p
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		dir = filepath.Dir(dir)
 	}
-	cmd := exec.CommandContext(context.Background(), gitBin, "rev-parse", "--show-toplevel")
+	cmd := execer.CommandContext(context.Background(), gitBin, "rev-parse", "--show-toplevel")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -343,20 +354,20 @@ func findRepoRoot(gitBin string, p string) (string, error) {
 
 // getRepoChanges reads the current state of a git repository using
 // the git CLI. It returns branch, remote origin, and a unified diff.
-func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
+func getRepoChanges(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
 	result := codersdk.WorkspaceAgentRepoChanges{
 		RepoRoot: repoRoot,
 	}
 
 	// Verify this is still a valid git repository before doing
 	// anything else. This catches deleted repos early.
-	verifyCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
+	verifyCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
 	if err := verifyCmd.Run(); err != nil {
 		return result, xerrors.Errorf("not a git repository: %w", err)
 	}
 
 	// Read branch name.
-	branchCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "symbolic-ref", "--short", "HEAD")
+	branchCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "symbolic-ref", "--short", "HEAD")
 	if out, err := branchCmd.Output(); err == nil {
 		result.Branch = strings.TrimSpace(string(out))
 	} else {
@@ -364,7 +375,7 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repo
 	}
 
 	// Read remote origin URL.
-	remoteCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "config", "--get", "remote.origin.url")
+	remoteCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "config", "--get", "remote.origin.url")
 	if out, err := remoteCmd.Output(); err == nil {
 		result.RemoteOrigin = strings.TrimSpace(string(out))
 	}
@@ -373,7 +384,7 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repo
 	// `git diff HEAD` shows both staged and unstaged changes vs HEAD.
 	// For repos with no commits yet, fall back to showing untracked
 	// files only.
-	diff, err := computeGitDiff(ctx, logger, gitBin, repoRoot)
+	diff, err := computeGitDiff(ctx, logger, execer, gitBin, repoRoot)
 	if err != nil {
 		return result, xerrors.Errorf("compute diff: %w", err)
 	}
@@ -389,12 +400,12 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repo
 // computeGitDiff produces a unified diff string for the repository by
 // combining `git diff HEAD` (staged + unstaged changes) with diffs
 // for untracked files.
-func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (string, error) {
+func computeGitDiff(ctx context.Context, logger slog.Logger, execer agentexec.Execer, gitBin string, repoRoot string) (string, error) {
 	var diffParts []string
 
 	// Check if the repo has any commits.
 	hasCommits := true
-	checkCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "HEAD")
+	checkCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "HEAD")
 	if err := checkCmd.Run(); err != nil {
 		hasCommits = false
 	}
@@ -402,7 +413,7 @@ func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repo
 	if hasCommits {
 		// `git diff HEAD` captures both staged and unstaged changes
 		// relative to HEAD in a single unified diff.
-		cmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
+		cmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
 		out, err := cmd.Output()
 		if err != nil {
 			return "", xerrors.Errorf("git diff HEAD: %w", err)
@@ -415,7 +426,7 @@ func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repo
 	// Show untracked files as diffs too.
 	// `git ls-files --others --exclude-standard` lists untracked,
 	// non-ignored files.
-	lsCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "ls-files", "--others", "--exclude-standard")
+	lsCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "ls-files", "--others", "--exclude-standard")
 	lsOut, err := lsCmd.Output()
 	if err != nil {
 		logger.Debug(ctx, "failed to list untracked files", slog.F("root", repoRoot), slog.Error(err))
@@ -431,7 +442,7 @@ func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repo
 		// Use `git diff --no-index /dev/null <file>` to generate
 		// a unified diff for untracked files.
 		var stdout bytes.Buffer
-		untrackedCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "--no-index", "--", "/dev/null", f)
+		untrackedCmd := execer.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "--no-index", "--", "/dev/null", f)
 		untrackedCmd.Stdout = &stdout
 		// git diff --no-index exits with 1 when files differ,
 		// which is expected. We ignore the error and check for

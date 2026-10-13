@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -12,6 +14,7 @@ import (
 
 func (r *RootCmd) stop() *serpent.Command {
 	var bflags buildFlags
+	var templateVersion string
 	cmd := &serpent.Command{
 		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "stop <workspace>",
@@ -20,6 +23,11 @@ func (r *RootCmd) stop() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Options: serpent.OptionSet{
+			{
+				Flag:        "template-version",
+				Description: "Stop with a named version of the workspace template. Defaults to the workspace's current version.",
+				Value:       serpent.StringOf(&templateVersion),
+			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -44,7 +52,11 @@ func (r *RootCmd) stop() *serpent.Command {
 				return err
 			}
 
-			build, err := stopWorkspace(inv, client, workspace, bflags)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
+			if err != nil {
+				return err
+			}
+			build, err := stopWorkspace(inv, client, workspace, bflags, versionID)
 			if err != nil {
 				return err
 			}
@@ -68,7 +80,7 @@ func (r *RootCmd) stop() *serpent.Command {
 	return cmd
 }
 
-func stopWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, bflags buildFlags) (codersdk.WorkspaceBuild, error) {
+func stopWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, bflags buildFlags, templateVersionID uuid.UUID) (codersdk.WorkspaceBuild, error) {
 	if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobPending {
 		// cliutil.WarnMatchedProvisioners also checks if the job is pending
 		// but we still want to avoid users spamming multiple builds that will
@@ -84,7 +96,8 @@ func stopWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace c
 		}
 	}
 	wbr := codersdk.CreateWorkspaceBuildRequest{
-		Transition: codersdk.WorkspaceTransitionStop,
+		Transition:        codersdk.WorkspaceTransitionStop,
+		TemplateVersionID: templateVersionID,
 	}
 	if bflags.provisionerLogDebug {
 		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
