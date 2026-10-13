@@ -2909,6 +2909,7 @@ export const SlashCompactCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2957,6 +2958,7 @@ export const SlashClearCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3006,6 +3008,7 @@ export const SlashClearCommandConflictShowsError: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3065,10 +3068,12 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				id: "5f3f847b-6e77-4be4-a591-6c04ee0e0e78",
 				name: "compact",
 				description: "Personal compact skill",
+				enabled: true,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-01T00:00:00Z",
 			},
 		]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
