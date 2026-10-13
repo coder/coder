@@ -132,6 +132,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
+		prStatuses,
 	} = getChatDisplayConfig(chat);
 	const workspaceId = chat.workspace_id;
 	const queryClient = useQueryClient();
@@ -232,6 +233,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
+		prStatuses: prStatuses.filter((status) => status.url),
 	};
 
 	return (
@@ -239,7 +241,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			<ChatActionsMenu
 				{...sharedMenuItemProps}
 				variant="context"
-				contentClassName="[&_[role=menuitem]]:text-[13px]"
+				contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
 			>
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
@@ -382,7 +384,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{!isArchivingThisChat && (
 							<ChatActionsMenu
 								{...sharedMenuItemProps}
-								contentClassName="[&_[role=menuitem]]:text-[13px]"
+								contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
 							>
 								<Button
 									size="icon"

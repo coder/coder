@@ -1308,11 +1308,6 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
-type UpdateChatManageAutomationsVariables = {
-	chatId: string;
-	enabled: boolean;
-};
-
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 const toChatPlanModePayload = (
@@ -1498,6 +1493,10 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+const MAX_MESSAGES_PER_REQUEST = 200;
+// Past the cap, a history page can end mid-turn; the next page continues
+// that turn.
+const MAX_MESSAGES_PER_PAGE = 1000;
 
 export const chatMessagesKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "messages"] as const;
@@ -1514,14 +1513,70 @@ export const chatQueueConvergence = (chatId: string) => ({
 	gcTime: 0,
 });
 
+// Extends a page back to the prompt that starts the turn containing its
+// oldest message.
+const fetchMessagesPage = async (
+	chatId: string,
+	beforeId: number | undefined,
+	signal: AbortSignal,
+): Promise<TypesGen.ChatMessagesResponse> => {
+	const page = await API.experimental.getChatMessages(
+		chatId,
+		{ before_id: beforeId, limit: MESSAGES_PAGE_SIZE },
+		signal,
+	);
+	const turnStartId = page.turn_start_id;
+	if (turnStartId === undefined) {
+		return page;
+	}
+
+	const messages = [...page.messages];
+	while (messages.length < MAX_MESSAGES_PER_PAGE) {
+		const oldestId = messages[messages.length - 1].id;
+		if (oldestId <= turnStartId) {
+			break;
+		}
+		try {
+			const older = await API.experimental.getChatMessages(
+				chatId,
+				{
+					// after_id is exclusive, so this keeps the prompt itself.
+					after_id: turnStartId - 1,
+					before_id: oldestId,
+					limit: Math.min(
+						MAX_MESSAGES_PER_REQUEST,
+						MAX_MESSAGES_PER_PAGE - messages.length,
+					),
+				},
+				signal,
+			);
+			messages.push(...older.messages);
+			// An empty page cannot move the cursor, whatever has_more says.
+			if (!older.has_more || older.messages.length === 0) {
+				break;
+			}
+		} catch {
+			// A failed fill keeps what loaded: the page ends mid-turn and the
+			// next page resumes from its oldest message.
+			break;
+		}
+	}
+
+	// Keep the first response's has_more; a fill's has_more covers only this
+	// turn.
+	return { ...page, messages };
+};
+
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
-	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-		API.experimental.getChatMessages(chatId, {
-			before_id: pageParam,
-			limit: MESSAGES_PAGE_SIZE,
-		}),
+	queryFn: ({
+		pageParam,
+		signal,
+	}: {
+		pageParam: number | undefined;
+		signal: AbortSignal;
+	}) => fetchMessagesPage(chatId, pageParam, signal),
 	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
 		if (!lastPage.has_more || lastPage.messages.length === 0) {
 			return undefined;
@@ -1744,17 +1799,12 @@ export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
 	},
 });
 
-type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
-
-// The list rollback reads the field from the entity snapshot.
-const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
-	queryClient: QueryClient,
-	field: K,
-) => ({
-	onMutate: async (
-		chatId: string,
-		value: TypesGen.Chat[K],
-	): Promise<OptimisticChatUpdateContext> => {
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: toChatPlanModePayload(planMode),
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1762,20 +1812,25 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: value } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				[field]: value,
+				plan_mode: planMode,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
-		chatId: string,
-		context: OptimisticChatUpdateContext | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
 	) => {
 		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
@@ -1784,49 +1839,17 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		}
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: previousChat[field] } : chat,
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
-
-export const updateChatPlanMode = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(queryClient, "plan_mode");
-	return {
-		mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			API.experimental.updateChat(chatId, {
-				plan_mode: toChatPlanModePayload(planMode),
-			}),
-		onMutate: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			optimistic.onMutate(chatId, planMode),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatPlanModeVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
-
-export const updateChatManageAutomations = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(
-		queryClient,
-		"manage_automations_enabled",
-	);
-	return {
-		mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			API.experimental.updateChat(chatId, {
-				manage_automations_enabled: enabled,
-			}),
-		onMutate: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			optimistic.onMutate(chatId, enabled),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatManageAutomationsVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
@@ -3112,7 +3135,7 @@ export const chatCost = (rootChatId: string) =>
 		staleTime: GATEWAY_REQUEST_STALE_MS,
 	});
 
-const organizationChatModelOverridesKey = (organizationId: string) =>
+export const organizationChatModelOverridesKey = (organizationId: string) =>
 	[...chatConfigKey, "model-overrides", organizationId] as const;
 
 export const organizationChatModelOverrides = (organizationId: string) => ({

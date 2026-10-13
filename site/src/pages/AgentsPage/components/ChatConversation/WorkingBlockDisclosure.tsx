@@ -31,6 +31,23 @@ const atLeast = (block: WorkingBlock) => (block.isPartial ? "at least " : "");
 const countLabel = (block: WorkingBlock, count: number, noun: string) =>
 	`${count} ${noun}${count === 1 ? "" : "s"}${block.isPartial ? " or more" : ""}`;
 
+const padTwo = (value: number) => value.toString().padStart(2, "0");
+
+/** Fixed-width elapsed time, e.g. "19m 05s", so the label does not jiggle. */
+export const formatLiveElapsed = (ms: number): string => {
+	const totalSeconds = Math.round(Math.max(0, ms) / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) {
+		return `${hours}h ${padTwo(minutes)}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${padTwo(seconds)}s`;
+	}
+	return `${seconds}s`;
+};
+
 type LiveLabelProps = { block: WorkingBlock };
 
 const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
@@ -42,22 +59,27 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
 
-	const elapsed = humanDurationShort(Math.max(0, now - block.startedAt));
+	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
-		<ToolCall.Label>{`Working for ${atLeast(block)}${elapsed}`}</ToolCall.Label>
+		<ToolCall.Label className="tabular-nums">
+			{`Working for ${atLeast(block)}${elapsed}`}
+		</ToolCall.Label>
 	);
 };
 
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
-	const steps = countLabel(block, block.stepCount, "step");
+	// A block of narration without tool calls has no steps to count.
+	const steps =
+		block.stepCount > 0 ? countLabel(block, block.stepCount, "step") : "";
 	if (block.startedAt === undefined || block.endedAt === undefined) {
-		return `Completed ${steps}`;
+		return steps ? `Completed ${steps}` : "Completed";
 	}
 
 	const duration = humanDurationShort(
 		Math.max(0, block.endedAt - block.startedAt),
 	);
-	return `Worked for ${atLeast(block)}${duration} (${steps})`;
+	const worked = `Worked for ${atLeast(block)}${duration}`;
+	return steps ? `${worked} (${steps})` : worked;
 };
 
 const getScrollParent = (element: HTMLElement): HTMLElement | null => {

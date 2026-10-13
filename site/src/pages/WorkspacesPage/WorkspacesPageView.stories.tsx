@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
+import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
@@ -180,6 +181,65 @@ const meta: Meta<typeof WorkspacesPageView> = {
 
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
+
+export const SelectAllMixedEligibility: Story = {
+	args: {
+		workspaces: [
+			createWorkspace("stopped", "stopped"),
+			createWorkspace("pending", "pending"),
+			createWorkspace("running", "running"),
+		],
+		count: 3,
+	},
+	render: function Render(args) {
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
+			readonly Workspace[]
+		>([]);
+		return (
+			<WorkspacesPageView
+				{...args}
+				checkedWorkspaces={checkedWorkspaces}
+				onCheckChange={setCheckedWorkspaces}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("checkbox", {
+				name: "Select all workspaces",
+			}),
+		);
+	},
+};
+
+export const NoEligibleWorkspaces: Story = {
+	args: {
+		workspaces: [
+			createWorkspace("pending", "pending"),
+			createWorkspace("deleting", "deleting"),
+		],
+		count: 2,
+	},
+};
+
+export const SelectedIneligibleWorkspaces: Story = {
+	args: {
+		...NoEligibleWorkspaces.args,
+		checkedWorkspaces: NoEligibleWorkspaces.args?.workspaces,
+	},
+	render: function Render(args) {
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState(
+			args.checkedWorkspaces,
+		);
+		return (
+			<WorkspacesPageView
+				{...args}
+				checkedWorkspaces={checkedWorkspaces}
+				onCheckChange={setCheckedWorkspaces}
+			/>
+		);
+	},
+};
 
 export const FilteredPaginationSummary: Story = {
 	args: {

@@ -851,6 +851,8 @@ func TestWorker_MarkStale_StripsOriginCredentials(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := dbmock.NewMockStore(ctrl)
 
+			chatID := uuid.New()
+			store.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{ID: chatID}, nil)
 			var stored string
 			store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 				stored = arg.GitRemoteOrigin
@@ -865,7 +867,7 @@ func TestWorker_MarkStale_StripsOriginCredentials(t *testing.T) {
 				WorkspaceID: uuid.New(),
 				Branch:      "main",
 				Origin:      tc.origin,
-				ChatID:      uuid.New(),
+				ChatID:      chatID,
 			})
 
 			require.Equal(t, tc.want, stored)
@@ -888,6 +890,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 
 	// GetChatsByWorkspaceIDs should NOT be called when a specific chat ID is provided.
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().GetChatByID(gomock.Any(), targetChat).Return(database.Chat{ID: targetChat}, nil)
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 		mu.Lock()
 		upsertRefCalls = append(upsertRefCalls, arg)
@@ -927,6 +930,76 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 
 	require.Len(t, publishedIDs, 1)
 	assert.Equal(t, targetChat, publishedIDs[0])
+}
+
+func TestWorker_MarkStale_SubagentChatID_UsesRootChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 100000,
+	})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "root",
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "child",
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	grandchild := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "grandchild",
+		ParentChatID:      uuid.NullUUID{UUID: child.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+
+	var publishedIDs []uuid.UUID
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
+		publishedIDs = append(publishedIDs, chatID)
+		return nil
+	}
+
+	mClock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	worker := gitsync.NewWorker(db, newTestRefresher(t, mClock), pub, mClock, logger)
+
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: uuid.New(),
+		Branch:      "child-branch",
+		Origin:      "https://github.com/o/r",
+		ChatID:      child.ID,
+	})
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: uuid.New(),
+		Branch:      "grandchild-branch",
+		Origin:      "https://github.com/o/r",
+		ChatID:      grandchild.ID,
+	})
+
+	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, []uuid.UUID{root.ID, child.ID, grandchild.ID})
+	require.NoError(t, err)
+	require.Len(t, statuses, 2)
+	branches := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		assert.Equal(t, root.ID, status.ChatID)
+		branches = append(branches, status.GitBranch)
+	}
+	assert.ElementsMatch(t, []string{"child-branch", "grandchild-branch"}, branches)
+	assert.Equal(t, []uuid.UUID{root.ID, root.ID}, publishedIDs)
 }
 
 func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
