@@ -221,9 +221,9 @@ runs with overall rates and 95% Wilson intervals. `--prompt-file` adds a
 second arm to the same experiment, so run.sh also writes the aegis report
 with the paired contrast to `<out>/candidate/<suite>/report/`.
 
-A build of a dirty checkout is stamped
-`0.0.0-devel+<sha7>.dirty.<hash8>`, so a dirty and a clean build never share
-a declared version. Edits under `coderd/x/chatd/evals/` do not count as
+Every build is stamped with its commit: `0.0.0-devel+<sha7>`, or
+`0.0.0-devel+<sha7>.dirty.<hash8>` for a dirty checkout, so two builds never
+share a declared version. Edits under `coderd/x/chatd/evals/` do not count as
 dirty, because they are not part of the coder binary.
 
 ## Reading results

@@ -304,7 +304,7 @@ build_grader() {
 # build_subject sets SUBJECT_IMAGE, SUBJECT_VERSION, and SUBJECT_CUSTOM for
 # the coder build named by $1 ("" for this checkout).
 build_subject() {
-	local want=$1 src sha id ldflags=() bin dirty_hash ctx tag
+	local want=$1 src sha id bin dirty_hash ctx tag version
 	if [[ $want == release ]]; then
 		SUBJECT_IMAGE=$RUNNER_IMAGE
 		SUBJECT_VERSION=2.37.0
@@ -327,7 +327,6 @@ build_subject() {
 				} | sha256sum | cut -c1-8
 			)
 			id=$id.dirty.$dirty_hash
-			ldflags=(-ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=0.0.0-devel+${sha:0:7}.dirty.$dirty_hash'")
 		fi
 	else
 		sha=$(git -C "$REPO_ROOT" rev-parse --verify "$want^{commit}") || die "unknown ref $want"
@@ -340,15 +339,19 @@ build_subject() {
 			cleanup_paths+=("$src")
 		fi
 	fi
+	# Stamp the version: go build does not embed VCS data from every
+	# checkout (a linked worktree, for one), and an unstamped build reports
+	# a bare 0.0.0-devel that two different commits would share.
+	version=0.0.0-devel+$id
 	bin=$CACHE/coder/coder-$id
 	mkdir -p "$CACHE/coder"
-	if [[ ! -x $bin || $id == *.dirty.* ]]; then
+	if [[ ! -x $bin || $id == *.dirty.* || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
 		log "building coder $id"
-		(cd "$src" && CGO_ENABLED=0 go build "${ldflags[@]}" -o "$bin.new" ./enterprise/cmd/coder)
+		(cd "$src" && CGO_ENABLED=0 go build -ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=$version'" -o "$bin.new" ./enterprise/cmd/coder)
 		mv "$bin.new" "$bin"
 	fi
 	SUBJECT_VERSION=$("$bin" version --output json | jq -r '.version | ltrimstr("v")')
-	[[ -n $SUBJECT_VERSION && $SUBJECT_VERSION != null ]] || die "cannot read the version of $bin"
+	[[ $SUBJECT_VERSION == "$version" ]] || die "$bin reports version $SUBJECT_VERSION, want $version"
 	tag=$(printf '%s' "$SUBJECT_VERSION" | tr -c 'A-Za-z0-9_.-' '-' | cut -c1-100)-$RUNNER_TAG
 	SUBJECT_IMAGE=chatd-evals-runner:$tag
 	SUBJECT_CUSTOM=1
