@@ -150,7 +150,7 @@ export const AnswerStreamsAfterBlock: Story = {
 	play: expandBlock("Working for 12s"),
 };
 
-// Narration before a web search stays in the live block, and the answer, cited
+// Text before a web search renders above the live block, and the answer, cited
 // as it streams, renders after it.
 export const SearchAnswerStreamsAfterBlock: Story = {
 	args: {
@@ -182,6 +182,30 @@ export const SearchAnswerStreamsAfterBlock: Story = {
 		]),
 	},
 	play: expandBlock("Working for 12s"),
+};
+
+// Text that streams between steps closes the block before it, and the next
+// tool call opens a live block below the text.
+export const TextBetweenStepsOpensNextBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 3),
+		),
+		...buildStreamRenderState([
+			{
+				type: "text",
+				text: "The first check passed. Running the trials next.",
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "second",
+				tool_name: "execute",
+				args: { command: "echo second" },
+				created_at: workingFixtureTime(5),
+			},
+		]),
+	},
+	play: expandBlock("Working for 8s"),
 };
 
 export const RequiresActionCompletesBlock: Story = {

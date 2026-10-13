@@ -76,7 +76,8 @@ export const Expanded: Story = {
 	},
 };
 
-// Only the answer's final text shows after the summary.
+// The answer's lead-in text closes the steps' block, and its search folds into
+// a block of its own before the final text.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
@@ -88,10 +89,12 @@ export const AnswerWorkFoldsExpanded: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
 	},
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (3 steps)",
-			}),
+			canvas.getByRole("button", { name: "Worked for 13s (2 steps)" }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 2s (1 step)" }),
 		);
 	},
 };
@@ -120,7 +123,9 @@ export const UncitedSearchAnswerFoldsExpanded: Story = {
 	},
 };
 
-export const LabeledNarrationFolds: Story = {
+// Narration is text the assistant addresses to the user, so it stays in the
+// transcript, and reasoning without steps stays unfolded beside it.
+export const LabeledNarrationStaysVisible: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
 			MockWorkingMessages[0],
@@ -144,7 +149,7 @@ export const LabeledNarrationFolds: Story = {
 	},
 };
 
-export const LeadInBeforeSearchFolds: Story = {
+export const LeadInBeforeSearchStaysVisible: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
 	},
@@ -153,6 +158,36 @@ export const LeadInBeforeSearchFolds: Story = {
 			within(canvasElement).getByRole("button", {
 				name: "Worked for 2s (1 step)",
 			}),
+		);
+	},
+};
+
+// Text between steps closes the block of the steps before it, and the next
+// step opens a new block below the text.
+export const TextBetweenStepsSplitsBlocks: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			{
+				...MockWorkingMessages[3],
+				content: [
+					{
+						type: "text",
+						text: "The first check passed. Running the trials next.",
+					},
+					...(MockWorkingMessages[3].content ?? []),
+				],
+			},
+			...MockWorkingMessages.slice(4),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 3s (1 step)" }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 8s (1 step)" }),
 		);
 	},
 };

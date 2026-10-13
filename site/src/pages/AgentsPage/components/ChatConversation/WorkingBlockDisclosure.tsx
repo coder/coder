@@ -68,7 +68,7 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 };
 
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
-	// A block of narration without tool calls has no steps to count.
+	// A block of reasoning without tool calls has no steps to count.
 	const steps =
 		block.stepCount > 0 ? countLabel(block, block.stepCount, "step") : "";
 	if (block.startedAt === undefined || block.endedAt === undefined) {
