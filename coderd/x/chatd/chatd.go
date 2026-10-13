@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -1241,6 +1242,35 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("update chat mcp server ids: %w", err)
+	}
+	return updated, nil
+}
+
+// UpdateChatMCPServerIDs replaces the chat's MCP server selection under
+// the chat lock, the same way send and edit do, so Force On servers and
+// the Explore snapshot rule apply. It publishes a chat update.
+func (p *Server) UpdateChatMCPServerIDs(ctx context.Context, chatID uuid.UUID, ids []uuid.UUID) (database.Chat, error) {
+	if chatID == uuid.Nil {
+		return database.Chat{}, xerrors.New("chat_id is required")
+	}
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
+	var updated database.Chat
+	machine := p.newChatMachine(chatID)
+	err := machine.Update(ctx, func(_ *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		updated, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, &ids)
+		return err
+	})
+	if err != nil {
+		return database.Chat{}, err
 	}
 	return updated, nil
 }
@@ -3660,6 +3690,17 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
+	// workspaceToolsOff adds the tool sets notice for this turn.
+	workspaceToolsOff bool
+}
+
+// insertToolSetsNotice adds the current-turn notice when the workspace
+// group is off, unless CODER_CHAT_TOOL_SETS_NOTICE is "off".
+func insertToolSetsNotice(prompt []fantasy.Message, behaviorContext systemPromptBehaviorContext) []fantasy.Message {
+	if !behaviorContext.workspaceToolsOff || os.Getenv("CODER_CHAT_TOOL_SETS_NOTICE") == "off" {
+		return prompt
+	}
+	return chatprompt.InsertSystem(prompt, chatToolSetsNotice)
 }
 
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
@@ -3722,7 +3763,7 @@ func buildSystemPrompt(
 	}
 	if isExploreSubagentMode(behaviorContext.chatMode) {
 		prompt = chatprompt.InsertSystem(prompt, ExploreSubagentOverlayPrompt)
-		return prompt
+		return insertToolSetsNotice(prompt, behaviorContext)
 	}
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
@@ -3735,7 +3776,7 @@ func buildSystemPrompt(
 			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
 		}
 	}
-	return prompt
+	return insertToolSetsNotice(prompt, behaviorContext)
 }
 
 type rootChatToolsOptions struct {
@@ -3746,6 +3787,12 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
+	// toolGroups holds the turn's resolved tool groups. Nil means
+	// every group has its default.
+	toolGroups map[codersdk.ChatToolGroup]bool
+	// storedToolGroups holds the turn's groups in stored form, which a
+	// spawned sub-agent inherits.
+	storedToolGroups map[codersdk.ChatToolGroup]bool
 }
 
 func (p *Server) loadPlanModeInstructions(
@@ -3853,42 +3900,44 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
-	tools = append(tools,
-		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
-			OwnerID: opts.chat.OwnerID,
-			Logger:  p.logger,
-			Clock:   p.clock,
-		}),
-		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID:          opts.chat.OwnerID,
-			RenderParameters: p.renderTemplateParametersFn,
-			Logger:           p.logger,
-		}),
-		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
-			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       p.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
-			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
-			WorkspaceMu:                    opts.workspaceMu,
-			OnChatUpdated:                  onChatUpdated,
-			Logger:                         p.logger,
-		}),
-		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
-		}),
-		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StopFn:        p.stopWorkspaceFn,
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
-		}),
-	)
+	if toolGroupOn(opts.toolGroups, codersdk.ChatToolGroupWorkspace) {
+		tools = append(tools,
+			chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
+				OwnerID: opts.chat.OwnerID,
+				Logger:  p.logger,
+				Clock:   p.clock,
+			}),
+			chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
+				OwnerID:          opts.chat.OwnerID,
+				RenderParameters: p.renderTemplateParametersFn,
+				Logger:           p.logger,
+			}),
+			chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
+				OwnerID:                        opts.chat.OwnerID,
+				CreateFn:                       p.createWorkspaceFn,
+				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+				WorkspaceMu:                    opts.workspaceMu,
+				OnChatUpdated:                  onChatUpdated,
+				Logger:                         p.logger,
+			}),
+			chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
+				OwnerID:       opts.chat.OwnerID,
+				StartFn:       p.startWorkspaceFn,
+				AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu:   opts.workspaceMu,
+				OnChatUpdated: onChatUpdated,
+				Logger:        p.logger,
+			}),
+			chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
+				OwnerID:       opts.chat.OwnerID,
+				StopFn:        p.stopWorkspaceFn,
+				WorkspaceMu:   opts.workspaceMu,
+				OnChatUpdated: onChatUpdated,
+				Logger:        p.logger,
+			}),
+		)
+	}
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,
@@ -3898,9 +3947,12 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	if !toolGroupOn(opts.toolGroups, codersdk.ChatToolGroupSubagents) {
+		return tools
+	}
+	return append(tools, p.subagentToolsWithToolGroups(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID, opts.storedToolGroups)...)
 }
 
 func appendDynamicTools(
@@ -3910,6 +3962,7 @@ func appendDynamicTools(
 	raw pqtype.NullRawMessage,
 	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
+	reservedNames map[string]bool,
 ) ([]fantasy.AgentTool, map[string]bool, error) {
 	if isExploreSubagentMode(chatMode) || (planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan) {
 		return tools, nil, nil
@@ -3943,6 +3996,14 @@ func appendDynamicTools(
 			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
 				slog.F("tool_name", info.Name))
 			delete(dynamicToolNames, info.Name)
+		}
+	}
+	// Built-in tools whose group is off this turn keep their names.
+	for name := range reservedNames {
+		if dynamicToolNames[name] {
+			logger.Warn(ctx, "dynamic tool name is reserved by a built-in tool that is off for this chat",
+				slog.F("tool_name", name))
+			delete(dynamicToolNames, name)
 		}
 	}
 

@@ -644,11 +644,13 @@ func (s *taskStarter) runGenerationStep(
 			return input, true, nil
 		}
 	}
-	if synced, err := s.syncMemoryIndex(ctx, machine, input, chat); err != nil {
-		return input, false, err
-	} else if synced.Chat.ID != uuid.Nil {
-		input.HistoryVersion = synced.Chat.HistoryVersion
-		return input, true, nil
+	if toolGroupOn(s.server.turnToolGroups(ctx, input.TurnExperiments, chat, messages), codersdk.ChatToolGroupMemory) {
+		if synced, err := s.syncMemoryIndex(ctx, machine, input, chat); err != nil {
+			return input, false, err
+		} else if synced.Chat.ID != uuid.Nil {
+			input.HistoryVersion = synced.Chat.HistoryVersion
+			return input, true, nil
+		}
 	}
 	prepareInput := generationPrepareInput{
 		Chat:                      chat,

@@ -17,6 +17,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -155,6 +156,43 @@ type turnExperimentDecisions struct {
 	turnKey       int64
 	decided       bool
 	mcpToolSearch bool
+
+	// The tool group decision keeps its own turn key and flag.
+	toolGroupsTurnKey int64
+	toolGroupsDecided bool
+	toolGroups        map[codersdk.ChatToolGroup]bool
+}
+
+// toolGroupsForTurn returns the turn's resolved tool groups, calling
+// evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) toolGroupsForTurn(
+	turnKey int64,
+	evaluate func() map[codersdk.ChatToolGroup]bool,
+) map[codersdk.ChatToolGroup]bool {
+	if turnKey == 0 {
+		return evaluate()
+	}
+	t.mu.Lock()
+	if t.toolGroupsDecided && t.toolGroupsTurnKey == turnKey {
+		groups := t.toolGroups
+		t.mu.Unlock()
+		return groups
+	}
+	t.mu.Unlock()
+
+	groups := evaluate()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.toolGroupsDecided && t.toolGroupsTurnKey == turnKey {
+		return t.toolGroups
+	}
+	if t.toolGroupsDecided && t.toolGroupsTurnKey > turnKey {
+		return groups
+	}
+	t.toolGroupsTurnKey = turnKey
+	t.toolGroupsDecided = true
+	t.toolGroups = groups
+	return groups
 }
 
 // mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling

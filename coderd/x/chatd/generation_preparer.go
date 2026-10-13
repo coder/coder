@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // effectiveMCPServerConfigs loads the chat's stored selection plus
@@ -182,7 +183,19 @@ func (server *Server) prepareGeneration(
 	}
 	modelRoute := resolved.route
 
+	// The first step of a turn decides the tool groups; later steps of
+	// the same turn reuse that decision.
+	toolGroups := server.turnToolGroups(ctx, input.TurnExperiments, chat, input.Messages)
+	workspaceToolsOn := toolGroupOn(toolGroups, codersdk.ChatToolGroupWorkspace)
+	skillsOn := toolGroupOn(toolGroups, codersdk.ChatToolGroupSkills)
+	memoryOn := toolGroupOn(toolGroups, codersdk.ChatToolGroupMemory)
+
 	currentPlanMode := chat.PlanMode
+	if !toolGroupOn(toolGroups, codersdk.ChatToolGroupPlanning) {
+		// Planning is off (it needs workspace), so the turn runs as a
+		// normal turn even when the chat is in plan mode.
+		currentPlanMode = database.NullChatPlanMode{}
+	}
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
@@ -378,10 +391,12 @@ func (server *Server) prepareGeneration(
 		// pinned context is read below.
 		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
-		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
-		if resolveErr != nil {
-			return generationPrepared{}, resolveErr
+		if workspaceToolsOn {
+			var resolveErr error
+			instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+			if resolveErr != nil {
+				return generationPrepared{}, resolveErr
+			}
 		}
 	}
 
@@ -431,11 +446,13 @@ func (server *Server) prepareGeneration(
 		}
 		return nil
 	})
-	g2.Go(func() error {
-		var err error
-		personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
-		return err
-	})
+	if skillsOn {
+		g2.Go(func() error {
+			var err error
+			personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
+			return err
+		})
+	}
 	g2.Go(func() error {
 		var err error
 		resolvedUserPrompt, err = server.resolveUserPrompt(ctx, chat.OwnerID)
@@ -506,7 +523,7 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
+	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent && workspaceToolsOn {
 		g2.Go(func() error {
 			var err error
 			workspaceMCPTools, err = server.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
@@ -518,7 +535,7 @@ func (server *Server) prepareGeneration(
 	// the cold dial overlap with the rest of turn preparation instead of
 	// blocking system prompt assembly on a sequential dial. Best-effort:
 	// resolvePlanPathBlock logs and returns an empty block on failure.
-	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid {
+	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid && workspaceToolsOn {
 		g2.Go(func() error {
 			planPathBlock = resolvePlanPathBlock(ctx)
 			return nil
@@ -557,8 +574,18 @@ func (server *Server) prepareGeneration(
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
-	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
-	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
+	var initialResolvedSkills []skillspkg.ResolvedSkill
+	if skillsOn {
+		initialResolvedSkills = resolvedSkillsFor(workspaceSkills)
+	}
+	var (
+		memoryStore       chattool.MemoryStore
+		memoryProjectName string
+		hasMemory         bool
+	)
+	if memoryOn {
+		memoryStore, memoryProjectName, hasMemory = server.resolveProjectMemory(ctx, chat)
+	}
 	memoryIndex := ""
 	if hasMemory {
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
@@ -577,6 +604,7 @@ func (server *Server) prepareGeneration(
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
+			workspaceToolsOff:    !workspaceToolsOn,
 		},
 	)
 	if advisorRuntime != nil {
@@ -597,42 +625,30 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
-	tools := []fantasy.AgentTool{
-		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.AttachFile(chattool.AttachFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			StoreFile:        storeChatAttachment,
-		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
-			AgentBrowserSession: chat.ID.String(),
-		}),
-		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+	tools := []fantasy.AgentTool{}
+	if workspaceToolsOn {
+		tools = baseWorkspaceTools(baseWorkspaceToolsOptions{
+			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			resolvePlanPath:  resolvePlanPathForTools,
+			isPlanModeTurn:   isPlanModeTurn,
+			storeFile:        storeChatAttachment,
+			chatID:           chat.ID,
+		})
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
-			chat:            chat,
-			modelConfigID:   modelConfig.ID,
-			workspaceCtx:    &workspaceCtx,
-			workspaceMu:     &workspaceMu,
-			resolvePlanPath: resolvePlanPathForTools,
-			storeFile:       storeChatAttachment,
-			isPlanModeTurn:  isPlanModeTurn,
+			chat:             chat,
+			modelConfigID:    modelConfig.ID,
+			workspaceCtx:     &workspaceCtx,
+			workspaceMu:      &workspaceMu,
+			resolvePlanPath:  resolvePlanPathForTools,
+			storeFile:        storeChatAttachment,
+			isPlanModeTurn:   isPlanModeTurn,
+			toolGroups:       toolGroups,
+			storedToolGroups: storedFormToolGroups(toolGroups),
 		})
 	}
 
@@ -647,7 +663,7 @@ func (server *Server) prepareGeneration(
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+		if !skillsOn || (len(personalSkills) == 0 && len(workspaceSkills) == 0) {
 			return current, false
 		}
 		updated := current
@@ -723,7 +739,7 @@ func (server *Server) prepareGeneration(
 			logger.Debug(ctx, "skipping dynamic tools: caller-supplied tools are disabled on this deployment")
 		}
 	} else {
-		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
+		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode, reservedToolNames(toolGroups))
 		if err != nil {
 			return generationPrepared{}, err
 		}
@@ -743,7 +759,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	if isComputerUse {
+	if isComputerUse && workspaceToolsOn {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -1166,4 +1182,41 @@ func enabledMCPServerConfigsForChatOrg(
 		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
 	}
 	return configs, nil
+}
+
+type baseWorkspaceToolsOptions struct {
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	resolvePlanPath  func(context.Context) (string, string, error)
+	isPlanModeTurn   bool
+	storeFile        chattool.StoreFileFunc
+	chatID           uuid.UUID
+}
+
+// baseWorkspaceTools returns the base workspace tools every chat gets
+// when the workspace tool group is on.
+func baseWorkspaceTools(opts baseWorkspaceToolsOptions) []fantasy.AgentTool {
+	return []fantasy.AgentTool{
+		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: opts.getWorkspaceConn}),
+		chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: opts.getWorkspaceConn,
+			ResolvePlanPath:  opts.resolvePlanPath,
+			IsPlanTurn:       opts.isPlanModeTurn,
+		}),
+		chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: opts.getWorkspaceConn,
+			ResolvePlanPath:  opts.resolvePlanPath,
+			IsPlanTurn:       opts.isPlanModeTurn,
+		}),
+		chattool.AttachFile(chattool.AttachFileOptions{
+			GetWorkspaceConn: opts.getWorkspaceConn,
+			StoreFile:        opts.storeFile,
+		}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn:    opts.getWorkspaceConn,
+			AgentBrowserSession: opts.chatID.String(),
+		}),
+		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: opts.getWorkspaceConn}),
+		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: opts.getWorkspaceConn}),
+		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: opts.getWorkspaceConn}),
+	}
 }

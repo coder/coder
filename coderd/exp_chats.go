@@ -1533,6 +1533,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Store only the tool group choices that differ from the default.
+	var toolGroups map[codersdk.ChatToolGroup]bool
+	if len(req.ToolGroups) > 0 {
+		toolGroups = map[codersdk.ChatToolGroup]bool{}
+		for group, value := range req.ToolGroups {
+			deviates, resp := api.chatToolGroupDeviation(ctx, ownerID, group, &value)
+			if resp != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+				return
+			}
+			if deviates {
+				toolGroups[group] = value
+			}
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            ownerID,
@@ -1551,6 +1567,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InlineMCPServers:   req.InlineMCPServers,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
+		ToolGroups:         toolGroups,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})
@@ -2491,6 +2508,73 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tool group choices are owner-scoped and live on root chats only.
+	var toolGroupsPatch json.RawMessage
+	if len(req.ToolGroups) > 0 {
+		if chat.OwnerID != httpmw.APIKey(r).UserID {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only the chat owner can change its tool groups.",
+			})
+			return
+		}
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Tool groups can only be changed on the root chat.",
+			})
+			return
+		}
+		// A null value removes the key, so the column keeps only
+		// choices that differ from the default.
+		patch := make(map[codersdk.ChatToolGroup]*bool, len(req.ToolGroups))
+		for group, value := range req.ToolGroups {
+			deviates, resp := api.chatToolGroupDeviation(ctx, chat.OwnerID, group, value)
+			if resp != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+				return
+			}
+			if deviates {
+				patch[group] = value
+			} else {
+				patch[group] = nil
+			}
+		}
+		var err error
+		toolGroupsPatch, err = json.Marshal(patch)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal tool groups.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	var mcpServerIDs []uuid.UUID
+	if req.MCPServerIDs != nil {
+		if chat.OwnerID != httpmw.APIKey(r).UserID {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only the chat owner can change its MCP servers.",
+			})
+			return
+		}
+		normalized, invalid, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(invalid) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalid))
+			return
+		}
+		mcpServerIDs = normalized
+		if mcpServerIDs == nil {
+			mcpServerIDs = []uuid.UUID{}
+		}
+	}
+
 	var title string
 	if req.Title != nil {
 		normalized, resp := normalizeChatTitle(*req.Title)
@@ -2768,6 +2852,42 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
+	if toolGroupsPatch != nil {
+		updatedChat, err := api.Database.UpdateChatToolGroupsByID(ctx, database.UpdateChatToolGroupsByIDParams{
+			ToolGroups: toolGroupsPatch,
+			ID:         chat.ID,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat tool groups.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
+	if mcpServerIDs != nil {
+		// chatd applies Force On servers and the Explore snapshot rule
+		// under the chat lock and publishes the chat update.
+		updatedChat, err := api.chatDaemon.UpdateChatMCPServerIDs(ctx, chat.ID, mcpServerIDs)
+		if err != nil {
+			if writeCommonChatMutationError(ctx, rw, err, "") {
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat MCP servers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
 	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
 		aReq.New = refreshed
 	} else {
@@ -2776,6 +2896,27 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatToolGroupDeviation validates one tool group choice for the chat
+// owner. It reports whether value differs from the group's default. A
+// nil value is a reset and is always accepted.
+func (api *API) chatToolGroupDeviation(ctx context.Context, ownerID uuid.UUID, group codersdk.ChatToolGroup, value *bool) (bool, *codersdk.Response) {
+	info, ok := codersdk.ChatToolGroupInfoByID(group)
+	if !ok || !info.Switchable {
+		return false, &codersdk.Response{
+			Message: fmt.Sprintf("Tool group %q cannot be changed.", group),
+		}
+	}
+	if value == nil || *value == info.DefaultOn {
+		return false, nil
+	}
+	if info.Experiment != "" && !api.ExperimentEvaluator.Enabled(ctx, ownerID, info.Experiment) {
+		return false, &codersdk.Response{
+			Message: fmt.Sprintf("Tool group %q requires the %s experiment.", group, info.Experiment),
+		}
+	}
+	return true, nil
 }
 
 // writeChatInvalidState writes the shared invalid-state response for

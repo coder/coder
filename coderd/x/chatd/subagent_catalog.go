@@ -129,6 +129,9 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeComputerUse,
 			description: "desktop GUI interaction, screenshots, and browser or app automation",
 			unavailableReason: func(ctx context.Context, p *Server, currentChat database.Chat) string {
+				if !toolGroupOn(resolveToolGroups(parseStoredToolGroups(currentChat.ToolGroups), func(codersdk.Experiment) bool { return true }), codersdk.ChatToolGroupWorkspace) {
+					return "Workspace tools are off for this chat."
+				}
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}

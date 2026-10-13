@@ -436,9 +436,35 @@ func (p *Server) subagentTools(
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
 ) []fantasy.AgentTool {
+	return p.subagentToolsWithToolGroups(ctx, currentChat, currentModelConfigID, nil)
+}
+
+// subagentToolsWithToolGroups builds the sub-agent tools. turnToolGroups
+// holds the calling turn's groups in stored form. When it is not nil, a
+// spawned child inherits it and sub-agent type checks read it instead
+// of the parent row.
+func (p *Server) subagentToolsWithToolGroups(
+	ctx context.Context,
+	currentChat func() database.Chat,
+	currentModelConfigID uuid.UUID,
+	turnToolGroups map[codersdk.ChatToolGroup]bool,
+) []fantasy.AgentTool {
+	var turnToolGroupsJSON json.RawMessage
+	if turnToolGroups != nil {
+		raw, err := json.Marshal(turnToolGroups)
+		if err == nil {
+			turnToolGroupsJSON = raw
+		}
+	}
+	withTurnToolGroups := func(chat database.Chat) database.Chat {
+		if turnToolGroupsJSON != nil {
+			chat.ToolGroups = turnToolGroupsJSON
+		}
+		return chat
+	}
 	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
-		currentChatSnapshot = currentChat()
+		currentChatSnapshot = withTurnToolGroups(currentChat())
 	}
 
 	spawnAgentDescription := buildSpawnAgentDescription(
@@ -460,6 +486,9 @@ func (p *Server) subagentTools(
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				// The child gets the calling turn's groups, not the
+				// groups of the reloaded parent row.
+				parent = withTurnToolGroups(parent)
 
 				definition, err := resolveSubagentDefinition(
 					ctx,
@@ -511,6 +540,7 @@ func (p *Server) subagentTools(
 				if explicitReasoningEffort != nil {
 					options.reasoningEffortOverride = explicitReasoningEffort
 				}
+				options.inheritedToolGroups = turnToolGroups
 
 				childChat, err := p.createChildSubagentChatWithOptions(
 					ctx,
@@ -956,6 +986,9 @@ type childSubagentChatOptions struct {
 	reasoningEffortOverride *string
 	planModeOverride        *database.NullChatPlanMode
 	inheritedMCPServerIDs   []uuid.UUID
+	// inheritedToolGroups holds the calling turn's tool groups in stored
+	// form. Nil stores {}.
+	inheritedToolGroups map[codersdk.ChatToolGroup]bool
 }
 
 // resolveExploreToolSnapshot computes the child chat's inherited MCP
@@ -1181,6 +1214,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		},
 		DynamicTools:    pqtype.NullRawMessage{},
 		ClientType:      parent.ClientType,
+		ToolGroups:      opts.inheritedToolGroups,
 		InitialMessages: initialMessages,
 		InitialStatus:   database.ChatStatusRunning,
 	})
