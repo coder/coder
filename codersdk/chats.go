@@ -2311,6 +2311,11 @@ type ChatStreamEvent struct {
 	// HistoryReset is set on history_reset events of streams opened with a
 	// snapshot_version.
 	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// SnapshotVersion is set on the message, queue_update and history_reset
+	// events of streams opened with a snapshot_version. It is the snapshot
+	// version of the commit that made the change. A client reconnects with
+	// the highest one it has received.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 	// Checkpoint is set on checkpoint events.
 	Checkpoint *ChatStreamCheckpoint `json:"checkpoint,omitempty"`
 }

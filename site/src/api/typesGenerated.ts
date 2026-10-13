@@ -3763,6 +3763,13 @@ export interface ChatStreamEvent {
 	 */
 	readonly history_reset?: ChatStreamHistoryReset;
 	/**
+	 * SnapshotVersion is set on the message, queue_update and history_reset
+	 * events of streams opened with a snapshot_version. It is the snapshot
+	 * version of the commit that made the change. A client reconnects with
+	 * the highest one it has received.
+	 */
+	readonly snapshot_version?: number;
+	/**
 	 * Checkpoint is set on checkpoint events.
 	 */
 	readonly checkpoint?: ChatStreamCheckpoint;
