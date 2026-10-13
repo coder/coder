@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 )
 
@@ -23,9 +23,10 @@ type gitlabProvider struct {
 	webBaseURL string
 	client     *gitlab.Client
 	clock      quartz.Clock
+	logger     slog.Logger
 }
 
-func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
+func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock, logger slog.Logger) (Provider, error) {
 	if baseURL == "" {
 		baseURL = "https://gitlab.com"
 	}
@@ -48,6 +49,7 @@ func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (Pro
 		webBaseURL: baseURL,
 		client:     client,
 		clock:      clock,
+		logger:     logger,
 	}, nil
 }
 
@@ -388,10 +390,10 @@ func (g *gitlabProvider) FetchBranchDiff(
 	sb.Grow(estimated)
 	for _, d := range compare.Diffs {
 		if d.Collapsed || d.TooLarge {
-			slog.WarnContext(ctx, "gitlab compare: file diff truncated",
-				slog.String("path", d.NewPath),
-				slog.Bool("collapsed", d.Collapsed),
-				slog.Bool("too_large", d.TooLarge),
+			g.logger.Warn(ctx, "gitlab compare: file diff truncated",
+				slog.F("path", d.NewPath),
+				slog.F("collapsed", d.Collapsed),
+				slog.F("too_large", d.TooLarge),
 			)
 		}
 		_, _ = fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
