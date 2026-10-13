@@ -52,6 +52,202 @@ ORDER BY
 	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
+-- name: GetOrganizationAIModelPrices :many
+-- Returns every price that applies to the organization: its prices for
+-- configured providers, its prices for provider types, and the site-wide
+-- catalog. Prices for soft-deleted providers are left out.
+-- By default each price is collapsed into the one in effect: an organization
+-- provider type price hides the site-wide prices for that provider type and
+-- model, and a custom site-wide price hides the price book. A price for one
+-- configured provider hides nothing, since other providers of its type still
+-- use the broader price. Filtering by source narrows the rows considered
+-- first, and organization prices count as custom. The source 'all' reports
+-- every row instead.
+WITH prices AS (
+	SELECT
+		CASE ai_model_prices.source
+			WHEN 'custom' THEN 'site_custom'::ai_model_price_kind
+			ELSE 'site_default'::ai_model_price_kind
+		END AS kind,
+		NULL::uuid AS organization_id,
+		NULL::uuid AS provider_id,
+		NULL::text AS provider_name,
+		ai_model_prices.provider,
+		ai_model_prices.model,
+		ai_model_prices.input_price,
+		ai_model_prices.output_price,
+		ai_model_prices.cache_read_price,
+		ai_model_prices.cache_write_price,
+		ai_model_prices.source,
+		ai_model_prices.created_at,
+		ai_model_prices.updated_at
+	FROM ai_model_prices
+	UNION ALL
+	SELECT
+		'organization_provider_type'::ai_model_price_kind,
+		ai_org_model_prices.organization_id,
+		NULL::uuid,
+		NULL::text,
+		ai_org_model_prices.provider,
+		ai_org_model_prices.model,
+		ai_org_model_prices.input_price,
+		ai_org_model_prices.output_price,
+		ai_org_model_prices.cache_read_price,
+		ai_org_model_prices.cache_write_price,
+		'custom'::ai_model_price_source,
+		ai_org_model_prices.created_at,
+		ai_org_model_prices.updated_at
+	FROM ai_org_model_prices
+	WHERE ai_org_model_prices.organization_id = @organization_id::uuid
+	UNION ALL
+	SELECT
+		'organization_provider'::ai_model_price_kind,
+		ai_org_provider_model_prices.organization_id,
+		ai_org_provider_model_prices.provider_id,
+		ai_providers.name,
+		ai_providers.type::text,
+		ai_org_provider_model_prices.model,
+		ai_org_provider_model_prices.input_price,
+		ai_org_provider_model_prices.output_price,
+		ai_org_provider_model_prices.cache_read_price,
+		ai_org_provider_model_prices.cache_write_price,
+		'custom'::ai_model_price_source,
+		ai_org_provider_model_prices.created_at,
+		ai_org_provider_model_prices.updated_at
+	FROM ai_org_provider_model_prices
+	JOIN ai_providers
+		ON ai_providers.id = ai_org_provider_model_prices.provider_id
+		AND ai_providers.deleted = false
+	WHERE ai_org_provider_model_prices.organization_id = @organization_id::uuid
+)
+SELECT DISTINCT ON (
+	prices.provider,
+	prices.model,
+	COALESCE(prices.provider_id::text, ''),
+	CASE WHEN @source::text = 'all' THEN prices.kind::text ELSE '' END
+)
+	prices.kind,
+	prices.organization_id,
+	prices.provider_id,
+	prices.provider_name,
+	prices.provider,
+	prices.model,
+	prices.input_price,
+	prices.output_price,
+	prices.cache_read_price,
+	prices.cache_write_price,
+	prices.source,
+	prices.created_at,
+	prices.updated_at
+FROM prices
+	-- Filter by provider type
+WHERE CASE
+		WHEN @provider::text != '' THEN
+			prices.provider = @provider
+		ELSE true
+	END
+	-- Filter by model
+	AND CASE
+		WHEN @model::text != '' THEN
+			prices.model = @model
+		ELSE true
+	END
+	-- Filter by source
+	AND CASE
+		WHEN @source::text NOT IN ('', 'all') THEN
+			prices.source = @source::ai_model_price_source
+		ELSE true
+	END
+ORDER BY
+	prices.provider ASC,
+	prices.model ASC,
+	COALESCE(prices.provider_id::text, '') ASC,
+	CASE WHEN @source::text = 'all' THEN prices.kind::text ELSE '' END ASC,
+	-- Enum values are declared most specific first.
+	prices.kind ASC;
+
+-- name: UpsertOrganizationAIModelPrices :exec
+-- Upsert a batch of the organization's provider type prices from a JSON array.
+-- Each element must have provider, model, and the four price fields, and null
+-- prices are written as SQL NULL. A conflicting row is only rewritten when a
+-- price differs, so updated_at records when a price last changed.
+INSERT INTO ai_org_model_prices (
+	organization_id, provider, model, input_price, output_price, cache_read_price, cache_write_price
+)
+SELECT
+	@organization_id::uuid,
+	elem->>'provider',
+	elem->>'model',
+	(elem->>'input_price')::bigint,
+	(elem->>'output_price')::bigint,
+	(elem->>'cache_read_price')::bigint,
+	(elem->>'cache_write_price')::bigint
+FROM jsonb_array_elements(@prices::jsonb) AS elem
+ON CONFLICT (organization_id, provider, model) DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+WHERE (
+	ai_org_model_prices.input_price,
+	ai_org_model_prices.output_price,
+	ai_org_model_prices.cache_read_price,
+	ai_org_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
+
+-- name: UpsertOrganizationAIProviderModelPrices :exec
+-- Upsert a batch of the organization's configured provider prices from a JSON
+-- array. Each element must have provider_id, model, and the four price fields,
+-- and null prices are written as SQL NULL. A conflicting row is only rewritten
+-- when a price differs, so updated_at records when a price last changed.
+INSERT INTO ai_org_provider_model_prices (
+	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
+)
+SELECT
+	@organization_id::uuid,
+	(elem->>'provider_id')::uuid,
+	elem->>'model',
+	(elem->>'input_price')::bigint,
+	(elem->>'output_price')::bigint,
+	(elem->>'cache_read_price')::bigint,
+	(elem->>'cache_write_price')::bigint
+FROM jsonb_array_elements(@prices::jsonb) AS elem
+ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+WHERE (
+	ai_org_provider_model_prices.input_price,
+	ai_org_provider_model_prices.output_price,
+	ai_org_provider_model_prices.cache_read_price,
+	ai_org_provider_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
+
+-- name: DeleteOrganizationAIModelPrice :execrows
+DELETE FROM ai_org_model_prices
+WHERE organization_id = @organization_id
+	AND provider = @provider
+	AND model = @model;
+
+-- name: DeleteOrganizationAIProviderModelPrice :execrows
+DELETE FROM ai_org_provider_model_prices
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model;
+
 -- name: GetAIModelPrices :many
 -- Returns the price in effect for each model, preferring a custom price over
 -- the price book. Filtering by source narrows the rows considered first, so a

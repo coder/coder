@@ -19413,6 +19413,163 @@ func TestGetAIModelPrices(t *testing.T) {
 	}
 }
 
+// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
+// by keys and with only an input price set.
+func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
+	t.Helper()
+	elem := map[string]any{
+		"input_price":       inputPrice,
+		"output_price":      nil,
+		"cache_read_price":  nil,
+		"cache_write_price": nil,
+	}
+	for k, v := range keys {
+		elem[k] = v
+	}
+	raw, err := json.Marshal([]any{elem})
+	require.NoError(t, err)
+	return raw
+}
+
+func TestGetOrganizationAIModelPrices(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	deletedProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertSite := func(source database.AIModelPriceSource, provider, model string, price int64) {
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed:   aiModelPriceSeed(t, map[string]string{"provider": provider, "model": model}, price),
+			Source: source,
+		}))
+	}
+	upsertOrgType := func(orgID uuid.UUID, provider, model string, price int64) {
+		require.NoError(t, db.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
+			OrganizationID: orgID,
+			Prices:         aiModelPriceSeed(t, map[string]string{"provider": provider, "model": model}, price),
+		}))
+	}
+	upsertOrgProvider := func(orgID, providerID uuid.UUID, model string, price int64) {
+		require.NoError(t, db.UpsertOrganizationAIProviderModelPrices(ctx, database.UpsertOrganizationAIProviderModelPricesParams{
+			OrganizationID: orgID,
+			Prices:         aiModelPriceSeed(t, map[string]string{"provider_id": providerID.String(), "model": model}, price),
+		}))
+	}
+
+	// model-a has every kind of price.
+	upsertSite(database.AIModelPriceSourceDefault, "anthropic", "model-a", 1)
+	upsertSite(database.AIModelPriceSourceCustom, "anthropic", "model-a", 2)
+	upsertOrgType(org.ID, "anthropic", "model-a", 3)
+	upsertOrgProvider(org.ID, provider.ID, "model-a", 4)
+	// model-b has only a site-wide price.
+	upsertSite(database.AIModelPriceSourceDefault, "openai", "model-b", 5)
+	// Another organization's prices never show.
+	upsertOrgType(otherOrg.ID, "openai", "model-b", 6)
+	upsertOrgProvider(otherOrg.ID, provider.ID, "model-b", 7)
+	// Prices for a soft-deleted provider are hidden.
+	upsertOrgProvider(org.ID, deletedProvider.ID, "model-a", 8)
+	require.NoError(t, db.DeleteAIProviderByID(ctx, deletedProvider.ID))
+
+	type row struct {
+		kind     database.AIModelPriceKind
+		provider string
+		model    string
+		price    int64
+	}
+	list := func(params database.GetOrganizationAIModelPricesParams) []row {
+		t.Helper()
+		params.OrganizationID = org.ID
+		prices, err := db.GetOrganizationAIModelPrices(ctx, params)
+		require.NoError(t, err)
+		rows := make([]row, 0, len(prices))
+		for _, p := range prices {
+			// Organization rows carry the organization, and only provider
+			// rows carry the provider.
+			switch p.Kind {
+			case database.AIModelPriceKindOrganizationProvider:
+				require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, p.OrganizationID)
+				require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, p.ProviderID)
+				require.Equal(t, sql.NullString{String: provider.Name, Valid: true}, p.ProviderName)
+				require.Equal(t, database.AIModelPriceSourceCustom, p.Source)
+			case database.AIModelPriceKindOrganizationProviderType:
+				require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, p.OrganizationID)
+				require.False(t, p.ProviderID.Valid)
+				require.Equal(t, database.AIModelPriceSourceCustom, p.Source)
+			default:
+				require.False(t, p.OrganizationID.Valid)
+				require.False(t, p.ProviderID.Valid)
+			}
+			rows = append(rows, row{kind: p.Kind, provider: p.Provider, model: p.Model, price: p.InputPrice.Int64})
+		}
+		return rows
+	}
+
+	t.Run("Effective", func(t *testing.T) {
+		t.Parallel()
+		// The organization's type price hides both site-wide prices for
+		// anthropic/model-a. The provider price hides nothing.
+		require.Equal(t, []row{
+			{database.AIModelPriceKindOrganizationProviderType, "anthropic", "model-a", 3},
+			{database.AIModelPriceKindOrganizationProvider, "anthropic", "model-a", 4},
+			{database.AIModelPriceKindSiteDefault, "openai", "model-b", 5},
+		}, list(database.GetOrganizationAIModelPricesParams{}))
+	})
+
+	t.Run("All", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []row{
+			{database.AIModelPriceKindOrganizationProviderType, "anthropic", "model-a", 3},
+			{database.AIModelPriceKindSiteCustom, "anthropic", "model-a", 2},
+			{database.AIModelPriceKindSiteDefault, "anthropic", "model-a", 1},
+			{database.AIModelPriceKindOrganizationProvider, "anthropic", "model-a", 4},
+			{database.AIModelPriceKindSiteDefault, "openai", "model-b", 5},
+		}, list(database.GetOrganizationAIModelPricesParams{Source: string(codersdk.AIModelPriceSourceFilterAll)}))
+	})
+
+	t.Run("SourceDefault", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []row{
+			{database.AIModelPriceKindSiteDefault, "anthropic", "model-a", 1},
+			{database.AIModelPriceKindSiteDefault, "openai", "model-b", 5},
+		}, list(database.GetOrganizationAIModelPricesParams{Source: string(database.AIModelPriceSourceDefault)}))
+	})
+
+	t.Run("SourceCustom", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []row{
+			{database.AIModelPriceKindOrganizationProviderType, "anthropic", "model-a", 3},
+			{database.AIModelPriceKindOrganizationProvider, "anthropic", "model-a", 4},
+		}, list(database.GetOrganizationAIModelPricesParams{Source: string(database.AIModelPriceSourceCustom)}))
+	})
+
+	t.Run("ByProviderAndModel", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []row{
+			{database.AIModelPriceKindSiteDefault, "openai", "model-b", 5},
+		}, list(database.GetOrganizationAIModelPricesParams{Provider: "openai", Model: "model-b"}))
+	})
+
+	t.Run("DeleteOnlyTouchesOrganizationRows", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		// Deleting from another organization matches nothing.
+		n, err := db.DeleteOrganizationAIModelPrice(ctx, database.DeleteOrganizationAIModelPriceParams{
+			OrganizationID: otherOrg.ID, Provider: "anthropic", Model: "model-a",
+		})
+		require.NoError(t, err)
+		require.Zero(t, n)
+		n, err = db.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
+			OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+		})
+		require.NoError(t, err)
+		require.Zero(t, n)
+	})
+}
+
 func TestGetChatSiteConfigValue(t *testing.T) {
 	t.Parallel()
 

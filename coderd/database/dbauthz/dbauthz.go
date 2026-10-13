@@ -2608,6 +2608,20 @@ func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg
 	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }
 
+func (q *querier) DeleteOrganizationAIModelPrice(ctx context.Context, arg database.DeleteOrganizationAIModelPriceParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOrganizationAIModelPrice(ctx, arg)
+}
+
+func (q *querier) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOrganizationAIProviderModelPrice(ctx, arg)
+}
+
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
 		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
@@ -4602,6 +4616,15 @@ func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.Ge
 		return nil, err
 	}
 	return q.db.GetOldUnlinkedChatFileIDs(ctx, arg)
+}
+
+// GetOrganizationAIModelPrices also returns site-wide prices. They apply to
+// the organization, so reading them through it needs only organization read.
+func (q *querier) GetOrganizationAIModelPrices(ctx context.Context, arg database.GetOrganizationAIModelPricesParams) ([]database.GetOrganizationAIModelPricesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetOrganizationAIModelPrices(ctx, arg)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -9510,6 +9533,20 @@ func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligibl
 		return err
 	}
 	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
+}
+
+func (q *querier) UpsertOrganizationAIModelPrices(ctx context.Context, arg database.UpsertOrganizationAIModelPricesParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.UpsertOrganizationAIModelPrices(ctx, arg)
+}
+
+func (q *querier) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.UpsertOrganizationAIProviderModelPrices(ctx, arg)
 }
 
 func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {

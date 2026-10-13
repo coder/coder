@@ -864,6 +864,22 @@ func (m queryMetricsStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOrganizationAIModelPrice(ctx context.Context, arg database.DeleteOrganizationAIModelPriceParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrganizationAIModelPrice(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationAIModelPrice").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationAIModelPrice").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrganizationAIProviderModelPrice(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationAIProviderModelPrice").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOrganizationMember(ctx, arg)
@@ -2773,6 +2789,14 @@ func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg da
 	r0, r1 := m.s.GetOldUnlinkedChatFileIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetOldUnlinkedChatFileIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOldUnlinkedChatFileIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationAIModelPrices(ctx context.Context, arg database.GetOrganizationAIModelPricesParams) ([]database.GetOrganizationAIModelPricesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationAIModelPrices(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAIModelPrices").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIModelPrices").Inc()
 	return r0, r1
 }
 
@@ -6822,6 +6846,22 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	r0 := m.s.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 	m.queryLatencies.WithLabelValues("UpsertOAuth2GithubDefaultEligible").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuth2GithubDefaultEligible").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertOrganizationAIModelPrices(ctx context.Context, arg database.UpsertOrganizationAIModelPricesParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertOrganizationAIModelPrices(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertOrganizationAIModelPrices").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIModelPrices").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertOrganizationAIProviderModelPrices(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertOrganizationAIProviderModelPrices").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIProviderModelPrices").Inc()
 	return r0
 }
 
