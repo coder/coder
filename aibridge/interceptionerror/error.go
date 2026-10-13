@@ -43,9 +43,11 @@ func Categorize(c ErrorCategorizer, err error) (recorder.ErrorType, string) {
 	case errors.Is(err, context.DeadlineExceeded):
 		return recorder.ErrorTypeTimeout, msg
 	case errors.Is(err, context.Canceled):
-		// The caller went away before the interception completed. This is not
-		// an upstream failure, but the interception did not succeed either, so
-		// it is recorded as unknown rather than dropped.
+		// The request was canceled before the interception completed. This
+		// is not an upstream failure, but the interception did not succeed
+		// either, so it is recorded as unknown rather than dropped. The
+		// bridge reclassifies cancellations it attributes to the client as
+		// aborted.
 		return recorder.ErrorTypeUnknown, msg
 	}
 

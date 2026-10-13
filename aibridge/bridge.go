@@ -21,6 +21,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -276,13 +277,24 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// failover loop attempted.
 		credCtx := credential.WithCredentialInfo(ctx, cred)
 		errType, errMsg := interceptionerror.Categorize(p, execErr)
-		if execErr != nil {
+		aborted := isClientAbort(ctx, execErr)
+		if aborted {
+			errType = recorder.ErrorTypeAborted
+		}
+		switch {
+		case aborted:
+			if m != nil {
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusAborted, route, r.Method, actorID, string(client)).Add(1)
+			}
+			span.SetStatus(codes.Error, fmt.Sprintf("interception aborted: %v", execErr))
+			log.Debug(credCtx, "interception aborted by client", slog.Error(execErr))
+		case execErr != nil:
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actorID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
 			log.Warn(credCtx, "interception failed", slog.Error(execErr), slog.F("error_type", string(errType)))
-		} else {
+		default:
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actorID, string(client)).Add(1)
 			}
@@ -300,6 +312,19 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// Ensure all recording have completed before completing request.
 		asyncRecorder.Wait()
 	}
+}
+
+// isClientAbort reports whether a failed interception was abandoned by the
+// client. The gateway only observes cancellation, not intent, so this is a
+// heuristic: the request context must have been canceled by something other
+// than gateway shutdown, and the interception must have ended on cancellation
+// or a broken connection rather than on an upstream error, which keeps its own
+// category even when the client leaves after receiving it.
+func isClientAbort(ctx context.Context, err error) bool {
+	if err == nil || !errors.Is(ctx.Err(), context.Canceled) || errors.Is(context.Cause(ctx), ErrGatewayShutdown) {
+		return false
+	}
+	return eventstream.IsUnrecoverableError(err)
 }
 
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.

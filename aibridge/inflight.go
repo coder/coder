@@ -5,9 +5,15 @@ import (
 	"net/http"
 	"sync"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 )
+
+// ErrGatewayShutdown is the cancellation cause of request contexts canceled by
+// a forced gateway shutdown.
+var ErrGatewayShutdown = xerrors.New("AI Gateway is shutting down")
 
 // InflightGate counts admitted requests and links their contexts to Close.
 // It is safe for concurrent use. Must be created with NewInflightGate.
@@ -76,14 +82,16 @@ func (g *InflightGate) release() {
 }
 
 // RequestContext derives a context canceled by either the parent or forced
-// shutdown. The caller must invoke cleanup when the handler returns to
-// unregister the shutdown callback and cancel the derived context.
+// shutdown. Forced shutdown sets [ErrGatewayShutdown] as the cancellation
+// cause so it can be told apart from a client abort. The caller must invoke
+// cleanup when the handler returns to unregister the shutdown callback and
+// cancel the derived context.
 func (g *InflightGate) RequestContext(parent context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(parent)
-	stop := context.AfterFunc(g.ctx, cancel)
+	ctx, cancel := context.WithCancelCause(parent)
+	stop := context.AfterFunc(g.ctx, func() { cancel(ErrGatewayShutdown) })
 	return ctx, func() {
 		stop()
-		cancel()
+		cancel(nil)
 	}
 }
 

@@ -13,6 +13,7 @@ const (
 
 	InterceptionCountStatusFailed    = "failed"
 	InterceptionCountStatusCompleted = "completed"
+	InterceptionCountStatusAborted   = "aborted"
 )
 
 type Metrics struct {

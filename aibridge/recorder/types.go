@@ -82,6 +82,9 @@ const (
 	ErrorTypeTimeout ErrorType = "timeout"
 	// ErrorTypeUnknown is any error that could not be categorized.
 	ErrorTypeUnknown ErrorType = "unknown"
+	// ErrorTypeAborted is an interception the client abandoned, by
+	// disconnecting or canceling the request, before it completed.
+	ErrorTypeAborted ErrorType = "aborted"
 )
 
 // ErrorTypeFromStatus maps a standard upstream HTTP status code to an ErrorType.

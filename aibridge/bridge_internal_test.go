@@ -2,6 +2,7 @@ package aibridge
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,8 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -82,6 +85,52 @@ func TestRequestBridgeShutdownDoesNotWaitForCanceledHandler(t *testing.T) {
 			bridge.ServeHTTP(rejected, httptest.NewRequest(http.MethodGet, "/", nil))
 			require.Equal(t, http.StatusServiceUnavailable, rejected.Code)
 			require.Equal(t, "AI Gateway is shutting down\n", rejected.Body.String())
+		})
+	}
+}
+
+func TestIsClientAbort(t *testing.T) {
+	t.Parallel()
+
+	clientCanceled := func(t *testing.T) context.Context {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		return ctx
+	}
+	shutdownCanceled := func(t *testing.T) context.Context {
+		gate := NewInflightGate(slogtest.Make(t, nil))
+		ctx, cleanup := gate.RequestContext(t.Context())
+		t.Cleanup(cleanup)
+		gate.Close()
+		return ctx
+	}
+	timedOut := func(t *testing.T) context.Context {
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		return ctx
+	}
+
+	cases := []struct {
+		name string
+		ctx  func(*testing.T) context.Context
+		err  error
+		want bool
+	}{
+		{"Succeeded", clientCanceled, nil, false},
+		{"ClientCanceled", clientCanceled, xerrors.Errorf("relay chunk: %w", context.Canceled), true},
+		{"ClientDisconnected", clientCanceled, xerrors.Errorf("relay event: %w", eventstream.ErrEventStreamClosed), true},
+		{"BrokenConnection", clientCanceled, xerrors.Errorf("read body: %w", net.ErrClosed), true},
+		// An upstream error keeps its category when the client leaves after
+		// receiving it.
+		{"UpstreamErrorThenClientLeft", clientCanceled, xerrors.New("rate limited"), false},
+		{"ClientStillConnected", func(t *testing.T) context.Context { return t.Context() }, context.Canceled, false},
+		{"GatewayShutdown", shutdownCanceled, context.Canceled, false},
+		{"Timeout", timedOut, context.DeadlineExceeded, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, isClientAbort(tc.ctx(t), tc.err))
 		})
 	}
 }

@@ -223,6 +223,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		processor := newStreamProcessor(streamCtx, i.logger.Named("stream-processor"), i.getInjectedToolByName)
 
 		var toolCall *openai.FinishedChatCompletionToolCall
+		// relayErr records that the client can no longer receive chunks,
+		// so the interception is not reported as successful.
+		var relayErr error
 
 		// iterationStarted is per-iteration (reset on every
 		// loop): true once the upstream call has produced any
@@ -255,6 +258,13 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				break
 			}
 			if err := events.Send(ctx, payload); err != nil {
+				if eventstream.IsUnrecoverableError(err) {
+					// The client can no longer receive chunks, so there is
+					// nothing to relay an error to.
+					logger.Debug(ctx, "processing terminated", slog.Error(err))
+					relayErr = xerrors.Errorf("relay chunk: %w", err)
+					break
+				}
 				logger.Warn(ctx, "failed to relay chunk", slog.Error(err))
 				lastErr = xerrors.Errorf("relay chunk: %w", err)
 				break
@@ -320,6 +330,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				// canceled): can't relay to the client, but record
 				// the error so it isn't silently swallowed.
 				interceptionErr = streamErr
+			} else if relayErr != nil {
+				interceptionErr = relayErr
 			}
 		} else {
 			// Pre-stream failure of this iteration. For
@@ -348,11 +360,16 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 					// No events streamed yet, write the response directly.
 					i.writeUpstreamError(w, respErr)
 				}
+			} else if streamErr := stream.Err(); streamErr != nil {
+				// Unrecoverable before any chunk arrived: nothing can be
+				// relayed, but the interception did not succeed.
+				interceptionErr = streamErr
 			}
 		}
 
-		// No tool call, nothing more to do.
-		if toolCall == nil {
+		// No tool call, nothing more to do. A client that can no longer
+		// receive chunks gets nothing from further agentic iterations.
+		if toolCall == nil || relayErr != nil {
 			break
 		}
 

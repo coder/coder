@@ -229,6 +229,9 @@ newStream:
 		// Events are still relayed, but injected tools cannot trust the input.
 		var accumulateErr error
 		var messageStopped bool
+		// relayErr records that the client can no longer receive events, so
+		// the interception is not reported as successful.
+		var relayErr error
 
 		for {
 			if !stream.Next() {
@@ -547,6 +550,7 @@ newStream:
 			if err := events.Send(streamCtx, payload); err != nil {
 				if eventstream.IsUnrecoverableError(err) {
 					logger.Debug(ctx, "processing terminated", slog.Error(err))
+					relayErr = xerrors.Errorf("relay event: %w", err)
 					break // Stop processing if client disconnected or context canceled.
 				}
 				logger.Warn(ctx, "failed to relay event", slog.Error(err))
@@ -584,6 +588,8 @@ newStream:
 				// canceled): can't relay to the client, but record
 				// the error so it isn't silently swallowed.
 				interceptionErr = streamErr
+			} else if relayErr != nil {
+				interceptionErr = relayErr
 			}
 		} else {
 			// Pre-stream failure of this iteration. For
@@ -612,6 +618,10 @@ newStream:
 					// No events streamed yet, write the response directly.
 					i.writeUpstreamError(w, respErr)
 				}
+			} else if streamErr := stream.Err(); streamErr != nil {
+				// Unrecoverable before any event arrived: nothing can be
+				// relayed, but the interception did not succeed.
+				interceptionErr = streamErr
 			}
 		}
 

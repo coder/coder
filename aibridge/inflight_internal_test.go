@@ -122,6 +122,12 @@ func TestInflightGate_RequestContext(t *testing.T) {
 			}
 			testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, ctx.Done())
 			require.ErrorIs(t, ctx.Err(), context.Canceled)
+			// Only forced shutdown is distinguishable from a client abort.
+			if source == "Close" {
+				require.ErrorIs(t, context.Cause(ctx), ErrGatewayShutdown)
+			} else {
+				require.NotErrorIs(t, context.Cause(ctx), ErrGatewayShutdown)
+			}
 		})
 	}
 }

@@ -251,8 +251,11 @@ func IsConnError(err error) bool {
 		strings.Contains(errStr, "connection reset by peer")
 }
 
+// IsUnrecoverableError reports whether err means the response can no longer
+// be relayed to the client: the request was canceled, the connection broke, or
+// the event stream already stopped writing.
 func IsUnrecoverableError(err error) bool {
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, ErrEventStreamClosed) {
 		return true
 	}
 
