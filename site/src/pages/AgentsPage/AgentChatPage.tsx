@@ -31,6 +31,7 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
@@ -318,6 +319,11 @@ const AgentChatPage: React.FC = () => {
 		useMutation(clearChat(queryClient, agentId));
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
+		staleTime: 60_000,
+	});
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
@@ -625,9 +631,12 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		personalSkills: personalSkillsQuery.isSuccess
-			? personalSkillsQuery.data
-			: undefined,
+		// chatd skips disabled skills, so they never shadow a built-in
+		// command. A list with no data stays unknown, even after an error.
+		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
+		organizationSkills: organizationSkillsQuery.data?.filter(
+			(skill) => skill.enabled,
+		),
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

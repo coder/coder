@@ -167,7 +167,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return cmp.Or(typed.DisplayName, typed.Slug, typed.ID.String())
 	case database.UserSecret:
 		return typed.Name
-	case database.UserSkill:
+	case database.Skill:
+		return typed.Name
+	case database.AuditableOrganizationSkill:
 		return typed.Name
 	case database.ChatInstructionSettings:
 		return typed.Name
@@ -285,7 +287,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSecret:
 		return typed.ID
-	case database.UserSkill:
+	case database.Skill:
+		return typed.ID
+	case database.AuditableOrganizationSkill:
 		return typed.ID
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
@@ -378,8 +382,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
-	case database.UserSkill:
+	case database.Skill:
 		return database.ResourceTypeUserSkill
+	case database.AuditableOrganizationSkill:
+		return database.ResourceTypeOrganizationSkill
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
@@ -484,9 +490,11 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
 		return false
-	case database.UserSkill:
+	case database.Skill:
 		// User skills are global to the user across organizations.
 		return false
+	case database.AuditableOrganizationSkill:
+		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.
 		return false
