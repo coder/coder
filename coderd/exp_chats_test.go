@@ -1958,27 +1958,65 @@ func TestCreateChatAsUser(t *testing.T) {
 		require.Equal(t, "organization_id is required.", resp.Message)
 	})
 
-	t.Run("SuspendedUser", func(t *testing.T) {
+	t.Run("RefusedUser", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		_, err := client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
-		require.NoError(t, err)
+		cases := []struct {
+			name        string
+			refuse      func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID
+			wantMessage string
+		}{
+			{
+				name: "SuspendedUser",
+				refuse: func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID {
+					_, err := client.UpdateUserStatus(ctx, userID.String(), codersdk.UserStatusSuspended)
+					require.NoError(t, err)
+					return userID
+				},
+				wantMessage: "not active",
+			},
+			{
+				name: "DeletedUser",
+				refuse: func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID {
+					require.NoError(t, client.DeleteUser(ctx, userID))
+					return userID
+				},
+				wantMessage: "User is deleted.",
+			},
+			{
+				name: "MissingUser",
+				refuse: func(context.Context, *testing.T, uuid.UUID) uuid.UUID {
+					return uuid.New()
+				},
+				wantMessage: "User does not exist.",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		_, err = api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
-		responder, ok := httperror.IsResponder(err)
-		require.True(t, ok, "want a responder error, got %v", err)
-		status, resp := responder.Response()
-		require.Equal(t, http.StatusForbidden, status)
-		require.Contains(t, resp.Message, "not active")
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+				userID := tc.refuse(ctx, t, member.ID)
 
-		chats, err := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
-			OwnedOnly: true,
-			ViewerID:  member.ID,
-		})
-		require.NoError(t, err)
-		require.Empty(t, chats)
+				_, err := api.CreateChatAsUser(ctx, userID, helloRequest(firstUser.OrganizationID))
+				responder, ok := httperror.IsResponder(err)
+				require.True(t, ok, "want a responder error, got %v", err)
+				status, resp := responder.Response()
+				require.Equal(t, http.StatusForbidden, status)
+				require.Contains(t, resp.Message, tc.wantMessage)
+
+				chats, err := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
+					OwnedOnly: true,
+					ViewerID:  userID,
+				})
+				require.NoError(t, err)
+				require.Empty(t, chats)
+				for _, log := range mAudit.AuditLogs() {
+					require.False(t, log.ResourceType == database.ResourceTypeChat && log.UserID == userID, "refused user got a chat audit entry")
+				}
+			})
+		}
 	})
 
 	t.Run("AccountStatus", func(t *testing.T) {

@@ -1676,14 +1676,23 @@ func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req code
 // callers that act for a user without an API key. It treats the call like
 // an API request with the user's key: it activates a dormant user and
 // records the user as seen at most once an hour, so that the user does
-// not become dormant. A user who is not active afterwards, such as a
-// suspended user, is refused with a 403.
+// not become dormant. A missing, deleted, or inactive user, such as a
+// suspended user, is refused with a 403. Every error implements
+// httperror.Responder.
 func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Context, error) {
 	//nolint:gocritic // The API key middleware also updates the user as the system.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	user, err := api.Database.GetUserByID(systemCtx, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, httperror.WrapResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "User does not exist.",
+		}, err)
+	}
 	if err != nil {
-		return nil, xerrors.Errorf("get user: %w", err)
+		return nil, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		}, err)
 	}
 	if user.Deleted {
 		return nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
@@ -1694,7 +1703,10 @@ func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Contex
 	case database.UserStatusDormant:
 		_, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
 		if err != nil {
-			return nil, xerrors.Errorf("activate dormant user: %w", err)
+			return nil, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error activating dormant user.",
+				Detail:  err.Error(),
+			}, err)
 		}
 	case database.UserStatusActive:
 		if now := dbtime.Now(); now.Sub(user.LastSeenAt) > time.Hour {
@@ -1704,14 +1716,20 @@ func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Contex
 				UpdatedAt:  now,
 			})
 			if err != nil {
-				return nil, xerrors.Errorf("update user last_seen_at: %w", err)
+				return nil, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error updating user last seen time.",
+					Detail:  err.Error(),
+				}, err)
 			}
 		}
 	}
 
 	actor, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
 	if err != nil {
-		return nil, xerrors.Errorf("load user authorization: %w", err)
+		return nil, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's roles.",
+			Detail:  err.Error(),
+		}, err)
 	}
 	if status != database.UserStatusActive {
 		return nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
