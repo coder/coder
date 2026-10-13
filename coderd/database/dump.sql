@@ -2758,6 +2758,7 @@ CREATE TABLE mcp_server_configs (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
+    oauth2_resource text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),

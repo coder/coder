@@ -6940,6 +6940,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
   "oauth2_client_secret": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -6976,6 +6977,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
 | `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
 | `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
+| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator sent on OAuth2 requests when set. Auto-discovery fills it if empty.                 |
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
@@ -10828,6 +10830,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -10868,6 +10871,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_resource`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -16954,6 +16958,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
   "oauth2_client_secret": "string",
+  "oauth2_resource": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -16990,6 +16995,7 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
 | `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
 | `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
+| `oauth2_resource`       | string          | false    |              | Oauth2 resource is the RFC 8707 resource indicator. Omit it to keep the stored value; send "" to clear it.              |
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
