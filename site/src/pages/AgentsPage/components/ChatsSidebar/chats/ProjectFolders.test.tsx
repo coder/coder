@@ -1,15 +1,40 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
+import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
+const renderProjectFolders = (projects: readonly ChatProject[]) =>
+	render(
+		<MemoryRouter>
+			<ProjectFolders
+				projects={projects}
+				organizations={[MockDefaultOrganization]}
+				chatsByProjectId={new Map()}
+				expandedProjectIds={{}}
+				onToggle={vi.fn()}
+				onOpenProjectDialog={vi.fn()}
+				onDelete={vi.fn()}
+				emptyMessage="No agents yet"
+				isLoading={false}
+				error={undefined}
+				onRetry={vi.fn()}
+			/>
+		</MemoryRouter>,
+	);
+
 describe("ProjectFolders", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
 	it("keeps cached folders usable when a refetch fails", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();
@@ -44,24 +69,7 @@ describe("ProjectFolders", () => {
 
 	it("collapses and expands the whole Projects section", async () => {
 		const user = userEvent.setup();
-
-		render(
-			<MemoryRouter>
-				<ProjectFolders
-					projects={[MockChatProject]}
-					organizations={[MockDefaultOrganization]}
-					chatsByProjectId={new Map()}
-					expandedProjectIds={{}}
-					onToggle={vi.fn()}
-					onOpenProjectDialog={vi.fn()}
-					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
-					isLoading={false}
-					error={undefined}
-					onRetry={vi.fn()}
-				/>
-			</MemoryRouter>,
-		);
+		renderProjectFolders([MockChatProject]);
 
 		const sectionToggle = screen.getByRole("button", { name: "Projects" });
 		await user.click(sectionToggle);
@@ -76,6 +84,23 @@ describe("ProjectFolders", () => {
 		expect(
 			screen.getByRole("link", { name: MockChatProject.name }),
 		).toBeVisible();
+	});
+
+	it("remembers the Projects section collapse state across mounts", async () => {
+		const user = userEvent.setup();
+		const firstMount = renderProjectFolders([]);
+
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(localStorage.getItem(projectsSectionCollapsedStorageKey)).toBe(
+			"true",
+		);
+		firstMount.unmount();
+
+		// The remounted section starts collapsed, so one click expands it and
+		// clears the saved state.
+		renderProjectFolders([]);
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(localStorage.getItem(projectsSectionCollapsedStorageKey)).toBeNull();
 	});
 
 	it("names same-named projects by their organization", async () => {

@@ -328,9 +328,10 @@ describe("ChatsSidebar projects", () => {
 				</Wrapper>,
 			);
 
-			await user.click(
-				await screen.findByRole("button", { name: "New project" }),
-			);
+			// Wait for the empty state, which replaces the header's New project
+			// button once projects load.
+			await screen.findByText(/Group related chats together/);
+			await user.click(screen.getByRole("button", { name: "New project" }));
 			const dialog = await screen.findByRole("dialog", {
 				name: "Create a project",
 			});
@@ -405,9 +406,10 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "New project" }),
-		);
+		// Wait for the empty state, which replaces the header's New project
+		// button once projects load.
+		await screen.findByText(/Group related chats together/);
+		await user.click(screen.getByRole("button", { name: "New project" }));
 		const dialog = await screen.findByRole("dialog", {
 			name: "Create a project",
 		});
