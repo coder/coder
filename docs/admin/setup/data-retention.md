@@ -162,10 +162,8 @@ ai_gateway:
 > incidents or meet compliance requirements. Consult your security and
 > compliance teams before configuring Audit Log retention.
 
-Retention requirements depend on the regulations and frameworks your
-organization follows, and on how your organization applies them.
-Some frameworks set a minimum period for audit records, and others don't
-prescribe one, so Coder doesn't recommend a period for any specific framework.
+Retention requirements depend on the regulations and frameworks your organization follows, and on how your organization applies them.
+Some frameworks set a minimum period for audit records, and others don't prescribe one, so Coder doesn't recommend a period for any specific framework.
 
 ### External Log Aggregation
 
