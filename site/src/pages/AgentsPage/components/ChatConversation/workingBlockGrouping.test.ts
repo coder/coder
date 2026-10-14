@@ -57,12 +57,6 @@ const source = (url: string, title: string): TypesGen.ChatMessagePart => ({
 	title,
 });
 const citation = source("https://go.example.com", "Go");
-const attachment = (name: string): TypesGen.ChatMessagePart => ({
-	type: "file",
-	media_type: "text/markdown",
-	name,
-	file_id: `file-${name}`,
-});
 const searchCall = (
 	id: string,
 	createdAt?: string,
@@ -87,11 +81,12 @@ const call = (
 	id: string,
 	createdAt?: string,
 	name = "execute",
+	args: Record<string, string> = { command: `echo ${id}` },
 ): TypesGen.ChatMessagePart => ({
 	type: "tool-call",
 	tool_call_id: id,
 	tool_name: name,
-	args: { command: `echo ${id}` },
+	args,
 	created_at: createdAt,
 });
 const result = (
@@ -138,6 +133,25 @@ const step = (
 		],
 		resultAt === undefined ? at(0) : at(resultAt),
 	),
+];
+
+const attachStep = (
+	id: string,
+	callAt: number,
+	resultAt: number,
+): TypesGen.ChatMessage[] => [
+	message("assistant", [
+		call(id, at(callAt), "attach_file", { path: "/home/coder/report.md" }),
+	]),
+	message("assistant", [
+		{
+			type: "file",
+			media_type: "text/markdown",
+			name: "report.md",
+			file_id: `file-${id}`,
+		},
+	]),
+	message("tool", [result(id, at(resultAt), { name: "attach_file" })]),
 ];
 
 const defaultOptions: GroupWorkingBlocksOptions = {
@@ -509,21 +523,24 @@ describe("groupWorkingBlocks", () => {
 
 	it("renders attached files below their block and keeps the work after them in it", () => {
 		const prompt = user("Report");
-		const attach = message("assistant", [call("a", at(1), "attach_file")]);
-		const files = message("assistant", [attachment("report.md")]);
-		const attached = message("tool", [
-			result("a", at(2), { name: "attach_file" }),
-		]);
+		const [attachCall, files, attachResult] = attachStep("a", 1, 2);
 		const steps = step("b", 3, 4);
 		const answer = message("assistant", [
 			reasoning("Wrap up", at(5), at(6)),
 			text("Done."),
 		]);
-		const layout = group([prompt, attach, files, attached, ...steps, answer]);
+		const layout = group([
+			prompt,
+			attachCall,
+			files,
+			attachResult,
+			...steps,
+			answer,
+		]);
 
 		expect(layoutOf(layout)).toEqual([
 			`${prompt.id}`,
-			[`${attach.id}`, `${steps[0].id}`, `${answer.id}[0]`],
+			[`${attachCall.id}`, `${steps[0].id}`, `${answer.id}[0]`],
 			`${files.id}`,
 			`${answer.id}[1]`,
 		]);
@@ -1173,17 +1190,9 @@ describe("groupWorkingBlocks", () => {
 		});
 
 		it("stays live while files attached after its last step render below it", () => {
-			const prompt = user("Go");
-			const attach = message("assistant", [call("a", at(1), "attach_file")]);
-			const files = message("assistant", [attachment("report.md")]);
-			const attached = message("tool", [
-				result("a", at(2), { name: "attach_file" }),
-			]);
 			const entries = parseMessagesWithMergedTools([
-				prompt,
-				attach,
-				files,
-				attached,
+				user("Go"),
+				...attachStep("a", 1, 2),
 			]);
 			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
 			const { blocks } = groupWorkingBlocks(rows, entries, {

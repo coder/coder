@@ -327,6 +327,55 @@ export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/** A turn whose first step attached a report from 1s to 2s. */
+export const MockAttachedFileMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(1),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "attach",
+				tool_name: "attach_file",
+				args: { path: "/home/coder/report.md" },
+				created_at: workingFixtureTime(1),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 3,
+		role: "assistant",
+		created_at: workingFixtureTime(2),
+		content: [
+			{
+				type: "file",
+				media_type: "text/markdown",
+				name: "report.md",
+				file_id: "storybook-report",
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 4,
+		role: "tool",
+		created_at: workingFixtureTime(2),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "attach",
+				tool_name: "attach_file",
+				result: { name: "report.md" },
+				created_at: workingFixtureTime(2),
+			},
+		],
+	},
+];
+
 /**
  * A turn without tools whose answer narrates, then searches the web from 1s to
  * 3s before writing its text, with no reasoning.
