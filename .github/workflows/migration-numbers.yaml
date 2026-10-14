@@ -16,9 +16,7 @@ on:
 
 permissions: {}
 
-# Preserve every opened event. A concurrency group can replace pending events,
-# which would permanently lose label enrollment for a new PR. Revision checks
-# and expectedHeadOid reconcile overlapping runs instead.
+# Revision checks and expectedHeadOid reconcile overlapping runs.
 
 jobs:
   refresh-migrations:
@@ -27,7 +25,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      issues: write
       statuses: write
     steps:
       - name: Harden Runner

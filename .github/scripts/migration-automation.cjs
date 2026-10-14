@@ -52,35 +52,8 @@ async function run({ github, context, core, appToken }) {
   }
 
   for (const number of targets) {
-    let pr = await getPR(number);
+    const pr = await getPR(number);
     if (pr.state !== "open" || pr.base.ref !== "main") continue;
-
-    // A delayed or manually rerun opened event must respect a previous opt-out.
-    if (context.eventName === "pull_request_target" && context.payload.action === "opened") {
-      const events = await github.paginate(github.rest.issues.listEvents, { owner, repo, issue_number: number, per_page: 100 });
-      const optedOut = events.some((event) => event.event === "unlabeled" && event.label?.name === rules.LABEL);
-      if (rules.shouldEnroll(context.payload.action, pr, repository, optedOut)) {
-        try {
-          await github.rest.issues.getLabel({ owner, repo, name: rules.LABEL });
-        } catch (error) {
-          if (error.status !== 404) throw error;
-          try {
-            await github.rest.issues.createLabel({ owner, repo, name: rules.LABEL, color: "1d76db",
-              description: "Automatically renumber eligible new migrations; remove to opt out." });
-          } catch (creationError) {
-            if (creationError.status !== 422) throw creationError;
-          }
-        }
-        const current = await getPR(number);
-        const latestEvents = await github.paginate(github.rest.issues.listEvents,
-          { owner, repo, issue_number: number, per_page: 100 });
-        const removed = latestEvents.some((event) => event.event === "unlabeled" && event.label?.name === rules.LABEL);
-        if (rules.shouldEnroll(context.payload.action, current, repository, removed)) {
-          await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: [rules.LABEL] });
-        }
-        pr = await getPR(number);
-      }
-    }
 
     const main = await mainSha();
     try {

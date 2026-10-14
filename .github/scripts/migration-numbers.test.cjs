@@ -99,17 +99,6 @@ function makePR() {
     labels: [{ name: rules.LABEL }], mergeable: true, body: "" };
 }
 
-test("enrollment happens only when opened, and removal remains authoritative on reruns", () => {
-  const pr = makePR();
-  pr.labels = [];
-  assert.equal(rules.shouldEnroll("opened", pr, "coder/coder", false), true);
-  assert.equal(rules.shouldEnroll("opened", pr, "coder/coder", true), false);
-  for (const event of ["reopened", "synchronize", "edited", "labeled", "unlabeled"]) {
-    assert.equal(rules.shouldEnroll(event, pr, "coder/coder", false), false);
-  }
-  pr.head.repo.full_name = "someone/coder";
-  assert.equal(rules.shouldEnroll("opened", pr, "coder/coder", false), false);
-});
 
 test("eligibility refuses forks, stacks, opt-out and merge conflicts", () => {
   for (const change of [
@@ -143,14 +132,12 @@ function harness(options = {}) {
   Object.assign(pr, options.pr || {});
   const statuses = [];
   const commits = [];
-  const enrollments = [];
   const infos = [];
   const trees = { base, main, head: options.head || head };
   const texts = options.texts || {};
   let prReads = 0;
   let mainReads = 0;
   let lists = 0;
-  let eventReads = 0;
   const github = {
     rest: {
       pulls: {
@@ -182,12 +169,6 @@ function harness(options = {}) {
           return { data: { content: Buffer.from(content).toString("base64"), encoding: "base64", size: content.length } };
         },
       },
-      issues: {
-        listEvents: async () => ({ data: (eventReads++ && options.removeDuringEnrollment) || options.removed ? [{ event: "unlabeled", label: { name: rules.LABEL } }] : [] }),
-        getLabel: async () => ({}),
-        createLabel: async () => ({}),
-        addLabels: async ({ labels }) => { enrollments.push(labels); pr.labels = labels.map((name) => ({ name })); },
-      },
     },
     paginate: async (method, params) => (await method(params)).data,
     graphql: async (query, { input, headers }) => {
@@ -212,7 +193,7 @@ function harness(options = {}) {
     serverUrl: "https://github.com", runId: 123,
   };
   const core = { info: (message) => infos.push(message), warning: (message) => infos.push(message) };
-  return { github, context, core, statuses, commits, enrollments, infos };
+  return { github, context, core, statuses, commits, infos, pr };
 }
 
 test("API repair preserves bytes and uses an atomic normal commit, never an old-head success", async () => {
@@ -231,21 +212,7 @@ test("main migration push refreshes current PR heads rather than rerunning old C
   assert.equal(h.commits.length, 0);
 });
 
-test("unrelated PR succeeds and newly opened same-repo PR enrolls before it needs migrations", async () => {
-  const h = harness({ head: base, action: "opened", pr: { labels: [] } });
-  await run({ ...h });
-  assert.deepEqual(h.enrollments, [[rules.LABEL]]);
-  assert.equal(h.statuses[0].state, "success");
-});
 
-test("opened rerun after removal and reopened event do not re-enroll", async () => {
-  for (const options of [{ action: "opened", removed: true }, { action: "reopened" }]) {
-    const h = harness({ ...options, head: base, pr: { labels: [] } });
-    await run({ ...h, appToken: "app-token" });
-    assert.equal(h.enrollments.length, 0);
-    assert.equal(h.commits.length, 0);
-  }
-});
 
 test("missing credentials, forks, stacks, merge conflicts and hardcoded references never edit", async () => {
   for (const options of [
@@ -323,22 +290,16 @@ test("overlapping rename chains never delete an addition destination", async () 
   assert.equal(h.commits[0].fileChanges.deletions.length, 3);
 });
 
-test("workflow preserves every opened event and checks without usable App credentials", () => {
+test("workflow checks without issue writes or usable App credentials", () => {
   const { readFileSync } = require("node:fs");
   const workflow = readFileSync(__dirname + "/../workflows/migration-numbers.yaml", "utf8");
-  assert.doesNotMatch(workflow, /^concurrency:/m);
+  assert.doesNotMatch(workflow, /^      issues:/m);
   assert.match(workflow, /id: app-token\n        continue-on-error: true/);
   assert.match(workflow, /ref: main\n          persist-credentials: false/);
   assert.match(workflow, /permission-contents: write/);
   assert.doesNotMatch(workflow, /permission-(?:workflows|issues|pull-requests): write/);
 });
 
-test("opt-out during enrollment label lookup remains removed", async () => {
-  const h = harness({ head: base, action: "opened", pr: { labels: [] }, removeDuringEnrollment: true });
-  await run({ ...h, appToken: "app-token" });
-  assert.equal(h.enrollments.length, 0);
-  assert.equal(h.statuses[0].state, "success");
-});
 
 test("existing migration and fixture destinations prohibit repair even when the projected tree validates", () => {
   const inherited = { ...base, ...pair(2, "taken"), ...pair(3, "ours") };
@@ -360,4 +321,42 @@ test("number overflow prohibits a partial rename plan", () => {
   assert.ok(result.errors.includes("Migration number exceeds six digits."));
   assert.ok(result.renames.some(({ to }) => to.includes("999999_ours")));
   assert.equal(result.repairable, false);
+});
+
+test("opened, reopened and main-refresh events leave unlabeled conflicts untouched", async () => {
+  for (const options of [{ action: "opened" }, { action: "reopened" }, { event: "push" }]) {
+    const h = harness({ ...options, pr: { labels: [] } });
+    await run({ ...h, appToken: "app-token" });
+    assert.equal(h.commits.length, 0);
+    assert.equal(h.statuses.at(-1).state, "failure");
+    assert.match(h.statuses.at(-1).description, /Autofix is disabled/);
+    assert.deepEqual(h.pr.labels, []);
+  }
+});
+
+test("an unrelated unlabeled PR succeeds without opting into autofix", async () => {
+  const h = harness({ head: base, action: "opened", pr: { labels: [] } });
+  await run({ ...h, appToken: "app-token" });
+  assert.equal(h.statuses[0].state, "success");
+  assert.equal(h.commits.length, 0);
+  assert.deepEqual(h.pr.labels, []);
+});
+
+test("manually adding the label enables repair; removal disables further repairs", async () => {
+  const h = harness({ action: "opened", pr: { labels: [] } });
+  await run({ ...h, appToken: "app-token" });
+  assert.equal(h.commits.length, 0);
+  assert.equal(h.statuses.at(-1).state, "failure");
+
+  h.pr.labels = [{ name: rules.LABEL }];
+  h.context.payload.action = "labeled";
+  await run({ ...h, appToken: "app-token" });
+  assert.equal(h.commits.length, 1);
+
+  h.pr.labels = [];
+  h.context.payload.action = "unlabeled";
+  await run({ ...h, appToken: "app-token" });
+  assert.equal(h.commits.length, 1);
+  assert.match(h.statuses.at(-1).description, /Autofix is disabled/);
+  assert.deepEqual(h.pr.labels, []);
 });

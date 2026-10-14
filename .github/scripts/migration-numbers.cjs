@@ -134,12 +134,6 @@ function skipReason(pr, repository, stacked = false) {
   return null;
 }
 
-/** Only the initial opened event enrolls new same-repository PRs. */
-function shouldEnroll(event, pr, repository, optedOut) {
-  return event === "opened" && !optedOut && pr.state === "open" && pr.base.ref === "main"
-    && pr.head.repo?.full_name === repository && !pr.labels.some((label) => label.name === LABEL);
-}
-
 /**
  * Conservative reference detection prevents silently retargeting migration tests.
  */
@@ -176,7 +170,7 @@ function unchanged(pr, current, main, currentMain) {
 }
 
 module.exports = { MIGRATIONS, FIXTURES, LABEL, CONTEXT, migration, fixture, relevant, validate, plan,
-  skipReason, shouldEnroll, referenceReason, sameRevision, unchanged };
+  skipReason, referenceReason, sameRevision, unchanged };
 
 if (require.main === module) {
   const { execFileSync } = require("node:child_process");
