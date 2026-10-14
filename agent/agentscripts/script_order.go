@@ -13,11 +13,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 // dependencyLogInterval is how often a waiting script's log gets a summary

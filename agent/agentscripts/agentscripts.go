@@ -21,13 +21,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 var (

@@ -373,9 +373,10 @@ func TestExecuteFastPath(t *testing.T) {
 		defer runner.Close()
 		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 
+		// "exit 1" alone runs the same under sh and PowerShell.
 		save := codersdk.WorkspaceAgentScript{
 			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Save state",
-			ResourceAddress: "coder_script.save_state", Script: "echo saving && exit 1",
+			ResourceAddress: "coder_script.save_state", Script: "exit 1",
 			RunOnStart: true, RunOnStop: true,
 		}
 		stopDB := codersdk.WorkspaceAgentScript{
@@ -389,11 +390,9 @@ func TestExecuteFastPath(t *testing.T) {
 		require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{save, stopDB}, aAPI.ScriptCompleted))
 
 		require.Error(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts))
-		require.Equal(t, []string{"saving"}, logs.outputs(save.LogSourceID))
 		require.Empty(t, logs.outputs(stopDB.LogSourceID))
 
 		require.Error(t, runner.Execute(ctx, agentscripts.ExecuteStopScripts))
-		require.Equal(t, []string{"saving", "saving"}, logs.outputs(save.LogSourceID))
 		require.Equal(t, []string{`Skipping script: dependency "Save state" failed.`}, logs.outputs(stopDB.LogSourceID))
 	})
 }
