@@ -139,6 +139,7 @@ func TestManifest(t *testing.T) {
 				SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
 			},
 		},
+		PluginsSupported: true,
 	}
 	p, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
@@ -163,6 +164,7 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+	require.True(t, back.PluginsSupported)
 }
 
 func TestSubsystems(t *testing.T) {
