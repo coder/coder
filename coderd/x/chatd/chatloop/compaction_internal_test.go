@@ -1565,6 +1565,14 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 	}
 }
 
+func TestStepOutputTokens(t *testing.T) {
+	t.Parallel()
+
+	require.EqualValues(t, 500, StepOutputTokens(fantasy.Usage{InputTokens: 1_000, CacheReadTokens: 2_000, OutputTokens: 500}))
+	// The total already counts the output.
+	require.Zero(t, StepOutputTokens(fantasy.Usage{TotalTokens: 1_500, OutputTokens: 500}))
+}
+
 func TestElideToolResults(t *testing.T) {
 	t.Parallel()
 

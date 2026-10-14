@@ -217,16 +217,19 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	// TrailingTokens estimates the messages after the trigger step, which
-	// StepUsage does not count (see EstimateTrailingTokens). It includes
-	// pending user messages that Messages excludes because they follow the
-	// compacted history. Callers pass it precomputed so the threshold gate
-	// here matches the caller's own compaction decision even when Messages
-	// is rewritten for an override model.
+	// TrailingTokens estimates what the next model call sends after the
+	// trigger step's prompt, which the prompt count of StepUsage leaves out:
+	// the step's output (see StepOutputTokens) and the messages after the
+	// step (see EstimateTrailingTokens). It includes pending user messages
+	// that Messages excludes because they follow the compacted history.
+	// Callers pass it precomputed so the threshold gate here matches the
+	// caller's own compaction decision even when Messages is rewritten for
+	// an override model.
 	TrailingTokens int64
-	// SummaryTrailingTokens is the part of TrailingTokens that Messages
-	// holds. Callers pass it precomputed because rewriting Messages for an
-	// override model can drop the messages that locate the trigger step.
+	// SummaryTrailingTokens estimates the messages in Messages after the
+	// trigger step. Callers pass it precomputed because rewriting Messages
+	// for an override model can drop the messages that locate the trigger
+	// step.
 	SummaryTrailingTokens int64
 
 	// Force skips the threshold gate (including the threshold=100

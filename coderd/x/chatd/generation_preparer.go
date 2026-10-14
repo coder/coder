@@ -889,13 +889,15 @@ func (server *Server) prepareGeneration(
 			otherTrigger = chatTrigger
 		}
 	}
-	compactionStepUsage, unmeasuredAssistants, err := latestPromptUsage(ctx, logger, promptRows)
+	compactionStepUsage, unmeasuredAssistants, err := latestPromptUsage(ctx, logger, model.Provider(), promptRows)
 	if err != nil {
 		return generationPrepared{}, xerrors.Errorf("read latest prompt usage: %w", err)
 	}
-	// The full prompt includes the pending user messages, which the next
-	// model call sends after the compacted history.
-	compactionTrailingTokens := chatloop.EstimateTrailingTokens(prompt, unmeasuredAssistants)
+	// The next model call replays the measured step's output and the
+	// messages after it. The full prompt includes the pending user
+	// messages, which that call sends after the compacted history.
+	compactionTrailingTokens := chatloop.StepOutputTokens(compactionStepUsage) +
+		chatloop.EstimateTrailingTokens(prompt, unmeasuredAssistants)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionTrailingTokens, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
@@ -990,9 +992,10 @@ func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed 
 // latestPromptUsage returns the latest usage in messages and the number of
 // assistant messages that the prompt replays after the one that reported
 // it. Those persist without usage, like the partial response of an
-// interrupted step. Assistant messages that the prompt omits, such as one
-// that holds a tool's attachments, do not count.
-func latestPromptUsage(ctx context.Context, logger slog.Logger, messages []database.ChatMessage) (fantasy.Usage, int, error) {
+// interrupted step. Assistant messages that the prompt omits do not count,
+// such as one that holds a tool's attachments, or one that holds only
+// Anthropic provider tool history that provider cannot replay.
+func latestPromptUsage(ctx context.Context, logger slog.Logger, provider string, messages []database.ChatMessage) (fantasy.Usage, int, error) {
 	var unmeasured []database.ChatMessage
 	for i := len(messages) - 1; i >= 0; i-- {
 		usage := usageFromMessage(messages[i])
@@ -1008,6 +1011,9 @@ func latestPromptUsage(ctx context.Context, logger slog.Logger, messages []datab
 			if err != nil {
 				return fantasy.Usage{}, 0, xerrors.Errorf("convert assistant message %d: %w", msg.ID, err)
 			}
+			// The sanitizer checks each assistant message on its own, so it
+			// drops this one here exactly when it drops it from the prompt.
+			prompt, _ = chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
 			if len(prompt) > 0 {
 				replayed++
 			}
@@ -1062,9 +1068,9 @@ func bindingCompactionTriggerSource(chat, override compactionTrigger) compaction
 }
 
 // shouldCompactPromptUsage reports whether a step's measured prompt usage
-// plus trailingTokens, an estimate of the messages added after that step,
-// reaches the trigger. Unmeasured usage never does, so a freshly compacted
-// history is not compacted again before its first step.
+// plus trailingTokens, an estimate of what the next request adds to that
+// prompt, reaches the trigger. Unmeasured usage never does, so a freshly
+// compacted history is not compacted again before its first step.
 func shouldCompactPromptUsage(usage fantasy.Usage, trailingTokens, contextLimit int64, thresholdPercent int32) bool {
 	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false

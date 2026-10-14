@@ -212,8 +212,8 @@ type CompactionToolResult struct {
 	// UsagePercent is relative to the resolved limit, which equals
 	// TriggerContextLimitTokens when it is positive. Like ContextTokens,
 	// it measures the trigger step's prompt, so it can be below
-	// ThresholdPercent when the messages after that step triggered the
-	// compaction.
+	// ThresholdPercent when the step's output or the messages after it
+	// triggered the compaction.
 	UsagePercent  float64 `json:"usage_percent"`
 	ContextTokens int64   `json:"context_tokens"`
 	// ContextLimitTokens is the chat model's window.
@@ -247,7 +247,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		opts.ContextLimitFallback,
 	)
 	// The result reports the measured usage, but the gate also counts what
-	// the next model call sends after the trigger step.
+	// the next model call sends after the trigger step's prompt.
 	usagePercent, _ := shouldCompact(
 		contextTokens,
 		contextLimit,
@@ -626,6 +626,13 @@ func stepTokensFromUsage(usage fantasy.Usage) int64 {
 		return usage.TotalTokens
 	}
 	return contextTokensFromUsage(usage) + usage.OutputTokens
+}
+
+// StepOutputTokens returns the tokens of a step's output that the prompt
+// count of its usage leaves out. A usage report with only TotalTokens
+// already counts them.
+func StepOutputTokens(usage fantasy.Usage) int64 {
+	return stepTokensFromUsage(usage) - contextTokensFromUsage(usage)
 }
 
 // resolveContextLimit returns the configured limit when positive, then
