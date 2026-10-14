@@ -13,8 +13,9 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	// True while fetched pages have not reached the store yet. Blocks paging
-	// without showing the loader: hydration is not a history request.
+	// True while fetched pages have not reached the store yet. Blocks the
+	// transcript's automatic paging without showing the loader: hydration is
+	// not a history request.
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;

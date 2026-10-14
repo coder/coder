@@ -5,6 +5,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
+import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
@@ -89,65 +90,29 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 			},
 		],
 	},
-	{
-		...MockChatMessage,
-		id: 2,
-		role: "assistant",
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "attach",
-				tool_name: "attach_file",
-				args: { path: "/home/coder/flaky-runs.csv" },
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 3,
-		role: "assistant",
-		content: [
-			{
-				type: "file",
-				media_type: "text/csv",
-				name: "flaky-runs.csv",
-				file_id: "runs-file",
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 4,
-		role: "assistant",
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "screenshot",
-				tool_name: "computer",
-				args: { action: "screenshot" },
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "assistant",
-		content: [
-			{
-				type: "file",
-				media_type: "image/png",
-				name: "ci-dashboard.png",
-				file_id: "screenshot-file",
-			},
-		],
-	},
+	...attachmentStepMessages(2, "attach", 1, {
+		toolName: "attach_file",
+		args: { path: "/home/coder/flaky-runs.csv" },
+		file: {
+			type: "file",
+			media_type: "text/csv",
+			name: "flaky-runs.csv",
+			file_id: "runs-file",
+		},
+		result: { name: "flaky-runs.csv" },
+	}),
+	...attachmentStepMessages(5, "screenshot", 3, {
+		toolName: "computer",
+		args: { action: "screenshot" },
+		file: {
+			type: "file",
+			media_type: "image/png",
+			name: "ci-dashboard.png",
+			file_id: "screenshot-file",
+		},
+		result: { data: "", mime_type: "image/png" },
+	}),
 ];
-
-const renderWithAttachments: Story["render"] = (args) => {
-	const store = createChatStore();
-	store.replaceMessages(mockAttachmentMessages);
-	return <ChatSummaryPanel {...args} store={store} />;
-};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -198,6 +163,7 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Gating disables both queries, so no summary renders and no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(
@@ -221,7 +187,11 @@ export const GatewayUnavailable: Story = {
 };
 
 export const WithAttachments: Story = {
-	render: renderWithAttachments,
+	render: (args) => {
+		const store = createChatStore();
+		store.replaceMessages(mockAttachmentMessages);
+		return <ChatSummaryPanel {...args} store={store} />;
+	},
 	beforeEach: () =>
 		mockRequests({
 			summary:
@@ -229,15 +199,17 @@ export const WithAttachments: Story = {
 		}),
 };
 
-// The first page of messages has not reached the store yet.
 export const LoadingMessages: Story = {
 	args: { isHydratingMessages: true },
 	beforeEach: () => mockRequests(),
 };
 
-// Hydration also follows each live message the store already holds.
 export const LiveMessageArriving: Story = {
 	args: { isHydratingMessages: true },
-	render: renderWithAttachments,
+	render: (args) => {
+		const store = createChatStore();
+		store.replaceMessages(mockAttachmentMessages);
+		return <ChatSummaryPanel {...args} store={store} />;
+	},
 	beforeEach: () => mockRequests(),
 };

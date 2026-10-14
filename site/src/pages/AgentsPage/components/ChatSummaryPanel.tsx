@@ -48,12 +48,6 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		messages.map((message) => ({ message })),
 		chatData?.files,
 	);
-	// Hydration also follows every live message, which the store already
-	// holds, so only an empty store means the first page has not landed.
-	const attachments =
-		isHydratingMessages && messages.length === 0
-			? undefined
-			: getAgentAttachments(messages);
 
 	let content: React.ReactNode = null;
 	if (chatQuery.isError) {
@@ -78,7 +72,14 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				attachments={attachments}
+				// Hydration also follows every live message, which the store
+				// already holds, so only an empty store means the first page has
+				// not landed.
+				attachments={
+					isHydratingMessages && messages.length === 0
+						? undefined
+						: getAgentAttachments(messages)
+				}
 				evictedFileIds={evictedFileIds}
 				{...historyPaging}
 			/>

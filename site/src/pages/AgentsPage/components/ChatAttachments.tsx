@@ -51,40 +51,37 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 			/>
 			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
-				{attachments && (
-					<>
-						{attachments.length > 0 ? (
-							<FileProbeProvider evictedFileIds={evictedFileIds}>
-								<ul className="flex flex-col gap-2">
-									{attachments.map(({ key, file, href }) => (
-										<li key={key}>
-											<FileCard block={file} href={href} fullWidth />
-										</li>
-									))}
-								</ul>
-							</FileProbeProvider>
-						) : (
-							<p className="m-0 text-sm text-content-secondary">
-								{hasMoreMessages
-									? "No attachments in the loaded messages."
-									: "No attachments yet."}
-							</p>
-						)}
-						{hasMoreMessages && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="self-start"
-								disabled={isFetchingMoreMessages}
-								onClick={() => void onFetchMoreMessages()}
-							>
-								<Spinner loading={isFetchingMoreMessages} aria-hidden />
-								{hasFetchMoreError
-									? "Retry loading earlier messages"
-									: "Load earlier messages"}
-							</Button>
-						)}
-					</>
+				{attachments && attachments.length > 0 && (
+					<FileProbeProvider evictedFileIds={evictedFileIds}>
+						<ul className="flex flex-col gap-2">
+							{attachments.map(({ key, file, href }) => (
+								<li key={key}>
+									<FileCard block={file} href={href} fullWidth />
+								</li>
+							))}
+						</ul>
+					</FileProbeProvider>
+				)}
+				{attachments?.length === 0 && (
+					<p className="m-0 text-sm text-content-secondary">
+						{hasMoreMessages
+							? "No attachments in the loaded messages."
+							: "No attachments yet."}
+					</p>
+				)}
+				{attachments && hasMoreMessages && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="self-start"
+						disabled={isFetchingMoreMessages}
+						onClick={() => void onFetchMoreMessages()}
+					>
+						<Spinner loading={isFetchingMoreMessages} aria-hidden />
+						{hasFetchMoreError
+							? "Retry loading earlier messages"
+							: "Load earlier messages"}
+					</Button>
 				)}
 			</CollapsibleContent>
 		</Collapsible>

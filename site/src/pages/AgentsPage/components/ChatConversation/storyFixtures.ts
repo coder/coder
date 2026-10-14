@@ -128,11 +128,22 @@ export const MockWorkingBlock: WorkingBlock = {
 	isPartial: false,
 };
 
+type ToolStep = {
+	toolName: string;
+	args: Record<string, string>;
+	result: unknown;
+};
+
 const workingStepMessages = (
 	id: number,
 	toolCallId: string,
 	callAt: number,
 	resultAt: number,
+	{
+		toolName = "execute",
+		args = { command: `echo ${toolCallId}` },
+		result = { output: `${toolCallId} output`, exit_code: "0" },
+	}: Partial<ToolStep> = {},
 ): TypesGen.ChatMessage[] => [
 	{
 		...MockChatMessage,
@@ -143,8 +154,8 @@ const workingStepMessages = (
 			{
 				type: "tool-call",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				args: { command: `echo ${toolCallId}` },
+				tool_name: toolName,
+				args,
 				created_at: workingFixtureTime(callAt),
 			},
 		],
@@ -158,69 +169,43 @@ const workingStepMessages = (
 			{
 				type: "tool-result",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				result: { output: `${toolCallId} output`, exit_code: "0" },
+				tool_name: toolName,
+				result,
 				created_at: workingFixtureTime(resultAt),
 			},
 		],
 	},
 ];
 
-type AttachmentStep = {
-	toolCallId: string;
-	toolName: string;
-	args: Record<string, string>;
-	file: TypesGen.ChatFilePart;
-	result: unknown;
-};
-
 /**
  * A tool step that attaches a file. The attachment is its own assistant
  * message between the call and its result, as the server stores it.
  */
-const attachmentStepMessages = (
+export const attachmentStepMessages = (
 	id: number,
-	at: number,
-	{ toolCallId, toolName, args, file, result }: AttachmentStep,
-): TypesGen.ChatMessage[] => [
-	{
-		...MockChatMessage,
+	toolCallId: string,
+	callAt: number,
+	{ file, ...step }: ToolStep & { file: TypesGen.ChatFilePart },
+): TypesGen.ChatMessage[] => {
+	const [callMessage, resultMessage] = workingStepMessages(
 		id,
-		role: "assistant",
-		created_at: workingFixtureTime(at),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: toolCallId,
-				tool_name: toolName,
-				args,
-				created_at: workingFixtureTime(at),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: id + 1,
-		role: "assistant",
-		created_at: workingFixtureTime(at + 1),
-		content: [file],
-	},
-	{
-		...MockChatMessage,
-		id: id + 2,
-		role: "tool",
-		created_at: workingFixtureTime(at + 1),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: toolCallId,
-				tool_name: toolName,
-				result,
-				created_at: workingFixtureTime(at + 1),
-			},
-		],
-	},
-];
+		toolCallId,
+		callAt,
+		callAt + 1,
+		step,
+	);
+	return [
+		callMessage,
+		{
+			...MockChatMessage,
+			id: id + 1,
+			role: "assistant",
+			created_at: workingFixtureTime(callAt + 1),
+			content: [file],
+		},
+		{ ...resultMessage, id: id + 2 },
+	];
+};
 
 /**
  * One completed turn of two shell steps with part timestamps: prompt at 0s,
@@ -376,13 +361,12 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 ];
 
 /**
- * MockWorkingMessages with an attach_file step from 5s to 6s between its two
- * shell steps.
+ * MockWorkingMessages with an attach_file step from 5s to 6s. The second shell
+ * step moves to start at 7s.
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	...attachmentStepMessages(4, 5, {
-		toolCallId: "attach",
+	...attachmentStepMessages(4, "attach", 5, {
 		toolName: "attach_file",
 		args: { path: "/home/coder/report.pdf" },
 		file: {
@@ -408,8 +392,7 @@ const planPath = "/home/coder/.coder/plans/PLAN.md";
 /** A turn that proposes a plan file after the first step of MockWorkingMessages. */
 export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	...attachmentStepMessages(4, 5, {
-		toolCallId: "plan",
+	...attachmentStepMessages(4, "plan", 5, {
 		toolName: "propose_plan",
 		args: { path: planPath },
 		file: {

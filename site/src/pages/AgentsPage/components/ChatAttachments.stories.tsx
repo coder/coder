@@ -99,6 +99,14 @@ export const LoadEarlierMessagesFailed: Story = {
 	args: { hasMoreMessages: true, hasFetchMoreError: true },
 };
 
+export const LoadEarlierMessagesRetrying: Story = {
+	args: {
+		hasMoreMessages: true,
+		hasFetchMoreError: true,
+		isFetchingMoreMessages: true,
+	},
+};
+
 export const ExpiredAttachment: Story = {
 	args: { evictedFileIds: new Set(["report-file"]) },
 };
