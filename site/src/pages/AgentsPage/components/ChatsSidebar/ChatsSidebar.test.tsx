@@ -981,6 +981,142 @@ describe("ChatsSidebar move to project", () => {
 	});
 });
 
+describe("ChatsSidebar project drops", () => {
+	const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
+	const billing = { ...MockChatProject, id: "billing", name: "Billing" };
+	const ops = {
+		...billing,
+		id: "ops",
+		name: "Ops",
+		organization_id: "other-org",
+	};
+
+	const renderSidebar = (
+		chats: Chat[],
+		projects: TypesGen.ChatProject[] = [],
+	) => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(projects),
+			),
+		);
+		return render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+	};
+
+	// jsdom has no layout, so dnd-kit measures zero rects. A node gets the box
+	// of the one landmark it holds: the dragged row, Billing, Ops or Chats. An
+	// ancestor of several gets no box. The DragOverlay copy gets the row box.
+	const layoutDropTargets = (rowTop: number) => {
+		const box = (y: number, height: number) =>
+			DOMRect.fromRect({ x: 0, y, width: 300, height });
+		const landmarks = [
+			{
+				node: screen.getByRole("button", { description: DRAG_INSTRUCTIONS }),
+				box: box(rowTop, 40),
+			},
+			{ node: screen.getByRole("link", { name: "Billing" }), box: box(0, 80) },
+			{ node: screen.getByRole("link", { name: "Ops" }), box: box(100, 40) },
+			{
+				node: screen.getByRole("heading", { name: "Chats" }),
+				box: box(200, 300),
+			},
+		];
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				const held = landmarks.filter(({ node }) => this.contains(node));
+				if (held.length === 1) {
+					return held[0].box;
+				}
+				return this.textContent === "Fix invoice dates"
+					? landmarks[0].box
+					: box(0, 0);
+			},
+		);
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("gives a drag only to idle root chats of the viewer that are not pinned", async () => {
+		const child = buildChat({
+			id: "c6",
+			parent_chat_id: "c5",
+			status: "running",
+		});
+		renderSidebar([
+			buildChat({ id: "c1", title: "Free chat" }),
+			buildChat({ id: "c2", title: "Pinned chat", pin_order: 1 }),
+			buildChat({
+				id: "c3",
+				title: "Shared chat",
+				owner_id: "sharing-user-id",
+				shared: true,
+			}),
+			buildChat({ id: "c4", title: "Busy chat", status: "running" }),
+			buildChat({ id: "c7", title: "Archived chat", archived: true }),
+			// A waiting root with a running subagent.
+			buildChat({ id: "c5", title: "Parent chat", children: [child] }),
+		]);
+		const dragRole = async (title: string) =>
+			(await screen.findByText(title))
+				.closest("[aria-roledescription]")
+				?.getAttribute("aria-roledescription");
+
+		expect(await dragRole("Free chat")).toBe("draggable");
+		expect(await dragRole("Pinned chat")).toBe("sortable");
+		for (const title of [
+			"Shared chat",
+			"Busy chat",
+			"Archived chat",
+			"Parent chat",
+		]) {
+			expect(await dragRole(title)).toBeUndefined();
+		}
+	});
+
+	// Ops sits between Billing and Chats but belongs to another organization,
+	// so each key must skip it.
+	it.each([
+		{ rowTop: 240, key: "[ArrowUp]", projectId: undefined, body: billing.id },
+		{ rowTop: 40, key: "[ArrowDown]", projectId: billing.id, body: NIL_UUID },
+	])("drops a chat with $key", async ({ rowTop, key, projectId, body }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: billing.organization_id,
+					project_id: projectId,
+				}),
+			],
+			[billing, ops],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		layoutDropTargets(rowTop);
+
+		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard(key);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
+		);
+		expect(update).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("ChatsSidebar pinned reordering", () => {
 	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;

@@ -22,8 +22,9 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
+import { useChatDropTarget } from "./projectDrag";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -46,6 +47,7 @@ type ProjectFoldersProps = {
 	readonly error: unknown;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
+	readonly draggedChat: Chat | undefined;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
@@ -60,6 +62,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	error,
 	onRetry,
 	emptyMessage,
+	draggedChat,
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
@@ -118,6 +121,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
 									onDelete={() => onDelete(project)}
 									emptyMessage={emptyMessage}
+									draggedChat={draggedChat}
 								/>
 							))}
 						</div>
@@ -138,6 +142,7 @@ type ProjectFolderProps = {
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
 	readonly emptyMessage: string;
+	readonly draggedChat: Chat | undefined;
 };
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
@@ -150,7 +155,16 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onEdit,
 	onDelete,
 	emptyMessage,
+	draggedChat,
 }) => {
+	const { setNodeRef, isOver } = useChatDropTarget(
+		{
+			kind: "project",
+			projectId: project.id,
+			organizationId: project.organization_id,
+		},
+		draggedChat,
+	);
 	const projectPath: To = {
 		pathname: buildAgentProjectPath({ projectId: project.id }),
 		search: locationSearch,
@@ -159,7 +173,13 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	return (
-		<div>
+		<div
+			ref={setNodeRef}
+			className={cn(
+				"rounded-md",
+				isOver && "ring-1 ring-inset ring-content-link",
+			)}
+		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
 					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
@@ -261,7 +281,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							{emptyMessage}
 						</p>
 					) : (
-						chats.map((chat) => <ChatTreeNode key={chat.id} chat={chat} />)
+						chats.map((chat) => (
+							<DraggableChatTreeNode key={chat.id} chat={chat} />
+						))
 					)}
 				</div>
 			)}
