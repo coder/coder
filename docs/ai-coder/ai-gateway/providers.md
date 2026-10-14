@@ -183,10 +183,12 @@ provider:
 | Anything else, such as `claude-opus-4-5`     | The provider's **model**            |
 
 An InvokeModel provider therefore serves at most two Bedrock models, and
-the requested model only chooses between them. AI Gateway records usage
-and cost against the Bedrock model that ran, not the requested model. To
-offer another Bedrock model, add another InvokeModel provider configured
-with that model, or use a [Mantle](#mantle) provider.
+the requested model only chooses between them. AI Gateway records each
+request, its token usage, and its cost against the Bedrock model that ran,
+not the requested model. For an application inference profile, that is the
+model behind the profile. To offer another Bedrock model, add another
+InvokeModel provider configured with that model, or use a
+[Mantle](#mantle) provider.
 
 The same applies to Coder Agents models. The model identifier of an Agents
 model that uses an InvokeModel provider is not sent to AWS; it only
@@ -197,12 +199,13 @@ Claude Sonnet 4.5. The dashboard warns about this when you add or edit
 such a model, and the Agents chat input warns when such a model is
 selected.
 
-To keep the Agents model list accurate, give each Agents model on an
-InvokeModel provider the Anthropic name of the Bedrock model that it runs,
-such as `claude-sonnet-4-5` for the configured **model** and
-`claude-haiku-4-5` for the configured **small fast model**. Use a Claude
-identifier, one that starts with `claude-`, so that Coder Agents sends
-requests in the Anthropic Messages format.
+The model identifier you give an Agents model on an InvokeModel provider
+does not change which Bedrock model runs, beyond the `haiku` rule above.
+To avoid confusion, match it to the configured model that it selects, such
+as `claude-sonnet-4-5` for a configured **model** of
+`global.anthropic.claude-sonnet-4-5-20250929-v1:0`. Keep the `claude-`
+prefix: Coder Agents uses it to send requests in the Anthropic Messages
+format.
 
 #### Mantle
 
@@ -212,8 +215,13 @@ API, forwarding the request body **unchanged** and only applying AWS SigV4
 signing with the provider's base identity.
 
 Because the model is forwarded as requested, clients and Coder Agents
-models on a Mantle provider must use Bedrock model IDs, such as
-`anthropic.claude-sonnet-5`, rather than Anthropic API names.
+models on a Mantle provider must use Mantle model IDs, such as
+`anthropic.claude-sonnet-5`, rather than Anthropic API names. Use the bare
+model ID, without a cross-Region inference profile prefix such as `us.` or
+`global.`. To list the IDs that Mantle serves in a Region, call its
+`/v1/models` endpoint. Refer to
+[Get list of models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-get-info.html)
+in the AWS documentation.
 
 To route Claude Code through a Mantle provider, run it in mantle mode with
 client-side signing disabled so the gateway signs centrally:
