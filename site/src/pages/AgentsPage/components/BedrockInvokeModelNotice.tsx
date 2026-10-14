@@ -23,8 +23,8 @@ export const BedrockInvokeModelNotice: React.FC<
 	return (
 		<ComposerNoticeRow id={id} tone="secondary">
 			<span>
-				{providerLabel} uses the Bedrock InvokeModel protocol, so requests use
-				the model configured on the provider instead of{" "}
+				The provider '{providerLabel}' uses the Bedrock InvokeModel protocol, so
+				requests use the model configured on the provider instead of{" "}
 				{modelOption.displayName}.{" "}
 				<Link
 					href={docs(
