@@ -29,8 +29,7 @@ func NewResponseError(status int, resp codersdk.Response) error {
 	}
 }
 
-// WrapResponseError returns a response error like NewResponseError that
-// unwraps to cause, so errors.Is and errors.As still find the cause.
+// WrapResponseError returns an HTTP response error that unwraps to cause.
 func WrapResponseError(status int, resp codersdk.Response, cause error) error {
 	return &responseError{
 		status:   status,
