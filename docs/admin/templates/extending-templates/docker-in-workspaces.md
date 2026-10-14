@@ -382,7 +382,17 @@ spec:
 Reference the `NodeClass` from a `NodePool` and schedule Podman workspaces onto that pool with a node selector.
 Refer to [Create a Node Class for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-node-class.html) for the full `advancedCompute` reference.
 
-> Pods that set `hostUsers: false` also need `advancedCompute.kubelet.idsPerPod` raised above the 65536 default before rootless Podman can allocate subordinate ID ranges inside them.
+Pods that set `hostUsers: false` also need `advancedCompute.kubelet.idsPerPod` raised above the 65536 default before rootless Podman can allocate subordinate ID ranges inside them.
+The value must be a multiple of 65536, and `idsPerPod` requires `user.max_user_namespaces` to be set on the same `NodeClass`:
+
+```yaml
+  advancedCompute:
+    kernel:
+      sysctl:
+        user.max_user_namespaces: 65536
+    kubelet:
+      idsPerPod: 1048576
+```
 
 #### Use native overlay storage instead of fuse-overlayfs
 
