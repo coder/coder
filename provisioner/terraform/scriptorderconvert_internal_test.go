@@ -204,6 +204,81 @@ func TestConvertStateWithScriptOrderRejectsUnknownSource(t *testing.T) {
 	require.ErrorContains(t, err, "unknown script order graph source 99")
 }
 
+func TestHasScriptOrderDataSource(t *testing.T) {
+	t.Parallel()
+
+	dataSource := func(address string) *tfjson.StateResource {
+		return &tfjson.StateResource{
+			Address: address,
+			Mode:    tfjson.DataResourceMode,
+			Type:    "coder_script_order",
+			Name:    "order",
+		}
+	}
+	tests := []struct {
+		name    string
+		modules []*tfjson.StateModule
+		want    bool
+	}{
+		{
+			name: "RootModule",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{
+					dataSource("data.coder_script_order.order"),
+				},
+			}},
+			want: true,
+		},
+		{
+			name: "ChildModule",
+			modules: []*tfjson.StateModule{{
+				ChildModules: []*tfjson.StateModule{{
+					Address: "module.child",
+					Resources: []*tfjson.StateResource{
+						dataSource("module.child.data.coder_script_order.order"),
+					},
+				}},
+			}},
+			want: true,
+		},
+		{
+			name: "WrongMode",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{{
+					Mode: tfjson.ManagedResourceMode,
+					Type: "coder_script_order",
+				}},
+			}},
+		},
+		{
+			name: "WrongType",
+			modules: []*tfjson.StateModule{{
+				Resources: []*tfjson.StateResource{{
+					Mode: tfjson.DataResourceMode,
+					Type: "coder_parameter",
+				}},
+			}},
+		},
+		{
+			name: "NilEntries",
+			modules: []*tfjson.StateModule{
+				nil,
+				{
+					Resources:    []*tfjson.StateResource{nil},
+					ChildModules: []*tfjson.StateModule{nil},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, test.want, hasScriptOrderDataSource(test.modules))
+		})
+	}
+}
+
 func scriptOrderTestModule(resources ...*tfjson.StateResource) *tfjson.StateModule {
 	resources = append(resources,
 		&tfjson.StateResource{

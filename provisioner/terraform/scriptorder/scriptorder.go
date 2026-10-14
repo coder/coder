@@ -70,10 +70,11 @@ func NewProgram(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		// Plan-derived state may retain prior-state data sources
-		// whose configuration declarations were removed. Processing
-		// these stale instances could preserve removed ordering rules
-		// or produce preparation errors.
+
+		// Terraform excludes orphaned data sources from both the
+		// refreshed state serialized as the plan's prior state and
+		// planned values. Still, defensively ignore instances absent
+		// from the supplied configuration.
 		declaration, err := configIndex.lookupResource(
 			dataSource.moduleAddress,
 			tfjson.DataResourceMode,
