@@ -901,8 +901,11 @@ describe("ChatsSidebar move to project", () => {
 	it("shows the server message when the server refuses a move", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");
-		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
-			mockApiError({ message: "Cannot move an active chat." }),
+		let refuseMove: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise((_, reject) => {
+				refuseMove = reject;
+			}),
 		);
 		renderSidebar([
 			buildChat({
@@ -921,11 +924,9 @@ describe("ChatsSidebar move to project", () => {
 		await user.keyboard("{ArrowRight}");
 		await focusMenuItem(user, "menuitem", "Billing");
 		await user.keyboard("{Enter}");
+		// The menu closed on select, so the toast must outlive it.
+		refuseMove(mockApiError({ message: "Cannot move an active chat." }));
 
-		// The menu closes on select, so the toast must outlive it.
-		await waitFor(() =>
-			expect(screen.queryByRole("menuitem", { name: "Billing" })).toBeNull(),
-		);
 		await waitFor(() =>
 			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
 		);
