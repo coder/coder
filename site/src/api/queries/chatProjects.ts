@@ -1,3 +1,4 @@
+import groupBy from "lodash/groupBy";
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -20,9 +21,10 @@ export const chatProjects = () =>
 	});
 
 // A module-level select keeps one identity, so react-query reuses the grouping
-// until the list changes instead of grouping again on every render.
+// until the list changes instead of grouping again on every render. It uses
+// lodash because Object.groupBy is newer than the browsers we support.
 const groupByOrganization = (projects: readonly TypesGen.ChatProject[]) =>
-	Object.groupBy(projects, (project) => project.organization_id);
+	groupBy(projects, (project) => project.organization_id);
 
 /**
  * Groups the chatProjects() list by organization ID in server order. The
