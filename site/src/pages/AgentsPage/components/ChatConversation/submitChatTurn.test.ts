@@ -288,7 +288,7 @@ describe("submitChatTurn", () => {
 				mcp_server_ids: ["mcp-1"],
 			}),
 		});
-		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
+		expect(scrollToEnd).not.toHaveBeenCalled();
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
