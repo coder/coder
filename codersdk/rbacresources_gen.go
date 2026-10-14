@@ -17,7 +17,6 @@ const (
 	ResourceBoundaryLog                   RBACResource = "boundary_log"
 	ResourceBoundaryUsage                 RBACResource = "boundary_usage"
 	ResourceChat                          RBACResource = "chat"
-	ResourceChatAutomation                RBACResource = "chat_automation"
 	ResourceChatModelConfig               RBACResource = "chat_model_config"
 	ResourceChatProject                   RBACResource = "chat_project"
 	ResourceChatProjectMemory             RBACResource = "chat_project_memory"
@@ -41,6 +40,7 @@ const (
 	ResourceOauth2AppSecret               RBACResource = "oauth2_app_secret"
 	ResourceOrganization                  RBACResource = "organization"
 	ResourceOrganizationMember            RBACResource = "organization_member"
+	ResourceOrganizationSkill             RBACResource = "organization_skill"
 	ResourcePrebuiltWorkspace             RBACResource = "prebuilt_workspace"
 	ResourceProvisionerDaemon             RBACResource = "provisioner_daemon"
 	ResourceProvisionerJobs               RBACResource = "provisioner_jobs"
@@ -100,9 +100,8 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
-	ResourceChatAutomation:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
-	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatProjectMemory:             {ActionCreate, ActionDelete, ActionRead},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
@@ -124,6 +123,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOauth2AppSecret:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganization:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganizationSkill:             {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourcePrebuiltWorkspace:             {ActionDelete, ActionUpdate},
 	ResourceProvisionerDaemon:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerJobs:               {ActionCreate, ActionRead, ActionUpdate},

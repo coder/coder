@@ -14,7 +14,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -42,6 +41,7 @@ import {
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -51,7 +51,6 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -440,6 +439,14 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				// Events missed while disconnected, such as
+				// diff_status_change, only reach the open chat's cache
+				// through a refetch.
+				const activeChatId = activeChatIdForWatch();
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+					void invalidateChatDiffContents(queryClient, activeChatId);
+				}
 			},
 		});
 	}, [queryClient]);
@@ -456,10 +463,6 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	// On mobile the automations page replaces the sidebar, like a settings
-	// detail page.
-	const isFullPageRoute =
-		isSettingsDetail || location.pathname.startsWith(AUTOMATIONS_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -499,7 +502,7 @@ const AgentsPageLayout: React.FC = () => {
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
 						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border"
-						: isFullPageRoute
+						: isSettingsDetail
 							? "hidden sm:block shrink-0"
 							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
 					isSidebarCollapsed && "sm:hidden",
@@ -540,10 +543,10 @@ const AgentsPageLayout: React.FC = () => {
 			<div
 				data-testid="agents-main-panel"
 				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
 					isSettingsIndex ? "hidden sm:flex" : "flex",
 					!agentId &&
-						!isFullPageRoute &&
+						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
 						"contents sm:flex sm:flex-1 sm:flex-col",
 				)}

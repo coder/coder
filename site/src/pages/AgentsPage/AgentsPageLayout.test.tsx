@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import {
 	type InfiniteData,
 	InfiniteQueryObserver,
+	QueryObserver,
 	useQuery,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
@@ -11,6 +12,7 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import {
 	chat as chatById,
+	chatDiffContents,
 	chatEntityKey,
 	chatListFamilyKey,
 	infiniteChats,
@@ -60,7 +62,6 @@ const renderLayout = (route = "/agents") =>
 		children: [
 			{ index: true, element: null },
 			{ path: "projects/:projectId", element: null },
-			{ path: "automations", element: null },
 			{ path: ":agentId", element: <ChatPage /> },
 		],
 		extraRoutes: [{ path: "/workspaces", element: null }],
@@ -107,22 +108,77 @@ describe("AgentsPageLayout New chat", () => {
 		},
 	);
 
-	it.each([
-		"/agents/chat-1",
-		"/agents/projects/project-1",
-		"/agents/automations",
-	])("keeps the plain composer's draft when leaving %s", async (route) => {
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
-		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
-		const user = userEvent.setup();
+	it.each(["/agents/chat-1", "/agents/projects/project-1"])(
+		"keeps the plain composer's draft when leaving %s",
+		async (route) => {
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+			localStorage.setItem(
+				emptyInputStorageKey,
+				"draft the user typed earlier",
+			);
+			const user = userEvent.setup();
 
-		const { router } = renderLayout(route);
-		await user.click(await screen.findByRole("link", { name: "New chat" }));
+			const { router } = renderLayout(route);
+			await user.click(await screen.findByRole("link", { name: "New chat" }));
 
-		await waitFor(() => expect(router.state.location.pathname).toBe("/agents"));
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
-			"draft the user typed earlier",
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe("/agents"),
+			);
+			expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+				"draft the user typed earlier",
+			);
+		},
+	);
+});
+
+describe("AgentsPageLayout chat watch reconnect", () => {
+	it("refetches the open chat and its diff contents when the chat watch socket opens", async () => {
+		let chatWatchServer: MockWebSocketServer | undefined;
+		vi.spyOn(apiModule, "watchChats").mockImplementation(
+			() =>
+				new OneWayWebSocket<ChatWatchEvent>({
+					apiRoute: "/api/v2/chats/watch",
+					websocketInit: (url, protocol) => {
+						const [socket, server] = createMockWebSocket(url, protocol);
+						chatWatchServer = server;
+						return socket;
+					},
+				}),
 		);
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([MockChat]);
+		const getChat = vi
+			.spyOn(API.experimental, "getChat")
+			.mockResolvedValue(MockChat);
+		const getChatDiffContents = vi
+			.spyOn(API.experimental, "getChatDiffContents")
+			.mockResolvedValue({ chat_id: MockChat.id });
+
+		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
+		// Stands in for an open diff panel, which this page does not
+		// render.
+		const diffObserver = new QueryObserver(
+			queryClient,
+			chatDiffContents(MockChat.id),
+		);
+		const unsubscribe = diffObserver.subscribe(() => {});
+		try {
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(1));
+			// Wait for the first diff request so the reconnect's refetch
+			// cannot be deduplicated into it.
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(chatWatchServer).toBeDefined());
+
+			// Events missed while disconnected are only recovered by a
+			// refetch, so every (re)connect must refetch the open chat
+			// and its diff contents.
+			act(() => chatWatchServer?.publishOpen(new Event("open")));
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
+			expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(2));
+			expect(getChatDiffContents.mock.lastCall?.[0]).toBe(MockChat.id);
+		} finally {
+			unsubscribe();
+		}
 	});
 });
 

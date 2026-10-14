@@ -2,12 +2,9 @@
 title: Visual Studio Code
 ---
 
-You can develop in your Coder workspace remotely with
-[VS Code](https://code.visualstudio.com/download).
-We support connecting with the desktop client and VS Code in the browser with
-[code-server](https://github.com/coder/code-server).
-Learn more about how VS Code Web and code-server compare in the
-[code-server doc](./code-server.md).
+You can develop in your Coder workspace remotely with [VS Code](https://code.visualstudio.com/download).
+We support connecting with the desktop client and VS Code in the browser with [code-server](https://github.com/coder/code-server).
+Learn more about how VS Code Web and code-server compare in the [code-server doc](./code-server.md).
 
 ## VS Code Desktop
 
@@ -16,31 +13,27 @@ VS Code desktop is a default app for workspaces.
 Select **VS Code Desktop** in the dashboard to one-click enter a workspace.
 This automatically installs the [Coder Remote](https://github.com/coder/vscode-coder) extension, authenticates with Coder, and connects to the workspace.
 
-![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
+![Demo](https://github.com/coder/vscode-coder/raw/main/media/demo.gif?raw=true)
 
 > [!NOTE]
-> The `VS Code Desktop` button can be hidden by enabling
-> [Browser-only connections](../../admin/networking/index.md#browser-only-connections).
+> The `VS Code Desktop` button can be hidden by enabling [Browser-only connections](../../admin/networking/index.md#browser-only-connections).
 
 ### Manual Installation
 
 You can install our extension manually in VS Code using the command palette.
-Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
-enter.
+Launch VS Code Quick Open (Ctrl+P), paste the following command, and press enter.
 
 ```txt
 ext install coder.coder-remote
 ```
 
-Alternatively, manually install the VSIX from the
-[latest release](https://github.com/coder/vscode-coder/releases/latest).
+Alternatively, manually install the VSIX from the [latest release](https://github.com/coder/vscode-coder/releases/latest).
 
 ## Local telemetry
 
-The Coder Remote extension records local telemetry to help diagnose extension
-and workspace connection issues. Telemetry is stored on your machine. It is not
-sent to Coder unless you export it or include it in a support bundle and share
-that file.
+The Coder Remote extension records local telemetry to help diagnose extension and workspace connection issues.
+Telemetry is stored on your machine.
+It is not sent to Coder unless you export it or include it in a support bundle and share that file.
 
 Local telemetry is controlled by the VS Code setting `coder.telemetry.level`:
 
@@ -51,19 +44,14 @@ Local telemetry is controlled by the VS Code setting `coder.telemetry.level`:
 
 ### Stored data
 
-Telemetry can include diagnostic details such as extension version, VS Code
-version, operating system, machine and session identifiers, deployment URL,
-workspace and agent names, command outcomes, connection state, request routes,
-timing, and error details. It does not intentionally collect source code,
-terminal contents, tokens, or credentials.
+Telemetry can include diagnostic details such as extension version, VS Code version, operating system, machine and session identifiers, deployment URL, workspace and agent names, command outcomes, connection state, request routes, timing, and error details.
+It does not intentionally collect source code, terminal contents, tokens, or credentials.
 
 ### Tracked activity
 
-The exact events vary by extension version. For a comprehensive list of current
-events, properties, and attributes, see the
-[extension event reference](https://github.com/coder/vscode-coder/blob/main/src/instrumentation/EVENTS.md).
-The following categories summarize the diagnostic signals the extension may
-record:
+The exact events vary by extension version.
+For a comprehensive list of current events, properties, and attributes, see the [extension event reference](https://github.com/coder/vscode-coder/blob/main/src/instrumentation/EVENTS.md).
+The following categories summarize the diagnostic signals the extension may record:
 
 | Area                           | Examples                                                                                     |
 |--------------------------------|----------------------------------------------------------------------------------------------|
@@ -87,8 +75,8 @@ Most users should keep the default values.
 
 The extension includes commands for collecting diagnostics from VS Code:
 
-- **Coder: Export Telemetry** exports only local telemetry. Choose a date range
-  and JSON or OTLP JSON zip format, then review the file before sharing it.
+- **Coder: Export Telemetry** exports only local telemetry.
+  Choose a date range and JSON or OTLP JSON zip format, then review the file before sharing it.
 - **Coder: Create Support Bundle** runs `coder support bundle` and adds local extension logs, proxy and Remote-SSH logs, selected settings, and telemetry under `vscode-logs/`.
   Only configured values for `coder.globalFlags`, `coder.headerCommand`, and `coder.tlsCertRefreshCommand` are masked; review other settings before sharing.
   With Coder CLI version 2.36.0 or later and a reachable workspace agent that supports file collection, it also collects remote editor server logs under `agent/workspace_files/`.
@@ -96,9 +84,9 @@ The extension includes commands for collecting diagnostics from VS Code:
   Follow the [VS Code support bundle procedure](../../support/support-bundle.md#vs-code) to select a workspace, confirm collection, and save the archive.
 - **Coder: View Logs** opens SSH proxy logs in VS Code.
 
-Support bundles can contain sensitive diagnostic data. Review the generated
-bundle before sharing it. Learn more about
-[support bundles](../../support/support-bundle.md).
+Support bundles can contain sensitive diagnostic data.
+Review the generated bundle before sharing it.
+Learn more about [support bundles](../../support/support-bundle.md).
 
 ## Connection timeouts and reconnects
 
@@ -161,35 +149,28 @@ To adjust the SSH connection timeout, use `coder.sshConfig`.
 
 There are multiple ways to add extensions to VS Code Desktop:
 
-1. Using the
-   [public extensions marketplaces](#use-the-public-extensions-marketplaces)
-   with Code Web (code-server)
+1. Using the [public extensions marketplaces](#use-the-public-extensions-marketplaces) with Code Web (code-server)
 1. Adding [extensions to custom images](#add-extensions-to-custom-images)
-1. Installing extensions
-   [using its `vsix` file at the command line](#install-extensions-using-a-vsix-file-at-the-command-line)
-1. Installing extensions
-   [from a marketplace using the command line](#install-from-a-marketplace-at-the-command-line)
+1. Installing extensions [using its `vsix` file at the command line](#install-extensions-using-a-vsix-file-at-the-command-line)
+1. Installing extensions [from a marketplace using the command line](#install-from-a-marketplace-at-the-command-line)
 
 <a id="using-the-public-extensions-marketplaces"></a>
 
 ### Use the public extensions marketplaces
 
-You can manually add an extension while you're working in the Code Web IDE. The
-extensions can be from Coder's public marketplace, Eclipse Open VSX's public
-marketplace, or the Eclipse Open VSX _local_ marketplace.
+You can manually add an extension while you're working in the Code Web IDE.
+The extensions can be from Coder's public marketplace, Eclipse Open VSX's public marketplace, or the Eclipse Open VSX _local_ marketplace.
 
 ![Code Web Extensions](../../images/ides/code-web-extensions.png)
 
 > [!NOTE]
-> Microsoft does not allow any unofficial VS Code IDE to connect to the
-> extension marketplace.
+> Microsoft does not allow any unofficial VS Code IDE to connect to the extension marketplace.
 
 <a id="adding-extensions-to-custom-images"></a>
 
 ### Add extensions to custom images
 
-You can add extensions to a custom image and install them either through Code
-Web or using the workspace's terminal.
+You can add extensions to a custom image and install them either through Code Web or using the workspace's terminal.
 
 1. Download the extension(s) from the Microsoft public marketplace.
 
@@ -204,8 +185,7 @@ Web or using the workspace's terminal.
     -rw-r--r-- 1 coder coder 8925314 Aug 1 19:40 GitHub.copilot.vsix
    ```
 
-1. In the Dockerfile, add instructions to make a folder and to copy the `vsix`
-   files into the newly created folder.
+1. In the Dockerfile, add instructions to make a folder and to copy the `vsix` files into the newly created folder.
 
    ```dockerfile
    FROM codercom/example-base:ubuntu
@@ -222,8 +202,7 @@ Web or using the workspace's terminal.
 
 1. Build the custom image, and push it to your image registry.
 
-1. Pass in the image and below command into your template `startup_script` (be
-   sure to update the filename below):
+1. Pass in the image and below command into your template `startup_script` (be sure to update the filename below):
 
    **Startup Script**
 
@@ -259,8 +238,7 @@ You will now have access to the extension in your workspace.
 
 ### Install extensions using a `vsix` file at the command line
 
-Using the workspace's terminal or the terminal available inside `code-server`,
-you can install an extension whose files you've downloaded from a marketplace:
+Using the workspace's terminal or the terminal available inside `code-server`, you can install an extension whose files you've downloaded from a marketplace:
 
 ```console
 /path/to/code-server --install-extension /vsix/GitHub.copilot.vsix
@@ -270,9 +248,7 @@ you can install an extension whose files you've downloaded from a marketplace:
 
 ### Install from a marketplace at the command line
 
-Using the workspace's terminal or the terminal available inside Code Web (code
-server), run the following to install an extension (be sure to update the
-snippets with the name of the extension you want to install):
+Using the workspace's terminal or the terminal available inside Code Web (code server), run the following to install an extension (be sure to update the snippets with the name of the extension you want to install):
 
 ```console
 SERVICE_URL=https://extensions.coder.com/api ITEM_URL=https://extensions.coder.com/item /path/to/code-server --install-extension GitHub.copilot
@@ -288,9 +264,7 @@ SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vs
 
 ### Use VS Code Desktop
 
-For your local VS Code to pickup extension files in your Coder workspace,
-include this command in your `startup_script`, or run in manually in your
-workspace terminal:
+For your local VS Code to pickup extension files in your Coder workspace, include this command in your `startup_script`, or run in manually in your workspace terminal:
 
 ```console
 code --extensions-dir ~/.vscode-server/extensions --install-extension "$extension"

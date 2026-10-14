@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -33,7 +34,6 @@ import (
 // Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
-	logger slog.Logger,
 	chat database.Chat,
 ) ([]database.MCPServerConfig, error) {
 	var configs []database.MCPServerConfig
@@ -41,11 +41,7 @@ func (server *Server) effectiveMCPServerConfigs(
 		var err error
 		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
 		if err != nil {
-			// Best-effort for the user-selected set, matching prior
-			// behavior: a load failure degrades the turn rather than
-			// failing it.
-			logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
-			configs = nil
+			return nil, err
 		}
 	}
 	if isExploreSubagentMode(chat.Mode) {
@@ -110,13 +106,14 @@ func (server *Server) prepareGeneration(
 	})
 	g.Go(func() error {
 		var err error
-		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
+		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, chat)
 		return err
 	})
 	if server.inlineMCPServersEnabled() {
 		g.Go(func() error {
-			inlineMCPServers, mcpLoadFailures = server.loadInlineMCPServers(ctx, chat)
-			return nil
+			var err error
+			inlineMCPServers, mcpLoadFailures, err = server.loadInlineMCPServers(ctx, chat)
+			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -142,6 +139,7 @@ func (server *Server) prepareGeneration(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
+	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -178,6 +176,11 @@ func (server *Server) prepareGeneration(
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
+	reasoningSource := reasoningProvenance{
+		ProviderIdentity: providerIdentity,
+		Model:            model.ModelID(),
+		Credential:       reasoningCredential(resolved.route.ProviderAuth),
+	}
 	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
@@ -207,13 +210,17 @@ func (server *Server) prepareGeneration(
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
-	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
-	advisorCfg := server.loadAdvisorConfig(ctx, logger)
-	// Force Enabled from the experiment; the stored DB value is ignored.
-	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
+	planModeInstructions, err := server.loadPlanModeInstructions(ctx, currentPlanMode)
+	if err != nil {
+		return generationPrepared{}, err
+	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if server.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+		advisorCfg, cfgErr := server.configCache.AdvisorConfig(ctx)
+		if cfgErr != nil {
+			return generationPrepared{}, xerrors.Errorf("load advisor config: %w", cfgErr)
+		}
 		var advisorErr error
 		advisorRuntime, advisorErr = server.newAdvisorRuntime(
 			ctx,
@@ -232,7 +239,10 @@ func (server *Server) prepareGeneration(
 		if advisorRuntime == nil {
 			return
 		}
-		advisorPromptSnapshot = slices.Clone(msgs)
+		// The advisor reads the transcript as text. Replayed OpenAI
+		// reasoning can be foreign to the advisor model, and textualized
+		// tool calls would leave it without its required following item.
+		advisorPromptSnapshot = dropOpenAIReasoningParts(ctx, logger, msgs)
 	}
 
 	currentChat := chat
@@ -310,24 +320,29 @@ func (server *Server) prepareGeneration(
 	}
 
 	var (
-		prompt             []fantasy.Message
-		instruction        string
-		mcpTools           []fantasy.AgentTool
-		mcpSummaries       []mcpclient.ConnectSummary
-		inlineMCPTools     []fantasy.AgentTool
-		inlineMCPSummaries []mcpclient.ConnectSummary
-		workspaceMCPTools  []fantasy.AgentTool
-		workspaceSkills    []chattool.SkillMeta
-		personalSkills     []skillspkg.Skill
-		resolvedUserPrompt string
-		planPathBlock      string
+		prompt              []fantasy.Message
+		instruction         string
+		mcpTools            []fantasy.AgentTool
+		mcpSummaries        []mcpclient.ConnectSummary
+		inlineMCPTools      []fantasy.AgentTool
+		inlineMCPSummaries  []mcpclient.ConnectSummary
+		workspaceMCPTools   []fantasy.AgentTool
+		workspaceSkills     []chattool.SkillMeta
+		personalSkills      []skillspkg.Skill
+		orgSkills           []skillspkg.Skill
+		orgSkillReader      rbac.Subject
+		resolvedUserPrompt  string
+		projectInstructions string
+		planPathBlock       string
 	)
 
-	// Drop provider-executed tool history produced by a different provider
-	// before building the prompt. A provider that shares another's wire format
-	// (e.g. Bedrock and Anthropic) can still reject the other's
-	// provider-executed blocks, so a mid-chat provider switch must not replay
-	// them.
+	// Drop provider-executed tool history produced by a different provider,
+	// and OpenAI reasoning state produced by a different provider, model,
+	// or credential, or before the latest rejection of that source's
+	// encrypted reasoning, before building the prompt. A provider
+	// that shares another's wire format (e.g. Bedrock and Anthropic) can
+	// still reject the other's provider-specific blocks, so a mid-chat
+	// provider switch must not replay them.
 	//
 	// The pending-user segment (trailing user rows the assistant has not
 	// answered yet) is handled separately from here through prompt
@@ -340,7 +355,11 @@ func (server *Server) prepareGeneration(
 	// sanitizing everything, since the tail is user-only and the
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
-	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], reasoningSource)
+	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
+	if err != nil {
+		return generationPrepared{}, err
+	}
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
@@ -416,19 +435,34 @@ func (server *Server) prepareGeneration(
 		return nil
 	})
 	g2.Go(func() error {
-		personalSkills = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
-		return nil
+		var err error
+		personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
+		return err
 	})
 	g2.Go(func() error {
-		resolvedUserPrompt = server.resolveUserPrompt(ctx, chat.OwnerID)
+		var err error
+		orgSkillReader, err = server.chatOwnerSubject(ctx, chat.OwnerID)
+		if err != nil {
+			return err
+		}
+		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		return err
+	})
+	g2.Go(func() error {
+		var err error
+		resolvedUserPrompt, err = server.resolveUserPrompt(ctx, chat.OwnerID)
+		return err
+	})
+	g2.Go(func() error {
+		projectInstructions = server.resolveProjectInstructions(ctx, logger, chat)
 		return nil
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
-			var tokenErr error
-			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
-			if tokenErr != nil {
-				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+			var err error
+			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			if err != nil {
+				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
@@ -486,8 +520,9 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
-			return nil
+			var err error
+			workspaceMCPTools, err = server.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+			return err
 		})
 	}
 	// Resolve the per-chat plan path block in the parallel phase. It dials
@@ -529,7 +564,7 @@ func (server *Server) prepareGeneration(
 		subagentInstruction = defaultSubagentInstruction
 	}
 	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, workspaceSkills)
+		return mergeTurnSkills(personalSkills, orgSkills, workspaceSkills)
 	}
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
@@ -547,6 +582,7 @@ func (server *Server) prepareGeneration(
 		instruction,
 		initialResolvedSkills,
 		memoryIndex,
+		projectInstructions,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -611,15 +647,6 @@ func (server *Server) prepareGeneration(
 			isPlanModeTurn:  isPlanModeTurn,
 		})
 	}
-	// The offer decides the chat-automations experiment once per turn;
-	// every call of the tool checks all rules again.
-	if manageAutomationsAllowed(chat, func() bool {
-		return input.TurnExperiments.chatAutomationsEnabled(stopNudgeKey(input.Messages), func() bool {
-			return AutomationsEnabled(ctx, server.experimentEvaluator, chat.OwnerID)
-		})
-	}) {
-		tools = append(tools, server.manageAutomationsTool(chat.ID))
-	}
 
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -627,12 +654,15 @@ func (server *Server) prepareGeneration(
 			return workspaceSkills
 		},
 		ResolveAlias: resolveSkillAlias,
-		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
+			if skill.Source == skillspkg.SourceOrganization {
+				return server.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+			}
+			return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(workspaceSkills) == 0 {
 			return current, false
 		}
 		updated := current
@@ -823,42 +853,53 @@ func (server *Server) prepareGeneration(
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	effectiveThreshold := modelConfig.CompressionThreshold
-	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
-		effectiveThreshold = override
+	thresholdOverride, ok, err := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
+	if err != nil {
+		return generationPrepared{}, err
 	}
-	// The compaction trigger uses the stricter of the chat and override
-	// models' context limits: the history must also fit the summarizer's
-	// window.
-	compactionContextLimit := modelConfig.ContextLimit
+	if ok {
+		effectiveThreshold = thresholdOverride
+	}
+	chatTrigger := compactionTrigger{
+		thresholdPercent: effectiveThreshold,
+		contextLimit:     modelConfig.ContextLimit,
+	}
 	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         compactionOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeSoft,
+		context:        compactionOverrideContext,
+		ownerID:        chat.OwnerID,
+		organizationID: chat.OrganizationID,
 	})
 	if err != nil {
 		return generationPrepared{}, err
 	}
+	binding := chatTrigger
+	bindingSource := compactionTriggerSourceChat
 	var compactionOverride *resolvedModelOverride
+	var otherTrigger compactionTrigger
 	if resolvedCompactionOverride.Set {
+		overrideTrigger := compactionTrigger{
+			thresholdPercent: compactionOverrideWindowPercent,
+			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
+		}
 		compactionOverride = &resolvedCompactionOverride
-		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
-			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
-			compactionContextLimit = overrideLimit
+		otherTrigger = overrideTrigger
+		bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
+		if bindingSource == compactionTriggerSourceOrganization {
+			binding = overrideTrigger
+			otherTrigger = chatTrigger
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
 		Messages:             compactionPromptMessages,
-		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
+		ThresholdPercent:     binding.thresholdPercent,
+		ContextLimit:         binding.contextLimit,
+		ContextLimitFallback: binding.contextLimit,
+		ChatContextLimit:     modelConfig.ContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
@@ -892,6 +933,8 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		ReasoningProvenance:  reasoningSource,
+		ReasoningRejected:    resolved.reasoningRejected,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
@@ -904,6 +947,8 @@ func (server *Server) prepareGeneration(
 		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
+			TriggerSource:   bindingSource,
+			OtherTrigger:    otherTrigger,
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
@@ -943,8 +988,50 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
+// compactionOverrideWindowPercent leaves the rest of the override's window as
+// headroom for the summary prompt and summary. It is a target margin, not a
+// guarantee: the trigger reads the previous step's prompt usage.
+const compactionOverrideWindowPercent = int32(80)
+
+type compactionTrigger struct {
+	thresholdPercent int32
+	contextLimit     int64
+}
+
+func (t compactionTrigger) enabled() bool {
+	return t.thresholdPercent >= 0 && t.thresholdPercent < chatloop.CompactionDisabledThresholdPercent && t.contextLimit > 0
+}
+
+func (t compactionTrigger) point() float64 {
+	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
+}
+
+type compactionTriggerSource string
+
+const (
+	compactionTriggerSourceChat         compactionTriggerSource = "chat"
+	compactionTriggerSourceOrganization compactionTriggerSource = "organization"
+)
+
+// bindingCompactionTriggerSource returns the trigger that fires first on the
+// same prompt usage. A disabled override yields chat, a disabled chat trigger
+// yields organization, and otherwise the lower token point binds, with ties to
+// chat.
+func bindingCompactionTriggerSource(chat, override compactionTrigger) compactionTriggerSource {
+	switch {
+	case !override.enabled():
+		return compactionTriggerSourceChat
+	case !chat.enabled():
+		return compactionTriggerSourceOrganization
+	case override.point() < chat.point():
+		return compactionTriggerSourceOrganization
+	default:
+		return compactionTriggerSourceChat
+	}
+}
+
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
-	if thresholdPercent >= 100 || contextLimit <= 0 {
+	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false
 	}
 	contextTokens := contextTokensFromUsage(usage)

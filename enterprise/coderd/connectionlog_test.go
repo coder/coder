@@ -65,7 +65,7 @@ func TestConnectionLogs(t *testing.T) {
 
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -76,7 +76,63 @@ func TestConnectionLogs(t *testing.T) {
 
 		require.Len(t, logs.ConnectionLogs, 1)
 		require.EqualValues(t, 1, logs.Count)
-		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)
+		require.Equal(t, string(codersdk.ConnectionTypeSSH), logs.ConnectionLogs[0].Type)
+		require.Equal(t, codersdk.ConnectionLogMethodSSH, logs.ConnectionLogs[0].ConnectionMethod)
+		require.Empty(t, logs.ConnectionLogs[0].AppName)
+		require.Empty(t, logs.ConnectionLogs[0].AppDisplayName, "no display name is made up for a missing app")
+	})
+
+	// The filter semantics are covered by the database tests. This checks that
+	// method, app and type queries reach them.
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog:      1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		ws := createWorkspace(t, db)
+		insert := func(method database.ConnectionLogMethod, appNameOrPort string) uuid.UUID {
+			return dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ConnectionMethod: method,
+				AppNameOrPort:    sql.NullString{String: appNameOrPort, Valid: appNameOrPort != ""},
+				WorkspaceID:      ws.ID,
+				OrganizationID:   ws.OrganizationID,
+				WorkspaceOwnerID: ws.OwnerID,
+			}).ID
+		}
+		sshCursor := insert(database.ConnectionLogMethodSSH, "cursor")
+		ptyCursor := insert(database.ConnectionLogMethodReconnectingPTY, "cursor")
+		_ = insert(database.ConnectionLogMethodSSH, "")
+		// A workspace app slugged like an IDE is still a workspace app.
+		_ = insert(database.ConnectionLogMethodWorkspaceApp, "cursor")
+
+		query := func(q string) []uuid.UUID {
+			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: q})
+			require.NoError(t, err, q)
+			require.EqualValues(t, len(logs.ConnectionLogs), logs.Count, "count must match the listed logs for %q", q)
+			var ids []uuid.UUID
+			for _, l := range logs.ConnectionLogs {
+				ids = append(ids, l.ID)
+			}
+			return ids
+		}
+
+		require.ElementsMatch(t, []uuid.UUID{sshCursor}, query("type:vscode"))
+		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor}, query("app:cursor"))
+		require.ElementsMatch(t, []uuid.UUID{ptyCursor}, query("method:reconnecting_pty app:cursor"))
+
+		_, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "method:vscode"})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("Empty", func(t *testing.T) {
@@ -116,13 +172,13 @@ func TestConnectionLogs(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   org.ID,
 			WorkspaceOwnerID: ws.OwnerID,
 		})
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -167,14 +223,14 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeWorkspaceApp,
+			ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			UserAgent:        sql.NullString{String: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36", Valid: true},
 			UserID:           uuid.NullUUID{UUID: ws.OwnerID, Valid: true},
-			SlugOrPort:       sql.NullString{String: "code-server", Valid: true},
+			AppNameOrPort:    sql.NullString{String: "code-server", Valid: true},
 		})
 
 		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{})
@@ -183,7 +239,9 @@ func TestConnectionLogs(t *testing.T) {
 		require.Len(t, logs.ConnectionLogs, 1)
 		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].WebInfo)
-		require.Equal(t, clog.SlugOrPort.String, logs.ConnectionLogs[0].WebInfo.SlugOrPort)
+		require.Equal(t, clog.AppNameOrPort.String, logs.ConnectionLogs[0].WebInfo.SlugOrPort)
+		require.Empty(t, logs.ConnectionLogs[0].AppName, "a destination is not a client app")
+		require.Empty(t, logs.ConnectionLogs[0].AppDisplayName)
 		require.Equal(t, clog.UserAgent.String, logs.ConnectionLogs[0].WebInfo.UserAgent)
 		require.Equal(t, ws.OwnerID, logs.ConnectionLogs[0].WebInfo.User.ID)
 	})
@@ -208,7 +266,7 @@ func TestConnectionLogs(t *testing.T) {
 		// user's identity; they must surface it via WebInfo.
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeTunnel,
+			ConnectionMethod: database.ConnectionLogMethodTunnel,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -249,7 +307,8 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Type:             database.ConnectionTypeSsh,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -270,7 +329,7 @@ func TestConnectionLogs(t *testing.T) {
 		updatedClog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now,
 			OrganizationID:   clog.OrganizationID,
-			Type:             clog.Type,
+			ConnectionMethod: clog.ConnectionMethod,
 			WorkspaceID:      clog.WorkspaceID,
 			WorkspaceOwnerID: clog.WorkspaceOwnerID,
 			WorkspaceName:    clog.WorkspaceName,
@@ -299,7 +358,10 @@ func TestConnectionLogs(t *testing.T) {
 		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].SSHInfo)
 		require.Nil(t, logs.ConnectionLogs[0].WebInfo)
-		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)
+		require.Equal(t, string(codersdk.ConnectionTypeVSCode), logs.ConnectionLogs[0].Type)
+		require.Equal(t, codersdk.ConnectionLogMethodSSH, logs.ConnectionLogs[0].ConnectionMethod)
+		require.Equal(t, "cursor", logs.ConnectionLogs[0].AppName)
+		require.Equal(t, "Cursor", logs.ConnectionLogs[0].AppDisplayName)
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)

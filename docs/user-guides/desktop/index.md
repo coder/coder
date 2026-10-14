@@ -2,10 +2,13 @@
 title: Coder Desktop
 ---
 
-Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
+Coder Desktop provides seamless access to your remote workspaces through a native application.
+Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
 
 > [!TIP]
-> Coder Desktop provides **automatic port forwarding** to every service running in your workspace. Any port your application listens on is instantly accessible at `workspace-name.coder:PORT` with no manual setup required. For a comparison of all port forwarding methods, see [Workspace Ports](../workspace-access/port-forwarding.md).
+> Coder Desktop provides **automatic port forwarding** to every service running in your workspace.
+> Any port your application listens on is instantly accessible at `workspace-name.coder:PORT` with no manual setup required.
+> For a comparison of all port forwarding methods, see [Workspace Ports](../workspace-access/port-forwarding.md).
 
 ## What You'll Need
 
@@ -25,11 +28,16 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 
 **Coder Connect**, the primary component of Coder Desktop, creates a secure tunnel to your Coder deployment, allowing you to:
 
-- **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
-- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no configuration
-- **Use any application**: SSH clients, browsers, IDEs work seamlessly
-- **Sync files**: Bidirectional sync between local and remote directories
-- **Work offline**: Edit files locally, sync when reconnected
+- **Access workspaces directly**:
+  Connect via `workspace-name.coder` hostnames
+- **Automatic port forwarding**:
+  All workspace ports are available at `workspace-name.coder:PORT` with no configuration
+- **Use any application**:
+  SSH clients, browsers, IDEs work seamlessly
+- **Sync files**:
+  Bidirectional sync between local and remote directories
+- **Work offline**:
+  Edit files locally, sync when reconnected
 
 The VPN extension routes only Coder traffic—your other internet activity remains unchanged.
 
@@ -175,9 +183,7 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 
 ### Recover from a stale tunnel
 
-If the menu bar or tray shows **Coder Connect** as enabled but workspaces are
-unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot
-list the workspace directory), the embedded tunnel may be in a stale state.
+If the menu bar or tray shows **Coder Connect** as enabled but workspaces are unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot list the workspace directory), the embedded tunnel may be in a stale state.
 Restart the helper components first.
 If that doesn't resolve the issue, reboot your computer.
 
@@ -209,9 +215,9 @@ They only restart the running tunnel and flush DNS caches.
     ```
 
     > [!WARNING]
-    > Do not use `launchctl bootout` here. `bootout` removes the daemon from
-    > launchd's system domain entirely, and relaunching the app does not
-    > re-bootstrap it. Use `kickstart -k` to restart it in place.
+    > Do not use `launchctl bootout` here.
+    > `bootout` removes the daemon from launchd's system domain entirely, and relaunching the app does not re-bootstrap it.
+    > Use `kickstart -k` to restart it in place.
 
 4. Flush DNS caches:
 
@@ -228,8 +234,7 @@ They only restart the running tunnel and flush DNS caches.
 
 6. Relaunch **Coder Desktop** from your `/Applications` folder and toggle **Coder Connect** back on.
 
-To verify the tunnel is healthy after relaunching, query the built-in sentinel
-hostname against Coder Desktop's embedded DNS server:
+To verify the tunnel is healthy after relaunching, query the built-in sentinel hostname against Coder Desktop's embedded DNS server:
 
 ```shell
 dig @fd60:627a:a42b::53 AAAA is.coder--connect--enabled--right--now.coder +short
@@ -274,16 +279,13 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Wintun*" }
     ```
 
-    If either command returns nothing while Coder Connect shows as enabled,
-    the tunnel did not finish coming up. Disable and re-enable the toggle, or
-    repeat the steps above.
+    If either command returns nothing while Coder Connect shows as enabled, the tunnel did not finish coming up.
+    Disable and re-enable the toggle, or repeat the steps above.
 
 > [!NOTE]
-> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver;
-> restarting the service is what clears its internal cache. If you are running
-> a network filtering agent (for example, Zscaler), it may shadow `.coder`
-> lookups even after the tunnel comes back. Check with your IT team if DNS
-> still fails after a clean restart.
+> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver; restarting the service is what clears its internal cache.
+> If you are running a network filtering agent (for example, Zscaler), it may shadow `.coder` lookups even after the tunnel comes back.
+> Check with your IT team if DNS still fails after a clean restart.
 
 </div>
 
@@ -295,7 +297,8 @@ When reporting an issue, attach the relevant log files so we can diagnose it fas
 
 #### macOS
 
-Coder Desktop and its network extension write to the Apple [unified logging system](https://developer.apple.com/documentation/os/logging). The file sync (Mutagen) daemon writes to a separate log file.
+Coder Desktop and its network extension write to the Apple [unified logging system](https://developer.apple.com/documentation/os/logging).
+The file sync (Mutagen) daemon writes to a separate log file.
 
 1. Export the unified logs for the last hour with the `log` command:
 
@@ -304,10 +307,8 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
       --info --debug --last 1h > ~/Desktop/coder-desktop.log
     ```
 
-    The `BEGINSWITH` predicate captures the app, the helper daemon, and the
-    network extension, which all log under subsystems prefixed with
-    `com.coder.Coder-Desktop`. Adjust `--last` (e.g. `30m`, `2h`, `1d`) to
-    cover the time the issue occurred.
+    The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension, which all log under subsystems prefixed with `com.coder.Coder-Desktop`.
+    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred.
 
     You can stream the logs live while reproducing an issue:
 
@@ -315,9 +316,7 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
     log stream --predicate 'subsystem BEGINSWITH "com.coder.Coder-Desktop"' --info --debug
     ```
 
-    You can also view the same logs interactively in **Console.app** by
-    filtering on `subsystem:com.coder.Coder-Desktop` with Info and Debug
-    messages enabled.
+    You can also view the same logs interactively in **Console.app** by filtering on `subsystem:com.coder.Coder-Desktop` with Info and Debug messages enabled.
 
 2. If you're using file sync, also collect the Mutagen daemon log:
 
@@ -362,8 +361,10 @@ You can quickly open the app log directory by pasting `%LOCALAPPDATA%\CoderDeskt
 
 If you encounter issues not covered here:
 
-- **File an issue**: [macOS](https://github.com/coder/coder-desktop-macos/issues) | [Windows](https://github.com/coder/coder-desktop-windows/issues) | [General](https://github.com/coder/coder/issues)
-- **Community support**: [Discord](https://coder.com/chat)
+- **File an issue**:
+  [macOS](https://github.com/coder/coder-desktop-macos/issues) | [Windows](https://github.com/coder/coder-desktop-windows/issues) | [General](https://github.com/coder/coder/issues)
+- **Community support**:
+  [Discord](https://coder.com/chat)
 
 <a id="uninstalling"></a>
 
