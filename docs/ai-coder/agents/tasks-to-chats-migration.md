@@ -570,9 +570,8 @@ websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
-You should see JSON envelopes with `"type": "data"` containing
-`message_part` and `status` events. The chat should eventually reach
-`"waiting"` status, indicating the agent completed its response.
+You should see JSON arrays of events that include `message_part` and `status` events.
+The chat should eventually reach `"waiting"` status, indicating the agent completed its response.
 
 ### 4. Send a follow-up message
 
