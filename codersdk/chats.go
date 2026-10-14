@@ -298,8 +298,8 @@ type UpdateChatProjectACL struct {
 
 // ChatProjectInstructions are instructions added to the system prompt of
 // every chat in a project, except chats whose owner can no longer use the
-// project. A project without instructions has an empty Instructions string and nil UpdatedBy and
-// UpdatedAt.
+// project. A project without instructions has an empty Instructions
+// string and nil UpdatedBy and UpdatedAt.
 type ChatProjectInstructions struct {
 	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
 	Instructions string    `json:"instructions"`

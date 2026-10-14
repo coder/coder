@@ -2048,27 +2048,46 @@ func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
 	sharee := dbgen.User(t, db, database.User{})
 	stays := dbgen.User(t, db, database.User{})
 	for _, user := range []database.User{owner, sharee, stays} {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	}
+	for _, user := range []database.User{owner, sharee} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	}
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
 	admin := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}}
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID:       project.ID,
 		UserACL:  database.ChatACL{sharee.ID.String(): admin, stays.ID.String(): admin},
 		GroupACL: database.ChatACL{},
 	}))
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       otherProject.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+
+	// Leaving another organization keeps this one's grants.
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: otherOrg.ID, UserID: sharee.ID}))
+	got, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Contains(t, got.UserACL, sharee.ID.String())
+	usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.True(t, usable)
 
 	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: org.ID, UserID: sharee.ID}))
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: sharee.ID, OrganizationID: org.ID})
 
-	got, err := db.GetChatProjectByID(ctx, project.ID)
+	got, err = db.GetChatProjectByID(ctx, project.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatACL{stays.ID.String(): admin}, got.UserACL, "rejoining does not restore the grant")
-	usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	usable, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
 	require.NoError(t, err)
 	require.False(t, usable)
 }

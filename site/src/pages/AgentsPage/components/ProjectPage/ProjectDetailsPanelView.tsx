@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { PenIcon } from "lucide-react";
 import { useId } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
@@ -127,7 +128,13 @@ export const ProjectDetailsPanelView: React.FC<
 								</div>
 							) : (
 								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
-									<p className="m-0 line-clamp-3 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary">
+									<p
+										className={cn(
+											"m-0 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary",
+											// Without the editor, this is the only place the full text shows.
+											onEditInstructions && "line-clamp-3",
+										)}
+									>
 										{instructions.instructions}
 									</p>
 									{onEditInstructions && (

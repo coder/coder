@@ -14,7 +14,9 @@ import (
 )
 
 // usableChatProject loads the project and reports whether the chat owner can
-// use it. Lookup failures and denials are logged and report false.
+// use it. It reports false when the project is missing, the lookup or access
+// check fails, or the owner cannot use it, and logs every case except a
+// missing project.
 func (p *Server) usableChatProject(ctx context.Context, logger slog.Logger, projectID uuid.UUID, chat database.Chat) (database.ChatProject, bool) {
 	logger = logger.With(slog.F("project_id", projectID))
 	project, err := p.db.GetChatProjectByID(ctx, projectID)

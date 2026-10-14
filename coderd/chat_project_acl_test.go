@@ -314,18 +314,21 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Empty(t, acl.Users)
 		require.Empty(t, acl.Groups)
 
-		// User entries outside the organization, which skipped validation, are hidden.
+		// Entries that skipped validation: out-of-org users grant nothing and
+		// are hidden; foreign groups still grant their in-org members and show.
 		ownerUser, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, ownerUser))
 		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
 			ID:       project.ID,
 			UserACL:  database.ChatACL{foreignUser.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
-			GroupACL: database.ChatACL{},
+			GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 		}))
 		acl, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Empty(t, acl.Users)
+		require.Len(t, acl.Groups, 1)
+		require.Equal(t, foreignGroup.ID, acl.Groups[0].ID)
 		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
 			ID:       project.ID,
 			UserACL:  database.ChatACL{},
