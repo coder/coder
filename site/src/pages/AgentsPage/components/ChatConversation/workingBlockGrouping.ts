@@ -290,16 +290,14 @@ type Draft = {
 	anchorKey?: string;
 	ordinal: number;
 	containsLiveRow: boolean;
-	/** The row whose text, or content that never folds, closed the block. */
-	closedBy?: TimelineRow["type"];
+	/** Type of the row whose text, or non-folding content, closed the block. */
+	closedByRowType?: TimelineRow["type"];
 };
 
 /**
  * Any text, even a sentence between two tool calls of one step, closes the
- * open block. Attached files render after the block and leave it open, so the
- * work that follows them, like the answer's reasoning, stays in it.
- * Timestamps come from the raw entries, because the timeline rows already
- * dropped tool-result messages and merged read_file runs.
+ * open block. Timestamps come from the raw entries, because the timeline rows
+ * already dropped tool-result messages and merged read_file runs.
  */
 export const groupWorkingBlocks = (
 	rows: readonly TimelineRow[],
@@ -321,7 +319,7 @@ export const groupWorkingBlocks = (
 		openAtStart[rowIndex] = open;
 		if (!split) {
 			if (open) {
-				open.closedBy = row.type;
+				open.closedByRowType = row.type;
 				open = undefined;
 			}
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
@@ -341,8 +339,9 @@ export const groupWorkingBlocks = (
 		let workOrdinal = 0;
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
 			if (piece.kind === "output") {
+				// Attached files do not close the block, so later work stays in it.
 				if (open && piece.blocks.some((block) => block.type === "response")) {
-					open.closedBy = row.type;
+					open.closedByRowType = row.type;
 					open = undefined;
 				}
 				continue;
@@ -541,7 +540,7 @@ export const groupWorkingBlocks = (
 			getStepCount(draft) > 0 ||
 			(draft.containsLiveRow &&
 				options.isTurnActive &&
-				draft.closedBy === undefined),
+				draft.closedByRowType === undefined),
 	);
 
 	const sliceKey = (rowIndex: number, sliceOrdinal: number) =>
@@ -559,7 +558,7 @@ export const groupWorkingBlocks = (
 		const isLive =
 			options.isWorking &&
 			draftIndex === blockDrafts.length - 1 &&
-			draft.closedBy !== "message";
+			draft.closedByRowType !== "message";
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 
 		const block: WorkingBlock = {

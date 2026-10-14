@@ -10,6 +10,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
@@ -188,56 +189,11 @@ export const TextBetweenStepsSplitsBlocks: Story = {
 	},
 };
 
-// Files render below the block they were attached in, and the answer's
-// reasoning after them stays in that block.
+// The answer's reasoning after the attached file stays in the block.
 export const AttachedFilesRenderBelowBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
-			MockWorkingMessages[0],
-			{
-				...MockChatMessage,
-				id: 2,
-				role: "assistant",
-				created_at: workingFixtureTime(1),
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "attach",
-						tool_name: "attach_file",
-						args: { name: "report.md" },
-						created_at: workingFixtureTime(1),
-					},
-				],
-			},
-			{
-				...MockChatMessage,
-				id: 3,
-				role: "assistant",
-				created_at: workingFixtureTime(2),
-				content: [
-					{
-						type: "file",
-						media_type: "text/markdown",
-						name: "report.md",
-						file_id: "storybook-report",
-					},
-				],
-			},
-			{
-				...MockChatMessage,
-				id: 4,
-				role: "tool",
-				created_at: workingFixtureTime(2),
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "attach",
-						tool_name: "attach_file",
-						result: { name: "report.md" },
-						created_at: workingFixtureTime(2),
-					},
-				],
-			},
+			...MockAttachedFileMessages,
 			{
 				...MockChatMessage,
 				id: 5,

@@ -10,7 +10,9 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildLiveStatus,
 	buildStreamRenderState,
+	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
@@ -88,6 +90,15 @@ export const RunningBetweenSteps: Story = {
 			),
 		}),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+// The block keeps working while only an attached file follows its last step.
+export const AttachedFilesRenderBelowLiveBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
+		liveStatus: buildLiveStatus(),
 	},
 	play: expandBlock("Working for 12s"),
 };
