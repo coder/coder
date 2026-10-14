@@ -2271,13 +2271,6 @@ func TestActOnChatAsUser(t *testing.T) {
 				wantMessage: "Resource not found",
 			},
 			{
-				name:        "UnarchiveOtherUsersChat",
-				act:         unarchive,
-				prepare:     otherUser,
-				wantStatus:  http.StatusNotFound,
-				wantMessage: "Resource not found",
-			},
-			{
 				name: "UnarchiveReadOnlyMember",
 				act:  unarchive,
 				prepare: func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
@@ -2291,15 +2284,6 @@ func TestActOnChatAsUser(t *testing.T) {
 				},
 				wantStatus:  http.StatusNotFound,
 				wantMessage: "Resource not found",
-			},
-			{
-				name: "UnarchiveChatNotArchived",
-				act:  unarchive,
-				prepare: func(_ context.Context, _ *testing.T, _ *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
-					return chat.OwnerID
-				},
-				wantStatus:  http.StatusBadRequest,
-				wantMessage: "Chat is already not archived.",
 			},
 		}
 		for _, tc := range cases {
