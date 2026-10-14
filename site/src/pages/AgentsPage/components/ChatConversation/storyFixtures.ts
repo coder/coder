@@ -130,8 +130,8 @@ export const MockWorkingBlock: WorkingBlock = {
 
 type ToolStep = {
 	toolName: string;
-	args: Record<string, string>;
-	result: unknown;
+	args: NonNullable<TypesGen.ChatToolCallPart["args"]>;
+	result: TypesGen.ChatToolResultPart["result"];
 };
 
 const workingStepMessages = (
@@ -181,12 +181,18 @@ const workingStepMessages = (
  * A tool step that attaches a file. The attachment is its own assistant
  * message between the call and its result, as the server stores it.
  */
-export const attachmentStepMessages = (
-	id: number,
-	toolCallId: string,
-	callAt: number,
-	{ file, ...step }: ToolStep & { file: TypesGen.ChatFilePart },
-): TypesGen.ChatMessage[] => {
+export const attachmentStepMessages = ({
+	id,
+	toolCallId,
+	callAt,
+	file,
+	...step
+}: ToolStep & {
+	id: number;
+	toolCallId: string;
+	callAt: number;
+	file: TypesGen.ChatFilePart;
+}): TypesGen.ChatMessage[] => {
 	const [callMessage, resultMessage] = workingStepMessages(
 		id,
 		toolCallId,
@@ -366,7 +372,10 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	...attachmentStepMessages(4, "attach", 5, {
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "attach",
+		callAt: 5,
 		toolName: "attach_file",
 		args: { path: "/home/coder/report.pdf" },
 		file: {
@@ -392,7 +401,10 @@ const planPath = "/home/coder/.coder/plans/PLAN.md";
 /** A turn that proposes a plan file after the first step of MockWorkingMessages. */
 export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	...attachmentStepMessages(4, "plan", 5, {
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "plan",
+		callAt: 5,
 		toolName: "propose_plan",
 		args: { path: planPath },
 		file: {

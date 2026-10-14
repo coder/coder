@@ -77,7 +77,7 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 						disabled={isFetchingMoreMessages}
 						onClick={() => void onFetchMoreMessages()}
 					>
-						<Spinner loading={isFetchingMoreMessages} aria-hidden />
+						<Spinner loading={isFetchingMoreMessages} />
 						{hasFetchMoreError
 							? "Retry loading earlier messages"
 							: "Load earlier messages"}

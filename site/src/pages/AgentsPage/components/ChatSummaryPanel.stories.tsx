@@ -23,6 +23,7 @@ type MockRequestOptions = {
 	chatError?: boolean;
 	parentChatId?: string;
 	rootChatId?: string;
+	files?: TypesGen.ChatFileMetadata[];
 };
 
 const mockRequests = ({
@@ -31,6 +32,7 @@ const mockRequests = ({
 	chatError,
 	parentChatId,
 	rootChatId,
+	files,
 }: MockRequestOptions = {}) => {
 	if (chatError) {
 		spyOn(API.experimental, "getChat").mockRejectedValue(
@@ -42,6 +44,7 @@ const mockRequests = ({
 			summary,
 			...(parentChatId ? { parent_chat_id: parentChatId } : {}),
 			...(rootChatId ? { root_chat_id: rootChatId } : {}),
+			...(files ? { files } : {}),
 		});
 	}
 
@@ -90,7 +93,10 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 			},
 		],
 	},
-	...attachmentStepMessages(2, "attach", 1, {
+	...attachmentStepMessages({
+		id: 2,
+		toolCallId: "attach",
+		callAt: 1,
 		toolName: "attach_file",
 		args: { path: "/home/coder/flaky-runs.csv" },
 		file: {
@@ -101,7 +107,10 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 		},
 		result: { name: "flaky-runs.csv" },
 	}),
-	...attachmentStepMessages(5, "screenshot", 3, {
+	...attachmentStepMessages({
+		id: 5,
+		toolCallId: "screenshot",
+		callAt: 3,
 		toolName: "computer",
 		args: { action: "screenshot" },
 		file: {
@@ -113,6 +122,12 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 		result: { data: "", mime_type: "image/png" },
 	}),
 ];
+
+const renderWithAttachments: Story["render"] = (args) => {
+	const store = createChatStore();
+	store.replaceMessages(mockAttachmentMessages);
+	return <ChatSummaryPanel {...args} store={store} />;
+};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -187,11 +202,7 @@ export const GatewayUnavailable: Story = {
 };
 
 export const WithAttachments: Story = {
-	render: (args) => {
-		const store = createChatStore();
-		store.replaceMessages(mockAttachmentMessages);
-		return <ChatSummaryPanel {...args} store={store} />;
-	},
+	render: renderWithAttachments,
 	beforeEach: () =>
 		mockRequests({
 			summary:
@@ -206,10 +217,24 @@ export const LoadingMessages: Story = {
 
 export const LiveMessageArriving: Story = {
 	args: { isHydratingMessages: true },
-	render: (args) => {
-		const store = createChatStore();
-		store.replaceMessages(mockAttachmentMessages);
-		return <ChatSummaryPanel {...args} store={store} />;
-	},
+	render: renderWithAttachments,
 	beforeEach: () => mockRequests(),
+};
+
+export const ExpiredAttachment: Story = {
+	render: renderWithAttachments,
+	beforeEach: () =>
+		mockRequests({
+			files: [
+				{
+					id: "screenshot-file",
+					owner_id: MockChat.owner_id,
+					organization_id: MockChat.organization_id,
+					name: "ci-dashboard.png",
+					mime_type: "image/png",
+					size_bytes: 2048,
+					created_at: MockChat.created_at,
+				},
+			],
+		}),
 };

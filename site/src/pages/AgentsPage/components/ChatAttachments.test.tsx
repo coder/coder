@@ -29,7 +29,7 @@ describe("ChatAttachments", () => {
 		);
 
 		await user.click(
-			screen.getByRole("button", { name: "Load earlier messages" }),
+			screen.getByRole("button", { name: /Load earlier messages/ }),
 		);
 
 		expect(onFetchMoreMessages).toHaveBeenCalledTimes(calls);

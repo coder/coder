@@ -66,8 +66,9 @@ export type RowSection = "work" | "answer";
 /**
  * The answer is the content after a row's last reasoning, tool call, or
  * labeled narration, web searches included; text before it is narration.
- * Sources fold without splitting the answer, since OpenAI streams citations
- * between the deltas of one text part.
+ * Sources and files fold without splitting the answer: OpenAI streams
+ * citations between the deltas of one text part, and a file belongs to the
+ * step that attached it.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
@@ -106,11 +107,27 @@ export const splitRowBlocks = (
 	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
 };
 
+/** A row's blocks for one section, or all of them when the row is not split. */
+export const getRowBlocks = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+	{
+		section,
+		hideAttachments,
+	}: { section: RowSection | undefined; hideAttachments: boolean },
+): readonly RenderBlock[] => {
+	const sectionBlocks =
+		section === undefined ? blocks : splitRowBlocks(blocks, tools)[section];
+	return hideAttachments
+		? sectionBlocks.filter((block) => block.type !== "file")
+		: sectionBlocks;
+};
+
 /**
- * A row that shows nothing but attachments, so it renders empty once they are
+ * True for an agent message row that renders empty once its attachments are
  * hidden.
  */
-export const isAttachmentOnlyRow = (row: TimelineRow): boolean => {
+export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	if (row.type !== "message") {
 		return false;
 	}

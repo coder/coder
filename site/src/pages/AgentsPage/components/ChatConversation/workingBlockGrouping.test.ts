@@ -11,7 +11,7 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
-	isAttachmentOnlyRow,
+	isAgentAttachmentOnlyRow,
 	splitRowBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
@@ -1227,7 +1227,7 @@ describe("splitRowBlocks", () => {
 	});
 });
 
-describe("isAttachmentOnlyRow", () => {
+describe("isAgentAttachmentOnlyRow", () => {
 	it("flags only assistant rows that show nothing but attachments", () => {
 		const upload = message("user", [mockAttachment]);
 		const attachmentOnly = message("assistant", [mockAttachment]);
@@ -1246,7 +1246,7 @@ describe("isAttachmentOnlyRow", () => {
 			withHookNotice,
 		]);
 
-		expect(rows.map((row) => isAttachmentOnlyRow(row))).toEqual([
+		expect(rows.map((row) => isAgentAttachmentOnlyRow(row))).toEqual([
 			false,
 			true,
 			false,

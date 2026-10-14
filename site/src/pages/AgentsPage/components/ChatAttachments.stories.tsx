@@ -75,6 +75,22 @@ export const Collapsed: Story = {
 	},
 };
 
+export const HeaderFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: "Attachments (5)" })
+			.focus();
+	},
+};
+
+export const AttachmentFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("link", { name: "Download PLAN.md" })
+			.focus();
+	},
+};
+
 export const Empty: Story = {
 	args: { attachments: [] },
 };

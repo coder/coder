@@ -54,10 +54,10 @@ import type {
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getRowBlocks,
 	groupWorkingBlocks,
-	isAttachmentOnlyRow,
+	isAgentAttachmentOnlyRow,
 	type RowSection,
-	splitRowBlocks,
 } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
@@ -242,13 +242,10 @@ const ChatMessageItem = memo<{
 		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
 		const rowTools = parsed?.tools ?? liveTools;
-		const sectionBlocks =
-			section === undefined
-				? rowBlocks
-				: splitRowBlocks(rowBlocks, rowTools)[section];
-		const blocks = hideAttachments
-			? sectionBlocks.filter((block) => block.type !== "file")
-			: sectionBlocks;
+		const blocks = getRowBlocks(rowBlocks, rowTools, {
+			section,
+			hideAttachments,
+		});
 		// An answer whose only work was a search without citations folds
 		// nothing, and an empty row would still add a gap inside the block.
 		if (
@@ -782,7 +779,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 					if (
 						groupedRows.has(index) ||
-						(collapseSteps && isAttachmentOnlyRow(row))
+						(collapseSteps && isAgentAttachmentOnlyRow(row))
 					) {
 						return [];
 					}
