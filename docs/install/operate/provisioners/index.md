@@ -151,8 +151,11 @@ See the [workspace tags documentation](../../../admin/templates/extending-templa
 A provisioner can run a given build job if one of the below is true:
 
 1. A job with no explicit tags can only be run on a provisioner with no explicit tags.
+
    This way you can introduce tagging into your deployment without disrupting existing provisioners and jobs.
-1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags (the provisioner could have additional tags).
+1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags.
+
+   The provisioner could have additional tags.
 
 The external provisioner in the above example can run build jobs in the same organization with tags:
 
@@ -282,7 +285,11 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10 concurrent builds) authenticating using the above key.
-   The daemons will authenticate using the provisioner key created in the previous step and acquire jobs matching the tags specified when the provisioner key was created.
+
+   The daemons will authenticate using the provisioner key created in the previous step.
+
+   They acquire jobs matching the tags specified when the provisioner key was created.
+
    The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the [values.yaml](../../../../helm/provisioner/values.yaml) file for the coder-provisioner chart for information on what values can be specified.
@@ -296,7 +303,8 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
        --values provisioner-values.yaml
    ```
 
-   You can verify that your provisioner daemons have successfully connected to `coderd` by looking for a debug log message that says `provisioner: successfully connected to coderd` from each Pod.
+   Verify that your provisioner daemons connected to `coderd`.
+   Look for the debug log message `provisioner: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
 

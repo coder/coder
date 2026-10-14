@@ -144,11 +144,12 @@ direct connection.
 
 If your workspaces are behind a "hard" NAT, you can:
 
-1. Ensure clients are not also behind a "hard" NAT. You may have limited ability
-   to control this if end users connect from their homes.
-2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an
-   inbound policy allowing all UDP ports either to the `coder` or `coder.exe`
-   CLI binary, or from the IP addresses of your workspace NATs.
+1. Ensure clients are not also behind a "hard" NAT.
+
+   You may have limited ability to control this if end users connect from their homes.
+2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an inbound policy allowing all UDP ports.
+
+   Scope the policy either to the `coder` or `coder.exe` CLI binary, or to the IP addresses of your workspace NATs.
 3. Reconfigure your workspace network's NAT connection to the public internet to
    be an "easy" NAT. See below for specific examples.
 

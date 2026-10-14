@@ -219,11 +219,13 @@ These images can then be run without modifying the Security Context Constraints 
    ```
 
    Note the `uid-range` and `supplemental-groups`.
+
    In this case, the project `coder` has been allocated 10,000 UIDs and GIDs, both starting at `1000680000`.
 
    In this example, we will pick both UID and GID `1000680000`.
 
 1. Create a `BuildConfig` referencing the source image you want to customize.
+
    This will automatically kick off a `Build` that will remain pending until step 3.
 
    > For more information, please consult the [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).

@@ -22,9 +22,12 @@ Our scale tests include the following stages:
 
 1. Web Terminal: verify the PTY connection used for communication with Web Terminal.
 
-1. Workspace application traffic: assess the handling of user connections with specific workspace apps, confirming their capability to echo back received content effectively.
+1. Workspace application traffic: assess the handling of user connections with specific workspace apps.
+
+   Confirm that they can echo back received content effectively.
 
 1. Dashboard evaluation: verify the responsiveness and stability of Coder dashboards under varying load conditions.
+
    This is achieved by simulating user interactions using instances of headless Chromium browsers.
 
 1. Cleanup: delete workspaces and users created in step 1.

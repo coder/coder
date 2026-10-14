@@ -73,7 +73,7 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
      state=random-string
    ```
 
-3. Exchange the authorization code for an access token, using the code verifier (refer to [Client authentication methods](#client-authentication-methods) for how to authenticate):
+3. Exchange the authorization code for an access token, using the code verifier (refer to [Client authentication methods](#client-authentication-methods) for authentication):
 
    **Confidential client**
 
@@ -91,6 +91,7 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
    **Public client (`token_endpoint_auth_method: none`)**
 
    Send `client_id` in the form body and omit `client_secret` entirely.
+
    The code verifier is the only proof of possession, and must satisfy RFC 7636 §4.1 (43-128 characters from `[A-Za-z0-9-._~]`).
 
    ```sh
@@ -112,8 +113,11 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
    ```
 
    Send the access token in the `Authorization` header.
+
    Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires.
+
    This endpoint requires a signed-in user, so it answers HTTP 401.
+
    Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string) for endpoints that behave differently.
 
 ## Discovery endpoints

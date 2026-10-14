@@ -30,7 +30,10 @@ There are two ways to add a license to a Coder deployment:
 
    ![Add a license from the licenses screen](../../images/admin/licenses/licenses-nolicense.png)
 
-1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section, or paste your license in the **Paste Your License** text box, then select **Upload License**:
+1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section.
+
+   Or paste your license in the **Paste Your License** text box.
+   Then select **Upload License**:
 
    ![Add a license screen](../../images/admin/licenses/add-license-ui.png)
 

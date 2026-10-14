@@ -280,6 +280,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     ```
 
     If either command returns nothing while Coder Connect shows as enabled, the tunnel did not finish coming up.
+
     Disable and re-enable the toggle, or repeat the steps above.
 
 > [!NOTE]
@@ -307,7 +308,10 @@ The file sync (Mutagen) daemon writes to a separate log file.
       --info --debug --last 1h > ~/Desktop/coder-desktop.log
     ```
 
-    The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension, which all log under subsystems prefixed with `com.coder.Coder-Desktop`.
+    The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension.
+
+    They all log under subsystems prefixed with `com.coder.Coder-Desktop`.
+
     Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred.
 
     You can stream the logs live while reproducing an issue:

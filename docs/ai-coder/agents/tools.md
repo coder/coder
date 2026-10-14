@@ -16,8 +16,9 @@ Each turn of a conversation follows the same loop:
 1. You send a message.
 2. The model decides whether it needs a tool and calls it with structured
    arguments. For example, `list_templates` with `{"query": "docker"}`.
-3. Coder executes the tool in the control plane using your identity and
-   permissions, and returns a JSON result to the model.
+3. Coder executes the tool in the control plane using your identity and permissions.
+
+   Coder returns a JSON result to the model.
 4. The model uses the result to decide what to do next: call another tool or
    reply to you.
 

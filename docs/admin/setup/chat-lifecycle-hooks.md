@@ -204,7 +204,9 @@ If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=f
 
 Use the following rollout sequence:
 
-1. Deploy a consumer that verifies every request, logs the event and identifiers, and always returns a `2xx` status with an empty response.
+1. Deploy a consumer that verifies every request and logs the event and identifiers.
+
+   Have it always return a `2xx` status with an empty response.
 2. Configure the hook URL, secret, and timeout on a test deployment.
 3. Exercise normal chats, tool calls, compaction, consumer timeouts, and consumer restarts.
 4. Review the consumer's own logs for event coverage and unexpected failures.

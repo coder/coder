@@ -90,9 +90,9 @@ provisioner as the built-in provisioners are scoped to the default organization.
 
 1. Start the provisioner with the key on your desired platform.
 
-   In this example, start the provisioner using the Coder CLI on a host with
-   Docker. For instructions on using other platforms like Kubernetes, see our
-   [provisioner documentation](../../install/operate/provisioners/index.md).
+   In this example, start the provisioner using the Coder CLI on a host with Docker.
+
+   For instructions on using other platforms like Kubernetes, see our [provisioner documentation](../../install/operate/provisioners/index.md).
 
    ```sh
    export CODER_URL=https://<your-coder-url>

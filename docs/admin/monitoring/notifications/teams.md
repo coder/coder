@@ -32,9 +32,9 @@ The process of setting up a Teams workflow consists of three key steps:
 
 1. Setup the JSON Parsing Action.
 
-   Add the **"Parse JSON"** action, linking the content to the **"Body"** of the
-   received webhook request. Use the following schema to parse the notification
-   payload:
+   Add the **"Parse JSON"** action, linking the content to the **"Body"** of the received webhook request.
+
+   Use the following schema to parse the notification payload:
 
    ```json
    {
@@ -125,10 +125,11 @@ The process of setting up a Teams workflow consists of three key steps:
    }
    ```
 
-   _Notice_: The Coder `actions` format differs from the `ActionSet` schema, so
-   its properties need to be modified: include `Action.OpenUrl` type, rename
-   `label` to `title`. Unfortunately, there is no straightforward solution for
-   `for-each` pattern.
+   _Notice_: The Coder `actions` format differs from the `ActionSet` schema, so its properties need to be modified.
+
+   Include `Action.OpenUrl` type, rename `label` to `title`.
+
+   Unfortunately, there is no straightforward solution for `for-each` pattern.
 
    Feel free to customize the payload to modify the logo, notification title, or
    body content to suit your needs.
@@ -147,10 +148,9 @@ Finally, go to the **Notification Settings** in Coder and switch the notifier to
 
 ## Limitations
 
-1. **Public Webhook Trigger**: The Teams webhook trigger must be open to the
-   public (**"Anyone"** can send the payload). It's recommended to keep the
-   endpoint secret and apply additional authorization layers to protect against
-   unauthorized access.
+1. **Public Webhook Trigger**: The Teams webhook trigger must be open to the public (**"Anyone"** can send the payload).
+
+   It's recommended to keep the endpoint secret and apply additional authorization layers to protect against unauthorized access.
 
 2. **Markdown Support in Adaptive Cards**: Note that Adaptive Cards support a
    [limited set of Markdown tags](https://learn.microsoft.com/en-us/microsoftteams/platform/task-modules-and-cards/cards/cards-format?tabs=adaptive-md%2Cdesktop%2Cconnector-html).

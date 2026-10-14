@@ -125,17 +125,23 @@ For other models, choose the SDK package that matches the API:
 
    Replace `coder.example.com` with your AI Gateway host and `bedrock-provider-name` with the provider name configured in Coder.
    Keep the `/v1` suffix.
+
    Replace `openai.gpt-6-astra` with the exact Mantle model ID available in your AWS account and region.
+
    Set `npm` to the SDK package for that model's API.
    Set `tool_call` to `true` only if the model supports tools.
 
    The `astra` key is a local model alias in OpenCode.
    The `id` field is the model ID sent upstream.
+
    Preserve any vendor prefix in the model ID, such as `openai.` or `anthropic.`.
+
    You can add more entries under `models` to use model IDs outside OpenCode's built-in catalog.
 
    The optional `model` and `small_model` fields select the default model and the model for lightweight tasks, such as title generation.
+
    This example uses Astra for both, so both types of request use the same gateway provider.
+
    To use a different small model, add its entry under `models` and update `small_model` to `coder-mantle/<model-alias>`.
 
 3. Start OpenCode from the same shell:

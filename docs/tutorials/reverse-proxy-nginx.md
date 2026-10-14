@@ -57,10 +57,9 @@ you're using `coder.example.com` as your subdomain.
 
 ## Install and configure LetsEncrypt Certbot
 
-1. Install LetsEncrypt Certbot: Refer to the
-   [CertBot documentation](https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal&tab=wildcard).
-   Be sure to pick the wildcard tab and select your DNS provider for
-   instructions to install the necessary DNS plugin.
+1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal&tab=wildcard).
+
+   Be sure to pick the wildcard tab and select your DNS provider for instructions to install the necessary DNS plugin.
 
 ## Create DNS provider credentials
 
