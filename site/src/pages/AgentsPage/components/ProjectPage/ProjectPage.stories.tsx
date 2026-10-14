@@ -114,3 +114,41 @@ export const OwnedByAnotherUser: Story = {
 		],
 	},
 };
+
+/** A chat that moved to another project leaves the list before the refetch. */
+export const ChatMovedToAnotherProject: Story = {
+	parameters: {
+		queries: [
+			{
+				key: projectChatsKey(MockChatProject.id),
+				data: {
+					pages: [
+						[
+							{
+								...MockChat,
+								id: "chat-1",
+								title: "Plan the launch",
+								project_id: MockChatProject.id,
+							},
+							{
+								...MockChat,
+								id: "chat-2",
+								title: "Moved to another project",
+								project_id: "billing",
+							},
+						],
+					],
+					pageParams: [0],
+				},
+			},
+			{
+				key: chatCostTreeKey("chat-1"),
+				data: mockChatCost("chat-1", 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+		],
+	},
+};

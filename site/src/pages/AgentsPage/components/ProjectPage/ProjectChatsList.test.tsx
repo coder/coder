@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { type InfiniteData, QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { projectChatsKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -84,10 +85,11 @@ const LocationDisplay: React.FC = () => {
 const renderList = (
 	outletContext = buildOutletContext(),
 	initialEntry = "/agents/projects/project",
+	queryClient = createTestQueryClient(),
 ) => {
 	render(
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
-			<QueryClientProvider client={createTestQueryClient()}>
+			<QueryClientProvider client={queryClient}>
 				<DashboardContext.Provider
 					value={{
 						entitlements: MockEntitlements,
@@ -452,8 +454,9 @@ describe("ProjectChatsList", () => {
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 
-	it("drops a row as soon as its chat moves to another project", async () => {
+	it("moves a chat to another project from its row menu", async () => {
 		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
 		const mockBillingProject = {
 			...MockChatProject,
 			id: "billing",
@@ -464,11 +467,11 @@ describe("ProjectChatsList", () => {
 			MockChatProject,
 			mockBillingProject,
 		]);
-		// The move stays pending, so no refetch can remove the row.
+		// The move stays pending, so no refetch replaces the optimistic project.
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
 			new Promise(() => {}),
 		);
-		renderList();
+		renderList(buildOutletContext(), "/agents/projects/project", queryClient);
 
 		await user.click(
 			await screen.findByRole("button", {
@@ -487,10 +490,11 @@ describe("ProjectChatsList", () => {
 		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
 			project_id: mockBillingProject.id,
 		});
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("link", { name: /Chat 0/ }),
-			).not.toBeInTheDocument(),
-		);
+		expect(
+			queryClient
+				.getQueryData<InfiniteData<Chat[]>>(projectChatsKey(MockChatProject.id))
+				?.pages.flat()
+				.find((chat) => chat.id === "chat-0")?.project_id,
+		).toBe(mockBillingProject.id);
 	});
 });
