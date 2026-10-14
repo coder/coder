@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -45,10 +46,12 @@ const (
 	// least: enough for its leading summary and trailing status.
 	elidedToolResultMinBytes = 1 << 10
 
-	// mediaTokenEstimate approximates one image or file part, about what
+	// mediaTokenEstimate approximates one image or PDF part, about what
 	// providers bill for a typical screenshot. Providers bill images by
-	// dimensions, so the encoded size would overcount them by orders of
-	// magnitude.
+	// dimensions and PDFs by pages, which their size overstates by an order
+	// of magnitude or more, so a size estimate would compact a chat for
+	// every large attachment. A long PDF counts low until the next step
+	// measures it.
 	mediaTokenEstimate = int64(1_600)
 
 	// compactionContextTooLargeMessage tells the user how to recover a
@@ -440,8 +443,14 @@ func messagePartSize(part fantasy.MessagePart) (textBytes int, mediaParts int64)
 	if reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part); ok {
 		return len(reasoning.Text), 0
 	}
-	if _, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
-		return 0, 1
+	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
+		mediaType := chatfiles.BaseMediaType(file.MediaType)
+		if strings.HasPrefix(mediaType, "image/") || mediaType == "application/pdf" {
+			return 0, 1
+		}
+		// Other attachments, such as text documents, are text the model
+		// reads in full.
+		return len(file.Data), 0
 	}
 	if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
 		return len(call.ToolName) + len(call.Input), 0
@@ -496,7 +505,11 @@ func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy
 				continue
 			}
 			truncated, _ := TruncateToolResultText(text, keepBytes)
-			result.Output = fantasy.ToolResultOutputContentText{Text: truncated}
+			if _, isError := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); isError {
+				result.Output = fantasy.ToolResultOutputContentError{Error: xerrors.New(truncated)}
+			} else {
+				result.Output = fantasy.ToolResultOutputContentText{Text: truncated}
+			}
 			if content == nil {
 				// The content slices are shared with the caller's messages.
 				content = slices.Clone(msg.Content)
@@ -511,18 +524,23 @@ func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy
 	return elided, removed
 }
 
-// elidableToolResult returns a locally executed tool result and its text
-// when the text is longer than elidedToolResultMinBytes.
+// elidableToolResult returns a locally executed tool result and its text or
+// error message when that is longer than elidedToolResultMinBytes.
 func elidableToolResult(part fantasy.MessagePart) (fantasy.ToolResultPart, string, bool) {
 	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
 	if !ok || result.ProviderExecuted {
 		return fantasy.ToolResultPart{}, "", false
 	}
-	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
-	if !ok || len(output.Text) <= elidedToolResultMinBytes {
+	var text string
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
+		text = output.Text
+	} else if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
+		text = output.Error.Error()
+	}
+	if len(text) <= elidedToolResultMinBytes {
 		return fantasy.ToolResultPart{}, "", false
 	}
-	return result, output.Text, true
+	return result, text, true
 }
 
 // toolResultElisionSize returns the largest size such that cutting every
@@ -712,9 +730,11 @@ func newSummaryRequest(kind summaryRequestKind, messages []fantasy.Message, opti
 			return summaryRequest{}, false
 		}
 	case summaryRequestElided:
+		summaryTokens := estimateTokens(len(options.SummaryPrompt) + len(options.SummaryHint))
 		historyTokens := estimateMessagesTokens(messages)
 		if options.summaryWindow > 0 {
-			historyTokens = min(historyTokens, options.summaryWindow)
+			// The summary prompt and hint go into the same request.
+			historyTokens = min(historyTokens, max(options.summaryWindow-summaryTokens, 0))
 		}
 		// Halving leaves room for the summary and absorbs both the
 		// estimate's error and a configured window larger than the
@@ -723,8 +743,7 @@ func newSummaryRequest(kind summaryRequestKind, messages []fantasy.Message, opti
 		if request.elidedBytes == 0 {
 			return summaryRequest{}, false
 		}
-		request.inputTokens = estimateMessagesTokens(request.history) +
-			estimateTokens(len(options.SummaryPrompt)+len(options.SummaryHint))
+		request.inputTokens = estimateMessagesTokens(request.history) + summaryTokens
 	default:
 		return summaryRequest{}, false
 	}

@@ -605,45 +605,63 @@ func TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge(t *testing.
 // TestGenerateCompactionSummaryElidesToFitSummaryWindow covers a history
 // larger than the summary model's window on a provider that rejects input
 // plus max_tokens above the window: the elided request must fit the
-// window rather than half the history, and its cap the room left.
+// window rather than half the history, and its cap the room left. The
+// summary prompt and hint share that window, so the history gets half of
+// what they leave.
 func TestGenerateCompactionSummaryElidesToFitSummaryWindow(t *testing.T) {
 	t.Parallel()
 
 	const window = 9_000
-	messages := toolResultHistory(strings.Repeat("a", 60_000))
-	var calls []fantasy.Call
-	model := &chattest.FakeModel{
-		ProviderName: "fake",
-		ModelName:    "fake-model",
-		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-			calls = append(calls, call)
-			if estimateMessagesTokens(call.Prompt)+ptr.NilToEmpty(call.MaxOutputTokens) > window {
-				return nil, contextWindowError()
-			}
-			return summaryTextStream(), nil
-		},
+	cases := []struct {
+		name string
+		hint string
+	}{
+		{name: "without a hint"},
+		// The largest model context a pre_compact hook can return.
+		{name: "with the largest hook hint", hint: strings.Repeat("h", 16<<10)},
 	}
-	ctx, spanAttr := compactionSpan(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
-		SummaryPrompt:        "summarize",
-		SummaryCall:          fantasy.Call{MaxOutputTokens: ptr.Ref(int64(8_000))},
-		ToolDefinitions:      []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
-		summaryWindow:        window,
-		estimatedInputTokens: estimateMessagesTokens(messages) + estimateTokens(len("summarize")),
-	})
-	require.NoError(t, err)
-	require.Equal(t, "summary", summary)
-	require.Len(t, calls, 3)
-	require.Nil(t, calls[2].Tools)
-	elidedHistory := estimateMessagesTokens(calls[2].Prompt[:len(calls[2].Prompt)-1])
-	require.LessOrEqual(t, elidedHistory, int64(window/2))
-	elidedInput := elidedHistory + estimateTokens(len("summarize"))
-	require.Equal(t, window-elidedInput, *calls[2].MaxOutputTokens)
+			messages := toolResultHistory(strings.Repeat("a", 60_000))
+			summaryTokens := estimateTokens(len("summarize") + len(tc.hint))
+			var calls []fantasy.Call
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+					calls = append(calls, call)
+					if estimateMessagesTokens(call.Prompt)+ptr.NilToEmpty(call.MaxOutputTokens) > window {
+						return nil, contextWindowError()
+					}
+					return summaryTextStream(), nil
+				},
+			}
+			ctx, spanAttr := compactionSpan(t)
 
-	require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
-	require.Equal(t, elidedInput, spanAttr(AttrSummaryEstimatedInputTokens).AsInt64())
-	require.Equal(t, window-elidedInput, spanAttr(AttrSummaryMaxOutputTokens).AsInt64())
+			summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
+				SummaryPrompt:        "summarize",
+				SummaryHint:          tc.hint,
+				SummaryCall:          fantasy.Call{MaxOutputTokens: ptr.Ref(int64(8_000))},
+				ToolDefinitions:      []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+				summaryWindow:        window,
+				estimatedInputTokens: estimateMessagesTokens(messages) + summaryTokens,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "summary", summary)
+			require.Len(t, calls, 3)
+			require.Nil(t, calls[2].Tools)
+			elidedHistory := estimateMessagesTokens(calls[2].Prompt[:len(calls[2].Prompt)-1])
+			require.LessOrEqual(t, elidedHistory, (window-summaryTokens)/2)
+			elidedInput := elidedHistory + summaryTokens
+			require.Equal(t, window-elidedInput, *calls[2].MaxOutputTokens)
+
+			require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
+			require.Equal(t, elidedInput, spanAttr(AttrSummaryEstimatedInputTokens).AsInt64())
+			require.Equal(t, window-elidedInput, spanAttr(AttrSummaryMaxOutputTokens).AsInt64())
+		})
+	}
 }
 
 // compactionSpan returns a context carrying a recording span and a lookup
@@ -1603,6 +1621,26 @@ func TestElideToolResults(t *testing.T) {
 		require.Zero(t, removed)
 		require.Equal(t, messages, elided)
 	})
+
+	t.Run("cuts error results and keeps them errors", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []fantasy.Message{{
+			Role: fantasy.MessageRoleTool,
+			Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+				ToolCallID: "a",
+				Output:     fantasy.ToolResultOutputContentError{Error: xerrors.New(strings.Repeat("e", 30_000))},
+			}},
+		}}
+		elided, removed := elideToolResults(messages, 0)
+		require.Positive(t, removed)
+		result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](elided[0].Content[0])
+		require.True(t, ok)
+		output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
+		require.True(t, ok, "an elided error result stays an error")
+		require.Contains(t, output.Error.Error(), "Coder truncated")
+		require.LessOrEqual(t, len(output.Error.Error()), elidedToolResultMinBytes)
+	})
 }
 
 func TestEstimateTrailingTokens(t *testing.T) {
@@ -1619,9 +1657,16 @@ func TestEstimateTrailingTokens(t *testing.T) {
 			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", 300)},
 		}},
 	}
-	image := fantasy.Message{
+	media := fantasy.Message{
+		Role: fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{
+			fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "image/png"},
+			fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "application/pdf"},
+		},
+	}
+	document := fantasy.Message{
 		Role:    fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "image/png"}},
+		Content: []fantasy.MessagePart{fantasy.FilePart{Data: make([]byte, 300), MediaType: "text/plain; charset=utf-8"}},
 	}
 	cases := []struct {
 		name                 string
@@ -1655,9 +1700,14 @@ func TestEstimateTrailingTokens(t *testing.T) {
 			want:                 101,
 		},
 		{
-			name:     "counts media by part, not by size",
-			messages: []fantasy.Message{toolCall, image},
-			want:     mediaTokenEstimate,
+			name:     "counts images and PDFs by part, not by size",
+			messages: []fantasy.Message{toolCall, media},
+			want:     2 * mediaTokenEstimate,
+		},
+		{
+			name:     "counts a text document by size",
+			messages: []fantasy.Message{toolCall, document},
+			want:     100,
 		},
 		{
 			name:     "counts the whole history without an assistant message",
