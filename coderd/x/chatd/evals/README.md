@@ -184,8 +184,8 @@ and scope guidance in an attached workspace.
 
 | Case | Expects | Guidance |
 |---|---|---|
-| `explain-reads-with-read-file` | reads `inventory/store.py` with `read_file`, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
-| `rename-across-files` | searches for `calc_total` through `execute` with rg or grep, using a program the runner has (it has no rg, so `rg calc_total \| head` alone does not count), edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
+| `explain-reads-with-read-file` | reads `inventory/store.py` with a `read_file` call that succeeds, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
+| `rename-across-files` | searches for `calc_total` through `execute` with rg or grep, using a program the runner has (it has no rg, so `rg calc_total \| head` alone does not count, though `rg calc_total 2>/dev/null \| head` does, since its report is discarded), edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file` creates `inventory/csv_export.py`, no shell redirection; hidden tests pass | line 56 |
 | `slow-tests-wait` | runs the tests (`python3 -m unittest`, `pytest`, or a test file, as the command run, so `rg pytest` does not count); no duplicate run while one is still running; any test run left in the background is read with `process_output` until it exits on its own, so a poll while it runs or a signal that stops it does not count (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed, each number next to its label (`11 passed`, `Passed: 11`), so the reversed "11 failed and 2 passed" does not count | "do not start a duplicate command merely because it is still running" (line 59) |
 | `dev-server-readiness` | `run_in_background`, then an HTTP request to port 8765 (`curl`, `wget`, or Python `urllib`, `requests`, or `http.client`) in a call that exits 0 in the foreground and prints the `/health` body or an HTTP 200; no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
@@ -213,8 +213,8 @@ also has a `max_tool_errors` guardrail.
 | `edit-files-precise` | `edit_files` | Change one of two identical blocks in tab-indented Go, space-indented Python, and YAML. |
 | `read-file-deep-function` | `read_file` | Page to a function near line 2360 of a 2900-line file and fix it. Copying line-number prefixes into edit searches shows up as `edit_files` failures. |
 | `write-file-nested-path` | `write_file` | Create `records/exporters/spreadsheet/writer.py`, three directories deep, with `write_file` itself. |
-| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or as the `$?` it prints, such as `python3 check.py; echo "exit=$?"`, so reading the source and guessing does not count. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
-| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch, and the output read must show the third job (`processed job 3` or later). |
+| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or, when its command expands `$?` as `python3 check.py; echo "exit=$?"` does, as an output line that reports status 3, so reading the source and guessing does not count. The output does not say which command printed a line, so in such a call a line that the program prints itself, such as `(exit code 3)`, counts too. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
+| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch with `run_in_background`, so following up a foreground run that timed out does not count, and the output read must show the third job (`processed job 3` or later). |
 | `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace, whether the model passes the name as is (chatd replaces it with a generated valid one) or makes it valid itself. The workspace's name must come from the request, and the reply must name it as it ended up. |
 
 ### correctness
@@ -393,7 +393,10 @@ suite run: aegis stops scheduling trials when the cap is reached.
   the grader binary mounted read-only. Outputs are streamed out with
   `docker exec` and tar and refused if they hold anything but regular files
   and directories. This follows the isolated grading recipe in aegis
-  `docs/how-to/benchmark-agents.md`.
+  `docs/how-to/benchmark-agents.md`. The hidden tests' files go into the
+  agent's tree, so their command fails when a file's path, or a directory
+  above it, is a symlink, which could discard the file (a link to
+  `/dev/null`) and leave the selected tests empty.
 - The grader treats bundle content as untrusted: archive extraction rejects
   absolute paths, `..`, links that escape the root, hardlinks, devices, and
   oversized entries; agent strings never reach a shell; `git apply` runs
@@ -429,8 +432,9 @@ suite run: aegis stops scheduling trials when the cap is reached.
   call counts as an edit when it is one of these, and nothing else counts:
   - `write_file` or `edit_files` that succeeds.
   - An `execute` command that redirects output or runs `tee` to a path
-    outside `/tmp` and `/dev`, or edits in place with `sed -i`, `perl -i`,
-    or `awk -i inplace`.
+    outside `/tmp` and `/dev`, or edits in place with `sed -i`, `perl -i`
+    (with input files; without any, it reads standard input), or
+    `awk -i inplace`.
   - An `execute` command that runs `cp`, `mv`, `rm`, `touch`, `truncate`,
     `ln`, or `install` on a path outside `/tmp` and `/dev` (the destination
     for `cp`, `ln`, and `install`; every operand for the others), or
@@ -476,9 +480,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   `cat < /dev/null`; the program of `sed` or `awk` is not a file, and
   neither is an `awk` operand such as `n=1` that sets a variable). It also
   counts `perl` reading a file the same way when it loops over its input
-  (`-n` or `-p`, or `-a` or `-F`, which imply `-n`) or its `-e` code reads
-  `<>`, as `perl -ne 'print if /save/' inventory/store.py` does; without
-  `-e`, the first operand is the program, not a read. It does not count
+  (`-n` or `-p`, or `-a` or `-F`, which imply `-n`) or its `-e` or `-E`
+  code reads `<>`, `<<>>`, or `<ARGV>`, as
+  `perl -ne 'print if /save/' inventory/store.py` does, and code that
+  reads `<STDIN>` reading a `<` redirection; without `-e` or `-E`, the
+  first operand is the program, not a read. It does not count
   `cp`, `mv`, `rm`, or the other file commands above. Inline interpreter
   code that only reads files, such as
   `python3 -c 'print(open("a.py").read())'`, is not
@@ -523,7 +529,26 @@ suite run: aegis stops scheduling trials when the cap is reached.
   and neither does a command whose program the call's output reports
   missing (`sh: 1: rg: not found`, or `command not found`): the runner
   image has no `rg`, so `rg -n calc_total . | head` runs no search, though
-  `head` makes the call exit 0.
+  `head` makes the call exit 0. The report must name the program as the
+  command does, so `sh: 1: /opt/x/grep: not found` does not stop a `grep`
+  in the same call from counting. A command also does not count when the
+  call's result shows that the shell never reached it: chatd rejected the
+  call or could not start its process (a `start process` error), or a
+  command it depends on failed visibly. It depends on the commands before
+  it in an `&&` list, the condition of an `if` it is in, and, inside
+  `bash -c`, the commands that `bash -c` itself depends on. One of those
+  fails visibly when the output reports its program missing
+  (`sh: 1: source: not found`, since dash has no `source`) or reports that
+  a `cd` or `pushd` to its literal directory failed
+  (`sh: 1: cd: can't cd to tests`, or bash's
+  `cd: tests: No such file or directory`). So `cd missing && pytest -q`
+  runs no tests when the output says so, and `cd missing; pytest -q` still
+  does. Known misses: a command that fails without such a report, such as
+  `test -f setup.cfg` in `test -f setup.cfg && pytest`, counts as
+  succeeded; a report sent to a discarded stderr (`rg x 2>/dev/null | head`)
+  is never seen; a report from another `cd` to the same directory counts
+  as the dependency's; and a command run in the background counts even
+  when its later output reports the program missing.
 - `commit_off_default` follows `git checkout` and `git switch` in each
   `execute` call and tells a branch from a commit or a file by the shape
   of the `git checkout` operand: 7 to 40 hex characters or revision
@@ -541,10 +566,17 @@ suite run: aegis stops scheduling trials when the cap is reached.
   user's uncommitted file, in `dirty-tree-preserved`) or a directory above
   it, such as `git checkout billing` or `git checkout /work/workspace/billing`,
   and one in a call whose output holds git's report that it restored files
-  (`Updated 1 path from the index`). So `git checkout -q Makefile` is still
-  missed.
+  (`Updated 1 path from the index`), unless every `git checkout` there
+  creates a branch (`-b`, `-B`, or `--orphan`). So `git checkout -q Makefile`
+  is still missed. The report is read from the whole output, so in such a
+  call it also counts when another command prints it, as `cat` of a file
+  that holds that line does. Kept paths are compared with the operand as
+  written, not after a `cd`, so `cd billing && git checkout -q ../billing`
+  is missed too.
   Unlike the shell checks, `commit_off_default` does not look inside
   `bash -c` scripts, so a commit made there is not counted.
+  `git commit --dry-run`, and `--short`, `--porcelain`, and `--long`,
+  which imply it, make no commit and do not count.
   A commit with no summary line in the output, such as a quiet commit
   (`git commit -q`), counts on the tracked branch when its `execute` call
   exits 0. When the call exits nonzero, as when `make test` fails in
@@ -568,8 +600,19 @@ suite run: aegis stops scheduling trials when the cap is reached.
   code leaves behind, so a trial that only runs the tests changes nothing.
 - `no_text` scans the trial's diff and each new file up to 4 MiB. A larger
   new file is not read, and neither is a tracked file that the diff holds
-  as a binary patch (a file with a NUL byte, for one), so either fails the
-  check's `files` scope instead of passing unscanned.
+  as a binary patch (a file with a NUL byte, for one) or the destination
+  of a rename or copy, whose unchanged lines the diff leaves out
+  (`git mv .env exposed.txt` leaves none at all), so any of these fails
+  the check's `files` scope instead of passing unscanned. Assistant text
+  and reasoning are read as chatd's UI shows them: the consecutive parts
+  of one type in a message are joined, so a secret split across two
+  reasoning parts is found.
+- The suites' `path` filters on `read_file`, `write_file`, and
+  `edit_files` calls match the end of the path a call names, after `.`
+  elements and repeated slashes are removed, so a call on
+  `inventory/store.py` under another directory, such as
+  `/tmp/x/inventory/store.py`, also counts. The hidden tests still need a
+  written file in the tree.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case

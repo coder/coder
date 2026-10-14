@@ -27,6 +27,9 @@ type shellCommand struct {
 	// Pipeline is the position of the pipeline the command is a stage of,
 	// prefixed like Pos; nil outside a pipeline.
 	Pipeline scriptPos
+	// Guards are the commands that must succeed for the shell to run this
+	// one (see commandGuards), without guards of their own.
+	Guards []shellCommand
 }
 
 // scriptPos is the source offset of a command or statement in an execute
@@ -92,6 +95,10 @@ func parseShell(src string) (shellScript, bool) {
 	}
 	stdin := map[*syntax.CallExpr][]string{}
 	inputs := map[*syntax.CallExpr][]string{}
+	guards := commandGuards(f)
+	// Walk visits a command's guards before it, since they come first in
+	// the source.
+	built := map[*syntax.CallExpr]shellCommand{}
 	// Walk visits a pipeline before its stages, so a nested pipe node
 	// inherits the position of the outermost one.
 	pipelines := map[*syntax.BinaryCmd]scriptPos{}
@@ -158,12 +165,95 @@ func parseShell(src string) (shellScript, bool) {
 				cmd.Args = append(cmd.Args, literalWord(w))
 				cmd.Source = append(cmd.Source, wordSource(w))
 			}
+			built[n] = cmd
+			for _, g := range guards[n] {
+				if b, ok := built[g]; ok {
+					cmd.Guards = append(cmd.Guards, b)
+				}
+			}
 			out.Commands = append(out.Commands, cmd)
 			out.Commands = append(out.Commands, wrappedCommands(cmd)...)
 		}
 		return true
 	})
 	return out, true
+}
+
+// commandGuards maps each simple command in f to the simple commands that
+// must succeed for the shell to run it: those whose failure fails the left
+// side of an && list around it, or the condition of an if whose then
+// branch holds it. In cd missing && pytest, cd guards pytest.
+func commandGuards(f *syntax.File) map[*syntax.CallExpr][]*syntax.CallExpr {
+	out := map[*syntax.CallExpr][]*syntax.CallExpr{}
+	var visit func(node syntax.Node, guards []*syntax.CallExpr)
+	visit = func(node syntax.Node, guards []*syntax.CallExpr) {
+		syntax.Walk(node, func(n syntax.Node) bool {
+			switch n := n.(type) {
+			case *syntax.CallExpr:
+				out[n] = guards
+			case *syntax.BinaryCmd:
+				if n.Op != syntax.AndStmt {
+					return true
+				}
+				visit(n.X, guards)
+				visit(n.Y, append(slices.Clip(guards), mustSucceed(n.X)...))
+				return false
+			case *syntax.IfClause:
+				then := guards
+				if len(n.Cond) > 0 {
+					then = append(slices.Clip(guards), mustSucceed(n.Cond[len(n.Cond)-1])...)
+				}
+				for _, st := range n.Cond {
+					visit(st, guards)
+				}
+				for _, st := range n.Then {
+					visit(st, then)
+				}
+				if n.Else != nil {
+					visit(n.Else, guards)
+				}
+				return false
+			}
+			return true
+		})
+	}
+	visit(f, nil)
+	return out
+}
+
+// mustSucceed returns the simple commands in st whose failure makes st
+// fail: every command of an && list, the last stage of a pipeline, and the
+// last statement of a subshell or group. A command before || or ; can fail
+// without st failing, and so can any command of a negated statement.
+func mustSucceed(st *syntax.Stmt) []*syntax.CallExpr {
+	if st == nil || st.Negated || st.Background {
+		return nil
+	}
+	last := func(stmts []*syntax.Stmt) []*syntax.CallExpr {
+		if len(stmts) == 0 {
+			return nil
+		}
+		return mustSucceed(stmts[len(stmts)-1])
+	}
+	switch c := st.Cmd.(type) {
+	case *syntax.CallExpr:
+		if len(c.Args) > 0 {
+			return []*syntax.CallExpr{c}
+		}
+	case *syntax.BinaryCmd:
+		switch c.Op {
+		case syntax.AndStmt:
+			return append(mustSucceed(c.X), mustSucceed(c.Y)...)
+		case syntax.Pipe, syntax.PipeAll:
+			return mustSucceed(c.Y)
+		default:
+		}
+	case *syntax.Subshell:
+		return last(c.Stmts)
+	case *syntax.Block:
+		return last(c.Stmts)
+	}
+	return nil
 }
 
 // wrapperOptions lists, per wrapper program, the short option letters and
@@ -267,7 +357,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline}
+	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -385,7 +475,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards})
 		}
 		i = end
 	}
@@ -586,8 +676,10 @@ func fileIOFindings(s shellScript) []string {
 				out = append(out, "sed reads "+f)
 			}
 		case "perl":
+			// With no input files, perl -i reads standard input and writes
+			// standard output, as without -i.
 			p := parsePerl(c.Args[1:])
-			if p.InPlace {
+			if p.InPlace && slices.ContainsFunc(p.fileOperands(), func(op string) bool { return op != "-" }) {
 				out = append(out, "perl -i edits files")
 				break
 			}
@@ -654,6 +746,9 @@ type perlInvocation struct {
 // command line: <>, <<>>, or <ARGV>.
 var perlDiamond = regexp.MustCompile(`<(?:<>|ARGV)?>`)
 
+// perlStdin matches perl code that reads standard input itself.
+var perlStdin = regexp.MustCompile(`<STDIN>`)
+
 // parsePerl reads perl's switches from args, the words after perl. -e,
 // -E, and -I take the rest of their word or else the next word; -i, -F,
 // and the other switches with a value take the rest of their word.
@@ -704,21 +799,31 @@ func parsePerl(args []string) perlInvocation {
 
 // inputFiles returns the operands perl reads as input files and the
 // redirects whose files it reads on standard input, when its program
-// reads input: with a line loop, or with <> in its -e code. Without -e or
-// -E, the first operand is the program file, and with no operand, or an
-// operand of -, perl reads its program from standard input instead.
+// reads input: with a line loop, or with <> in its -e code. -e code that
+// reads <STDIN> reads only the redirects. Without -e or -E, the first
+// operand is the program file, and with no operand, or an operand of -,
+// perl reads its program from standard input instead.
 func (p perlInvocation) inputFiles(redirects []string) (operands, stdin []string) {
 	if !p.Loop && !slices.ContainsFunc(p.Code, perlDiamond.MatchString) {
+		if slices.ContainsFunc(p.Code, perlStdin.MatchString) {
+			return nil, redirects
+		}
 		return nil, nil
 	}
-	operands = p.Operands
-	if len(p.Code) == 0 {
-		if len(operands) == 0 || operands[0] == "-" {
-			return operands[min(1, len(operands)):], nil
-		}
-		operands = operands[1:]
+	if len(p.Code) == 0 && (len(p.Operands) == 0 || p.Operands[0] == "-") {
+		return p.fileOperands(), nil
 	}
-	return operands, redirects
+	return p.fileOperands(), redirects
+}
+
+// fileOperands returns the operands that name perl's input files: every
+// operand when -e or -E gives the program, else those after the first,
+// which names the program file.
+func (p perlInvocation) fileOperands() []string {
+	if len(p.Code) > 0 {
+		return p.Operands
+	}
+	return p.Operands[min(1, len(p.Operands)):]
 }
 
 // firstFileRead returns the first file a reader reads through its
@@ -1076,7 +1181,7 @@ func withNestedShells(s shellScript) []shellScript {
 				}
 				for _, src := range append(codeArgs(c.Args, c.Args, "c", nil), c.Stdin...) {
 					if nested, ok := parseShell(src); ok && src != "" {
-						found = append(found, nestUnder(nested, c.Pos))
+						found = append(found, nestUnder(nested, c))
 					}
 				}
 			}
@@ -1087,18 +1192,20 @@ func withNestedShells(s shellScript) []shellScript {
 	return out
 }
 
-// nestUnder prefixes every position in s with the position of the shell
-// command that runs it.
-func nestUnder(s shellScript, outer scriptPos) shellScript {
+// nestUnder places s under the shell command outer that runs it: every
+// position in s gets outer's position as a prefix, and every command in s
+// also needs outer's guards to succeed.
+func nestUnder(s shellScript, outer shellCommand) shellScript {
 	under := func(p scriptPos) scriptPos {
 		if p == nil {
 			return nil
 		}
-		return append(slices.Clone(outer), p...)
+		return append(slices.Clone(outer.Pos), p...)
 	}
 	for i := range s.Commands {
 		s.Commands[i].Pos = under(s.Commands[i].Pos)
 		s.Commands[i].Pipeline = under(s.Commands[i].Pipeline)
+		s.Commands[i].Guards = append(slices.Clip(outer.Guards), s.Commands[i].Guards...)
 	}
 	for i := range s.OutputFiles {
 		s.OutputFiles[i].Pos = under(s.OutputFiles[i].Pos)
@@ -1399,9 +1506,12 @@ func quietSwitch(c shellCommand) bool {
 	return slices.Contains(args, "--quiet") || hasShortFlagLetter(args, 'q')
 }
 
+// isGitCommit reports whether c is a git commit that makes a commit: not
+// one with --dry-run, or with --short, --porcelain, or --long, which
+// imply it and only show what would be committed.
 func isGitCommit(c shellCommand) bool {
 	sub, _ := gitSubcommand(c)
-	return sub == "commit"
+	return sub == "commit" && !commitHasOption(c, 0, "--dry-run", "--short", "--porcelain", "--long")
 }
 
 // commitValueOptions lists the git commit long options that take a
@@ -1414,22 +1524,30 @@ var commitValueOptions = []string{
 // quietCommit reports whether git commit runs with -q or --quiet, which
 // print no summary line.
 func quietCommit(c shellCommand) bool {
+	return commitHasOption(c, 'q', "--quiet")
+}
+
+// commitHasOption reports whether git commit runs with the short option
+// letter (none when 0) or one of the long options. It reads the arguments
+// as git does: the value of an option such as -m is not an option, so
+// git commit -m --dry-run commits, and -- ends the options.
+func commitHasOption(c shellCommand, letter rune, long ...string) bool {
 	_, args := gitSubcommand(c)
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
 			return false
 		}
-		if a == "--quiet" {
+		if slices.Contains(long, a) {
 			return true
 		}
 		if len(a) > 1 && a[0] == '-' && a[1] != '-' {
-			for _, letter := range a[1:] {
-				if letter == 'q' {
+			for _, l := range a[1:] {
+				if letter != 0 && l == letter {
 					return true
 				}
 				// The rest of the cluster is this option's value.
-				if strings.ContainsRune("mFCctSu", letter) {
+				if strings.ContainsRune("mFCctSu", l) {
 					break
 				}
 			}

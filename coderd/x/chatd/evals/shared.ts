@@ -271,7 +271,10 @@ const hiddenTestEnv: Record<string, string> = {
  * Builds the hidden-test command for a golden case: it writes the files
  * under hidden/ into the graded workspace and runs golden.json's command.
  * The files travel inside the compiled bundle, so they never enter the
- * agent's checkout and changing them changes the bundle digest.
+ * agent's checkout and changing them changes the bundle digest. The
+ * workspace is the agent's, so the command fails instead of writing
+ * through a symlink at a file's path or at a directory above it, which
+ * could discard the file, as a link to /dev/null does.
  */
 export function hiddenTestScript(goldenDir: URL): string {
   const root = fileURLToPath(goldenDir);
@@ -290,8 +293,14 @@ export function hiddenTestScript(goldenDir: URL): string {
       throw new Error(`hidden file ${rel}: unsupported path`);
     }
     const parent = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ".";
+    const parts = rel.split("/");
+    const paths = parts.map((_, i) => `'${parts.slice(0, i + 1).join("/")}'`);
     const b64 = readFileSync(file).toString("base64");
-    lines.push(`mkdir -p '${parent}'`, `printf '%s' '${b64}' | base64 -d > '${rel}'`);
+    lines.push(
+      `for p in ${paths.join(" ")}; do if [ -L "$p" ]; then echo "hidden test path $p is a symlink" >&2; exit 1; fi; done`,
+      `mkdir -p '${parent}'`,
+      `printf '%s' '${b64}' | base64 -d > '${rel}'`,
+    );
   }
   lines.push(golden.command);
   return lines.join("\n");

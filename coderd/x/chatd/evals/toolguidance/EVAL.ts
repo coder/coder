@@ -42,7 +42,7 @@ const cases: Case[] = [
     seed: "inventory@v1",
     prompt: "How does the inventory Store save items to disk? Walk me through what happens when save() is called.",
     checks: [
-      { id: "read-file-used", type: "tool_count", tool: "read_file", path: treeFile("inventory/store.py"), min: 1 },
+      { id: "read-file-used", type: "tool_succeeded", tool: "read_file", path: treeFile("inventory/store.py") },
       noShellFileIO,
       { id: "no-edits", type: "no_edits" },
       { id: "answer", type: "final_text_matches", patterns: ["(?i)json", "(?i)tmp|temporary|replace|atomic"] },

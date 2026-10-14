@@ -62,9 +62,11 @@ const cases: Case[] = [
   },
   {
     // execute run_in_background, then process_output and process_signal on
-    // the returned process id: of the last worker.py launch, so reading or
-    // stopping an earlier one does not count. The output read must show
-    // the third job, so a snapshot taken too early does not count either.
+    // the returned process id: of the last worker.py launch with
+    // run_in_background, so reading or stopping an earlier one, or a
+    // foreground run that timed out, does not count. The output read must
+    // show the third job, so a snapshot taken too early does not count
+    // either.
     id: "background-worker",
     seed: "worker@v1",
     prompt: "Start worker.py in the background, wait until it has processed at least 3 jobs, show me its output, then stop it.",

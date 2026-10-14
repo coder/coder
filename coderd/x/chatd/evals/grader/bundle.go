@@ -63,8 +63,9 @@ type workspaceChanges struct {
 	// than maxScannedFileSize or not a regular file).
 	Untracked map[string][]byte
 	// Unscanned lists the paths whose final content the grader cannot
-	// read: new regular files larger than maxScannedFileSize, and
-	// tracked files that changes.diff holds as a binary patch.
+	// read: new regular files larger than maxScannedFileSize, tracked
+	// files that changes.diff holds as a binary patch, and the
+	// destinations of renames and copies (see parseDiff).
 	Unscanned map[string]bool
 }
 
@@ -99,9 +100,9 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 	diff, err := readCapped(filepath.Join(bundleDir, changesFile), maxDiffBytes)
 	switch {
 	case err == nil:
-		var binary map[string]bool
-		w.Diff, w.Deleted, binary = parseDiff(diff)
-		for p := range binary {
+		var unscanned map[string]bool
+		w.Diff, w.Deleted, unscanned = parseDiff(diff)
+		for p := range unscanned {
 			if !w.Deleted[p] {
 				w.Unscanned[p] = true
 			}
@@ -148,12 +149,14 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 }
 
 // parseDiff extracts changed paths, added lines, deleted paths, and the
-// paths whose change is binary from a git diff. A binary patch encodes
-// the file, so its lines hold none of the file's text.
-func parseDiff(diff []byte) (files map[string][]string, deleted, binary map[string]bool) {
+// paths whose final content the diff does not hold from a git diff: those
+// with a binary patch, which encodes the file, and the destinations of
+// renames and copies, whose unchanged lines the diff leaves out, so a
+// pure rename holds no lines at all.
+func parseDiff(diff []byte) (files map[string][]string, deleted, unscanned map[string]bool) {
 	files = map[string][]string{}
 	deleted = map[string]bool{}
-	binary = map[string]bool{}
+	unscanned = map[string]bool{}
 	current := ""
 	scanner := bufio.NewScanner(bytes.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 1<<20), maxDiffBytes)
@@ -182,10 +185,12 @@ func parseDiff(diff []byte) (files map[string][]string, deleted, binary map[stri
 				}
 				deleted[p] = true
 			}
-		case !inHunk && strings.HasPrefix(line, "rename to "):
-			if p := unquoteGitPath(strings.TrimPrefix(line, "rename to ")); p != "" {
+		case !inHunk && (strings.HasPrefix(line, "rename to ") || strings.HasPrefix(line, "copy to ")):
+			_, dest, _ := strings.Cut(line, " to ")
+			if p := unquoteGitPath(dest); p != "" {
 				current = p
 				files[current] = nil
+				unscanned[current] = true
 			}
 		case !inHunk && strings.HasPrefix(line, "+++ "):
 			if p := unquoteGitPath(strings.TrimPrefix(line, "+++ ")); p != "" && p != "/dev/null" {
@@ -196,7 +201,7 @@ func parseDiff(diff []byte) (files map[string][]string, deleted, binary map[stri
 			}
 		case !inHunk && line == "GIT binary patch":
 			if current != "" {
-				binary[current] = true
+				unscanned[current] = true
 			}
 		case strings.HasPrefix(line, "@@"):
 			inHunk = true
@@ -205,7 +210,7 @@ func parseDiff(diff []byte) (files map[string][]string, deleted, binary map[stri
 		default:
 		}
 	}
-	return files, deleted, binary
+	return files, deleted, unscanned
 }
 
 // diffHeaderPath returns the path of a "diff --git a/P b/P" header, or ""

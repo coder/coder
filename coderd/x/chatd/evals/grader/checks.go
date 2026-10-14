@@ -252,7 +252,9 @@ func checkNoneAfter(in *gradeInput, s checkSpec) (bool, string, map[string]any) 
 // pathFilter accepts the calls whose arguments name a file path matching
 // Path (any call when it is empty): path, as read_file and write_file
 // take it, or the path of an entry of files, as edit_files takes them.
-// It also returns the words that describe the filter in a reason.
+// Paths are matched with . elements and repeated slashes removed, so
+// inventory/./store.py names inventory/store.py. It also returns the
+// words that describe the filter in a reason.
 func pathFilter(s checkSpec) (func(toolCall) bool, string) {
 	if s.Path == "" {
 		return anyCall, ""
@@ -273,7 +275,7 @@ func pathFilter(s checkSpec) (func(toolCall) bool, string) {
 			paths = append(paths, f.Path)
 		}
 		return slices.ContainsFunc(paths, func(p string) bool {
-			return p != "" && re.MatchString(p)
+			return p != "" && re.MatchString(path.Clean(p))
 		})
 	}, " on a path that matches " + s.Path
 }
@@ -312,11 +314,13 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 }
 
 // checkToolSucceeded requires a successful call of Tool (or Tools). With
-// Process, only calls whose process_id is the process that the last
-// execute running a command matching Process (see runsCommand) left
-// running count, so reading or signaling some other process does not.
-// With Path, only calls on a file path matching it count (see
-// pathFilter). With Output, the call's result output must also match it.
+// Process, only calls whose process_id is the process of the last execute
+// started with run_in_background that runs a command matching Process (see
+// runsCommand) count, so reading or signaling some other process does
+// not, such as a foreground run of the same command that timed out and
+// kept running. With Path, only calls on a file path matching it count
+// (see pathFilter). With Output, the call's result output must also match
+// it.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
 	onPath, where := pathFilter(s)
@@ -330,14 +334,14 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		re := regexp.MustCompile(s.Process)
 		start := -1
 		for i, c := range calls {
-			if c.Name == "execute" && runsCommand(c, re) {
+			if c.Name == "execute" && fieldTrue(c.Args, "run_in_background") && runsCommand(c, re) {
 				if id := backgroundID(c); id != "" {
 					start, target = i, id
 				}
 			}
 		}
 		if start < 0 {
-			return false, "no execute running a command that matches " + s.Process + " left a process running", nil
+			return false, "no execute with run_in_background running a command that matches " + s.Process + " left a process running", nil
 		}
 		calls = calls[start+1:]
 	}
@@ -415,7 +419,7 @@ func executeScripts(calls []toolCall) []scriptCall {
 // a wrapper such as timeout or env. Patterns therefore match a command and
 // its arguments, so ^pytest matches cd tests && pytest -q but not
 // rg pytest. A command that does not parse runs nothing, and neither does
-// one whose program the call's output reports missing (commandNotFound).
+// one that the call's result shows the shell never reached (commandRan).
 func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	if c.Name != "execute" {
 		return false
@@ -424,10 +428,9 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	if !ok {
 		return false
 	}
-	output := c.resultField("output")
 	for _, s := range withNestedShells(script) {
 		for _, cmd := range s.Commands {
-			if re.MatchString(cmd.commandLine()) && !commandNotFound(cmd.program(), output) {
+			if re.MatchString(cmd.commandLine()) && commandRan(cmd, c) {
 				return true
 			}
 		}
@@ -435,20 +438,99 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	return false
 }
 
-// commandNotFound reports whether output holds the report that program
-// could not be found: from sh (sh: 1: rg: not found), bash, or sudo
-// (rg: command not found), zsh (command not found: rg), or a wrapper
-// (timeout: failed to run command 'rg': No such file or directory). The
-// runner image has no rg, so rg -n calc_total | head exits 0 and prints
-// only that report.
-func commandNotFound(program, output string) bool {
-	if program == "" || output == "" {
+// commandRan reports whether the shell reached cmd in execute call c, as
+// far as c's result shows: chatd started the call's process, the output
+// does not report cmd's program missing (commandNotFound), and no guard of
+// cmd (see shellCommand.Guards) visibly failed. A guard fails visibly when
+// the output reports its program, or a program it wraps, missing, or, for
+// a cd or pushd to a literal directory, reports that it could not change
+// there (cdFailed), as in cd missing && pytest -q. A guard that fails
+// without such a report, such as test -f missing, counts as succeeded, and
+// so does a cd whose directory needs expansion.
+func commandRan(cmd shellCommand, c toolCall) bool {
+	if !executeStarted(c) {
 		return false
 	}
-	q := regexp.QuoteMeta(program)
-	return regexp.MustCompile(`(?m)(?:^|[\s:'"/])` + q + `['"]?: (?:command )?not found\b` +
+	output := c.resultField("output")
+	if commandNotFound(firstWord(cmd), output) {
+		return false
+	}
+	return !slices.ContainsFunc(cmd.Guards, func(g shellCommand) bool {
+		missing := slices.ContainsFunc(append([]shellCommand{g}, wrappedCommands(g)...), func(w shellCommand) bool {
+			return commandNotFound(firstWord(w), output)
+		})
+		return missing || cdFailed(g, output)
+	})
+}
+
+// executeStarted reports whether chatd started the process of execute
+// call c. chatd answers a call that it rejects before starting anything,
+// such as one with an invalid timeout or no reachable workspace, with an
+// error result, and a call whose process does not start with a
+// start process error, such as when the workdir does not exist.
+func executeStarted(c toolCall) bool {
+	errText := c.resultField("error")
+	return !c.IsError && !strings.HasPrefix(errText, "start process: ") && !strings.HasPrefix(errText, "start background process: ")
+}
+
+func firstWord(c shellCommand) string {
+	if len(c.Args) == 0 {
+		return ""
+	}
+	return c.Args[0]
+}
+
+// commandNotFound reports whether output holds the report that the
+// program a command names with word, its first word as written, could
+// not be found: from sh (sh: 1: rg: not found), bash, or sudo
+// (rg: command not found), zsh (command not found: rg), or a wrapper
+// (timeout: failed to run command 'rg': No such file or directory). A
+// report for a path names the path, so sh: 1: /opt/x/rg: not found does
+// not report the bare word rg missing. The runner image has no rg, so
+// rg -n calc_total | head exits 0 and prints only that report.
+func commandNotFound(word, output string) bool {
+	if word == "" || output == "" {
+		return false
+	}
+	q := regexp.QuoteMeta(word)
+	return regexp.MustCompile(`(?m)(?:^|[\s:'"])` + q + `['"]?: (?:command )?not found\b` +
 		`|\bcommand not found: ` + q + `$` +
 		`|(?:'` + q + `'|xargs: ` + q + `|execute ` + q + `): No such file or directory`).MatchString(output)
+}
+
+// cdFailed reports whether c is a cd or pushd with a literal directory
+// and output holds a shell's report that it could not change to that
+// directory: from dash (sh: 1: cd: can't cd to missing), bash
+// (bash: line 1: cd: missing: No such file or directory), or zsh
+// (cd: no such file or directory: missing). The report does not say which
+// command printed it, so one from another cd to the same directory counts
+// too.
+func cdFailed(c shellCommand, output string) bool {
+	name := firstWord(c)
+	if name != "cd" && name != "pushd" {
+		return false
+	}
+	dir := ""
+	for i, a := range c.Args[1:] {
+		if a == "--" {
+			if i+2 < len(c.Args) {
+				dir = c.Args[i+2]
+			}
+			break
+		}
+		if len(a) > 1 && a[0] == '-' {
+			continue
+		}
+		dir = a
+		break
+	}
+	if dir == "" || dir == "-" {
+		return false
+	}
+	q := regexp.QuoteMeta(dir)
+	return regexp.MustCompile(`(?m)\b` + name + `: (?:can't cd to ` + q +
+		`|` + q + `: (?:No such file or directory|Not a directory|Permission denied)` +
+		`|(?:no such file or directory|not a directory|permission denied): ` + q + `)$`).MatchString(output)
 }
 
 // shellFindingCheck fails when find reports anything for an execute call:
@@ -510,10 +592,15 @@ func checkNoDestructiveGit(in *gradeInput, s checkSpec) (bool, string, map[strin
 	})
 }
 
+// runsGitCheckout reports whether s runs a git checkout that can restore
+// files, which one that creates a branch with -b, -B, or --orphan does
+// not: it keeps the working tree as it is.
 func runsGitCheckout(s shellScript) bool {
 	return slices.ContainsFunc(s.Commands, func(c shellCommand) bool {
-		sub, _ := gitSubcommand(c)
-		return sub == "checkout"
+		sub, args := gitSubcommand(c)
+		return sub == "checkout" && !slices.ContainsFunc(args, func(a string) bool {
+			return a == "-b" || a == "-B" || a == "--orphan"
+		})
 	})
 }
 
@@ -686,7 +773,7 @@ func checkNoText(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 		problems = append(problems, "found in "+strings.Join(hits, ", "))
 	}
 	if len(unscanned) > 0 {
-		problems = append(problems, fmt.Sprintf("cannot scan binary changes or new files over %d MiB: %s", maxScannedFileSize>>20, strings.Join(limitList(unscanned, 10), ", ")))
+		problems = append(problems, fmt.Sprintf("cannot scan binary changes, renamed or copied files, or new files over %d MiB: %s", maxScannedFileSize>>20, strings.Join(limitList(unscanned, 10), ", ")))
 	}
 	if len(problems) > 0 {
 		return false, strings.Join(problems, "; "), metrics
@@ -850,7 +937,7 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 	}
 	// An execute call that writes files (a scratch test, a temp copy) and
 	// then runs the tests in the same command has verified its own edit.
-	if c := in.tr.Calls[last]; c.Name == "execute" && testFollowsEdit(c.command(), re) {
+	if c := in.tr.Calls[last]; c.Name == "execute" && testFollowsEdit(c, re) {
 		return true, "", nil
 	}
 	for _, c := range in.tr.Calls[last+1:] {
@@ -861,14 +948,15 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 	return false, fmt.Sprintf("no execute running a command that matches %s after the last edit (#%d)", s.Pattern, last), nil
 }
 
-// testFollowsEdit reports whether an execute command runs a command whose
-// commandLine matches re after its last file change. A command that
-// changes files itself is never the test, even when its text matches. The
-// test's own output, through its redirect or a tee in its pipeline, is not
-// a later change. Deleting files after the test, such as removing a
-// scratch test, does not count as a later change unless the command only
-// deletes.
-func testFollowsEdit(command string, re *regexp.Regexp) bool {
+// testFollowsEdit reports whether execute call call runs a command whose
+// commandLine matches re after its last file change, and the shell
+// reached that command (commandRan). A command that changes files itself
+// is never the test, even when its text matches. The test's own output,
+// through its redirect or a tee in its pipeline, is not a later change.
+// Deleting files after the test, such as removing a scratch test, does not
+// count as a later change unless the command only deletes.
+func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
+	command := call.command()
 	script, ok := parseShell(command)
 	if !ok {
 		return false
@@ -877,7 +965,7 @@ func testFollowsEdit(command string, re *regexp.Regexp) bool {
 	var tests []shellCommand
 	for _, s := range withNestedShells(script) {
 		for _, c := range s.Commands {
-			if !re.MatchString(c.commandLine()) {
+			if !re.MatchString(c.commandLine()) || !commandRan(c, call) {
 				continue
 			}
 			if slices.ContainsFunc(edits, func(e fileEdit) bool { return e.Command && slices.Equal(e.Pos, c.Pos) }) {
