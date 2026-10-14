@@ -20,38 +20,32 @@ export type SendChatTurnOptions = SendChatMessageOptions & {
 	editingTarget?: EditingTarget;
 };
 
-/** The target whose text the editor holds, as loaded. */
-type LoadedTarget = {
-	target: EditingTarget;
-	text: string;
-	fileBlocks: readonly ChatMessagePart[];
-	// The target's content as loaded, in the form SavedQueuedEdit.base uses.
-	base: string;
-	// The saved edit text loaded with the target, if any.
-	savedEdit?: ParsedDraft;
-};
-
-const noFileBlocks: readonly ChatMessagePart[] = [];
-
-/** Text typed in a queued edit, saved until the edit ends. */
-type SavedQueuedEdit = {
-	// The row content it was typed against.
-	base: string;
-	state: string;
-};
-
-const readSavedQueuedEdit = (raw: string | null): SavedQueuedEdit | null => {
-	try {
-		const saved = JSON.parse(raw ?? "null");
-		if (typeof saved?.base === "string" && typeof saved.state === "string") {
-			return saved;
-		}
-	} catch {
-		// Not a saved edit.
+// Joins two serialized Lexical states, the blocks of before followed by
+// those of after. Returns undefined when either cannot be parsed; the editor
+// then seeds the plain text instead.
+const joinEditorStates = (
+	before: string | undefined,
+	after: string | undefined,
+): string | undefined => {
+	if (!before || !after) {
+		return undefined;
 	}
-	return null;
+	try {
+		const head = JSON.parse(before);
+		const tail = JSON.parse(after);
+		return JSON.stringify({
+			...head,
+			root: {
+				...head.root,
+				children: [...head.root.children, ...tail.root.children],
+			},
+		});
+	} catch {
+		return undefined;
+	}
 };
 
+/** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string;
 	onSend: (options: SendChatTurnOptions) => Promise<void>;
@@ -293,7 +287,8 @@ export function useConversationEditingState(deps: {
 
 	// Clears the composer at submit and returns a rollback function that
 	// restores it, and the editing draft of a history edit, if the send
-	// fails.
+	// fails. The composer stays editable during the request, so the
+	// restored message goes in front of anything typed since.
 	const clearInputForSend = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
@@ -310,27 +305,45 @@ export function useConversationEditingState(deps: {
 		setComposerMode("draft");
 
 		return () => {
-			loadEditorText(message, snapshot.editorState);
-			loadedContentRef.current = snapshot.loadedContent;
-			hasFileReferencesRef.current = snapshot.hasFileReferences;
-			setLoadedTarget(snapshot.loadedTarget);
-			if (snapshot.loadedTarget) {
-				setComposerMode(snapshot.loadedTarget.target);
-			}
+			const typedSince = inputValueRef.current;
+			const text = typedSince.trim() ? `${message}\n\n${typedSince}` : message;
+			const editorState = typedSince.trim()
+				? joinEditorStates(
+						snapshot.editorState,
+						serializedEditorStateRef.current,
+					)
+				: snapshot.editorState;
+			setDraftState({
+				editorInitialValue: text,
+				initialEditorState: editorState,
+			});
+			serializedEditorStateRef.current = editorState;
+			setRemountKey((k) => k + 1);
+			inputValueRef.current = text;
+			setEditingMessageId(snapshot.messageId);
+			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
-	const finalizeSuccessfulSend = (sentTarget: EditingTarget | undefined) => {
-		inputValueRef.current = "";
-		chatInputRef.current?.clear();
+	// Ends a successful send. The composer was cleared at submit, so its
+	// content now was typed during the request; it stays and becomes the draft.
+	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
-		serializedEditorStateRef.current = undefined;
-		loadedContentRef.current = { text: "", editorState: undefined };
-		localStorage.removeItem(draftStorageKey);
-		if (sentTarget !== undefined) {
-			setDraftBeforeEdit(null);
+		const draft = serializedEditorStateRef.current;
+		if (inputValueRef.current.trim() && draft) {
+			try {
+				localStorage.setItem(draftStorageKey, draft);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
+		}
+		if (editedMessageID !== undefined) {
+			setDraftBeforeHistoryEdit(null);
+			setEditingFileBlocks([]);
 		}
 	};
 
