@@ -2049,6 +2049,26 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
 		}
+		// Skip invalid telemetry before SQL so a check violation cannot
+		// abort the import's completion transaction.
+		dataSourceCount := jobType.TemplateImport.ScriptOrderDataSourceCount
+		ruleCount := jobType.TemplateImport.ScriptOrderRuleCount
+		if dataSourceCount < 0 || ruleCount < 0 {
+			s.Logger.Warn(ctx, "negative script order usage counts, skipping",
+				slog.F("job_id", jobID),
+				slog.F("data_source_count", dataSourceCount),
+				slog.F("rule_count", ruleCount))
+		} else {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: dataSourceCount,
+				ScriptOrderRuleCount:       ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
+		}
 
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan

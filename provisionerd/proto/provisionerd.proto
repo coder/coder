@@ -103,6 +103,8 @@ message CompletedJob {
     reserved 12;
     reserved "has_ai_tasks";
     bool has_external_agents = 13;
+    int32 script_order_data_source_count = 14;
+    int32 script_order_rule_count = 15;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;

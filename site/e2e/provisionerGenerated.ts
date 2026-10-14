@@ -552,6 +552,9 @@ export interface GraphComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
   hasExternalAgents: boolean;
+  /** Configuration declaration counts, populated by successful START plan graphs. */
+  scriptOrderDataSourceCount: number;
+  scriptOrderRuleCount: number;
 }
 
 export interface Timing {
@@ -1587,6 +1590,12 @@ export const GraphComplete = {
     }
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);
+    }
+    if (message.scriptOrderDataSourceCount !== 0) {
+      writer.uint32(80).int32(message.scriptOrderDataSourceCount);
+    }
+    if (message.scriptOrderRuleCount !== 0) {
+      writer.uint32(88).int32(message.scriptOrderRuleCount);
     }
     return writer;
   },

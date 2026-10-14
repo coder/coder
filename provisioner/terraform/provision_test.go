@@ -152,8 +152,13 @@ func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSourc
 	}}})
 }
 
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
 func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
-	t.Parallel()
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
 
 	const selfDependencyPlanJSON = `{
 		"format_version":"1.2",
@@ -169,7 +174,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			]}}
 		},
 		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["coder_script.dependent"]}}]}}
 		]}}
 	}`
 	// The optional script is declared with count = 0, so its selector is valid
@@ -188,7 +193,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			]}}
 		},
 		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.optional"]},"after":{"constant_value":["coder_script.prerequisite"]}}]}},
 			{"address":"coder_script.optional","mode":"managed","type":"coder_script","name":"optional","schema_version":0,"count_expression":{"constant_value":0}}
 		]}}
 	}`
@@ -197,6 +202,15 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{}},
 		"configuration":{"root_module":{}}
+	}`
+	// Usage counts declarations even when count = 0 produces no instances.
+	const zeroOrderInstancesPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","count_expression":{"constant_value":0},"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["coder_script.prerequisite"]}}]}}
+		]}}
 	}`
 	// The run selector fixes the inferred phase to start. The module selector also
 	// contains a stop script, which is filtered and reported as a warning.
@@ -224,7 +238,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		},
 		"configuration":{"root_module":{
 			"resources":[
-				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["module.bootstrap"]}}]}}
 			],
 			"module_calls":{
 				"bootstrap":{"source":"./bootstrap","module":{"resources":[]}}
@@ -242,6 +256,8 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		planJSON        string
 		errorContains   string
 		warningContains string
+		dataSourceCount int32
+		ruleCount       int32
 	}{
 		{
 			name:          "StartRejectsSelfDependency",
@@ -260,9 +276,18 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			planJSON:   selfDependencyPlanJSON,
 		},
 		{
-			name:       "StartWithDeclaredEmptySelection",
-			transition: proto.WorkspaceTransition_START,
-			planJSON:   declaredEmptySelectionPlanJSON,
+			name:            "StartWithDeclaredEmptySelection",
+			transition:      proto.WorkspaceTransition_START,
+			planJSON:        declaredEmptySelectionPlanJSON,
+			dataSourceCount: 1,
+			ruleCount:       1,
+		},
+		{
+			name:            "StartWithZeroOrderInstances",
+			transition:      proto.WorkspaceTransition_START,
+			planJSON:        zeroOrderInstancesPlanJSON,
+			dataSourceCount: 1,
+			ruleCount:       1,
 		},
 		{
 			name:       "StartWithoutDeclaration",
@@ -274,12 +299,13 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			transition:      proto.WorkspaceTransition_START,
 			planJSON:        phaseWarningPlanJSON,
 			warningContains: `inferred phase "start"`,
+			dataSourceCount: 1,
+			ruleCount:       1,
 		},
 	}
 	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
 			graphPath := filepath.Join(dir, "graph.dot")
@@ -335,6 +361,8 @@ esac
 				require.Contains(t, logs, test.warningContains)
 				require.Contains(t, logs, "module.bootstrap")
 			}
+			require.Equal(t, test.dataSourceCount, graph.ScriptOrderDataSourceCount)
+			require.Equal(t, test.ruleCount, graph.ScriptOrderRuleCount)
 
 			graphArgs, err := os.ReadFile(graphArgsPath)
 			require.NoError(t, err)
@@ -343,8 +371,13 @@ esac
 	}
 }
 
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
 func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
-	t.Parallel()
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
 
 	// Terraform records the script order data source in prior state when it is
 	// read during planning. The plan fixture reproduces that shape so this test
@@ -416,9 +449,8 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
 			statePath := filepath.Join(dir, "state.json")
@@ -483,6 +515,8 @@ esac
 			_, response := readProvisionLog(t, sess)
 			graph := response.GetGraph()
 			require.NotNil(t, graph)
+			require.Zero(t, graph.ScriptOrderDataSourceCount)
+			require.Zero(t, graph.ScriptOrderRuleCount)
 			if test.errorContains == "" {
 				require.Empty(t, graph.Error)
 			} else {

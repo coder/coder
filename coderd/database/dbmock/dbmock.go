@@ -5949,6 +5949,21 @@ func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
 }
 
+// GetScriptOrderTelemetrySummary mocks base method.
+func (m *MockStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScriptOrderTelemetrySummary", ctx)
+	ret0, _ := ret[0].(database.GetScriptOrderTelemetrySummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScriptOrderTelemetrySummary indicates an expected call of GetScriptOrderTelemetrySummary.
+func (mr *MockStoreMockRecorder) GetScriptOrderTelemetrySummary(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScriptOrderTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetScriptOrderTelemetrySummary), ctx)
+}
+
 // GetStaleChats mocks base method.
 func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -11568,6 +11583,20 @@ func (m *MockStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) UpdateTemplateVersionFlagsByJobID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionFlagsByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionFlagsByJobID), ctx, arg)
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionScriptOrderUsageByJobID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID indicates an expected call of UpdateTemplateVersionScriptOrderUsageByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionScriptOrderUsageByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionScriptOrderUsageByJobID), ctx, arg)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.

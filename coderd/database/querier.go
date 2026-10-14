@@ -885,6 +885,9 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
+	// Count only the active, successfully imported version of each non-deleted
+	// template, so repeated imports do not inflate adoption.
+	GetScriptOrderTelemetrySummary(ctx context.Context) (GetScriptOrderTelemetrySummaryRow, error)
 	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
@@ -1719,6 +1722,7 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error
+	UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg UpdateTemplateVersionScriptOrderUsageByJobIDParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)

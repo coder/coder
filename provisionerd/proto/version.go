@@ -110,9 +110,15 @@ import "github.com/coder/coder/v2/apiversion"
 //     from the provisioner to coderd. `dependencies` is empty when the script
 //     has no prerequisites. `resource_address` is empty only for the legacy
 //     agent startup and shutdown scripts.
+//
+// API v1.21:
+//   - Added aggregate telemetry fields `script_order_data_source_count` and
+//     `script_order_rule_count` to provisioner.proto `GraphComplete` (fields
+//     10 and 11) and provisionerd.proto `CompletedJob.TemplateImport` (fields
+//     14 and 15).
 const (
 	CurrentMajor = 1
-	CurrentMinor = 20
+	CurrentMinor = 21
 )
 
 // CurrentVersion is the current provisionerd API version.
