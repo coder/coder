@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -68,6 +70,19 @@ var skillContainerRelPaths = []string{
 	filepath.Join(".agents", "skills"),
 	filepath.Join(".claude", "skills"),
 	filepath.Join(".codex", "skills"),
+}
+
+// ScanRootEntries returns the paths, relative to a scan root, that a
+// resolve pass with opts reads.
+func ScanRootEntries(opts ResolveOptions) []string {
+	out := slices.Clone(instructionFileNames)
+	out = append(out, mcpConfigFileName)
+	out = append(out, skillContainerRelPaths...)
+	if opts.PluginsEnabled {
+		out = append(out, pluginManifestFileName)
+		out = append(out, pluginContainerRelPaths...)
+	}
+	return out
 }
 
 // recognizedInstructionFile reports whether name is one of the
@@ -124,13 +139,15 @@ type Resolver struct {
 	// wires this to its MCP runner's snapshot; tests inject a
 	// closure directly.
 	MCPResources func() []Resource
+	// Logger receives diagnostics for plugin manifests that are
+	// rejected or ignored. The zero value discards them.
+	Logger slog.Logger
 }
 
 // ScanRoot describes a single directory or file the resolver
 // should examine.
 type ScanRoot struct {
-	// Path is the absolute path. Symlinks should already be
-	// resolved.
+	// Path is the absolute path. It may contain symlinks.
 	Path string
 	// UserSource is the canonical source path the user
 	// declared, when this root came from a user-added Source.
@@ -142,9 +159,18 @@ type ScanRoot struct {
 // The version and schemaVersion fields are stamped by the
 // caller; Resolve fills everything else. Resolve is the
 // non-cancellable convenience wrapper around ResolveContext
-// using context.Background.
+// using context.Background, with plugin discovery disabled.
 func (r *Resolver) Resolve(roots []ScanRoot) Snapshot {
-	return r.ResolveContext(context.Background(), roots)
+	return r.ResolveContext(context.Background(), roots, ResolveOptions{})
+}
+
+// ResolveOptions carries per-pass settings that are not part of
+// the Resolver's fixed configuration.
+type ResolveOptions struct {
+	// PluginsEnabled turns on Agent Plugins discovery. When false
+	// the pass never reads plugin.json files and emits no
+	// KindPlugin resources.
+	PluginsEnabled bool
 }
 
 // ResolveContext is the cancellable variant of Resolve. The
@@ -153,9 +179,9 @@ func (r *Resolver) Resolve(roots []ScanRoot) Snapshot {
 // finish. Cancellation never partially populates the returned
 // Snapshot: a canceled context returns an empty Snapshot with
 // SnapshotError set to the context error.
-func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapshot {
+func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot, opts ResolveOptions) Snapshot {
 	res := r.normalize()
-	resources, snapErrs := res.walk(ctx, roots)
+	resources, snapErrs := res.walk(ctx, roots, opts)
 	if err := ctx.Err(); err != nil {
 		return Snapshot{SnapshotError: err.Error()}
 	}
@@ -174,6 +200,7 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 		// where applyCaps left off.
 		resources, snapErrs = res.applyMCPCaps(resources, startIdx, totalBytes, snapErrs)
 	}
+	resources = withoutOrphanedPluginResources(resources)
 
 	// Deterministic order by ID for stable IDs and hashes.
 	slices.SortFunc(resources, func(a, b Resource) int {
@@ -225,11 +252,12 @@ func (r *Resolver) normalize() *Resolver {
 //
 // Discovery is deliberately shallow. For each scan root the
 // resolver inspects only that directory's top level (instruction
-// files and .mcp.json) plus a fixed set of skill-container
-// locations under it. It never descends into subdirectories and
-// never climbs to a parent directory; additional directories must
-// be added explicitly as scan roots.
-func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
+// files, .mcp.json, and, when enabled, plugin.json) plus a fixed
+// set of skill-container and plugin-container locations under it.
+// It never descends into subdirectories and never climbs to a
+// parent directory; additional directories must be added
+// explicitly as scan roots.
+func (r *Resolver) walk(ctx context.Context, roots []ScanRoot, opts ResolveOptions) (resources []Resource, snapErrs []string) {
 	// Dedup roots by canonical path. The first occurrence
 	// wins so user-added roots that overlap with a built-in
 	// root attribute resources to the built-in.
@@ -246,17 +274,23 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		dedup = append(dedup, root)
 	}
 
-	// Deduplicate resources across roots by ID so two roots that
-	// resolve to the same file (e.g. overlapping ancestors, or a
-	// built-in root nested under a project root) do not
-	// double-count it.
-	seenID := make(map[string]int)
+	// Deduplicate resources across roots by Source so two roots that
+	// resolve to the same path (e.g. overlapping ancestors, or a
+	// built-in root nested under a project root) do not double-count
+	// it. coderd rejects a push that repeats a Source, even across
+	// kinds.
+	seenSource := make(map[string]int)
+	// pluginNames maps every validated plugin name claimed so far to
+	// the canonical root of the plugin holding it. Roots are visited
+	// in priority order, so the first root to declare a name keeps it
+	// and later same-named plugins are emitted as invalid.
+	pluginNames := make(map[string]string)
 
 	for _, root := range dedup {
 		if err := ctx.Err(); err != nil {
 			return nil, []string{err.Error()}
 		}
-		r.discoverIn(root, &resources, seenID)
+		r.discoverIn(root, opts, &resources, seenSource, pluginNames)
 	}
 	resources = slices.DeleteFunc(resources, func(resource Resource) bool {
 		return resource.ID == ""
@@ -264,18 +298,22 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 	return resources, snapErrs
 }
 
-// deduplicateSkills keeps the first valid skill with each name. walk returns
-// resources in scan-root order, so this selects the winner before deterministic
-// sorting and persistence discard root ordering.
+// deduplicateSkills keeps the first valid skill per (PluginName, Name);
+// resources must still be in scan-root order.
 func deduplicateSkills(resources []Resource) []Resource {
-	seen := make(map[string]struct{})
+	type skillKey struct {
+		plugin string
+		name   string
+	}
+	seen := make(map[skillKey]struct{})
 	out := resources[:0]
 	for _, resource := range resources {
 		if resource.Kind == KindSkill && resource.Status == StatusOK {
-			if _, ok := seen[resource.Name]; ok {
+			key := skillKey{plugin: resource.PluginName, name: resource.Name}
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			seen[resource.Name] = struct{}{}
+			seen[key] = struct{}{}
 		}
 		out = append(out, resource)
 	}
@@ -285,8 +323,15 @@ func deduplicateSkills(resources []Resource) []Resource {
 // discoverIn inspects a single scan root. A root that points at a
 // file is classified directly. A directory root contributes its
 // top-level instruction files and .mcp.json plus skills from the
-// fixed container locations under it. The walk goes no deeper.
-func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
+// fixed container locations under it. With plugins enabled it also
+// contributes plugins from the fixed plugin containers. A root that is
+// itself a plugin, valid or rejected, keeps its instruction files,
+// .mcp.json, and other skill containers, but its skills/ container
+// belongs to the plugin and is not read as plain skills. A valid
+// plugin root's plugin containers are not scanned, even when another
+// resource already holds the root's Source. The walk goes no
+// deeper.
+func (r *Resolver) discoverIn(root ScanRoot, opts ResolveOptions, out *[]Resource, seenSource map[string]int, pluginNames map[string]string) {
 	info, err := os.Stat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
@@ -296,13 +341,40 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 	}
 	if !info.IsDir() {
 		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
-			appendResource(out, seenID, res)
+			r.appendResource(out, seenSource, res)
 		}
 		return
 	}
-	r.discoverTopLevelFiles(root, out, seenID)
+	var pluginSkillsContainer string
+	if opts.PluginsEnabled {
+		result := r.discoverPlugin(root.Path, root, out, seenSource, pluginNames, pluginAtScanRoot)
+		if result != pluginAbsent {
+			pluginSkillsContainer = filepath.Join(root.Path, pluginSkillsDirName)
+		}
+		if result != pluginValid && result != pluginShadowed {
+			for _, container := range pluginContainersFor(root.Path) {
+				origin := pluginInAgentsContainer
+				if container == filepath.Join(root.Path, genericPluginContainerName) {
+					origin = pluginInGenericContainer
+				}
+				r.emitPluginsFromContainer(container, root, out, seenSource, pluginNames, origin)
+			}
+		}
+	}
+	r.discoverTopLevelFiles(root, out, seenSource)
 	for _, container := range skillContainersFor(root.Path) {
-		r.emitSkillsFromContainer(container, root, out, seenID)
+		if container == pluginSkillsContainer {
+			continue
+		}
+		r.emitSkillsFromContainer(container, root, out, seenSource)
+	}
+}
+
+// emitPluginsFromContainer treats each immediate child directory of
+// container, excluding symlinks, as a plugin candidate found at origin.
+func (r *Resolver) emitPluginsFromContainer(container string, root ScanRoot, out *[]Resource, seenSource map[string]int, pluginNames map[string]string, origin pluginOrigin) {
+	for _, dir := range immediateSubdirs(container) {
+		r.discoverPlugin(dir, root, out, seenSource, pluginNames, origin)
 	}
 }
 
@@ -310,7 +382,7 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 // .mcp.json that sit directly in root.Path. Nested files are
 // ignored: instruction files and MCP configs are recognized only
 // at a scan root's top level.
-func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID map[string]int) {
+func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenSource map[string]int) {
 	entries, err := os.ReadDir(root.Path)
 	if err != nil {
 		return
@@ -338,27 +410,69 @@ func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID 
 		} else {
 			res = r.readMCPConfig(root.Path, path, info, root.UserSource)
 		}
-		appendResource(out, seenID, res)
+		r.appendResource(out, seenSource, res)
 	}
 }
 
 // appendResource adds res to out unless an earlier resource already claimed
-// its ID. A valid occurrence replaces an earlier invalid one because the same
-// path can be outside a narrow scan root but valid inside a later broader root.
-// Replacements tombstone the earlier occurrence so valid discovery order is
-// preserved without repeatedly shifting the resource slice.
-func appendResource(out *[]Resource, seenID map[string]int, res Resource) {
-	if previous, dup := seenID[res.ID]; dup {
-		if (*out)[previous].Status == StatusOK || res.Status != StatusOK {
-			return
+// its Source, and reports whether res was added. A valid occurrence replaces
+// an earlier invalid one because the same path can be outside a narrow scan
+// root but valid inside a later broader root, or be both an invalid skill and
+// a valid plugin. Replacements tombstone the earlier occurrence so valid
+// discovery order is preserved without repeatedly shifting the resource slice.
+// When an OK resource of another kind wins over a rejected plugin, the
+// plugin's error is kept as a warning on the winner.
+func (r *Resolver) appendResource(out *[]Resource, seenSource map[string]int, res Resource) bool {
+	key := sourceKey(res)
+	if previous, dup := seenSource[key]; dup {
+		kept := (*out)[previous]
+		if kept.Status == StatusOK || res.Status != StatusOK {
+			if kept.Kind != res.Kind {
+				r.Logger.Debug(context.Background(), "skipping context resource whose path another scan root already reports as a different kind; a skipped plugin also skips its skills; remove the overlapping scan root to load it",
+					slog.F("source", res.Source), slog.F("kind", res.Kind.String()), slog.F("kept_kind", kept.Kind.String()))
+				if kept.Status == StatusOK {
+					(*out)[previous].Error = withRejectedPluginWarning(kept.Error, res)
+				}
+			}
+			return false
+		}
+		if kept.Kind != res.Kind {
+			res.Error = withRejectedPluginWarning(res.Error, kept)
 		}
 		(*out)[previous] = Resource{}
-		seenID[res.ID] = len(*out)
+		seenSource[key] = len(*out)
 		*out = append(*out, res)
-		return
+		return true
 	}
-	seenID[res.ID] = len(*out)
+	seenSource[key] = len(*out)
 	*out = append(*out, res)
+	return true
+}
+
+// sourceKey returns the key that deduplicates res across scan roots. A skill
+// Source is the walked path, which may go through a symlinked scan root, so
+// it is keyed on its resolved path; plugin Sources are already resolved.
+func sourceKey(res Resource) string {
+	if res.Kind == KindSkill {
+		if resolved, err := filepath.EvalSymlinks(res.Source); err == nil {
+			return resolved
+		}
+	}
+	return res.Source
+}
+
+// withRejectedPluginWarning appends the error of a rejected plugin to
+// warning. It returns warning unchanged when rejected is not a non-OK
+// plugin.
+func withRejectedPluginWarning(warning string, rejected Resource) string {
+	if rejected.Kind != KindPlugin || rejected.Status == StatusOK {
+		return warning
+	}
+	pluginWarning := "plugin.json in this directory was rejected: " + rejected.Error
+	if warning == "" {
+		return pluginWarning
+	}
+	return warning + "; " + pluginWarning
 }
 
 // resolveReadTarget produces the path and FileInfo that should
@@ -538,8 +652,8 @@ func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, in
 	// Attribute the resource to the resolved target rather than
 	// the path we walked. When several names point at the same
 	// file (e.g. CLAUDE.md and .cursorrules symlinked to
-	// AGENTS.md), they share an ID and collapse to a single
-	// resource via the walk's ID-based dedup, instead of shipping
+	// AGENTS.md), they share a Source and collapse to a single
+	// resource via the walk's Source-based dedup, instead of shipping
 	// identical content multiple times. On resolve failure the
 	// original path is kept so the error points at the offending
 	// link.
@@ -645,7 +759,7 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 // emitSkillsFromContainer scans the immediate children of a
 // recognized skills-container directory and emits one Skill
 // resource per subdirectory whose SKILL.md parses cleanly.
-func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out *[]Resource, seenID map[string]int) {
+func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out *[]Resource, seenSource map[string]int) {
 	entries, err := os.ReadDir(container)
 	if err != nil {
 		return
@@ -666,7 +780,7 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		if !ok {
 			continue
 		}
-		appendResource(out, seenID, res)
+		r.appendResource(out, seenSource, res)
 	}
 }
 
@@ -677,11 +791,12 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 // append additional resources (e.g. MCP server tool lists) can
 // apply the same byte cap to the appended slice.
 func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
-	// Stable sort by (Kind asc, Source asc) so excluded
-	// resources are deterministic.
+	// Stable sort by (capRank, Source) so excluded resources are
+	// deterministic. capRank puts plugins ahead of skills, so a
+	// count cut that keeps a plugin's skills also keeps the plugin.
 	slices.SortStableFunc(resources, func(a, b Resource) int {
 		if a.Kind != b.Kind {
-			return int(a.Kind) - int(b.Kind)
+			return cmp.Compare(capRank(a.Kind), capRank(b.Kind))
 		}
 		return strings.Compare(a.Source, b.Source)
 	})
@@ -705,6 +820,34 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 		total += size
 	}
 	return resources, total
+}
+
+// withoutOrphanedPluginResources drops skills and MCP servers whose
+// PluginName names no StatusOK plugin in resources, such as those of
+// a plugin excluded by a cap; coderd rejects a push that holds one.
+func withoutOrphanedPluginResources(resources []Resource) []Resource {
+	okPlugins := make(map[string]struct{})
+	for _, r := range resources {
+		if r.Kind == KindPlugin && r.Status == StatusOK {
+			okPlugins[r.Name] = struct{}{}
+		}
+	}
+	return slices.DeleteFunc(resources, func(r Resource) bool {
+		if r.Kind == KindPlugin || r.PluginName == "" {
+			return false
+		}
+		_, ok := okPlugins[r.PluginName]
+		return !ok
+	})
+}
+
+// capRank orders kinds for applyCaps: kind order, with KindPlugin
+// moved directly ahead of KindSkill.
+func capRank(kind ResourceKind) int {
+	if kind == KindPlugin {
+		return 2*int(KindSkill) - 1
+	}
+	return 2 * int(kind)
 }
 
 // applyMCPCaps enforces both the count cap and the remaining
@@ -758,9 +901,9 @@ func excluded(r Resource, reason string) Resource {
 	return r
 }
 
-// resourceID builds a stable resource ID. Kind plus canonical
-// source path is enough; sources never collide across kinds for
-// v1 because each kind owns a distinct file-name pattern.
+// resourceID builds a stable resource ID from kind and source path.
+// A Source can repeat across kinds (a directory can be both a skill
+// and a plugin), so the walk deduplicates on Source, not on ID.
 func resourceID(kind ResourceKind, source string) string {
 	return kind.String() + ":" + source
 }
@@ -817,9 +960,9 @@ func safeInt64(n uint64) int64 {
 
 // ResourceKind describes the category of a resolved context
 // resource. The values mirror the proto ContextResource.Kind
-// enum reserved in the RFC; future kinds (PLUGIN, HOOK,
-// SUBAGENT, COMMAND) are defined here so callers can switch
-// exhaustively, but no v1 resolver emits them.
+// enum reserved in the RFC; future kinds (HOOK, SUBAGENT,
+// COMMAND) are defined here so callers can switch exhaustively,
+// but no resolver emits them.
 type ResourceKind int
 
 const (
@@ -839,15 +982,17 @@ const (
 	// populated from the MCP runner's snapshot after the server
 	// has been connected.
 	KindMCPServer
-	// KindPlugin is an Agent Plugins manifest. Not emitted by v1.
+	// KindPlugin is an Agent Plugins manifest. Emitted only when
+	// ResolveOptions.PluginsEnabled is set. Source is the canonical
+	// plugin root and ContentHash covers the manifest bytes.
 	KindPlugin
-	// KindHook is reserved for plugin hooks. Not emitted by v1.
+	// KindHook is reserved for plugin hooks. Not emitted.
 	KindHook
 	// KindSubagent is reserved for plugin-declared subagents.
-	// Not emitted by v1.
+	// Not emitted.
 	KindSubagent
 	// KindCommand is reserved for plugin slash commands.
-	// Not emitted by v1.
+	// Not emitted.
 	KindCommand
 )
 
@@ -955,13 +1100,15 @@ type Resource struct {
 	// also carry a non-fatal warning when Status == StatusOK.
 	Error string
 	// Name is the resource's own short identifier. Currently
-	// populated for KindSkill (from front-matter) and
-	// KindMCPServer (server name); empty for other kinds.
+	// populated for KindSkill (from front-matter), KindMCPServer
+	// (server name), and KindPlugin (manifest name); empty for
+	// other kinds.
 	Name string
 	// Description is a short human-readable summary (skill
 	// front-matter description, MCP server description,
-	// instruction-file first line). Shipped on the wire only
-	// for kinds whose body type carries a description field.
+	// instruction-file first line, plugin manifest description).
+	// Shipped on the wire only for kinds whose body type carries
+	// a description field.
 	Description string
 	// SourcePath is the user-declared source that contributed
 	// the resource; empty for built-in scan roots.
@@ -969,6 +1116,14 @@ type Resource struct {
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool
+	// PluginName is the name of the Agent Plugin a KindSkill or
+	// KindMCPServer resource belongs to; empty for everything else,
+	// including KindPlugin, whose name is in Name.
+	PluginName string
+	// PluginVersion is the manifest version string for KindPlugin,
+	// sanitized and capped at MaxPluginVersionRunes. Empty when
+	// the manifest omits it and for other kinds.
+	PluginVersion string
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the
@@ -1004,8 +1159,9 @@ type Snapshot struct {
 }
 
 // driftResources excludes MCP resources because agents discover them
-// asynchronously and coderd live-syncs them onto bound chats. Instructions
-// and skills remain drift-relevant because their content is pinned.
+// asynchronously and coderd live-syncs them onto bound chats. Instructions,
+// skills, and plugin manifests remain drift-relevant because their content
+// is pinned.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {
