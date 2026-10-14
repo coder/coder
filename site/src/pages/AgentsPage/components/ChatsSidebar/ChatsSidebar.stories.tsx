@@ -3033,10 +3033,8 @@ export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	},
 };
 
-/**
- * Only the owner of an unarchived root chat can move it, so these menus have
- * no Move to project.
- */
+// Only the owner of an unarchived root chat can move it, so the next three
+// menus have no Move to project.
 export const ArchivedChatMenuHasNoMoveToProject: Story = {
 	args: {
 		chats: [
