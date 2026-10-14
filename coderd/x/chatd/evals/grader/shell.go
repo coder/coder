@@ -24,6 +24,11 @@ type shellCommand struct {
 	InputFiles []string
 	// Pos orders the command within its execute call (see scriptPos).
 	Pos scriptPos
+	// End holds, for each level of Pos, the offset just past the
+	// statement there that holds the command: the statement of the shell
+	// command that runs its nested script, and last the command's own
+	// statement, its redirections included (see endsBefore).
+	End scriptPos
 	// Pipeline is the position of the pipeline the command is a stage of,
 	// prefixed like Pos; nil outside a pipeline.
 	Pipeline scriptPos
@@ -34,8 +39,9 @@ type shellCommand struct {
 	// shell to run this one, such as the left side of an || list or the
 	// condition of an if whose else branch holds it.
 	FailGuards [][]shellCommand
-	// Conditional reports that the then branch of an if holds the
-	// command. An if whose condition fails exits 0.
+	// Conditional reports that the then branch of an if or the body of a
+	// while or until loop holds the command. An if whose condition fails,
+	// and a loop whose body never runs, exit 0.
 	Conditional bool
 }
 
@@ -90,9 +96,9 @@ type shellScript struct {
 	OutputFiles []outputRedirect
 	// Backgrounded is true when any statement ends with '&'.
 	Backgrounded bool
-	// ExpandsStatus is true when the script expands an exit status: $?,
-	// ${?}, or PIPESTATUS outside single quotes and comments.
-	ExpandsStatus bool
+	// StatusExpansions are the positions where the script expands an exit
+	// status: $?, ${?}, or PIPESTATUS outside single quotes and comments.
+	StatusExpansions []scriptPos
 }
 
 // parseShell parses src as a POSIX/bash script. It returns ok=false when
@@ -113,6 +119,8 @@ func parseShell(src string) (shellScript, bool) {
 	// inherits the position of the outermost one.
 	pipelines := map[*syntax.BinaryCmd]scriptPos{}
 	stages := map[*syntax.CallExpr]scriptPos{}
+	// Walk visits a statement before its command.
+	stmtEnds := map[*syntax.CallExpr]uint{}
 	syntax.Walk(f, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.BinaryCmd:
@@ -136,13 +144,16 @@ func parseShell(src string) (shellScript, bool) {
 			}
 		case *syntax.ParamExp:
 			if n.Param != nil && (n.Param.Value == "?" || n.Param.Value == "PIPESTATUS") {
-				out.ExpandsStatus = true
+				out.StatusExpansions = append(out.StatusExpansions, scriptPos{n.Pos().Offset()})
 			}
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
 				out.Backgrounded = true
 			}
 			call, _ := n.Cmd.(*syntax.CallExpr)
+			if call != nil {
+				stmtEnds[call] = n.End().Offset()
+			}
 			for _, r := range n.Redirs {
 				if target, ok := outputRedirectTarget(r); ok {
 					redirect := outputRedirect{Target: target, Pos: scriptPos{n.Pos().Offset()}}
@@ -167,12 +178,17 @@ func parseShell(src string) (shellScript, bool) {
 			if len(n.Args) == 0 {
 				return true
 			}
+			end, ok := stmtEnds[n]
+			if !ok {
+				end = n.End().Offset()
+			}
 			cmd := shellCommand{
 				Args:       make([]string, 0, len(n.Args)),
 				Source:     make([]string, 0, len(n.Args)),
 				Stdin:      stdin[n],
 				InputFiles: inputs[n],
 				Pos:        scriptPos{n.Pos().Offset()},
+				End:        scriptPos{end},
 				Pipeline:   stages[n],
 			}
 			for _, w := range n.Args {
@@ -203,9 +219,24 @@ func parseShell(src string) (shellScript, bool) {
 	return out, true
 }
 
+// endsBefore reports whether the shell has finished c by the time it
+// expands position p of the same execute call: at the first level where p
+// leaves the scripts that run c, p is at or after the end of the statement
+// there that holds c. The shell expands a position inside that statement,
+// such as an argument or redirection of c or of the bash -c that runs it,
+// before c runs.
+func (c shellCommand) endsBefore(p scriptPos) bool {
+	for j := range min(len(p), len(c.Pos), len(c.End)) {
+		if p[j] != c.Pos[j] {
+			return p[j] >= c.End[j]
+		}
+	}
+	return false
+}
+
 // reach is what the shell needs before it runs a command: every guard
 // succeeds, and one command of each fail set fails. Conditional marks the
-// then branch of an if.
+// then branch of an if and the body of a while or until loop.
 type reach struct {
 	guards      []*syntax.CallExpr
 	failSets    [][]*syntax.CallExpr
@@ -228,11 +259,13 @@ func (r reach) after(st *syntax.Stmt) (succeeded, failed reach) {
 }
 
 // commandReach maps each simple command in f to what the shell needs
-// before it runs the command: the left side of an && list or the
-// condition of an if must succeed, and the left side of an || list or the
-// condition of an if whose else branch holds the command must fail. In
+// before it runs the command: the left side of an && list, the condition
+// of an if, and the condition of a while loop must succeed, and the left
+// side of an || list, the condition of an if whose else branch holds the
+// command, and the condition of an until loop must fail. In
 // cd missing && pytest, cd guards pytest; in true || pytest, pytest runs
-// only if true fails.
+// only if true fails. The bodies of for, select, and case commands count
+// as reached.
 func commandReach(f *syntax.File) map[*syntax.CallExpr]reach {
 	out := map[*syntax.CallExpr]reach{}
 	var visit func(node syntax.Node, r reach)
@@ -267,6 +300,23 @@ func commandReach(f *syntax.File) map[*syntax.CallExpr]reach {
 				}
 				if n.Else != nil {
 					visit(n.Else, other)
+				}
+				return false
+			case *syntax.WhileClause:
+				for _, st := range n.Cond {
+					visit(st, r)
+				}
+				body := r
+				if len(n.Cond) > 0 {
+					succeeded, failed := r.after(n.Cond[len(n.Cond)-1])
+					body = succeeded
+					if n.Until {
+						body = failed
+					}
+					body.conditional = true
+				}
+				for _, st := range n.Do {
+					visit(st, body)
 				}
 				return false
 			}
@@ -424,7 +474,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional}
+	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, End: c.End, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -542,7 +592,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, End: c.End, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional})
 		}
 		i = end
 	}
@@ -1284,10 +1334,14 @@ func nestUnder(s shellScript, outer shellCommand) shellScript {
 	}
 	for i := range s.Commands {
 		s.Commands[i].Pos = under(s.Commands[i].Pos)
+		s.Commands[i].End = append(slices.Clone(outer.End), s.Commands[i].End...)
 		s.Commands[i].Pipeline = under(s.Commands[i].Pipeline)
 		s.Commands[i].Guards = append(slices.Clip(outer.Guards), s.Commands[i].Guards...)
 		s.Commands[i].FailGuards = append(slices.Clip(outer.FailGuards), s.Commands[i].FailGuards...)
 		s.Commands[i].Conditional = s.Commands[i].Conditional || outer.Conditional
+	}
+	for i := range s.StatusExpansions {
+		s.StatusExpansions[i] = under(s.StatusExpansions[i])
 	}
 	for i := range s.OutputFiles {
 		s.OutputFiles[i].Pos = under(s.OutputFiles[i].Pos)
@@ -1413,6 +1467,112 @@ func gitSubcommand(c shellCommand) (string, []string) {
 	return "", nil
 }
 
+// gitValueOptions lists, per git subcommand, the options that take a
+// value: short letters whose value is the rest of the word or, at its
+// end, the next word; short letters whose optional value git reads only
+// from the rest of the word, such as -t (--track); and long options whose
+// value can be the next word.
+var gitValueOptions = map[string]struct {
+	short, optional string
+	long            []string
+}{
+	"checkout": {"bBU", "t", []string{"--orphan", "--unified", "--conflict", "--pathspec-from-file"}},
+	"switch":   {"cC", "t", []string{"--create", "--force-create", "--orphan", "--conflict"}},
+	"restore":  {"sU", "", []string{"--source", "--unified", "--conflict", "--pathspec-from-file"}},
+	"branch":   {"u", "t", []string{"--set-upstream-to"}},
+	"clean":    {"e", "", []string{"--exclude"}},
+	"push":     {"o", "", []string{"--push-option", "--repo", "--receive-pack", "--exec"}},
+}
+
+// gitArgs is a git subcommand's arguments read the way git reads them:
+// short options cluster, so -qf is -q -f, and a letter that takes a value
+// ends its word, so -qbfix is -q -b fix (see gitValueOptions).
+type gitArgs struct {
+	// Operands are the words that are neither options nor option values,
+	// with "<expanded>" for a word that needs expansion.
+	Operands []string
+	// Short maps each short option letter to its value, empty for a flag.
+	Short map[byte]string
+	// Long maps each long option to its value, empty for a flag.
+	Long map[string]string
+	// EndOfOptions reports a -- before the operands.
+	EndOfOptions bool
+}
+
+func parseGitArgs(sub string, args []string) gitArgs {
+	opts := gitValueOptions[sub]
+	out := gitArgs{Short: map[byte]string{}, Long: map[string]string{}}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			out.EndOfOptions = true
+			for _, op := range args[i+1:] {
+				out.Operands = append(out.Operands, expandedOperand(op))
+			}
+			return out
+		case strings.HasPrefix(a, "--"):
+			name, value, attached := strings.Cut(a, "=")
+			if !attached && slices.Contains(opts.long, name) && i+1 < len(args) {
+				i++
+				value = args[i]
+			}
+			out.Long[name] = value
+		case len(a) > 1 && a[0] == '-':
+		letters:
+			for j := 1; j < len(a); j++ {
+				letter, rest := a[j], a[j+1:]
+				switch {
+				case strings.IndexByte(opts.short, letter) >= 0:
+					if rest == "" && i+1 < len(args) {
+						i++
+						rest = args[i]
+					}
+				case strings.IndexByte(opts.optional, letter) >= 0:
+				default:
+					out.Short[letter] = ""
+					continue
+				}
+				out.Short[letter] = rest
+				break letters
+			}
+		default:
+			out.Operands = append(out.Operands, expandedOperand(a))
+		}
+	}
+	return out
+}
+
+// has reports whether any of the short option letters or long options
+// is set.
+func (g gitArgs) has(short string, long ...string) bool {
+	for i := range len(short) {
+		if _, ok := g.Short[short[i]]; ok {
+			return true
+		}
+	}
+	return slices.ContainsFunc(long, func(l string) bool {
+		_, ok := g.Long[l]
+		return ok
+	})
+}
+
+// value returns the value of the first of the short option letters or
+// long options that is set.
+func (g gitArgs) value(short string, long ...string) (string, bool) {
+	for i := range len(short) {
+		if v, ok := g.Short[short[i]]; ok {
+			return v, true
+		}
+	}
+	for _, l := range long {
+		if v, ok := g.Long[l]; ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 // destructiveGitFindings reports git commands that discard work or
 // rewrite shared history. keep lists paths whose changes the case
 // protects (see checkoutDiscards).
@@ -1420,25 +1580,26 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 	var out []string
 	for _, c := range s.Commands {
 		sub, args := gitSubcommand(c)
+		g := parseGitArgs(sub, args)
 		switch sub {
 		case "reset":
 			if hasFlag(args, "--hard", "--merge", "--keep") {
 				out = append(out, "git reset --hard")
 			}
 		case "checkout":
-			if checkoutDiscards(args, keep) {
+			if checkoutDiscards(g, keep) {
 				out = append(out, "git checkout discarding changes")
 			}
 		case "switch":
-			if hasFlag(args, "-f", "--force", "--discard-changes") {
+			if g.has("f", "--force", "--discard-changes") {
 				out = append(out, "git switch discarding changes")
 			}
 		case "restore":
-			if !hasFlag(args, "--staged", "-S") || hasFlag(args, "--worktree", "-W") {
+			if !g.has("S", "--staged") || g.has("W", "--worktree") {
 				out = append(out, "git restore of the working tree")
 			}
 		case "clean":
-			if hasShortFlagLetter(args, 'f') || hasFlag(args, "--force") {
+			if g.has("f", "--force") {
 				out = append(out, "git clean -f")
 			}
 		case "stash":
@@ -1446,11 +1607,11 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git stash "+args[0])
 			}
 		case "push":
-			if hasFlag(args, "--force", "--force-with-lease", "--force-if-includes") || hasShortFlagLetter(args, 'f') || hasPlusRefspec(args) {
+			if g.has("f", "--force", "--force-with-lease", "--force-if-includes") || hasPlusRefspec(args) {
 				out = append(out, "git push --force")
 			}
 		case "branch":
-			if slices.Contains(args, "-D") || (hasFlag(args, "-d", "--delete") && hasFlag(args, "-f", "--force")) {
+			if g.has("D") || (g.has("d", "--delete") && g.has("f", "--force")) {
 				out = append(out, "git branch -D")
 			}
 		}
@@ -1458,19 +1619,18 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 	return out
 }
 
-// checkoutDiscards reports whether git checkout args overwrite working
-// tree files: with --, -f, --ours, or --theirs, or with an operand of .,
-// one shaped like a file or directory (restoredPath), or one that names a
-// path in keep or a directory above one, which git checkout restores from
-// the index. A bare directory name such as billing reads as a branch by
-// its shape, so only keep tells it apart. The name after -b, -B, or
-// --orphan is a new branch.
-func checkoutDiscards(args, keep []string) bool {
-	if slices.Contains(args, "--") || hasFlag(args, "-f", "--force", "--ours", "--theirs") {
+// checkoutDiscards reports whether a git checkout overwrites working
+// tree files: with --, -f, --ours (-2), or --theirs (-3), or with an
+// operand of ., one shaped like a file or directory (restoredPath), or
+// one that names a path in keep or a directory above one, which git
+// checkout restores from the index. A bare directory name such as billing
+// reads as a branch by its shape, so only keep tells it apart. The name
+// after -b, -B, or --orphan is a new branch, not an operand.
+func checkoutDiscards(g gitArgs, keep []string) bool {
+	if g.EndOfOptions || g.has("f23", "--force", "--ours", "--theirs") {
 		return true
 	}
-	operands, _ := commandOperands(args, "bB", []string{"--orphan"})
-	return slices.ContainsFunc(operands, func(op string) bool {
+	return slices.ContainsFunc(g.Operands, func(op string) bool {
 		return op == "." || restoredPath.MatchString(op) || slices.ContainsFunc(keep, func(k string) bool {
 			return pathWithin(k, op)
 		})
@@ -1522,7 +1682,8 @@ func hasPlusRefspec(args []string) bool {
 const detachedHead = "detached HEAD"
 
 // previousBranch is what branchSwitch returns for git checkout - and
-// git switch -, which go back to the branch checked out before.
+// git switch - (or @{-1}), which go back to the branch checked out
+// before.
 const previousBranch = "-"
 
 var (
@@ -1537,8 +1698,10 @@ var (
 )
 
 // branchSwitch reports how a command changes the checked-out branch:
-// the new branch name (detachedHead for --detach or a commit operand,
-// previousBranch for -), and whether the command switched at all.
+// the new branch name (detachedHead for -d, --detach, or a commit
+// operand, previousBranch for - or @{-1}), and whether the command
+// switched at all. Options are read as git reads them (parseGitArgs), so
+// -qbfix creates fix.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
@@ -1546,32 +1709,33 @@ func branchSwitch(c shellCommand) (string, bool) {
 	default:
 		return "", false
 	}
-	if slices.Contains(args, "--detach") || (sub == "switch" && slices.Contains(args, "-d")) {
+	g := parseGitArgs(sub, args)
+	if g.has("d", "--detach") {
 		return detachedHead, true
 	}
-	for i, a := range args {
-		if a == "-b" || a == "-B" || a == "-c" || a == "-C" || a == "--create" || a == "--force-create" || a == "--orphan" {
-			if i+1 < len(args) {
-				return args[i+1], true
-			}
-			return "", false
-		}
+	create := "bB"
+	if sub == "switch" {
+		create = "cC"
 	}
-	if slices.Contains(args, "--") {
+	if b, ok := g.value(create, "--create", "--force-create", "--orphan"); ok {
+		return b, b != ""
+	}
+	if g.EndOfOptions {
 		return "", false
 	}
-	if slices.Contains(args, "-") {
+	if slices.Contains(g.Operands, "-") {
 		return previousBranch, true
 	}
-	operands := nonFlagOperands(args)
+	operands := slices.DeleteFunc(g.Operands, func(op string) bool { return op == "<expanded>" })
 	if len(operands) != 1 {
 		return "", false
 	}
 	op := operands[0]
+	if op == "@{-1}" {
+		return previousBranch, true
+	}
 	if sub == "checkout" {
 		switch {
-		case op == "@{-1}":
-			return previousBranch, true
 		case restoredPath.MatchString(op):
 			return "", false
 		case commitOperand.MatchString(op):
@@ -1584,8 +1748,8 @@ func branchSwitch(c shellCommand) (string, bool) {
 // quietSwitch reports whether git checkout or git switch runs with -q or
 // --quiet, which print no report of the switch.
 func quietSwitch(c shellCommand) bool {
-	_, args := gitSubcommand(c)
-	return slices.Contains(args, "--quiet") || hasShortFlagLetter(args, 'q')
+	sub, args := gitSubcommand(c)
+	return parseGitArgs(sub, args).has("q", "--quiet")
 }
 
 // isGitCommit reports whether c is a git commit that makes a commit: not

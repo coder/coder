@@ -445,8 +445,9 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 // cd missing && pytest -q, and one command of each fail set of cmd
 // visibly failed, as in pytest -q || python3 -m unittest when pytest is
 // missing. A guarded command also did not run when its call printed
-// nothing and exited with a failure, or when an if's then branch holds
-// it, since an if whose condition fails exits 0: a guard such as false or
+// nothing and exited with a failure, or when the then branch of an if or
+// the body of a while or until loop holds it, since an if whose condition
+// fails and a loop whose body never runs exit 0: a guard such as false or
 // test -f fails without a word, while the test runs and scripts that
 // checks look for print their results. A guard that fails silently in a
 // call that prints something else, such as test -f x in
@@ -635,25 +636,14 @@ func checkNoDestructiveGit(in *gradeInput, s checkSpec) (bool, string, map[strin
 
 // runsGitCheckout reports whether s runs a git checkout that can restore
 // files, which one that creates a branch with -b, -B, or --orphan does
-// not: it keeps the working tree as it is.
+// not: it keeps the working tree as it is. Options are read as git reads
+// them (parseGitArgs), so -qb fix and -qbfix create a branch.
 func runsGitCheckout(s shellScript) bool {
 	return slices.ContainsFunc(s.Commands, func(c shellCommand) bool {
 		sub, args := gitSubcommand(c)
-		return sub == "checkout" && !slices.ContainsFunc(args, createsBranch)
+		return sub == "checkout" && !parseGitArgs(sub, args).has("bB", "--orphan")
 	})
 }
-
-// createsBranch reports whether a git checkout argument creates a branch:
-// -b, -B, or --orphan, alone or with the branch name attached, as in
-// -bfix or --orphan=fix, or -b or -B after flags that take no value, as in
-// -qb fix.
-func createsBranch(a string) bool {
-	return branchOption.MatchString(a) || a == "--orphan" || strings.HasPrefix(a, "--orphan=")
-}
-
-// branchOption matches a git checkout short-option word that sets -b or
-// -B: git reads -qbfix as -q -b fix.
-var branchOption = regexp.MustCompile(`^-[dflmpq]*[bB]`)
 
 // backgroundID returns the process id an execute call left running:
 // background_process_id on a timeout, or process_id with
@@ -1086,7 +1076,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		if s.Successful && !executeSucceeded(c) {
 			continue
 		}
-		if status != nil && !exitStatusShown(c, *s.ExitCode, status) {
+		if status != nil && !exitStatusShown(c, re, *s.ExitCode, status) {
 			continue
 		}
 		if output != nil && !output.MatchString(c.resultField("output")) {
@@ -1122,29 +1112,52 @@ func statusLine(code int) *regexp.Regexp {
 }
 
 // exitStatusShown reports whether a call that ran in the foreground shows
-// exit status code: as its own exit code, or, when its command expands an
-// exit status (expandsStatus), as a line of its output that status
-// matches. A command such as python3 check.py; echo "exit=$?" exits 0 and
-// prints the status instead. A line that a program prints on its own is
-// not a status unless the command also expands one, since the output does
-// not say which command printed which line.
-func exitStatusShown(c toolCall, code int, status *regexp.Regexp) bool {
+// the exit status code of a command matching re: as the call's own exit
+// code, or, when the shell expands an exit status after that command
+// (statusExpandedAfter), as a line of its output that status matches. A
+// command such as python3 check.py; echo "exit=$?" exits 0 and prints the
+// status instead. A line that a program prints on its own is not a status
+// unless the command also expands one, since the output does not say
+// which command printed which line.
+func exitStatusShown(c toolCall, re *regexp.Regexp, code int, status *regexp.Regexp) bool {
 	if fieldTrue(c.Args, "run_in_background") || fieldTrue(c.Result, "backgrounded") {
 		return false
 	}
 	if got, ok := exitCode(c); ok && got == code {
 		return true
 	}
-	return expandsStatus(c.command()) && status.MatchString(c.resultField("output"))
+	return statusExpandedAfter(c, re) && status.MatchString(c.resultField("output"))
 }
 
-// expandsStatus reports whether the shell expands an exit status ($?,
-// ${?}, or PIPESTATUS) when it runs command, including in the scripts that
-// its shells run (see withNestedShells). A $? in single quotes or in a
-// comment is not expanded.
-func expandsStatus(command string) bool {
-	script, ok := parseShell(command)
-	return ok && slices.ContainsFunc(withNestedShells(script), func(s shellScript) bool { return s.ExpandsStatus })
+// statusExpandedAfter reports whether the shell expands an exit status
+// ($?, ${?}, or PIPESTATUS) after a command matching re that ran (see
+// runsCommand) ends (see shellCommand.endsBefore), in execute call c or in
+// the scripts that its shells run (see withNestedShells), as
+// python3 check.py; rc=$? does. A $? in single quotes or in a comment is
+// not expanded, and one that the shell expands before the command ends,
+// as in echo $?; python3 check.py or in the command's own arguments,
+// holds another command's status.
+func statusExpandedAfter(c toolCall, re *regexp.Regexp) bool {
+	script, ok := parseShell(c.command())
+	if !ok {
+		return false
+	}
+	scripts := withNestedShells(script)
+	var expansions []scriptPos
+	for _, s := range scripts {
+		expansions = append(expansions, s.StatusExpansions...)
+	}
+	for _, s := range scripts {
+		for _, cmd := range s.Commands {
+			if !re.MatchString(cmd.commandLine()) || !commandRan(cmd, c) {
+				continue
+			}
+			if slices.ContainsFunc(expansions, cmd.endsBefore) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // executeSucceeded requires an observed exit code of 0 from a call that

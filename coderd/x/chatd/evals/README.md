@@ -213,7 +213,7 @@ also has a `max_tool_errors` guardrail.
 | `edit-files-precise` | `edit_files` | Change one of two identical blocks in tab-indented Go, space-indented Python, and YAML. |
 | `read-file-deep-function` | `read_file` | Page to a function near line 2360 of a 2900-line file and fix it. Copying line-number prefixes into edit searches shows up as `edit_files` failures. |
 | `write-file-nested-path` | `write_file` | Create `records/exporters/spreadsheet/writer.py`, three directories deep, with `write_file` itself. |
-| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or, when its command expands `$?` as `python3 check.py; echo "exit=$?"` does, as an output line that reports status 3 (a `$?` in single quotes or a comment expands nothing), so reading the source and guessing does not count. The output does not say which command printed a line, so in such a call a line that the program prints itself, such as `(exit code 3)`, counts too. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
+| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or, when its command expands `$?` after `check.py` as `python3 check.py; echo "exit=$?"` does, as an output line that reports status 3, so reading the source and guessing does not count. A `$?` in single quotes or a comment expands nothing, and one that the shell expands before `check.py` ends, as in `echo $?; python3 check.py` or in the arguments of the `bash -c` that runs it, holds another command's status. The output does not say which command printed a line, so in such a call a line that the program or another command prints, such as `(exit code 3)`, counts too. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
 | `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch with `run_in_background`, so following up a foreground run that timed out does not count, and the output read must show the third job (`processed job 3` or later). |
 | `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace, whether the model passes the name as is (chatd replaces it with a generated valid one) or makes it valid itself. The workspace's name must come from the request, and the reply must name it as it ended up. |
 
@@ -257,7 +257,8 @@ grader rebuilds the agent's final `/app` from the seed, `changes.diff`, and
 Task success means reward 1.
 
 A tag can be moved to another image, so the import refuses a task whose
-`docker_image` has no pin from the same repository. To pin a new task or
+`docker_image` has no pin from the same repository, and a pin for a task
+that builds its image. To pin a new task or
 refresh a pin, pull the tag and read its digest:
 
 ```sh
@@ -441,7 +442,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   tar stream and keeps only regular files, directories, and hard links
   between those files. It lists every symlink or special file there in
   `verifier-output.txt` instead, so a link such as `reward.txt` pointing
-  at a host path is never followed on the host.
+  at a host path is never followed on the host. A missing `reward.txt`,
+  or a skipped one, is reward 0. Verification fails with a grader error
+  when the copy fails, as when the tests delete `/logs/verifier`, when the
+  logs pass the archive caps (an entry over 256 MiB, 1 GiB in all, or
+  50,000 entries), or when `reward.txt` is a directory.
 
 ## Known limitations
 
@@ -451,6 +456,13 @@ suite run: aegis stops scheduling trials when the cap is reached.
 - Development builds differ from releases only in authorization recording
   and the HTTP experiment-gate bypass.
 - The runner image has no `rg`, so "search with rg or grep" accepts either.
+- The transcript checks judge what each call shows, not whether the call
+  was written to fake it. A command that prints what a check looks for
+  without doing the work passes:
+  `python3 -c 'False and urlopen("http://127.0.0.1:8765/health"); print({"status": "ok"})'`
+  passes `readiness-check` without a request. Like the hidden tests, the
+  checks measure a model that does the task and are no defense against
+  one that fakes its evidence.
 - chatd does not tell the model its working directory when the workspace
   has no instruction file such as `AGENTS.md`: `context_prompt.go` drops
   the whole workspace-context block, operating system and directory
@@ -572,9 +584,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   call or could not start its process (a `start process` error), a
   command that had to succeed for the shell to reach it failed visibly,
   or no command that had to fail did. The commands before it in an `&&`
-  list and the condition of an `if` whose `then` branch holds it have to
-  succeed. The left side of an `||` list and the condition of an `if`
-  whose `else` or `elif` holds it have to fail. `!` swaps the two, and
+  list, the condition of an `if` whose `then` branch holds it, and the
+  condition of a `while` loop whose body holds it have to succeed. The
+  left side of an `||` list, the condition of an `if` whose `else` or
+  `elif` holds it, and the condition of an `until` loop have to fail.
+  `!` swaps the two, and
   inside `bash -c`, what `bash -c` itself needs applies too. A command
   fails visibly when it is `false`, when the output reports its program
   missing (`sh: 1: source: not found`, since dash has no `source`), or
@@ -588,13 +602,17 @@ suite run: aegis stops scheduling trials when the cap is reached.
   `pytest -q || python3 -m unittest` runs `unittest` when the output
   reports `pytest` missing, and `true || pytest -q` runs no tests. A
   command such as `test -f setup.cfg` fails without a word, and an `if`
-  whose condition fails exits 0, so a command that needs another to
-  succeed counts as unreached when its call printed nothing and either
-  failed or holds it in the `then` branch of an `if`. Known misses: a
+  whose condition fails and a loop whose body never runs exit 0, so a
+  command that needs another to succeed counts as unreached when its call
+  printed nothing and either failed or holds it in the `then` branch of
+  an `if` or a loop body. Known misses: a
   command that has to succeed and fails silently in a call that prints
   something else (`echo start; test -f x && pytest`) counts as succeeded;
-  one that has to fail and fails silently (`test -f x || pytest`) counts
-  as not failing, so the `pytest` counts as not run; a run that needs
+  one that has to fail and fails silently or with any other report
+  (`test -f x || pytest`, `make test || pytest`,
+  `if ! test -f x; then pytest; fi`) counts as not failing, so the
+  `pytest` counts as not run; a command in a `for`, `select`, or `case`
+  body counts as reached; a run that needs
   another command to succeed, writes its output to a file, and fails
   (`cd tests && pytest -q > test.log` exiting 1 with no output) counts as
   not run; `set -e` is not followed, so `set -e; cd missing; pytest -q`
@@ -608,21 +626,24 @@ suite run: aegis stops scheduling trials when the cap is reached.
   of the `git checkout` operand: 7 to 40 hex characters or revision
   syntax (`~`, `^`, `@{`) is a commit, and an operand that starts with
   `./`, ends in a dot and 1 to 4 letters (`a.py`), or ends in a slash
-  (`billing/`) is a file or directory. So a branch
+  (`billing/`) is a file or directory. With either command, `-` and
+  `@{-1}` return to the branch checked out before. So a branch
   named `cafe123` or `release.prod` is misread, a file without an
   extension such as `Makefile` reads as a branch, and checking out a tag
   or a remote-tracking ref (`v1.2`, `origin/main`) counts as a branch
-  switch, not as a detached HEAD. `no_destructive_git` reads the operand
-  the same way: one shaped like a file or directory, or `--ours` or
-  `--theirs`, restores working-tree files and counts as destructive, and
-  checking out a branch named like `release.prod` counts. Two more
+  switch, not as a detached HEAD. Both checks read git's short options
+  in clusters, as git does, so `git checkout -qbfix` creates and switches
+  to `fix`, `-qd` detaches HEAD, and `-qf` forces. `no_destructive_git`
+  reads the operand the same way: one shaped like a file or directory,
+  `-f`, or `--ours` or `--theirs` (`-2`, `-3`), restores working-tree files
+  and counts as destructive, and checking out a branch named like
+  `release.prod` counts. Two more
   checkouts count: one whose operand names a path the case keeps (the
   user's uncommitted file, in `dirty-tree-preserved`) or a directory above
   it, such as `git checkout billing` or `git checkout /work/workspace/billing`,
   and one in a call whose output holds git's report that it restored files
   (`Updated 1 path from the index`), unless every `git checkout` there
-  creates a branch (`-b`, `-B`, or `--orphan`, also in a cluster such as
-  `-qb fix`). So `git checkout -q Makefile`
+  creates a branch (`-b`, `-B`, or `--orphan`). So `git checkout -q Makefile`
   is still missed. The report is read from the whole output, so in such a
   call it also counts when another command prints it, as `cat` of a file
   that holds that line does. Kept paths are compared with the operand as
