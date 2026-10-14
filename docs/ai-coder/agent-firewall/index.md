@@ -132,9 +132,9 @@ module "agent-firewall" {
   as Bottlerocket nodes in EKS auto-mode. Only applies to the `nsjail` jail
   type.
 - `proxy_port` defines the port used by the HTTP proxy. Default: `8080`.
-- `use_real_dns` uses the host's real DNS resolver inside the jail instead of
-  the built-in dummy DNS server. This allows DNS resolution for non-proxied
-  traffic but permits DNS-based data exfiltration. Default: `false`.
+- `use_real_dns` uses the host's real DNS resolver inside the jail instead of the built-in mock DNS server.
+  This allows DNS resolution for non-proxied traffic but permits DNS-based data exfiltration.
+  Default: `false`.
 
 For detailed information about the rules engine and how to construct allowlist
 rules, see the [rules engine documentation](./rules-engine.md).
