@@ -3,6 +3,7 @@ import {
 	type ClientRect,
 	type CollisionDetection,
 	closestCenter,
+	type Data,
 	type DataRef,
 	type KeyboardCoordinateGetter,
 	pointerWithin,
@@ -31,11 +32,12 @@ export type ChatDragData = { readonly chat: Chat };
 /** The dnd-kit data of a chat drop target. */
 export type DropTargetData = { readonly dropTarget: DropTarget };
 
-const isChatDragData = (data: unknown): data is ChatDragData =>
-	typeof data === "object" && data !== null && "chat" in data;
+const isChatDragData = (data: Data | undefined): data is Data<ChatDragData> =>
+	data !== undefined && "chat" in data;
 
-const isDropTargetData = (data: unknown): data is DropTargetData =>
-	typeof data === "object" && data !== null && "dropTarget" in data;
+const isDropTargetData = (
+	data: Data | undefined,
+): data is Data<DropTargetData> => data !== undefined && "dropTarget" in data;
 
 /** The chat of a row drag, or undefined for a pin drag. */
 export const draggedChatOf = (active: Active | null): Chat | undefined => {
