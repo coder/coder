@@ -127,6 +127,9 @@ export const ResourceIssue: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.hover(button);
+		await waitFor(() =>
+			expect(button).toHaveAttribute("aria-expanded", "true"),
+		);
 	},
 };
 
