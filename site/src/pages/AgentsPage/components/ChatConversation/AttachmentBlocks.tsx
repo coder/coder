@@ -533,7 +533,10 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-/** Download card for a chat file. */
+/**
+ * Download card for a chat file, or the expired tile. Callers decide expiry;
+ * the card never probes the file.
+ */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;

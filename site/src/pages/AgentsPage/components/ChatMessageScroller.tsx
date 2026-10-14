@@ -10,8 +10,8 @@ import {
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
 /**
- * Paging state for a chat's older messages. The transcript and the
- * Attachments section share it, so a page either one loads reaches both.
+ * Paging state for a chat's older messages. A page that any consumer loads
+ * reaches every consumer.
  */
 export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;

@@ -112,7 +112,11 @@ type GetRowBlocksOptions = {
 	hideAttachments: boolean;
 };
 
-/** hideAttachments drops file blocks, which the Attachments section lists. */
+/**
+ * A row's blocks, or its work or answer section when the row ends a working
+ * block. Files that hideAttachments drops are listed under Attachments once
+ * their step persists.
+ */
 export const getRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],

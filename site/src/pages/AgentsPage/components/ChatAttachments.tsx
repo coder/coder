@@ -12,7 +12,7 @@ import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Undefined until the chat's first message page loads. */
+	/** Undefined until the chat's first message page reaches the store. */
 	attachments: readonly AgentAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
 } & Pick<
