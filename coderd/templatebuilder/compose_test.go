@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -599,12 +600,12 @@ var jsonencodeContext = &hcl.EvalContext{
 	Functions: map[string]function.Function{"jsonencode": stdlib.JSONEncodeFunc},
 }
 
-// findBlocks returns the blocks of the given type whose first label matches
-// label (or every block of that type when label is empty).
-func findBlocks(body *hclsyntax.Body, blockType, label string) []*hclsyntax.Block {
+// findBlocks returns the blocks of the given type whose labels start with
+// labels (or every block of that type when no labels are given).
+func findBlocks(body *hclsyntax.Body, blockType string, labels ...string) []*hclsyntax.Block {
 	var out []*hclsyntax.Block
 	for _, b := range body.Blocks {
-		if b.Type == blockType && (label == "" || (len(b.Labels) > 0 && b.Labels[0] == label)) {
+		if b.Type == blockType && len(b.Labels) >= len(labels) && slices.Equal(b.Labels[:len(labels)], labels) {
 			out = append(out, b)
 		}
 	}
@@ -643,18 +644,17 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 	body, ok := file.Body.(*hclsyntax.Body)
 	require.True(t, ok)
 
-	var languages *hclsyntax.Block
-	for _, b := range findBlocks(body, "data", "coder_parameter") {
-		if len(b.Labels) == 2 && b.Labels[1] == "languages" {
-			languages = b
-		}
-	}
-	require.NotNil(t, languages, "expected a coder_parameter named languages")
+	blocks := findBlocks(body, "data", "coder_parameter", "languages")
+	require.Len(t, blocks, 1, "expected one coder_parameter named languages")
+	languages := blocks[0]
 
 	var selectorValues []string
-	for _, opt := range findBlocks(languages.Body, "option", "") {
-		val, diags := opt.Body.Attributes["value"].Expr.Value(nil)
+	for _, opt := range findBlocks(languages.Body, "option") {
+		attr, ok := opt.Body.Attributes["value"]
+		require.True(t, ok, "option at %s must set value", opt.DefRange())
+		val, diags := attr.Expr.Value(nil)
 		require.False(t, diags.HasErrors(), diags.Error())
+		require.Equal(t, cty.String, val.Type(), "option at %s value must be a string", opt.DefRange())
 		selectorValues = append(selectorValues, val.AsString())
 	}
 	require.NotEmpty(t, selectorValues,

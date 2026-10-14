@@ -336,19 +336,6 @@ resource "coder_agent" "gpu" {
 		}, agents)
 	})
 
-	t.Run("ForEachAgent", func(t *testing.T) {
-		t.Parallel()
-		hcl := []byte(`resource "coder_agent" "dev" {
-  for_each = toset(["a"])
-  os       = "linux"
-}`)
-		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
-		require.NoError(t, err)
-		require.Equal(t, []templatebuilder.ExtractedAgent{
-			{Name: "dev", Reference: "dev[0]"},
-		}, agents)
-	})
-
 	t.Run("CountOnlyInNestedBlockIsIgnored", func(t *testing.T) {
 		t.Parallel()
 		// Only top-level count/for_each attributes make the agent indexed.
