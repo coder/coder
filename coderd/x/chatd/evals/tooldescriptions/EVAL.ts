@@ -1,5 +1,5 @@
 import { defineExperiment } from "@coder/aegis";
-import { configureSuite, type Case } from "../shared.ts";
+import { configureSuite, runsScript, type Case } from "../shared.ts";
 
 // Tool descriptions: tasks that lean on one tool's contract each. The
 // primary metric is the per-tool failure rate in the summary, compared
@@ -44,12 +44,14 @@ const cases: Case[] = [
   },
   {
     // execute reports exit_code; a non-zero exit is the answer, not a tool
-    // failure to retry around.
+    // failure to retry around. The call that runs check.py must show the
+    // 3, as its exit code or as the $? it prints, so reading the source
+    // and guessing does not count.
     id: "execute-exit-code",
     seed: "worker@v1",
     prompt: "Does `python3 check.py` pass in this repo? Tell me the exit code it returns and why.",
     checks: [
-      { id: "ran-check", type: "execute_matches", pattern: "check\\.py" },
+      { id: "ran-check", type: "execute_matches", pattern: runsScript("check.py"), exit_code: 3 },
       // The 3 must follow exit-code wording, so "Python 3" does not count.
       { id: "exit-code", type: "final_text_matches", patterns: ["(?i)\\b(exit|status|code|return)\\w*[^\\n0-9]{0,24}\\b3\\b", "(?i)queue_url"] },
       { id: "no-edits", type: "no_edits" },
@@ -65,9 +67,9 @@ const cases: Case[] = [
     seed: "worker@v1",
     prompt: "Start worker.py in the background, wait until it has processed at least 3 jobs, show me its output, then stop it.",
     checks: [
-      { id: "started-in-background", type: "execute_matches", pattern: "worker\\.py", background: true },
-      { id: "read-output", type: "tool_succeeded", tool: "process_output", process: "worker\\.py", output: "processed job ([3-9]|[1-9][0-9]+)" },
-      { id: "stopped", type: "tool_succeeded", tool: "process_signal", process: "worker\\.py" },
+      { id: "started-in-background", type: "execute_matches", pattern: runsScript("worker.py"), background: true },
+      { id: "read-output", type: "tool_succeeded", tool: "process_output", process: runsScript("worker.py"), output: "processed job ([3-9]|[1-9][0-9]+)" },
+      { id: "stopped", type: "tool_succeeded", tool: "process_signal", process: runsScript("worker.py") },
       { id: "output-shown", type: "final_text_matches", pattern: "processed job ([3-9]|[1-9][0-9]+)" },
     ],
     guardrails: [toolErrors("process_output"), toolErrors("process_signal"), toolErrors(undefined, 3)],

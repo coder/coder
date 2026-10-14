@@ -250,10 +250,13 @@ done
 docker_endpoint=$(docker context inspect --format '{{len .TLSMaterial}} {{.Endpoints.docker.SkipTLSVerify}} {{.Endpoints.docker.Host}}') ||
 	die "cannot resolve the docker daemon; set DOCKER_HOST"
 read -r docker_tls docker_tls_skip DOCKER_HOST <<<"$docker_endpoint"
-# Those commands get DOCKER_HOST alone, so they cannot reach a daemon that
-# needs TLS certificates or ssh.
-if [[ $DOCKER_HOST != unix://* && $DOCKER_HOST != tcp://* ]] || [[ $docker_tls != 0 || $docker_tls_skip != false ]]; then
-	die "the grader's docker commands get only DOCKER_HOST, so they cannot reach $DOCKER_HOST, which needs TLS or ssh; use a local docker daemon's unix socket"
+# Those commands get DOCKER_HOST alone, so they reach only a unix:// or
+# tcp:// daemon that needs no TLS settings.
+if [[ $DOCKER_HOST != unix://* && $DOCKER_HOST != tcp://* ]]; then
+	die "the grader's docker commands get only DOCKER_HOST, which reaches a unix:// or tcp:// daemon, not $DOCKER_HOST; use a local docker daemon's unix socket"
+fi
+if [[ $docker_tls != 0 || $docker_tls_skip != false ]]; then
+	die "the grader's docker commands get only DOCKER_HOST, without the TLS settings that $DOCKER_HOST needs; use a local docker daemon's unix socket"
 fi
 export DOCKER_HOST
 
@@ -299,6 +302,9 @@ cleanup() {
 	done
 }
 trap cleanup EXIT
+# Ctrl-C reaches aegis too, which exits on its own after saving its
+# journal, so bash would go on to the next step; stop the run instead.
+trap 'exit 130' INT
 
 # Commands run inside the aegis checkout must see its mise toolchain rather
 # than a host GOROOT or GOBIN, and build the aegis module alone: a go.work
@@ -515,7 +521,7 @@ build_subject() {
 			git -C "$REPO_ROOT" worktree prune
 			git -C "$REPO_ROOT" worktree add -q --detach "$src" "$sha"
 		fi
-		(cd "$src" && CGO_ENABLED=0 go build -ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=$version'" -o "$bin.new.$$" ./enterprise/cmd/coder)
+		(cd "$src" && CGO_ENABLED=0 GOOS=linux go build -ldflags "-X 'github.com/coder/coder/v2/buildinfo.tag=$version'" -o "$bin.new.$$" ./enterprise/cmd/coder)
 		mv "$bin.new.$$" "$bin"
 	fi
 	SUBJECT_VERSION=$("$bin" version --output json | jq -r '.version | ltrimstr("v")')

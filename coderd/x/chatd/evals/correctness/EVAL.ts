@@ -7,7 +7,8 @@ import { configureSuite, type Case } from "../shared.ts";
 
 const guardrails = [
   { id: "max-tool-errors", type: "max_tool_errors", max: 5 },
-  { id: "tested-after-edit", type: "test_after_edit", pattern: "unittest|pytest|go test|node --test|npm test" },
+  // Matched against each command an execute call runs, from its start.
+  { id: "tested-after-edit", type: "test_after_edit", pattern: "^(?:python[0-9.]* (?:-[WX] \\S+ |-\\S+ )*-m (?:unittest|pytest)\\b|py\\.?test\\b|go test\\b|node (?:-\\S+ )*--test\\b|npm (?:run )?test\\b)" },
 ];
 
 const cases: Case[] = [

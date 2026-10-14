@@ -1,13 +1,38 @@
 import { defineExperiment } from "@coder/aegis";
-import { configureSuite, type Case } from "../shared.ts";
+import { configureSuite, runsScript, type Case } from "../shared.ts";
 
 // Tool-use guidance: whether chatd follows the <tool-use>, <investigation>,
 // <implementation>, <action-safety>, <version-control-safety>, and
 // <instructions-and-context> sections of coderd/x/chatd/prompt.go in an
 // attached workspace. README.md maps each case to its line.
 
-const testCommand = "unittest|pytest|python3? -m";
+// Command patterns match each command an execute call runs, from its start
+// (runsCommand in grader/checks.go). A test run is python3 -m unittest or
+// pytest, pytest itself, or a test file such as tests/test_retry.py.
+const testCommand = "^(?:python[0-9.]* (?:-[WX] \\S+ |-\\S+ )*(?:-m (?:unittest|pytest)\\b|(?:\\S*/)?test_\\w*\\.py(?:\\s|$))|py\\.?test\\b)";
 const noShellFileIO = { id: "no-shell-file-io", type: "no_shell_file_io" };
+
+// reported(11, pass) matches a count bound to its label: before it, as in
+// 11 passed or 11 of 13 tests pass, or after it, as in Passed: 11,
+// | Passed | 11 |, or Passed 11. A count binds to a label after it only
+// across spaces and Markdown emphasis, and not to one that heads a
+// "Label: count" pair; a "Label count" pair needs no count right before
+// the label. So the reversed "11 failed and 2 passed", "Failed: 11,
+// Passed: 2", and "2 passed 11 failed 2 errors" report neither 11 passing
+// nor 2 failing.
+const reported = (n: number, label: string) =>
+  `(?i)\\b${n}\\b(?:\\s*(?:/|of|out of)\\s*(?:the\\s+)?13\\b)?(?:\\s+tests?)?[ \\t*_]*(?:(?:have|were|are)\\s+)?(?:${label})\\b[ \\t*_]*(?:$|[^ \\t*_:=]|[:=][ \\t*_]*(?:$|[^ \\t*_\\d]))` +
+  `|\\b(?:${label})\\b(?:\\s+tests?)?[ \\t*_]*[:=|][ \\t*_]*${n}\\b` +
+  `|(?:^|[^\\d \\t*_])[ \\t*_]*\\b(?:${label})\\b(?:\\s+tests?)?[ \\t*_]+${n}\\b`;
+const pass = "pass(?:ed|es|ing)?|succeed(?:ed|s)?|successes|ok";
+const fail = "fail(?:ed|s|ing|ures?)?|errors?";
+
+// An HTTP request to the dev server's port: curl, wget, or Python code
+// that uses urllib, requests, or http.client, inline or on stdin. The
+// reply must show the /health body, as JSON or a Python dict, or a 200
+// status.
+const healthProbe = "^(?:curl|wget)\\b.*\\b8765\\b|^python[0-9.]*\\b(?s:.*)\\b(?:urllib|urlopen|requests|http\\.client)\\b(?s:.*)\\b8765\\b";
+const healthy = "(?im)[\"']status[\"']:\\s*[\"']ok[\"']|\\bHTTP/?\\S*\\s+200\\b|\\bstatus(?:[ _]?code)?\\W*200\\b|^\\s*200\\s*$";
 
 const cases: Case[] = [
   {
@@ -30,7 +55,7 @@ const cases: Case[] = [
     prompt: "Rename calc_total to total_value across the inventory project, including its callers and tests.",
     golden: "inventory-rename",
     checks: [
-      { id: "searched", type: "execute_matches", pattern: "\\b(rg|grep|git grep)\\b" },
+      { id: "searched", type: "execute_matches", pattern: "^(?:rg|grep|egrep|fgrep|git (?:-[cC] \\S+ |-\\S+ )*grep)\\b" },
       { id: "edited-with-tools", type: "tool_count", tools: ["edit_files", "write_file"], min: 1, successful: true },
       noShellFileIO,
     ],
@@ -56,7 +81,7 @@ const cases: Case[] = [
       { id: "followed-up", type: "background_followed_up", pattern: testCommand },
       { id: "no-duplicate-run", type: "no_duplicate_run", pattern: testCommand },
       { id: "no-edits", type: "no_edits" },
-      { id: "counts", type: "final_text_matches", patterns: ["\\b11\\b", "\\b2\\b"] },
+      { id: "counts", type: "final_text_matches", patterns: [reported(11, pass), reported(2, fail)] },
     ],
   },
   {
@@ -66,8 +91,8 @@ const cases: Case[] = [
     seed: "devserver@v1",
     prompt: "Start the dev server and confirm it is up and healthy.",
     checks: [
-      { id: "started-in-background", type: "execute_matches", pattern: "server\\.py", background: true },
-      { id: "readiness-check", type: "execute_matches", pattern: "curl|wget|urllib|/health|8765", after: "server\\.py", successful: true },
+      { id: "started-in-background", type: "execute_matches", pattern: runsScript("server.py"), background: true },
+      { id: "readiness-check", type: "execute_matches", pattern: healthProbe, after: runsScript("server.py"), successful: true, output: healthy },
       { id: "no-shell-background", type: "no_shell_background" },
     ],
   },

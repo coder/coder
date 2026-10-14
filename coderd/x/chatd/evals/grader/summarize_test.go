@@ -68,7 +68,7 @@ func TestSummarizeRun(t *testing.T) {
 		"case-a__control__r6": "completed, but its bundle is missing",
 		"case-a__control__r7": "skipped, but its bundle is missing",
 	}, s.JournalOnly)
-	require.Equal(t, 3, s.Ungraded)
+	require.Equal(t, 1, s.Ungraded, "only the finished r8 waits on measurements")
 	require.Len(t, s.Failures, 3)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)
 	require.False(t, s.Failures[0].TaskSuccess)

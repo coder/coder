@@ -53,6 +53,26 @@ func (c shellCommand) program() string {
 	return path.Base(c.Args[0])
 }
 
+// commandLine is the text that a check's command pattern matches: the
+// words separated by spaces, with a word that needs expansion as its
+// source text. For an interpreter such as python3, each here-document,
+// here-string, or piped echo text fed to it follows after a newline, since
+// that is the program it runs; other commands read their input as data.
+func (c shellCommand) commandLine() string {
+	words := make([]string, len(c.Args))
+	for i, a := range c.Args {
+		words[i] = a
+		if a == "" && i < len(c.Source) {
+			words[i] = c.Source[i]
+		}
+	}
+	line := strings.Join(words, " ")
+	if interpreterProgram.MatchString(c.program()) {
+		line = strings.Join(append([]string{line}, c.Stdin...), "\n")
+	}
+	return line
+}
+
 // shellScript is a parsed execute command.
 type shellScript struct {
 	Commands []shellCommand
@@ -525,6 +545,10 @@ var readCommandValueFlags = map[string]struct {
 }{
 	"head": {"nc", []string{"--lines", "--bytes"}},
 	"tail": {"ncs", []string{"--lines", "--bytes", "--sleep-interval", "--pid", "--max-unchanged-stats"}},
+	"nl": {"bdfhilnsvw", []string{
+		"--body-numbering", "--section-delimiter", "--footer-numbering", "--header-numbering", "--line-increment",
+		"--join-blank-lines", "--number-format", "--number-separator", "--starting-line-number", "--number-width",
+	}},
 }
 
 // fileIOFindings reports file reads and writes done through the shell
@@ -540,7 +564,7 @@ func fileIOFindings(s shellScript) []string {
 	for _, c := range s.Commands {
 		prog := c.program()
 		switch prog {
-		case "cat", "head", "tail", "less", "more":
+		case "cat", "head", "tail", "less", "more", "nl":
 			flags := readCommandValueFlags[prog]
 			read, _ := commandOperands(c.Args[1:], flags.short, flags.long)
 			if f := firstFileRead(read, c.InputFiles); f != "" {
@@ -565,15 +589,45 @@ func fileIOFindings(s shellScript) []string {
 			if hasFlag(c.Args[1:], "-i", "-pi", "-ni") {
 				out = append(out, "perl -i edits files")
 			}
-		case "awk", "gawk":
+		case "awk", "gawk", "mawk", "nawk":
+			inPlace := false
 			for i, a := range c.Args[1:] {
 				if (a == "-i" || a == "--include") && i+2 < len(c.Args) && c.Args[i+2] == "inplace" {
-					out = append(out, prog+" -i inplace edits files")
+					inPlace = true
 				}
+			}
+			if inPlace {
+				out = append(out, prog+" -i inplace edits files")
+				break
+			}
+			if f := firstFileRead(awkInputFiles(c.Args[1:]), c.InputFiles); f != "" {
+				out = append(out, prog+" reads "+f)
 			}
 		}
 	}
 	return append(out, interpreterEditFindings(s)...)
+}
+
+// awkInputFiles returns the operands awk reads as input files: all of
+// them when -f, -e, -E, --file, --source, or --exec supplies the program,
+// else all but the first, which is the program. An operand such as
+// count=0 assigns a variable and is not a file.
+func awkInputFiles(args []string) []string {
+	ops, values := commandOperands(args, "FvfeEil", []string{"--field-separator", "--assign", "--file", "--source", "--exec", "--include", "--load"})
+	program := slices.ContainsFunc([]string{"f", "e", "E", "--file", "--source", "--exec"}, func(opt string) bool {
+		_, ok := values[opt]
+		return ok
+	})
+	if !program && len(ops) > 0 {
+		ops = ops[1:]
+	}
+	var files []string
+	for _, op := range ops {
+		if !isAssignment(op) {
+			files = append(files, op)
+		}
+	}
+	return files
 }
 
 // firstFileRead returns the first file a reader reads through its
@@ -738,6 +792,10 @@ func fileChangeFindings(s shellScript) []string {
 		operands, values := commandOperands(c.Args[1:], flags.short, flags.long)
 		targets := operands
 		switch prog {
+		case "rm":
+			// Deleting Python bytecode after a test run cannot change what
+			// the next run shows, since Python compiles it again.
+			targets = slices.DeleteFunc(slices.Clone(operands), bytecodePath)
 		case "cp", "ln", "install":
 			if dir, ok := targetDirectory(values); ok {
 				targets = []string{dir}
@@ -768,6 +826,12 @@ func fileChangeFindings(s shellScript) []string {
 		}
 	}
 	return out
+}
+
+// bytecodePath reports whether p names Python bytecode: a __pycache__
+// directory or a .pyc or .pyo file.
+func bytecodePath(p string) bool {
+	return path.Base(p) == "__pycache__" || interpreterCache(p)
 }
 
 func targetDirectory(values map[string]string) (string, bool) {
@@ -1211,6 +1275,13 @@ func branchSwitch(c shellCommand) (string, bool) {
 		}
 	}
 	return op, true
+}
+
+// quietSwitch reports whether git checkout or git switch runs with -q or
+// --quiet, which print no report of the switch.
+func quietSwitch(c shellCommand) bool {
+	_, args := gitSubcommand(c)
+	return slices.Contains(args, "--quiet") || hasShortFlagLetter(args, 'q')
 }
 
 func isGitCommit(c shellCommand) bool {

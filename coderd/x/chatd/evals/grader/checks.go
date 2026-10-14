@@ -43,6 +43,7 @@ type checkSpec struct {
 	MaxLimit       int      `json:"max_limit,omitempty"`
 	Process        string   `json:"process,omitempty"`
 	Output         string   `json:"output,omitempty"`
+	ExitCode       *int     `json:"exit_code,omitempty"`
 }
 
 type checkResult struct {
@@ -90,12 +91,16 @@ func parseChecks(raw json.RawMessage) ([]checkSpec, error) {
 		if _, ok := checkFuncs[s.Type]; !ok {
 			return nil, xerrors.Errorf("check %q has unknown type %q", s.ID, s.Type)
 		}
-		for _, p := range append([]string{s.Pattern, s.After, s.Process, s.Output}, s.Patterns...) {
-			if p == "" {
+		fields := [][2]string{{"pattern", s.Pattern}, {"after", s.After}, {"process", s.Process}, {"output", s.Output}}
+		for i, p := range s.Patterns {
+			fields = append(fields, [2]string{fmt.Sprintf("patterns[%d]", i), p})
+		}
+		for _, f := range fields {
+			if f[1] == "" {
 				continue
 			}
-			if _, err := regexp.Compile(p); err != nil {
-				return nil, xerrors.Errorf("check %q pattern %q: %w", s.ID, p, err)
+			if _, err := regexp.Compile(f[1]); err != nil {
+				return nil, xerrors.Errorf("check %q %s %q: %w", s.ID, f[0], f[1], err)
 			}
 		}
 	}
@@ -275,9 +280,9 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 
 // checkToolSucceeded requires a successful call of Tool (or Tools). With
 // Process, only calls whose process_id is the process that the last
-// execute matching Process left running count, so reading or signaling
-// some other process does not. With Output, the call's result output must
-// also match it.
+// execute running a command matching Process (see runsCommand) left
+// running count, so reading or signaling some other process does not.
+// With Output, the call's result output must also match it.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
 	calls := in.tr.Calls
@@ -290,14 +295,14 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		re := regexp.MustCompile(s.Process)
 		start := -1
 		for i, c := range calls {
-			if c.Name == "execute" && re.MatchString(c.command()) {
+			if c.Name == "execute" && runsCommand(c, re) {
 				if id := backgroundID(c); id != "" {
 					start, target = i, id
 				}
 			}
 		}
 		if start < 0 {
-			return false, "no execute matching " + s.Process + " left a process running", nil
+			return false, "no execute running a command that matches " + s.Process + " left a process running", nil
 		}
 		calls = calls[start+1:]
 	}
@@ -370,6 +375,29 @@ func executeScripts(calls []toolCall) []scriptCall {
 	return out
 }
 
+// runsCommand reports whether an execute call runs a simple command whose
+// commandLine matches re: in the call itself, in a nested shell, or behind
+// a wrapper such as timeout or env. Patterns therefore match a command and
+// its arguments, so ^pytest matches cd tests && pytest -q but not
+// rg pytest. A command that does not parse runs nothing.
+func runsCommand(c toolCall, re *regexp.Regexp) bool {
+	if c.Name != "execute" {
+		return false
+	}
+	script, ok := parseShell(c.command())
+	if !ok {
+		return false
+	}
+	for _, s := range withNestedShells(script) {
+		for _, cmd := range s.Commands {
+			if re.MatchString(cmd.commandLine()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func shellFindingCheck(in *gradeInput, find func(shellScript) []string) (bool, string, map[string]any) {
 	var findings []string
 	unparsed := 0
@@ -413,12 +441,12 @@ func backgroundID(c toolCall) string {
 	return c.resultField("process_id")
 }
 
-// checkBackgroundFollowedUp requires every execute matching Pattern (any
-// execute when it is empty) that left a process running to be followed
-// by a process_output showing that process exited. A poll while it still
-// runs does not give the command's result, and neither does an exit that
-// a signal caused: a process that handles the signal can still exit with
-// a code of its own.
+// checkBackgroundFollowedUp requires every execute running a command that
+// matches Pattern (any execute when it is empty) that left a process
+// running to be followed by a process_output showing that process exited.
+// A poll while it still runs does not give the command's result, and
+// neither does an exit that a signal caused: a process that handles the
+// signal can still exit with a code of its own.
 func checkBackgroundFollowedUp(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	var re *regexp.Regexp
 	if s.Pattern != "" {
@@ -427,7 +455,7 @@ func checkBackgroundFollowedUp(in *gradeInput, s checkSpec) (bool, string, map[s
 	var missing []string
 	ids := 0
 	for i, c := range in.tr.Calls {
-		if c.Name != "execute" || (re != nil && !re.MatchString(c.command())) {
+		if c.Name != "execute" || (re != nil && !runsCommand(c, re)) {
 			continue
 		}
 		id := backgroundID(c)
@@ -476,8 +504,9 @@ func processExited(c toolCall) bool {
 	return body.ExitCode != nil && *body.ExitCode >= 0 && body.Error == ""
 }
 
-// checkNoDuplicateRun fails when an execute matching Pattern starts while
-// an earlier matching command is still running in the background.
+// checkNoDuplicateRun fails when an execute running a command that
+// matches Pattern starts while an earlier matching command is still
+// running in the background.
 func checkNoDuplicateRun(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	pending := map[string]bool{}
@@ -485,7 +514,7 @@ func checkNoDuplicateRun(in *gradeInput, s checkSpec) (bool, string, map[string]
 	for _, c := range in.tr.Calls {
 		switch c.Name {
 		case "execute":
-			if !re.MatchString(c.command()) {
+			if !runsCommand(c, re) {
 				continue
 			}
 			if len(pending) > 0 {
@@ -734,19 +763,20 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		return true, "", nil
 	}
 	for _, c := range in.tr.Calls[last+1:] {
-		if c.Name == "execute" && re.MatchString(c.command()) {
+		if runsCommand(c, re) {
 			return true, "", nil
 		}
 	}
-	return false, fmt.Sprintf("no execute matching %s after the last edit (#%d)", s.Pattern, last), nil
+	return false, fmt.Sprintf("no execute running a command that matches %s after the last edit (#%d)", s.Pattern, last), nil
 }
 
-// testFollowsEdit reports whether an execute command runs a command
-// matching re after its last file change. A command that changes files
-// itself is never the test, even when its text matches. The test's own
-// output, through its redirect or a tee in its pipeline, is not a later
-// change. Deleting files after the test, such as removing a scratch test,
-// does not count as a later change unless the command only deletes.
+// testFollowsEdit reports whether an execute command runs a command whose
+// commandLine matches re after its last file change. A command that
+// changes files itself is never the test, even when its text matches. The
+// test's own output, through its redirect or a tee in its pipeline, is not
+// a later change. Deleting files after the test, such as removing a
+// scratch test, does not count as a later change unless the command only
+// deletes.
 func testFollowsEdit(command string, re *regexp.Regexp) bool {
 	script, ok := parseShell(command)
 	if !ok {
@@ -756,7 +786,7 @@ func testFollowsEdit(command string, re *regexp.Regexp) bool {
 	var tests []shellCommand
 	for _, s := range withNestedShells(script) {
 		for _, c := range s.Commands {
-			if !re.MatchString(strings.Join(c.Source, " ")) {
+			if !re.MatchString(c.commandLine()) {
 				continue
 			}
 			if slices.ContainsFunc(edits, func(e fileEdit) bool { return e.Command && slices.Equal(e.Pos, c.Pos) }) {
@@ -787,10 +817,12 @@ func testFollowsEdit(command string, re *regexp.Regexp) bool {
 	})
 }
 
-// checkExecuteMatches requires an execute call whose command matches
-// Pattern, optionally started with run_in_background (Background), after
-// the first execute matching After, and succeeding with exit code 0 in the
-// foreground (Successful).
+// checkExecuteMatches requires an execute call that runs a command
+// matching Pattern (see runsCommand), after the first execute running one
+// matching After. Optionally the call was started with run_in_background
+// (Background), succeeded with exit code 0 in the foreground
+// (Successful), showed exit status ExitCode in the foreground
+// (exitStatusShown), and printed output matching Output.
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	start := 0
@@ -798,17 +830,24 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		after := regexp.MustCompile(s.After)
 		start = -1
 		for i, c := range in.tr.Calls {
-			if c.Name == "execute" && after.MatchString(c.command()) {
+			if runsCommand(c, after) {
 				start = i + 1
 				break
 			}
 		}
 		if start < 0 {
-			return false, "no execute matching " + s.After, nil
+			return false, "no execute running a command that matches " + s.After, nil
 		}
 	}
+	var output, status *regexp.Regexp
+	if s.Output != "" {
+		output = regexp.MustCompile(s.Output)
+	}
+	if s.ExitCode != nil {
+		status = statusLine(*s.ExitCode)
+	}
 	for _, c := range in.tr.Calls[start:] {
-		if c.Name != "execute" || !re.MatchString(c.command()) {
+		if !runsCommand(c, re) {
 			continue
 		}
 		if s.Background && !fieldTrue(c.Args, "run_in_background") {
@@ -817,19 +856,58 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		if s.Successful && !executeSucceeded(c) {
 			continue
 		}
+		if status != nil && !exitStatusShown(c, *s.ExitCode, status) {
+			continue
+		}
+		if output != nil && !output.MatchString(c.resultField("output")) {
+			continue
+		}
 		return true, "", nil
 	}
-	what := "no execute matching " + s.Pattern
+	what := "no execute running a command that matches " + s.Pattern
 	if s.Background {
 		what += " with run_in_background"
 	}
 	if s.Successful {
 		what += " that succeeded"
 	}
+	if s.ExitCode != nil {
+		what += fmt.Sprintf(" that showed exit status %d", *s.ExitCode)
+	}
+	if s.Output != "" {
+		what += " with output matching " + s.Output
+	}
 	if s.After != "" {
 		what += " after " + s.After
 	}
 	return false, what, nil
+}
+
+// statusLine matches an output line that reports exit status code the
+// way echo "exit=$?" or echo $? prints it: the number alone, or at the end
+// of the line after a word such as exit, status, code, rc, returned, or
+// failed, optionally followed by with, was, or is.
+func statusLine(code int) *regexp.Regexp {
+	return regexp.MustCompile(`(?im)^\W*(?:.*\b(?:exit|status|code|rc|returned|failed)\w*(?:\W+(?:with|was|is))?\W*)?` + strconv.Itoa(code) + `\W*$`)
+}
+
+// statusReference matches shell text that expands an exit status: $?,
+// ${?}, or PIPESTATUS.
+var statusReference = regexp.MustCompile(`\$\?|\$\{\?\}|PIPESTATUS`)
+
+// exitStatusShown reports whether a call that ran in the foreground shows
+// exit status code: as its own exit code, or, when its command expands an
+// exit status, as a line of its output that status matches. A command
+// such as python3 check.py; echo "exit=$?" exits 0 and prints the status
+// instead, and output that a program prints on its own is not a status.
+func exitStatusShown(c toolCall, code int, status *regexp.Regexp) bool {
+	if fieldTrue(c.Args, "run_in_background") || fieldTrue(c.Result, "backgrounded") {
+		return false
+	}
+	if got, ok := exitCode(c); ok && got == code {
+		return true
+	}
+	return statusReference.MatchString(c.command()) && status.MatchString(c.resultField("output"))
 }
 
 // executeSucceeded requires an observed exit code of 0 from a call that
@@ -974,6 +1052,33 @@ var (
 	urlText = regexp.MustCompile(`https?://\S*[^\s?.!,)]`)
 )
 
+// switchReport matches the line git prints for a branch switch: Switched
+// to branch 'fix', Switched to a new branch 'fix', Switched to and reset
+// branch 'fix', Already on 'fix', or HEAD is now at ... for a detached
+// HEAD.
+var switchReport = regexp.MustCompile(`(?m)^(?:Switched to (?:a new |and reset )?branch '([^'\n]+)'|Already on '([^'\n]+)'|HEAD is now at )`)
+
+// unknownBranch is the tracked branch after a switch that may or may not
+// have run. A branch name cannot hold a space.
+const unknownBranch = "unknown branch"
+
+// reportedSwitch finds git's report of a switch to branch (detachedHead,
+// or previousBranch for any branch) in reports, and returns the branch it
+// names and the reports after it. A detached HEAD's report does not count
+// for previousBranch, since git reset --hard prints the same line.
+func reportedSwitch(branch string, reports [][]string) (string, [][]string, bool) {
+	for i, r := range reports {
+		got := r[1] + r[2]
+		if got == "" {
+			got = detachedHead
+		}
+		if got == branch || (branch == previousBranch && got != detachedHead) {
+			return got, reports[i+1:], true
+		}
+	}
+	return "", reports, false
+}
+
 // checkCommitOffDefault counts commits made through execute calls on and
 // off a default branch (Branches, default main and master), walking each
 // call's commands in order. A commit that prints a summary line takes the
@@ -981,22 +1086,29 @@ var (
 // names, whatever the call's exit code, since a command such as
 // git switch -c fix && make test can fail after its git steps succeeded.
 // A quiet commit (git commit -q), or one whose summary line is missing
-// from the output, counts on the branch tracked through the branch
-// switches of calls that exit 0, when its own call exits 0. A commit on a
-// detached HEAD is on no branch, so it fails like a commit on a default
-// branch. With no commit at all it passes only when the agent asks the
-// user, through ask_user_question or its final text.
+// from the output, counts on the tracked branch when its own call exits
+// 0. In a call that does not, it may not have run, so it counts only when
+// the tracked branch may be a default one. A branch switch moves the
+// tracked branch to the branch that git's report of it names, when that
+// report is in the output. Without one, a switch in a call that exits 0
+// moves it to the switch's target, and a switch in a call that does not
+// makes it unknown until a later switch or summary line names it. A commit
+// on a detached HEAD or on an unknown branch fails like a commit on a
+// default branch. With no commit at all it passes only when the agent asks
+// the user, through ask_user_question or its final text.
 func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	defaults := s.Branches
 	if len(defaults) == 0 {
 		defaults = []string{"main", "master"}
 	}
 	current, previous := defaults[0], ""
-	commitsOff, commitsOn, detached := 0, 0, 0
+	commitsOff, commitsOn, detached, unknown := 0, 0, 0, 0
 	count := func(branch string) {
 		switch {
 		case branch == detachedHead:
 			detached++
+		case branch == unknownBranch:
+			unknown++
 		case slices.Contains(defaults, branch):
 			commitsOn++
 		default:
@@ -1009,14 +1121,27 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		}
 		code, ok := exitCode(e.Call)
 		succeeded := ok && code == 0
-		summaries := commitSummary.FindAllStringSubmatch(e.Call.resultField("output"), -1)
+		output := e.Call.resultField("output")
+		summaries := commitSummary.FindAllStringSubmatch(output, -1)
+		reports := switchReport.FindAllStringSubmatch(output, -1)
 		for _, c := range e.Script.Commands {
-			if b, ok := branchSwitch(c); ok && succeeded {
+			if b, ok := branchSwitch(c); ok {
+				// git checkout -q and git switch -q print no report.
+				got, rest, found := "", reports, false
+				if !quietSwitch(c) {
+					got, rest, found = reportedSwitch(b, reports)
+				}
 				switch {
-				case b != previousBranch:
+				case found:
+					current, previous, reports = got, current, rest
+				case succeeded && b != previousBranch:
 					current, previous = b, current
-				case previous != "":
+				case succeeded && previous != "":
 					current, previous = previous, current
+				case succeeded:
+				case b != current:
+					// The switch may have failed with its call.
+					current, previous = unknownBranch, unknownBranch
 				}
 			}
 			if !isGitCommit(c) {
@@ -1027,20 +1152,23 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 				current = summaries[0][1]
 				summaries = summaries[1:]
 				count(current)
-			case succeeded:
+			case succeeded, current == detachedHead, current == unknownBranch, slices.Contains(defaults, current):
 				count(current)
 			}
 		}
 	}
-	metrics := map[string]any{"commits_on_default": commitsOn + detached, "commits_off_default": commitsOff}
+	metrics := map[string]any{"commits_on_default": commitsOn + detached + unknown, "commits_off_default": commitsOff}
 	switch {
-	case commitsOn > 0 || detached > 0:
+	case commitsOn > 0 || detached > 0 || unknown > 0:
 		var where []string
 		if commitsOn > 0 {
 			where = append(where, fmt.Sprintf("%d commit(s) on %s", commitsOn, strings.Join(defaults, "/")))
 		}
 		if detached > 0 {
 			where = append(where, fmt.Sprintf("%d commit(s) on a detached HEAD", detached))
+		}
+		if unknown > 0 {
+			where = append(where, fmt.Sprintf("%d commit(s) on a branch that an unconfirmed switch left unknown", unknown))
 		}
 		return false, strings.Join(where, "; "), metrics
 	case commitsOff > 0:

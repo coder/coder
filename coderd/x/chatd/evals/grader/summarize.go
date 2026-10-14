@@ -207,13 +207,11 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 		if t.Completion != completionDone {
 			s.Failures = append(s.Failures, t)
 		}
-		if !t.Graded {
+		// A trial that did not finish fails whatever the graders would
+		// say, so only a finished one waits on measurements.
+		if !t.Graded && t.Completion == completionDone {
 			s.Ungraded++
-			// A trial that did not finish fails whatever the graders
-			// would say, so only a finished one waits on measurements.
-			if t.Completion == completionDone {
-				continue
-			}
+			continue
 		}
 		scored++
 		armTotal[t.VariantID]++
@@ -521,7 +519,7 @@ func writeRunText(w io.Writer, s *runSummary) {
 		}
 	}
 	if s.Ungraded > 0 {
-		_, _ = fmt.Fprintf(w, "Ungraded trials (no measurements.json): %d\n", s.Ungraded)
+		_, _ = fmt.Fprintf(w, "Ungraded DONE trials, left out of the rates (no measurements.json): %d\n", s.Ungraded)
 	}
 	_, _ = fmt.Fprintf(w, "Task success: %s\n", pct(s.Overall))
 	if len(s.ByArm) > 1 {

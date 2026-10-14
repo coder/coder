@@ -78,7 +78,17 @@ export interface Check {
   max_limit?: number;
   process?: string;
   output?: string;
+  exit_code?: number;
 }
+
+/**
+ * Command pattern for running a script of the trial tree, such as
+ * python3 check.py, python3 -u ./check.py, or ./check.py. Command
+ * patterns match each command that an execute call runs (runsCommand in
+ * grader/checks.go), so reading the script with sed or cat does not count.
+ */
+export const runsScript = (file: string): string =>
+  `^(?:python[0-9.]* (?:-[WX] \\S+ |-\\S+ )*)?(?:\\S*/)?${file.replace(/\./g, "\\.")}(?:\\s|$)`;
 
 export interface Case {
   id: string;
