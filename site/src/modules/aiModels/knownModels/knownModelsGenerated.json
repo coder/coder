@@ -628,7 +628,7 @@
 			"displayName": "Gemini 4 Argon",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 32768,
+			"maxOutputTokens": 65536,
 			"inputCost": 2,
 			"outputCost": 10,
 			"cacheReadCost": 0.1
