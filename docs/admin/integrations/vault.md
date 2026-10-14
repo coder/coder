@@ -37,7 +37,7 @@ module "vault" {
 
 This module installs and authenticates the `vault` CLI in your Coder workspace.
 
-Users then can use the `vault` CLI to interact with Vault; for example, to fetch
+Users then can use the `vault` CLI to interact with Vault, such as to fetch
 a secret stored in the KV backend.
 
 ```sh

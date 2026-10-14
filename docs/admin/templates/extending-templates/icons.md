@@ -75,7 +75,7 @@ You can also embed an image by using data: URLs.
 
 - Only the https: and data: protocols are supported in icon URLs (not http:)
 
-- Be careful when using images hosted by someone else; they might disappear or
+- Be careful when using images hosted by someone else. They might disappear or
   change!
 
 - Be careful when using data: URLs. They can get rather large, and can

@@ -67,7 +67,7 @@ If you are providing TLS certificates directly to the control plane, either
    in the Helm Chart, or
    [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and
    [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line
-   options (these both take a comma separated list of files; list certificates
+   options (these both take a comma separated list of files, so list certificates
    and their respective keys in the same order).
 
 After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.

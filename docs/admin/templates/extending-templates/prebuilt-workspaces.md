@@ -74,7 +74,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. Each new prebuilt workspace is initially owned by an unprivileged system pseudo-user named `prebuilds`.
       - The `prebuilds` user belongs to the `Everyone` group (you can add it to additional groups if needed).
    1. Each prebuilt workspace receives a randomly generated name for identification.
-   1. The workspace is provisioned like a regular workspace; only its ownership distinguishes it as a prebuilt workspace.
+   1. The workspace is provisioned like a regular workspace. Only its ownership distinguishes it as a prebuilt workspace.
 
 1. Prebuilt workspaces start up and become eligible to be claimed by a developer.
 

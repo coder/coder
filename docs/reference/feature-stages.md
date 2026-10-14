@@ -150,7 +150,7 @@ The server applies the current rule to each request regardless of what the dashb
 If Coder can't read the rules, a stored rule is malformed, or a condition fails to compile or evaluate, the experiment is off for that decision, even if it is enabled at startup.
 You can't change this behavior.
 
-Rules gate features; they are not an authorization boundary.
+Rules gate features. They are not an authorization boundary.
 Don't use a rule to restrict access to data or actions.
 
 ## Beta

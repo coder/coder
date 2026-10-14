@@ -99,7 +99,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    }
    ```
 
-   Here;
+   Here:
 
    - `coder:7080` is the address of the Coder container on the Docker network.
    - `coder.example.com` is the domain name you're using for Coder.

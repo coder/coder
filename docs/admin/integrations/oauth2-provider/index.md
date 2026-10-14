@@ -113,7 +113,7 @@ curl -X PUT \
 
 `name` is required on every `PUT`, and `icon` is cleared if you leave it out.
 `redirect_uris` replaces the stored list when present and keeps it when omitted.
-`scope` is kept when omitted; refer to [Scopes](./scopes.md) for how to change it.
+`scope` is kept when omitted. Refer to [Scopes](./scopes.md) for how to change it.
 
 Add an optional `scope` field to restrict which scopes the application's clients may request.
 Refer to [Scopes](./scopes.md) for how the allowlist is applied and how to change it later.
@@ -128,11 +128,11 @@ curl -X POST \
 
 The response includes `client_secret_full`, the plaintext secret. Save it now: later reads of this application return only a truncated version.
 
-Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
+Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token. Refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
 
 ## Dynamic Client Registration
 
-Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**. An owner must turn it on before any client can self-register.
 
 Change the setting in the web UI:
 
@@ -171,7 +171,7 @@ curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
 
 Disabling only blocks *new* self-registrations. Applications that already
 registered while it was enabled keep authorizing and exchanging tokens
-normally; disabling does not revoke or otherwise affect them.
+normally. Disabling does not revoke or otherwise affect them.
 
 An application may list several `redirect_uris`, whether it registered itself or an admin created it.
 A request may present any of them, and the code it receives can only be exchanged with that same URI.

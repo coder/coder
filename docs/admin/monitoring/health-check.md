@@ -209,7 +209,7 @@ configured port.
 
 ### ESTUN02
 
-#### STUN returned different addresses; you may be behind a hard NAT
+#### STUN returned different addresses and you may be behind a hard NAT
 
 **Problem:** This is a warning shown when multiple attempts to determine our
 public IP address/port via STUN resulted in different `ip:port` combinations.
