@@ -53,10 +53,10 @@ const (
 	AttrMCPServersConnected = "mcp_servers_connected"
 	AttrMCPServersFailed    = "mcp_servers_failed"
 
-	// Compaction summary request attributes describe the last summary
-	// request sent.
-	AttrSummaryRequests             = "summary_requests"
-	AttrSummaryRequest              = "summary_request"
+	// Compaction summary request attributes count the summary requests
+	// sent and describe the last one.
+	AttrSummaryRequestsSent         = "summary_requests_sent"
+	AttrSummaryRequestKind          = "summary_request_kind"
 	AttrSummaryEstimatedInputTokens = "summary_estimated_input_tokens"
 	AttrSummaryMaxOutputTokens      = "summary_max_output_tokens"
 	AttrSummaryToolCount            = "summary_tool_count"

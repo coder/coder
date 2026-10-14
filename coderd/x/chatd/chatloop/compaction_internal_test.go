@@ -25,8 +25,10 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -441,6 +443,7 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 		name            string
 		toolDefinitions []fantasy.Tool
 		err             error
+		rejected        []string
 	}{
 		{
 			name:            "unrelated bad request",
@@ -464,8 +467,9 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 			err:             xerrors.New("context window"),
 		},
 		{
-			name: "no tools to drop",
-			err:  contextTooLarge,
+			name:     "no tools to drop",
+			err:      contextTooLarge,
+			rejected: []string{"full"},
 		},
 	}
 	for _, tc := range cases {
@@ -481,16 +485,19 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 					return nil, tc.err
 				},
 			}
+			logSink := testutil.NewFakeSink(t)
 
 			_, _, err := generateCompactionSummary(context.Background(), model,
 				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 				CompactionOptions{
 					SummaryPrompt:   "summarize",
 					ToolDefinitions: tc.toolDefinitions,
+					Logger:          logSink.Logger(),
 				},
 			)
 			require.ErrorIs(t, err, tc.err)
 			require.Equal(t, 1, calls)
+			require.Equal(t, tc.rejected, rejectedSummaryRequestKinds(t, logSink))
 		})
 	}
 }
@@ -565,18 +572,14 @@ func TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge(t *testing.
 			return summaryTextStream(), nil
 		},
 	}
-	recorder := tracetest.NewSpanRecorder()
-	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() {
-		require.NoError(t, tracerProvider.Shutdown(context.Background()))
-	})
-	ctx, span := tracerProvider.Tracer("test").Start(context.Background(), "compaction")
+	ctx, spanAttr := compactionSpan(t)
+	logSink := testutil.NewFakeSink(t)
 
 	summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
 		SummaryPrompt:   "summarize",
 		ToolDefinitions: toolDefinitions,
+		Logger:          logSink.Logger(),
 	})
-	span.End()
 	require.NoError(t, err)
 	require.Equal(t, "summary", summary)
 	require.Len(t, calls, 3)
@@ -591,19 +594,98 @@ func TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge(t *testing.
 	elidedHistory := calls[2].Prompt[:len(calls[2].Prompt)-1]
 	require.LessOrEqual(t, estimateMessagesTokens(elidedHistory), estimateMessagesTokens(messages)/2)
 	require.Equal(t, toolResultHistory(large, "small result"), messages, "the caller's messages must not change")
+	require.Equal(t, []string{"full", "without_tools"}, rejectedSummaryRequestKinds(t, logSink))
 
-	ended := recorder.Ended()
-	require.Len(t, ended, 1)
-	attrs := attribute.NewSet(ended[0].Attributes()...)
-	attr := func(key attribute.Key) attribute.Value {
+	require.EqualValues(t, 3, spanAttr(AttrSummaryRequestsSent).AsInt64())
+	require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
+	require.Zero(t, spanAttr(AttrSummaryToolCount).AsInt64())
+	require.EqualValues(t, len(large)-len(texts[0]), spanAttr(AttrSummaryElidedBytes).AsInt64())
+}
+
+// TestGenerateCompactionSummaryElidesToFitSummaryWindow covers a history
+// larger than the summary model's window on a provider that rejects input
+// plus max_tokens above the window: the elided request must fit the
+// window rather than half the history, and its cap the room left.
+func TestGenerateCompactionSummaryElidesToFitSummaryWindow(t *testing.T) {
+	t.Parallel()
+
+	const window = 9_000
+	messages := toolResultHistory(strings.Repeat("a", 60_000))
+	var calls []fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			calls = append(calls, call)
+			if estimateMessagesTokens(call.Prompt)+ptr.NilToEmpty(call.MaxOutputTokens) > window {
+				return nil, contextWindowError()
+			}
+			return summaryTextStream(), nil
+		},
+	}
+	ctx, spanAttr := compactionSpan(t)
+
+	summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
+		SummaryPrompt:        "summarize",
+		SummaryCall:          fantasy.Call{MaxOutputTokens: ptr.Ref(int64(8_000))},
+		ToolDefinitions:      []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+		summaryWindow:        window,
+		estimatedInputTokens: estimateMessagesTokens(messages) + estimateTokens(len("summarize")),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Len(t, calls, 3)
+	require.Nil(t, calls[2].Tools)
+	elidedHistory := estimateMessagesTokens(calls[2].Prompt[:len(calls[2].Prompt)-1])
+	require.LessOrEqual(t, elidedHistory, int64(window/2))
+	elidedInput := elidedHistory + estimateTokens(len("summarize"))
+	require.Equal(t, window-elidedInput, *calls[2].MaxOutputTokens)
+
+	require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
+	require.Equal(t, elidedInput, spanAttr(AttrSummaryEstimatedInputTokens).AsInt64())
+	require.Equal(t, window-elidedInput, spanAttr(AttrSummaryMaxOutputTokens).AsInt64())
+}
+
+// compactionSpan returns a context carrying a recording span and a lookup
+// of the span's attributes. The first lookup ends the span.
+func compactionSpan(t *testing.T) (context.Context, func(attribute.Key) attribute.Value) {
+	t.Helper()
+
+	recorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() {
+		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+	})
+	ctx, span := tracerProvider.Tracer("test").Start(context.Background(), "compaction")
+	return ctx, func(key attribute.Key) attribute.Value {
+		t.Helper()
+		span.End()
+		ended := recorder.Ended()
+		require.Len(t, ended, 1)
+		attrs := attribute.NewSet(ended[0].Attributes()...)
 		value, ok := attrs.Value(key)
 		require.True(t, ok, "missing span attribute %s", key)
 		return value
 	}
-	require.EqualValues(t, 3, attr(AttrSummaryRequests).AsInt64())
-	require.Equal(t, summaryRequestElided, attr(AttrSummaryRequest).AsString())
-	require.Zero(t, attr(AttrSummaryToolCount).AsInt64())
-	require.EqualValues(t, len(large)-len(texts[0]), attr(AttrSummaryElidedBytes).AsInt64())
+}
+
+// rejectedSummaryRequestKinds returns the kind of each summary request the
+// sink recorded as rejected for its size.
+func rejectedSummaryRequestKinds(t *testing.T, sink *testutil.FakeSink) []string {
+	t.Helper()
+
+	var kinds []string
+	for _, entry := range sink.Entries(func(entry slog.SinkEntry) bool {
+		return entry.Message == "compaction summary request rejected for its size"
+	}) {
+		require.Equal(t, slog.LevelWarn, entry.Level)
+		for _, field := range entry.Fields {
+			if field.Name == AttrSummaryRequestKind {
+				kinds = append(kinds, fmt.Sprint(field.Value))
+			}
+		}
+	}
+	return kinds
 }
 
 // TestGenerateCompactionSummaryReportsConversationTooLarge covers a history
@@ -623,6 +705,7 @@ func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
 			return nil, rejection
 		},
 	}
+	logSink := testutil.NewFakeSink(t)
 
 	_, _, err := generateCompactionSummary(context.Background(), model,
 		toolResultHistory(strings.Repeat("a", 60_000)),
@@ -630,10 +713,12 @@ func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
 			SummaryPrompt:    "summarize",
 			ResolvedProvider: "openai",
 			ToolDefinitions:  []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			Logger:           logSink.Logger(),
 		},
 	)
 	require.ErrorIs(t, err, rejection)
 	require.Equal(t, 3, calls)
+	require.Equal(t, []string{"full", "without_tools", "elided"}, rejectedSummaryRequestKinds(t, logSink))
 	classified := chaterror.Classify(err)
 	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 	require.Equal(t, compactionContextTooLargeMessage, classified.Message)
@@ -808,6 +893,15 @@ func TestIsContextTooLargeError(t *testing.T) {
 				Title:          "stream error",
 				Message:        "context window service unavailable",
 				TransientError: true,
+			},
+			want: false,
+		},
+		{
+			name: "unrelated in-stream error",
+			err: &fantasy.ProviderError{
+				Title:        "stream error",
+				Message:      "The server had an error while processing your request.",
+				ResponseBody: []byte(`{"error":{"code":"server_error","message":"The server had an error while processing your request.","type":"server_error"}}`),
 			},
 			want: false,
 		},
@@ -1131,23 +1225,25 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 // summary output cap bound: sum-enforcing providers reject requests
 // whose input plus max_tokens exceeds the context window, so the cap
 // shrinks to the remaining window minus the trigger step's output, the
-// trailing tokens, and the appended summary prompt (ceil(bytes/3)
+// trailing messages, and the appended summary prompt (ceil(bytes/3)
 // tokens), and degenerate cases stay unchanged.
 func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name                string
-		contextLimit        int64
-		inputTokens         int64
-		outputTokens        int64
-		trailingTokens      int64
+		name         string
+		contextLimit int64
+		inputTokens  int64
+		outputTokens int64
+		// trailing is the text of a message after the trigger step's
+		// assistant message.
+		trailing            string
 		summaryContextLimit int64
 		cap                 int64
 		wantCap             int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
-		{name: "reserves trailing tokens", contextLimit: 100, inputTokens: 72, trailingTokens: 10, cap: 64_000, wantCap: 16},
+		{name: "reserves trailing messages", contextLimit: 100, inputTokens: 72, trailing: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
 		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryContextLimit: 160_000, cap: 64_000, wantCap: 9998},
 		{name: "uses a larger summary window", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryContextLimit: 1_000, cap: 64_000, wantCap: 913},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
@@ -1172,17 +1268,24 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 					), nil
 				},
 			}
+			// StepUsage measures every message up to the assistant one.
+			messages := []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+				textMessage(fantasy.MessageRoleAssistant, "hi"),
+			}
+			if tc.trailing != "" {
+				messages = append(messages, textMessage(fantasy.MessageRoleUser, tc.trailing))
+			}
 			capTokens := tc.cap
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
 				Model:               model,
-				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Messages:            messages,
 				Clock:               quartz.NewMock(t),
 				ThresholdPercent:    70,
 				ContextLimit:        tc.contextLimit,
 				SummaryContextLimit: tc.summaryContextLimit,
 				SummaryPrompt:       "prompt",
 				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				TrailingTokens:      tc.trailingTokens,
 				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
@@ -1245,7 +1348,8 @@ func TestGenerateCompaction_CountsTrailingTokens(t *testing.T) {
 // TestGenerateCompaction_ElidesFirstNearTheWindow verifies that when the
 // full summary request would leave too little of the window for the
 // summary, the elided request goes first with a cap that fits the window,
-// and the full request runs only when nothing can be elided.
+// the full request runs only when nothing can be elided, and a rejected
+// elided request ends the attempts.
 func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 	t.Parallel()
 
@@ -1256,7 +1360,9 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 	toolDefinitions := []fantasy.Tool{
 		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
 	}
-	summarize := func(t *testing.T, messages []fantasy.Message) []fantasy.Call {
+	// summarize answers every summary request with rejection, or with a
+	// summary when rejection is nil.
+	summarize := func(t *testing.T, messages []fantasy.Message, rejection error) ([]fantasy.Call, error) {
 		t.Helper()
 		var calls []fantasy.Call
 		model := &chattest.FakeModel{
@@ -1264,6 +1370,9 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 			ModelName:    "fake-model",
 			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 				calls = append(calls, call)
+				if rejection != nil {
+					return nil, rejection
+				}
 				return summaryTextStream(), nil
 			},
 		}
@@ -1275,21 +1384,24 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 			ThresholdPercent: 70,
 			ContextLimit:     contextLimit,
 			SummaryPrompt:    "summarize",
-			// The full request's input, about 20,103 tokens, leaves 4,897
-			// tokens of the window for the summary.
+			// The trigger step's 20,100 tokens, the trailing tool result,
+			// and the summary prompt leave under 16,000 tokens of the
+			// window for the summary.
 			StepUsage:       fantasy.Usage{InputTokens: 20_000, OutputTokens: 100},
 			SummaryCall:     fantasy.Call{MaxOutputTokens: &capTokens},
 			ToolDefinitions: toolDefinitions,
 		})
-		require.NoError(t, err)
-		require.Equal(t, "summary", result.SummaryReport)
-		return calls
+		if err == nil {
+			require.Equal(t, "summary", result.SummaryReport)
+		}
+		return calls, err
 	}
 
 	t.Run("elides before the full request", func(t *testing.T) {
 		t.Parallel()
 
-		calls := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)))
+		calls, err := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)), nil)
+		require.NoError(t, err)
 		require.Len(t, calls, 1)
 		require.Nil(t, calls[0].Tools)
 		require.Contains(t, toolResultTexts(calls[0].Prompt)[0], "Coder truncated")
@@ -1301,12 +1413,25 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 	t.Run("sends the full request when nothing can be elided", func(t *testing.T) {
 		t.Parallel()
 
-		calls := summarize(t, toolResultHistory("small result"))
+		calls, err := summarize(t, toolResultHistory("small result"), nil)
+		require.NoError(t, err)
 		require.Len(t, calls, 1)
 		require.Equal(t, toolDefinitions, calls[0].Tools)
 		require.Equal(t, []string{"small result"}, toolResultTexts(calls[0].Prompt))
 		require.NotNil(t, calls[0].MaxOutputTokens)
-		require.Equal(t, int64(4_897), *calls[0].MaxOutputTokens)
+		// 25,000 minus 20,100 for the step, 4 for the trailing result,
+		// and 3 for the summary prompt.
+		require.Equal(t, int64(4_893), *calls[0].MaxOutputTokens)
+	})
+
+	t.Run("stops when the elided request is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		calls, err := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)), contextWindowError())
+		require.Error(t, err)
+		require.Equal(t, codersdk.ChatErrorKindConfig, chaterror.Classify(err).Kind)
+		require.Len(t, calls, 1, "the full requests are larger than the rejected elided one")
+		require.Nil(t, calls[0].Tools)
 	})
 }
 

@@ -218,10 +218,11 @@ type GenerateCompactionOptions struct {
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	// TrailingTokens estimates the messages after the trigger step, which
-	// StepUsage does not count (see EstimateTrailingTokens). Callers pass it
-	// precomputed so the threshold gate here matches the caller's own
-	// compaction decision even when Messages is rewritten for an override
-	// model.
+	// StepUsage does not count (see EstimateTrailingTokens). It includes
+	// pending user messages that Messages excludes because they follow the
+	// compacted history. Callers pass it precomputed so the threshold gate
+	// here matches the caller's own compaction decision even when Messages
+	// is rewritten for an override model.
 	TrailingTokens int64
 
 	// Force skips the threshold gate (including the threshold=100
@@ -271,7 +272,7 @@ type GenerateCompactionOptions struct {
 	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()
 
-	// Logger records summary requests that fail.
+	// Logger records summary requests the model rejects for their size.
 	Logger slog.Logger
 }
 

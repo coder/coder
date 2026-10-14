@@ -890,7 +890,9 @@ func (server *Server) prepareGeneration(
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionTrailingTokens := chatloop.EstimateTrailingTokens(compactionPromptMessages)
+	// The full prompt includes the pending user messages, which the next
+	// model call sends after the compacted history.
+	compactionTrailingTokens := chatloop.EstimateTrailingTokens(prompt)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionTrailingTokens, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.

@@ -667,8 +667,9 @@ func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent
 	if thresholdPercent <= 0 {
 		return false
 	}
-	// The step's own prompt shows whether compaction shrank the history;
-	// messages added after it are new content.
+	// Only the step's measured prompt shows whether compaction shrank the
+	// history. Messages added after the step count toward the next step's
+	// own compaction check.
 	return shouldCompactPromptUsage(usageFromMessage(msg), 0, triggerContextLimit, thresholdPercent)
 }
 

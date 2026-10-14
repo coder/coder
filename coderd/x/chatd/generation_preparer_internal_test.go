@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -186,6 +187,97 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
 	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+}
+
+// TestPrepareGenerationCountsPendingUserMessages verifies that the
+// compaction trigger counts the pending user messages the next model call
+// sends after the history, although the summary request excludes them.
+func TestPrepareGenerationCountsPendingUserMessages(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	// Compaction triggers at 89,600 tokens.
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "gpt-4o-mini",
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID:       org.ID,
+		ContextLimit:         128_000,
+		CompressionThreshold: 70,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+
+	cases := []struct {
+		name         string
+		pending      string
+		wantRequired bool
+	}{
+		{name: "small pending message", pending: "continue"},
+		// About 6,800 tokens on top of the 85,000 the last step measured.
+		{name: "large pending message", pending: strings.Repeat("a", 20<<10), wantRequired: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := chatdTestContext(t)
+			message := func(role database.ChatMessageRole, text string) chatstate.Message {
+				msg := chatstate.Message{
+					Role:           role,
+					Content:        mustMarshalText(t, text),
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					ContentVersion: chatprompt.CurrentContentVersion,
+				}
+				if role == database.ChatMessageRoleUser {
+					msg.CreatedBy = uuid.NullUUID{UUID: user.ID, Valid: true}
+				}
+				return msg
+			}
+			answer := message(database.ChatMessageRoleAssistant, "hi")
+			answer.InputTokens = sql.NullInt64{Int64: 85_000, Valid: true}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             tc.name,
+				ClientType:        database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{
+					message(database.ChatMessageRoleUser, "hello"),
+					answer,
+					message(database.ChatMessageRoleUser, tc.pending),
+				},
+			})
+			require.NoError(t, err)
+
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+				Chat:            created.Chat,
+				Messages:        created.InitialMessages,
+				TurnExperiments: &turnExperimentDecisions{},
+			})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+			require.NotNil(t, prepared.Compaction)
+			require.Len(t, prepared.Compaction.PendingUserRows, 1, "the summary request excludes the pending message")
+			require.Equal(t, tc.wantRequired, prepared.Compaction.Required)
+		})
+	}
 }
 
 func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
