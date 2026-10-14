@@ -1660,8 +1660,8 @@ func (api *API) InterruptChatAsUser(ctx context.Context, userID, chatID uuid.UUI
 	return api.interruptChat(ctx, chat)
 }
 
-// UpdateChatAsUser updates a chat as userID with the validation, the errors,
-// and the audit entry of PATCH /api/v2/chats/{chat}. See CreateChatAsUser.
+// UpdateChatAsUser updates a chat as userID with PATCH /api/v2/chats/{chat}
+// validation, errors, and auditing. See CreateChatAsUser.
 func (api *API) UpdateChatAsUser(ctx context.Context, userID, chatID uuid.UUID, req codersdk.UpdateChatRequest) error {
 	ctx, chat, err := api.actAsUserOnChat(ctx, userID, chatID)
 	if err != nil {
@@ -2654,9 +2654,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// checkUpdateChat returns an error when the caller may not update chat. It
-// runs before the request body is read. ctx must carry the RBAC actor of the
-// caller. Every error implements httperror.Responder.
+// ctx must carry the caller's RBAC actor. Errors implement httperror.Responder.
 func (api *API) checkUpdateChat(ctx context.Context, chat database.Chat) error {
 	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUpdate, chat.RBACObject()) {
 		return httperror.ErrResourceNotFound
@@ -2664,11 +2662,8 @@ func (api *API) checkUpdateChat(ctx context.Context, chat database.Chat) error {
 	return api.chatDaemonError()
 }
 
-// updateChat validates req and applies it to chat as callerID. The caller
-// must call checkUpdateChat first. ctx must carry the RBAC actor of callerID.
-// It returns the updated chat for the audit entry. Every error implements
-// httperror.Responder with the response of PATCH /api/v2/chats/{chat}; write
-// it with writeChatError.
+// The caller must call checkUpdateChat first and supply callerID's RBAC actor
+// in ctx. Errors implement httperror.Responder.
 func (api *API) updateChat(
 	ctx context.Context,
 	callerID uuid.UUID,
@@ -2935,9 +2930,6 @@ func (api *API) updateChat(
 	return refreshed, nil
 }
 
-// chatUpdateError returns the response error of PATCH /api/v2/chats/{chat}
-// for a failed write: 404 when the chat does not exist, else a 500 with
-// message.
 func chatUpdateError(err error, message string) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return httperror.WrapResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse, err)
