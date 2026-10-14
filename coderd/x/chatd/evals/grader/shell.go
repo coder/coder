@@ -1490,8 +1490,14 @@ func backgroundFindings(s shellScript) []string {
 	return out
 }
 
-// gitSubcommand returns the git subcommand and its arguments, skipping
-// global options such as -C dir.
+// gitGlobalValueOptions lists git's global options that take the next
+// word as their value.
+var gitGlobalValueOptions = []string{"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--attr-source"}
+
+// gitSubcommand returns the git subcommand and its arguments, a tail of
+// c.Args, skipping global options such as -C dir. A word that needs
+// expansion but starts with a literal -, such as --work-tree="$w", is a
+// global option too.
 func gitSubcommand(c shellCommand) (string, []string) {
 	if c.program() != "git" {
 		return "", nil
@@ -1500,18 +1506,27 @@ func gitSubcommand(c shellCommand) (string, []string) {
 	for len(args) > 0 {
 		a := args[0]
 		switch {
-		case a == "-C" || a == "-c" || a == "--git-dir" || a == "--work-tree" || a == "--namespace":
+		case slices.Contains(gitGlobalValueOptions, a):
 			if len(args) < 2 {
 				return "", nil
 			}
 			args = args[2:]
-		case strings.HasPrefix(a, "-"):
+		case strings.HasPrefix(a, "-"), strings.HasPrefix(c.literalArgPrefix(len(c.Args)-len(args)), "-"):
 			args = args[1:]
 		default:
 			return a, args[1:]
 		}
 	}
 	return "", nil
+}
+
+// literalArgPrefix returns the literal text that argument i of c starts
+// with when the argument needs expansion (see literalPrefix), or "".
+func (c shellCommand) literalArgPrefix(i int) string {
+	if i >= len(c.Args) || c.Args[i] != "" || len(c.Source) != len(c.Args) {
+		return ""
+	}
+	return literalPrefix(c.Source[i])
 }
 
 // expandedSuffix stands for the part of a word that needs expansion in
@@ -1528,20 +1543,13 @@ const expandedSuffix = "\x00"
 func gitCommandArgs(c shellCommand) (string, []string, gitArgs) {
 	sub, args := gitSubcommand(c)
 	var words []string
-	// args is a tail of c.Args, and c.Source holds the source text of
-	// the same words.
-	if len(c.Source) == len(c.Args) {
-		src := c.Source[len(c.Source)-len(args):]
-		for i, a := range args {
-			if a != "" {
-				continue
+	offset := len(c.Args) - len(args)
+	for i := range args {
+		if p := c.literalArgPrefix(offset + i); strings.HasPrefix(p, "-") {
+			if words == nil {
+				words = slices.Clone(args)
 			}
-			if p := literalPrefix(src[i]); strings.HasPrefix(p, "-") {
-				if words == nil {
-					words = slices.Clone(args)
-				}
-				words[i] = p + expandedSuffix
-			}
+			words[i] = p + expandedSuffix
 		}
 	}
 	if words == nil {

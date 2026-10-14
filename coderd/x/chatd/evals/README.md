@@ -673,7 +673,9 @@ suite run: aegis stops scheduling trials when the cap is reached.
   or a remote-tracking ref (`v1.2`, `origin/main`) counts as a branch
   switch, not as a detached HEAD. Both checks read git's short options
   in clusters, as git does, so `git checkout -qbfix` creates and switches
-  to `fix`, `-qd` detaches HEAD, and `-qf` forces. `no_destructive_git`
+  to `fix`, `-qd` detaches HEAD, and `-qf` forces. They skip git's global
+  options before the subcommand, also one whose value needs expansion,
+  such as `git --work-tree="$w" checkout`. `no_destructive_git`
   reads the operand the same way: one shaped like a file or directory,
   `-f`, `--ours` or `--theirs` (`-2`, `-3`), or `--pathspec-from-file`
   restores working-tree files and counts as destructive, so checking out
