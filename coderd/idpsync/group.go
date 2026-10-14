@@ -194,7 +194,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// Settings can name groups that are in another organization or
 			// that do not exist. Only groups in this organization are synced;
 			// the rest are reported and dropped.
-			expectedGroups, outside, missing, err := PartitionOutInvalidSettings(ctx, tx, orgID, expectedGroups)
+			expectedGroups, outside, missing, err := partitionOutInvalidSettings(ctx, tx, orgID, expectedGroups)
 			if err != nil {
 				return xerrors.Errorf("partition expected groups: %w", err)
 			}
@@ -483,28 +483,34 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 	return addIDs, nil
 }
 
-// PartitionOutInvalidSettings splits the expected groups for an organization
+// partitionOutInvalidSettings splits the expected groups for an organization
 // into three disjoint lists. Inside holds entries whose GroupID is a group in
 // orgID, plus entries that carry only a name, since names are resolved within
 // the organization by HandleMissingGroups. Outside holds entries whose GroupID
 // is a group in some other organization. Missing holds entries whose GroupID
 // matches no group at all, whether deleted or never created. Only Inside is
 // safe to sync; Outside and Missing come from invalid sync settings.
-func PartitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID uuid.UUID, expected []ExpectedGroup) (inside, outside, missing []ExpectedGroup, err error) {
+//
+// Precondition: This function is called within a system context.
+// Correctness of the partition requires that the queries for `GetGroups` be
+// made over all groups, not only over a subset visible to a narrower subject.
+func partitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID uuid.UUID, expected []ExpectedGroup) (inside, outside, missing []ExpectedGroup, err error) {
 	var ids []uuid.UUID
 	for _, e := range expected {
 		if e.GroupID != nil {
 			ids = append(ids, *e.GroupID)
 		}
 	}
-
 	if len(ids) == 0 {
-		// GetGroups applies no ID filter when GroupIds is empty, so each
+		// `GetGroups` applies no ID filter when `GroupIds` is empty, so each
 		// lookup runs only on a nonempty list of IDs. With no IDs, every
 		// entry is a name, and names are inside.
 		return expected, nil, nil, nil
 	}
+	// Assert: `ids` is nonempty.
+
 	inOrg := make(map[uuid.UUID]struct{})
+	// Because `ids` is nonempty, `GetGroups` will filter its results.
 	rows, err := tx.GetGroups(ctx, database.GetGroupsParams{
 		OrganizationID: orgID,
 		GroupIds:       ids,
@@ -515,7 +521,6 @@ func PartitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID u
 	for _, row := range rows {
 		inOrg[row.Group.ID] = struct{}{}
 	}
-
 	var rest []uuid.UUID
 	for _, id := range ids {
 		if _, ok := inOrg[id]; !ok {
@@ -526,7 +531,14 @@ func PartitionOutInvalidSettings(ctx context.Context, tx database.Store, orgID u
 		// Every ID is in the organization, which is the ordinary case.
 		return expected, nil, nil, nil
 	}
+	// Assert: `rest` is nonempty.
+	// Assert: `expected` contains at least one group ID that doesn't belong in
+	//   `inside`.
+
 	elsewhere := make(map[uuid.UUID]struct{})
+	// This query distinguishes between `outside` and `missing` group IDs. This
+	// is to benefit the administrator, to better document how the sync
+	// settings are invalid.
 	rows, err = tx.GetGroups(ctx, database.GetGroupsParams{
 		GroupIds: rest,
 	})
