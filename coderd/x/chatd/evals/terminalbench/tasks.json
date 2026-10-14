@@ -7,22 +7,27 @@
   "tasks": [
     {
       "id": "regex-log",
+      "image": "alexgshaw/regex-log@sha256:90101b2e815323a8da20528a1439bebc407eb9761c9c68a3d557730856c878e9",
       "notes": "Write one regex that matches dates on lines with an IPv4 address. Pure text work, no installs."
     },
     {
       "id": "constraints-scheduling",
+      "image": "alexgshaw/constraints-scheduling@sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
       "notes": "Find a meeting slot from calendar files and write an ICS file. Python stdlib is enough."
     },
     {
       "id": "db-wal-recovery",
+      "image": "alexgshaw/db-wal-recovery@sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
       "notes": "Recover rows from a SQLite database and its write-ahead log into JSON. Binary seed files exercise the inline seed and capture round trip."
     },
     {
       "id": "sqlite-db-truncate",
+      "image": "alexgshaw/sqlite-db-truncate@sha256:aabac93c93bd1f310e6a6fb893911d7735026ed18491c72133c9196a09092ca4",
       "notes": "Salvage rows from a truncated SQLite file. Binary seed file."
     },
     {
       "id": "log-summary-date-ranges",
+      "image": "alexgshaw/log-summary-date-ranges@sha256:cbeb6ba905c2fec294f16cd5e16e3ea7f2e04d38ac2484d51a11de262aa7dc51",
       "notes": "Summarize log severities over date ranges into a CSV. The image build generates /app/logs, so the import copies it from the image."
     }
   ],

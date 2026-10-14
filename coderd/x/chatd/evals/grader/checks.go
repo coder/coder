@@ -440,17 +440,20 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 
 // commandRan reports whether the shell reached cmd in execute call c, as
 // far as c's result shows: chatd started the call's process, the output
-// does not report cmd's program missing (commandNotFound), and no guard of
-// cmd (see shellCommand.Guards) visibly failed. A guard fails visibly when
-// the output reports its program, or a program it wraps, missing, or, for
-// a cd, pushd, source, or . of a literal operand, reports that the shell
-// could not use it (operandFailed), as in cd missing && pytest -q. A
-// guarded command also did not run when its call exited with a failure and
-// printed nothing: a guard such as false or test -f fails without a word,
-// while the test runs and scripts that checks look for print their
-// results. A guard that fails silently in a call that prints something
-// else, such as test -f x in echo start; test -f x && pytest, counts as
-// succeeded, and so does a cd whose directory needs expansion.
+// does not report cmd's program missing (commandNotFound), no guard of
+// cmd (see shellCommand.Guards) visibly failed (failedVisibly), as in
+// cd missing && pytest -q, and one command of each fail set of cmd
+// visibly failed, as in pytest -q || python3 -m unittest when pytest is
+// missing. A guarded command also did not run when its call printed
+// nothing and exited with a failure, or when an if's then branch holds
+// it, since an if whose condition fails exits 0: a guard such as false or
+// test -f fails without a word, while the test runs and scripts that
+// checks look for print their results. A guard that fails silently in a
+// call that prints something else, such as test -f x in
+// echo start; test -f x && pytest, counts as succeeded, and so does a cd
+// whose directory needs expansion. The right side of an || list whose
+// left side fails silently, as in test -f x || pytest, counts as not
+// reached.
 func commandRan(cmd shellCommand, c toolCall) bool {
 	if !executeStarted(c) {
 		return false
@@ -459,15 +462,35 @@ func commandRan(cmd shellCommand, c toolCall) bool {
 	if commandNotFound(firstWord(cmd), output) {
 		return false
 	}
-	if code, ok := exitCode(c); ok && code > 0 && len(cmd.Guards) > 0 && strings.TrimSpace(output) == "" {
+	if len(cmd.Guards) > 0 && strings.TrimSpace(output) == "" {
+		if code, ok := exitCode(c); cmd.Conditional || (ok && code > 0) {
+			return false
+		}
+	}
+	failed := func(g shellCommand) bool { return failedVisibly(g, output) }
+	if slices.ContainsFunc(cmd.Guards, failed) {
 		return false
 	}
-	return !slices.ContainsFunc(cmd.Guards, func(g shellCommand) bool {
-		missing := slices.ContainsFunc(append([]shellCommand{g}, wrappedCommands(g)...), func(w shellCommand) bool {
-			return commandNotFound(firstWord(w), output)
-		})
-		return missing || operandFailed(g, output)
+	for _, set := range cmd.FailGuards {
+		if !slices.ContainsFunc(set, failed) {
+			return false
+		}
+	}
+	return true
+}
+
+// failedVisibly reports whether output shows that command c failed: c is
+// false, or the output reports c's program, or a program c wraps, missing
+// (commandNotFound), or reports that a cd, pushd, source, or . of c could
+// not use its literal operand (operandFailed).
+func failedVisibly(c shellCommand, output string) bool {
+	if firstWord(c) == "false" {
+		return true
+	}
+	missing := slices.ContainsFunc(append([]shellCommand{c}, wrappedCommands(c)...), func(w shellCommand) bool {
+		return commandNotFound(firstWord(w), output)
 	})
+	return missing || operandFailed(c, output)
 }
 
 // executeStarted reports whether chatd started the process of execute
@@ -511,9 +534,11 @@ func commandNotFound(word, output string) bool {
 // sh: 1: .: cannot open env.sh: No such file), bash
 // (bash: line 1: cd: missing: No such file or directory, and
 // bash: line 1: env.sh: No such file or directory for source), or zsh
-// (zsh:cd:1: no such file or directory: missing). The report does not say
-// which command printed it, so one from another command about the same
-// operand counts too.
+// (zsh:cd:1: no such file or directory: missing). The shells report an
+// operand under ~/ after expanding it, so ~/missing matches a report of
+// any absolute path that ends in /missing. The report does not say which
+// command printed it, so one from another command about the same operand
+// counts too.
 func operandFailed(c shellCommand, output string) bool {
 	name := firstWord(c)
 	if name != "cd" && name != "pushd" && name != "source" && name != "." {
@@ -537,6 +562,9 @@ func operandFailed(c shellCommand, output string) bool {
 		return false
 	}
 	q, n := regexp.QuoteMeta(operand), regexp.QuoteMeta(name)
+	if rest, ok := strings.CutPrefix(operand, "~/"); ok {
+		q = `(?:~|/[^\n]*)/` + regexp.QuoteMeta(rest)
+	}
 	reports := `(?m)(?:^|[\s:])` + n + `(?::\d+)?: (?:can't cd to ` + q + `|cannot open ` + q + `(?:: .*)?` +
 		`|` + q + `: (?:No such file or directory|Not a directory|Permission denied)` +
 		`|(?:no such file or directory|not a directory|permission denied): ` + q + `)$`
@@ -617,10 +645,15 @@ func runsGitCheckout(s shellScript) bool {
 
 // createsBranch reports whether a git checkout argument creates a branch:
 // -b, -B, or --orphan, alone or with the branch name attached, as in
-// -bfix or --orphan=fix.
+// -bfix or --orphan=fix, or -b or -B after flags that take no value, as in
+// -qb fix.
 func createsBranch(a string) bool {
-	return strings.HasPrefix(a, "-b") || strings.HasPrefix(a, "-B") || a == "--orphan" || strings.HasPrefix(a, "--orphan=")
+	return branchOption.MatchString(a) || a == "--orphan" || strings.HasPrefix(a, "--orphan=")
 }
+
+// branchOption matches a git checkout short-option word that sets -b or
+// -B: git reads -qbfix as -q -b fix.
+var branchOption = regexp.MustCompile(`^-[dflmpq]*[bB]`)
 
 // backgroundID returns the process id an execute call left running:
 // background_process_id on a timeout, or process_id with
@@ -1088,17 +1121,13 @@ func statusLine(code int) *regexp.Regexp {
 	return regexp.MustCompile(`(?im)^\W*(?:.*\b(?:exit|status|code|rc|returned|failed)\w*(?:\W+(?:with|was|is))?\W*)?` + strconv.Itoa(code) + `\W*$`)
 }
 
-// statusReference matches shell text that expands an exit status: $?,
-// ${?}, or PIPESTATUS.
-var statusReference = regexp.MustCompile(`\$\?|\$\{\?\}|PIPESTATUS`)
-
 // exitStatusShown reports whether a call that ran in the foreground shows
 // exit status code: as its own exit code, or, when its command expands an
-// exit status, as a line of its output that status matches. A command
-// such as python3 check.py; echo "exit=$?" exits 0 and prints the status
-// instead. A line that a program prints on its own is not a status unless
-// the command also expands one, since the output does not say which
-// command printed which line.
+// exit status (expandsStatus), as a line of its output that status
+// matches. A command such as python3 check.py; echo "exit=$?" exits 0 and
+// prints the status instead. A line that a program prints on its own is
+// not a status unless the command also expands one, since the output does
+// not say which command printed which line.
 func exitStatusShown(c toolCall, code int, status *regexp.Regexp) bool {
 	if fieldTrue(c.Args, "run_in_background") || fieldTrue(c.Result, "backgrounded") {
 		return false
@@ -1106,7 +1135,16 @@ func exitStatusShown(c toolCall, code int, status *regexp.Regexp) bool {
 	if got, ok := exitCode(c); ok && got == code {
 		return true
 	}
-	return statusReference.MatchString(c.command()) && status.MatchString(c.resultField("output"))
+	return expandsStatus(c.command()) && status.MatchString(c.resultField("output"))
+}
+
+// expandsStatus reports whether the shell expands an exit status ($?,
+// ${?}, or PIPESTATUS) when it runs command, including in the scripts that
+// its shells run (see withNestedShells). A $? in single quotes or in a
+// comment is not expanded.
+func expandsStatus(command string) bool {
+	script, ok := parseShell(command)
+	return ok && slices.ContainsFunc(withNestedShells(script), func(s shellScript) bool { return s.ExpandsStatus })
 }
 
 // executeSucceeded requires an observed exit code of 0 from a call that

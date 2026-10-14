@@ -274,15 +274,20 @@ func cleanArchiveName(name string) (string, error) {
 	return clean, nil
 }
 
-// walkTarZst calls fn for every entry of a zstd-compressed tar stream,
-// enforcing entry-count and size caps.
+// walkTarZst is walkTar over a zstd-compressed tar stream.
 func walkTarZst(r io.Reader, fn func(hdr *tar.Header, body io.Reader) error) error {
 	dec, err := zstd.NewReader(r, zstd.WithDecoderMaxMemory(maxArchiveTotal))
 	if err != nil {
 		return xerrors.Errorf("open zstd stream: %w", err)
 	}
 	defer dec.Close()
-	tr := tar.NewReader(dec)
+	return walkTar(dec, fn)
+}
+
+// walkTar calls fn for every entry of a tar stream, enforcing entry-count
+// and size caps.
+func walkTar(r io.Reader, fn func(hdr *tar.Header, body io.Reader) error) error {
+	tr := tar.NewReader(r)
 	var total int64
 	for entries := 0; ; entries++ {
 		hdr, err := tr.Next()

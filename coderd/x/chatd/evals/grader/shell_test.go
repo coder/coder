@@ -215,28 +215,40 @@ func TestShellFileIODetection(t *testing.T) {
 	}
 }
 
-// A command runs only when its guards succeed, so runsCommand can tell
-// a test run that the shell skipped after a failed cd from one that ran.
+// A command runs only when its guards succeed and, for each of its fail
+// sets, one command of the set fails, so runsCommand can tell a test run
+// that the shell skipped after a failed cd, or after a true ||, from one
+// that ran.
 func TestCommandGuards(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name    string
-		command string
-		guards  []string
+		name        string
+		command     string
+		guards      []string
+		failSets    [][]string
+		conditional bool
 	}{
-		{"and list", "cd tests && pytest -q", []string{"cd tests"}},
-		{"chained and list", "cd a && make && pytest -q", []string{"cd a", "make"}},
-		{"semicolon", "cd tests; pytest -q", nil},
-		{"or list", "cd tests || pytest -q", nil},
-		{"after an or list", "cd a || cd b && pytest -q", nil},
-		{"after a pipeline", "make | tee log && pytest -q", []string{"tee log"}},
-		{"pipeline stage", "cd tests && pytest -q | tail -3", []string{"cd tests"}},
-		{"if condition", "if cd tests; then pytest -q; fi", []string{"cd tests"}},
-		{"negated if condition", "if ! cd tests; then pytest -q; fi", nil},
-		{"else branch", "if cd tests; then :; else pytest -q; fi", nil},
-		{"subshell", "(cd a && make) && pytest -q", []string{"cd a", "make"}},
-		{"wrapped", "cd tests && timeout 60 pytest -q", []string{"cd tests"}},
-		{"nested shell", "cd a && bash -c 'cd b && pytest -q'", []string{"cd a", "cd b"}},
+		{"and list", "cd tests && pytest -q", []string{"cd tests"}, nil, false},
+		{"chained and list", "cd a && make && pytest -q", []string{"cd a", "make"}, nil, false},
+		{"semicolon", "cd tests; pytest -q", nil, nil, false},
+		{"or list", "cd tests || pytest -q", nil, [][]string{{"cd tests"}}, false},
+		{"or after an and list", "cd a && make || pytest -q", nil, [][]string{{"cd a", "make"}}, false},
+		{"after an or list", "cd a || cd b && pytest -q", []string{"cd b"}, nil, false},
+		{"negated and guard", "! cd a && pytest -q", nil, [][]string{{"cd a"}}, false},
+		{"negated or guard", "! cd a || pytest -q", []string{"cd a"}, nil, false},
+		{"after a pipeline", "make | tee log && pytest -q", []string{"tee log"}, nil, false},
+		{"pipeline stage", "cd tests && pytest -q | tail -3", []string{"cd tests"}, nil, false},
+		{"if condition", "if cd tests; then pytest -q; fi", []string{"cd tests"}, nil, true},
+		{"negated if condition", "if ! cd tests; then pytest -q; fi", nil, [][]string{{"cd tests"}}, true},
+		{"else branch", "if cd tests; then :; else pytest -q; fi", nil, [][]string{{"cd tests"}}, false},
+		{"elif branch", "if cd a; then :; elif cd b; then pytest -q; fi", []string{"cd b"}, [][]string{{"cd a"}}, true},
+		{"subshell", "(cd a && make) && pytest -q", []string{"cd a", "make"}, nil, false},
+		{"wrapped", "cd tests && timeout 60 pytest -q", []string{"cd tests"}, nil, false},
+		{"wrapped after an or list", "true || timeout 60 pytest -q", nil, [][]string{{"true"}}, false},
+		{"wrapped in an if", "if cd tests; then timeout 60 pytest -q; fi", []string{"cd tests"}, nil, true},
+		{"nested shell", "cd a && bash -c 'cd b && pytest -q'", []string{"cd a", "cd b"}, nil, false},
+		{"nested shell after an or list", "true || bash -c 'pytest -q'", nil, [][]string{{"true"}}, false},
+		{"nested shell in an if", "if cd a; then bash -c 'pytest -q'; fi", []string{"cd a"}, nil, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -244,6 +256,8 @@ func TestCommandGuards(t *testing.T) {
 			script, ok := parseShell(tc.command)
 			require.True(t, ok)
 			var guards []string
+			var failSets [][]string
+			conditional := false
 			found := false
 			for _, s := range withNestedShells(script) {
 				for _, c := range s.Commands {
@@ -254,10 +268,20 @@ func TestCommandGuards(t *testing.T) {
 					for _, g := range c.Guards {
 						guards = append(guards, g.commandLine())
 					}
+					for _, set := range c.FailGuards {
+						var lines []string
+						for _, g := range set {
+							lines = append(lines, g.commandLine())
+						}
+						failSets = append(failSets, lines)
+					}
+					conditional = c.Conditional
 				}
 			}
 			require.True(t, found)
-			require.Equal(t, tc.guards, guards)
+			require.Equal(t, tc.guards, guards, "guards")
+			require.Equal(t, tc.failSets, failSets, "fail sets")
+			require.Equal(t, tc.conditional, conditional, "conditional")
 		})
 	}
 }

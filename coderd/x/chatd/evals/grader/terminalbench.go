@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"context"
@@ -14,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -40,7 +42,12 @@ const (
 	emptySeedPlaceholder = ".gitkeep"
 )
 
-var safeTaskID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+var (
+	safeTaskID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+	// digestRef is an image reference pinned by digest; its first group is
+	// the repository.
+	digestRef = regexp.MustCompile(`^([^@\s]+)@sha256:[0-9a-f]{64}$`)
+)
 
 // tbTaskList is terminalbench/tasks.json.
 type tbTaskList struct {
@@ -48,9 +55,14 @@ type tbTaskList struct {
 		Repo   string `json:"repo"`
 		Commit string `json:"commit"`
 	} `json:"source"`
-	Tasks []struct {
-		ID string `json:"id"`
-	} `json:"tasks"`
+	Tasks []tbTask `json:"tasks"`
+}
+
+// tbTask is one task of tbTaskList. Image pins the image task.toml names by
+// digest.
+type tbTask struct {
+	ID    string `json:"id"`
+	Image string `json:"image"`
 }
 
 // tbSeed is one imported task, as recorded in seeds.json.
@@ -106,7 +118,7 @@ func tbImportCommand(ctx context.Context, args []string, stdout io.Writer) error
 	if *tasksFile == "" || *repo == "" || *out == "" {
 		return xerrors.New("--tasks, --repo, and --out are required")
 	}
-	ids, list, err := selectedTasks(*tasksFile, only)
+	tasks, list, err := selectedTasks(*tasksFile, only)
 	if err != nil {
 		return err
 	}
@@ -121,13 +133,13 @@ func tbImportCommand(ctx context.Context, args []string, stdout io.Writer) error
 	if seeds.Tasks == nil || seeds.SourceCommit != list.Source.Commit {
 		seeds = tbSeeds{SourceCommit: list.Source.Commit, Tasks: map[string]tbSeed{}}
 	}
-	for _, id := range ids {
-		seed, err := importTask(ctx, *repo, outDir, id)
+	for _, task := range tasks {
+		seed, err := importTask(ctx, *repo, outDir, task)
 		if err != nil {
-			return xerrors.Errorf("task %s: %w", id, err)
+			return xerrors.Errorf("task %s: %w", task.ID, err)
 		}
-		seeds.Tasks[id] = seed
-		_, _ = fmt.Fprintf(stdout, "imported %s: image %s, seed %s\n", id, seed.Image, seed.SeedRef[:12])
+		seeds.Tasks[task.ID] = seed
+		_, _ = fmt.Fprintf(stdout, "imported %s: image %s, seed %s\n", task.ID, seed.Image, seed.SeedRef[:12])
 	}
 	data, err := json.MarshalIndent(seeds, "", "  ")
 	if err != nil {
@@ -136,7 +148,7 @@ func tbImportCommand(ctx context.Context, args []string, stdout io.Writer) error
 	return os.WriteFile(filepath.Join(outDir, tbSeedsFile), append(data, '\n'), 0o600)
 }
 
-func selectedTasks(tasksFile string, only []string) ([]string, tbTaskList, error) {
+func selectedTasks(tasksFile string, only []string) ([]tbTask, tbTaskList, error) {
 	var list tbTaskList
 	data, err := os.ReadFile(tasksFile)
 	if err != nil {
@@ -145,27 +157,59 @@ func selectedTasks(tasksFile string, only []string) ([]string, tbTaskList, error
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, list, xerrors.Errorf("parse %s: %w", tasksFile, err)
 	}
-	known := map[string]bool{}
-	var ids []string
+	known := map[string]tbTask{}
 	for _, t := range list.Tasks {
 		if !safeTaskID.MatchString(t.ID) {
 			return nil, list, xerrors.Errorf("unsafe task id %q", t.ID)
 		}
-		known[t.ID] = true
-		ids = append(ids, t.ID)
+		known[t.ID] = t
 	}
 	if len(only) == 0 {
-		return ids, list, nil
+		return list.Tasks, list, nil
 	}
+	tasks := make([]tbTask, 0, len(only))
 	for _, id := range only {
-		if !known[id] {
+		t, ok := known[id]
+		if !ok {
 			return nil, list, xerrors.Errorf("task %q is not in %s", id, tasksFile)
 		}
+		tasks = append(tasks, t)
 	}
-	return only, list, nil
+	return tasks, list, nil
 }
 
-func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
+// pinnedImage returns the image reference to import for a task whose
+// task.toml names declared and whose tasks.json entry pins pin, or "" when
+// the task builds its image. Tags can be moved to other images, so a named
+// image is used only by a digest from its own repository.
+func pinnedImage(declared, pin string) (string, error) {
+	if declared == "" {
+		if pin != "" {
+			return "", xerrors.Errorf("tasks.json pins %q, but task.toml names no docker_image", pin)
+		}
+		return "", nil
+	}
+	m := digestRef.FindStringSubmatch(pin)
+	if m == nil {
+		return "", xerrors.Errorf("task.toml names %q; pin it by digest in tasks.json (\"image\": \"<repository>@sha256:<digest>\"), got %q", declared, pin)
+	}
+	if repo := imageRepository(declared); m[1] != repo {
+		return "", xerrors.Errorf("pinned image %q is not from %s, the repository task.toml names", pin, repo)
+	}
+	return pin, nil
+}
+
+// imageRepository returns an image reference without its tag or digest.
+func imageRepository(ref string) string {
+	ref, _, _ = strings.Cut(ref, "@")
+	if i := strings.LastIndex(ref, ":"); i > strings.LastIndex(ref, "/") {
+		ref = ref[:i]
+	}
+	return ref
+}
+
+func importTask(ctx context.Context, repo, outDir string, task tbTask) (tbSeed, error) {
+	id := task.ID
 	taskDir := filepath.Join(repo, "tasks", id)
 	toml, err := parseSimpleTOML(filepath.Join(taskDir, "task.toml"))
 	if err != nil {
@@ -175,12 +219,22 @@ func importTask(ctx context.Context, repo, outDir, id string) (tbSeed, error) {
 	if err != nil {
 		return tbSeed{}, err
 	}
-	image := toml["environment.docker_image"]
+	image, err := pinnedImage(toml["environment.docker_image"], task.Image)
+	if err != nil {
+		return tbSeed{}, err
+	}
 	if image == "" {
-		image = "chatd-evals-tb-" + id + ":local"
-		if out, err := runDocker(ctx, 30*time.Minute, "build", "-t", image, filepath.Join(taskDir, "environment")); err != nil {
+		tag := "chatd-evals-tb-" + id + ":local"
+		if out, err := runDocker(ctx, 30*time.Minute, "build", "-t", tag, filepath.Join(taskDir, "environment")); err != nil {
 			return tbSeed{}, xerrors.Errorf("docker build: %s: %w", truncate(string(out), 400), err)
 		}
+		// The seed records the image ID, so a later build that moves the
+		// tag does not change the image this import is verified in.
+		out, err := runDocker(ctx, time.Minute, "image", "inspect", "--format", "{{.Id}}", tag)
+		if err != nil {
+			return tbSeed{}, xerrors.Errorf("docker image inspect %s: %s: %w", tag, truncate(string(out), 400), err)
+		}
+		image = strings.TrimSpace(string(out))
 	} else if _, err := runDocker(ctx, time.Minute, "image", "inspect", image); err != nil {
 		if out, err := runDocker(ctx, 30*time.Minute, "pull", image); err != nil {
 			return tbSeed{}, xerrors.Errorf("docker pull %s: %s: %w", image, truncate(string(out), 400), err)
@@ -445,18 +499,132 @@ func verifyInTaskImage(ctx context.Context, seed tbSeed, appDir, solutionDir, lo
 		return res, err
 	}
 	res.LogsDir = logsOut
+	verifierDir := filepath.Join(logsOut, "verifier")
+	skipped, copyErr := copyVerifierLogs(ctx, name, verifierDir)
+	if len(skipped) > 0 {
+		_, _ = fmt.Fprintf(&transcript, "== /logs/verifier entries the grader did not copy\n%s\n", strings.Join(skipped, "\n"))
+	}
 	if err := os.WriteFile(filepath.Join(logsOut, "verifier-output.txt"), transcript.Bytes(), 0o600); err != nil {
 		return res, err
 	}
-	if out, err := runDocker(ctx, 5*time.Minute, "cp", name+":/logs/verifier/.", logsOut); err != nil {
-		return res, xerrors.Errorf("copy verifier logs: %s: %w", truncate(string(out), 400), err)
+	if copyErr != nil {
+		return res, xerrors.Errorf("copy verifier logs: %w", copyErr)
 	}
-	reward, err := os.ReadFile(filepath.Join(logsOut, "reward.txt"))
-	if err != nil {
+	reward, err := os.ReadFile(filepath.Join(verifierDir, "reward.txt"))
+	if errors.Is(err, fs.ErrNotExist) {
 		return res, nil
+	}
+	if err != nil {
+		return res, xerrors.Errorf("read reward: %w", err)
 	}
 	res.Reward = strings.TrimSpace(string(reward))
 	return res, nil
+}
+
+// copyVerifierLogs streams the container's /logs/verifier as a tar archive
+// into extractVerifierLogs and returns the entries it skipped.
+func copyVerifierLogs(ctx context.Context, container, dst string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	cmd, home, err := dockerCommand(ctx, "cp", container+":/logs/verifier/.", "-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(home)
+	stderr := &tailBuffer{limit: dockerOutputLimit}
+	cmd.Stderr = stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	skipped, extractErr := extractVerifierLogs(stdout, dst)
+	if extractErr == nil {
+		// Wait closes the pipe, so anything docker writes after the end of
+		// the archive is read first.
+		_, extractErr = io.Copy(io.Discard, stdout)
+	} else {
+		cancel()
+	}
+	waitErr := cmd.Wait()
+	if extractErr != nil {
+		return skipped, extractErr
+	}
+	if waitErr != nil {
+		return skipped, xerrors.Errorf("docker cp: %s: %w", truncate(strings.TrimSpace(string(stderr.Bytes())), 400), waitErr)
+	}
+	return skipped, nil
+}
+
+// extractVerifierLogs extracts a docker cp archive of /logs/verifier into
+// dst. Task tests run agent code, so it writes only regular files,
+// directories, and hard links between extracted files: a symlink copied to
+// the host would make the grader read a host file when it opens
+// reward.txt. It returns a note for every entry it skipped.
+func extractVerifierLogs(r io.Reader, dst string) ([]string, error) {
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return nil, err
+	}
+	var skipped []string
+	files := map[string]bool{}
+	err := walkTar(r, func(hdr *tar.Header, body io.Reader) error {
+		name := path.Clean(hdr.Name)
+		if name == "." {
+			return nil
+		}
+		if !filepath.IsLocal(name) {
+			skipped = append(skipped, hdr.Name+": outside the log directory")
+			return nil
+		}
+		target := filepath.Join(dst, filepath.FromSlash(name))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := ensureRealParents(dst, name); err != nil {
+				return err
+			}
+			if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return err
+			}
+		case tar.TypeReg:
+			if err := ensureRealParents(dst, name); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, body); err != nil {
+				return errors.Join(err, out.Close())
+			}
+			if err := out.Close(); err != nil {
+				return err
+			}
+			files[name] = true
+		case tar.TypeLink:
+			// docker cp archives every further name of a file as a hard
+			// link to the first one.
+			first := path.Clean(hdr.Linkname)
+			if !files[first] {
+				skipped = append(skipped, name+": hard link to "+hdr.Linkname)
+				return nil
+			}
+			if err := ensureRealParents(dst, name); err != nil {
+				return err
+			}
+			if err := os.Link(filepath.Join(dst, filepath.FromSlash(first)), target); err != nil {
+				return err
+			}
+			files[name] = true
+		case tar.TypeSymlink:
+			skipped = append(skipped, name+": symlink to "+hdr.Linkname)
+		default:
+			skipped = append(skipped, name+": not a regular file or directory")
+		}
+		return nil
+	})
+	return skipped, err
 }
 
 func randomHex(n int) string {
@@ -467,27 +635,37 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// runDocker runs the docker CLI without the caller's environment beyond
-// what reaching the daemon needs. HOME points at an empty directory so no
-// registry credentials are read.
+// runDocker runs the docker CLI and returns the tail of its combined
+// output.
 func runDocker(ctx context.Context, timeout time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	home, err := os.MkdirTemp("", "chatd-evals-docker-home-")
+	cmd, home, err := dockerCommand(ctx, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(home)
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Env = []string{"PATH=" + dockerPath(), "HOME=" + home}
-	if host := os.Getenv("DOCKER_HOST"); host != "" {
-		cmd.Env = append(cmd.Env, "DOCKER_HOST="+host)
-	}
 	output := &tailBuffer{limit: dockerOutputLimit}
 	cmd.Stdout = output
 	cmd.Stderr = output
 	err = cmd.Run()
 	return output.Bytes(), err
+}
+
+// dockerCommand prepares the docker CLI without the caller's environment
+// beyond what reaching the daemon needs. HOME points at a new empty
+// directory, which the caller removes, so no registry credentials are read.
+func dockerCommand(ctx context.Context, args ...string) (*exec.Cmd, string, error) {
+	home, err := os.MkdirTemp("", "chatd-evals-docker-home-")
+	if err != nil {
+		return nil, "", err
+	}
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Env = []string{"PATH=" + dockerPath(), "HOME=" + home}
+	if host := os.Getenv("DOCKER_HOST"); host != "" {
+		cmd.Env = append(cmd.Env, "DOCKER_HOST="+host)
+	}
+	return cmd, home, nil
 }
 
 // dockerOutputLimit caps the docker output the grader keeps per command.

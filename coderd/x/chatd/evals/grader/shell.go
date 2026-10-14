@@ -28,8 +28,15 @@ type shellCommand struct {
 	// prefixed like Pos; nil outside a pipeline.
 	Pipeline scriptPos
 	// Guards are the commands that must succeed for the shell to run this
-	// one (see commandGuards), without guards of their own.
+	// one (see commandReach), without guards of their own.
 	Guards []shellCommand
+	// FailGuards are sets of commands of which one must fail for the
+	// shell to run this one, such as the left side of an || list or the
+	// condition of an if whose else branch holds it.
+	FailGuards [][]shellCommand
+	// Conditional reports that the then branch of an if holds the
+	// command. An if whose condition fails exits 0.
+	Conditional bool
 }
 
 // scriptPos is the source offset of a command or statement in an execute
@@ -83,6 +90,9 @@ type shellScript struct {
 	OutputFiles []outputRedirect
 	// Backgrounded is true when any statement ends with '&'.
 	Backgrounded bool
+	// ExpandsStatus is true when the script expands an exit status: $?,
+	// ${?}, or PIPESTATUS outside single quotes and comments.
+	ExpandsStatus bool
 }
 
 // parseShell parses src as a POSIX/bash script. It returns ok=false when
@@ -95,9 +105,9 @@ func parseShell(src string) (shellScript, bool) {
 	}
 	stdin := map[*syntax.CallExpr][]string{}
 	inputs := map[*syntax.CallExpr][]string{}
-	guards := commandGuards(f)
-	// Walk visits a command's guards before it, since they come first in
-	// the source.
+	reaches := commandReach(f)
+	// Walk visits a command's guards and fail sets before it, since they
+	// come first in the source.
 	built := map[*syntax.CallExpr]shellCommand{}
 	// Walk visits a pipeline before its stages, so a nested pipe node
 	// inherits the position of the outermost one.
@@ -123,6 +133,10 @@ func parseShell(src string) (shellScript, bool) {
 				case *syntax.BinaryCmd:
 					pipelines[cmd] = pipeline
 				}
+			}
+		case *syntax.ParamExp:
+			if n.Param != nil && (n.Param.Value == "?" || n.Param.Value == "PIPESTATUS") {
+				out.ExpandsStatus = true
 			}
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
@@ -166,11 +180,21 @@ func parseShell(src string) (shellScript, bool) {
 				cmd.Source = append(cmd.Source, wordSource(w))
 			}
 			built[n] = cmd
-			for _, g := range guards[n] {
-				if b, ok := built[g]; ok {
-					cmd.Guards = append(cmd.Guards, b)
+			builtOf := func(calls []*syntax.CallExpr) []shellCommand {
+				var cmds []shellCommand
+				for _, g := range calls {
+					if b, ok := built[g]; ok {
+						cmds = append(cmds, b)
+					}
 				}
+				return cmds
 			}
+			r := reaches[n]
+			cmd.Guards = builtOf(r.guards)
+			for _, set := range r.failSets {
+				cmd.FailGuards = append(cmd.FailGuards, builtOf(set))
+			}
+			cmd.Conditional = r.conditional
 			out.Commands = append(out.Commands, cmd)
 			out.Commands = append(out.Commands, wrappedCommands(cmd)...)
 		}
@@ -179,54 +203,97 @@ func parseShell(src string) (shellScript, bool) {
 	return out, true
 }
 
-// commandGuards maps each simple command in f to the simple commands that
-// must succeed for the shell to run it: those whose failure fails the left
-// side of an && list around it, or the condition of an if whose then
-// branch holds it. In cd missing && pytest, cd guards pytest.
-func commandGuards(f *syntax.File) map[*syntax.CallExpr][]*syntax.CallExpr {
-	out := map[*syntax.CallExpr][]*syntax.CallExpr{}
-	var visit func(node syntax.Node, guards []*syntax.CallExpr)
-	visit = func(node syntax.Node, guards []*syntax.CallExpr) {
+// reach is what the shell needs before it runs a command: every guard
+// succeeds, and one command of each fail set fails. Conditional marks the
+// then branch of an if.
+type reach struct {
+	guards      []*syntax.CallExpr
+	failSets    [][]*syntax.CallExpr
+	conditional bool
+}
+
+// after returns r for code that the shell runs only when st succeeds and
+// for code that it runs only when st fails.
+func (r reach) after(st *syntax.Stmt) (succeeded, failed reach) {
+	cmds := statusCommands(st)
+	succeeded, failed = r, r
+	if st.Negated {
+		succeeded.failSets = append(slices.Clip(r.failSets), cmds)
+		failed.guards = append(slices.Clip(r.guards), cmds...)
+	} else {
+		succeeded.guards = append(slices.Clip(r.guards), cmds...)
+		failed.failSets = append(slices.Clip(r.failSets), cmds)
+	}
+	return succeeded, failed
+}
+
+// commandReach maps each simple command in f to what the shell needs
+// before it runs the command: the left side of an && list or the
+// condition of an if must succeed, and the left side of an || list or the
+// condition of an if whose else branch holds the command must fail. In
+// cd missing && pytest, cd guards pytest; in true || pytest, pytest runs
+// only if true fails.
+func commandReach(f *syntax.File) map[*syntax.CallExpr]reach {
+	out := map[*syntax.CallExpr]reach{}
+	var visit func(node syntax.Node, r reach)
+	visit = func(node syntax.Node, r reach) {
 		syntax.Walk(node, func(n syntax.Node) bool {
 			switch n := n.(type) {
 			case *syntax.CallExpr:
-				out[n] = guards
+				out[n] = r
 			case *syntax.BinaryCmd:
-				if n.Op != syntax.AndStmt {
+				if n.Op != syntax.AndStmt && n.Op != syntax.OrStmt {
 					return true
 				}
-				visit(n.X, guards)
-				visit(n.Y, append(slices.Clip(guards), mustSucceed(n.X)...))
+				visit(n.X, r)
+				succeeded, failed := r.after(n.X)
+				if n.Op == syntax.AndStmt {
+					visit(n.Y, succeeded)
+				} else {
+					visit(n.Y, failed)
+				}
 				return false
 			case *syntax.IfClause:
-				then := guards
-				if len(n.Cond) > 0 {
-					then = append(slices.Clip(guards), mustSucceed(n.Cond[len(n.Cond)-1])...)
-				}
 				for _, st := range n.Cond {
-					visit(st, guards)
+					visit(st, r)
+				}
+				then, other := r, r
+				if len(n.Cond) > 0 {
+					then, other = r.after(n.Cond[len(n.Cond)-1])
+					then.conditional = true
 				}
 				for _, st := range n.Then {
 					visit(st, then)
 				}
 				if n.Else != nil {
-					visit(n.Else, guards)
+					visit(n.Else, other)
 				}
 				return false
 			}
 			return true
 		})
 	}
-	visit(f, nil)
+	visit(f, reach{})
 	return out
 }
 
 // mustSucceed returns the simple commands in st whose failure makes st
-// fail: every command of an && list, the last stage of a pipeline, and the
-// last statement of a subshell or group. A command before || or ; can fail
-// without st failing, and so can any command of a negated statement.
+// fail (see statusCommands), or none when st is negated.
 func mustSucceed(st *syntax.Stmt) []*syntax.CallExpr {
-	if st == nil || st.Negated || st.Background {
+	if st == nil || st.Negated {
+		return nil
+	}
+	return statusCommands(st)
+}
+
+// statusCommands returns the simple commands in st whose failure makes
+// st fail before any negation of st itself: every command of an && list,
+// the right side of an || list, the last stage of a pipeline, and the last
+// statement of a subshell or group. A command before || or ; can fail
+// without st failing, and so can any command of a negated statement in st
+// or of a background statement.
+func statusCommands(st *syntax.Stmt) []*syntax.CallExpr {
+	if st.Background {
 		return nil
 	}
 	last := func(stmts []*syntax.Stmt) []*syntax.CallExpr {
@@ -244,7 +311,7 @@ func mustSucceed(st *syntax.Stmt) []*syntax.CallExpr {
 		switch c.Op {
 		case syntax.AndStmt:
 			return append(mustSucceed(c.X), mustSucceed(c.Y)...)
-		case syntax.Pipe, syntax.PipeAll:
+		case syntax.OrStmt, syntax.Pipe, syntax.PipeAll:
 			return mustSucceed(c.Y)
 		default:
 		}
@@ -357,7 +424,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards}
+	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -475,7 +542,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline, Guards: c.Guards, FailGuards: c.FailGuards, Conditional: c.Conditional})
 		}
 		i = end
 	}
@@ -1207,7 +1274,7 @@ func shellCommands(s shellScript) []shellCommand {
 
 // nestUnder places s under the shell command outer that runs it: every
 // position in s gets outer's position as a prefix, and every command in s
-// also needs outer's guards to succeed.
+// also needs what outer needs to run (see commandReach).
 func nestUnder(s shellScript, outer shellCommand) shellScript {
 	under := func(p scriptPos) scriptPos {
 		if p == nil {
@@ -1219,6 +1286,8 @@ func nestUnder(s shellScript, outer shellCommand) shellScript {
 		s.Commands[i].Pos = under(s.Commands[i].Pos)
 		s.Commands[i].Pipeline = under(s.Commands[i].Pipeline)
 		s.Commands[i].Guards = append(slices.Clip(outer.Guards), s.Commands[i].Guards...)
+		s.Commands[i].FailGuards = append(slices.Clip(outer.FailGuards), s.Commands[i].FailGuards...)
+		s.Commands[i].Conditional = s.Commands[i].Conditional || outer.Conditional
 	}
 	for i := range s.OutputFiles {
 		s.OutputFiles[i].Pos = under(s.OutputFiles[i].Pos)

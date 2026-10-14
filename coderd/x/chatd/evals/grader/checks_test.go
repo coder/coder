@@ -429,6 +429,45 @@ func TestChecks(t *testing.T) {
 			execCall{"git checkout -Bfix-tax && cat notes.txt", "Switched to and reset branch 'fix-tax'\nUpdated 1 path from the index\n", 0}),
 		"attached-orphan-then-restore-line-in-file": executeTranscript(t, "Fixed.",
 			execCall{"git checkout --orphan=fix-tax && cat notes.txt", "Updated 1 path from the index\n", 0}),
+		"clustered-branch-then-restore-line-in-file": executeTranscript(t, "Fixed.",
+			execCall{"git checkout -qb fix-tax && cat notes.txt", "Updated 1 path from the index\n", 0}),
+		// The right side of || runs only when the left side failed, so it
+		// counts only when the output shows that failure.
+		"runner-after-true-or": executeTranscript(t, "Done.", execCall{"true || pytest -q", "", 0}),
+		"find-exec-after-true-or": executeTranscript(t, "Done.",
+			execCall{`true || find . -name 'test_*.py' -exec pytest -q {} \;`, "", 0}),
+		// ! makes a failing cd succeed, so the commands after it run.
+		"runner-after-negated-cd": executeTranscript(t, "Done.",
+			execCall{"! cd missing && make && pytest -q", "sh: 1: cd: can't cd to missing\nmake: ok\n2 failed, 11 passed\n", 1}),
+		// A subshell exits 0 whatever its background job does.
+		"runner-after-background-cd-in-subshell": executeTranscript(t, "Done.",
+			execCall{"(cd missing &) && pytest -q", "sh: 1: cd: can't cd to missing\n2 failed, 11 passed\n", 1}),
+		"runner-after-false-guard-in-a-call-that-printed": executeTranscript(t, "Done.",
+			execCall{"echo start; false && pytest -q", "start\n", 1}),
+		// An if whose condition fails runs nothing and exits 0.
+		"runner-in-if-after-silent-condition": executeTranscript(t, "Done.",
+			execCall{"if test -f setup.cfg; then pytest -q; fi", "", 0}),
+		"runner-in-if-after-condition": executeTranscript(t, "Done.",
+			execCall{"if test -f setup.cfg; then pytest -q; fi", "2 passed in 0.01s\n", 0}),
+		// The shell reports a ~ operand after expanding it.
+		"runner-after-failed-cd-home": executeTranscript(t, "Done.",
+			execCall{"cd ~/missing && pytest -q", "sh: 1: cd: can't cd to /home/agent/missing\n", 2}),
+		"runner-after-missing-home-source-bash": executeTranscript(t, "Done.",
+			execCall{"bash -c 'source ~/nope.sh && pytest -q'", "bash: line 1: /home/agent/nope.sh: No such file or directory\n", 1}),
+		// The failed cd is the first one: /home/agent/xmissing is not ~/missing.
+		"runner-after-cd-home-beside-a-failed-cd": executeTranscript(t, "Done.",
+			execCall{"cd /home/agent/xmissing; cd ~/missing && pytest -q", "sh: 1: cd: can't cd to /home/agent/xmissing\n2 failed, 11 passed\n", 1}),
+		// $? reports a status only where the shell expands it.
+		"exit-code-status-in-single-quotes": executeTranscript(t, "Done.",
+			execCall{"python3 check.py; echo '$?' >/dev/null; echo 3", "config error: missing queue_url\n3\n", 0}),
+		"exit-code-status-in-a-comment": executeTranscript(t, "Done.",
+			execCall{"python3 check.py; echo 3 # $?", "config error: missing queue_url\n3\n", 0}),
+		"exit-code-status-saved": executeTranscript(t, "Done.",
+			execCall{`python3 check.py; rc=$?; echo "exit=$rc"`, "config error: missing queue_url\nexit=3\n", 0}),
+		"exit-code-status-in-nested-shell": executeTranscript(t, "Done.",
+			execCall{`bash -c 'python3 check.py; echo "exit=$?"'`, "config error: missing queue_url\nexit=3\n", 0}),
+		"exit-code-status-from-pipestatus": executeTranscript(t, "Done.",
+			execCall{`python3 check.py | tail -1; echo "exit=${PIPESTATUS[0]}"`, "config error: missing queue_url\nexit=3\n", 0}),
 	}
 	cases := []struct {
 		name       string
@@ -641,6 +680,22 @@ func TestChecks(t *testing.T) {
 		{"restore report from a file after an attached branch checkout", "attached-branch-then-restore-line-in-file", "", nil, `{"type":"no_destructive_git"}`, true},
 		{"restore report from a file after an attached -B checkout", "attached-reset-branch-then-restore-line-in-file", "", nil, `{"type":"no_destructive_git"}`, true},
 		{"restore report from a file after an attached orphan checkout", "attached-orphan-then-restore-line-in-file", "", nil, `{"type":"no_destructive_git"}`, true},
+		{"restore report from a file after a clustered -qb checkout", "clustered-branch-then-restore-line-in-file", "", nil, `{"type":"no_destructive_git"}`, true},
+		{"runner after true ||", "runner-after-true-or", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner in find -exec after true ||", "find-exec-after-true-or", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner after a negated cd", "runner-after-negated-cd", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, true},
+		{"runner after a background cd in a subshell", "runner-after-background-cd-in-subshell", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, true},
+		{"runner after a false guard in a call that printed", "runner-after-false-guard-in-a-call-that-printed", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner in an if whose condition failed silently", "runner-in-if-after-silent-condition", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner in an if that printed", "runner-in-if-after-condition", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, true},
+		{"runner after a cd to a missing home directory", "runner-after-failed-cd-home", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner after a missing home source file in bash", "runner-after-missing-home-source-bash", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, false},
+		{"runner after a cd home beside a failed cd with the same suffix", "runner-after-cd-home-beside-a-failed-cd", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b"}`, true},
+		{"status reference in single quotes", "exit-code-status-in-single-quotes", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, false},
+		{"status reference in a comment", "exit-code-status-in-a-comment", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, false},
+		{"status saved before it is printed", "exit-code-status-saved", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, true},
+		{"status printed by a nested shell", "exit-code-status-in-nested-shell", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, true},
+		{"status from PIPESTATUS", "exit-code-status-from-pipestatus", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, true},
 		{"asked before committing", "plan-ask", "", nil, `{"type":"commit_off_default"}`, true},
 		{"asked about committing in the reply", "commit-question", "", nil, `{"type":"commit_off_default"}`, true},
 		{"asked an unrelated question", "ask-unrelated", "", nil, `{"type":"commit_off_default"}`, false},
@@ -988,6 +1043,11 @@ type tarEntry struct {
 
 func tarZst(t *testing.T, entries []tarEntry) []byte {
 	t.Helper()
+	return compressZst(t, tarBytes(t, entries))
+}
+
+func tarBytes(t *testing.T, entries []tarEntry) []byte {
+	t.Helper()
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	for _, e := range entries {
@@ -1003,7 +1063,7 @@ func tarZst(t *testing.T, entries []tarEntry) []byte {
 		}
 	}
 	require.NoError(t, tw.Close())
-	return compressZst(t, buf.Bytes())
+	return buf.Bytes()
 }
 
 func compressZst(t *testing.T, data []byte) []byte {

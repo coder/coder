@@ -100,6 +100,12 @@ func TestHiddenPassReportsMatchShared(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	strips, err := exec.CommandContext(ctx, "node", "-p", "Boolean(process.features.typescript)").Output()
+	require.NoError(t, err)
+	if strings.TrimSpace(string(strips)) != "true" {
+		t.Skip("this node does not run TypeScript files (node 22.18 or later does)")
+	}
 	fixture := t.TempDir()
 	for rel, data := range map[string]string{
 		"golden.json": `{"command":"true"}`,
@@ -124,7 +130,6 @@ func TestHiddenPassReportsMatchShared(t *testing.T) {
 	}
 	input, err := json.Marshal(map[string]any{"shared": filepath.Join("..", "shared.ts"), "dirs": dirs})
 	require.NoError(t, err)
-	ctx := testutil.Context(t, testutil.WaitLong)
 	cmd := exec.CommandContext(ctx, "node", "--input-type=module", "-e", sharedReportsScript)
 	cmd.Stdin = bytes.NewReader(input)
 	var stderr strings.Builder
