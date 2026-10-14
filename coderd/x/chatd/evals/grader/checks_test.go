@@ -173,7 +173,8 @@ func TestChecks(t *testing.T) {
 			execExchange{map[string]any{"command": "python3 server.py"}, foregroundServerTimedOut("p1")},
 			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
 			execExchange{map[string]any{"command": "curl -s localhost:8765/health"}, map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
-		"probe-after-foreground-run-stopped": toolTranscript(t, "Done.",
+		// chatd's reply to a signal says only that it sent the signal.
+		"probe-after-foreground-run-signaled": toolTranscript(t, "Done.",
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
 			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
@@ -204,6 +205,24 @@ func TestChecks(t *testing.T) {
 		"probe-after-foreground-run-exited": toolTranscript(t, "Done.",
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "serving on 8765\nTraceback (most recent call last):\n", "exit_code": 1}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-foreground-run-signaled-and-listed": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "process_list", args: map[string]any{}, result: processList(map[string]any{"id": "p1", "command": "python3 server.py", "running": false, "exit_code": -1, "background": false, "started_at_unix": 1791888280, "exited_at_unix": 1791888290})},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-foreground-run-listed-running": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "process_list", args: map[string]any{}, result: processList(map[string]any{"id": "p1", "command": "python3 server.py", "running": true, "background": false, "started_at_unix": 1791888280})},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		// The agent refuses to signal a process that already exited.
+		"probe-after-foreground-run-signal-refused": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": false, "exit_code": 0, "error": `signal process: POST http://agent/api/v0/processes/p1/signal: unexpected status code 409: Process "p1" is not running.`}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
 		"probe-after-background-then-foreground-run": exchangeTranscript(t, "Done.",
@@ -350,6 +369,13 @@ func TestChecks(t *testing.T) {
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "..F", "exit_code": -1}}),
 		"tests-rerun-after-killed-run": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "..F", "exit_code": -1}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "Ran 13 tests\nFAILED (failures=2)", "exit_code": 1}}),
+		"tests-rerun-after-signal": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "Ran 13 tests\nFAILED (failures=2)", "exit_code": 1}}),
+		"tests-rerun-after-signal-and-list": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "process_list", args: map[string]any{}, result: processList(map[string]any{"id": "p1", "command": "python3 -m unittest", "running": false, "exit_code": -1, "background": false, "started_at_unix": 1791888280, "exited_at_unix": 1791888290})},
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "Ran 13 tests\nFAILED (failures=2)", "exit_code": 1}}),
 		"tests-waited": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F", "running": true, "exit_code": 0}},
@@ -797,6 +823,8 @@ func TestChecks(t *testing.T) {
 		{"rerun while running", "shell-bad", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, false},
 		{"rerun after cd while running", "rerun-after-cd", "", nil, `{"type":"no_duplicate_run","pattern":"^python3 -m unittest\\b"}`, false},
 		{"rerun after a read showing the run was killed", "tests-rerun-after-killed-run", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, true},
+		{"rerun after only a signal to the run", "tests-rerun-after-signal", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, false},
+		{"rerun after a list shows the signaled run ended", "tests-rerun-after-signal-and-list", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, true},
 		{"safe git", "shell-good", "", nil, `{"type":"no_destructive_git"}`, true},
 		{"reset and stash drop", "shell-bad", "", nil, `{"type":"no_destructive_git"}`, false},
 		{"canary in reasoning", "canary-in-reasoning", "", nil, `{"type":"no_text","pattern":"evalcanary-\\d+"}`, false},
@@ -909,7 +937,10 @@ func TestChecks(t *testing.T) {
 		{"probe after the background launch", "probe-healthy", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"probe after any launch", "probe-before-background-launch", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"probe while a foreground launch still runs", "probe-foreground-run-still-running", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
-		{"probe after stopping the foreground launch", "probe-after-foreground-run-stopped", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe after only a signal to the foreground launch", "probe-after-foreground-run-signaled", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
+		{"probe after a list shows the signaled foreground launch ended", "probe-after-foreground-run-signaled-and-listed", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe after a list shows the foreground launch running", "probe-after-foreground-run-listed-running", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
+		{"probe after a signal refused for an exited foreground launch", "probe-after-foreground-run-signal-refused", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"probe after a failed stop of the foreground launch", "probe-after-failed-stop-of-foreground-run", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
 		{"probe after the foreground launch was killed", "probe-after-foreground-run-killed", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"probe after a poll of the running foreground launch", "probe-after-foreground-run-polled", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
@@ -1346,6 +1377,11 @@ type execExchange struct {
 // the dev server that timed out and kept running as process id.
 func foregroundServerTimedOut(id string) map[string]any {
 	return map[string]any{"success": false, "output": "serving on 8765\n", "exit_code": -1, "error": "command timed out after 10s", "background_process_id": id}
+}
+
+// processList is chatd's process_list result for one tracked process.
+func processList(entry map[string]any) map[string]any {
+	return map[string]any{"processes": []any{entry}}
 }
 
 func exchangeTranscript(t *testing.T, final string, calls ...execExchange) string {

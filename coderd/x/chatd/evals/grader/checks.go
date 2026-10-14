@@ -744,28 +744,57 @@ func processExited(c toolCall) bool {
 	return ok && code >= 0
 }
 
-// stoppedProcess returns the process that call c shows stopped, through a
-// successful process_signal or a process_output showing that it no longer
-// runs, also when a signal ended it, or "" for any other call.
-func stoppedProcess(c toolCall) string {
-	if c.Name == "process_signal" && c.succeeded() {
-		return c.argField("process_id")
+// stoppedProcesses returns the processes that call c shows no longer
+// run: the process of a process_output showing that it ended, also
+// through a signal, each process that a process_list shows not running,
+// and the process of a process_signal that chatd refused because the
+// process was not running. A successful process_signal does not count:
+// it shows only that chatd sent the signal, which a process can handle
+// or ignore.
+func stoppedProcesses(c toolCall) []string {
+	id := c.argField("process_id")
+	switch c.Name {
+	case "process_output":
+		if _, ended := processOutputExit(c); ended && id != "" {
+			return []string{id}
+		}
+	case "process_signal":
+		// The agent answers 409 with this message for a process that it
+		// tracks and that already exited.
+		if id != "" && strings.Contains(c.resultField("error"), fmt.Sprintf("Process %q is not running", id)) {
+			return []string{id}
+		}
+	case "process_list":
+		var body struct {
+			Processes []struct {
+				ID      string `json:"id"`
+				Running *bool  `json:"running"`
+			} `json:"processes"`
+		}
+		if err := json.Unmarshal(c.Result, &body); err != nil {
+			return nil
+		}
+		var ids []string
+		for _, p := range body.Processes {
+			if p.ID != "" && p.Running != nil && !*p.Running {
+				ids = append(ids, p.ID)
+			}
+		}
+		return ids
 	}
-	if _, ended := processOutputExit(c); c.Name == "process_output" && ended {
-		return c.argField("process_id")
-	}
-	return ""
+	return nil
 }
 
 // checkNoDuplicateRun fails when an execute running a command that
-// matches Pattern starts while an earlier matching command is still
-// running in the background.
+// matches Pattern starts while an earlier matching command may still be
+// running in the background, until a call shows that it ended
+// (stoppedProcesses).
 func checkNoDuplicateRun(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	pending := map[string]bool{}
 	dups := 0
 	for _, c := range in.tr.Calls {
-		if id := stoppedProcess(c); id != "" {
+		for _, id := range stoppedProcesses(c) {
 			delete(pending, id)
 		}
 		if !runsCommand(c, re) {
@@ -1082,12 +1111,12 @@ func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
 // matching After, started with run_in_background when AfterBackground is
 // set, so a probe of a foreground run that timed out and kept running
 // does not count. With AfterBackground, the call also must not come while
-// such a foreground run of After is still running, before or after the
-// background launch, since its process may be the one that answers: a
-// successful process_signal or a process_output showing it exited ends
-// it. Optionally the call was started with run_in_background
-// (Background), succeeded with exit code 0 in the foreground
-// (Successful), showed exit status ExitCode in the foreground
+// such a foreground run of After may still be running, before or after
+// the background launch, since its process may be the one that answers,
+// until a call shows that it ended (stoppedProcesses), which a
+// successful process_signal does not. Optionally the call was started
+// with run_in_background (Background), succeeded with exit code 0 in the
+// foreground (Successful), showed exit status ExitCode in the foreground
 // (exitStatusShown), and printed output matching Output (see
 // printedOutputs).
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
@@ -1121,7 +1150,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	// timed out and may still be running.
 	foreground := map[string]bool{}
 	for i, c := range in.tr.Calls {
-		if id := stoppedProcess(c); id != "" {
+		for _, id := range stoppedProcesses(c) {
 			delete(foreground, id)
 		}
 		if s.AfterBackground && after != nil && runsCommand(c, after) && !fieldTrue(c.Args, "run_in_background") {
@@ -1162,7 +1191,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	if s.After != "" {
 		what += " after " + s.After
 		if s.AfterBackground {
-			what += " started with run_in_background, while no foreground run of it was still running"
+			what += " started with run_in_background, while no foreground run of it may still have been running"
 		}
 	}
 	return false, what, nil
