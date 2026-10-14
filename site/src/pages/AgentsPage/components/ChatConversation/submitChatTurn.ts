@@ -267,7 +267,6 @@ export async function submitChatTurn(
 			invalidateChat(agentId);
 			throw error;
 		}
-		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
 
