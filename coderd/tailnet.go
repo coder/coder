@@ -270,6 +270,28 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return s.acquireAgentConn(ctx, agentID, 0)
+}
+
+// keepAliveAPIIdleConnTimeout must stay below the idle timeout of every
+// workspace agent build coderd talks to, or a request can be sent on a
+// connection the workspace agent already closed and fail. Every build so far
+// uses 20 s. It is a literal because a value derived from
+// workspacesdk.AgentHTTPAPIServerIdleTimeout would rise with it, past what
+// older workspace agents allow. A request reaches the workspace agent after
+// coderd's idle time plus one round trip, so the 5 s margin covers round
+// trips up to 5 s.
+const keepAliveAPIIdleConnTimeout = 15 * time.Second
+
+// keepAliveAgentConn is AgentConn with APIIdleConnTimeout set, for callers
+// that send many requests on one connection.
+func (s *ServerTailnet) keepAliveAgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return s.acquireAgentConn(ctx, agentID, keepAliveAPIIdleConnTimeout)
+}
+
+// acquireAgentConn returns a connection to agentID. Release closes it, which
+// closes its idle API connections; CloseFunc keeps the shared tailnet open.
+func (s *ServerTailnet) acquireAgentConn(ctx context.Context, agentID uuid.UUID, apiIdleConnTimeout time.Duration) (workspacesdk.AgentConn, func(), error) {
 	var (
 		conn workspacesdk.AgentConn
 		ret  func()
@@ -283,21 +305,26 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	ret = s.coordCtrl.acquireTicket(agentID)
 
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
-		AgentID:   agentID,
-		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
-		Logger:    s.logger,
+		AgentID:            agentID,
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		Logger:             s.logger,
+		APIIdleConnTimeout: apiIdleConnTimeout,
 	})
+	release := func() {
+		_ = conn.Close()
+		ret()
+	}
 
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
-		ret()
+		release()
 		return nil, nil, xerrors.New("agent is unreachable")
 	}
 
-	return conn, ret, nil
+	return conn, release, nil
 }
 
 func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {

@@ -36,6 +36,10 @@ const (
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
 	AgentHTTPAPIServerPort = 4
+	// AgentHTTPAPIServerIdleTimeout is how long the workspace agent's HTTP API
+	// server keeps an idle connection open. Workspace agents built before it
+	// was set used their ReadTimeout, also 20 seconds.
+	AgentHTTPAPIServerIdleTimeout = 20 * time.Second
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted

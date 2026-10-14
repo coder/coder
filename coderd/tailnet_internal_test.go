@@ -9,9 +9,16 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestKeepAliveAPIIdleConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	require.Less(t, keepAliveAPIIdleConnTimeout, workspacesdk.AgentHTTPAPIServerIdleTimeout)
+}
 
 func TestEmbeddedDERPRegionDialer(t *testing.T) {
 	t.Parallel()
