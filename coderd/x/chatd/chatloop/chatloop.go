@@ -217,6 +217,11 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
+	// UnmeasuredAssistants counts the assistant messages after the one
+	// whose step reported StepUsage, such as the partial response of an
+	// interrupted step. They persist without usage, so the summary estimate
+	// counts them as trailing (see EstimateTrailingTokens).
+	UnmeasuredAssistants int
 	// TrailingTokens estimates the messages after the trigger step, which
 	// StepUsage does not count (see EstimateTrailingTokens). It includes
 	// pending user messages that Messages excludes because they follow the

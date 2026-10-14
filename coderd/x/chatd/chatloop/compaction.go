@@ -263,7 +263,8 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	// request's input also includes that step's output, the messages
 	// after it, and the summary prompt appended by
 	// generateCompactionSummary.
-	config.estimatedInputTokens = contextTokens + opts.StepUsage.OutputTokens + EstimateTrailingTokens(opts.Messages) +
+	config.estimatedInputTokens = contextTokens + opts.StepUsage.OutputTokens +
+		EstimateTrailingTokens(opts.Messages, opts.UnmeasuredAssistants) +
 		estimateTokens(len(config.SummaryPrompt)+len(config.SummaryHint))
 	config.summaryWindow = contextLimit
 	if opts.SummaryContextLimit > 0 {
@@ -392,13 +393,21 @@ func publishCompactionError(config CompactionOptions, msg string) {
 }
 
 // EstimateTrailingTokens estimates the prompt tokens of the messages after
-// the last assistant message, typically the results of its tool calls. They
-// are input to the next model call but absent from the usage reported for
-// the step that produced that message.
-func EstimateTrailingTokens(messages []fantasy.Message) int64 {
+// the assistant message whose step reported the latest usage, typically the
+// results of its tool calls. They are input to the next model call but
+// absent from that usage. unmeasuredAssistants counts the assistant messages
+// after that one, such as the partial response of an interrupted step,
+// which persist without usage and so count as trailing too.
+func EstimateTrailingTokens(messages []fantasy.Message, unmeasuredAssistants int) int64 {
 	start := len(messages)
-	for start > 0 && messages[start-1].Role != fantasy.MessageRoleAssistant {
-		start--
+	for ; start > 0; start-- {
+		if messages[start-1].Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		if unmeasuredAssistants == 0 {
+			break
+		}
+		unmeasuredAssistants--
 	}
 	return estimateMessagesTokens(messages[start:])
 }
@@ -966,8 +975,7 @@ func generateCompactionSummary(
 // window of this model.", Anthropic-family "too long" rejections without
 // token counts, and the Anthropic "input length and `max_tokens` exceed
 // context limit" rejection. The OpenAI error code "context_length_exceeded"
-// matches regardless of wording: a provider error's response body carries
-// it, and fantasy appends it to the message of a Responses error event.
+// in a provider error's response body matches regardless of wording.
 var contextTooLargePhrases = []string{
 	"context window",
 	"context length",
@@ -981,7 +989,10 @@ var contextTooLargePhrases = []string{
 // exceeded a request size limit on the provider or a gateway in front of it.
 // The rejection can arrive as an HTTP 400 or inside an HTTP 200 stream,
 // where fantasy reports it with no status code or, for spec-shaped OpenAI
-// Responses error events, as a plain *fantasy.Error.
+// Responses error events, as a plain *fantasy.Error whose message ends with
+// the event's error code when it has one. The code then decides, so a rate
+// limit or server error whose text mentions the context window is not taken
+// for an overflow.
 func isContextTooLargeError(err error) bool {
 	if providerErr, ok := errors.AsType[*fantasy.ProviderError](err); ok {
 		if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
@@ -994,9 +1005,28 @@ func isContextTooLargeError(err error) bool {
 		return hasContextTooLargePhrase(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	}
 	if fantasyErr, ok := errors.AsType[*fantasy.Error](err); ok {
+		if code := responsesErrorCode(fantasyErr.Message); code != "" {
+			return code == "context_length_exceeded"
+		}
 		return hasContextTooLargePhrase(fantasyErr.Error())
 	}
 	return false
+}
+
+// responsesErrorCode returns the error code fantasy appends to the message
+// of an OpenAI Responses failure as " (code: <code>)", or "" when there is
+// none.
+func responsesErrorCode(message string) string {
+	const marker = " (code: "
+	rest, ok := strings.CutSuffix(message, ")")
+	if !ok {
+		return ""
+	}
+	i := strings.LastIndex(rest, marker)
+	if i < 0 {
+		return ""
+	}
+	return rest[i+len(marker):]
 }
 
 func hasContextTooLargePhrase(text string) bool {

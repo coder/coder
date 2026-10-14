@@ -189,10 +189,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
 }
 
-// TestPrepareGenerationCountsPendingUserMessages verifies that the
-// compaction trigger counts the pending user messages the next model call
-// sends after the history, although the summary request excludes them.
-func TestPrepareGenerationCountsPendingUserMessages(t *testing.T) {
+// TestPrepareGenerationCountsMessagesAfterMeasuredStep verifies that the
+// compaction trigger counts what the next model call sends after the last
+// step that reported usage: pending user messages, which the summary request
+// excludes, and an interrupted response, which persists without usage.
+func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -224,13 +225,17 @@ func TestPrepareGenerationCountsPendingUserMessages(t *testing.T) {
 	)
 
 	cases := []struct {
-		name         string
+		name string
+		// interrupted is a response that a stop cut short after the
+		// measured step.
+		interrupted  string
 		pending      string
 		wantRequired bool
 	}{
 		{name: "small pending message", pending: "continue"},
 		// About 6,800 tokens on top of the 85,000 the last step measured.
 		{name: "large pending message", pending: strings.Repeat("a", 20<<10), wantRequired: true},
+		{name: "large interrupted response", interrupted: strings.Repeat("a", 20<<10), pending: "continue", wantRequired: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -252,17 +257,20 @@ func TestPrepareGenerationCountsPendingUserMessages(t *testing.T) {
 			}
 			answer := message(database.ChatMessageRoleAssistant, "hi")
 			answer.InputTokens = sql.NullInt64{Int64: 85_000, Valid: true}
+			initial := []chatstate.Message{message(database.ChatMessageRoleUser, "hello"), answer}
+			if tc.interrupted != "" {
+				initial = append(initial,
+					message(database.ChatMessageRoleUser, "go on"),
+					message(database.ChatMessageRoleAssistant, tc.interrupted),
+				)
+			}
 			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
 				LastModelConfigID: modelConfig.ID,
 				Title:             tc.name,
 				ClientType:        database.ChatClientTypeApi,
-				InitialMessages: []chatstate.Message{
-					message(database.ChatMessageRoleUser, "hello"),
-					answer,
-					message(database.ChatMessageRoleUser, tc.pending),
-				},
+				InitialMessages:   append(initial, message(database.ChatMessageRoleUser, tc.pending)),
 			})
 			require.NoError(t, err)
 
@@ -919,7 +927,7 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 5, database.ChatMessageRoleTool, false, codersdk.ChatMessageText("result")),
 			withUsage(dbMessage(t, 6, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step3")), 5400, 0),
 		}
-		usage := latestPromptUsage(messages)
+		usage, _ := latestPromptUsage(messages)
 		assert.Equal(t, int64(5400), usage.InputTokens,
 			"must return the last step's usage, not the sum across steps")
 	})
@@ -930,12 +938,14 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("hi")),
 		}
-		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(messages))
+		usage, _ := latestPromptUsage(messages)
+		assert.Equal(t, fantasy.Usage{}, usage)
 	})
 
 	t.Run("returns zero for empty message list", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(nil))
+		usage, _ := latestPromptUsage(nil)
+		assert.Equal(t, fantasy.Usage{}, usage)
 	})
 }
 

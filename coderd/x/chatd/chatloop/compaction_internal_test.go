@@ -836,6 +836,14 @@ func TestIsContextTooLargeError(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "wording in another case",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Your Input Exceeds The Context Window Of This Model.",
+			},
+			want: true,
+		},
+		{
 			name: "openai error code in response body",
 			err: &fantasy.ProviderError{
 				StatusCode:   http.StatusBadRequest,
@@ -914,10 +922,26 @@ func TestIsContextTooLargeError(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "responses error event without a code",
+			err: &fantasy.Error{
+				Title:   "response error",
+				Message: "Your input exceeds the context window of this model.",
+			},
+			want: true,
+		},
+		{
 			name: "unrelated responses failure",
 			err: &fantasy.Error{
 				Title:   "response failed",
 				Message: "The server had an error while processing your request. (code: server_error)",
+			},
+			want: false,
+		},
+		{
+			name: "responses failure with matching wording and another code",
+			err: &fantasy.Error{
+				Title:   "response failed",
+				Message: "context window tokens per minute exceeded (code: rate_limit_exceeded)",
 			},
 			want: false,
 		},
@@ -1237,13 +1261,17 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		outputTokens int64
 		// trailing is the text of a message after the trigger step's
 		// assistant message.
-		trailing            string
+		trailing string
+		// interrupted is the text of an assistant message after trailing
+		// that persisted without usage.
+		interrupted         string
 		summaryContextLimit int64
 		cap                 int64
 		wantCap             int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
 		{name: "reserves trailing messages", contextLimit: 100, inputTokens: 72, trailing: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
+		{name: "reserves an interrupted response", contextLimit: 100, inputTokens: 72, interrupted: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
 		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryContextLimit: 160_000, cap: 64_000, wantCap: 9998},
 		{name: "uses a larger summary window", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryContextLimit: 1_000, cap: 64_000, wantCap: 913},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
@@ -1276,17 +1304,23 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 			if tc.trailing != "" {
 				messages = append(messages, textMessage(fantasy.MessageRoleUser, tc.trailing))
 			}
+			unmeasuredAssistants := 0
+			if tc.interrupted != "" {
+				messages = append(messages, textMessage(fantasy.MessageRoleAssistant, tc.interrupted))
+				unmeasuredAssistants = 1
+			}
 			capTokens := tc.cap
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:               model,
-				Messages:            messages,
-				Clock:               quartz.NewMock(t),
-				ThresholdPercent:    70,
-				ContextLimit:        tc.contextLimit,
-				SummaryContextLimit: tc.summaryContextLimit,
-				SummaryPrompt:       "prompt",
-				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
+				Model:                model,
+				Messages:             messages,
+				Clock:                quartz.NewMock(t),
+				ThresholdPercent:     70,
+				ContextLimit:         tc.contextLimit,
+				SummaryContextLimit:  tc.summaryContextLimit,
+				SummaryPrompt:        "prompt",
+				StepUsage:            fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				UnmeasuredAssistants: unmeasuredAssistants,
+				SummaryCall:          fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
@@ -1435,6 +1469,62 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 	})
 }
 
+// TestGenerateCompaction_ElideFirstRoomFloor pins when the elided request
+// goes first: the full request must leave less room in a known window than
+// the smaller of 16,000 tokens and the output cap.
+func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
+	t.Parallel()
+
+	// The step's 50,000 tokens, 2,000 for the trailing tool result, and 3
+	// for the summary prompt.
+	const fullInput = int64(52_003)
+	cases := []struct {
+		name       string
+		window     int64
+		maxOutput  int64
+		wantElided bool
+	}{
+		{name: "room below the floor", window: fullInput + 15_999, maxOutput: 20_000, wantElided: true},
+		{name: "room at the floor", window: fullInput + 16_000, maxOutput: 20_000},
+		{name: "a smaller output cap lowers the floor", window: fullInput + 10_000, maxOutput: 4_000},
+		{name: "unknown window", maxOutput: 20_000},
+	}
+	toolDefinitions := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls []fantasy.Call
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+					calls = append(calls, call)
+					return summaryTextStream(), nil
+				},
+			}
+			_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+				Model:           model,
+				Messages:        toolResultHistory(strings.Repeat("a", 6_000)),
+				Clock:           quartz.NewMock(t),
+				ContextLimit:    tc.window,
+				SummaryPrompt:   "summarize",
+				StepUsage:       fantasy.Usage{InputTokens: 50_000},
+				SummaryCall:     fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
+				ToolDefinitions: toolDefinitions,
+				Force:           true,
+			})
+			require.NoError(t, err)
+			require.Len(t, calls, 1)
+			if tc.wantElided {
+				require.Nil(t, calls[0].Tools)
+				return
+			}
+			require.Equal(t, toolDefinitions, calls[0].Tools)
+		})
+	}
+}
+
 func TestElideToolResults(t *testing.T) {
 	t.Parallel()
 
@@ -1534,9 +1624,10 @@ func TestEstimateTrailingTokens(t *testing.T) {
 		Content: []fantasy.MessagePart{fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "image/png"}},
 	}
 	cases := []struct {
-		name     string
-		messages []fantasy.Message
-		want     int64
+		name                 string
+		messages             []fantasy.Message
+		unmeasuredAssistants int
+		want                 int64
 	}{
 		{
 			name:     "ends with an assistant message",
@@ -1554,6 +1645,16 @@ func TestEstimateTrailingTokens(t *testing.T) {
 			want: 101,
 		},
 		{
+			name: "counts unmeasured assistant messages",
+			messages: []fantasy.Message{
+				toolCall,
+				toolResult,
+				textMessage(fantasy.MessageRoleAssistant, "abc"),
+			},
+			unmeasuredAssistants: 1,
+			want:                 101,
+		},
+		{
 			name:     "counts media by part, not by size",
 			messages: []fantasy.Message{toolCall, image},
 			want:     mediaTokenEstimate,
@@ -1567,7 +1668,7 @@ func TestEstimateTrailingTokens(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, EstimateTrailingTokens(tc.messages))
+			require.Equal(t, tc.want, EstimateTrailingTokens(tc.messages, tc.unmeasuredAssistants))
 		})
 	}
 }

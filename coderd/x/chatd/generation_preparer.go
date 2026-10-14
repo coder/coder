@@ -889,10 +889,10 @@ func (server *Server) prepareGeneration(
 			otherTrigger = chatTrigger
 		}
 	}
-	compactionStepUsage := latestPromptUsage(promptRows)
+	compactionStepUsage, unmeasuredAssistants := latestPromptUsage(promptRows)
 	// The full prompt includes the pending user messages, which the next
 	// model call sends after the compacted history.
-	compactionTrailingTokens := chatloop.EstimateTrailingTokens(prompt)
+	compactionTrailingTokens := chatloop.EstimateTrailingTokens(prompt, unmeasuredAssistants)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionTrailingTokens, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
@@ -912,6 +912,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		UnmeasuredAssistants: unmeasuredAssistants,
 		TrailingTokens:       compactionTrailingTokens,
 		SummaryCall:          compactionSummaryCall(resolved),
 		ToolDefinitions:      toolDefinitions,
@@ -982,19 +983,27 @@ func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed 
 	return connected, failed, nil
 }
 
-func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
+// latestPromptUsage returns the latest usage in messages and the number of
+// assistant messages after the one that reported it. Those persist without
+// usage, like the partial response of an interrupted step.
+func latestPromptUsage(messages []database.ChatMessage) (fantasy.Usage, int) {
+	unmeasuredAssistants := 0
 	for i := len(messages) - 1; i >= 0; i-- {
 		usage := usageFromMessage(messages[i])
 		if usage != (fantasy.Usage{}) {
-			return usage
+			return usage, unmeasuredAssistants
+		}
+		if messages[i].Role == database.ChatMessageRoleAssistant {
+			unmeasuredAssistants++
 		}
 	}
-	return fantasy.Usage{}
+	return fantasy.Usage{}, unmeasuredAssistants
 }
 
 // compactionOverrideWindowPercent leaves the rest of the override's window as
 // headroom for the summary prompt and summary. It is a target margin, not a
-// guarantee: the trigger reads the previous step's prompt usage.
+// guarantee: the trigger reads the previous step's prompt usage and only
+// estimates the messages after it.
 const compactionOverrideWindowPercent = int32(80)
 
 type compactionTrigger struct {
