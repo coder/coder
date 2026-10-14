@@ -217,11 +217,6 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	// UnmeasuredAssistants counts the assistant messages after the one
-	// whose step reported StepUsage, such as the partial response of an
-	// interrupted step. They persist without usage, so the summary estimate
-	// counts them as trailing (see EstimateTrailingTokens).
-	UnmeasuredAssistants int
 	// TrailingTokens estimates the messages after the trigger step, which
 	// StepUsage does not count (see EstimateTrailingTokens). It includes
 	// pending user messages that Messages excludes because they follow the
@@ -229,6 +224,10 @@ type GenerateCompactionOptions struct {
 	// here matches the caller's own compaction decision even when Messages
 	// is rewritten for an override model.
 	TrailingTokens int64
+	// SummaryTrailingTokens is the part of TrailingTokens that Messages
+	// holds. Callers pass it precomputed because rewriting Messages for an
+	// override model can drop the messages that locate the trigger step.
+	SummaryTrailingTokens int64
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,

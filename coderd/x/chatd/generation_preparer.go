@@ -915,10 +915,11 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
-		UnmeasuredAssistants: unmeasuredAssistants,
 		TrailingTokens:       compactionTrailingTokens,
-		SummaryCall:          compactionSummaryCall(resolved),
-		ToolDefinitions:      toolDefinitions,
+		// The summary request leaves out the pending user messages.
+		SummaryTrailingTokens: chatloop.EstimateTrailingTokens(compactionPromptMessages, unmeasuredAssistants),
+		SummaryCall:           compactionSummaryCall(resolved),
+		ToolDefinitions:       toolDefinitions,
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted

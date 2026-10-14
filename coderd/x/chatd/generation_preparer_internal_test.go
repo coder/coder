@@ -301,6 +301,9 @@ func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
 			require.NotNil(t, prepared.Compaction)
 			require.Len(t, prepared.Compaction.PendingUserRows, 1, "the summary request excludes the pending message")
 			require.Equal(t, tc.wantRequired, prepared.Compaction.Required)
+			// Of the large messages, only an interrupted response trails the
+			// measured step in the summary request.
+			require.Equal(t, tc.interrupted != "", prepared.Compaction.Options.SummaryTrailingTokens > 6_000)
 		})
 	}
 }

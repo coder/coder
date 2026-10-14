@@ -265,8 +265,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	// The summary request's input is the trigger step's prompt and output,
 	// the messages after it, and the summary prompt appended by
 	// generateCompactionSummary.
-	config.estimatedInputTokens = stepTokensFromUsage(opts.StepUsage) +
-		EstimateTrailingTokens(opts.Messages, opts.UnmeasuredAssistants) +
+	config.estimatedInputTokens = stepTokensFromUsage(opts.StepUsage) + opts.SummaryTrailingTokens +
 		estimateTokens(len(config.SummaryPrompt)+len(config.SummaryHint))
 	config.summaryWindow = contextLimit
 	if opts.SummaryContextLimit > 0 {

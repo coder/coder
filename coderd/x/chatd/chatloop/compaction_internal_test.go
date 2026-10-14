@@ -1330,16 +1330,16 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 			}
 			capTokens := tc.cap
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:                model,
-				Messages:             messages,
-				Clock:                quartz.NewMock(t),
-				ThresholdPercent:     70,
-				ContextLimit:         tc.contextLimit,
-				SummaryContextLimit:  tc.summaryContextLimit,
-				SummaryPrompt:        "prompt",
-				StepUsage:            fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				UnmeasuredAssistants: unmeasuredAssistants,
-				SummaryCall:          fantasy.Call{MaxOutputTokens: &capTokens},
+				Model:                 model,
+				Messages:              messages,
+				Clock:                 quartz.NewMock(t),
+				ThresholdPercent:      70,
+				ContextLimit:          tc.contextLimit,
+				SummaryContextLimit:   tc.summaryContextLimit,
+				SummaryPrompt:         "prompt",
+				StepUsage:             fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				SummaryTrailingTokens: EstimateTrailingTokens(messages, unmeasuredAssistants),
+				SummaryCall:           fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
@@ -1440,9 +1440,10 @@ func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
 			// The trigger step's 20,100 tokens, the trailing tool result,
 			// and the summary prompt leave under 16,000 tokens of the
 			// window for the summary.
-			StepUsage:       fantasy.Usage{InputTokens: 20_000, OutputTokens: 100},
-			SummaryCall:     fantasy.Call{MaxOutputTokens: &capTokens},
-			ToolDefinitions: toolDefinitions,
+			StepUsage:             fantasy.Usage{InputTokens: 20_000, OutputTokens: 100},
+			SummaryTrailingTokens: EstimateTrailingTokens(messages, 0),
+			SummaryCall:           fantasy.Call{MaxOutputTokens: &capTokens},
+			ToolDefinitions:       toolDefinitions,
 		})
 		if err == nil {
 			require.Equal(t, "summary", result.SummaryReport)
@@ -1531,17 +1532,19 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 					return summaryTextStream(), nil
 				},
 			}
+			messages := toolResultHistory(strings.Repeat("a", 6_000))
 			_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:               model,
-				Messages:            toolResultHistory(strings.Repeat("a", 6_000)),
-				Clock:               quartz.NewMock(t),
-				ContextLimit:        tc.window,
-				SummaryPrompt:       "summarize",
-				StepUsage:           cmp.Or(tc.usage, fantasy.Usage{InputTokens: 50_000}),
-				SummaryCall:         fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
-				ToolDefinitions:     tc.tools,
-				OmitToolDefinitions: tc.omitTools,
-				Force:               true,
+				Model:                 model,
+				Messages:              messages,
+				SummaryTrailingTokens: EstimateTrailingTokens(messages, 0),
+				Clock:                 quartz.NewMock(t),
+				ContextLimit:          tc.window,
+				SummaryPrompt:         "summarize",
+				StepUsage:             cmp.Or(tc.usage, fantasy.Usage{InputTokens: 50_000}),
+				SummaryCall:           fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
+				ToolDefinitions:       tc.tools,
+				OmitToolDefinitions:   tc.omitTools,
+				Force:                 true,
 			})
 			require.NoError(t, err)
 			require.Len(t, calls, 1)
