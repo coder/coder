@@ -49,6 +49,14 @@ const refetchWith = async (
 	);
 };
 
+/** Opens the delete confirmation and confirms it. */
+const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(screen.getByRole("button", { name: "Delete" }));
+	await user.click(
+		await screen.findByRole("button", { name: "Delete instructions" }),
+	);
+};
+
 const renderPanel = (project: ChatProject = MockChatProject) => {
 	const queryClient = createTestQueryClient();
 	const panel = (project: ChatProject) => (
@@ -174,7 +182,7 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Edit instructions" }),
 		);
-		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await confirmDelete(user);
 
 		expect(deleteInstructions).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
@@ -244,7 +252,7 @@ describe("ProjectDetailsPanel", () => {
 		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
-		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await confirmDelete(user);
 
 		await waitFor(() => expect(dialog).toHaveTextContent("Failed to delete."));
 		expect(dialog).not.toHaveTextContent("Failed to save.");
@@ -270,6 +278,44 @@ describe("ProjectDetailsPanel", () => {
 
 		await waitFor(() => expect(updateInstructions).toHaveBeenCalled());
 		expect(updateInstructions).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes the editor when a double clicked Save succeeds after a failure", async () => {
+		const updateInstructions = vi
+			.spyOn(API.experimental, "updateChatProjectInstructions")
+			.mockRejectedValueOnce(mockApiError({ message: "Failed to save." }))
+			.mockResolvedValue({
+				...MockChatProjectInstructions,
+				instructions: "Be brief.",
+			});
+		mockInstructions(MockUnsetChatProjectInstructions);
+		const { user } = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			"Be brief.",
+		);
+		const dialog = screen.getByRole("dialog");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
+		// The second click still sees the failed save's error, and must not
+		// reset the retry that the first click started.
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		// Reopening needs onSuccess to close the editor, and a third save
+		// needs onSettled to clear the in-flight guard.
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			" More.",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(updateInstructions).toHaveBeenCalledTimes(3));
 	});
 
 	it("refetches the instructions when the window regains focus", async () => {
@@ -325,11 +371,17 @@ describe("ProjectDetailsPanel", () => {
 		{
 			action: "Save",
 			result: { ...MockChatProjectInstructions, instructions: "Saved text." },
+			submit: (user: ReturnType<typeof userEvent.setup>) =>
+				user.click(screen.getByRole("button", { name: "Save" })),
 		},
-		{ action: "Delete", result: MockUnsetChatProjectInstructions },
+		{
+			action: "Delete",
+			result: MockUnsetChatProjectInstructions,
+			submit: confirmDelete,
+		},
 	])(
 		"keeps the result of $action when a stale refetch finishes after it",
-		async ({ action, result }) => {
+		async ({ result, submit }) => {
 			vi.spyOn(
 				API.experimental,
 				"updateChatProjectInstructions",
@@ -360,7 +412,7 @@ describe("ProjectDetailsPanel", () => {
 				focusManager.setFocused(true);
 			});
 			await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
-			await user.click(screen.getByRole("button", { name: action }));
+			await submit(user);
 			await waitFor(() =>
 				expect(
 					queryClient.getQueryData(

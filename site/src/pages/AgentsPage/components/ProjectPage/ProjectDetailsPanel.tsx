@@ -77,8 +77,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				isDeleting={deleteMutation.isPending}
 				saveError={updateMutation.error}
 				deleteError={deleteMutation.error}
-				onDraftChange={() => {
-					if (updateMutation.error || deleteMutation.error) {
+				onResetErrors={() => {
+					// The error fields lag a render, so also check the ref: resetting
+					// a pending mutation drops its per-call onSuccess and onSettled.
+					if (
+						!isMutationInFlight.current &&
+						(updateMutation.error || deleteMutation.error)
+					) {
 						resetErrors();
 					}
 				}}
