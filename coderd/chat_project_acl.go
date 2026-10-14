@@ -302,7 +302,8 @@ func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatPr
 
 	//nolint:gocritic // Project readers see who it is shared with without user read permission.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	// Entries outside the project's organization grant nothing; hide them.
+	// Leaving the organization removes a user's entries, so others only come
+	// from bugs and grant nothing while the user is outside it.
 	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get organization memberships: %w", err)
@@ -345,10 +346,7 @@ func (api *API) chatProjectACLGroups(ctx context.Context, project database.ChatP
 	}
 
 	//nolint:gocritic // Project readers see shared groups without group read permission.
-	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
-		OrganizationID: project.OrganizationID,
-		GroupIds:       groupIDs,
-	})
+	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get groups: %w", err)
 	}

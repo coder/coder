@@ -34,6 +34,18 @@ type Story = StoryObj<typeof ProjectDetailsPanelView>;
 
 export const Default: Story = {};
 
+/** Users without update permission, such as `use` sharees, cannot edit. */
+export const WithoutUpdatePermission: Story = {
+	args: { onEditInstructions: undefined },
+};
+
+export const UnsetWithoutUpdatePermission: Story = {
+	args: {
+		instructions: MockUnsetChatProjectInstructions,
+		onEditInstructions: undefined,
+	},
+};
+
 export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
 };

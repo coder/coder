@@ -3490,8 +3490,8 @@ export interface ChatProjectGroup extends Group {
 // From codersdk/chats.go
 /**
  * ChatProjectInstructions are instructions added to the system prompt of
- * every chat in a project whose owner can still use the project. A project without
- * instructions has an empty Instructions string and nil UpdatedBy and
+ * every chat in a project, except chats whose owner can no longer use the
+ * project. A project without instructions has an empty Instructions string and nil UpdatedBy and
  * UpdatedAt.
  */
 export interface ChatProjectInstructions {

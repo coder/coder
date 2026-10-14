@@ -1020,14 +1020,14 @@ Owners share a project with users, groups, or the Everyone group (ID = organizat
 
 | Role    | Project and instructions | Memories   | ACL  | Delete |
 |---------|--------------------------|------------|------|--------|
-| `use`   | read                     | read/write | none | no     |
+| `use`   | read                     | read/write | read | no     |
 | `admin` | read/write               | read/write | edit | no     |
 
 Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
 
-Memory tools run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+Memory tools and instruction loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
 
-Chat creation, `resolveProjectMemory`, and `resolveProjectInstructions` check `ChatProjectUsableBy` for the chat owner on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` and `resolveProjectInstructions` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
 ##### Reasoning effort
 

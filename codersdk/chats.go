@@ -297,8 +297,8 @@ type UpdateChatProjectACL struct {
 }
 
 // ChatProjectInstructions are instructions added to the system prompt of
-// every chat in a project whose owner can still use the project. A project without
-// instructions has an empty Instructions string and nil UpdatedBy and
+// every chat in a project, except chats whose owner can no longer use the
+// project. A project without instructions has an empty Instructions string and nil UpdatedBy and
 // UpdatedAt.
 type ChatProjectInstructions struct {
 	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
@@ -2394,7 +2394,8 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists projects the user owns or that are shared with them.
+// ListChatProjects lists projects the user owns or that are shared with them,
+// across all organizations.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {

@@ -31,7 +31,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 		}
 	}
 
-	t.Run("Project", func(t *testing.T) {
+	t.Run("ProjectOwner", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		projectID := uuid.New()

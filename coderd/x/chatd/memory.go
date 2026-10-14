@@ -28,7 +28,7 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return nil, "", false
 	}
-	project, ok := p.usableChatProject(ctx, p.logger, chat.ProjectID.UUID, chat)
+	project, ok := p.usableChatProject(ctx, p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID)), chat.ProjectID.UUID, chat)
 	if !ok {
 		return nil, "", false
 	}

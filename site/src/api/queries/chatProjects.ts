@@ -10,7 +10,8 @@ import {
 export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
- * Lists chat projects the current user owns or that are shared with them.
+ * Lists chat projects the current user owns or that are shared with them,
+ * across all organizations.
  * @public
  */
 export const chatProjects = () =>

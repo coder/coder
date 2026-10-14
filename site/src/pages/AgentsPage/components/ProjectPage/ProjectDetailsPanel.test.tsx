@@ -100,6 +100,22 @@ describe("ProjectDetailsPanel", () => {
 		focusManager.setFocused(undefined);
 	});
 
+	it("hides instruction editing without update permission", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const { rerenderWithProject } = renderPanel();
+		rerenderWithProject({
+			...MockChatProject,
+			permissions: { update: false, delete: false, share: false },
+		});
+
+		expect(
+			await screen.findByText(/Use TypeScript for new code/),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
+	});
+
 	it("creates instructions and shows the saved text without refetching", async () => {
 		const text = "Use TypeScript for new code.";
 		const updateInstructions = vi

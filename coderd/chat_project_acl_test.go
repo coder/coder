@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -178,6 +180,10 @@ func TestChatProjectSharing(t *testing.T) {
 		instructions, err := client.ChatProjectInstructions(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Equal(t, "Admin instructions.", instructions.Instructions)
+		require.NoError(t, admin.DeleteChatProjectInstructions(ctx, project.OrganizationID, project.ID))
+		instructions, err = client.ChatProjectInstructions(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		require.Empty(t, instructions.Instructions)
 
 		err = admin.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{firstUser.UserID.String(): codersdk.ChatProjectRoleUse},
@@ -308,19 +314,18 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Empty(t, acl.Users)
 		require.Empty(t, acl.Groups)
 
-		// Entries that bypassed validation are hidden.
+		// User entries outside the organization, which skipped validation, are hidden.
 		ownerUser, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, ownerUser))
 		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
 			ID:       project.ID,
 			UserACL:  database.ChatACL{foreignUser.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
-			GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			GroupACL: database.ChatACL{},
 		}))
 		acl, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Empty(t, acl.Users)
-		require.Empty(t, acl.Groups)
 		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
 			ID:       project.ID,
 			UserACL:  database.ChatACL{},
@@ -363,6 +368,49 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireChatProjectNotFound(t, err)
 	})
+}
+
+// deleteProjectBeforeInsertChatStore deletes the chat's project right before
+// InsertChat, as a concurrent project delete would.
+type deleteProjectBeforeInsertChatStore struct {
+	database.Store
+}
+
+func (s deleteProjectBeforeInsertChatStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(deleteProjectBeforeInsertChatStore{Store: tx})
+	}, txOpts)
+}
+
+func (s deleteProjectBeforeInsertChatStore) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
+	if arg.ProjectID.Valid {
+		if err := s.DeleteChatProjectByID(ctx, arg.ProjectID.UUID); err != nil {
+			return database.Chat{}, err
+		}
+	}
+	return s.Store.InsertChat(ctx, arg)
+}
+
+func TestPostChatsProjectDeletedBeforeInsert(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawDB, ps := dbtestutil.NewDB(t)
+	client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
+		opts.Database = deleteProjectBeforeInsertChatStore{Store: rawDB}
+		opts.Pubsub = ps
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+	project := createChatProject(t, client, firstUser.OrganizationID, "Racing Project")
+
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: project.OrganizationID,
+		ProjectID:      &project.ID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+	})
+	sdkErr := requireSDKError(t, err, http.StatusNotFound)
+	require.Equal(t, "Chat project not found.", sdkErr.Message)
 }
 
 func newChatProjectMember(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID) (*codersdk.ExperimentalClient, codersdk.User) {
