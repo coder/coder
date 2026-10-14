@@ -96,7 +96,7 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 
 /**
  * Work (reasoning, tool calls, citations) folds into a working block. Output
- * (text, files) renders in the transcript and closes the block before it.
+ * (text, files) renders in the transcript.
  */
 type RowPiece = {
 	kind: "work" | "output";
@@ -290,13 +290,16 @@ type Draft = {
 	anchorKey?: string;
 	ordinal: number;
 	containsLiveRow: boolean;
-	followedByOutput: boolean;
+	/** The row whose text, or content that never folds, closed the block. */
+	closedBy?: TimelineRow["type"];
 };
 
 /**
- * Any output, even a sentence between two tool calls of one step, closes the
- * open block. Timestamps come from the raw entries, because the timeline rows
- * already dropped tool-result messages and merged read_file runs.
+ * Any text, even a sentence between two tool calls of one step, closes the
+ * open block. Attached files render after the block and leave it open, so the
+ * work that follows them, like the answer's reasoning, stays in it.
+ * Timestamps come from the raw entries, because the timeline rows already
+ * dropped tool-result messages and merged read_file runs.
  */
 export const groupWorkingBlocks = (
 	rows: readonly TimelineRow[],
@@ -317,7 +320,10 @@ export const groupWorkingBlocks = (
 		const split = rowPieces[rowIndex];
 		openAtStart[rowIndex] = open;
 		if (!split) {
-			open = undefined;
+			if (open) {
+				open.closedBy = row.type;
+				open = undefined;
+			}
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
 				anchorKey = row.key;
 				ordinal = 0;
@@ -335,10 +341,10 @@ export const groupWorkingBlocks = (
 		let workOrdinal = 0;
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
 			if (piece.kind === "output") {
-				if (open) {
-					open.followedByOutput = true;
+				if (open && piece.blocks.some((block) => block.type === "response")) {
+					open.closedBy = row.type;
+					open = undefined;
 				}
-				open = undefined;
 				continue;
 			}
 
@@ -352,7 +358,6 @@ export const groupWorkingBlocks = (
 					anchorKey,
 					ordinal,
 					containsLiveRow: false,
-					followedByOutput: false,
 				};
 				ordinal += 1;
 				drafts.push(open);
@@ -530,35 +535,31 @@ export const groupWorkingBlocks = (
 
 	// Completed reasoning alone stays visible. The live turn folds from its
 	// first reasoning, so thinking never shows and then vanishes once a tool
-	// call arrives, and unfolds only when output follows it without steps.
+	// call arrives, and unfolds only when text follows it without steps.
 	const blockDrafts = drafts.filter(
 		(draft) =>
 			getStepCount(draft) > 0 ||
 			(draft.containsLiveRow &&
 				options.isTurnActive &&
-				!draft.followedByOutput),
+				draft.closedBy === undefined),
 	);
 
 	const sliceKey = (rowIndex: number, sliceOrdinal: number) =>
 		sliceOrdinal === 0
 			? rows[rowIndex].key
 			: `${rows[rowIndex].key}:${sliceOrdinal}`;
-	// Output persisted after a block completes it even while the chat still
-	// runs; output still streaming does not.
-	const nothingPersistedAfter = ({ rowIndex, end }: DraftSlice) =>
-		rows[rowIndex].type === "live" ||
-		(rowIndex === rows.findLastIndex((row) => row.type === "message") &&
-			end === rowPieces[rowIndex]?.pieces.length);
 	const blockOfPiece: (WorkingBlock | undefined)[][] = rows.map(() => []);
 	const rowInBlock = rows.map(() => false);
 
 	const blocks = blockDrafts.map((draft, draftIndex): WorkingBlock => {
 		const first = draft.slices[0];
 		const last = draft.slices[draft.slices.length - 1];
+		// A persisted row closing a block completes it even while the chat
+		// still runs; text still streaming does not.
 		const isLive =
 			options.isWorking &&
 			draftIndex === blockDrafts.length - 1 &&
-			nothingPersistedAfter(last);
+			draft.closedBy !== "message";
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 
 		const block: WorkingBlock = {
