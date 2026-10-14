@@ -195,4 +195,41 @@ describe("ChatPageInput", () => {
 		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
 		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
 	});
+
+	it("lets another queued row act while one row's request is in flight", async () => {
+		const user = userEvent.setup();
+		const onDeleteQueuedMessage = vi
+			.fn()
+			.mockReturnValueOnce(new Promise(() => {}))
+			.mockResolvedValue(undefined);
+		const queuedRow = (id: number, text: string) => ({
+			id,
+			chat_id: "",
+			created_at: "2025-01-01T00:00:00.000Z",
+			content: [{ type: "text" as const, text }],
+		});
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [
+				queuedRow(1, "first queued"),
+				queuedRow(2, "second queued"),
+			],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		store.applyServerChatStatus("running");
+
+		renderChatPageInput(store, { onDeleteQueuedMessage });
+		await screen.findByText("second queued");
+		const [removeFirst, removeSecond] = screen.getAllByRole("button", {
+			name: "Remove from queue",
+		});
+		await user.click(removeFirst);
+
+		expect(removeFirst).toBeDisabled();
+		expect(removeSecond).toBeEnabled();
+		await user.click(removeSecond);
+		expect(onDeleteQueuedMessage.mock.calls).toEqual([[1], [2]]);
+	});
 });
