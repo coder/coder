@@ -321,7 +321,8 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 
 /**
  * MockWorkingMessages with an attach_file step from 5s to 6s between its two
- * shell steps, its attachment after the tool call.
+ * shell steps. Like chatd, it commits the attachment as its own assistant
+ * message along with the tool result.
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	MockWorkingMessages[0],
@@ -339,6 +340,14 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 				args: { path: "/home/coder/report.pdf" },
 				created_at: workingFixtureTime(5),
 			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "assistant",
+		created_at: workingFixtureTime(6),
+		content: [
 			{
 				type: "file",
 				media_type: "application/pdf",
@@ -349,7 +358,7 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	},
 	{
 		...MockChatMessage,
-		id: 5,
+		id: 6,
 		role: "tool",
 		created_at: workingFixtureTime(6),
 		content: [
@@ -362,10 +371,10 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 			},
 		],
 	},
-	...workingStepMessages(6, "second", 7, 13),
+	...workingStepMessages(7, "second", 7, 13),
 	{
 		...MockChatMessage,
-		id: 8,
+		id: 9,
 		role: "assistant",
 		created_at: workingFixtureTime(14),
 		content: [{ type: "text", text: "Workspace inspection complete." }],
@@ -376,7 +385,7 @@ const planPath = "/home/coder/.coder/plans/PLAN.md";
 
 /**
  * A turn that proposes a plan after the first step of MockWorkingMessages,
- * with its plan file in the propose_plan message.
+ * with its plan file committed as its own message like any tool attachment.
  */
 export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
@@ -393,6 +402,14 @@ export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 				args: { path: planPath },
 				created_at: workingFixtureTime(5),
 			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "assistant",
+		created_at: workingFixtureTime(6),
+		content: [
 			{
 				type: "file",
 				media_type: "text/markdown",
@@ -403,7 +420,7 @@ export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	},
 	{
 		...MockChatMessage,
-		id: 5,
+		id: 6,
 		role: "tool",
 		created_at: workingFixtureTime(6),
 		content: [

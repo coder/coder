@@ -232,6 +232,18 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 	);
 };
 
+/** An assistant message that shows nothing but files its tools attached. */
+export const isAttachmentOnlyMessage = ({
+	message,
+	parsed,
+}: ParsedMessageEntry): boolean => {
+	if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
+		return false;
+	}
+	const { visibleBlocks } = getVisibleContent(parsed.blocks, parsed.tools);
+	return visibleBlocks.length > 0 && visibleBlocks.every(isFileRenderBlock);
+};
+
 const mergeReadFileMessageGroup = (
 	group: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry => {

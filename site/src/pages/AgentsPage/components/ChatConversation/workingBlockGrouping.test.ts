@@ -239,13 +239,11 @@ describe("groupWorkingBlocks", () => {
 			name: "report.csv",
 			file_id: "report-file",
 		};
+		// chatd persists a tool's attachments as their own assistant message.
 		const steps = [
 			...step("a", 1, 2),
-			message(
-				"assistant",
-				[call("b", at(3), "attach_file"), mockAttachment],
-				at(3),
-			),
+			message("assistant", [call("b", at(3), "attach_file")], at(3)),
+			message("assistant", [mockAttachment], at(3)),
 			message("tool", [result("b", at(4), { name: "attach_file" })], at(4)),
 			...step("c", 5, 6),
 		];
@@ -256,7 +254,8 @@ describe("groupWorkingBlocks", () => {
 		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
 			steps[0].id,
 			steps[2].id,
-			steps[4].id,
+			steps[3].id,
+			steps[5].id,
 		]);
 		expect(blocks[0].endsWithAnswer).toBe(false);
 	});
