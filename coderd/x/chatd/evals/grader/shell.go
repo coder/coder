@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"path"
 	"regexp"
 	"slices"
@@ -27,7 +28,9 @@ type shellCommand struct {
 	// End holds, for each level of Pos, the offset just past the
 	// statement there that holds the command: the statement of the shell
 	// command that runs its nested script, and last the command's own
-	// statement, its redirections included (see endsBefore).
+	// statement, its redirections included (see endsBefore). A level
+	// where a statement run in the background (&) holds the command has
+	// neverEnds, since the shell runs the next statement without waiting.
 	End scriptPos
 	// Pipeline is the position of the pipeline the command is a stage of,
 	// prefixed like Pos; nil outside a pipeline.
@@ -44,6 +47,10 @@ type shellCommand struct {
 	// and a loop whose body never runs, exit 0.
 	Conditional bool
 }
+
+// neverEnds is the End of a command at a level where the shell runs it in
+// the background.
+const neverEnds = math.MaxUint
 
 // scriptPos is the source offset of a command or statement in an execute
 // command, preceded by the offsets of the shell commands that run it as a
@@ -121,6 +128,7 @@ func parseShell(src string) (shellScript, bool) {
 	stages := map[*syntax.CallExpr]scriptPos{}
 	// Walk visits a statement before its command.
 	stmtEnds := map[*syntax.CallExpr]uint{}
+	var backgrounds [][2]uint
 	syntax.Walk(f, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.BinaryCmd:
@@ -149,6 +157,7 @@ func parseShell(src string) (shellScript, bool) {
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
 				out.Backgrounded = true
+				backgrounds = append(backgrounds, [2]uint{n.Pos().Offset(), n.End().Offset()})
 			}
 			call, _ := n.Cmd.(*syntax.CallExpr)
 			if call != nil {
@@ -181,6 +190,11 @@ func parseShell(src string) (shellScript, bool) {
 			end, ok := stmtEnds[n]
 			if !ok {
 				end = n.End().Offset()
+			}
+			if slices.ContainsFunc(backgrounds, func(b [2]uint) bool {
+				return b[0] <= n.Pos().Offset() && n.Pos().Offset() < b[1]
+			}) {
+				end = neverEnds
 			}
 			cmd := shellCommand{
 				Args:       make([]string, 0, len(n.Args)),
@@ -1599,7 +1613,7 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git restore of the working tree")
 			}
 		case "clean":
-			if g.has("f", "--force") {
+			if g.has("f", "--force") && !g.has("n", "--dry-run") {
 				out = append(out, "git clean -f")
 			}
 		case "stash":
@@ -1700,8 +1714,9 @@ var (
 // branchSwitch reports how a command changes the checked-out branch:
 // the new branch name (detachedHead for -d, --detach, or a commit
 // operand, previousBranch for - or @{-1}), and whether the command
-// switched at all. Options are read as git reads them (parseGitArgs), so
-// -qbfix creates fix.
+// switched at all: HEAD and @ name the current branch, which git checkout
+// keeps and git switch refuses. Options are read as git reads them
+// (parseGitArgs), so -qbfix creates fix.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
@@ -1731,8 +1746,11 @@ func branchSwitch(c shellCommand) (string, bool) {
 		return "", false
 	}
 	op := operands[0]
-	if op == "@{-1}" {
+	switch op {
+	case "@{-1}":
 		return previousBranch, true
+	case "HEAD", "@":
+		return "", false
 	}
 	if sub == "checkout" {
 		switch {

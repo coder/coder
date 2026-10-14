@@ -369,6 +369,8 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"checkout -bf names the branch f", "git checkout -bf main", false},
 		{"checkout -tf reads f as the track mode", "git checkout -tf main", false},
 		{"clean -n with an attached exclude pattern", "git clean -n -ef", false},
+		{"clean -fdn is a dry run", "git clean -fdn", false},
+		{"clean -f --dry-run", "git clean -f --dry-run", false},
 		{"reset --soft", "git reset --soft HEAD~1", false},
 		{"reset path", "git reset a.py", false},
 		{"checkout -b", "git checkout -b fix", false},

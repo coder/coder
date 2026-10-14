@@ -37,6 +37,12 @@ const pythonRequest = "(?:\\burlopen|\\brequests\\.(?:get|head|request)|\\bHTTPC
 const healthProbe = `^(?:curl|wget)\\b.*\\b8765\\b|^python[0-9.]*\\b(?s:.*)(?:${pythonRequest}(?s:.*)\\b8765\\b|\\b8765\\b(?s:.*)${pythonRequest})`;
 const healthy = "(?im)[\"']status[\"']:\\s*[\"']ok[\"']|\\bHTTP/?\\S*\\s+200\\b|\\bstatus(?:[ _]?code)?\\W*200\\b|^\\s*200\\s*$";
 
+// A search for calc_total that found it prints a line holding calc_total,
+// or, as grep -l and grep -c print them, a line that is only the path of a
+// file that holds it, with a count above 0 for -c.
+const calcTotalFound =
+  "(?m)\\bcalc_total\\b|^(?:\\./|/\\S*/)?(?:inventory/(?:pricing|report)|tests/test_inventory)\\.py(?::[1-9][0-9]*)?$";
+
 const cases: Case[] = [
   {
     // "use read_file, edit_files, and write_file for reading and changing
@@ -59,7 +65,12 @@ const cases: Case[] = [
     prompt: "Rename calc_total to total_value across the inventory project, including its callers and tests.",
     golden: "inventory-rename",
     checks: [
-      { id: "searched", type: "execute_matches", pattern: "^(?:rg|grep|egrep|fgrep|git (?:-[cC] \\S+ |-\\S+ )*grep)\\b.*calc_total" },
+      {
+        id: "searched",
+        type: "execute_matches",
+        pattern: "^(?:rg|grep|egrep|fgrep|git (?:-[cC] \\S+ |-\\S+ )*grep)\\b.*calc_total",
+        output: calcTotalFound,
+      },
       { id: "edited-with-tools", type: "tool_count", tools: ["edit_files", "write_file"], min: 1, successful: true },
       noShellFileIO,
     ],

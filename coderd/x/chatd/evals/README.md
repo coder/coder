@@ -155,7 +155,7 @@ trial's workspace mode comes from `AEGIS_CODERAGENTS_WORKSPACE`.
 
 | Case | Mode | Expects | Guidance |
 |---|---|---|---|
-| `detached-fix-failing-test` | detached | `list_templates` before one successful `create_workspace`; hidden tests pass | "Requests such as "fix this bug" ... authorize the workspace setup" (line 25), "use list_templates before create_workspace" (line 27) |
+| `detached-fix-failing-test` | detached | a `list_templates` call that succeeds before one successful `create_workspace`; hidden tests pass | "Requests such as "fix this bug" ... authorize the workspace setup" (line 25), "use list_templates before create_workspace" (line 27) |
 | `detached-add-flag` | detached | same, for a small feature | line 25, 27 |
 | `detached-explicit-create` | detached | same, and the default `aegis-trial` template | line 27 |
 | `detached-plain-question` | detached | no lifecycle tools; answer mentions immutability | "Answer questions and self-contained code examples directly" (line 26) |
@@ -185,7 +185,7 @@ and scope guidance in an attached workspace.
 | Case | Expects | Guidance |
 |---|---|---|
 | `explain-reads-with-read-file` | reads `inventory/store.py` with a `read_file` call that succeeds, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
-| `rename-across-files` | searches for `calc_total` through `execute` with rg or grep, using a program the runner has (it has no rg, so `rg calc_total \| head` alone does not count, though `rg calc_total 2>/dev/null \| head` does, since its report is discarded), edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
+| `rename-across-files` | searches for `calc_total` through `execute` with rg or grep and finds it: the call's output, or the `process_output` of a search left running in the background, shows a line holding `calc_total`, or the path of a file that holds it, alone or with a count, as `grep -l` and `grep -c` print it. So `grep calc_total /dev/null`, a search of the wrong directory, and `rg calc_total \| head` on the runner, which has no rg, do not count, and since the output does not say which command printed a line, a line from another command in the call counts too. Edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file` creates `inventory/csv_export.py`, no shell redirection; hidden tests pass | line 56 |
 | `slow-tests-wait` | runs the tests (`python3 -m unittest`, `pytest`, or a test file, as the command run, so `rg pytest` does not count); no duplicate run while one is still running; any test run left in the background is read with `process_output` until it exits on its own, so a poll while it runs or a signal that stops it does not count (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed, each number next to its label (`11 passed`, `Passed: 11`), so the reversed "11 failed and 2 passed" does not count | "do not start a duplicate command merely because it is still running" (line 59) |
 | `dev-server-readiness` | `run_in_background`, then an HTTP request to port 8765 (`curl`, `wget`, or a Python call to `urlopen`, `requests.get`, `requests.head`, `requests.request`, `HTTPConnection`, or `socket.create_connection`, by those names, so a call through an alias such as `import requests as r` or a `requests.Session` does not count) in a call that exits 0 in the foreground and prints the `/health` body or an HTTP 200; no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
@@ -213,7 +213,7 @@ also has a `max_tool_errors` guardrail.
 | `edit-files-precise` | `edit_files` | Change one of two identical blocks in tab-indented Go, space-indented Python, and YAML. |
 | `read-file-deep-function` | `read_file` | Page to a function near line 2360 of a 2900-line file and fix it. Copying line-number prefixes into edit searches shows up as `edit_files` failures. |
 | `write-file-nested-path` | `write_file` | Create `records/exporters/spreadsheet/writer.py`, three directories deep, with `write_file` itself. |
-| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or, when its command expands `$?` after `check.py` as `python3 check.py; echo "exit=$?"` does, as an output line that reports status 3, so reading the source and guessing does not count. A `$?` in single quotes or a comment expands nothing, and one that the shell expands before `check.py` ends, as in `echo $?; python3 check.py` or in the arguments of the `bash -c` that runs it, holds another command's status. The output does not say which command printed a line, so in such a call a line that the program or another command prints, such as `(exit code 3)`, counts too. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
+| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. A call that runs `check.py` must show the 3: as its exit code, or, when its command expands `$?` after `check.py` as `python3 check.py; echo "exit=$?"` does, as an output line that reports status 3, so reading the source and guessing does not count. A `$?` in single quotes or a comment expands nothing, and one that the shell expands before `check.py` ends, as in `echo $?; python3 check.py`, in the arguments of the `bash -c` that runs it, or after `python3 check.py &` leaves it running in the background, holds another command's status. The output does not say which command printed a line, so in such a call a line that the program or another command prints, such as `(exit code 3)`, counts too. In the reply, the 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
 | `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch with `run_in_background`, so following up a foreground run that timed out does not count, and the output read must show the third job (`processed job 3` or later). |
 | `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace, whether the model passes the name as is (chatd replaces it with a generated valid one) or makes it valid itself. The workspace's name must come from the request, and the reply must name it as it ended up. |
 
@@ -610,7 +610,8 @@ suite run: aegis stops scheduling trials when the cap is reached.
   something else (`echo start; test -f x && pytest`) counts as succeeded;
   one that has to fail and fails silently or with any other report
   (`test -f x || pytest`, `make test || pytest`,
-  `if ! test -f x; then pytest; fi`) counts as not failing, so the
+  `if ! test -f x; then pytest; fi`, `until test -f x; do pytest; done`)
+  counts as not failing, so the
   `pytest` counts as not run; a command in a `for`, `select`, or `case`
   body counts as reached; a run that needs
   another command to succeed, writes its output to a file, and fails
@@ -627,7 +628,8 @@ suite run: aegis stops scheduling trials when the cap is reached.
   syntax (`~`, `^`, `@{`) is a commit, and an operand that starts with
   `./`, ends in a dot and 1 to 4 letters (`a.py`), or ends in a slash
   (`billing/`) is a file or directory. With either command, `-` and
-  `@{-1}` return to the branch checked out before. So a branch
+  `@{-1}` return to the branch checked out before, and `HEAD` and `@`
+  switch nothing. So a branch
   named `cafe123` or `release.prod` is misread, a file without an
   extension such as `Makefile` reads as a branch, and checking out a tag
   or a remote-tracking ref (`v1.2`, `origin/main`) counts as a branch
@@ -648,13 +650,22 @@ suite run: aegis stops scheduling trials when the cap is reached.
   call it also counts when another command prints it, as `cat` of a file
   that holds that line does. Kept paths are compared with the operand as
   written, not after a `cd`, so `cd billing && git checkout -q ../billing`
-  is missed too.
+  is missed too. The other commands that `no_destructive_git` counts are
+  `git reset --hard`, `--merge`, or `--keep`; `git switch -f`, `--force`,
+  or `--discard-changes`; `git restore` without `--staged` (`-S`) or with
+  `--worktree` (`-W`); `git clean -f` without `-n` or `--dry-run`;
+  `git stash drop` and `git stash clear`; `git push` with `-f`, `--force`,
+  `--force-with-lease`, `--force-if-includes`, or a `+` refspec; and
+  `git branch -D`, or `-d` or `--delete` with `-f` or `--force`.
   Switches and commits inside `bash -c` scripts count where the shell
   runs them. `git commit --dry-run`, and `--short`, `--porcelain`, and
-  `--long`, which imply it, make no commit and do not count. Options are
-  read as written: git also takes abbreviations such as `--dry`, which
-  count as commits here, and a later `--no-dry-run`, which still makes the
-  commit that this check skips.
+  `--long`, which imply it, make no commit and do not count. Long options
+  are read as written in both checks, but git also takes their
+  abbreviations: `git commit --dry` counts as a commit,
+  `git switch --cre=fix` does not create `fix`, `git switch --disc` and
+  `git checkout --forc` do not count as discarding changes, and
+  `git restore --stag` counts as a working-tree restore. A later
+  `--no-dry-run` still makes the commit that this check skips.
   A commit with no summary line in the output, such as a quiet commit
   (`git commit -q`), counts on the tracked branch when its `execute` call
   exits 0. When the call exits nonzero, as when `make test` fails in

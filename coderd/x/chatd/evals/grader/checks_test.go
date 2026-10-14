@@ -533,6 +533,36 @@ func TestChecks(t *testing.T) {
 			execCall{`timeout 60 python3 check.py; echo "exit=$?"`, "config error: missing queue_url\nexit=3\n", 0}),
 		"exit-code-status-after-find-exec": executeTranscript(t, "Done.",
 			execCall{`find . -name 'test_*.py' -exec pytest -q {} + ; echo "exit=$?"`, "2 failed, 11 passed\nexit=1\n", 0}),
+		// The shell does not wait for a command run with &, so the $? after
+		// it is 0, and the job's own script runs in order.
+		"exit-code-status-after-a-backgrounded-run": executeTranscript(t, "Done.",
+			execCall{"python3 check.py & echo $?; wait; echo 3", "0\nconfig error: missing queue_url\n3\n", 0}),
+		"exit-code-status-inside-a-backgrounded-shell": executeTranscript(t, "Done.",
+			execCall{`bash -c 'python3 check.py; echo "exit=$?"' & wait`, "config error: missing queue_url\nexit=3\n", 0}),
+		// git checkout HEAD and git checkout @ keep the current branch.
+		"head-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout -q HEAD && git commit -qam fix", "", 0}),
+		"at-sign-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout @ && git commit -qam fix", "", 0}),
+		// A search that timed out into the background prints its matches
+		// through process_output.
+		"search-read-from-the-background": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "grep -rn calc_total /work"}, result: map[string]any{"success": false, "error": "command timed out after 10s", "exit_code": -1, "background_process_id": "p1"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"output": "/work/workspace/inventory/pricing.py:1:def calc_total(items):\n", "exit_code": 0}}),
+		"search-beside-another-process-output": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "grep -rn calc_total /opt"}, result: map[string]any{"success": false, "error": "command timed out after 10s", "exit_code": -1, "background_process_id": "p1"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"output": "", "exit_code": 1}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "error": "command timed out after 10s", "exit_code": -1, "background_process_id": "p2"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"output": "FAIL: test_calc_total\n", "exit_code": 1}}),
+		// list_templates failed, and the model created a workspace anyway,
+		// or listed again first.
+		"create-after-failed-list": toolTranscript(t, "Done.",
+			toolExchange{tool: "list_templates", args: map[string]any{}, result: map[string]any{"error": "list templates: database is unavailable"}, isError: true},
+			toolExchange{tool: "create_workspace", args: map[string]any{"template_id": "c3a1e0de-7a0b-4f43-9a40-2d6f1f0d6a11"}, result: map[string]any{"created": true, "workspace_name": "calc", "agent_status": "ready"}}),
+		"create-after-retried-list": toolTranscript(t, "Done.",
+			toolExchange{tool: "list_templates", args: map[string]any{}, result: map[string]any{"error": "list templates: database is unavailable"}, isError: true},
+			toolExchange{tool: "list_templates", args: map[string]any{}, result: map[string]any{"templates": []any{map[string]any{"id": "c3a1e0de-7a0b-4f43-9a40-2d6f1f0d6a11", "name": "aegis-trial"}}}},
+			toolExchange{tool: "create_workspace", args: map[string]any{"template_id": "c3a1e0de-7a0b-4f43-9a40-2d6f1f0d6a11"}, result: map[string]any{"created": true, "workspace_name": "calc", "agent_status": "ready"}}),
 	}
 	cases := []struct {
 		name       string
@@ -787,6 +817,15 @@ func TestChecks(t *testing.T) {
 		{"status after a check that did not run", "exit-code-status-after-an-unrun-check", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":2}`, false},
 		{"status of a wrapped run", "exit-code-status-after-a-wrapped-run", "", nil, `{"type":"execute_matches","pattern":"^python3\\b","exit_code":3}`, true},
 		{"status of find -exec", "exit-code-status-after-find-exec", "", nil, `{"type":"execute_matches","pattern":"^pytest\\b","exit_code":1}`, true},
+		{"status expanded after a run left in the background", "exit-code-status-after-a-backgrounded-run", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, false},
+		{"status printed inside a shell run in the background", "exit-code-status-inside-a-backgrounded-shell", "", nil, `{"type":"execute_matches","pattern":"check\\.py","exit_code":3}`, true},
+		{"quiet commit after checking out HEAD", "head-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after checking out @", "at-sign-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"search output read from the background", "search-read-from-the-background", "", nil, `{"type":"execute_matches","pattern":"^grep\\b.*calc_total","output":"calc_total"}`, true},
+		{"search output from another background process", "search-beside-another-process-output", "", nil, `{"type":"execute_matches","pattern":"^grep\\b.*calc_total","output":"calc_total"}`, false},
+		{"successful sequence after a failed first tool", "create-after-failed-list", "", nil, `{"type":"tool_sequence","tools":["list_templates","create_workspace"],"successful":true}`, false},
+		{"sequence of any calls after a failed first tool", "create-after-failed-list", "", nil, `{"type":"tool_sequence","tools":["list_templates","create_workspace"]}`, true},
+		{"successful sequence after a retried first tool", "create-after-retried-list", "", nil, `{"type":"tool_sequence","tools":["list_templates","create_workspace"],"successful":true}`, true},
 		{"asked before committing", "plan-ask", "", nil, `{"type":"commit_off_default"}`, true},
 		{"asked about committing in the reply", "commit-question", "", nil, `{"type":"commit_off_default"}`, true},
 		{"asked an unrelated question", "ask-unrelated", "", nil, `{"type":"commit_off_default"}`, false},

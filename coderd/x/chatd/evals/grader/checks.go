@@ -184,6 +184,9 @@ func checkToolSequence(in *gradeInput, s checkSpec) (bool, string, map[string]an
 	prev := -1
 	for _, name := range s.Tools {
 		idx := firstIndex(in.tr.Calls, name, match)
+		if idx < 0 && firstIndex(in.tr.Calls, name, anyCall) >= 0 {
+			return false, name + " never succeeded", nil
+		}
 		if idx < 0 {
 			return false, name + " never called", nil
 		}
@@ -1042,7 +1045,8 @@ func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
 // matching After. Optionally the call was started with run_in_background
 // (Background), succeeded with exit code 0 in the foreground
 // (Successful), showed exit status ExitCode in the foreground
-// (exitStatusShown), and printed output matching Output.
+// (exitStatusShown), and printed output matching Output (see
+// printedOutputs).
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	start := 0
@@ -1066,7 +1070,8 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	if s.ExitCode != nil {
 		status = statusLine(*s.ExitCode)
 	}
-	for _, c := range in.tr.Calls[start:] {
+	for i := start; i < len(in.tr.Calls); i++ {
+		c := in.tr.Calls[i]
 		if !runsCommand(c, re) {
 			continue
 		}
@@ -1079,7 +1084,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		if status != nil && !exitStatusShown(c, re, *s.ExitCode, status) {
 			continue
 		}
-		if output != nil && !output.MatchString(c.resultField("output")) {
+		if output != nil && !slices.ContainsFunc(printedOutputs(in.tr.Calls, i), output.MatchString) {
 			continue
 		}
 		return true, "", nil
@@ -1101,6 +1106,24 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		what += " after " + s.After
 	}
 	return false, what, nil
+}
+
+// printedOutputs returns what execute call calls[i] printed: its result's
+// output and, when it left a process running in the background (see
+// backgroundID), the output of each later process_output call that read
+// that process.
+func printedOutputs(calls []toolCall, i int) []string {
+	outputs := []string{calls[i].resultField("output")}
+	id := backgroundID(calls[i])
+	if id == "" {
+		return outputs
+	}
+	for _, later := range calls[i+1:] {
+		if later.Name == "process_output" && later.argField("process_id") == id {
+			outputs = append(outputs, later.resultField("output"))
+		}
+	}
+	return outputs
 }
 
 // statusLine matches an output line that reports exit status code the

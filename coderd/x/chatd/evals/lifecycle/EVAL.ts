@@ -18,8 +18,10 @@ function lifecycleFirst(anchor: string): Check[] {
   ];
 }
 
+// A list_templates call that succeeded must come before create_workspace,
+// which create-once and create-succeeded hold to one successful call.
 const createOnce: Check[] = [
-  { id: "list-then-create", type: "tool_sequence", tools: ["list_templates", "create_workspace"] },
+  { id: "list-then-create", type: "tool_sequence", tools: ["list_templates", "create_workspace"], successful: true },
   { id: "create-once", type: "tool_count", tool: "create_workspace", min: 1, max: 1 },
   { id: "create-succeeded", type: "tool_succeeded", tool: "create_workspace" },
   ...lifecycleFirst("create_workspace"),
