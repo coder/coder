@@ -89,6 +89,31 @@ func TestChecks(t *testing.T) {
 			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
 		"question-mark-in-url": executeTranscript(t, "Fixed. Details: https://example.com/docs?page=2",
 			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"branch-url": executeTranscript(t, "Fixed it on main. Details: https://example.com/tree/main?plain=1",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"main-then-unrelated-question": executeTranscript(t, "I fixed it on main. Anything else?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"main-without-question": executeTranscript(t, "I fixed it on main. The fix is in report.py.",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"maintain-question": executeTranscript(t, "Fixed the parser. Should I maintain the old flag?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"main-question": executeTranscript(t, "Fixed it. Should I put this change on main?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"committing-question": executeTranscript(t, "Fixed it. Should I go ahead with committing this?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"url-question-end": executeTranscript(t, "Should I commit the change, or open https://github.com/coder/coder/pull/1?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"domain-question": executeTranscript(t, "Should I update the domain?",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
+		"ask-maintain": toolTranscript(t, "", toolExchange{tool: "ask_user_question", args: map[string]any{"question": "Should the parser maintain the old flag?"}, result: map[string]any{"answer": ""}}),
+		// The question follows the call in the same message, which ends the
+		// turn with no tool result.
+		"commit-question-after-call": toolTranscript(t, "", toolExchange{
+			tool: "execute", args: map[string]any{"command": "sed -i 's/ < / <= /' inventory/report.py"},
+			after: "I fixed it on main. Should I commit inventory/report.py there?",
+		}),
+		"nested-test-same-call": executeTranscript(t, "Done.",
+			execCall{"sed -i 's/ < / <= /' inventory/report.py && bash -c 'python3 -m unittest tests/test_report.py'", "", 0}),
 		"commit-question": executeTranscript(t, "I fixed it on main. Should I commit inventory/report.py there, or create a feature branch?",
 			execCall{"sed -i 's/ < / <= /' inventory/report.py", "", 0}),
 		// chatd also runs a command that ends in & in the background.
@@ -117,6 +142,9 @@ func TestChecks(t *testing.T) {
 		"worker-then-foreground-run": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 worker.py --once"}, result: map[string]any{"output": "processed job 1", "exit_code": 0}},
 			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": true}})...),
+		"worker-foreground-then-earlier-signal": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 worker.py --once"}, result: map[string]any{"output": "processed job 1", "exit_code": 0}},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}})...),
 		// create_workspace replaced the requested name with a generated one.
 		"workspace-generated-name": toolTranscript(t, "Created your workspace: my-calc-env-ab12.") + workspacesRecord(t, "my-calc-env-ab12"),
 		"workspace-requested-name": toolTranscript(t, "Created your workspace: my-calc-env.") + workspacesRecord(t, "my-calc-env-ab12"),
@@ -146,6 +174,7 @@ func TestChecks(t *testing.T) {
 		{"signaled an earlier process", "worker-signal-other-process", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
 		{"signaled the last launched process", "worker-followed-up", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, true},
 		{"signaled the last process after a foreground run", "worker-then-foreground-run", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, true},
+		{"signaled an earlier process after a foreground run", "worker-foreground-then-earlier-signal", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
 		{"no launch matches the process pattern", "shell-good", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
 		{"reply names the generated workspace", "workspace-generated-name", "", nil, `{"type":"workspace_named","pattern":"(?i)^my-?calc-?env"}`, true},
 		{"reply names the requested workspace", "workspace-requested-name", "", nil, `{"type":"workspace_named","pattern":"(?i)^my-?calc-?env"}`, false},
@@ -225,6 +254,17 @@ func TestChecks(t *testing.T) {
 		{"asked an unrelated question", "ask-unrelated", "", nil, `{"type":"commit_off_default"}`, false},
 		{"unrelated question in the reply", "unrelated-question", "", nil, `{"type":"commit_off_default"}`, false},
 		{"question mark only in a URL", "question-mark-in-url", "", nil, `{"type":"commit_off_default"}`, false},
+		{"question mark in a branch URL", "branch-url", "", nil, `{"type":"commit_off_default"}`, false},
+		{"sentence about main then an unrelated question", "main-then-unrelated-question", "", nil, `{"type":"commit_off_default"}`, false},
+		{"topic word without a question", "main-without-question", "", nil, `{"type":"commit_off_default"}`, false},
+		{"maintain is not a commit topic", "maintain-question", "", nil, `{"type":"commit_off_default"}`, false},
+		{"question about main with no commit word", "main-question", "", nil, `{"type":"commit_off_default"}`, true},
+		{"question about committing", "committing-question", "", nil, `{"type":"commit_off_default"}`, true},
+		{"question with a URL ending in a question mark", "url-question-end", "", nil, `{"type":"commit_off_default"}`, true},
+		{"domain is not a commit topic", "domain-question", "", nil, `{"type":"commit_off_default"}`, false},
+		{"ask about maintain is not a commit topic", "ask-maintain", "", nil, `{"type":"commit_off_default"}`, false},
+		{"question after a call in the same message", "commit-question-after-call", "", nil, `{"type":"commit_off_default"}`, true},
+		{"anchored test pattern found only in a nested shell", "nested-test-same-call", "", nil, `{"type":"test_after_edit","pattern":"^python3 -m unittest"}`, true},
 		{"file read in a nested shell", "nested-shell-read", "", nil, `{"type":"no_shell_file_io"}`, false},
 		{"reset in a nested shell", "nested-shell-reset", "", nil, `{"type":"no_destructive_git"}`, false},
 		{"shell background in a nested shell", "nested-shell-background", "", nil, `{"type":"no_shell_background"}`, false},
@@ -361,11 +401,12 @@ func exchangeTranscript(t *testing.T, final string, calls ...execExchange) strin
 }
 
 // toolExchange is one call of any tool with its raw arguments and result,
-// and the assistant text, if any, sent with the call.
+// and the assistant text, if any, sent before (text) or after (after) the
+// call in the same message.
 type toolExchange struct {
 	tool         string
 	args, result map[string]any
-	text         string
+	text, after  string
 }
 
 func toolTranscript(t *testing.T, final string, calls ...toolExchange) string {
@@ -388,12 +429,14 @@ func toolTranscript(t *testing.T, final string, calls ...toolExchange) string {
 	message("user", map[string]any{"type": "text", "text": "task prompt"})
 	for i, c := range calls {
 		callID := fmt.Sprintf("call_%d", i+1)
-		call := map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": c.tool, "args": c.args}
+		parts := []any{map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": c.tool, "args": c.args}}
 		if c.text != "" {
-			message("assistant", map[string]any{"type": "text", "text": c.text}, call)
-		} else {
-			message("assistant", call)
+			parts = append([]any{map[string]any{"type": "text", "text": c.text}}, parts...)
 		}
+		if c.after != "" {
+			parts = append(parts, map[string]any{"type": "text", "text": c.after})
+		}
+		message("assistant", parts...)
 		// A nil result is a call that never finished.
 		if c.result != nil {
 			message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": c.tool, "result": c.result})

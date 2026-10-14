@@ -254,6 +254,10 @@ mkdir -p "$CACHE"
 # Later steps run aegis from other directories and bind-mount cache paths,
 # so a relative CHATD_EVAL_CACHE must not stay relative.
 CACHE=$(cd "$CACHE" && pwd -P)
+# A cache inside the checkout is left out of the dirty hash. A cache that is
+# the checkout or a directory above it can put its own files in the checkout
+# ($CACHE/coder is a checkout named coder), so every build would be dirty.
+[[ $REPO_ROOT/ != "${CACHE%/}"/* ]] || die "CHATD_EVAL_CACHE ($CACHE) is this checkout or contains it; use a directory of its own"
 
 cleanup_paths=()
 # Grading containers and scratch directories, such as image build
@@ -393,16 +397,20 @@ install_grader() {
 # outside_module_source reports whether building the coder source in $1
 # (the commit $2 when $1 is empty) reads module source that the commit
 # does not hold: through a go.work, or a go.mod replace directive with a
-# local path.
+# local path. A commit builds in a worktree under $CACHE/worktrees, so the
+# go.work it uses is one it holds or one go finds from there.
 outside_module_source() {
 	local gowork gomod
-	gowork=$(cd "${1:-$REPO_ROOT}" && go env GOWORK)
-	[[ -n $gowork && $gowork != off ]] && return 0
 	if [[ -n $1 ]]; then
+		gowork=$(cd "$1" && go env GOWORK)
 		gomod=$(cd "$1" && go mod edit -json)
 	else
+		[[ -n $(git -C "$REPO_ROOT" ls-tree --name-only "$2" -- go.work) ]] && return 0
+		mkdir -p "$CACHE/worktrees"
+		gowork=$(cd "$CACHE/worktrees" && go env GOWORK)
 		gomod=$(git -C "$REPO_ROOT" show "$2:go.mod" | go mod edit -json /dev/stdin)
 	fi
+	[[ -n $gowork && $gowork != off ]] && return 0
 	jq -e 'any(.Replace[]?; .New.Version == null)' <<<"$gomod" >/dev/null
 }
 
@@ -468,8 +476,14 @@ build_subject() {
 	bin=$CACHE/coder/coder-$id
 	mkdir -p "$CACHE/coder"
 	# A dirty tree, or module source from outside the commit, can change
-	# without changing the version, so its binary is never reused.
-	if [[ $id == *.dirty.* ]] || outside_module_source "$src" "$sha"; then
+	# without changing the version, so its binary is never reused. One built
+	# from outside source goes to a directory of this run's own, so it never
+	# replaces the binary cached for the commit.
+	if outside_module_source "$src" "$sha"; then
+		rebuild=1
+		bin=$(mktemp -d "$CACHE/coder/outside.XXXXXX")/coder-$id
+		cleanup_scratch+=("${bin%/*}")
+	elif [[ $id == *.dirty.* ]]; then
 		rebuild=1
 	fi
 	if [[ $rebuild -eq 1 || ! -x $bin || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
@@ -746,6 +760,9 @@ if [[ -z $out ]]; then
 fi
 mkdir -p "$out"
 out=$(cd "$out" && pwd -P)
+# Results below the checkout root are left out of the dirty hash; results in
+# the root itself cannot be.
+[[ $out != "$REPO_ROOT" ]] || die "--out is this checkout's root; use a directory of its own"
 install_grader
 log "writing results to $out"
 
