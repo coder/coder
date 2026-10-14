@@ -12,25 +12,31 @@ import {
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
+const projectFoldersElement = (
+	projects: readonly ChatProject[],
+	error?: unknown,
+) => (
+	<MemoryRouter>
+		<ProjectFolders
+			currentUserId={MockUserOwner.id}
+			projects={projects}
+			organizations={[MockDefaultOrganization]}
+			chatsByProjectId={new Map()}
+			expandedProjectIds={{}}
+			onToggle={vi.fn()}
+			onOpenProjectDialog={vi.fn()}
+			onDelete={vi.fn()}
+			emptyMessage="No agents yet"
+			isLoading={false}
+			error={error}
+			isLoadError={false}
+			onRetry={vi.fn()}
+		/>
+	</MemoryRouter>
+);
+
 const renderProjectFolders = (projects: readonly ChatProject[]) =>
-	render(
-		<MemoryRouter>
-			<ProjectFolders
-				currentUserId={MockUserOwner.id}
-				projects={projects}
-				organizations={[MockDefaultOrganization]}
-				chatsByProjectId={new Map()}
-				expandedProjectIds={{}}
-				onToggle={vi.fn()}
-				onOpenProjectDialog={vi.fn()}
-				onDelete={vi.fn()}
-				emptyMessage="No agents yet"
-				isLoading={false}
-				error={undefined}
-				onRetry={vi.fn()}
-			/>
-		</MemoryRouter>,
-	);
+	render(projectFoldersElement(projects));
 
 const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
 
@@ -58,6 +64,7 @@ describe("ProjectFolders", () => {
 					emptyMessage="No agents yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
+					isLoadError={false}
 					onRetry={onRetry}
 				/>
 			</MemoryRouter>,
@@ -70,6 +77,21 @@ describe("ProjectFolders", () => {
 
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps focus on the empty state's button when a refetch fails", async () => {
+		const user = userEvent.setup();
+		const { rerender } = renderProjectFolders([]);
+
+		await user.tab();
+		await user.tab();
+		const newProjectButton = screen.getByRole("button", {
+			name: "New project",
+		});
+		expect(newProjectButton).toHaveFocus();
+
+		rerender(projectFoldersElement([], new Error("Projects unavailable")));
+		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
 	it("collapses and expands the whole Projects section", async () => {
@@ -127,6 +149,7 @@ describe("ProjectFolders", () => {
 					emptyMessage="No agents yet"
 					isLoading={false}
 					error={undefined}
+					isLoadError={false}
 					onRetry={vi.fn()}
 				/>
 			</MemoryRouter>,

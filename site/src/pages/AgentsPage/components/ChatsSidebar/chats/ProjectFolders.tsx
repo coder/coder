@@ -50,6 +50,11 @@ type ProjectFoldersProps = {
 	readonly onDelete: DeleteProject;
 	readonly isLoading: boolean;
 	readonly error: unknown;
+	/**
+	 * True when the first load failed. A failed refetch keeps cached
+	 * projects, including an empty list, so its empty state stays.
+	 */
+	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 };
@@ -65,6 +70,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	onDelete,
 	isLoading,
 	error,
+	isLoadError,
 	onRetry,
 	emptyMessage,
 }) => {
@@ -80,7 +86,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	};
 	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
 	const isShowingEmptyState =
-		isExpanded && !isLoading && !error && projects.length === 0;
+		isExpanded && !isLoading && !isLoadError && projects.length === 0;
 	// Also hidden while an expanded section loads: if the load comes back
 	// empty, the empty state's button would replace a focused header button
 	// and drop keyboard focus.
