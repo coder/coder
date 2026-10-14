@@ -126,8 +126,6 @@ export const UncitedSearchAnswerFoldsExpanded: Story = {
 	},
 };
 
-// Narration is text the assistant addresses to the user, so it stays in the
-// transcript, and reasoning without steps stays unfolded beside it.
 export const LabeledNarrationStaysVisible: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
@@ -165,8 +163,6 @@ export const LeadInBeforeSearchStaysVisible: Story = {
 	},
 };
 
-// Text between steps closes the block of the steps before it, and the next
-// step opens a new block below the text.
 export const TextBetweenStepsSplitsBlocks: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([

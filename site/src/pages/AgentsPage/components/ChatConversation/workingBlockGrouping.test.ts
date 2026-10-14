@@ -15,8 +15,7 @@ import {
 	groupWorkingBlocks,
 	type RowSlice,
 	splitRowPieces,
-	type TimelineItem,
-	type WorkingBlock,
+	type WorkingBlockLayout,
 } from "./workingBlockGrouping";
 
 let nextId = 1;
@@ -144,14 +143,12 @@ const defaultOptions: GroupWorkingBlocksOptions = {
 	liveTools: [],
 };
 
+type GroupedLayout = WorkingBlockLayout & { rows: readonly TimelineRow[] };
+
 const group = (
 	messages: readonly TypesGen.ChatMessage[],
 	options: Partial<GroupWorkingBlocksOptions> = {},
-): {
-	rows: readonly TimelineRow[];
-	blocks: WorkingBlock[];
-	items: TimelineItem[];
-} => {
+): GroupedLayout => {
 	const entries = parseMessagesWithMergedTools(messages);
 	const hasLive = options.isTurnActive ?? false;
 	const rows = assignTimelineRows(buildDisplayMessages(entries), hasLive);
@@ -165,31 +162,34 @@ const group = (
 	};
 };
 
+const rowId = (row: TimelineRow) =>
+	row.type === "live" ? "live" : row.entry.message.id;
+
 const rowIds = (rows: readonly TimelineRow[], slices: readonly RowSlice[]) =>
-	slices.map(({ rowIndex }) => {
-		const row = rows[rowIndex];
-		return row.type === "live" ? "live" : row.entry.message.id;
-	});
+	slices.map(({ rowIndex }) => rowId(rows[rowIndex]));
 
 /**
  * The rendered order: message IDs, with the first piece of each part of a
  * split row, and each block as a nested list.
  */
-const layoutOf = ({ rows, items }: ReturnType<typeof group>) => {
+const layoutOf = ({ rows, items }: GroupedLayout) => {
 	const splitRows = new Set(
 		items.flatMap((item) =>
-			item.type === "slice" && item.slice.pieces ? [item.slice.rowIndex] : [],
+			item.type === "slice" && item.slice.pieceRange
+				? [item.slice.rowIndex]
+				: [],
 		),
 	);
-	const describe = ({ rowIndex, pieces }: RowSlice) => {
-		const row = rows[rowIndex];
-		const id = row.type === "live" ? "live" : `${row.entry.message.id}`;
-		return splitRows.has(rowIndex) && pieces ? `${id}[${pieces.start}]` : id;
+	const formatSlice = ({ rowIndex, pieceRange }: RowSlice) => {
+		const id = `${rowId(rows[rowIndex])}`;
+		return splitRows.has(rowIndex) && pieceRange
+			? `${id}[${pieceRange.start}]`
+			: id;
 	};
 	return items.map((item) =>
 		item.type === "block"
-			? item.block.slices.map(describe)
-			: describe(item.slice),
+			? item.block.slices.map(formatSlice)
+			: formatSlice(item.slice),
 	);
 };
 
@@ -236,13 +236,13 @@ describe("groupWorkingBlocks", () => {
 			text("Done."),
 		]);
 		const layout = group([prompt, ...steps, answer]);
-		const [a, b] = [steps[0].id, steps[2].id];
+		const [firstStepId, secondStepId] = [steps[0].id, steps[2].id];
 
 		expect(layoutOf(layout)).toEqual([
 			`${prompt.id}`,
-			[`${a}`],
-			`${b}[0]`,
-			[`${b}[1]`, `${answer.id}[0]`],
+			[`${firstStepId}`],
+			`${secondStepId}[0]`,
+			[`${secondStepId}[1]`, `${answer.id}[0]`],
 			`${answer.id}[1]`,
 		]);
 		// Reasoning start counts toward the wall-clock span of its block.
@@ -251,7 +251,7 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 1,
 				startedAt: WORKING_FIXTURE_START + 500,
 				endedAt: WORKING_FIXTURE_START + 2000,
-				key: `working:through:message:${a}`,
+				key: `working:through:message:${firstStepId}`,
 				liveKey: `working:live:message:${prompt.id}:0`,
 			},
 			{
@@ -266,30 +266,30 @@ describe("groupWorkingBlocks", () => {
 
 	it("keys the blocks on either side of text inside one step apart", () => {
 		const prompt = user("Go");
-		const both = message("assistant", [
+		const callsAroundText = message("assistant", [
 			call("a", at(1)),
 			text("Now the tests."),
 			call("b", at(2)),
 		]);
 		const results = message("tool", [result("a", at(3)), result("b", at(4))]);
-		const layout = group([prompt, both, results]);
+		const layout = group([prompt, callsAroundText, results]);
 
 		expect(layoutOf(layout)).toEqual([
 			`${prompt.id}`,
-			[`${both.id}[0]`],
-			`${both.id}[1]`,
-			[`${both.id}[2]`],
+			[`${callsAroundText.id}[0]`],
+			`${callsAroundText.id}[1]`,
+			[`${callsAroundText.id}[2]`],
 		]);
 		expect(layout.blocks).toMatchObject([
 			{
-				key: `working:through:message:${both.id}`,
-				pieceKeys: [`${both.id}:0`],
+				key: `working:through:message:${callsAroundText.id}`,
+				pieceKeys: [`${callsAroundText.id}:0`],
 				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: WORKING_FIXTURE_START + 3000,
 			},
 			{
-				key: `working:through:message:${both.id}:1`,
-				pieceKeys: [`${both.id}:1`],
+				key: `working:through:message:${callsAroundText.id}:1`,
+				pieceKeys: [`${callsAroundText.id}:1`],
 				startedAt: WORKING_FIXTURE_START + 2000,
 				endedAt: WORKING_FIXTURE_START + 4000,
 			},
@@ -814,15 +814,11 @@ describe("groupWorkingBlocks", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
 			const parts = [text("P1 trials are running."), call("b", at(3))];
+			const answer = message("assistant", parts);
 			const streaming = groupLive([prompt, ...steps], parts.slice(0, 1));
 			const next = groupLive([prompt, ...steps], parts);
 			const persisted = groupLive(
-				[
-					prompt,
-					...steps,
-					message("assistant", parts),
-					message("tool", [result("b", at(4))]),
-				],
+				[prompt, ...steps, answer, message("tool", [result("b", at(4))])],
 				[],
 			);
 			const first = `working:live:message:${prompt.id}:0`;
@@ -849,24 +845,25 @@ describe("groupWorkingBlocks", () => {
 				{
 					key: second,
 					isLive: true,
-					livePiece: 0,
+					liveWorkOrdinal: 0,
 					pieceKeys: [],
 					startedAt: WORKING_FIXTURE_START + 3000,
 				},
 			]);
 			expect(
-				next.items.map((item) => item.type === "slice" && item.slice.key),
-			).toEqual([`message:${prompt.id}`, false, "live-assistant", false]);
-			const answerId = steps[1].id + 1;
+				next.items.map((item) =>
+					item.type === "slice" ? item.slice.key : "block",
+				),
+			).toEqual([`message:${prompt.id}`, "block", "live-assistant", "block"]);
 			expect(layoutOf(persisted)).toEqual([
 				`${prompt.id}`,
 				[`${steps[0].id}`],
-				`${answerId}[0]`,
-				[`${answerId}[1]`, "live"],
+				`${answer.id}[0]`,
+				[`${answer.id}[1]`, "live"],
 			]);
 			expect(persisted.blocks).toMatchObject([
 				{ liveKey: first, isLive: false },
-				{ key: second, isLive: true, pieceKeys: [`${answerId}:0`] },
+				{ key: second, isLive: true, pieceKeys: [`${answer.id}:0`] },
 			]);
 		});
 
@@ -885,7 +882,7 @@ describe("groupWorkingBlocks", () => {
 				{
 					key: `working:live:message:${prompt.id}:1`,
 					stepCount: 1,
-					livePiece: 1,
+					liveWorkOrdinal: 1,
 				},
 			]);
 		});
@@ -1230,7 +1227,7 @@ describe("splitRowPieces", () => {
 		const [{ parsed }] = parseMessagesWithMergedTools([
 			message("assistant", content),
 		]);
-		return splitRowPieces(parsed.blocks, parsed.tools);
+		return splitRowPieces(parsed.blocks, parsed.tools).pieces;
 	};
 	const work = (...blocks: RenderBlock[]) => ({ kind: "work", blocks });
 	const output = (...blocks: RenderBlock[]) => ({ kind: "output", blocks });
@@ -1349,7 +1346,9 @@ describe("splitRowPieces", () => {
 			}
 
 			expect(piecesOf(persisted)).toEqual(pieces);
-			expect(splitRowPieces(streamState.blocks, streamTools)).toEqual(pieces);
+			expect(splitRowPieces(streamState.blocks, streamTools).pieces).toEqual(
+				pieces,
+			);
 		},
 	);
 
