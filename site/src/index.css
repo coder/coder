@@ -432,6 +432,77 @@
 	@apply text-xs font-mono font-medium;
 }
 
+/* Applied by .dark and by the OS-matching fallback below. */
+@utility theme-dark {
+	--content-primary: 0 0% 100%;
+	--content-secondary: 240 5% 65%;
+	--content-link: 213 94% 68%;
+	--content-invert: 240 10% 4%;
+	--content-disabled: 240 5% 26%;
+	--content-success: 142 76% 36%;
+	--content-warning: 31 97% 72%;
+	--content-destructive: 0 91% 71%;
+	--surface-primary: 240 10% 4%;
+	--surface-secondary: 240 6% 10%;
+	--surface-tertiary: 240 4% 16%;
+	--surface-quaternary: 240 5% 26%;
+	--surface-control: 240 4% 46%;
+	--surface-invert-primary: 240 6% 90%;
+	--surface-invert-secondary: 240 5% 65%;
+	--surface-scrollbar: 240 4% 46%;
+	--surface-destructive: 0 75% 15%;
+	--surface-green: 145 80% 10%;
+	--surface-grey: 240 6% 10%;
+	--surface-orange: 13 81% 15%;
+	--surface-sky: 196, 67%, 12%;
+	--surface-red: 0 75% 15%;
+	--surface-purple: 268, 68%, 17%;
+	--surface-magenta: 291, 74%, 15%;
+	--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
+	--border-purple: 255 92% 76%;
+	--border-default: 240 4% 16%;
+	--border-success: 142 76% 36%;
+	--border-magenta: 292, 100%, 78%;
+	--border-warning: 30.66, 97.16%, 72.35%;
+	--border-destructive: 0 91% 71%;
+	--border-sky: 194 90% 62%;
+	--border-green: 143 77% 87%;
+	--border-secondary: 240 5% 26%;
+	--border-control: 240 3.8% 46.1%;
+	--border-control-hover: 240 5% 64.9%;
+	--overlay-default: 240 10% 4% / 80%;
+	--highlight-purple: 269, 100%, 74%;
+	--highlight-green: 141 79% 85%;
+	--highlight-orange: 31 100% 70%;
+	--highlight-sky: 188, 75%, 80%;
+	--highlight-red: 0 91% 71%;
+	--highlight-magenta: 292, 100%, 78%;
+	--syntax-key: 201 98% 80%;
+	--syntax-string: 18 47% 64%;
+	--syntax-number: 100 28% 73%;
+	--syntax-boolean: 207 61% 59%;
+	--git-added: 142 77% 73%;
+	--git-deleted: 0 94% 82%;
+	--git-modified: 31 97% 72%;
+	--git-merged: 271 91% 65%;
+	--git-added-bright: 142 71% 45%;
+	--git-deleted-bright: 0 91% 71%;
+	--git-merged-bright: 270 95% 75%;
+	--surface-git-added: 145 80% 10%;
+	--surface-git-deleted: 0 75% 15%;
+	--surface-git-merged: 274 87% 21%;
+	--border: 240 3.7% 15.9%;
+	--input: 240 3.7% 15.9%;
+	--ring: 240 4.9% 83.9%;
+	/* shadcn-compatible aliases – see :root block for details. */
+	--background: var(--surface-primary);
+	--foreground: var(--content-primary);
+	--muted: var(--surface-secondary);
+	--muted-foreground: var(--content-secondary);
+	--primary: var(--content-link);
+	--primary-foreground: var(--surface-primary);
+}
+
 @layer base {
 	:root,
 	.light {
@@ -521,73 +592,16 @@
 		--avatar-xs: 1.125rem;
 	}
 	.dark {
-		--content-primary: 0 0% 100%;
-		--content-secondary: 240 5% 65%;
-		--content-link: 213 94% 68%;
-		--content-invert: 240 10% 4%;
-		--content-disabled: 240 5% 26%;
-		--content-success: 142 76% 36%;
-		--content-warning: 31 97% 72%;
-		--content-destructive: 0 91% 71%;
-		--surface-primary: 240 10% 4%;
-		--surface-secondary: 240 6% 10%;
-		--surface-tertiary: 240 4% 16%;
-		--surface-quaternary: 240 5% 26%;
-		--surface-control: 240 4% 46%;
-		--surface-invert-primary: 240 6% 90%;
-		--surface-invert-secondary: 240 5% 65%;
-		--surface-scrollbar: 240 4% 46%;
-		--surface-destructive: 0 75% 15%;
-		--surface-green: 145 80% 10%;
-		--surface-grey: 240 6% 10%;
-		--surface-orange: 13 81% 15%;
-		--surface-sky: 196, 67%, 12%;
-		--surface-red: 0 75% 15%;
-		--surface-purple: 268, 68%, 17%;
-		--surface-magenta: 291, 74%, 15%;
-		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
-		--border-purple: 255 92% 76%;
-		--border-default: 240 4% 16%;
-		--border-success: 142 76% 36%;
-		--border-magenta: 292, 100%, 78%;
-		--border-warning: 30.66, 97.16%, 72.35%;
-		--border-destructive: 0 91% 71%;
-		--border-sky: 194 90% 62%;
-		--border-green: 143 77% 87%;
-		--border-secondary: 240 5% 26%;
-		--border-control: 240 3.8% 46.1%;
-		--border-control-hover: 240 5% 64.9%;
-		--overlay-default: 240 10% 4% / 80%;
-		--highlight-purple: 269, 100%, 74%;
-		--highlight-green: 141 79% 85%;
-		--highlight-orange: 31 100% 70%;
-		--highlight-sky: 188, 75%, 80%;
-		--highlight-red: 0 91% 71%;
-		--highlight-magenta: 292, 100%, 78%;
-		--syntax-key: 201 98% 80%;
-		--syntax-string: 18 47% 64%;
-		--syntax-number: 100 28% 73%;
-		--syntax-boolean: 207 61% 59%;
-		--git-added: 142 77% 73%;
-		--git-deleted: 0 94% 82%;
-		--git-modified: 31 97% 72%;
-		--git-merged: 271 91% 65%;
-		--git-added-bright: 142 71% 45%;
-		--git-deleted-bright: 0 91% 71%;
-		--git-merged-bright: 270 95% 75%;
-		--surface-git-added: 145 80% 10%;
-		--surface-git-deleted: 0 75% 15%;
-		--surface-git-merged: 274 87% 21%;
-		--border: 240 3.7% 15.9%;
-		--input: 240 3.7% 15.9%;
-		--ring: 240 4.9% 83.9%;
-		/* shadcn-compatible aliases – see :root block for details. */
-		--background: var(--surface-primary);
-		--foreground: var(--content-primary);
-		--muted: var(--surface-secondary);
-		--muted-foreground: var(--content-secondary);
-		--primary: var(--content-link);
-		--primary-foreground: var(--surface-primary);
+		@apply theme-dark;
+	}
+	/*
+		The server renders an empty theme class when the theme follows
+		the OS. Match the OS until ThemeProvider sets the class.
+	*/
+	@media (prefers-color-scheme: dark) {
+		:root[class=""] {
+			@apply theme-dark;
+		}
 	}
 	/*
 		Colorblind-friendly variants. ThemeProvider applies these classes
