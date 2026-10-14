@@ -51,7 +51,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import { useGitPanelRefresh } from "./hooks/useGitPanelRefresh";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -329,8 +328,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		useChatSelector(store, selectChatStatus) ?? chat.status;
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
-
-	const handleRefresh = useGitPanelRefresh(agentId, gitWatcher.refresh);
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// The turn already running when the page loaded must not anchor the
@@ -662,7 +659,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							workspaceAgent?.status === "connected" &&
 							!gitWatcher.hasReceivedChanges
 						}
-						onRefresh={handleRefresh}
+						onRefresh={gitWatcher.refresh}
 						isExpanded={visualExpanded}
 						remoteDiffStats={chat.diff_statuses}
 						primaryDiffStatus={chat.diff_status}

@@ -14,6 +14,11 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "react-query";
+import {
+	invalidateChatDiffContents,
+	invalidateChatEntity,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ChatDiffStatus,
@@ -128,7 +133,11 @@ type GitPanelProps = {
 	chatId: string;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
+	/**
+	 * Callback to send a refresh to the git watcher. Returns false when
+	 * disconnected. The panel refetches the chat and its diff contents
+	 * itself.
+	 */
 	onRefresh: () => boolean;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
@@ -324,7 +333,10 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+	const queryClient = useQueryClient();
 	const handleRefresh = () => {
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatDiffContents(queryClient, chatId);
 		const sent = onRefresh();
 		if (!sent) {
 			toast.error("Unable to refresh git status.", {
