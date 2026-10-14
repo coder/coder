@@ -108,8 +108,9 @@ The exemption applied almost only to white voters, so the clauses kept Black cit
 The US Supreme Court struck down Oklahoma's grandfather clause in *Guinn v. United States* (1915).
 Writers who know only the current meaning ("existing users keep their old terms") often don't know this history, which is why the guide lists the term.
 
-*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).
-The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.*
+*Enforced by `Coder.InclusiveLanguage` (`warning`), with additional coverage from the curated `alex.*` lexicon (planned; `.vale.ini` loads no third-party style).
+The rule leaves bare `master` to reviewers, because the word has many legitimate technical uses, such as `master key` and Git branch names.
+It flags `master branch` and `master controller` only, and it skips the Agent Firewall CLI reference, whose flag text comes from an upstream dependency.*
 
 ## Inclusive LGBTQ terms
 
