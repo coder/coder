@@ -586,13 +586,18 @@ func fileIOFindings(s shellScript) []string {
 				out = append(out, "sed reads "+f)
 			}
 		case "perl":
-			if hasFlag(c.Args[1:], "-i", "-pi", "-ni") {
+			p := parsePerl(c.Args[1:])
+			if p.InPlace {
 				out = append(out, "perl -i edits files")
+				break
+			}
+			if f := firstFileRead(p.inputFiles(c.InputFiles)); f != "" {
+				out = append(out, "perl reads "+f)
 			}
 		case "awk", "gawk", "mawk", "nawk":
 			inPlace := false
 			for i, a := range c.Args[1:] {
-				if (a == "-i" || a == "--include") && i+2 < len(c.Args) && c.Args[i+2] == "inplace" {
+				if a == "-iinplace" || a == "--include=inplace" || ((a == "-i" || a == "--include") && i+2 < len(c.Args) && c.Args[i+2] == "inplace") {
 					inPlace = true
 				}
 			}
@@ -628,6 +633,92 @@ func awkInputFiles(args []string) []string {
 		}
 	}
 	return files
+}
+
+// perlInvocation is what a perl command line asks for. perl reads its
+// switches up to its first operand or --, so a later -i is a file name.
+type perlInvocation struct {
+	// Loop is set by -n and -p, and by -a and -F, which imply -n: perl
+	// reads its input files line by line.
+	Loop bool
+	// InPlace is set by -i, which edits the input files.
+	InPlace bool
+	// Code holds the programs that -e and -E give.
+	Code []string
+	// Operands are the words after the switches: the program file, unless
+	// -e or -E gives the program, then the input files.
+	Operands []string
+}
+
+// perlDiamond matches perl code that reads the input files named on the
+// command line: <>, <<>>, or <ARGV>.
+var perlDiamond = regexp.MustCompile(`<(?:<>|ARGV)?>`)
+
+// parsePerl reads perl's switches from args, the words after perl. -e,
+// -E, and -I take the rest of their word or else the next word; -i, -F,
+// and the other switches with a value take the rest of their word.
+// Switches such as -l and -0777 do not change which files perl reads.
+func parsePerl(args []string) perlInvocation {
+	var p perlInvocation
+	i := 0
+	for ; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			i++
+			break
+		}
+		if len(a) < 2 || a[0] != '-' {
+			break
+		}
+	cluster:
+		for j := 1; j < len(a); j++ {
+			switch a[j] {
+			case 'e', 'E', 'I':
+				value := a[j+1:]
+				if value == "" && i+1 < len(args) {
+					i++
+					value = args[i]
+				}
+				if a[j] != 'I' {
+					p.Code = append(p.Code, value)
+				}
+				break cluster
+			case 'i':
+				p.InPlace = true
+				break cluster
+			case 'F':
+				p.Loop = true
+				break cluster
+			case 'C', 'd', 'D', 'm', 'M', 'V', 'x':
+				break cluster
+			case 'n', 'p', 'a':
+				p.Loop = true
+			}
+		}
+	}
+	for _, op := range args[i:] {
+		p.Operands = append(p.Operands, expandedOperand(op))
+	}
+	return p
+}
+
+// inputFiles returns the operands perl reads as input files and the
+// redirects whose files it reads on standard input, when its program
+// reads input: with a line loop, or with <> in its -e code. Without -e or
+// -E, the first operand is the program file, and with no operand, or an
+// operand of -, perl reads its program from standard input instead.
+func (p perlInvocation) inputFiles(redirects []string) (operands, stdin []string) {
+	if !p.Loop && !slices.ContainsFunc(p.Code, perlDiamond.MatchString) {
+		return nil, nil
+	}
+	operands = p.Operands
+	if len(p.Code) == 0 {
+		if len(operands) == 0 || operands[0] == "-" {
+			return operands[min(1, len(operands)):], nil
+		}
+		operands = operands[1:]
+	}
+	return operands, redirects
 }
 
 // firstFileRead returns the first file a reader reads through its
@@ -1134,8 +1225,9 @@ func gitSubcommand(c shellCommand) (string, []string) {
 }
 
 // destructiveGitFindings reports git commands that discard work or
-// rewrite shared history.
-func destructiveGitFindings(s shellScript) []string {
+// rewrite shared history. keep lists paths whose changes the case
+// protects (see checkoutDiscards).
+func destructiveGitFindings(s shellScript, keep []string) []string {
 	var out []string
 	for _, c := range s.Commands {
 		sub, args := gitSubcommand(c)
@@ -1145,7 +1237,7 @@ func destructiveGitFindings(s shellScript) []string {
 				out = append(out, "git reset --hard")
 			}
 		case "checkout":
-			if checkoutDiscards(args) {
+			if checkoutDiscards(args, keep) {
 				out = append(out, "git checkout discarding changes")
 			}
 		case "switch":
@@ -1178,18 +1270,41 @@ func destructiveGitFindings(s shellScript) []string {
 }
 
 // checkoutDiscards reports whether git checkout args overwrite working
-// tree files: with --, -f, --ours, or --theirs, or with an operand of .
-// or one shaped like a file or directory (restoredPath), which git
-// checkout restores from the index. The name after -b, -B, or --orphan
-// is a new branch.
-func checkoutDiscards(args []string) bool {
+// tree files: with --, -f, --ours, or --theirs, or with an operand of .,
+// one shaped like a file or directory (restoredPath), or one that names a
+// path in keep or a directory above one, which git checkout restores from
+// the index. A bare directory name such as billing reads as a branch by
+// its shape, so only keep tells it apart. The name after -b, -B, or
+// --orphan is a new branch.
+func checkoutDiscards(args, keep []string) bool {
 	if slices.Contains(args, "--") || hasFlag(args, "-f", "--force", "--ours", "--theirs") {
 		return true
 	}
 	operands, _ := commandOperands(args, "bB", []string{"--orphan"})
 	return slices.ContainsFunc(operands, func(op string) bool {
-		return op == "." || restoredPath.MatchString(op)
+		return op == "." || restoredPath.MatchString(op) || slices.ContainsFunc(keep, func(k string) bool {
+			return pathWithin(k, op)
+		})
 	})
+}
+
+// pathWithin reports whether the repository path p is dir or lies under
+// it. A relative dir must be p or one of its parent directories, from the
+// repository root (. is the root), so the branch fix/billing does not
+// name billing. An absolute dir must end in a slash and such a path, as
+// /work/workspace/billing does.
+func pathWithin(p, dir string) bool {
+	p, dir = path.Clean(p), path.Clean(dir)
+	for {
+		if dir == "." || dir == p || (path.IsAbs(dir) && strings.HasSuffix(dir, "/"+p)) {
+			return true
+		}
+		parent := path.Dir(p)
+		if parent == p {
+			return false
+		}
+		p = parent
+	}
 }
 
 func hasShortFlagLetter(args []string, letter rune) bool {

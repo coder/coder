@@ -32,6 +32,10 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"php heredoc", "php <<'EOF'\n<?php file_put_contents('a.php', 'x');\nEOF", true},
 		{"bash -c nested python", `bash -c "python3 -c \"open('a.py', 'w').write('x')\""`, true},
 		{"bash -lc nested sed", `bash -lc 'sed -i s/a/b/ a.py'`, true},
+		{"perl -i.bak -pe", `perl -i.bak -pe 's/a/b/' a.pl`, true},
+		{"perl -i after other switches", `perl -lpi -e 's/a/b/' a.pl`, true},
+		{"gawk -iinplace", `gawk -iinplace '{sub(/a/, "b")} 1' a.txt`, true},
+		{"gawk --include=inplace", `gawk --include=inplace '{sub(/a/, "b")} 1' a.txt`, true},
 		{"sed -i after other short flags", `sed -Ei 's/a/b/' a.py`, true},
 		{"redirect", "echo x > a.py", true},
 		{"env python", `env python3 -c "open('a.py', 'w').write('x')"`, true},
@@ -106,6 +110,8 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"ruby puts", `ruby -e "puts File.read('a.rb')"`, false},
 		{"bash -c read only", `bash -c 'grep -n x a.py'`, false},
 		{"sed -n read", `sed -n '1,80p' a.py`, false},
+		{"perl -ne read", `perl -ne 'print if /x/' a.pl`, false},
+		{"perl -ne read of a file after -- named like -i", `perl -ne 'print' -- -i.txt`, false},
 		{"xargs -I sh -c read only", `ls | xargs -I{} sh -c 'grep -n x {}'`, false},
 	}
 	for _, tc := range cases {
@@ -151,6 +157,23 @@ func TestShellFileIODetection(t *testing.T) {
 		{"awk -f program file", "awk -f prog.awk a.txt", true},
 		{"awk input redirect", "awk 'NR<5' < a.py", true},
 		{"nl file", "nl -ba inventory/store.py", true},
+		// perl -n and -p, and -a and -F, which imply -n, read their file
+		// operands line by line, and so does <> in -e code.
+		{"perl -ne file operand", `perl -ne 'print if /save|json|tmp/' inventory/store.py`, true},
+		{"perl -pe file operand", `perl -pe 's/^/> /' inventory/store.py`, true},
+		{"perl -lane file operand", `perl -lane 'print $F[0]' a.txt`, true},
+		{"perl -ae file operand", `perl -ae 'print $F[0]' a.txt`, true},
+		{"perl -F file operand", `perl -F, -e 'print $F[0]' a.csv`, true},
+		{"perl -e reading <>", `perl -e 'print while <>' a.py`, true},
+		{"perl -n program file and input", "perl -n prog.pl a.txt", true},
+		{"perl -I value, program file, and input", "perl -I lib -n prog.pl a.txt", true},
+		{"perl -ne input redirect", `perl -ne 'print' < a.py`, true},
+		{"piped perl -ne", `git log | perl -ne 'print if /fix/'`, false},
+		{"perl -e without input", `perl -e 'print "hi\n"'`, false},
+		{"perl -e with arguments it does not read", `perl -e 'print "@ARGV\n"' a.py`, false},
+		{"perl -e with a redirect it does not read", `perl -e 'print 1' < a.py`, false},
+		{"perl program file", "perl prog.pl a.txt", false},
+		{"perl -I value is not the program", "perl -I lib -n prog.pl", false},
 		{"piped awk", "ps aux | awk '{print $2}'", false},
 		{"piped awk with assignment and stdin", "git log | awk '{print}' n=1 -", false},
 		{"piped nl -s", "git log | nl -s x", false},
@@ -181,6 +204,34 @@ func TestShellFileIODetection(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, tc.finding, len(fileIOFindings(script)) > 0, "findings: %v", fileIOFindings(script))
 		})
+	}
+}
+
+// commandNotFound tells a command that never ran, because the runner has
+// no such program, from one that ran and found nothing, whatever exit code
+// a later command in the pipeline gives the call.
+func TestCommandNotFound(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		program, output string
+		missing         bool
+	}{
+		{"rg", "sh: 1: rg: not found", true},
+		{"rg", "bash: line 1: rg: command not found", true},
+		{"rg", "sudo: rg: command not found", true},
+		{"rg", "zsh: command not found: rg", true},
+		{"rg", "timeout: failed to run command 'rg': No such file or directory", true},
+		{"rg", "env: 'rg': No such file or directory", true},
+		{"rg", "xargs: rg: No such file or directory", true},
+		{"rg", "setsid: failed to execute rg: No such file or directory", true},
+		{"rg", "sh: 1: /usr/local/bin/rg: not found", true},
+		{"rg", "sh: 1: rgx: not found", false},
+		{"grep", "sh: 1: egrep: not found", false},
+		{"rg", "cat: rg: No such file or directory", false},
+		{"grep", "grep: config.go: No such file or directory", false},
+	}
+	for _, tc := range cases {
+		require.Equal(t, tc.missing, commandNotFound(tc.program, "before\n"+tc.output+"\nafter"), "%s: %q", tc.program, tc.output)
 	}
 }
 
@@ -240,7 +291,7 @@ func TestDestructiveGitDetection(t *testing.T) {
 			t.Parallel()
 			script, ok := parseShell(tc.command)
 			require.True(t, ok)
-			findings := destructiveGitFindings(script)
+			findings := destructiveGitFindings(script, nil)
 			require.Equal(t, tc.destructive, len(findings) > 0, "findings: %v", findings)
 		})
 	}

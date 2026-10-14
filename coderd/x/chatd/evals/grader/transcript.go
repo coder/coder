@@ -298,14 +298,24 @@ func parseTrialToolCalls(data []byte) (*transcript, error) {
 	return tr, nil
 }
 
-// assistantTexts returns every non-empty assistant text part in order.
-func (tr *transcript) assistantTexts() []string {
-	var out []string
+// assistantParts returns every non-empty assistant text and reasoning part
+// in order: what the conversation shows the user, since chatd's UI shows
+// reasoning as a thinking block.
+func (tr *transcript) assistantParts() []codersdk.ChatMessagePart {
+	var out []codersdk.ChatMessagePart
 	for _, msg := range tr.Messages {
 		if msg.Role != codersdk.ChatMessageRoleAssistant {
 			continue
 		}
-		out = append(out, textParts(msg)...)
+		for _, part := range msg.Content {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeText, codersdk.ChatMessagePartTypeReasoning:
+				if strings.TrimSpace(part.Text) != "" {
+					out = append(out, part)
+				}
+			default:
+			}
+		}
 	}
 	return out
 }
@@ -337,16 +347,6 @@ func (tr *transcript) finalText() string {
 		}
 	}
 	return ""
-}
-
-func textParts(msg codersdk.ChatMessage) []string {
-	var parts []string
-	for _, part := range msg.Content {
-		if part.Type == codersdk.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
-			parts = append(parts, part.Text)
-		}
-	}
-	return parts
 }
 
 type toolStat struct {

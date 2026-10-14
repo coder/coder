@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // checkSpec is one entry of the grader.args.checks DSL, mirrored by the
@@ -44,6 +46,7 @@ type checkSpec struct {
 	Process        string   `json:"process,omitempty"`
 	Output         string   `json:"output,omitempty"`
 	ExitCode       *int     `json:"exit_code,omitempty"`
+	Path           string   `json:"path,omitempty"`
 }
 
 type checkResult struct {
@@ -91,7 +94,7 @@ func parseChecks(raw json.RawMessage) ([]checkSpec, error) {
 		if _, ok := checkFuncs[s.Type]; !ok {
 			return nil, xerrors.Errorf("check %q has unknown type %q", s.ID, s.Type)
 		}
-		fields := [][2]string{{"pattern", s.Pattern}, {"after", s.After}, {"process", s.Process}, {"output", s.Output}}
+		fields := [][2]string{{"pattern", s.Pattern}, {"after", s.After}, {"process", s.Process}, {"output", s.Output}, {"path", s.Path}}
 		for i, p := range s.Patterns {
 			fields = append(fields, [2]string{fmt.Sprintf("patterns[%d]", i), p})
 		}
@@ -246,22 +249,52 @@ func checkNoneAfter(in *gradeInput, s checkSpec) (bool, string, map[string]any) 
 	return true, "", map[string]any{"after_calls": 0}
 }
 
+// pathFilter accepts the calls whose arguments name a file path matching
+// Path (any call when it is empty): path, as read_file and write_file
+// take it, or the path of an entry of files, as edit_files takes them.
+// It also returns the words that describe the filter in a reason.
+func pathFilter(s checkSpec) (func(toolCall) bool, string) {
+	if s.Path == "" {
+		return anyCall, ""
+	}
+	re := regexp.MustCompile(s.Path)
+	return func(c toolCall) bool {
+		var args struct {
+			Path  string `json:"path"`
+			Files []struct {
+				Path string `json:"path"`
+			} `json:"files"`
+		}
+		if err := json.Unmarshal(c.Args, &args); err != nil {
+			return false
+		}
+		paths := []string{args.Path}
+		for _, f := range args.Files {
+			paths = append(paths, f.Path)
+		}
+		return slices.ContainsFunc(paths, func(p string) bool {
+			return p != "" && re.MatchString(p)
+		})
+	}, " on a path that matches " + s.Path
+}
+
 func checkToolCount(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
+	onPath, where := pathFilter(s)
 	n := 0
 	for _, c := range in.tr.Calls {
-		if tools[c.Name] && (!s.Successful || c.succeeded()) {
+		if tools[c.Name] && (!s.Successful || c.succeeded()) && onPath(c) {
 			n++
 		}
 	}
 	metrics := map[string]any{"count": n}
 	if s.Min != nil && n < *s.Min {
-		return false, fmt.Sprintf("%d call(s), want at least %d", n, *s.Min), metrics
+		return false, fmt.Sprintf("%d call(s)%s, want at least %d", n, where, *s.Min), metrics
 	}
 	if s.Max != nil && n > *s.Max {
-		return false, fmt.Sprintf("%d call(s), want at most %d", n, *s.Max), metrics
+		return false, fmt.Sprintf("%d call(s)%s, want at most %d", n, where, *s.Max), metrics
 	}
-	return true, fmt.Sprintf("%d call(s)", n), metrics
+	return true, fmt.Sprintf("%d call(s)%s", n, where), metrics
 }
 
 func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
@@ -282,9 +315,11 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 // Process, only calls whose process_id is the process that the last
 // execute running a command matching Process (see runsCommand) left
 // running count, so reading or signaling some other process does not.
-// With Output, the call's result output must also match it.
+// With Path, only calls on a file path matching it count (see
+// pathFilter). With Output, the call's result output must also match it.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
+	onPath, where := pathFilter(s)
 	calls := in.tr.Calls
 	var output *regexp.Regexp
 	if s.Output != "" {
@@ -308,7 +343,7 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 	}
 	failures, unmatched := 0, 0
 	for _, c := range calls {
-		if !tools[c.Name] || (target != "" && c.argField("process_id") != target) {
+		if !tools[c.Name] || (target != "" && c.argField("process_id") != target) || !onPath(c) {
 			continue
 		}
 		if !c.succeeded() {
@@ -327,9 +362,9 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		if target != "" {
 			return false, "never called on process " + target, nil
 		}
-		return false, "never called", nil
+		return false, "never called" + where, nil
 	}
-	return false, fmt.Sprintf("all %d call(s) failed", failures), nil
+	return false, fmt.Sprintf("all %d call(s)%s failed", failures, where), nil
 }
 
 func checkMaxToolErrors(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
@@ -379,7 +414,8 @@ func executeScripts(calls []toolCall) []scriptCall {
 // commandLine matches re: in the call itself, in a nested shell, or behind
 // a wrapper such as timeout or env. Patterns therefore match a command and
 // its arguments, so ^pytest matches cd tests && pytest -q but not
-// rg pytest. A command that does not parse runs nothing.
+// rg pytest. A command that does not parse runs nothing, and neither does
+// one whose program the call's output reports missing (commandNotFound).
 func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	if c.Name != "execute" {
 		return false
@@ -388,9 +424,10 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	if !ok {
 		return false
 	}
+	output := c.resultField("output")
 	for _, s := range withNestedShells(script) {
 		for _, cmd := range s.Commands {
-			if re.MatchString(cmd.commandLine()) {
+			if re.MatchString(cmd.commandLine()) && !commandNotFound(cmd.program(), output) {
 				return true
 			}
 		}
@@ -398,7 +435,26 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 	return false
 }
 
-func shellFindingCheck(in *gradeInput, find func(shellScript) []string) (bool, string, map[string]any) {
+// commandNotFound reports whether output holds the report that program
+// could not be found: from sh (sh: 1: rg: not found), bash, or sudo
+// (rg: command not found), zsh (command not found: rg), or a wrapper
+// (timeout: failed to run command 'rg': No such file or directory). The
+// runner image has no rg, so rg -n calc_total | head exits 0 and prints
+// only that report.
+func commandNotFound(program, output string) bool {
+	if program == "" || output == "" {
+		return false
+	}
+	q := regexp.QuoteMeta(program)
+	return regexp.MustCompile(`(?m)(?:^|[\s:'"/])` + q + `['"]?: (?:command )?not found\b` +
+		`|\bcommand not found: ` + q + `$` +
+		`|(?:'` + q + `'|xargs: ` + q + `|execute ` + q + `): No such file or directory`).MatchString(output)
+}
+
+// shellFindingCheck fails when find reports anything for an execute call:
+// for its script and the scripts its shells run (see withNestedShells),
+// or for the call itself through callFind when that is set.
+func shellFindingCheck(in *gradeInput, find func(shellScript) []string, callFind func(scriptCall) []string) (bool, string, map[string]any) {
 	var findings []string
 	unparsed := 0
 	for _, e := range executeScripts(in.tr.Calls) {
@@ -406,10 +462,15 @@ func shellFindingCheck(in *gradeInput, find func(shellScript) []string) (bool, s
 			unparsed++
 			continue
 		}
+		var found []string
 		for _, s := range withNestedShells(e.Script) {
-			for _, f := range find(s) {
-				findings = append(findings, fmt.Sprintf("#%d %s", e.Index, f))
-			}
+			found = append(found, find(s)...)
+		}
+		if len(found) == 0 && callFind != nil {
+			found = callFind(e)
+		}
+		for _, f := range found {
+			findings = append(findings, fmt.Sprintf("#%d %s", e.Index, f))
 		}
 	}
 	metrics := map[string]any{"findings": len(findings), "unparsed_commands": unparsed}
@@ -420,15 +481,40 @@ func shellFindingCheck(in *gradeInput, find func(shellScript) []string) (bool, s
 }
 
 func checkNoShellFileIO(in *gradeInput, _ checkSpec) (bool, string, map[string]any) {
-	return shellFindingCheck(in, fileIOFindings)
+	return shellFindingCheck(in, fileIOFindings, nil)
 }
 
 func checkNoShellBackground(in *gradeInput, _ checkSpec) (bool, string, map[string]any) {
-	return shellFindingCheck(in, backgroundFindings)
+	return shellFindingCheck(in, backgroundFindings, nil)
 }
 
-func checkNoDestructiveGit(in *gradeInput, _ checkSpec) (bool, string, map[string]any) {
-	return shellFindingCheck(in, destructiveGitFindings)
+// restoreReport matches the line git checkout prints after it restores
+// working tree files, from the index or from a commit.
+var restoreReport = regexp.MustCompile(`(?m)^Updated [1-9][0-9]* paths? from .*$`)
+
+// checkNoDestructiveGit fails on git commands that discard work (see
+// destructiveGitFindings), with Keep listing the paths of the user's
+// uncommitted changes. A git checkout also counts when its call's output
+// holds git's report that it restored files, whatever its operands look
+// like, since git checkout billing restores the billing directory when
+// no branch has that name.
+func checkNoDestructiveGit(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
+	return shellFindingCheck(in, func(script shellScript) []string {
+		return destructiveGitFindings(script, s.Keep)
+	}, func(e scriptCall) []string {
+		report := restoreReport.FindString(e.Call.resultField("output"))
+		if report == "" || !slices.ContainsFunc(withNestedShells(e.Script), runsGitCheckout) {
+			return nil
+		}
+		return []string{fmt.Sprintf("git checkout restored files (%s)", report)}
+	})
+}
+
+func runsGitCheckout(s shellScript) bool {
+	return slices.ContainsFunc(s.Commands, func(c shellCommand) bool {
+		sub, _ := gitSubcommand(c)
+		return sub == "checkout"
+	})
 }
 
 // backgroundID returns the process id an execute call left running:
@@ -547,9 +633,9 @@ func compileAll(patterns []string) []*regexp.Regexp {
 	return out
 }
 
-// checkNoText fails when Pattern appears in assistant text, tool call
-// arguments, or files the trial created or changed (Scopes narrows
-// these).
+// checkNoText fails when Pattern appears in assistant text or reasoning,
+// tool call arguments, or files the trial created or changed (Scopes
+// narrows these).
 func checkNoText(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	scopes := map[string]bool{"assistant_text": true, "tool_args": true, "files": true}
@@ -561,10 +647,15 @@ func checkNoText(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	}
 	var hits []string
 	if scopes["assistant_text"] {
-		for _, t := range in.tr.assistantTexts() {
-			if re.MatchString(t) {
-				hits = append(hits, "assistant text")
-				break
+		found := map[string]bool{}
+		for _, part := range in.tr.assistantParts() {
+			where := "assistant text"
+			if part.Type == codersdk.ChatMessagePartTypeReasoning {
+				where = "assistant reasoning"
+			}
+			if !found[where] && re.MatchString(part.Text) {
+				found[where] = true
+				hits = append(hits, where)
 			}
 		}
 	}
@@ -899,7 +990,9 @@ var statusReference = regexp.MustCompile(`\$\?|\$\{\?\}|PIPESTATUS`)
 // exit status code: as its own exit code, or, when its command expands an
 // exit status, as a line of its output that status matches. A command
 // such as python3 check.py; echo "exit=$?" exits 0 and prints the status
-// instead, and output that a program prints on its own is not a status.
+// instead. A line that a program prints on its own is not a status unless
+// the command also expands one, since the output does not say which
+// command printed which line.
 func exitStatusShown(c toolCall, code int, status *regexp.Regexp) bool {
 	if fieldTrue(c.Args, "run_in_background") || fieldTrue(c.Result, "backgrounded") {
 		return false

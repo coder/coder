@@ -1,5 +1,5 @@
 import { defineExperiment } from "@coder/aegis";
-import { configureSuite, runsScript, type Case } from "../shared.ts";
+import { configureSuite, runsScript, treeFile, type Case } from "../shared.ts";
 
 // Tool descriptions: tasks that lean on one tool's contract each. The
 // primary metric is the per-tool failure rate in the summary, compared
@@ -34,12 +34,14 @@ const cases: Case[] = [
     guardrails: [toolErrors("edit_files"), toolErrors("read_file"), toolErrors(undefined, 3)],
   },
   {
+    // write_file must create the requested file itself, three directories
+    // deep, rather than some other file.
     id: "write-file-nested-path",
     seed: "records@v1",
     prompt:
       "Add records/exporters/spreadsheet/writer.py with write_rows(rows): it takes a list of dicts and returns CSV text whose header comes from the first row's keys, or an empty string for no rows.",
     golden: "records-csv-writer",
-    checks: [{ id: "write-file-used", type: "tool_succeeded", tool: "write_file" }],
+    checks: [{ id: "write-file-used", type: "tool_succeeded", tool: "write_file", path: treeFile("records/exporters/spreadsheet/writer.py") }],
     guardrails: [toolErrors("write_file"), toolErrors(undefined, 3)],
   },
   {

@@ -79,7 +79,15 @@ export interface Check {
   process?: string;
   output?: string;
   exit_code?: number;
+  path?: string;
 }
+
+/**
+ * Path pattern for a file of the trial tree, such as inventory/store.py,
+ * whether a file tool names it from the checkout's root or by its absolute
+ * path.
+ */
+export const treeFile = (file: string): string => `(?:^|/)${file.replace(/\./g, "\\.")}$`;
 
 /**
  * Command pattern for running a script of the trial tree, such as
