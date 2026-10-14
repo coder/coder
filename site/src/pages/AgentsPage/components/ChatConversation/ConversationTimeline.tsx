@@ -524,18 +524,20 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// prev/next arrow buttons that jump the transcript to the neighbouring
 		// user prompt. The row key doubles as the scroller's message ID.
 		const userRowKeys: string[] = [];
+		let latestUserRowIsPending = false;
 		for (const row of renderRows) {
 			if (row.type === "message" && row.entry.message.role === "user") {
 				userRowKeys.push(row.key);
+				latestUserRowIsPending = isPendingRowID(row.entry.message.id);
 			}
 		}
 		// Only the latest user row anchors the scroller, and only while its turn
-		// is active. The scroller never marks initially rendered anchors as
+		// is active or pending. The scroller never marks initially rendered anchors as
 		// handled, and its fallback for mutations that are neither clean appends
 		// nor clean prepends jumps to the oldest unhandled anchor, so historical
 		// rows must not be anchors at all.
 		const anchorUserRowKey =
-			hasLiveAssistant || isAwaitingFirstStreamChunk
+			hasLiveAssistant || isAwaitingFirstStreamChunk || latestUserRowIsPending
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
 		const userNeighborsByKey = new Map<
