@@ -16,10 +16,12 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -353,7 +355,7 @@ func (s *server) Graph(
 		}
 	}
 
-	return &proto.GraphComplete{
+	response := &proto.GraphComplete{
 		Error:                 "",
 		Timings:               e.timings.aggregate(),
 		Resources:             state.Resources,
@@ -362,6 +364,25 @@ func (s *server) Graph(
 		Presets:               state.Presets,
 		HasExternalAgents:     state.HasExternalAgents,
 	}
+	if err := checkGraphCompleteSize(response); err != nil {
+		return provisionersdk.GraphError("%s", err)
+	}
+	return response
+}
+
+// checkGraphCompleteSize rejects a Graph response that cannot cross the
+// DRPC transport in one message, so the import fails with a readable error
+// instead of a dropped connection. Script order dependencies are the only
+// unbounded addition to the response, so the error names them.
+func checkGraphCompleteSize(response *proto.GraphComplete) error {
+	size := protobuf.Size(response)
+	if size <= drpcsdk.MaxMessageSize {
+		return nil
+	}
+	return xerrors.Errorf(
+		"graph result is %d bytes, above the %d byte message limit; reduce the number of coder_script_order dependencies",
+		size, drpcsdk.MaxMessageSize,
+	)
 }
 
 func logScriptOrderWarnings(
