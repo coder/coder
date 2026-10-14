@@ -27,7 +27,7 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 	for _, shutdown := range []bool{false, true} {
 		name := "Graceful"
 		if shutdown {
-			name = "WorkspaceShutdown"
+			name = "ServerShutdown"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -45,7 +45,7 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 			channel, _, err := watcher.Accept()
 			require.NoError(t, err)
 			if shutdown {
-				conn.recordTermination(&ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped, BuildID: uuid.NewString(), Transition: "stop"})
+				conn.recordTermination(&shutdownCause{})
 			}
 			require.NoError(t, channel.Close())
 			require.NoError(t, channel.Close())
@@ -53,14 +53,14 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 			require.Len(t, reporter.disconnects, 1)
 			wantReason := "normal close"
 			if shutdown {
-				wantReason = string(codersdk.DisconnectReasonWorkspaceStopped)
+				wantReason = string(codersdk.DisconnectReasonServerShutdown)
 			}
 			require.Equal(t, wantReason, reporter.disconnects[0].Reason)
 			entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "JetBrains channel closed" })
 			require.Len(t, entries, 1)
 			require.Contains(t, entries[0].Fields, slog.F("client_session_id", clientSessionID))
 			if shutdown {
-				require.Contains(t, entries[0].Fields, codersdk.DisconnectReasonWorkspaceStopped.SlogField())
+				require.Contains(t, entries[0].Fields, codersdk.DisconnectReasonServerShutdown.SlogField())
 			}
 		})
 	}
@@ -92,7 +92,7 @@ func TestSSHTransportTermination(t *testing.T) {
 					_, err := conn.Write(nil)
 					require.Equal(t, tc.err, err)
 				}
-				cause := &ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped, BuildID: uuid.NewString()}
+				cause := &shutdownCause{}
 				conn.recordTermination(cause)
 				if tc.wantShutdown {
 					require.Equal(t, cause, conn.shutdownCause())
@@ -107,19 +107,19 @@ func TestSSHTransportTermination(t *testing.T) {
 		t.Parallel()
 		conn := &trackedSSHConn{Conn: shutdownErrorConn{}}
 		require.NoError(t, conn.Close())
-		conn.recordTermination(&ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped})
+		conn.recordTermination(&shutdownCause{})
 		require.Nil(t, conn.shutdownCause())
 	})
 
 	t.Run("ShutdownBeforeError", func(t *testing.T) {
 		t.Parallel()
 		conn := &trackedSSHConn{Conn: shutdownErrorConn{err: io.EOF}}
-		cause := &ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped, BuildID: uuid.NewString()}
+		cause := &shutdownCause{}
 		conn.recordTermination(cause)
 		_, err := conn.Read(nil)
 		require.ErrorIs(t, err, io.EOF)
 		require.NoError(t, conn.Close())
-		conn.recordTermination(&ShutdownCause{Reason: codersdk.DisconnectReasonServerShutdown})
+		conn.recordTermination(&shutdownCause{})
 		require.Equal(t, cause, conn.shutdownCause())
 	})
 }
@@ -201,7 +201,7 @@ func TestJetbrainsChannelClosedBeforeShutdown(t *testing.T) {
 				_, err := channel.Write(nil)
 				require.ErrorIs(t, err, io.ErrClosedPipe)
 			}
-			conn.recordTermination(&ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped, BuildID: uuid.NewString()})
+			conn.recordTermination(&shutdownCause{})
 			if operation == "Close" {
 				releaseClose()
 				require.NoError(t, testutil.RequireReceive(ctx, t, done))
@@ -227,11 +227,7 @@ func TestSSHShutdownWaitsForConnectionLog(t *testing.T) {
 	releaseLog := sync.OnceFunc(func() { close(release) })
 	defer releaseLog()
 	sink := &blockedConnectionLogSink{entered: make(chan slog.SinkEntry, 1), release: release}
-	server, err := NewServer(ctx, slog.Make(sink), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &Config{
-		ShutdownCause: func() ShutdownCause {
-			return ShutdownCause{Reason: codersdk.DisconnectReasonWorkspaceStopped, BuildID: uuid.NewString()}
-		},
-	})
+	server, err := NewServer(ctx, slog.Make(sink), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		releaseLog()
@@ -258,7 +254,7 @@ func TestSSHShutdownWaitsForConnectionLog(t *testing.T) {
 	closeDone := make(chan error, 1)
 	go func() { closeDone <- server.Close() }()
 	entry := testutil.RequireReceive(ctx, t, sink.entered)
-	require.Contains(t, entry.Fields, codersdk.DisconnectReasonWorkspaceStopped.SlogField())
+	require.Contains(t, entry.Fields, codersdk.DisconnectReasonServerShutdown.SlogField())
 	// Forwarding-only connections rely on this completion log. Keep their
 	// shutdown wait-group entry until every sink has accepted the reason.
 	server.mu.RLock()

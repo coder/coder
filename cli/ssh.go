@@ -979,6 +979,7 @@ func findWorkspaceAndAgentByHostname(
 //
 // See: https://github.com/coder/coder/issues/6180
 func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger, client *codersdk.Client, workspace codersdk.Workspace, errCh <-chan error) {
+	var shutdownBuildID uuid.UUID
 	// Ensure session is ended on both context cancellation
 	// and workspace stop.
 	defer func() {
@@ -1012,6 +1013,17 @@ startWatchLoop:
 			case w, ok := <-wsWatch:
 				if !ok {
 					continue startWatchLoop
+				}
+				if w.LatestBuild.ID != shutdownBuildID &&
+					(w.LatestBuild.Transition == codersdk.WorkspaceTransitionStop || w.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete) {
+					switch w.LatestBuild.Job.Status {
+					case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobSucceeded:
+						shutdownBuildID = w.LatestBuild.ID
+						logger.Info(ctx, "workspace shutdown requested",
+							codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
+							slog.F("workspace_id", w.ID), slog.F("build_id", w.LatestBuild.ID),
+							slog.F("build_reason", w.LatestBuild.Reason), slog.F("transition", w.LatestBuild.Transition))
+					}
 				}
 
 				// Transitioning to stop or delete could mean that

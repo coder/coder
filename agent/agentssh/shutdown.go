@@ -13,24 +13,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ShutdownCause describes why the server is closing its active connections.
-type ShutdownCause struct {
-	Reason      codersdk.DisconnectReason
-	BuildID     string
-	BuildReason string
-	Transition  string
-}
+// shutdownCause marks connections closed by the SSH server.
+type shutdownCause struct{}
 
-func (c ShutdownCause) fields() []slog.Field {
-	initiator := codersdk.DisconnectInitiatorAgent
-	if c.Reason == codersdk.DisconnectReasonWorkspaceStopped {
-		initiator = codersdk.DisconnectInitiatorServer
+func (shutdownCause) fields() []slog.Field {
+	return []slog.Field{
+		codersdk.DisconnectReasonServerShutdown.SlogField(),
+		codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+		codersdk.DisconnectInitiatorAgent.SlogField(),
 	}
-	fields := []slog.Field{c.Reason.SlogField(), c.Reason.SlogExpectedField(), initiator.SlogField()}
-	if c.BuildID != "" {
-		fields = append(fields, slog.F("build_id", c.BuildID), slog.F("build_reason", c.BuildReason), slog.F("transition", c.Transition))
-	}
-	return fields
 }
 
 type shutdownContextKey struct{}
@@ -43,7 +34,7 @@ type trackedSSHConn struct {
 
 // A nil shutdown cause records an earlier client or transport termination.
 type sshConnTermination struct {
-	shutdownCause *ShutdownCause
+	shutdownCause *shutdownCause
 }
 
 func (c *trackedSSHConn) ClientSessionID() string { return c.clientSessionID }
@@ -76,20 +67,20 @@ func (c *trackedSSHConn) recordIOError(err error) {
 	c.recordTermination(nil)
 }
 
-func (c *trackedSSHConn) recordTermination(cause *ShutdownCause) {
+func (c *trackedSSHConn) recordTermination(cause *shutdownCause) {
 	// Transport cleanup can remain in the server's connection map after an
 	// error or Close. Preserve that earlier cause before cleanup can block.
 	c.termination.CompareAndSwap(nil, &sshConnTermination{shutdownCause: cause})
 }
 
-func (c *trackedSSHConn) shutdownCause() *ShutdownCause {
+func (c *trackedSSHConn) shutdownCause() *shutdownCause {
 	if termination := c.termination.Load(); termination != nil {
 		return termination.shutdownCause
 	}
 	return nil
 }
 
-func connectionShutdownCause(ctx context.Context) *ShutdownCause {
+func connectionShutdownCause(ctx context.Context) *shutdownCause {
 	if ctx == nil {
 		return nil
 	}
@@ -110,7 +101,7 @@ func (c *channelTermination) record() {
 	c.termination.CompareAndSwap(nil, &sshConnTermination{shutdownCause: connectionShutdownCause(c.ctx)})
 }
 
-func (c *channelTermination) shutdownCause() *ShutdownCause {
+func (c *channelTermination) shutdownCause() *shutdownCause {
 	if termination := c.termination.Load(); termination != nil {
 		return termination.shutdownCause
 	}
@@ -139,7 +130,7 @@ func sessionChannelHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan goss
 	ssh.DefaultSessionHandler(srv, conn, newChan, &channelContext{Context: ctx, termination: termination})
 }
 
-func sessionShutdownCause(ctx context.Context) *ShutdownCause {
+func sessionShutdownCause(ctx context.Context) *shutdownCause {
 	if termination, ok := ctx.Value(channelTerminationContextKey{}).(*channelTermination); ok {
 		return termination.shutdownCause()
 	}

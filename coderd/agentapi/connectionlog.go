@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type ConnLogAPI struct {
@@ -75,6 +76,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	logIP := database.ParseIP(logIPRaw) // will return null if invalid
 
 	reason := req.GetConnection().GetReason()
+	if action == database.ConnectionStatusDisconnected && reason == string(codersdk.DisconnectReasonServerShutdown) {
+		reason = a.workspaceShutdownReason(ctx, ws.ID, req.GetConnection())
+	}
 	clientSessionID := req.GetConnection().GetClientSessionId()
 	if !tracing.ValidSessionID(clientSessionID) {
 		clientSessionID = ""
@@ -124,4 +128,38 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (a *ConnLogAPI) workspaceShutdownReason(ctx context.Context, workspaceID uuid.UUID, connection *agentproto.Connection) string {
+	reason := string(codersdk.DisconnectReasonServerShutdown)
+	clientSessionID := connection.GetClientSessionId()
+	if !tracing.ValidSessionID(clientSessionID) {
+		clientSessionID = ""
+	}
+	logger := a.Log.With(slog.F("workspace_id", workspaceID), slog.F("connection_id", uuid.UUID(connection.GetId())),
+		slog.F("client_session_id", clientSessionID))
+	build, err := a.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	if err != nil {
+		logger.Warn(ctx, "get shutdown workspace build", slog.Error(err))
+		return reason
+	}
+	// A delayed report must not be attributed to a stop requested after the
+	// connection closed.
+	if build.CreatedAt.After(connection.GetTimestamp().AsTime()) ||
+		(build.Transition != database.WorkspaceTransitionStop && build.Transition != database.WorkspaceTransitionDelete) {
+		return reason
+	}
+	job, err := a.Database.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		logger.Warn(ctx, "get shutdown provisioner job", slog.Error(err))
+		return reason
+	}
+	// Queued, failed, and canceled jobs do not establish a shutdown cause.
+	if job.JobStatus != database.ProvisionerJobStatusRunning && job.JobStatus != database.ProvisionerJobStatusSucceeded {
+		return reason
+	}
+	logger.Info(ctx, "connection closed for workspace shutdown",
+		codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
+		slog.F("build_id", build.ID), slog.F("build_reason", build.Reason), slog.F("transition", build.Transition))
+	return string(codersdk.DisconnectReasonWorkspaceStopped)
 }

@@ -116,7 +116,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 			detail := "normal close"
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			if cause := termination.shutdownCause(); cause != nil {
-				detail = string(cause.Reason)
+				detail = string(codersdk.DisconnectReasonServerShutdown)
 				fields = append(fields, cause.fields()...)
 			} else {
 				reason := codersdk.DisconnectReasonGraceful

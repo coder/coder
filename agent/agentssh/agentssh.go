@@ -116,9 +116,6 @@ type Config struct {
 	BlockLocalPortForwarding bool
 	// ConnectionReporter reports connect and disconnect events.
 	ConnectionReporter proto.ConnectionReporter
-	// ShutdownCause is sampled before closing active sessions and connections.
-	// If nil, connections are closed with server_shutdown as the reason.
-	ShutdownCause func() ShutdownCause
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -539,7 +536,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
 					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
 				}
-				reason = cause.Reason
+				reason = codersdk.DisconnectReasonServerShutdown
 				fields = append(fields, cause.fields()...)
 			} else {
 				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
@@ -1289,10 +1286,7 @@ func (s *Server) Close() error {
 		return xerrors.New("server is closed")
 	}
 	s.closing = make(chan struct{})
-	cause := ShutdownCause{Reason: codersdk.DisconnectReasonServerShutdown}
-	if s.config.ShutdownCause != nil {
-		cause = s.config.ShutdownCause()
-	}
+	cause := shutdownCause{}
 	// Preserve the cause before closing any channel or socket can wake its
 	// handler. Each connection retains it after the server is reused.
 	for conn := range s.conns {
