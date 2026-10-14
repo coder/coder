@@ -130,6 +130,7 @@ Even though the browser displays a warning about an insecure connection without 
    Select **Relaunch** to restart Google Chrome.
 
 1. On relaunch and subsequent launches, Google Chrome will show a banner stating "You are using an unsupported command-line flag".
+
    This banner can be safely dismissed.
 
 1. Web apps accessed on the configured hostnames and ports will now function correctly in a secure context.
@@ -142,9 +143,12 @@ Even though the browser displays a warning about an insecure connection without 
 
 1. Enter `dom.securecontext.allowlist` into the search bar at the top.
 
-1. Select **String** on the entry with the same name at the bottom of the list, then select the plus icon on the right.
+1. Select **String** on the entry with the same name at the bottom of the list.
+
+   Then select the plus icon on the right.
 
 1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`.
+
    Then select the tick icon.
 
    If you need to enter multiple URLs, use a comma to separate them.

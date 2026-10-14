@@ -129,7 +129,9 @@ resource "coder_script" "setup" {
 
 We can note the following issues in the above template:
 
-1. There is a race between cloning the repository and the `pip install` commands, which can lead to failed workspace startups in some cases.
+1. There is a race between cloning the repository and the `pip install` commands.
+
+   This can lead to failed workspace startups in some cases.
 2. The `apt` commands can run independently of the `git clone` command, meaning that there is a potential speedup here.
 
 Based on the above, we can improve both the startup time and reliability of the template by splitting the monolithic startup script into multiple independent scripts:

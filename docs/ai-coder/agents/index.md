@@ -58,9 +58,9 @@ submits a prompt, the control plane:
    Azure, AWS Bedrock, or any OpenAI-compatible endpoint).
 1. Receives the model's response, which may include tool calls such as reading
    files, writing code, or running shell commands.
-1. Executes tool calls by connecting to a Coder workspace over the existing
-   workspace connection — the same path used for web terminals, port
-   forwarding, and IDE access.
+1. Executes tool calls by connecting to a Coder workspace over the existing workspace connection.
+
+   This is the same path used for web terminals, port forwarding, and IDE access.
 1. Returns tool results to the model and continues the loop until the task is
    complete.
 

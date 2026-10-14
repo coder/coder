@@ -112,8 +112,16 @@ This works through Git's `GIT_ASKPASS` mechanism, which Coder configures in each
 `GIT_ASKPASS` tells Coder which Git host the operation is for, but never which provider to use.
 Coder resolves the provider in two steps:
 
-1. Coder considers only the providers that the workspace's template declares with `data "coder_external_auth"`, and selects the one whose `CODER_EXTERNAL_AUTH_<N>_REGEX` matches the host.
-1. If every declared provider is configured and none of them match the host, including when the template declares no providers at all, Coder matches the host against all providers configured on the deployment. This fallback keeps hosts that the template never declares, such as an unrelated Git server, reachable from the workspace.
+1. Coder considers only the providers that the workspace's template declares with `data "coder_external_auth"`.
+
+   Coder selects the one whose `CODER_EXTERNAL_AUTH_<N>_REGEX` matches the host.
+1. Suppose every declared provider is configured and none of them match the host.
+
+   This includes the case where the template declares no providers at all.
+
+   Coder then matches the host against all providers configured on the deployment.
+
+   This fallback keeps hosts that the template never declares, such as an unrelated Git server, reachable from the workspace.
 
 Because the first step is scoped to the template, two workspaces built from different templates receive their own template's token for the same Git host, regardless of the order the providers appear in the deployment configuration.
 
@@ -345,9 +353,9 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
-1. Adjust the GitHub app permissions. You can use more or fewer permissions than
-   are listed here, this example allows users to clone
-   repositories:
+1. Adjust the GitHub app permissions.
+
+   You can use more or fewer permissions than are listed here, this example allows users to clone repositories:
 
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
 
@@ -367,11 +375,13 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 1. Make the app installable by other users. In the app's **Advanced**
    tab, select **Make this GitHub App public**.
 
-   Without this, anyone outside the app's owning account or owning
-   organization gets a GitHub 404 when they select **Link GitHub** in
-   Coder. Each user must also install the app on their own account
-   before linking. To surface an **Install GitHub App** link in the
-   Coder UI, set the following environment variable:
+   Without this, anyone outside the app's owning account or organization gets a GitHub 404.
+
+   They see it when they select **Link GitHub** in Coder.
+
+   Each user must also install the app on their own account before linking.
+
+   To surface an **Install GitHub App** link in the Coder UI, set the following environment variable:
 
    ```dotenv
    CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new

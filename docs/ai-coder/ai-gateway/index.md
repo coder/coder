@@ -13,8 +13,10 @@ You can run the gateway inside the Coder control plane (`coderd`) or as a [stand
 AI Gateway solves 3 key problems:
 
 1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
-   Users use their Coder session or API tokens to authenticate with `coderd`, and
-   `coderd` securely communicates with the upstream APIs on their behalf.
+
+   Users use their Coder session or API tokens to authenticate with `coderd`.
+
+   `coderd` then securely communicates with the upstream APIs on their behalf.
 1. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
    are audited and attributed back to a user.
 1. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may

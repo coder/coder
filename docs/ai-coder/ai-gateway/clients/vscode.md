@@ -17,7 +17,9 @@ For each provider below, the setup steps are:
 1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P` on Mac) and run **Chat: Manage Language Models**.
 1. Select **Add** → **Custom Endpoint**.
 1. Enter a **group name**, **display name**, your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** as the API key, and the **API type** shown below.
-1. To add or edit models, select the gear icon next to the provider in the Language Models view to open `chatLanguageModels.json`.
+1. To add or edit models, select the gear icon next to the provider in the Language Models view.
+
+   This opens `chatLanguageModels.json`.
 
 > [!IMPORTANT]
 > Enter your API token through the UI. VS Code stores it securely and inserts a reference like `${input:chat.lm.secret.XXXXX}` into the JSON. Do not paste your token directly into the JSON file.

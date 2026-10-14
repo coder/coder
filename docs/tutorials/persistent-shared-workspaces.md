@@ -207,9 +207,9 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
    coder sharing share oncall-sre/oncall-workspace --group sre-oncall
    ```
 
-1. When your IdP rotates group membership, Coder group membership updates on
-   next login. All current members have access; removed members lose access
-   after a workspace restart.
+1. When your IdP rotates group membership, Coder group membership updates on next login.
+
+   All current members have access; removed members lose access after a workspace restart.
 
 <a id="finding-shared-workspaces"></a>
 
