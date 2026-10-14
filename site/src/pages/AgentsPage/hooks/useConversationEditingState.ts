@@ -173,13 +173,13 @@ export function useConversationEditingState(deps: {
 			await sendPromise;
 		} catch (error) {
 			rollback();
+			isSendPendingRef.current = false;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
-		} finally {
-			isSendPendingRef.current = false;
 		}
+		isSendPendingRef.current = false;
 
 		finalizeSuccessfulSend(target);
 	};

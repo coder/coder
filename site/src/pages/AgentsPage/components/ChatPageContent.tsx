@@ -765,10 +765,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
-						return;
-					} finally {
 						setIsSubmitting(false);
+						return;
 					}
+					setIsSubmitting(false);
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
