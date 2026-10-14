@@ -59,6 +59,21 @@
 		href="/favicons/favicon-dark.svg"
 		media="(prefers-color-scheme: light)"
 	/>
+	<!--
+		The server leaves the theme class empty when the theme follows the OS.
+		Match the OS until ThemeProvider sets the class. The background is
+		--surface-primary from .dark in src/index.css.
+	-->
+	<style>
+		html[class=""] {
+			color-scheme: light dark;
+		}
+		@media (prefers-color-scheme: dark) {
+			html[class=""] body {
+				background: hsl(240 10% 4%);
+			}
+		}
+	</style>
 </head>
 
 <body>
