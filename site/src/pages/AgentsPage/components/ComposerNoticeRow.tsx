@@ -1,5 +1,4 @@
-import { cva } from "class-variance-authority";
-import { cn } from "cn";
+import { cva, type VariantProps } from "class-variance-authority";
 import { TriangleAlertIcon } from "lucide-react";
 
 const composerNoticeRowVariants = cva(
@@ -14,13 +13,14 @@ const composerNoticeRowVariants = cva(
 	},
 );
 
-type ComposerNoticeRowProps = {
+type ComposerNoticeRowProps = Required<
+	VariantProps<typeof composerNoticeRowVariants>
+> & {
 	id: string;
-	tone: "warning" | "secondary";
 	children: React.ReactNode;
 };
 
-/** A warning row stacked at the top of the chat composer. */
+/** A notice row with a warning icon, stacked at the top of the chat composer. */
 export const ComposerNoticeRow: React.FC<ComposerNoticeRowProps> = ({
 	id,
 	tone,
@@ -28,12 +28,7 @@ export const ComposerNoticeRow: React.FC<ComposerNoticeRowProps> = ({
 }) => {
 	return (
 		<div id={id} className={composerNoticeRowVariants({ tone })}>
-			<TriangleAlertIcon
-				className={cn(
-					"mt-px size-3.5 shrink-0",
-					tone === "secondary" && "text-content-warning",
-				)}
-			/>
+			<TriangleAlertIcon className="mt-px size-3.5 shrink-0 text-content-warning" />
 			{children}
 		</div>
 	);

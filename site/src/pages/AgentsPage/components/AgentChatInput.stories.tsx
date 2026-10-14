@@ -275,6 +275,20 @@ export const BedrockInvokeModelNotice: Story = {
 	},
 };
 
+export const WithWarning: Story = {
+	args: {
+		warning: "This prompt was prefilled from a link. Review it before sending.",
+	},
+};
+
+export const WithWarningAndBedrockInvokeModelNotice: Story = {
+	args: {
+		warning: "This prompt was prefilled from a link. Review it before sending.",
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
+	},
+};
+
 export const AIGatewayDisabledShowsSetupNotice: Story = {
 	args: {
 		// canConfigureAgentSetup: false and providerCount/modelCount left
