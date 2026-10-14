@@ -3266,17 +3266,22 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			await userEvent.type(editor, "Follow-up question.");
 			const viewport = canvas.getByRole("region", { name: "Messages" });
 			// Scroll the reader into history before sending, the repro starting
-			// point.
+			// point. The scroller reads the position from the scroll event, which
+			// fires after this assignment returns.
+			const scrolled = new Promise((resolve) =>
+				viewport.addEventListener("scroll", resolve, { once: true }),
+			);
 			viewport.scrollTop = 0;
+			await scrolled;
 
 			await userEvent.keyboard("{Enter}");
 			await waitFor(() => {
 				expect(sendSpy).toHaveBeenCalledTimes(1);
 			});
 
-			// The prompt shows at submit, while the gated POST is still pending.
-			// Once the stream reports it and the running turn, the scroller
-			// re-anchors to it with a single non-smooth scroll.
+			// The prompt shows at submit, while the gated POST is still pending,
+			// and the scroller anchors to it with a single non-smooth scroll. The
+			// stream's copy of the prompt and the running turn do not scroll again.
 			const timeline = within(
 				await canvas.findByTestId("conversation-timeline"),
 			);
