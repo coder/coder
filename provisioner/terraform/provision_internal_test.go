@@ -23,18 +23,31 @@ func TestCheckGraphCompleteSize(t *testing.T) {
 	}
 	require.NoError(t, checkGraphCompleteSize(response))
 
+	// Grow the response until the bare GraphComplete still fits the limit
+	// but the proto.Response envelope the session sends does not. The
+	// guard must measure the envelope, or this case reaches the transport
+	// and drops the connection.
+	envelope := &proto.Response{Type: &proto.Response_Graph{Graph: response}}
 	dependency := &proto.ScriptDependency{
 		PrerequisiteResourceAddress: "module.setup." + strings.Repeat("x", 90) + ".coder_script.step",
 		Requirement:                 proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
 	}
-	count := drpcsdk.MaxMessageSize/protobuf.Size(dependency) + 1
-	for range count {
+	for protobuf.Size(envelope) <= drpcsdk.MaxMessageSize {
 		script.Dependencies = append(script.Dependencies, dependency)
 	}
-	require.Greater(t, protobuf.Size(response), drpcsdk.MaxMessageSize)
+	// Drop the entry that crossed the limit, then pad the last remaining
+	// one a byte at a time so the envelope crosses by the smallest margin.
+	last := protobuf.Clone(dependency).(*proto.ScriptDependency)
+	script.Dependencies[len(script.Dependencies)-2] = last
+	script.Dependencies = script.Dependencies[:len(script.Dependencies)-1]
+	for protobuf.Size(envelope) <= drpcsdk.MaxMessageSize {
+		last.PrerequisiteResourceAddress += "x"
+	}
+	require.LessOrEqual(t, protobuf.Size(response), drpcsdk.MaxMessageSize)
+	require.Greater(t, protobuf.Size(envelope), drpcsdk.MaxMessageSize)
 
 	err := checkGraphCompleteSize(response)
-	require.ErrorContains(t, err, strconv.Itoa(protobuf.Size(response))+" bytes")
+	require.ErrorContains(t, err, strconv.Itoa(protobuf.Size(envelope))+" bytes")
 	require.ErrorContains(t, err, strconv.Itoa(drpcsdk.MaxMessageSize)+" byte message limit")
 	require.ErrorContains(t, err, "coder_script_order")
 }

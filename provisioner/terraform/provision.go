@@ -372,10 +372,14 @@ func (s *server) Graph(
 
 // checkGraphCompleteSize rejects a Graph response that cannot cross the
 // DRPC transport in one message, so the import fails with a readable error
-// instead of a dropped connection. Script order dependencies are the only
+// instead of a dropped connection. The session wraps the result in a
+// proto.Response before sending, so the check measures that envelope rather
+// than the bare GraphComplete. Script order dependencies are the only
 // unbounded addition to the response, so the error names them.
 func checkGraphCompleteSize(response *proto.GraphComplete) error {
-	size := protobuf.Size(response)
+	size := protobuf.Size(&proto.Response{
+		Type: &proto.Response_Graph{Graph: response},
+	})
 	if size <= drpcsdk.MaxMessageSize {
 		return nil
 	}
