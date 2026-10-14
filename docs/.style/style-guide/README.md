@@ -23,8 +23,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
 The guide documents 87 rules.
-Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
-The other 78 are yours to apply by reading, 79 on published pages, where the one-sentence-per-line rule is off.
+Automated tooling checks 10 of them, and 1 of those 10 doesn't run on published pages.
+The other 77 are yours to apply by reading, 78 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -36,6 +36,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
 | `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
 | `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
+| `Coder.Semicolons`                 | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | A semicolon in a paragraph, list item, heading, or blockquote         |
 | `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
 | `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
@@ -58,10 +59,10 @@ The markdownlint and emdash checks do fail the build.
 | [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
 | [Word choice](./word-choice.md)                                       | 19    | 2            | 11      | 6                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 2            | 5       | 7                  |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 2            | 8       | 2                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 87    | 9            | 33      | 45                 |
+| **Total**                                                             | 87    | 10           | 32      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
