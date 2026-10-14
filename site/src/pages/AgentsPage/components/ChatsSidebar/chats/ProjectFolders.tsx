@@ -39,7 +39,6 @@ export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
-	/** Scopes the saved collapse state of the Projects section. */
 	readonly currentUserId: string;
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
