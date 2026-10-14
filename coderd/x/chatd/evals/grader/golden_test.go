@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -66,6 +67,9 @@ func TestGoldenCases(t *testing.T) {
 
 			exit, ok := earlyExitLayer(t, golden.Command, []string{solution, seed}, hidden)
 			if !ok {
+				// A command that is not a test runner, such as a checker
+				// script, must name the line it prints once it finishes.
+				require.NotEmpty(t, golden.Reports, "no early exit for %q, and golden.json lists no reports", golden.Command)
 				return
 			}
 			out, err = runGolden(t, golden.Command, seed, solution, hidden, exit)
@@ -87,10 +91,78 @@ func missingReports(reports []string, out string) []string {
 	return missing
 }
 
+// TestHiddenPassReportsMatchShared checks that hiddenPassReports applies
+// the rules of passReports in shared.ts, which builds the reports into
+// each case's hidden-test command, on every golden case and on a tree
+// with the forms the rules must tell apart.
+func TestHiddenPassReportsMatchShared(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	fixture := t.TempDir()
+	for rel, data := range map[string]string{
+		"golden.json": `{"command":"true"}`,
+		"hidden/test.py": "import unittest\n\n\nclass Helper:\n    def test_helper(self):\n        pass\n\n\n" +
+			"class Alpha(unittest.TestCase):\n    def test_one(self):\n        def test_nested(self):\n            pass\n\n" +
+			"    def test_static():\n        pass\n\n\nclass Beta(unittest.TestCase):\n    def test_two(self):\n        pass\n",
+		"hidden/pkg/test_b.py":   "import unittest\n\n\nclass Gamma(unittest.TestCase):\n    def test_three(self):\n        pass\n",
+		"hidden/helper.py":       "import unittest\n\n\nclass Delta(unittest.TestCase):\n    def test_four(self):\n        pass\n",
+		"hidden/gopkg/x_test.go": "package gopkg\n\nimport \"testing\"\n\nfunc TestOne(t *testing.T) {}\n\nfunc helper(t *testing.T) {}\n\nfunc BenchmarkOne(b *testing.B) {}\n",
+		"hidden/gopkg/x.go":      "package gopkg\n\nimport \"testing\"\n\nfunc TestInPlainFile(t *testing.T) {}\n",
+		"hidden/js/x.test.js":    "test(\"adds 1.5\", () => {});\n  test(\"indented\", () => {});\ntest(\"a(b)\", () => {});\ndescribe(\"group\", () => {});\n",
+	} {
+		p := filepath.Join(fixture, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(data), 0o600))
+	}
+	files, err := filepath.Glob(filepath.Join("..", "*", "testdata", "golden", "*", "golden.json"))
+	require.NoError(t, err)
+	dirs := []string{fixture}
+	for _, file := range files {
+		dirs = append(dirs, filepath.Dir(file))
+	}
+	input, err := json.Marshal(map[string]any{"shared": filepath.Join("..", "shared.ts"), "dirs": dirs})
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	cmd := exec.CommandContext(ctx, "node", "--input-type=module", "-e", sharedReportsScript)
+	cmd.Stdin = bytes.NewReader(input)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	require.NoError(t, err, "node: %s", stderr.String())
+	var got map[string][]string
+	require.NoError(t, json.Unmarshal(out, &got))
+	for _, dir := range dirs {
+		data, err := os.ReadFile(filepath.Join(dir, "golden.json"))
+		require.NoError(t, err)
+		var golden struct {
+			Reports []string `json:"reports"`
+		}
+		require.NoError(t, json.Unmarshal(data, &golden))
+		want := append(slices.Clone(golden.Reports), hiddenPassReports(t, filepath.Join(dir, "hidden"))...)
+		require.ElementsMatch(t, want, got[dir], "reports for %s", dir)
+	}
+}
+
+// sharedReportsScript reads shared.ts's path and golden directories from
+// stdin and prints, for each directory, the reports that the hidden-test
+// command from shared.ts checks for.
+const sharedReportsScript = `import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const { shared, dirs } = JSON.parse(readFileSync(0, "utf8"));
+const { hiddenTestScript } = await import(pathToFileURL(shared).href);
+const reports = {};
+for (const dir of dirs) {
+  const script = hiddenTestScript(pathToFileURL(dir + "/"));
+  reports[dir] = [...script.matchAll(/^grep -E -q -e '(.*)' "\$out"/gm)].map((m) => m[1]);
+}
+process.stdout.write(JSON.stringify(reports));
+`
+
 // hiddenPassReports returns the lines that report each test in the hidden
 // files passing. It applies the rules of passReports in shared.ts, which
-// builds the same reports into each case's hidden-test command; keep the
-// two in step.
+// builds the same reports into each case's hidden-test command.
 func hiddenPassReports(t *testing.T, hidden string) []string {
 	t.Helper()
 	var reports []string
