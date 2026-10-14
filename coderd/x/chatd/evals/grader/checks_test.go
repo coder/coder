@@ -68,6 +68,10 @@ func TestChecks(t *testing.T) {
 		"probe-in-background": exchangeTranscript(t, "Done.",
 			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
 			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health", "run_in_background": true}, map[string]any{"background_process_id": "p2", "exit_code": 0}}),
+		// chatd also runs a command that ends in & in the background.
+		"probe-backgrounded-by-shell": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
+			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health &"}, map[string]any{"success": true, "exit_code": 0, "background_process_id": "p2", "backgrounded": true}}),
 	}
 	cases := []struct {
 		name       string
@@ -128,6 +132,7 @@ func TestChecks(t *testing.T) {
 		{"only a failed probe after start", "failed-probe-branch-commit", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
 		{"probe without an exit code", "probe-without-exit-code", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
 		{"probe run in the background", "probe-in-background", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
+		{"probe backgrounded by the shell", "probe-backgrounded-by-shell", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},
 		{"whole-file read", "shell-bad", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, false},
 		{"no edits", "plan-ask", "", nil, `{"type":"no_edits"}`, true},

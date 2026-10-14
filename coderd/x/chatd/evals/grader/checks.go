@@ -710,7 +710,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		if c.Name != "execute" || !re.MatchString(c.command()) {
 			continue
 		}
-		if s.Background && !argTrue(c.Args, "run_in_background") {
+		if s.Background && !fieldTrue(c.Args, "run_in_background") {
 			continue
 		}
 		if s.Successful && !executeSucceeded(c) {
@@ -733,15 +733,18 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 
 // executeSucceeded requires an observed exit code of 0 from a call that
 // ran in the foreground: the trial.json fallback has no exit codes, and a
-// backgrounded command has not finished when its result arrives.
+// backgrounded command has not finished when its result arrives. chatd
+// marks the result backgrounded for run_in_background and for a command
+// that ends in &.
 func executeSucceeded(c toolCall) bool {
 	code, ok := exitCode(c)
-	return c.succeeded() && ok && code == 0 && !argTrue(c.Args, "run_in_background")
+	return c.succeeded() && ok && code == 0 &&
+		!fieldTrue(c.Args, "run_in_background") && !fieldTrue(c.Result, "backgrounded")
 }
 
-func argTrue(args json.RawMessage, key string) bool {
+func fieldTrue(object json.RawMessage, key string) bool {
 	var body map[string]json.RawMessage
-	if err := json.Unmarshal(args, &body); err != nil {
+	if err := json.Unmarshal(object, &body); err != nil {
 		return false
 	}
 	raw := strings.TrimSpace(string(body[key]))

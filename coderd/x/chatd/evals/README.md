@@ -92,6 +92,13 @@ run has just made, so that run's trial can fail with an error such as
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees. Grading containers are always removed, also when run.sh is interrupted. |
 
+run.sh also reads `CHATD_EVAL_CACHE` (the cache directory),
+`CHATD_EVAL_AEGIS_REF` (the aegis commit to build instead of
+`AEGIS_REF_DEFAULT` in `run.sh`), `CHATD_EVAL_AEGIS_REPO` (the URL to
+clone aegis from), and `CHATD_EVAL_AEGIS_DIR` (a local aegis checkout;
+run.sh clones its `HEAD` commit, so uncommitted changes there are not
+used).
+
 To resume an interrupted run, run run.sh again with the same flags and the
 same `--out`: aegis skips the trials that already landed and runs the rest,
 and run.sh regrades the whole store. Changing a flag that is compiled into
@@ -438,7 +445,18 @@ suite run: aegis stops scheduling trials when the cap is reached.
   (`pytest > test.log`) and a `tee` in its pipeline
   (`pytest 2>&1 | tee test.log`) do not count. Deleting files after the
   test in that call, such as `rm` of a scratch test, does not count as a
-  later change unless the call only deletes.
+  later change unless the call only deletes. The test is recognized by
+  the case's pattern on the command text, so `echo pytest | tee run.txt`
+  counts as running pytest.
+- `commit_off_default` follows `git checkout` and `git switch` in each
+  `execute` call and tells a branch from a commit or a file by the shape
+  of the `git checkout` operand: 7 to 40 hex characters or revision
+  syntax (`~`, `^`, `@{`) is a commit, and an operand that starts with
+  `./` or ends in a dot and 1 to 4 letters (`a.py`) is a file. So a branch
+  named `cafe123` or `release.prod` is misread, a file without an
+  extension such as `Makefile` reads as a branch, and checking out a tag
+  or a remote-tracking ref (`v1.2`, `origin/main`) counts as a branch
+  switch, not as a detached HEAD.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case
