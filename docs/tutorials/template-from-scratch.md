@@ -31,7 +31,7 @@ started, or stopped.
 
 > [!TIP]
 > Haven't written Terraform before?
-> Check out HashiCorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
+> Visit HashiCorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 Here's a simplified diagram that shows the main parts of the template we'll
 create:

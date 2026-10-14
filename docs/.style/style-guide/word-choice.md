@@ -419,7 +419,8 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 >
 > Add a Ruby option, then see why the option alone doesn't install the toolchain.
 
-*Enforced by `Coder.SeeAlternatives` (planned) and `Coder.CheckOut` (planned).*
+*Enforced by `Coder.SeeAlternatives` (planned) and `Coder.CheckOut` (`warning`).
+The rule leaves the Git sense alone: it skips a "check out" followed within 3 words by a Git object such as a branch, repository, commit, tag, or pull request, or by "and".*
 
 ## Learn more, not Next steps
 

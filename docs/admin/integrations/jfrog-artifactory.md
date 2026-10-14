@@ -147,5 +147,5 @@ See the [air-gapped deployments](../templates/extending-templates/modules.md#off
 
 - See the [full example Docker template](../../../examples/jfrog/docker).
 
-- To serve extensions from your own VS Code Marketplace, check out
+- To serve extensions from your own VS Code Marketplace, visit
   [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
