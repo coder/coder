@@ -51,9 +51,18 @@ type pgTxnDriver struct {
 	// is used to count pending migrations ahead of a run.
 	source source.Driver
 
+	// versionTableEnsured is set once ensureVersionTable's own Lock/Unlock
+	// cycle completes, so a later Lock() call (golang-migrate's, for the
+	// real migration batch) can tell itself apart from that first one.
+	// Not part of the per-run state Lock() resets: it must survive from
+	// the one ensureVersionTable call into the one batch Lock() call that
+	// follows it.
+	versionTableEnsured bool
+
 	mu             sync.Mutex // guards the per-run state below
 	backendPID     int        // read right after BeginTx, so the heartbeat can query it
 	fromVersion    int        // version read at the start of this run; -1 (NilVersion) on an empty database
+	runStart       time.Time  // when this run's Lock() call started, for outcome-line duration
 	total          int        // pending count read at the start of this run
 	inFlight       int        // version currently executing, or -1
 	inFlightName   string     // name of the version currently executing
@@ -99,15 +108,32 @@ func (*pgTxnDriver) Close() error {
 	return nil
 }
 
+// lockPhase distinguishes which caller's Lock() this is: ensureVersionTable's
+// one-time call at startup, or golang-migrate's own call for the real
+// migration batch. The driver has no other way to tell them apart, since
+// both go through the same Lock() method.
+type lockPhase string
+
+const (
+	lockPhaseSetup lockPhase = "setup"
+	lockPhaseBatch lockPhase = "batch"
+)
+
 // Lock begins the transaction for this run and acquires the advisory lock
 // that keeps concurrent instances from migrating at once. It tries a
 // non-blocking acquire first so the common, uncontested case logs nothing;
 // a replica that must wait reports when the wait starts and, with its
 // duration, when it ends.
 func (d *pgTxnDriver) Lock() error {
+	phase := lockPhaseBatch
+	if !d.versionTableEnsured {
+		phase = lockPhaseSetup
+	}
+
 	d.mu.Lock()
 	d.backendPID = 0
 	d.fromVersion = 0
+	d.runStart = time.Now()
 	d.total = 0
 	d.inFlight = -1
 	d.inFlightName = ""
@@ -141,8 +167,8 @@ func (d *pgTxnDriver) Lock() error {
 		return nil
 	}
 
-	d.logger.Info(d.ctx, "waiting for database migration lock held by another instance",
-		slog.F("event", EventLockWaitStarted))
+	d.logger.Info(d.ctx, "waiting for database migration lock",
+		slog.F("event", EventLockWaitStarted), slog.F("phase", phase))
 	start := time.Now()
 	stop := d.startHeartbeat(start, heartbeatWaiting)
 	const lockQuery = `SELECT pg_advisory_xact_lock($1)`
@@ -152,7 +178,7 @@ func (d *pgTxnDriver) Lock() error {
 		return xerrors.Errorf("exec select: %w", err)
 	}
 	d.logger.Info(d.ctx, "acquired database migration lock",
-		slog.F("event", EventLockAcquired), slog.F("waited", time.Since(start)))
+		slog.F("event", EventLockAcquired), slog.F("phase", phase), slog.F("waited", time.Since(start)))
 	return nil
 }
 
@@ -260,7 +286,7 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 		total := d.total
 		d.mu.Unlock()
 
-		d.logPerMigration(EventStepStarted, "starting database migration",
+		d.logPerMigration(EventStepStarted, fmt.Sprintf("applying update %d of %d", position, total),
 			slog.F("version", version), slog.F("name", name),
 			slog.F("position", position), slog.F("total", total))
 
@@ -363,8 +389,11 @@ func (d *pgTxnDriver) logPending(version int, dirty bool) {
 	d.mu.Unlock()
 
 	if dirty {
-		d.logger.Warn(d.ctx, "database schema is dirty",
-			slog.F("event", EventInventoryDirty), slog.F("version", version))
+		// A dirty schema is a confirmed fact (Version() read it directly),
+		// not a possibility, so this is Error, not Warn.
+		d.logger.Error(d.ctx, "database schema is dirty",
+			slog.F("event", EventInventoryDirty), slog.F("status", "failure"), slog.F("version", version),
+			slog.F("error", fmt.Sprintf("dirty database version %d", version)))
 		return
 	}
 
@@ -446,6 +475,7 @@ func (d *pgTxnDriver) ensureVersionTable() error {
 		return xerrors.Errorf("release migration lock: %w", err)
 	}
 
+	d.versionTableEnsured = true
 	return nil
 }
 

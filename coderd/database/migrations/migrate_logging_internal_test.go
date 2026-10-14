@@ -23,7 +23,9 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -580,18 +582,28 @@ func TestUpWithLoggerManyPendingDemotesToDebug(t *testing.T) {
 	}
 
 	sink := testutil.NewFakeSink(t)
-	logger := sink.Logger(slog.LevelDebug)
+	logger := scenarioLogger(t, "many-pending-demotes-to-debug").AppendSinks(sink)
 	err := runUp(ctx, db, os.DirFS(dir), logger.Named("migrations"), true)
 	require.NoError(t, err)
 
+	eventOf := func(e slog.SinkEntry) Event {
+		for _, f := range e.Fields {
+			if f.Name == "event" {
+				ev, _ := f.Value.(Event)
+				return ev
+			}
+		}
+		return ""
+	}
+
 	var stepLines, otherLines int
 	for _, e := range sink.Entries() {
-		switch e.Message {
-		case "starting database migration", "database migration applied, pending commit":
+		switch eventOf(e) {
+		case EventStepStarted, EventStepApplied:
 			stepLines++
 			require.Equal(t, slog.LevelDebug, e.Level,
 				"per-migration line %q should demote to DEBUG once pending exceeds the threshold, even on a non-empty database", e.Message)
-		case "database migrations required", "committed database migrations":
+		case EventInventoryPending, EventOutcomeCommitted:
 			otherLines++
 			require.Equal(t, slog.LevelInfo, e.Level,
 				"line %q should stay INFO regardless of pending count", e.Message)
@@ -600,3 +612,145 @@ func TestUpWithLoggerManyPendingDemotesToDebug(t *testing.T) {
 	require.Equal(t, pendingCount*2, stepLines, "expected a start+applied pair for each of the %d pending migrations", pendingCount)
 	require.Equal(t, 2, otherLines, "expected exactly the inventory and outcome lines")
 }
+
+// TestLogOutcomeLockTimeout confirms logOutcome logs EventOutcomeLockTimeout
+// at ERROR (the timeout is a confirmed fact, not a possibility), with
+// status=failure, when finalErr wraps migrate.ErrLockTimeout and no
+// migrations applied. This is tested directly against logOutcome, not
+// through the full runUp/m.Up() pipeline: TestUpWithLoggerLockTimeout
+// deliberately avoids triggering a genuine LockTimeout race through that
+// pipeline, because doing so hits a known, pre-existing resource leak
+// unrelated to logging (see that test's comment). Calling logOutcome
+// directly exercises the same branch without touching real lock
+// contention at all.
+func TestLogOutcomeLockTimeout(t *testing.T) {
+	t.Parallel()
+
+	d := &pgTxnDriver{inFlight: -1}
+	d.runStart = time.Now().Add(-2 * time.Minute)
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug).Named("migrations")
+
+	result := logOutcome(context.Background(), logger, d, xerrors.Errorf("up: %w", migrate.ErrLockTimeout))
+	require.Equal(t, OutcomeNoChange, result.Outcome)
+	require.NotNil(t, result.Failed)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "gave up waiting for database migration lock"
+	})
+	require.Len(t, entries, 1, "expected exactly one lock-timeout outcome line")
+	require.Equal(t, slog.LevelError, entries[0].Level)
+
+	fields := map[string]any{}
+	for _, f := range entries[0].Fields {
+		fields[f.Name] = f.Value
+	}
+	require.Equal(t, EventOutcomeLockTimeout, fields["event"])
+	require.Equal(t, "failure", fields["status"])
+	require.EqualValues(t, 0, fields["count"])
+}
+
+// TestLogOutcomeDirty confirms logOutcome logs EventOutcomeDirty at ERROR
+// when finalErr wraps migrate.ErrDirty and no migrations applied, distinct
+// from EventOutcomeNoChange (which is specific to the genuinely clean,
+// nothing-pending case) and from EventOutcomeLockTimeout. Tested directly
+// against logOutcome for the same reason as TestLogOutcomeLockTimeout: no
+// need to touch a real database to exercise this branch.
+func TestLogOutcomeDirty(t *testing.T) {
+	t.Parallel()
+
+	d := &pgTxnDriver{inFlight: -1, fromVersion: 540}
+	d.runStart = time.Now()
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug).Named("migrations")
+
+	result := logOutcome(context.Background(), logger, d, migrate.ErrDirty{Version: 540})
+	require.Equal(t, OutcomeNoChange, result.Outcome)
+	require.NotNil(t, result.Failed)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "database migration outcome: dirty schema"
+	})
+	require.Len(t, entries, 1, "expected exactly one dirty outcome line")
+	require.Equal(t, slog.LevelError, entries[0].Level)
+
+	fields := map[string]any{}
+	for _, f := range entries[0].Fields {
+		fields[f.Name] = f.Value
+	}
+	require.Equal(t, EventOutcomeDirty, fields["event"])
+	require.Equal(t, "failure", fields["status"])
+	require.EqualValues(t, 0, fields["count"])
+	require.EqualValues(t, 540, fields["schema_version"])
+	require.Equal(t, "dirty database version 540", fields["error"])
+}
+
+// TestLogOutcomeRolledBackWithNoPriorSuccess confirms logOutcome logs
+// EventOutcomeRolledBack at ERROR, with count=0, when the very first
+// pending migration's own SQL fails and the (otherwise empty) transaction
+// rolls back (commitErr wraps pq.ErrInFailedTransaction). Found via a real
+// local simulation: before this case existed, this scenario fell through
+// to the bare-preflight-failure default below and logged no outcome line
+// at all, even though a real rollback happened, identical in kind to the
+// len(applied)>0 OutcomeRolledBack case just discovered with no dedicated
+// coverage for the zero-prior-success variant.
+func TestLogOutcomeRolledBackWithNoPriorSuccess(t *testing.T) {
+	t.Parallel()
+
+	d := &pgTxnDriver{
+		inFlight:     614,
+		inFlightName: "test_migration",
+		fromVersion:  613,
+		commitErr:    xerrors.Errorf("commit tx on unlock: %w", pq.ErrInFailedTransaction),
+	}
+	d.runStart = time.Now().Add(-2 * time.Second)
+	d.inFlightStart = time.Now().Add(-time.Second)
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug).Named("migrations")
+
+	result := logOutcome(context.Background(), logger, d, xerrors.New("migration 614 (test_migration): relation \"users\" already exists (sqlstate=42P07)"))
+	require.Equal(t, OutcomeRolledBack, result.Outcome)
+	require.NotNil(t, result.Failed)
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "rolled back database migrations"
+	})
+	require.Len(t, entries, 1, "expected exactly one rolled-back outcome line")
+	require.Equal(t, slog.LevelError, entries[0].Level)
+
+	fields := map[string]any{}
+	for _, f := range entries[0].Fields {
+		fields[f.Name] = f.Value
+	}
+	require.Equal(t, EventOutcomeRolledBack, fields["event"])
+	require.Equal(t, "failure", fields["status"])
+	require.EqualValues(t, 0, fields["count"])
+	require.EqualValues(t, 613, fields["schema_version"])
+	require.Contains(t, fields, "total_duration")
+	require.Contains(t, fields, "failed_duration")
+}
+
+// TestLogOutcomeNoOutcomeLineOnBarePreflightFailure confirms a failure with
+// zero applied migrations that is neither a lock timeout, a dirty
+// database, nor a rolled-back transaction (for example, a corrupted
+// version table that fails to scan at all) logs no outcome line: the
+// returned error alone is the only signal there has ever been for this
+// one case, since it does not map to any specific, named event.
+func TestLogOutcomeNoOutcomeLineOnBarePreflightFailure(t *testing.T) {
+	t.Parallel()
+
+	d := &pgTxnDriver{inFlight: -1}
+	d.runStart = time.Now()
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug).Named("migrations")
+
+	result := logOutcome(context.Background(), logger, d, xerrors.New("scan version table: unexpected EOF"))
+	require.Equal(t, OutcomeNoChange, result.Outcome)
+	require.NotNil(t, result.Failed)
+	require.Empty(t, sink.Entries(), "a bare pre-flight failure should log no outcome line here")
+}
+

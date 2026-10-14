@@ -233,15 +233,20 @@ const (
 	EventStepStarted                   Event = "db_migration_step_started"
 	EventStepApplied                   Event = "db_migration_step_applied"
 	EventHeartbeat                     Event = "db_migration_heartbeat"
+	EventOutcomeNoChange               Event = "db_migration_outcome_no_change"
+	EventOutcomeDirty                  Event = "db_migration_outcome_dirty"
 	EventOutcomeCommitted              Event = "db_migration_outcome_committed"
 	EventOutcomeRolledBack             Event = "db_migration_outcome_rolled_back"
 	EventOutcomeCommittedBeforeFailure Event = "db_migration_outcome_committed_before_failure"
+	EventOutcomeLockTimeout            Event = "db_migration_outcome_lock_timeout"
 	EventOutcomeUnknown                Event = "db_migration_outcome_unknown"
 )
 
-// Event derives the log event from the outcome itself, so the two can't
-// drift apart. OutcomeNoChange never reaches a logger call, so it has no
-// corresponding event.
+// Event derives the log event from the outcome itself, for outcomes with
+// exactly one meaning. OutcomeNoChange covers three different situations
+// (genuinely up to date, a lock timeout, or a database already known to be
+// dirty or otherwise unreadable), so its logging goes through the specific
+// event constant for that situation directly, not through this method.
 func (o Outcome) Event() Event {
 	switch o {
 	case OutcomeCommitted:
@@ -293,63 +298,119 @@ type Result struct {
 func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalErr error) Result {
 	d.mu.Lock()
 	fromVersion := d.fromVersion
+	runStart := d.runStart
 	applied := append([]Applied(nil), d.applied...)
 	commitErr := d.commitErr
 	sqlState := d.sqlState
 	inFlightVersion, inFlightName := d.inFlight, d.inFlightName
+	inFlightStart := d.inFlightStart
 	d.mu.Unlock()
 
 	result := Result{FromVersion: fromVersion, ToVersion: fromVersion, Applied: applied}
 
 	if len(applied) == 0 {
-		// Nothing was applied: up to date, a dirty database, a lock
-		// timeout, or a failure before the first migration. The pending
-		// line (or the error alone) already said everything there is to
-		// say, so there is no outcome line here.
 		result.Outcome = OutcomeNoChange
-		if finalErr != nil {
+		switch {
+		case finalErr == nil:
+			// Genuinely nothing pending: Version() found the schema
+			// already current.
+			logger.Info(ctx, "database migration outcome: no change",
+				slog.F("event", EventOutcomeNoChange), slog.F("status", "success"),
+				slog.F("count", 0), slog.F("schema_version", fromVersion),
+				slog.F("total_duration", time.Since(runStart)))
+
+		case errors.Is(finalErr, migrate.ErrLockTimeout):
+			// golang-migrate's own LockTimeout gave up waiting for the
+			// advisory lock before Lock() itself returned; Lock() has no
+			// hook for this, so this is the first point we learn of it.
+			// The timeout firing is a confirmed fact, not a possibility.
+			result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
+			logger.Error(ctx, "gave up waiting for database migration lock",
+				slog.F("event", EventOutcomeLockTimeout), slog.F("status", "failure"),
+				slog.F("count", 0), slog.F("waited", time.Since(runStart)))
+
+		case errors.As(finalErr, &migrate.ErrDirty{}):
+			// The database is confirmed dirty, logged again here (in
+			// addition to logPending's own line) so every run concludes
+			// with exactly one outcome line, regardless of what happened.
+			result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
+			logger.Error(ctx, "database migration outcome: dirty schema",
+				slog.F("event", EventOutcomeDirty), slog.F("status", "failure"),
+				slog.F("count", 0), slog.F("schema_version", fromVersion),
+				slog.F("total_duration", time.Since(runStart)),
+				slog.F("error", fmt.Sprintf("dirty database version %d", fromVersion)))
+
+		case errors.Is(commitErr, pq.ErrInFailedTransaction):
+			// The first pending migration's own SQL failed and the
+			// (otherwise empty) transaction rolled back: the same event
+			// as the len(applied)>0 case below, just with nothing having
+			// succeeded first.
+			result.Outcome = OutcomeRolledBack
+			result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
+			logger.Error(ctx, "rolled back database migrations",
+				slog.F("event", EventOutcomeRolledBack), slog.F("status", "failure"),
+				slog.F("count", 0), slog.F("schema_version", fromVersion),
+				slog.F("total_duration", time.Since(runStart)), slog.F("failed_duration", time.Since(inFlightStart)))
+
+		default:
+			// A bare failure before the first migration (reading the
+			// version table itself failed): the error alone says enough,
+			// no dedicated event for this one.
 			result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
 		}
 		return result
 	}
 
-	first, last := applied[0], applied[len(applied)-1]
-	duration := last.StartedAt.Add(last.Duration).Sub(first.StartedAt)
+	last := applied[len(applied)-1]
+	// Anchored at runStart (the batch Lock() call), not the first applied
+	// migration's own start, so this covers any lock-wait before the first
+	// migration and the final commit, the same span every len(applied)==0
+	// branch above already measures. One formula, one meaning, for every
+	// outcome's total_duration.
+	totalDuration := time.Since(runStart)
 
 	switch {
 	case commitErr == nil && finalErr == nil:
 		result.Outcome = OutcomeCommitted
 		result.ToVersion = last.Version
 		logger.Info(ctx, "committed database migrations",
-			slog.F("event", result.Outcome.Event()),
+			slog.F("event", result.Outcome.Event()), slog.F("status", "success"),
 			slog.F("count", len(applied)), slog.F("from_version", fromVersion),
-			slog.F("to_version", last.Version), slog.F("duration", duration))
+			slog.F("to_version", last.Version), slog.F("total_duration", totalDuration))
 
 	case commitErr == nil && finalErr != nil:
+		// The failed migration (reading its source file) never started,
+		// so there is no in-flight duration of its own to report here.
 		result.Outcome = OutcomeCommittedBeforeFailure
 		result.ToVersion = last.Version
 		result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
-		logger.Warn(ctx, "committed database migrations before failure",
-			slog.F("event", result.Outcome.Event()),
+		logger.Error(ctx, "committed database migrations before failure",
+			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("from_version", fromVersion),
-			slog.F("to_version", last.Version), slog.F("duration", duration))
+			slog.F("to_version", last.Version), slog.F("total_duration", totalDuration))
 
 	case errors.Is(commitErr, pq.ErrInFailedTransaction):
+		// The failing migration's own SQL ran for a real amount of time
+		// before it failed; failed_duration is how long, so total_duration
+		// and the applied migrations' own durations don't leave an
+		// unexplained gap for whoever reads this line.
 		result.Outcome = OutcomeRolledBack
 		result.ToVersion = fromVersion
 		result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
-		logger.Warn(ctx, "rolled back database migrations",
-			slog.F("event", result.Outcome.Event()),
+		logger.Error(ctx, "rolled back database migrations",
+			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("schema_version", fromVersion),
-			slog.F("duration", duration))
+			slog.F("total_duration", totalDuration), slog.F("failed_duration", time.Since(inFlightStart)))
 
 	default:
+		// The commit's own result could not be classified: this is a
+		// genuine "might have failed" case, not a confirmed one.
 		result.Outcome = OutcomeUnknown
 		result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
 		logger.Warn(ctx, "database migration commit outcome unknown",
-			slog.F("event", result.Outcome.Event()),
+			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("version", fromVersion),
-			slog.F("duration", duration), slog.Error(commitErr))
+			slog.F("total_duration", totalDuration), slog.Error(commitErr))
 	}
 
 	return result
