@@ -156,6 +156,15 @@ Bedrock's InvokeModel format and sends it to
 `https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
 Mantle is recommended for new deployments.
 
+InvokeModel providers ignore the model that a client requests. AI Gateway
+sends the provider's configured **small fast model** for requests whose
+model identifier contains `haiku`, and the configured **model** for all
+other requests. This applies to Coder Agents models too: the model
+identifier of an Agents model that uses an InvokeModel provider is not sent
+to AWS, and the dashboard shows a warning when you add or edit such a
+model. To select the model on each request, use a [Mantle](#mantle)
+provider.
+
 #### Mantle
 
 The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new
