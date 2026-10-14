@@ -63,7 +63,7 @@ export const ProjectDetailsPanelView: React.FC<
 					<DetailRow label="Project owner">
 						{ownerLabel ?? (
 							<>
-								<Skeleton className="ml-auto h-2.5 w-12" />
+								<Skeleton className="my-1 ml-auto h-3 w-12" />
 								<span className="sr-only">Loading</span>
 							</>
 						)}
@@ -150,9 +150,9 @@ type DetailRowProps = {
 };
 
 const DetailRow: React.FC<DetailRowProps> = ({ label, children }) => (
-	<div className="flex items-center justify-between gap-4">
-		<dt className="text-content-secondary">{label}</dt>
-		<dd className="m-0 min-w-0 truncate text-right font-mono text-content-primary">
+	<div className="flex items-start justify-between gap-4">
+		<dt className="shrink-0 text-content-secondary">{label}</dt>
+		<dd className="m-0 min-w-0 break-words text-right font-mono text-content-primary">
 			{children}
 		</dd>
 	</div>

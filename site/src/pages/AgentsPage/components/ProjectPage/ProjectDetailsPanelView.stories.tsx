@@ -50,6 +50,14 @@ export const OwnerUnknown: Story = {
 	args: { ownerLabel: "Unknown" },
 };
 
+/** Long owner and organization names wrap so they stay readable. */
+export const LongNames: Story = {
+	args: {
+		ownerLabel: "bartholomewmontgomeryfitzgerald1",
+		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
+	},
+};
+
 /** Keyboard focus on the creation date shows the full timestamp. */
 export const CreatedDateFocused: Story = {
 	play: async ({ canvasElement }) => {
@@ -89,6 +97,15 @@ export const Loading: Story = {
 export const LoadError: Story = {
 	args: {
 		instructions: undefined,
+		error: mockApiError({
+			message: "Failed to get chat project instructions.",
+		}),
+	},
+};
+
+/** A failed refetch keeps the cached instructions and shows the error. */
+export const RefetchError: Story = {
+	args: {
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),
