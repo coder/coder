@@ -3,15 +3,14 @@ import { useFormik } from "formik";
 import { useId, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { InvisibleCharactersAlert } from "#/components/Alert/InvisibleCharactersAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 type MutationCallbacks = {
 	onSuccess?: (data: TypesGen.UserChatCustomPrompt) => void;
@@ -76,10 +75,6 @@ export const PersonalInstructionsSettings: React.FC<
 		void form.setFieldValue("custom_prompt", customPrompt);
 	};
 
-	const userInvisibleCharCount = countInvisibleCharacters(
-		form.values.custom_prompt,
-	);
-
 	return (
 		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<h3
@@ -117,15 +112,7 @@ export const PersonalInstructionsSettings: React.FC<
 				disabled={isFormDisabled}
 				minRows={1}
 			/>
-			{userInvisibleCharCount > 0 && (
-				<Alert severity="warning">
-					<AlertDescription>
-						This text contains {userInvisibleCharCount} invisible Unicode{" "}
-						{userInvisibleCharCount !== 1 ? "characters" : "character"} that
-						could hide content. These will be stripped on save.
-					</AlertDescription>
-				</Alert>
-			)}
+			<InvisibleCharactersAlert text={form.values.custom_prompt} />
 			<div className="mt-2 flex min-h-6 justify-end gap-2">
 				{(form.dirty || isSavedVisible || isSavingUserPrompt) &&
 					(isSavedVisible ? (

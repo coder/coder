@@ -424,6 +424,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
+		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -489,7 +490,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		ConnectionMethod: takeFirst(seed.ConnectionMethod, database.ConnectionLogMethodSSH),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
@@ -509,9 +510,9 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
 			Valid: takeFirst(seed.UserID.Valid, false),
 		},
-		SlugOrPort: sql.NullString{
-			String: takeFirst(seed.SlugOrPort.String, ""),
-			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		AppNameOrPort: sql.NullString{
+			String: takeFirst(seed.AppNameOrPort.String, ""),
+			Valid:  takeFirst(seed.AppNameOrPort.Valid, false),
 		},
 		ConnectionID: uuid.NullUUID{
 			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
@@ -541,13 +542,13 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
 		WorkspaceName:    []string{arg.WorkspaceName},
 		AgentName:        []string{arg.AgentName},
-		Type:             []database.ConnectionType{arg.Type},
+		ConnectionMethod: []database.ConnectionLogMethod{arg.ConnectionMethod},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
 		Ip:               []pqtype.Inet{arg.IP},
 		UserAgent:        []string{arg.UserAgent.String},
 		UserID:           []uuid.UUID{arg.UserID.UUID},
-		SlugOrPort:       []string{arg.SlugOrPort.String},
+		AppNameOrPort:    []string{arg.AppNameOrPort.String},
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
@@ -828,6 +829,12 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	// Casting an empty string to jsonb is a Postgres error, not an empty
+	// list, so the default has to be written out.
+	dependencies := orig.Dependencies
+	if len(dependencies) == 0 {
+		dependencies = json.RawMessage(`[]`)
+	}
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -841,6 +848,8 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
 		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		ResourceAddress:  []string{takeFirst(orig.ResourceAddress, "")},
+		Dependencies:     []string{string(dependencies)},
 	})
 	require.NoError(t, err, "insert workspace agent script")
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
@@ -1165,6 +1174,27 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}
 
 	return org
+}
+
+// OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
+// required. Inserted skills are enabled.
+func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
+	t.Helper()
+
+	require.True(t, seed.OrganizationID.Valid, "organization skill requires an organization ID")
+	name := takeFirst(seed.Name, "skill-"+uuid.NewString())
+	description := takeFirst(seed.Description, "Organization skill fixture.")
+	skill, err := db.InsertOrganizationSkill(genCtx, database.InsertOrganizationSkillParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		OrganizationID: seed.OrganizationID.UUID,
+		Name:           name,
+		Description:    description,
+		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		GroupACL:       seed.GroupACL,
+		UserACL:        seed.UserACL,
+	})
+	require.NoError(t, err, "insert organization skill")
+	return skill
 }
 
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {

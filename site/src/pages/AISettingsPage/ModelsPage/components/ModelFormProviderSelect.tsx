@@ -30,6 +30,11 @@ export const ModelFormProviderSelect: React.FC<{
 			ps.providerDescriptor.enabled ||
 			(isEditing && ps.key === selectedProviderKey),
 	);
+	// Model prices are keyed by provider type, so surface the exact type
+	// string for setting model pricing.
+	const selectedProviderType = providerStates.find(
+		(ps) => ps.key === selectedProviderKey,
+	)?.provider;
 	return (
 		<div className="grid gap-1.5">
 			<Label
@@ -64,6 +69,12 @@ export const ModelFormProviderSelect: React.FC<{
 					))}
 				</SelectContent>
 			</Select>
+			{selectedProviderType && (
+				<p className="m-0 text-xs text-content-secondary">
+					Provider type:{" "}
+					<code className="font-mono">{selectedProviderType}</code>
+				</p>
+			)}
 		</div>
 	);
 };

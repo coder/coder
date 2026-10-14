@@ -117,6 +117,11 @@ const (
 	ScopeOrganizationMemberDelete            ScopeName = "organization_member:delete"
 	ScopeOrganizationMemberRead              ScopeName = "organization_member:read"
 	ScopeOrganizationMemberUpdate            ScopeName = "organization_member:update"
+	ScopeOrganizationSkillCreate             ScopeName = "organization_skill:create"
+	ScopeOrganizationSkillDelete             ScopeName = "organization_skill:delete"
+	ScopeOrganizationSkillRead               ScopeName = "organization_skill:read"
+	ScopeOrganizationSkillShare              ScopeName = "organization_skill:share"
+	ScopeOrganizationSkillUpdate             ScopeName = "organization_skill:update"
 	ScopePrebuiltWorkspaceDelete             ScopeName = "prebuilt_workspace:delete"
 	ScopePrebuiltWorkspaceUpdate             ScopeName = "prebuilt_workspace:update"
 	ScopeProvisionerDaemonCreate             ScopeName = "provisioner_daemon:create"
@@ -318,6 +323,11 @@ func (e ScopeName) Valid() bool {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,
@@ -520,6 +530,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,

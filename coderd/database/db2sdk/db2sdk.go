@@ -768,7 +768,31 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
-func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+// WorkspaceAgentScript converts a script row to the SDK type. It fails on a
+// dependencies column that cannot be decoded or that holds an entry the SDK
+// cannot represent, so a caller never receives a partial list. The write
+// path already rejects such rows, so one here means a bug or a manual edit
+// of the database.
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) (codersdk.WorkspaceAgentScript, error) {
+	var dependencies []codersdk.WorkspaceAgentScriptDependency
+	if len(dbScript.Dependencies) > 0 {
+		if err := json.Unmarshal(dbScript.Dependencies, &dependencies); err != nil {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("decode dependencies: %w", err)
+		}
+	}
+	if len(dependencies) == 0 {
+		// nil rather than an empty slice so omitempty leaves the key out.
+		dependencies = nil
+	}
+	for i, dependency := range dependencies {
+		if dependency.PrerequisiteResourceAddress == "" {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		if !dependency.Requirement.Valid() {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("dependency %d has unsupported requirement %q", i, dependency.Requirement)
+		}
+	}
+
 	script := codersdk.WorkspaceAgentScript{
 		ID:               dbScript.ID,
 		LogPath:          dbScript.LogPath,
@@ -780,13 +804,15 @@ func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRo
 		StartBlocksLogin: dbScript.StartBlocksLogin,
 		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
 		DisplayName:      dbScript.DisplayName,
+		ResourceAddress:  dbScript.ResourceAddress,
+		Dependencies:     dependencies,
 		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
 	}
 	if dbScript.Status.Valid {
 		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
 		script.Status = &status
 	}
-	return script
+	return script, nil
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -1002,20 +1028,16 @@ func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
-	switch typ {
-	case agentproto.Connection_SSH:
-		return database.ConnectionTypeSsh, nil
-	case agentproto.Connection_JETBRAINS:
-		return database.ConnectionTypeJetbrains, nil
-	case agentproto.Connection_VSCODE:
-		return database.ConnectionTypeVscode, nil
-	case agentproto.Connection_RECONNECTING_PTY:
-		return database.ConnectionTypeReconnectingPty, nil
-	default:
-		// Also Connection_TYPE_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+// ConnectionLogType returns the deprecated ConnectionLog.Type. The legacy
+// type search filter mirrors it, so change both together.
+func ConnectionLogType(method database.ConnectionLogMethod, appNameOrPort string) string {
+	if method == database.ConnectionLogMethodSSH {
+		switch family := codersdk.AppNameFamily(appNameOrPort); family {
+		case codersdk.AppFamilyVSCode, codersdk.AppFamilyJetBrains:
+			return string(family)
+		}
 	}
+	return string(method)
 }
 
 func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
@@ -1864,6 +1886,25 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	}
 }
 
+// ChatProjectInstructions converts a project's stored instructions.
+func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDRow) codersdk.ChatProjectInstructions {
+	updatedAt := row.ChatProjectInstruction.UpdatedAt
+	instructions := codersdk.ChatProjectInstructions{
+		ProjectID:    row.ChatProjectInstruction.ProjectID,
+		Instructions: row.ChatProjectInstruction.Instructions,
+		UpdatedAt:    &updatedAt,
+	}
+	if row.ChatProjectInstruction.UpdatedBy.Valid && row.UpdatedByUsername.Valid {
+		instructions.UpdatedBy = &codersdk.MinimalUser{
+			ID:        row.ChatProjectInstruction.UpdatedBy.UUID,
+			Username:  row.UpdatedByUsername.String,
+			Name:      row.UpdatedByName.String,
+			AvatarURL: row.UpdatedByAvatarUrl.String,
+		}
+	}
+	return instructions
+}
+
 func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
 	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
 }
@@ -2385,13 +2426,14 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	return result
 }
 
-// UserSkill converts a database UserSkill to an SDK UserSkill.
-func UserSkill(skill database.UserSkill) codersdk.UserSkill {
-	return codersdk.UserSkill{
-		UserSkillMetadata: codersdk.UserSkillMetadata{
+// Skill converts a database Skill to an SDK Skill.
+func Skill(skill database.Skill) codersdk.Skill {
+	return codersdk.Skill{
+		SkillMetadata: codersdk.SkillMetadata{
 			ID:          skill.ID,
 			Name:        skill.Name,
 			Description: skill.Description,
+			Enabled:     skill.Enabled,
 			CreatedAt:   skill.CreatedAt,
 			UpdatedAt:   skill.UpdatedAt,
 		},
@@ -2399,22 +2441,35 @@ func UserSkill(skill database.UserSkill) codersdk.UserSkill {
 	}
 }
 
-// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
-func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
-	return codersdk.UserSkillMetadata{
-		ID:          skill.ID,
-		Name:        skill.Name,
-		Description: skill.Description,
-		CreatedAt:   skill.CreatedAt,
-		UpdatedAt:   skill.UpdatedAt,
+// OrganizationSkillMetadataList converts organization skill metadata rows to
+// SDK values.
+func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadataByOrganizationIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
+	return metadata
 }
 
-// UserSkillMetadataList converts database user skill metadata rows to SDK values.
-func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
-	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+// UserSkillMetadataList converts personal skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
-		metadata = append(metadata, UserSkillMetadata(row))
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
 	return metadata
 }

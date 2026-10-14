@@ -3,12 +3,12 @@ import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { LogNotice } from "./LogNotice";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
@@ -134,18 +134,19 @@ export const WorkspaceBuildLogSection: React.FC<
 	}
 
 	return (
-		<ScrollArea
+		<ToolCall.Scrollable
 			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Workspace build log"
-			scrollBarClassName="w-1.5"
+			ariaLabel="Workspace build log"
+			followEnd
 		>
+			{/* WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript. */}
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky
+				disableAutoscroll
 				className="border-0 rounded-none"
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };

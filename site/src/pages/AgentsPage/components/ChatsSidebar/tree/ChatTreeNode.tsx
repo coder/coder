@@ -8,7 +8,6 @@ import {
 import { useEffect, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
@@ -20,10 +19,10 @@ import {
 	unarchiveChat,
 	unpinChat,
 } from "#/api/queries/chats";
-
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { shortRelativeTime } from "#/utils/time";
 import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";

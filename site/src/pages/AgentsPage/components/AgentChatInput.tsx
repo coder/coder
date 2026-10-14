@@ -22,7 +22,6 @@ import type React from "react";
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
@@ -50,6 +49,7 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -1460,6 +1460,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
+						organizationId={chatOrganizationId}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

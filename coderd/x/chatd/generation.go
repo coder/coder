@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -71,7 +72,11 @@ type generationPrepared struct {
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider string
+	ResolvedProvider    string
+	ReasoningProvenance reasoningProvenance
+	// ReasoningRejected reports whether the provider rejected the
+	// encrypted reasoning replayed into this step's model call.
+	ReasoningRejected *atomic.Bool
 
 	StageModel chatloop.StageModel
 
@@ -91,6 +96,17 @@ type generationPrepared struct {
 	Cleanup func()
 
 	Debug *generationDebug
+}
+
+// stepReasoningProvenance returns the provenance to stamp on the step's
+// reasoning. A rejection starts the provider's next epoch, so later steps
+// leave out the reasoning the rejected call replayed.
+func (p generationPrepared) stepReasoningProvenance() reasoningProvenance {
+	provenance := p.ReasoningProvenance
+	if p.ReasoningRejected != nil && p.ReasoningRejected.Load() {
+		provenance.Epoch++
+	}
+	return provenance
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -534,7 +550,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if !deletedToolCallsChecked {
 			deletedToolCallsChecked = true
 			if currentTurnStepCount(messages) == 0 {
-				s.cancelDeletedToolCalls(ctx, machine, input, chat, messages)
+				if err := s.cancelDeletedToolCalls(ctx, machine, input, chat, messages); err != nil {
+					return err
+				}
 			}
 		}
 		var turnCtx context.Context
@@ -553,21 +571,21 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 // cancelDeletedToolCalls sends the chat's agent a cancel request for each
 // unresolved call in the last deleted assistant message between the turn's
 // user message and the previous user message, if chattool.CanCancelToolCall
-// accepts the call. Their results can no longer be committed. Failures are
-// logged and do not affect the turn.
+// accepts the call. Their results can no longer be committed. Agent request
+// failures are logged and do not affect the turn.
 func (s *taskStarter) cancelDeletedToolCalls(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	chat database.Chat,
 	messages []database.ChatMessage,
-) {
+) error {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
-		return
+		return nil
 	}
 	userMessageIndex := lastUserPromptIndex(messages)
 	if userMessageIndex == -1 {
-		return
+		return nil
 	}
 	// EditMessage marks the edited user message and every later message as
 	// deleted, so they lie between the previous user message and this one.
@@ -588,8 +606,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 		return err
 	})
 	if err != nil {
-		s.opts.Logger.Warn(ctx, "load deleted messages to cancel tool calls on agent", slog.F("chat_id", chat.ID), slog.Error(err))
-		return
+		return normalizeTaskInfrastructureError(err, "load deleted messages to cancel tool calls on agent")
 	}
 	// The shared filter skips deleted rows, and all of these are deleted.
 	for i := range deleted {
@@ -597,6 +614,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 	}
 	calls, ids := s.cancelableToolCallsFromHistory(ctx, chat, deleted)
 	s.cancelUnresolvedToolCalls(ctx, chat, calls, ids)
+	return nil
 }
 
 // runGenerationStep runs one step of a turn. again means reload state
@@ -964,6 +982,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
+		reasoningProvenance:    prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1193,11 +1212,12 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		step:               step,
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:       prepared.ModelConfigID,
+		step:                step,
+		toolNameToConfigID:  prepared.ToolNameToConfigID,
+		logger:              s.opts.Logger,
+		contentVersion:      chatprompt.CurrentContentVersion,
+		reasoningProvenance: prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1295,6 +1315,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
+			prepared.ReasoningProvenance.Model,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)

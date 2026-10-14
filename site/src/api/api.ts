@@ -362,6 +362,12 @@ const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
+const organizationSkillsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/skills`;
+const organizationSkillPath = (organizationId: string, name: string) =>
+	`${organizationSkillsPath(organizationId)}/${encodeURIComponent(name)}`;
+const organizationSkillACLPath = (organizationId: string, name: string) =>
+	`${organizationSkillPath(organizationId, name)}/acl`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -3852,19 +3858,17 @@ class ExperimentalApiMethods {
 
 	createUserSkill = async (
 		user: string,
-		req: TypesGen.CreateUserSkillRequest,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.post<TypesGen.UserSkill>(
+		req: TypesGen.CreateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.post<TypesGen.Skill>(
 			userSkillsPath(user),
 			req,
 		);
 		return response.data;
 	};
 
-	getUserSkills = async (
-		user: string,
-	): Promise<TypesGen.UserSkillMetadata[]> => {
-		const response = await this.axios.get<TypesGen.UserSkillMetadata[]>(
+	getUserSkills = async (user: string): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
 			userSkillsPath(user),
 		);
 		return response.data;
@@ -3873,8 +3877,8 @@ class ExperimentalApiMethods {
 	getUserSkillByName = async (
 		user: string,
 		name: string,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.get<TypesGen.UserSkill>(
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.get<TypesGen.Skill>(
 			userSkillPath(user, name),
 		);
 		return response.data;
@@ -3883,9 +3887,9 @@ class ExperimentalApiMethods {
 	updateUserSkill = async (
 		user: string,
 		name: string,
-		req: TypesGen.UpdateUserSkillRequest,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.patch<TypesGen.UserSkill>(
+		req: TypesGen.UpdateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.patch<TypesGen.Skill>(
 			userSkillPath(user, name),
 			req,
 		);
@@ -3894,6 +3898,87 @@ class ExperimentalApiMethods {
 
 	deleteUserSkill = async (user: string, name: string): Promise<void> => {
 		await this.axios.delete(userSkillPath(user, name));
+	};
+
+	createOrganizationSkill = async (
+		organizationId: string,
+		req: TypesGen.CreateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.post<TypesGen.Skill>(
+			organizationSkillsPath(organizationId),
+			req,
+		);
+		return response.data;
+	};
+
+	getOrganizationSkills = async (
+		organizationId: string,
+	): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
+			organizationSkillsPath(organizationId),
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillByName = async (
+		organizationId: string,
+		name: string,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.get<TypesGen.Skill>(
+			organizationSkillPath(organizationId, name),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkill = async (
+		organizationId: string,
+		name: string,
+		req: TypesGen.UpdateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.patch<TypesGen.Skill>(
+			organizationSkillPath(organizationId, name),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteOrganizationSkill = async (
+		organizationId: string,
+		name: string,
+	): Promise<void> => {
+		await this.axios.delete(organizationSkillPath(organizationId, name));
+	};
+
+	getOrganizationSkillACL = async (
+		organizationId: string,
+		name: string,
+	): Promise<TypesGen.OrganizationSkillACL> => {
+		const response = await this.axios.get<TypesGen.OrganizationSkillACL>(
+			organizationSkillACLPath(organizationId, name),
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillACLAvailable = async (
+		organizationId: string,
+		name: string,
+		options: TypesGen.UsersRequest,
+	): Promise<TypesGen.ACLAvailable> => {
+		const response = await this.axios.get<TypesGen.ACLAvailable>(
+			getURLWithSearchParams(
+				`${organizationSkillACLPath(organizationId, name)}/available`,
+				options,
+			),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkillACL = async (
+		organizationId: string,
+		name: string,
+		req: TypesGen.UpdateOrganizationSkillACLRequest,
+	): Promise<void> => {
+		await this.axios.patch(organizationSkillACLPath(organizationId, name), req);
 	};
 
 	getUserChatCompactionThresholds =

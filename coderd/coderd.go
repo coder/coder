@@ -1371,6 +1371,31 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
+			})
+		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
@@ -1450,7 +1475,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {

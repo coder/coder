@@ -11,7 +11,6 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
 import { chatModel } from "#/api/queries/chats";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { useDesktopPanel } from "./DesktopPanelContext";
@@ -278,45 +277,39 @@ export const SubagentTool: React.FC<{
 			)}
 			<ToolCall.Content>
 				{hasPrompt && (
-					<ScrollArea
+					<ToolCall.Scrollable
 						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent prompt"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent prompt"
 					>
 						<div className="px-3 py-2">
 							<Response>{prompt ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasMessage && (
-					<ScrollArea
+					<ToolCall.Scrollable
 						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent response"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent response"
 					>
 						<div className="px-3 py-2">
 							<Response>{message ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasReport && (
-					<ScrollArea
+					<ToolCall.Scrollable
 						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent report"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent report"
 					>
 						<div className="px-3 py-2">
 							<Response>{report ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 			</ToolCall.Content>
 		</ToolCall.Root>

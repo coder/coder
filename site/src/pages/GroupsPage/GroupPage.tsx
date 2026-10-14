@@ -9,7 +9,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	addMembers,
@@ -41,6 +40,7 @@ import type { PaginationResult } from "#/components/PaginationWidget/PaginationC
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
+import { toast } from "#/components/Toaster/toast";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { isEveryoneGroup } from "#/modules/groups";
 import { pageTitle } from "#/utils/page";

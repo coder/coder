@@ -862,6 +862,12 @@ export type APIKeyScope =
 	| "organization_member:read"
 	| "organization_member:update"
 	| "organization:read"
+	| "organization_skill:*"
+	| "organization_skill:create"
+	| "organization_skill:delete"
+	| "organization_skill:read"
+	| "organization_skill:share"
+	| "organization_skill:update"
 	| "organization:update"
 	| "prebuilt_workspace:*"
 	| "prebuilt_workspace:delete"
@@ -1118,6 +1124,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"organization_member:read",
 	"organization_member:update",
 	"organization:read",
+	"organization_skill:*",
+	"organization_skill:create",
+	"organization_skill:delete",
+	"organization_skill:read",
+	"organization_skill:share",
+	"organization_skill:update",
 	"organization:update",
 	"prebuilt_workspace:*",
 	"prebuilt_workspace:delete",
@@ -3459,6 +3471,24 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectInstructions are instructions added to the system prompt of
+ * every chat in a project, for every user who chats there. A project without
+ * instructions has an empty Instructions string and nil UpdatedBy and
+ * UpdatedAt.
+ */
+export interface ChatProjectInstructions {
+	readonly project_id: string;
+	readonly instructions: string;
+	/**
+	 * UpdatedBy is the user who last changed the instructions. It is nil
+	 * when the instructions are unset or the user was deleted.
+	 */
+	readonly updated_by: MinimalUser | null;
+	readonly updated_at: string | null;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3756,6 +3786,12 @@ export interface ChatSystemPromptResponse {
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
+	/**
+	 * Narration marks assistant text that the model labeled as commentary
+	 * on its work rather than its answer. Only providers that label their
+	 * output set it.
+	 */
+	readonly narration?: boolean;
 }
 
 // From codersdk/chats.go
@@ -3980,23 +4016,47 @@ export interface ConnectionLog {
 	readonly workspace_name: string;
 	readonly agent_name: string;
 	readonly ip?: string;
-	readonly type: ConnectionType;
 	/**
-	 * WebInfo is only set when `type` is one of:
-	 * - `ConnectionTypePortForwarding`
-	 * - `ConnectionTypeWorkspaceApp`
-	 * - `ConnectionTypeTunnel`
+	 * @deprecated Use ConnectionMethod and AppName.
+	 */
+	readonly type: string;
+	readonly connection_method: ConnectionLogMethod;
+	/**
+	 * AppName is the name of the connecting application, when known. The
+	 * client reports it, so it is a normalized label and not a guarantee.
+	 * Workspace app slugs and forwarded ports are reported in WebInfo.
+	 */
+	readonly app_name?: string;
+	/**
+	 * AppDisplayName is the registry display name for AppName, or AppName
+	 * itself when the app is unregistered.
+	 */
+	readonly app_display_name?: string;
+	/**
+	 * WebInfo is set for connections that coderd records.
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is only set when `type` is one of:
-	 * - `ConnectionTypeSSH`
-	 * - `ConnectionTypeReconnectingPTY`
-	 * - `ConnectionTypeVSCode`
-	 * - `ConnectionTypeJetBrains`
+	 * SSHInfo is set for connections that agents report.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
+
+// From codersdk/dbenums_gen.go
+export type ConnectionLogMethod =
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "tunnel"
+	| "workspace_app";
+
+export const ConnectionLogMethods: ConnectionLogMethod[] = [
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"tunnel",
+	"workspace_app",
+];
 
 // From codersdk/connectionlog.go
 export interface ConnectionLogResponse {
@@ -4329,6 +4389,11 @@ export interface CreateMCPServerConfigRequest {
 	 * endpoint; auto-populated by OAuth2 discovery when omitted.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
+	 * requests when set. Auto-discovery fills it if empty.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -4371,6 +4436,19 @@ export interface CreateProvisionerKeyRequest {
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyResponse {
 	readonly key: string;
+}
+
+// From codersdk/skills.go
+/**
+ * CreateSkillRequest is the payload for creating a skill.
+ */
+export interface CreateSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
 }
 
 // From codersdk/organizations.go
@@ -4646,19 +4724,6 @@ export interface CreateUserSecretRequest {
 	readonly env_name?: string;
 	readonly file_path?: string;
 	readonly enabled?: boolean;
-}
-
-// From codersdk/userskills.go
-/**
- * CreateUserSkillRequest is the payload for creating a user skill.
- */
-export interface CreateUserSkillRequest {
-	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
-	 */
-	readonly content: string;
 }
 
 // From codersdk/workspaces.go
@@ -6530,6 +6595,7 @@ export interface MCPServerConfig {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	readonly oauth2_revocation_url?: string;
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	/**
 	 * API key fields (only populated for admins).
@@ -7885,6 +7951,37 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly Initiator: string;
 }
 
+// From codersdk/skills.go
+/**
+ * OrganizationSkillACL is the resolved access control list of an
+ * organization skill.
+ */
+export interface OrganizationSkillACL {
+	readonly users: readonly OrganizationSkillUser[];
+	readonly groups: readonly OrganizationSkillGroup[];
+}
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillGroup is a group entry in an organization skill ACL.
+ */
+export interface OrganizationSkillGroup extends Group {
+	readonly role: OrganizationSkillRole;
+}
+
+// From codersdk/skills.go
+export type OrganizationSkillRole = "" | "read";
+
+export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillUser is a user entry in an organization skill ACL.
+ */
+export interface OrganizationSkillUser extends MinimalUser {
+	readonly role: OrganizationSkillRole;
+}
+
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	/**
@@ -8764,6 +8861,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "organization_skill"
 	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
@@ -8820,6 +8918,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"organization_skill",
 	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
@@ -8958,6 +9057,7 @@ export type ResourceType =
 	| "chat_operational_settings"
 	| "chat_organization_system_prompt"
 	| "chat_project"
+	| "chat_project_instructions"
 	| "chat_project_memory"
 	| "convert_login"
 	| "custom_role"
@@ -8978,6 +9078,7 @@ export type ResourceType =
 	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
+	| "organization_skill"
 	| "prebuilds_settings"
 	| "task"
 	| "template"
@@ -9005,6 +9106,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_operational_settings",
 	"chat_organization_system_prompt",
 	"chat_project",
+	"chat_project_instructions",
 	"chat_project_memory",
 	"convert_login",
 	"custom_role",
@@ -9025,6 +9127,7 @@ export const ResourceTypes: ResourceType[] = [
 	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
+	"organization_skill",
 	"prebuilds_settings",
 	"task",
 	"template",
@@ -9552,6 +9655,29 @@ export const SignedAppTokenCookie = "coder_signed_app_token";
  *nolint:gosec
  */
 export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
+
+// From codersdk/skills.go
+/**
+ * Skill represents a personal or organization skill with its raw Markdown
+ * content.
+ */
+export interface Skill extends SkillMetadata {
+	readonly content: string;
+}
+
+// From codersdk/skills.go
+/**
+ * SkillMetadata represents a personal or organization skill without its raw
+ * Markdown content.
+ */
+export interface SkillMetadata {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
 
 // From codersdk/roles.go
 /**
@@ -10113,36 +10239,6 @@ export const TemplateBuilderVariableTypes: TemplateBuilderVariableType[] = [
 	"string",
 ];
 
-// From codersdk/insights.go
-/**
- * Enums define the display name of the builtin app reported.
- */
-export const TemplateBuiltinAppDisplayNameJetBrains = "JetBrains";
-
-// From codersdk/insights.go
-/**
- * Enums define the display name of the builtin app reported.
- */
-export const TemplateBuiltinAppDisplayNameSFTP = "SFTP";
-
-// From codersdk/insights.go
-/**
- * Enums define the display name of the builtin app reported.
- */
-export const TemplateBuiltinAppDisplayNameSSH = "SSH";
-
-// From codersdk/insights.go
-/**
- * Enums define the display name of the builtin app reported.
- */
-export const TemplateBuiltinAppDisplayNameVSCode = "Visual Studio Code";
-
-// From codersdk/insights.go
-/**
- * Enums define the display name of the builtin app reported.
- */
-export const TemplateBuiltinAppDisplayNameWebTerminal = "Web Terminal";
-
 // From codersdk/templates.go
 export interface TemplateExample {
 	readonly id: string;
@@ -10600,6 +10696,15 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+ * DeleteChatProjectInstructions to clear them.
+ */
+export interface UpdateChatProjectInstructionsRequest {
+	readonly instructions: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatProjectRequest updates a chat project.
  */
 export interface UpdateChatProjectRequest {
@@ -10751,6 +10856,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * validate tag would reject the pointer to "" that clears it.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
+	 * the stored value; send "" to clear it.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -10800,9 +10910,35 @@ export interface UpdateOrganizationRequest {
 	readonly default_org_member_roles?: string[];
 }
 
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillACLRequest is a sparse update of an organization
+ * skill ACL: only the listed principals change, and
+ * OrganizationSkillRoleDeleted removes an entry.
+ */
+export interface UpdateOrganizationSkillACLRequest {
+	readonly user_roles?: Record<string, OrganizationSkillRole>;
+	readonly group_roles?: Record<string, OrganizationSkillRole>;
+}
+
 // From codersdk/users.go
 export interface UpdateRoles {
 	readonly roles: readonly string[];
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateSkillRequest is the payload for updating a skill. At least one field
+ * must be set.
+ */
+export interface UpdateSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/templates.go
@@ -11056,19 +11192,6 @@ export interface UpdateUserSecretRequest {
 	readonly env_name?: string;
 	readonly file_path?: string;
 	readonly enabled?: boolean;
-}
-
-// From codersdk/userskills.go
-/**
- * UpdateUserSkillRequest is the payload for updating a user skill.
- */
-export interface UpdateUserSkillRequest {
-	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
-	 */
-	readonly content: string;
 }
 
 // From codersdk/workspaces.go
@@ -11648,26 +11771,6 @@ export interface UserSecretsCapabilities {
 	readonly file_path_delivery_enabled: boolean;
 }
 
-// From codersdk/userskills.go
-/**
- * UserSkill represents a user skill with its raw Markdown content.
- */
-export interface UserSkill extends UserSkillMetadata {
-	readonly content: string;
-}
-
-// From codersdk/userskills.go
-/**
- * UserSkillMetadata represents a user skill without its raw Markdown content.
- */
-export interface UserSkillMetadata {
-	readonly id: string;
-	readonly name: string;
-	readonly description: string;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 
@@ -12212,9 +12315,38 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	/**
+	 * ResourceAddress is the full Terraform address of the coder_script
+	 * resource, for example "module.git_clone.coder_script.clone". It is
+	 * empty for scripts that are not coder_script resources.
+	 */
+	readonly resource_address: string;
+	/**
+	 * Dependencies lists the scripts this one waits for, as the
+	 * provisioner resolved them. It is omitted when empty.
+	 */
+	readonly dependencies?: readonly WorkspaceAgentScriptDependency[];
 	readonly exit_code?: number;
 	readonly status?: WorkspaceAgentScriptStatus;
 }
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceAgentScriptDependency names a prerequisite script and the
+ * outcome it must reach.
+ */
+export interface WorkspaceAgentScriptDependency {
+	readonly prerequisite_resource_address: string;
+	readonly requirement: WorkspaceAgentScriptDependencyRequirement;
+}
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptDependencyRequirement =
+	| "completion"
+	| "success";
+
+export const WorkspaceAgentScriptDependencyRequirements: WorkspaceAgentScriptDependencyRequirement[] =
+	["completion", "success"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
