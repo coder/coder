@@ -4053,13 +4053,53 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
+Each WebSocket message is a JSON array of events.
+
+The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat.
+Each change has the `snapshot_version` of the commit that made it.
+The newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
+Pages that you request with `before_id` or `after_id` don't include `snapshot_version`.
+The server reads `snapshot_version` before it reads the messages and the queue.
+A change that the server commits between those reads is in the page, and the stream sends that change again.
+
+The server reads the chat when the stream opens and each time the chat changes.
+Each read sends the changes since the previous read.
+When you set `snapshot_version` to a value `S`, the first read sends every change with a `snapshot_version` of `S` or greater:
+
+- A `message` event for each message that is not deleted.
+- A `history_reset` event for each edit.
+- A `queue_update` event, if the queue changed.
+
+The server ignores `after_id` when you set `snapshot_version`.
+The server returns `400 Bad Request` when `snapshot_version` is not an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+
+On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
+Each read sends these events in order of `snapshot_version`.
+Within one `snapshot_version`, the read sends the `history_reset` event first, then the `message` events in order of message ID, then the `queue_update` event.
+The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
+The server sends `message_part` events between reads.
+
+A `history_reset` event on such a stream includes `history_reset.from_message_id`, the lowest message ID that the edit removed.
+The edit removed every message with that ID or higher.
+The edit or a later commit wrote each message with that ID or higher that isn't deleted, so the stream sends each of those messages in a `message` event after the `history_reset` event.
+
+On each new connection, the server sends the chat's current status again.
+When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
+The server then sends the `message_part` events of the reply in progress again, from its first part.
+
+When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
+After a `history_reset` event, the server sends every message in the chat as `message` events.
+The server sends this `history_reset` event and the whole history on each connection to a chat with a message that an edit removed, even when you set `after_id`.
+
+When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
+
 ### Parameters
 
-| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                                                                       |
-|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                                                                           |
-| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                                                                     |
-| `snapshot_version` | query | integer      | false    | Send the changes made at or after this snapshot_version, taken from the newest messages page or the highest snapshot_version among the stream's events. The message, queue_update and history_reset events then carry snapshot_version, and history_reset carries from_message_id |
+| Name               | In    | Type         | Required | Description                                                                                   |
+|--------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                       |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set |
+| `snapshot_version` | query | integer      | false    | Send the changes with this snapshot version or a later one                                    |
 
 ### Example responses
 
