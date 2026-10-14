@@ -321,7 +321,7 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 
 /**
  * MockWorkingMessages with an attach_file step from 5s to 6s between its two
- * shell steps. chatd appends the attachment after the step's tool call.
+ * shell steps, its attachment after the tool call.
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	MockWorkingMessages[0],
@@ -376,7 +376,7 @@ const planPath = "/home/coder/.coder/plans/PLAN.md";
 
 /**
  * A turn that proposes a plan after the first step of MockWorkingMessages,
- * with the plan file chatd attaches to the propose_plan call.
+ * with its plan file in the propose_plan message.
  */
 export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),

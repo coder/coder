@@ -694,24 +694,24 @@ describe("deriveEvictedFileIds", () => {
 
 describe("getChatArtifacts", () => {
 	it("lists assistant file parts newest first, skipping uploads and empty parts", () => {
-		const plan: TypesGen.ChatFilePart = {
+		const mockPlanFile: TypesGen.ChatFilePart = {
 			type: "file",
 			media_type: "text/markdown",
 			name: "plan.md",
 			file_id: "plan",
 		};
-		const screenshot: TypesGen.ChatFilePart = {
+		const mockScreenshotFile: TypesGen.ChatFilePart = {
 			type: "file",
 			media_type: "image/png",
 			data: "aGk=",
 		};
-		const report: TypesGen.ChatFilePart = {
+		const mockReportFile: TypesGen.ChatFilePart = {
 			type: "file",
 			media_type: "text/csv",
 			file_id: "report",
 		};
 		const messages: TypesGen.ChatMessage[] = [
-			{ ...buildMessage([plan], "assistant"), id: 1 },
+			{ ...buildMessage([mockPlanFile], "assistant"), id: 1 },
 			{
 				...buildMessage([
 					{ type: "file", media_type: "image/png", file_id: "upload" },
@@ -722,9 +722,9 @@ describe("getChatArtifacts", () => {
 				...buildMessage(
 					[
 						{ type: "text", text: "Here you go." },
-						screenshot,
+						mockScreenshotFile,
 						{ type: "file", media_type: "text/plain" },
-						report,
+						mockReportFile,
 					],
 					"assistant",
 				),
@@ -733,9 +733,9 @@ describe("getChatArtifacts", () => {
 		];
 
 		expect(getChatArtifacts(messages)).toEqual([
-			{ key: "3:3", file: report },
-			{ key: "3:1", file: screenshot },
-			{ key: "1:0", file: plan },
+			{ key: "3:3", file: mockReportFile },
+			{ key: "3:1", file: mockScreenshotFile },
+			{ key: "1:0", file: mockPlanFile },
 		]);
 	});
 });

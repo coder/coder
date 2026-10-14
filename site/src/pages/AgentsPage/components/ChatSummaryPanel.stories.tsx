@@ -73,7 +73,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
-const artifactMessages: TypesGen.ChatMessage[] = [
+const mockArtifactMessages: TypesGen.ChatMessage[] = [
 	{
 		...MockChatMessage,
 		id: 1,
@@ -130,7 +130,7 @@ const artifactMessages: TypesGen.ChatMessage[] = [
 
 const createArtifactStore = () => {
 	const store = createChatStore();
-	store.replaceMessages(artifactMessages);
+	store.replaceMessages(mockArtifactMessages);
 	return store;
 };
 

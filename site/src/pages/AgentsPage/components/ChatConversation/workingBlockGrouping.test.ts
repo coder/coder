@@ -233,7 +233,7 @@ describe("groupWorkingBlocks", () => {
 
 	it("keeps a step's attachment inside the block instead of ending it there", () => {
 		const prompt = user("Go");
-		const attachment: TypesGen.ChatMessagePart = {
+		const mockAttachment: TypesGen.ChatMessagePart = {
 			type: "file",
 			media_type: "text/csv",
 			name: "report.csv",
@@ -243,7 +243,7 @@ describe("groupWorkingBlocks", () => {
 			...step("a", 1, 2),
 			message(
 				"assistant",
-				[call("b", at(3), "attach_file"), attachment],
+				[call("b", at(3), "attach_file"), mockAttachment],
 				at(3),
 			),
 			message("tool", [result("b", at(4), { name: "attach_file" })], at(4)),

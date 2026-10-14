@@ -25,26 +25,24 @@ export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
 	hasFetchMoreError,
 	onFetchMoreMessages,
 }) => {
-	const items = artifacts.flatMap(({ key, file }) => {
-		const href = getAttachmentHref(file);
-		return href ? [{ key, file, href }] : [];
-	});
-
 	return (
 		<section className="flex flex-col gap-3">
 			<SectionHeader label="Artifacts" level="section" />
-			{items.length > 0 ? (
+			{artifacts.length > 0 ? (
 				<FileProbeProvider evictedFileIds={evictedFileIds}>
 					<ul className="m-0 flex list-none flex-col gap-2 p-0">
-						{items.map(({ key, file, href }) => (
-							<li key={key} className="min-w-0">
-								<FileCard
-									block={file}
-									href={href}
-									className="w-full max-w-none"
-								/>
-							</li>
-						))}
+						{artifacts.map(({ key, file }) => {
+							const href = getAttachmentHref(file);
+							return href ? (
+								<li key={key}>
+									<FileCard
+										block={file}
+										href={href}
+										className="w-full max-w-none"
+									/>
+								</li>
+							) : null;
+						})}
 					</ul>
 				</FileProbeProvider>
 			) : (

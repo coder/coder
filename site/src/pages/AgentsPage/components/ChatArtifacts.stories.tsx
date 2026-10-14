@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 import { ChatArtifacts } from "./ChatArtifacts";
 import type { ChatArtifact } from "./ChatConversation/messageHelpers";
 
-const artifacts: ChatArtifact[] = [
+const mockArtifacts: ChatArtifact[] = [
 	{
 		key: "6:1",
 		file: {
@@ -61,7 +61,7 @@ const meta: Meta<typeof ChatArtifacts> = {
 		),
 	],
 	args: {
-		artifacts,
+		artifacts: mockArtifacts,
 		evictedFileIds: new Set(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,

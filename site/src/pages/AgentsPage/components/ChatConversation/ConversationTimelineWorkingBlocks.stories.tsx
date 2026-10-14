@@ -1,15 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import {
-	fireEvent,
-	fn,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
-import { API } from "#/api/api";
+import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -236,7 +229,6 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	},
 };
 
-// The attachment folds with the attach_file step and never splits the block.
 export const AttachmentFoldsIntoBlock: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
@@ -254,16 +246,19 @@ export const AttachmentFoldsIntoBlockExpanded: Story = {
 	},
 };
 
-// The plan card stays visible; its plan file is listed under Artifacts instead.
 export const PlanAttachmentHidden: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("plan-file"),
+				data: "# Plan\n\nShip the artifacts panel.",
+			},
+		],
+	},
 	args: {
 		onImplementPlan: fn(),
 		parsedMessages: parseMessagesWithMergedTools(MockPlanAttachmentMessages),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatFileText").mockResolvedValue(
-			"# Plan\n\nShip the artifacts panel.",
-		);
 	},
 };
 

@@ -109,8 +109,9 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	section?: RowSection;
-	// Attachments render only inside working blocks while steps collapse.
-	hideAttachments?: boolean;
+	// While steps collapse, files outside a working block would split the turn,
+	// so they are listed under Artifacts instead.
+	hideAttachments: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -154,7 +155,7 @@ const ChatMessageItem = memo<{
 		renderKey,
 		message,
 		section,
-		hideAttachments = false,
+		hideAttachments,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
