@@ -75,7 +75,7 @@ const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
 	);
 };
 
-const renderPanel = (project: ChatProject = MockChatProject) => {
+const renderPanel = () => {
 	const queryClient = createTestQueryClient();
 	const panel = (project: ChatProject) => (
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -86,7 +86,7 @@ const renderPanel = (project: ChatProject = MockChatProject) => {
 			</QueryClientProvider>
 		</ThemeOverride>
 	);
-	const { rerender } = render(panel(project));
+	const { rerender } = render(panel(MockChatProject));
 	return {
 		user: userEvent.setup(),
 		queryClient,
