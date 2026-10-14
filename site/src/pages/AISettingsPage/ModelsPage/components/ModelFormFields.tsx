@@ -188,8 +188,6 @@ export const ModelFormFields: React.FC<{
 	) : null;
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
-	const bedrockInvokeModel =
-		selectedProviderState.providerDescriptor.bedrock_invoke_model;
 
 	return (
 		<div className="border border-solid p-6 rounded-lg">
@@ -233,11 +231,9 @@ export const ModelFormFields: React.FC<{
 							Set as Coder Agents default model
 						</label>
 					</div>
-					{bedrockInvokeModel && (
+					{selectedProviderState.providerDescriptor.bedrock_invoke_model && (
 						<BedrockInvokeModelAlert
 							providerLabel={selectedProviderState.label}
-							configuredModels={bedrockInvokeModel}
-							modelIdentifier={form.values.model}
 						/>
 					)}
 					<div className="grid gap-1.5">

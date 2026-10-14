@@ -13,7 +13,7 @@ import {
 	MockAnthropicProviderState,
 	MockBedrockInvokeModelProviderState,
 	MockOpenAIProviderState,
-	mockBedrockClaudeHaiku,
+	mockBedrockClaude,
 	mockGPT5,
 } from "../testFixtures";
 import UpdateModelPage from "./UpdateModelPage";
@@ -92,7 +92,7 @@ export const Default: Story = {
 
 export const BedrockInvokeModelProvider: Story = {
 	args: {
-		model: mockBedrockClaudeHaiku,
+		model: mockBedrockClaude,
 		providerStates: [MockBedrockInvokeModelProviderState],
 		selectedProviderState: MockBedrockInvokeModelProviderState,
 	},

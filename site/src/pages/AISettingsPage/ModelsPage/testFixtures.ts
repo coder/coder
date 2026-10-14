@@ -111,32 +111,13 @@ export const MockBedrockProviderState: ProviderState = {
 	models: [mockBedrockClaude],
 };
 
-export const mockBedrockClaudeHaiku: ChatModel = {
-	...mockBedrockClaude,
-	id: "model-bedrock-claude-haiku",
-	model: "claude-haiku-4-5",
-	display_name: "Claude Haiku 4.5 (Bedrock)",
-};
-
 export const MockBedrockInvokeModelProviderState: ProviderState = {
 	...MockBedrockProviderState,
 	providerDescriptor: {
 		...MockBedrockProviderDescriptor,
-		bedrock_invoke_model: {
-			model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-			small_fast_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-		},
+		bedrock_invoke_model: true,
 	},
 };
-
-export const MockBedrockInvokeModelUnsetUpstreamModelsProviderState: ProviderState =
-	{
-		...MockBedrockProviderState,
-		providerDescriptor: {
-			...MockBedrockProviderDescriptor,
-			bedrock_invoke_model: { model: "", small_fast_model: "" },
-		},
-	};
 
 export const MockAzureProviderState: ProviderState = {
 	...MockOpenAIProviderState,
