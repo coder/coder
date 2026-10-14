@@ -357,9 +357,61 @@ spec:
 
 ### Rootless Podman on EKS Auto Mode
 
-The `EC2NodeClass` above applies to self-managed Karpenter nodes. On EKS Auto Mode, the built-in `NodeClass` (`eks.amazonaws.com`) doesn't expose `userData` or kernel sysctls, so `user.max_user_namespaces` stays at `0` with no way to raise it on those nodes. Run Podman workspaces on a separate managed node group instead; the default AL2023 AMIs ship with user namespaces enabled.
+The `EC2NodeClass` above applies to self-managed Karpenter nodes.
+On EKS Auto Mode, raise `user.max_user_namespaces` with the `advancedCompute` field on a custom `NodeClass` (`eks.amazonaws.com`).
+AWS added `advancedCompute` in October 2026, so this works on pure Auto Mode nodes with no managed node group.
 
-> On a brand-new Auto Mode cluster, install the `vpc-cni` and `kube-proxy` add-ons before your managed node group can reach `Ready`.
+```yaml
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: podman
+spec:
+  # Reuse the Auto Mode node role so the EKS access entry already exists.
+  role: <your Auto Mode node role>
+  subnetSelectorTerms:
+    - id: <cluster subnet IDs>
+  securityGroupSelectorTerms:
+    - id: <cluster security group ID>
+  advancedCompute:
+    kernel:
+      sysctl:
+        user.max_user_namespaces: 65536
+```
+
+Reference the `NodeClass` from a `NodePool` and schedule Podman workspaces onto that pool with a node selector.
+Refer to [Create a Node Class for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-node-class.html) for the full `advancedCompute` reference.
+
+> Pods that set `hostUsers: false` also need `advancedCompute.kubelet.idsPerPod` raised above the 65536 default before rootless Podman can allocate subordinate ID ranges inside them.
+
+#### Use native overlay storage instead of fuse-overlayfs
+
+Kernel overlayfs cannot stack on the workspace container's own overlay root filesystem.
+Without extra configuration Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
+On nodes with kernel 5.13 or later you can skip the FUSE device entirely:
+
+1. Mount an `emptyDir` volume at `/home/coder/.local/share/containers` so the Podman graph root sits on a real filesystem.
+1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`:
+
+   ```ini
+   # ~/.config/containers/storage.conf
+   [storage]
+   driver = "overlay"
+
+   [storage.options.overlay]
+   mount_program = ""
+   ```
+
+With both settings Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
+
+### Nested container engines
+
+Rootless Podman supports one level of nesting: the workspace runs containers, builds images, and serves the Docker-compatible API socket.
+Running another container engine inside a container that the workspace engine started is not supported.
+This includes the dev container [`docker-in-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker), which starts a nested daemon inside the dev container.
+
+Use the [`docker-outside-of-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker) instead, so the dev container drives the workspace engine through its socket and containers run as siblings.
+Keep the repository path identical inside the dev container and the workspace, for example with `workspaceMount`, so bind mounts resolve against the engine correctly.
 
 ## Privileged sidecar container
 
