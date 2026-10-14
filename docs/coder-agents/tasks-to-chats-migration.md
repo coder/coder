@@ -165,25 +165,54 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
 ```
 
 **Chats API**.
-You open a one-way WebSocket connection:
+You request the newest messages page, then open a one-way WebSocket connection that sends each later change:
 
 ```txt
-GET wss://coder.example.com/api/v2/chats/{chat}/stream
+GET https://coder.example.com/api/v2/chats/{chat}/messages
+GET wss://coder.example.com/api/v2/chats/{chat}/stream?snapshot_version={snapshot_version}
 ```
 
-The WebSocket sends JSON envelopes with a `type` field (`"ping"`, `"data"`, or `"error"`).
-Data envelopes contain batches of events:
+Each WebSocket message is a JSON array of events.
+Each event has a `type` field:
 
-| Event type     | Description                                             |
-|----------------|---------------------------------------------------------|
-| `message_part` | A chunk of the agent's response (text, tool call, etc.) |
-| `message`      | A complete message has been persisted                   |
-| `status`       | The chat status changed (e.g. `running` → `waiting`)    |
-| `error`        | An error occurred during processing                     |
-| `retry`        | The control plane is retrying a failed LLM call         |
-| `queue_update` | The queued message list changed                         |
+| Event type        | Description                                                                                                                         |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                             |
+| `preview_reset`   | Remove the `message_part` content that you received before this event                                                               |
+| `message`         | A message was created or changed; replace the message with the same ID                                                              |
+| `history_reset`   | An edit removed messages; remove your messages with an ID of `history_reset.from_message_id` or higher                              |
+| `status`          | The chat status changed (e.g. `running` → `waiting`)                                                                                |
+| `error`           | An error occurred during processing                                                                                                 |
+| `retry`           | The control plane is retrying a failed LLM call                                                                                     |
+| `queue_update`    | The queued message list changed; the event includes the whole list                                                                  |
+| `action_required` | The agent called a tool from `unsafe_dynamic_tools`; run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
-Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
+The server increases a chat's `snapshot_version` each time it commits a change to the chat.
+To keep your client in sync with the chat:
+
+1. Request the newest messages page with `GET /api/v2/chats/{chat}/messages`, without `before_id` or `after_id`.
+1. Store the `snapshot_version` from the response.
+1. Open the stream with `snapshot_version` set to the stored value.
+1. Apply each event as the event table describes.
+1. When an event includes a `snapshot_version` that is higher than the stored value, store the new value.
+1. If the connection closes, fails to open, or sends a message that isn't valid JSON, remove the `message_part` content and the retry notice that your client shows.
+   The server sends both again on the next connection.
+1. Wait, then open the stream again with the stored `snapshot_version`.
+   Use exponential backoff: double the wait after each failed attempt.
+
+Don't reconnect with `after_id`.
+After an edit, a stream that you open with `after_id` sends the whole history on each connection.
+
+The stream can send a change that your client already has.
+Apply the change again: a `message` event replaces the message with the same ID, and a `queue_update` event replaces the whole queue.
+
+If you sent a `before_id` request for older messages before the last `history_reset` event that you applied, discard its response.
+
+Send actions, such as new messages, edits, and tool results, as REST requests.
+Change your client's state only from stream events, including the results of your own requests.
+Don't apply a response body to your client's state.
+
+For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../../reference/api/chats.md#stream-chat-events-via-websockets).
 
 ### 5. Update status handling
 
