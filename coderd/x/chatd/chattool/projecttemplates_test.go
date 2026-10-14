@@ -46,6 +46,7 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 
 	runTool := func(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {
 		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: uuid.NewString(), Name: tool.Info().Name, Input: input})
 		require.NoError(t, err)
 		return resp
@@ -54,6 +55,7 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 	// request passed to CreateFn, or nil when it was not called.
 	createWorkspace := func(t *testing.T, projectID uuid.NullUUID, input string) (fantasy.ToolResponse, *codersdk.CreateWorkspaceRequest) {
 		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
@@ -84,6 +86,7 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 
 	t.Run("ListTemplates", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{OwnerID: user.ID, ProjectID: withParameters})
 		result := runListTemplates(ctx, t, tool, "{}")
 		items := listTemplateItems(t, result)
