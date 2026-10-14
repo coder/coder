@@ -94,9 +94,19 @@ import (
 // API v2.13:
 //   - Added app_name and connection_method to Connection on the Agent API.
 //     Agents no longer send type.
+//
+// API v2.14:
+//   - Added resource_address (field 11) and dependencies (field 12) to
+//     WorkspaceAgentScript on the Agent API, with the
+//     WorkspaceAgentScriptDependency message. They carry each script's
+//     Terraform address and its resolved coder_script_order prerequisites
+//     in the manifest. Both are empty for unordered scripts.
+//   - A v2.14 agent decodes these fields but does not yet enforce the
+//     ordering, so a version check alone does not tell coderd that an agent
+//     orders its scripts.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 13
+	CurrentMinor = 14
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
