@@ -2499,18 +2499,14 @@ func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.Nu
 	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
 }
 
-// turnUsesMCPServers reports whether a turn of chat can use MCP servers.
-// Plan-mode subagents and explore-mode root chats use none.
 func turnUsesMCPServers(chat database.Chat) bool {
 	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
 	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
 }
 
-// filterMCPServersForTurn returns the external MCP servers visible on the
-// current turn and the set of their IDs. Outside plan mode every server is
-// visible and the set is nil. Plan-mode subagents see none: their trust
-// boundary is narrower than the root chat's. Root plan-mode chats see the
-// servers whose policy allows plan mode.
+// Plan-mode subagents have a narrower trust boundary and cannot use MCP
+// servers. Root plan-mode chats require policy approval. Outside plan mode,
+// all servers are visible and the approved-ID set is nil.
 func filterMCPServersForTurn[T any](
 	servers []T,
 	mode database.NullChatPlanMode,
@@ -2606,8 +2602,6 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2657,12 +2651,9 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. Org tools were
-		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-		// tools come only from root chat servers with allow_in_subagents.
-		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-		// workspace tools are excluded here too, in addition to the
-		// structural exclusion in runChat tool assembly.
+		// Org tools use the spawn-time snapshot; inline tools require
+		// allow_in_subagents. Internal servers decide access in ServerForChat.
+		// WorkspaceMCPTool lacks MCPToolIdentifier and remains excluded.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}

@@ -202,8 +202,8 @@ func (server *Server) prepareGeneration(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn and coderd code
-	// picks the internal ones, so all of them are allowed in plan mode.
+	// Root plan-mode chats allow inline servers selected by the caller
+	// and internal servers selected by coderd.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
@@ -273,9 +273,8 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// mcpCleanup, inlineMCPCleanup, and internalMCPCleanup are assigned by
-	// g2 goroutines and read only after g2.Wait, so no error path can run
-	// this before they are set.
+	// Once g2 starts, cleanup must wait for g2.Wait because its callbacks
+	// are assigned by g2 goroutines.
 	var mcpCleanup, inlineMCPCleanup, internalMCPCleanup func()
 	cleanup := func() {
 		if inlineMCPCleanup != nil {
@@ -743,13 +742,12 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
-	// Tool sources join in order of trust: built-in, internal, admin,
-	// workspace, then inline. On a name collision the earlier tool
-	// keeps the name. All of them join before the plan-mode filter so
-	// they are subject to the same approved set.
+	// Append sources in trust order so less trusted tools cannot replace
+	// trusted tools: built-in, internal, admin, workspace, then inline.
+	// Apply the plan-mode filter after all sources join.
 	tools = mcpclient.AppendTools(ctx, logger, tools, internalMCPTools)
-	// Only the admin and workspace tools that keep their names can be
-	// deferred, so find_tools never hides a tool that won a collision.
+	// Exclude rejected tools from deferral so a name collision cannot
+	// hide the winning tool through the rejected tool's deferral policy.
 	numTools := len(tools)
 	tools = mcpclient.AppendTools(ctx, logger, tools, mcpTools)
 	mcpTools = tools[numTools:]

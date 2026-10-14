@@ -13,24 +13,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// internalMCPServerNamespace derives the stable ID of each internal MCP
-// server from its slug.
 var internalMCPServerNamespace = uuid.MustParse("cbb03019-96c4-4988-a4ae-0fa5343f2b93")
 
-// InternalMCPServer is an MCP server that coderd code serves to chats in
-// process. Nothing is stored on the chat: chatd calls ServerForChat at every
-// step.
+// InternalMCPServer supplies a coderd-owned MCP server without storing
+// its configuration on the chat.
 type InternalMCPServer struct {
 	// Slug prefixes the server's tool names, as for inline servers.
 	Slug string
-	// ServerForChat returns the MCP server for chat, or nil when chat does
-	// not get this server. chat can be a subagent. chatd calls it at every
-	// step, so it must be fast. The server serves only chat, so it knows the
-	// caller.
+	// ServerForChat must return a server scoped to chat, or nil to exclude it.
+	// chat can be a subagent. This callback must be fast because chatd calls
+	// it at each step that permits MCP servers.
 	ServerForChat func(ctx context.Context, chat database.Chat) (*mcp.Server, error)
 }
 
-// id is stable across steps and replicas and unique for each slug.
 func (s InternalMCPServer) id() uuid.UUID {
 	return uuid.NewSHA1(internalMCPServerNamespace, []byte(s.Slug))
 }
@@ -52,10 +47,8 @@ func validateInternalMCPServers(servers []InternalMCPServer) error {
 	return nil
 }
 
-// internalMCPServersForChat returns the internal MCP servers that serve
-// chat in this step. An error from any ServerForChat fails the turn. The
-// chat error has a fixed message, so the error text of the server goes
-// only to the server log and never to viewer-visible data.
+// A fixed classification keeps callback error details out of the
+// user-facing chat error.
 func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, error) {
 	var servers []mcpclient.InProcessServer
 	for _, internal := range server.internalMCPServers {
