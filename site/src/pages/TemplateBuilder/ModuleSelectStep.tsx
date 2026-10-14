@@ -229,8 +229,6 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 							"text-sm font-normal text-content-secondary cursor-pointer",
 							"transition-colors duration-150 ease-linear hover:text-content-primary",
 							"data-[state=checked]:text-content-primary data-[state=checked]:border-b-content-primary",
-							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm",
-							"focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary",
 						)}
 					>
 						{filter.value} ({filter.count})
