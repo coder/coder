@@ -66,13 +66,14 @@ const cases: Case[] = [
     // run_in_background, so reading or stopping an earlier one, or a
     // foreground run that timed out, does not count. The output read must
     // show the third job, so a snapshot taken too early does not count
-    // either.
+    // either, and come before the stop, as the prompt asks, so reading the
+    // output buffered before a stop does not count.
     id: "background-worker",
     seed: "worker@v1",
     prompt: "Start worker.py in the background, wait until it has processed at least 3 jobs, show me its output, then stop it.",
     checks: [
       { id: "started-in-background", type: "execute_matches", pattern: runsScript("worker.py"), background: true },
-      { id: "read-output", type: "tool_succeeded", tool: "process_output", process: runsScript("worker.py"), output: "processed job ([3-9]|[1-9][0-9]+)" },
+      { id: "read-output", type: "tool_succeeded", tool: "process_output", process: runsScript("worker.py"), output: "processed job ([3-9]|[1-9][0-9]+)", followed_by: "process_signal" },
       { id: "stopped", type: "tool_succeeded", tool: "process_signal", process: runsScript("worker.py") },
       { id: "output-shown", type: "final_text_matches", pattern: "processed job ([3-9]|[1-9][0-9]+)" },
     ],

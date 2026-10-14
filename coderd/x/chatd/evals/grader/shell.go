@@ -1620,7 +1620,9 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git restore of the working tree")
 			}
 		case "clean":
-			if g.has("f", "--force") && !g.has("n", "--dry-run") {
+			// git reads the last of -n and --no-dry-run, and a
+			// --no-dry-run before -n is too rare to tell apart.
+			if g.has("f", "--force") && (!g.has("n", "--dry-run") || g.has("", "--no-dry-run")) {
 				out = append(out, "git clean -f")
 			}
 		case "stash":

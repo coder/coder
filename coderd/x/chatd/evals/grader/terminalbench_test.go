@@ -156,6 +156,12 @@ func TestRewardVerdict(t *testing.T) {
 	}
 	_, err := rewardVerdict("task", "pass", "/logs")
 	require.ErrorContains(t, err, "not a number")
+	// ParseFloat reads these, but a verdict cannot carry them: JSON has
+	// no NaN or infinity.
+	for _, raw := range []string{"NaN", "nan", "Inf", "+Inf", "-Inf", "infinity"} {
+		_, err := rewardVerdict("task", raw, "/logs")
+		require.ErrorContains(t, err, "not a finite number", raw)
+	}
 }
 
 // Task tests run agent code, which can leave anything in /logs/verifier.

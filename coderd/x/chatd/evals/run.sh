@@ -591,9 +591,12 @@ terminal_bench_import() {
 	TB_DIR=$CACHE/terminal-bench/import-${TB_COMMIT:0:7}
 	# An import rewrites the shared import directory, and trials and grading
 	# read it until the run ends, so this run holds the lock until it exits.
+	# The processes it starts inherit the lock, so after this run is killed
+	# they hold it until they exit too, while they may still read the
+	# directory.
 	command -v flock >/dev/null || die "flock (util-linux) is required for the terminal-bench suite"
 	exec {tb_lock}>"$TB_DIR.lock"
-	flock -n "$tb_lock" || die "another terminal-bench run or --self-check is using $TB_DIR; run one at a time per cache"
+	flock -n "$tb_lock" || die "$TB_DIR is in use by another terminal-bench run or --self-check, or by processes a killed one left running; run one at a time per cache"
 	for c in "${cases[@]}"; do
 		if suite_has_case terminal-bench "$c"; then
 			args+=(--task "$c")

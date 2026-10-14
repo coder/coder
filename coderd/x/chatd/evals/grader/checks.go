@@ -22,31 +22,33 @@ type checkSpec struct {
 	Type    string `json:"type"`
 	Observe bool   `json:"observe,omitempty"`
 
-	Tool           string   `json:"tool,omitempty"`
-	Tools          []string `json:"tools,omitempty"`
-	Anchor         string   `json:"anchor,omitempty"`
-	TolerateFailed int      `json:"tolerate_failed,omitempty"`
-	Min            *int     `json:"min,omitempty"`
-	Max            *int     `json:"max,omitempty"`
-	Successful     bool     `json:"successful,omitempty"`
-	Pattern        string   `json:"pattern,omitempty"`
-	Patterns       []string `json:"patterns,omitempty"`
-	After          string   `json:"after,omitempty"`
-	Background     bool     `json:"background,omitempty"`
-	Scopes         []string `json:"scopes,omitempty"`
-	Template       string   `json:"template,omitempty"`
-	Count          *int     `json:"count,omitempty"`
-	Transition     string   `json:"transition,omitempty"`
-	Allow          []string `json:"allow,omitempty"`
-	Deny           []string `json:"deny,omitempty"`
-	Require        []string `json:"require,omitempty"`
-	Keep           []string `json:"keep,omitempty"`
-	Branches       []string `json:"branches,omitempty"`
-	MaxLimit       int      `json:"max_limit,omitempty"`
-	Process        string   `json:"process,omitempty"`
-	Output         string   `json:"output,omitempty"`
-	ExitCode       *int     `json:"exit_code,omitempty"`
-	Path           string   `json:"path,omitempty"`
+	Tool            string   `json:"tool,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	Anchor          string   `json:"anchor,omitempty"`
+	TolerateFailed  int      `json:"tolerate_failed,omitempty"`
+	Min             *int     `json:"min,omitempty"`
+	Max             *int     `json:"max,omitempty"`
+	Successful      bool     `json:"successful,omitempty"`
+	Pattern         string   `json:"pattern,omitempty"`
+	Patterns        []string `json:"patterns,omitempty"`
+	After           string   `json:"after,omitempty"`
+	AfterBackground bool     `json:"after_background,omitempty"`
+	Background      bool     `json:"background,omitempty"`
+	Scopes          []string `json:"scopes,omitempty"`
+	Template        string   `json:"template,omitempty"`
+	Count           *int     `json:"count,omitempty"`
+	Transition      string   `json:"transition,omitempty"`
+	Allow           []string `json:"allow,omitempty"`
+	Deny            []string `json:"deny,omitempty"`
+	Require         []string `json:"require,omitempty"`
+	Keep            []string `json:"keep,omitempty"`
+	Branches        []string `json:"branches,omitempty"`
+	MaxLimit        int      `json:"max_limit,omitempty"`
+	Process         string   `json:"process,omitempty"`
+	Output          string   `json:"output,omitempty"`
+	ExitCode        *int     `json:"exit_code,omitempty"`
+	Path            string   `json:"path,omitempty"`
+	FollowedBy      string   `json:"followed_by,omitempty"`
 }
 
 type checkResult struct {
@@ -323,7 +325,8 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 // not, such as a foreground run of the same command that timed out and
 // kept running. With Path, only calls on a file path matching it count
 // (see pathFilter). With Output, the call's result output must also match
-// it.
+// it. With FollowedBy, a successful call of that tool on the same process
+// must follow the call, as a stop follows reading a worker's output.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
 	onPath, where := pathFilter(s)
@@ -348,19 +351,30 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		}
 		calls = calls[start+1:]
 	}
-	failures, unmatched := 0, 0
-	for _, c := range calls {
-		if !tools[c.Name] || (target != "" && c.argField("process_id") != target) || !onPath(c) {
+	onTarget := func(c toolCall) bool { return target == "" || c.argField("process_id") == target }
+	failures, unmatched, unfollowed := 0, 0, 0
+	for i, c := range calls {
+		if !tools[c.Name] || !onTarget(c) || !onPath(c) {
 			continue
 		}
 		if !c.succeeded() {
 			failures++
 			continue
 		}
-		if output == nil || output.MatchString(c.resultField("output")) {
-			return true, "", nil
+		if output != nil && !output.MatchString(c.resultField("output")) {
+			unmatched++
+			continue
 		}
-		unmatched++
+		if s.FollowedBy != "" && !slices.ContainsFunc(calls[i+1:], func(l toolCall) bool {
+			return l.Name == s.FollowedBy && onTarget(l) && l.succeeded()
+		}) {
+			unfollowed++
+			continue
+		}
+		return true, "", nil
+	}
+	if unfollowed > 0 {
+		return false, "no successful " + s.FollowedBy + " call on the same process follows a matching call", nil
 	}
 	if unmatched > 0 {
 		return false, "no successful call's output matches " + s.Output, nil
@@ -1049,7 +1063,9 @@ func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
 
 // checkExecuteMatches requires an execute call that runs a command
 // matching Pattern (see runsCommand), after the first execute running one
-// matching After. Optionally the call was started with run_in_background
+// matching After, started with run_in_background when AfterBackground is
+// set, so a probe of a foreground run that timed out and kept running
+// does not count. Optionally the call was started with run_in_background
 // (Background), succeeded with exit code 0 in the foreground
 // (Successful), showed exit status ExitCode in the foreground
 // (exitStatusShown), and printed output matching Output (see
@@ -1061,12 +1077,15 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 		after := regexp.MustCompile(s.After)
 		start = -1
 		for i, c := range in.tr.Calls {
-			if runsCommand(c, after) {
+			if runsCommand(c, after) && (!s.AfterBackground || fieldTrue(c.Args, "run_in_background")) {
 				start = i + 1
 				break
 			}
 		}
 		if start < 0 {
+			if s.AfterBackground {
+				return false, "no execute with run_in_background running a command that matches " + s.After, nil
+			}
 			return false, "no execute running a command that matches " + s.After, nil
 		}
 	}
@@ -1111,6 +1130,9 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	}
 	if s.After != "" {
 		what += " after " + s.After
+		if s.AfterBackground {
+			what += " started with run_in_background"
+		}
 	}
 	return false, what, nil
 }

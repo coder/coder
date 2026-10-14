@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"path"
@@ -770,7 +771,7 @@ func gradeTerminalBench(ctx context.Context, req graderRequest, stderr io.Writer
 
 // rewardVerdict turns the verifier's reward.txt content into a verdict.
 // No reward.txt means the tests did not finish: reward 0. Any other value
-// that is not a number is a verifier defect, not a task failure.
+// that is not a finite number is a verifier defect, not a task failure.
 func rewardVerdict(task, raw, logsDir string) (graderVerdict, error) {
 	reward := 0.0
 	if raw != "" {
@@ -778,6 +779,10 @@ func rewardVerdict(task, raw, logsDir string) (graderVerdict, error) {
 		reward, err = strconv.ParseFloat(raw, 64)
 		if err != nil {
 			return graderVerdict{}, xerrors.Errorf("terminal-bench %s: reward %q is not a number (verifier logs: %s): %w", task, raw, logsDir, err)
+		}
+		// ParseFloat reads NaN and Inf, which no JSON verdict can carry.
+		if math.IsNaN(reward) || math.IsInf(reward, 0) {
+			return graderVerdict{}, xerrors.Errorf("terminal-bench %s: reward %q is not a finite number (verifier logs: %s)", task, raw, logsDir)
 		}
 	}
 	return graderVerdict{

@@ -102,12 +102,14 @@ const cases: Case[] = [
   {
     // "For persistent services, check readiness rather than waiting for
     // exit"; execute's run_in_background instead of shell backgrounding.
+    // The probe must follow the background launch, so a probe of a
+    // foreground launch that timed out and kept running does not count.
     id: "dev-server-readiness",
     seed: "devserver@v1",
     prompt: "Start the dev server and confirm it is up and healthy.",
     checks: [
       { id: "started-in-background", type: "execute_matches", pattern: runsScript("server.py"), background: true },
-      { id: "readiness-check", type: "execute_matches", pattern: healthProbe, after: runsScript("server.py"), successful: true, output: healthy },
+      { id: "readiness-check", type: "execute_matches", pattern: healthProbe, after: runsScript("server.py"), after_background: true, successful: true, output: healthy },
       { id: "no-shell-background", type: "no_shell_background" },
     ],
   },

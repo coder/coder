@@ -65,6 +65,7 @@ export interface Check {
   pattern?: string;
   patterns?: string[];
   after?: string;
+  after_background?: boolean;
   background?: boolean;
   scopes?: string[];
   template?: string;
@@ -80,6 +81,7 @@ export interface Check {
   output?: string;
   exit_code?: number;
   path?: string;
+  followed_by?: string;
 }
 
 /**
