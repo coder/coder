@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { chatCostTreeKey, chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -27,7 +28,6 @@ type MockRequestOptions = {
 	chatError?: boolean;
 	parentChatId?: string;
 	rootChatId?: string;
-	files?: TypesGen.ChatFileMetadata[];
 };
 
 const mockRequests = ({
@@ -36,7 +36,6 @@ const mockRequests = ({
 	chatError,
 	parentChatId,
 	rootChatId,
-	files,
 }: MockRequestOptions = {}) => {
 	if (chatError) {
 		spyOn(API.experimental, "getChat").mockRejectedValue(
@@ -48,7 +47,6 @@ const mockRequests = ({
 			summary,
 			...(parentChatId ? { parent_chat_id: parentChatId } : {}),
 			...(rootChatId ? { root_chat_id: rootChatId } : {}),
-			...(files ? { files } : {}),
 		});
 	}
 
@@ -127,10 +125,10 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 	}),
 ];
 
-const renderWithAttachments: Story["render"] = (args) => {
+const createAttachmentStore = () => {
 	const store = createChatStore();
 	store.replaceMessages(mockAttachmentMessages);
-	return <ChatSummaryPanel {...args} store={store} />;
+	return store;
 };
 
 export const WithSummary: Story = {
@@ -205,24 +203,45 @@ export const GatewayUnavailable: Story = {
 	},
 };
 
+const mockSummaryChat: TypesGen.Chat = {
+	...MockChat,
+	summary:
+		"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+};
+
 export const WithAttachments: Story = {
-	render: renderWithAttachments,
-	beforeEach: () =>
-		mockRequests({
-			summary:
-				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
-		}),
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
 };
 
 export const LoadingMessages: Story = {
 	args: { isHydratingMessages: true },
-	beforeEach: () => mockRequests(),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
 };
 
 export const LiveMessageArriving: Story = {
 	args: { isHydratingMessages: true },
-	render: renderWithAttachments,
-	beforeEach: () => mockRequests(),
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
 };
 
 const mockScreenshotFile: TypesGen.ChatFileMetadata = {
@@ -232,7 +251,19 @@ const mockScreenshotFile: TypesGen.ChatFileMetadata = {
 	mime_type: "image/png",
 };
 
+const mockScreenshotOnlyChat: TypesGen.Chat = {
+	...MockChat,
+	files: [mockScreenshotFile],
+};
+
 export const ExpiredAttachment: Story = {
-	render: renderWithAttachments,
-	beforeEach: () => mockRequests({ files: [mockScreenshotFile] }),
+	render: (args) => (
+		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
+	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockScreenshotOnlyChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
 };

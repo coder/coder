@@ -7,7 +7,7 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getAgentAttachments,
+	getLoadedAgentAttachments,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -72,14 +72,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				// Hydration also follows every live message, which the store
-				// already holds, so only an empty store means the first page has
-				// not landed.
-				attachments={
-					isHydratingMessages && messages.length === 0
-						? undefined
-						: getAgentAttachments(messages)
-				}
+				attachments={getLoadedAgentAttachments(messages, isHydratingMessages)}
 				evictedFileIds={evictedFileIds}
 				{...earlierMessages}
 			/>

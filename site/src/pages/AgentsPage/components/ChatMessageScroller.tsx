@@ -9,7 +9,10 @@ import {
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-/** Fetch state and action for a chat's older history pages. */
+/**
+ * State that gates paging through a chat's older messages, and the action
+ * that fetches the next page.
+ */
 export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;

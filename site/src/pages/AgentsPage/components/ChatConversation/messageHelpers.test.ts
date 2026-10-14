@@ -9,6 +9,7 @@ import {
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 	getAgentAttachments,
+	getLoadedAgentAttachments,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -745,5 +746,19 @@ describe("getAgentAttachments", () => {
 			},
 			{ key: "1:0", file: mockPlanFile, href: "/api/v2/chats/files/plan" },
 		]);
+	});
+});
+
+describe("getLoadedAgentAttachments", () => {
+	it("waits only for the chat's first message page", () => {
+		const reply = buildMessage(
+			[{ type: "file", media_type: "text/csv", file_id: "report" }],
+			"assistant",
+		);
+
+		expect(getLoadedAgentAttachments([], true)).toBeUndefined();
+		// A live message keeps hydration on for one commit after the store has it.
+		expect(getLoadedAgentAttachments([reply], true)).toHaveLength(1);
+		expect(getLoadedAgentAttachments([], false)).toEqual([]);
 	});
 });

@@ -110,7 +110,6 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	section?: RowSection;
-	// While steps collapse, agent attachments show only inside working blocks.
 	hideAttachments: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;

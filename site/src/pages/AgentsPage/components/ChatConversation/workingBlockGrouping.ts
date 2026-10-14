@@ -67,8 +67,7 @@ export type RowSection = "work" | "answer";
  * The answer is the content after a row's last reasoning, tool call, or
  * labeled narration, web searches included; text before it is narration.
  * Sources and files fold without splitting the answer: OpenAI streams
- * citations between the deltas of one text part, and a file belongs to the
- * step that attached it.
+ * citations inside one text part, and a file belongs to its step.
  */
 const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
@@ -107,18 +106,16 @@ const splitRowBlocks = (
 	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
 };
 
-/**
- * A row's blocks, or one section of them, without file blocks when
- * hideAttachments is set: the files of a row outside every working block show
- * only in the Attachments section.
- */
+type GetRowBlocksOptions = {
+	section: RowSection | undefined;
+	hideAttachments: boolean;
+};
+
+/** A row outside every working block shows its files only under Attachments. */
 export const getRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-	{
-		section,
-		hideAttachments,
-	}: { section: RowSection | undefined; hideAttachments: boolean },
+	{ section, hideAttachments }: GetRowBlocksOptions,
 ): readonly RenderBlock[] => {
 	const sectionBlocks =
 		section === undefined ? blocks : splitRowBlocks(blocks, tools)[section];
