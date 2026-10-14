@@ -14,15 +14,14 @@ A/B Coder Agents between a branch and `main` using
 
 Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents.yaml`:
 each arm builds its own coderd (main vs the PR), runs `terminal-bench@2.0`
-(86 of 89 tasks; 3 are broken upstream) with Coder Agents on `claude-sonnet-5-5`,
-and the comparison is posted on the PR. The system prompt is Go code, so a
-prompt change is a branch and the unit of comparison is a build. Measured on
-an 8-task slice: Sonnet passes 7/8 at about $0.17 and 4 minutes per trial
-(Opus 5.5: 8/8, $0.30, 14 minutes), so expect roughly $30 and 1.5 hours per
-arm at two attempts per task.
+(77 of 89 tasks: 3 are broken upstream and 9 are 20 to 60 minute ML and
+emulation tasks the prompt cannot affect) with Coder Agents on
+`claude-sonnet-5-5`, and the comparison is posted on the PR. The system
+prompt is Go code, so a prompt change is a branch and the unit of comparison
+is a build. Measured baseline on `main`: 73% on the full 86 tasks, about $30
+and 80 minutes per arm on the 77 at two attempts per task.
 Dataset, model, attempts, and concurrency are the `env` block at the top of
-the workflow; `terminal-bench-sample@2.0` with `claude-haiku-4-5` is a $2,
-10-minute smoke configuration.
+the workflow.
 
 ## Local
 
@@ -32,6 +31,7 @@ export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h)   # dogf
 export HARBOR_CODER_MODEL=claude-sonnet-5-5
 ./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env
 set -a; . .harbor-coder/env; set +a; export PATH="$PWD/.harbor-coder:$PATH"
+# add the -x list from HARBOR_EXCLUDE in the workflow to match CI
 harbor run -d terminal-bench@2.0 -x 'qemu-*' -x build-cython-ext \
   --agent harbor_coder.agent:CoderAgentsAgent --env harbor_coder.environment:CoderEnvironment \
   -k 2 -n 4 -o jobs --job-name main

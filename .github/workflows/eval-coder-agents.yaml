@@ -23,8 +23,14 @@ concurrency:
 env:
   HARBOR_DATASET: terminal-bench@2.0
   # qemu-* and build-cython-ext are broken upstream (bit-rotted apt sources
-  # and a git clone in the verifier) and fail under Harbor's own Docker too.
-  HARBOR_EXCLUDE: "-x qemu-* -x build-cython-ext"
+  # and a git clone in the verifier). The rest are ML training, emulation,
+  # and long compiles that each take 20 to 60 minutes and are not decided by
+  # the system prompt; dropping them cuts an arm from ~3h to ~80 minutes.
+  HARBOR_EXCLUDE: >-
+    -x qemu-* -x build-cython-ext
+    -x train-fasttext -x compile-compcert -x install-windows-3.11
+    -x winning-avg-corewars -x extract-moves-from-video -x mcmc-sampling-stan
+    -x regex-chess -x mteb-leaderboard -x caffe-cifar-10
   # Sonnet sits mid-range on Terminal-Bench, leaving headroom in both
   # directions for a prompt change to move; Opus is near the ceiling.
   HARBOR_CODER_MODEL: claude-sonnet-5-5
