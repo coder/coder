@@ -1192,19 +1192,20 @@ describe("ChatsSidebar project drops", () => {
 		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
-		// The dnd-kit live region reads these to screen readers.
-		expect(
-			await screen.findByText(`Chat Fix invoice dates is over ${to}.`),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates is over ${to}.`,
+			),
+		);
 		await user.keyboard("[Space]");
 
 		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
 		);
 		expect(update).toHaveBeenCalledTimes(1);
-		expect(
-			screen.getByText(`Chat Fix invoice dates was dropped on ${to}.`),
-		).toBeInTheDocument();
+		expect(screen.getByRole("status")).toHaveTextContent(
+			`Chat Fix invoice dates was dropped on ${to}.`,
+		);
 	});
 
 	// Subagent chats follow their root's project, so only the root row drags.

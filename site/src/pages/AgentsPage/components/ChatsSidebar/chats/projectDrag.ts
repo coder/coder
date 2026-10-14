@@ -141,7 +141,7 @@ export const chatDragAnnouncements: Announcements = {
 	onDragCancel: ({ active, over }) => {
 		const chat = draggedChatOf(active);
 		return chat
-			? `Moving chat ${chat.title} was cancelled.`
+			? `Moving chat ${chat.title} was canceled.`
 			: defaultAnnouncements.onDragCancel({ active, over });
 	},
 };
