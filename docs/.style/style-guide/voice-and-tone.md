@@ -312,7 +312,8 @@ A statement about what the product does or doesn't do keeps the contraction defa
 >
 > Run `make gen`, and don't edit the generated file.
 
-*Enforced by `Coder.ImperativeNegation` (planned).*
+*Enforced by `Coder.ImperativeNegation` (`warning`).
+The rule flags `don't` only where it opens an imperative, so declaratives such as "You don't need" stay clean.*
 
 ## Leave out "please"
 

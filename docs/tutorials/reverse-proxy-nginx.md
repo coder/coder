@@ -144,7 +144,7 @@ providers, refer to the
    }
    ```
 
-   > Don't forget to change: `coder.example.com` by your (sub)domain
+   > Do not forget to change: `coder.example.com` by your (sub)domain
 
 3. Test the configuration:
 
