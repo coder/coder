@@ -79,10 +79,13 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 		savePersistedProjectsSectionExpanded(currentUserId, next);
 	};
 	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
-	// The empty state has its own New project button, so the header's
-	// duplicate is hidden while it shows.
 	const isShowingEmptyState =
 		isExpanded && !isLoading && !error && projects.length === 0;
+	// Also hidden while an expanded section loads: if the load comes back
+	// empty, the empty state's button would replace a focused header button
+	// and drop keyboard focus.
+	const isShowingHeaderNewProject =
+		!isShowingEmptyState && !(isExpanded && isLoading);
 
 	return (
 		<div>
@@ -93,7 +96,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					onToggle: toggleExpanded,
 				}}
 				actions={
-					!isShowingEmptyState && (
+					isShowingHeaderNewProject && (
 						<Button
 							variant="subtle"
 							size="icon"
