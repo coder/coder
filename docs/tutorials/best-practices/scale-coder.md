@@ -348,7 +348,7 @@ Coder customers have had success with both:
   simultaneously.
 
 - Label workspace cloud resources by user, team, organization, or your own
-  labelling conventions to track usage at different granularities.
+  labeling conventions to track usage at different granularities.
 
 - Use autostop requirements to bring off-peak utilization down.
 
