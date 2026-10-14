@@ -87,6 +87,7 @@ import {
 	ProjectFolders,
 } from "./ProjectFolders";
 import {
+	chatDragAnnouncements,
 	collideByDragKind,
 	draggedChatOf,
 	dragKeyboardCoordinates,
@@ -599,6 +600,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				>
 					<DndContext
 						sensors={sensors}
+						accessibility={{ announcements: chatDragAnnouncements }}
 						collisionDetection={collideByDragKind}
 						modifiers={[
 							// Restrict the drag to the y-axis only

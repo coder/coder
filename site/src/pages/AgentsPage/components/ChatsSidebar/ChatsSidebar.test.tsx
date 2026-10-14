@@ -1159,14 +1159,16 @@ describe("ChatsSidebar project drops", () => {
 			key: "[ArrowUp]",
 			projectId: undefined,
 			body: mockBillingProject.id,
+			to: "project Billing",
 		},
 		{
 			rowTop: 40,
 			key: "[ArrowDown]",
 			projectId: mockBillingProject.id,
 			body: NIL_UUID,
+			to: "Chats",
 		},
-	])("drops a chat with $key", async ({ rowTop, key, projectId, body }) => {
+	])("drops a chat with $key", async ({ rowTop, key, projectId, body, to }) => {
 		const user = userEvent.setup();
 		const update = vi
 			.spyOn(API.experimental, "updateChat")
@@ -1190,12 +1192,19 @@ describe("ChatsSidebar project drops", () => {
 		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
+		// The dnd-kit live region reads these to screen readers.
+		expect(
+			await screen.findByText(`Chat Fix invoice dates is over ${to}.`),
+		).toBeInTheDocument();
 		await user.keyboard("[Space]");
 
 		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
 		);
 		expect(update).toHaveBeenCalledTimes(1);
+		expect(
+			screen.getByText(`Chat Fix invoice dates was dropped on ${to}.`),
+		).toBeInTheDocument();
 	});
 
 	// Subagent chats follow their root's project, so only the root row drags.

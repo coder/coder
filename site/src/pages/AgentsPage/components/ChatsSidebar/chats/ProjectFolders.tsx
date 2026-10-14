@@ -170,6 +170,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				kind: "project",
 				projectId: project.id,
 				organizationId: project.organization_id,
+				label: projectLabel,
 			}}
 			draggedChat={draggedChat}
 		>
