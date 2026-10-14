@@ -8,14 +8,17 @@ import (
 	"runtime/debug"
 	"runtime/metrics"
 	"runtime/pprof"
+	"strconv"
 	"time"
 
 	"golang.org/x/xerrors"
 )
 
-// MemoryLimit is twice the peak of the largest test package in CI (cli,
-// about 3 GiB) and a third of the smallest runner (macOS, 17 GiB).
-const MemoryLimit uint64 = 6 << 30
+// MemoryLimitEnv is the environment variable StartMemoryGuardFromEnv reads
+// the limit from, in MiB. CI sets it because the limit assumes
+// -tags=testsmallbatch, which keeps wireguard-go's memory use low; without
+// that tag, a plain `go test` run can activate the guard with no real leak.
+const MemoryLimitEnv = "CODER_TEST_MEMORY_LIMIT_MIB"
 
 // heapProfileGCTimeout bounds the forced collection that precedes the
 // second heap profile. A runaway test keeps allocating while the
@@ -23,6 +26,21 @@ const MemoryLimit uint64 = 6 << 30
 // swapping, so the second profile is skipped when the collection takes
 // longer than this.
 const heapProfileGCTimeout = 5 * time.Second
+
+// StartMemoryGuardFromEnv is like StartMemoryGuard, but reads the limit
+// from MemoryLimitEnv and does nothing when it is unset. Call the
+// returned function to stop it.
+func StartMemoryGuardFromEnv() func() {
+	val := os.Getenv(MemoryLimitEnv)
+	if val == "" {
+		return func() {}
+	}
+	mib, err := strconv.ParseUint(val, 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("%s=%q is not a valid MiB count: %v", MemoryLimitEnv, val, err))
+	}
+	return StartMemoryGuard(mib << 20)
+}
 
 // StartMemoryGuard ends the test process once its memory use passes
 // limit. It writes heap profiles first, then panics with a dump of

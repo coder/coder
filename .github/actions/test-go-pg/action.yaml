@@ -167,6 +167,8 @@ runs:
         RACE_DETECTION: ${{ inputs.race-detection }}
         GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
         EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
+        # This limit assumes make's -tags=testsmallbatch. See testutil.MemoryLimitEnv.
+        CODER_TEST_MEMORY_LIMIT_MIB: "6144"
         TS_DEBUG_DISCO: "true"
         TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
