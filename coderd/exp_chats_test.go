@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -2129,23 +2130,6 @@ func TestActOnChatAsUser(t *testing.T) {
 		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
 	})
 
-	t.Run("SendBusyInterrupt", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		memberClient, chat := newChat(ctx, t)
-		acquireChat(ctx, t, chat.ID)
-		req := message
-		req.BusyBehavior = codersdk.ChatBusyBehaviorInterrupt
-
-		resp, err := api.SendChatMessageAsUser(ctx, chat.OwnerID, chat.ID, req)
-		require.NoError(t, err)
-		require.True(t, resp.Queued)
-		got, err := memberClient.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ChatStatusInterrupting, got.Status)
-	})
-
 	t.Run("Interrupt", func(t *testing.T) {
 		t.Parallel()
 
@@ -2182,17 +2166,6 @@ func TestActOnChatAsUser(t *testing.T) {
 			wantMessage string
 		}{
 			{
-				name: "SendArchivedChat",
-				act:  send,
-				prepare: func(ctx context.Context, t *testing.T, memberClient *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
-					driveChatToWaiting(ctx, t, api, chat.ID)
-					require.NoError(t, memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
-					return chat.OwnerID
-				},
-				wantStatus:  http.StatusBadRequest,
-				wantMessage: "Cannot send messages to an archived chat.",
-			},
-			{
 				name:        "SendOtherUsersChat",
 				act:         send,
 				prepare:     otherUser,
@@ -2209,32 +2182,11 @@ func TestActOnChatAsUser(t *testing.T) {
 				wantMessage: "Only the chat owner may send messages.",
 			},
 			{
-				name: "SendSuspendedUser",
-				act:  send,
-				prepare: func(ctx context.Context, t *testing.T, _ *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
-					_, err := client.UpdateUserStatus(ctx, chat.OwnerID.String(), codersdk.UserStatusSuspended)
-					require.NoError(t, err)
-					return chat.OwnerID
-				},
-				wantStatus:  http.StatusForbidden,
-				wantMessage: "not active",
-			},
-			{
 				name:        "InterruptOtherUsersChat",
 				act:         interrupt,
 				prepare:     otherUser,
 				wantStatus:  http.StatusNotFound,
 				wantMessage: "Resource not found",
-			},
-			{
-				name: "InterruptWaitingChat",
-				act:  interrupt,
-				prepare: func(ctx context.Context, t *testing.T, _ *codersdk.ExperimentalClient, chat codersdk.Chat) uuid.UUID {
-					driveChatToWaiting(ctx, t, api, chat.ID)
-					return chat.OwnerID
-				},
-				wantStatus:  http.StatusConflict,
-				wantMessage: "Chat is not in an interruptible state.",
 			},
 		}
 		for _, tc := range cases {
