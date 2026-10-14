@@ -138,8 +138,7 @@ func lifecycleRequirement(requirement codersdk.WorkspaceAgentScriptDependencyReq
 // executeScript waits for the manager's decision, then skips or runs the
 // script. Every exit records one terminal outcome, because dependents only
 // wake on one and the execution would otherwise stay open until the agent
-// shuts down. Each goroutine records only its own unit, so no unit is
-// updated twice.
+// shuts down. Only this goroutine writes its unit's outcome.
 func (e lifecycleExecutor) executeScript(
 	ctx context.Context,
 	manager *unit.Manager,

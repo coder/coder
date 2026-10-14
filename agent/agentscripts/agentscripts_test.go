@@ -341,8 +341,6 @@ func (*executeOptionTestLogger) Flush(context.Context) error {
 	return nil
 }
 
-// A dependency on a stop-only script orders the stop execution without
-// touching the start execution.
 func TestExecuteFastPath(t *testing.T) {
 	t.Parallel()
 
