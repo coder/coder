@@ -1104,7 +1104,6 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	sharing_level: "owner",
 	hidden: false,
 	open_in: "slim-window",
-	statuses: [],
 	tooltip: "Test **Tooltip**",
 };
 
@@ -1196,20 +1195,6 @@ const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
 	status: "timeout",
 	lifecycle_state: "start_error",
 	health: { healthy: false },
-};
-
-export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
-	id: "test-app-status",
-	created_at: "2022-05-17T17:39:01.382927298Z",
-	agent_id: "test-workspace-agent",
-	workspace_id: "test-workspace",
-	app_id: MockWorkspaceApp.id,
-	uri: "https://github.com/coder/coder/pull/1234",
-	message: "Your competitors page is completed!",
-	state: "complete",
-	// Deprecated fields
-	needs_user_attention: false,
-	icon: "",
 };
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -1682,7 +1667,6 @@ export const MockWorkspace: TypesGen.Workspace = {
 		healthy: true,
 		failing_agents: [],
 	},
-	latest_app_status: null,
 	automatic_updates: "never",
 	allow_renames: true,
 	favorite: false,
@@ -5419,86 +5403,6 @@ export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer
 			directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
 		},
 	};
-
-export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
-	{
-		// This is the latest status chronologically (15:04:38)
-		...MockWorkspaceAppStatus,
-		id: "status-7",
-		icon: "/emojis/1f4dd.png", // 📝
-		message: "Creating PR with gh CLI",
-		created_at: createTimestamp(4, 38), // 15:04:38
-		uri: "https://github.com/coder/coder/pull/5678",
-		state: "complete" as const,
-	},
-	{
-		// (15:03:56)
-		...MockWorkspaceAppStatus,
-		id: "status-6",
-		icon: "/emojis/1f680.png", // 🚀
-		message: "Pushing branch to remote",
-		created_at: createTimestamp(3, 56), // 15:03:56
-		uri: "",
-		state: "complete" as const,
-	},
-	{
-		// (15:02:29)
-		...MockWorkspaceAppStatus,
-		id: "status-5",
-		icon: "/emojis/1f527.png", // 🔧
-		message: "Configuring git identity",
-		created_at: createTimestamp(2, 29), // 15:02:29
-		uri: "",
-		state: "complete" as const,
-	},
-	{
-		// (15:02:04)
-		...MockWorkspaceAppStatus,
-		id: "status-4",
-		icon: "/emojis/1f4be.png", // 💾
-		message: "Committing changes",
-		created_at: createTimestamp(2, 4), // 15:02:04
-		uri: "",
-		state: "complete" as const,
-	},
-	{
-		// (15:01:44)
-		...MockWorkspaceAppStatus,
-		id: "status-3",
-		icon: "/emojis/2795.png", // +
-		message: "Adding files to staging",
-		created_at: createTimestamp(1, 44), // 15:01:44
-		uri: "",
-		state: "complete" as const,
-	},
-	{
-		// (15:01:32)
-		...MockWorkspaceAppStatus,
-		id: "status-2",
-		icon: "/emojis/1f33f.png", // 🌿
-		message: "Creating a new branch for PR",
-		created_at: createTimestamp(1, 32), // 15:01:32
-		uri: "",
-		state: "complete" as const,
-	},
-	{
-		// (15:01:00) - Oldest
-		...MockWorkspaceAppStatus,
-		id: "status-1",
-		icon: "/emojis/1f680.png", // 🚀
-		message: "Starting to create a PR",
-		created_at: createTimestamp(1, 0), // 15:01:00
-		uri: "",
-		state: "complete" as const,
-	},
-];
-
-export function createTimestamp(minuteOffset: number, secondOffset: number) {
-	const baseDate = new Date("2024-03-26T15:00:00Z");
-	baseDate.setMinutes(baseDate.getMinutes() + minuteOffset);
-	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
-	return baseDate.toISOString();
-}
 
 export const MockSession: TypesGen.AIBridgeSession = {
 	id: "c8f2df8c-149c-43e1-9d51-898daaa2c505",

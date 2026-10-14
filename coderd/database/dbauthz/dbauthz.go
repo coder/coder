@@ -4412,20 +4412,6 @@ func (q *querier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, wo
 	return q.db.GetLatestWorkspaceAgentContextSnapshot(ctx, workspaceAgentID)
 }
 
-func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAppStatus{}, err
-	}
-	return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
-}
-
-func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx, ids)
-}
-
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	// Fast path: Check if we have a workspace RBAC object in context.
 	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
@@ -5969,13 +5955,6 @@ func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg datab
 	return q.db.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkspaceAppStatusesByAppIDs(ctx, ids)
-}
-
 func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
 	if _, err := q.GetWorkspaceByAgentID(ctx, agentID); err != nil {
 		return nil, err
@@ -6994,13 +6973,6 @@ func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.Inse
 		return err
 	}
 	return q.db.InsertWorkspaceAppStats(ctx, arg)
-}
-
-func (q *querier) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAppStatus{}, err
-	}
-	return q.db.InsertWorkspaceAppStatus(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {

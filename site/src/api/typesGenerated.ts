@@ -11909,7 +11909,6 @@ export interface Workspace {
 	readonly template_require_active_version: boolean;
 	readonly template_use_classic_parameter_flow: boolean;
 	readonly latest_build: WorkspaceBuild;
-	readonly latest_app_status: WorkspaceAppStatus | null;
 	readonly outdated: boolean;
 	readonly name: string;
 	readonly autostart_schedule?: string;
@@ -12460,10 +12459,6 @@ export interface WorkspaceApp {
 	 * when hovering over workspace apps in the UI.
 	 */
 	readonly tooltip?: string;
-	/**
-	 * Statuses is a list of statuses for the app.
-	 */
-	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
 // From codersdk/workspaceapps.go
@@ -12497,47 +12492,6 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"organization",
 	"owner",
 	"public",
-];
-
-// From codersdk/workspaceapps.go
-export interface WorkspaceAppStatus {
-	readonly id: string;
-	readonly created_at: string;
-	readonly workspace_id: string;
-	readonly agent_id: string;
-	readonly app_id: string;
-	readonly state: WorkspaceAppStatusState;
-	readonly message: string;
-	/**
-	 * URI is the URI of the resource that the status is for.
-	 * e.g. https://github.com/org/repo/pull/123
-	 * e.g. file:///path/to/file
-	 */
-	readonly uri: string;
-	/**
-	 * @deprecated This field is unused and will be removed in a future version.
-	 * Icon is an external URL to an icon that will be rendered in the UI.
-	 */
-	readonly icon: string;
-	/**
-	 * @deprecated This field is unused and will be removed in a future version.
-	 * NeedsUserAttention specifies whether the status needs user attention.
-	 */
-	readonly needs_user_attention: boolean;
-}
-
-// From codersdk/workspaceapps.go
-export type WorkspaceAppStatusState =
-	| "complete"
-	| "failure"
-	| "idle"
-	| "working";
-
-export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
-	"complete",
-	"failure",
-	"idle",
-	"working",
 ];
 
 // From codersdk/workspacebuilds.go

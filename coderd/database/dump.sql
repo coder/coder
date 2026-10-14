@@ -754,13 +754,6 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'slim-window'
 );
 
-CREATE TYPE workspace_app_status_state AS ENUM (
-    'working',
-    'complete',
-    'failure',
-    'idle'
-);
-
 CREATE TYPE workspace_secret_source AS ENUM (
     'request',
     'carry_forward'
@@ -4117,17 +4110,6 @@ CREATE SEQUENCE workspace_app_stats_id_seq
 
 ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
-CREATE TABLE workspace_app_statuses (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    agent_id uuid NOT NULL,
-    app_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    state workspace_app_status_state NOT NULL,
-    message text NOT NULL,
-    uri text
-);
-
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -4912,9 +4894,6 @@ ALTER TABLE ONLY workspace_app_stats
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
 
-ALTER TABLE ONLY workspace_app_statuses
-    ADD CONSTRAINT workspace_app_statuses_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
@@ -5216,8 +5195,6 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
-CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
-
 CREATE INDEX idx_workspace_build_orchestrations_pending ON workspace_build_orchestrations USING btree (created_at) WHERE (status = 'pending'::text);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
@@ -5291,8 +5268,6 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
-
-CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 
@@ -5884,15 +5859,6 @@ ALTER TABLE ONLY workspace_app_stats
 
 ALTER TABLE ONLY workspace_app_stats
     ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
-
-ALTER TABLE ONLY workspace_app_statuses
-    ADD CONSTRAINT workspace_app_statuses_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
-
-ALTER TABLE ONLY workspace_app_statuses
-    ADD CONSTRAINT workspace_app_statuses_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id);
-
-ALTER TABLE ONLY workspace_app_statuses
-    ADD CONSTRAINT workspace_app_statuses_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

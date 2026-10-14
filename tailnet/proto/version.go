@@ -63,7 +63,9 @@ import (
 //
 // API v2.8:
 //   - Added support for pre-created sub agents on the Agent API.
-//   - Added support for UpdateAppStatus on the Agent API.
+//   - Added support for UpdateAppStatus on the Agent API. Workspace app
+//     statuses have since been removed: coderd accepts and discards
+//     UpdateAppStatus requests so older agents keep working.
 //
 // API v2.9:
 //   - Added session_id and confined_process fields to
