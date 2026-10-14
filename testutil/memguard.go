@@ -15,7 +15,9 @@ import (
 )
 
 // MemoryLimitEnv is the environment variable StartMemoryGuardFromEnv reads
-// the limit from, in MiB. CI sets it because the limit assumes
+// the limit from, in MiB. CI sets it per runner in test-go-pg/action.yaml:
+// 5120 on macOS, whose 17 GiB runner must trip before the compressor and
+// swap absorb a runaway allocation, and 6144 elsewhere. The values assume
 // -tags=testsmallbatch, which keeps wireguard-go's memory use low; without
 // that tag, a plain `go test` run can activate the guard with no real leak.
 const MemoryLimitEnv = "CODER_TEST_MEMORY_LIMIT_MIB"
