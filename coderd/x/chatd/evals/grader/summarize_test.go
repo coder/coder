@@ -37,16 +37,26 @@ func TestSummarizeRun(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(measured, "measurements.json"), []byte(
 		`{"graders":{"checks":{"passed":true},"hidden_tests":{"passed":true},"guardrails":{"passed":false,"guardrail":true}}}`), 0o600))
 	// A trial that never landed a bundle is only in the journal; it must
-	// still count as a failed trial with its reason.
+	// still count as a failed trial with its reason. So must a trial the
+	// journal lists as completed (or skipped on resume) whose bundle is
+	// gone, here r6 with no directory and r7 with a regular file in its
+	// slot.
+	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp", "case-a__control__r7"), nil, 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp", "journal.json"), []byte(`{"entries":[`+
 		`{"trial_id":"case-a__control__r1","status":"completed","attempts":1},`+
 		`{"trial_id":"case-a__control__r2","status":"completed","attempts":1},`+
-		`{"trial_id":"case-a__control__r3","status":"infra_failed","attempts":3,"error":"sandbox start timed out"}]}`), 0o600))
+		`{"trial_id":"case-a__control__r3","status":"infra_failed","attempts":3,"error":"sandbox start timed out"},`+
+		`{"trial_id":"case-a__control__r6","status":"completed","attempts":1},`+
+		`{"trial_id":"case-a__control__r7","status":"skipped"}]}`), 0o600))
 
 	s, err := summarizeRun(store, derived, "candidate")
 	require.NoError(t, err)
-	require.Equal(t, 5, s.Trials)
-	require.Equal(t, map[string]string{"case-a__control__r3": "infra_failed: sandbox start timed out"}, s.JournalOnly)
+	require.Equal(t, 7, s.Trials)
+	require.Equal(t, map[string]string{
+		"case-a__control__r3": "infra_failed: sandbox start timed out",
+		"case-a__control__r6": "completed, but its bundle is missing",
+		"case-a__control__r7": "skipped, but its bundle is missing",
+	}, s.JournalOnly)
 	require.Equal(t, 3, s.Ungraded)
 	require.Len(t, s.Failures, 3)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)

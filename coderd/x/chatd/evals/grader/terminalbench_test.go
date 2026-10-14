@@ -87,3 +87,30 @@ func TestRewardVerdict(t *testing.T) {
 	_, err := rewardVerdict("task", "pass", "/logs")
 	require.ErrorContains(t, err, "not a number")
 }
+
+// A verifier that logs without end must not grow the grader's memory
+// without bound; the kept output is its tail, marked as cut.
+func TestTailBuffer(t *testing.T) {
+	t.Parallel()
+	b := &tailBuffer{limit: 8}
+	for _, chunk := range []string{"abc", "defgh", "ijklmnopq", "r", "stuvwxyz"} {
+		n, err := b.Write([]byte(chunk))
+		require.NoError(t, err)
+		require.Equal(t, len(chunk), n)
+	}
+	require.Equal(t, "[18 earlier bytes dropped]\nstuvwxyz", string(b.Bytes()))
+
+	long := &tailBuffer{limit: 64}
+	line := []byte("0123456789\n")
+	for range 100000 {
+		_, err := long.Write(line)
+		require.NoError(t, err)
+	}
+	require.LessOrEqual(t, cap(long.buf), 4*long.limit, "the buffer stays bounded")
+	require.True(t, strings.HasPrefix(string(long.Bytes()), "[1099936 earlier bytes dropped]\n"))
+
+	short := &tailBuffer{limit: 8}
+	_, err := short.Write([]byte("ok\n"))
+	require.NoError(t, err)
+	require.Equal(t, "ok\n", string(short.Bytes()))
+}

@@ -46,6 +46,28 @@ func TestChecks(t *testing.T) {
 			execCall{"sed -i s/a/b/ x.py && pytest", "1 passed\n", 0}),
 		"shell-edit-test-edit": executeTranscript(t, "Done.",
 			execCall{"sed -i s/a/b/ x.py && pytest && sed -i s/b/c/ x.py", "1 passed\n", 0}),
+		"edit-text-names-test": executeTranscript(t, "Done.",
+			execCall{"sed -i 's/import unittest/import pytest/' tests/test_a.py", "", 0}),
+		"shell-edit-then-test-tee": executeTranscript(t, "Done.",
+			execCall{"sed -i s/a/b/ x.py && pytest 2>&1 | tee test.log", "1 passed\n", 0}),
+		"shell-edit-then-test-redirect": executeTranscript(t, "Done.",
+			execCall{"sed -i s/a/b/ x.py && pytest > test.log", "", 0}),
+		"commit-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout 1a2b3c4 && git commit -qam x", "HEAD is now at 1a2b3c4 x\n", 0}),
+		"file-restore-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout a.py && git commit -qam x", "Updated 1 path from the index\n", 0}),
+		"previous-branch-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout -b fix && git checkout - && git commit -qam x", "Switched to a new branch 'fix'\nSwitched to branch 'main'\n", 0}),
+		"back-to-branch-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout -b fix && git checkout main && git checkout - && git commit -qam x", "Switched to a new branch 'fix'\nSwitched to branch 'main'\nSwitched to branch 'fix'\n", 0}),
+		// The trial.json fallback has no exit code, and a probe run in the
+		// background has not finished when its result arrives.
+		"probe-without-exit-code": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
+			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health"}, map[string]any{}}),
+		"probe-in-background": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
+			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health", "run_in_background": true}, map[string]any{"background_process_id": "p2", "exit_code": 0}}),
 	}
 	cases := []struct {
 		name       string
@@ -97,10 +119,15 @@ func TestChecks(t *testing.T) {
 		{"tested before a shell edit in one call", "test-then-shell-edit", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, false},
 		{"tested after a shell edit in one call", "shell-edit-then-test", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, true},
 		{"edited again after the test in one call", "shell-edit-test-edit", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, false},
+		{"edit whose text names the test", "edit-text-names-test", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, false},
+		{"test output through tee after a shell edit", "shell-edit-then-test-tee", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, true},
+		{"test output redirected after a shell edit", "shell-edit-then-test-redirect", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, true},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
 		{"shell background is not run_in_background", "shell-bad", "", nil, `{"type":"execute_matches","pattern":"server\\.py","background":true}`, false},
 		{"successful probe after start", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, true},
 		{"only a failed probe after start", "failed-probe-branch-commit", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
+		{"probe without an exit code", "probe-without-exit-code", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
+		{"probe run in the background", "probe-in-background", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py","successful":true}`, false},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},
 		{"whole-file read", "shell-bad", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, false},
 		{"no edits", "plan-ask", "", nil, `{"type":"no_edits"}`, true},
@@ -121,6 +148,10 @@ func TestChecks(t *testing.T) {
 		{"quiet commit after a branch switch", "branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, true},
 		{"quiet commit beside a summary line", "quiet-commit-beside-summary", "", nil, `{"type":"commit_off_default"}`, false},
 		{"commit on a detached HEAD", "detached-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after checking out a commit", "commit-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a file restore", "file-restore-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after returning to main", "previous-branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after returning to the branch", "back-to-branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, true},
 		{"asked before committing", "plan-ask", "", nil, `{"type":"commit_off_default"}`, true},
 		{"neither committed nor asked", "detached-good", "", nil, `{"type":"commit_off_default"}`, false},
 	}
@@ -228,6 +259,24 @@ type execCall struct {
 // order and then answers with final.
 func executeTranscript(t *testing.T, final string, calls ...execCall) string {
 	t.Helper()
+	exchanges := make([]execExchange, 0, len(calls))
+	for _, c := range calls {
+		exchanges = append(exchanges, execExchange{
+			args:   map[string]any{"command": c.command},
+			result: map[string]any{"output": c.output, "exit_code": c.exitCode},
+		})
+	}
+	return exchangeTranscript(t, final, exchanges...)
+}
+
+// execExchange is one execute call with its raw arguments and result, for
+// results that omit the exit code or calls run in the background.
+type execExchange struct {
+	args, result map[string]any
+}
+
+func exchangeTranscript(t *testing.T, final string, calls ...execExchange) string {
+	t.Helper()
 	const chatID = "00000000-0000-0000-0000-000000000001"
 	var lines []string
 	add := func(v any) {
@@ -246,8 +295,8 @@ func executeTranscript(t *testing.T, final string, calls ...execCall) string {
 	message("user", map[string]any{"type": "text", "text": "task prompt"})
 	for i, c := range calls {
 		callID := fmt.Sprintf("call_%d", i+1)
-		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": "execute", "args": map[string]any{"command": c.command}})
-		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": "execute", "result": map[string]any{"output": c.output, "exit_code": c.exitCode}})
+		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": "execute", "args": c.args})
+		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": "execute", "result": c.result})
 	}
 	message("assistant", map[string]any{"type": "text", "text": final})
 	return strings.Join(lines, "\n") + "\n"

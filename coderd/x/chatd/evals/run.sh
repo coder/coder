@@ -159,6 +159,9 @@ done
 [[ -z $max_usd || ! $max_usd =~ ^0+([.]0+)?$ ]] || die "--max-usd must be greater than 0"
 [[ $prompt_mode == append || $prompt_mode == replace ]] || die "--prompt-mode must be append or replace"
 [[ $model == *:* ]] || die "--model must be provider:model, for example anthropic:claude-sonnet-5-5"
+# aegis, the grader, and coder are built for Linux, and aegis and the
+# grader run on this host.
+[[ $(uname -s) == Linux ]] || die "a Linux host is required; this host is $(uname -s)"
 # Grading must not run as root (see grade_isolated); check before any build
 # or paid trial.
 if [[ $validate_only -eq 0 && $self_check -eq 0 && $(id -u) -eq 0 ]]; then

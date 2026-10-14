@@ -21,6 +21,9 @@ type shellCommand struct {
 	Stdin []string
 	// Pos orders the command within its execute call (see scriptPos).
 	Pos scriptPos
+	// Pipeline is the position of the pipeline the command is a stage of,
+	// prefixed like Pos; nil outside a pipeline.
+	Pipeline scriptPos
 }
 
 // scriptPos is the source offset of a command or statement in an execute
@@ -35,6 +38,9 @@ type outputRedirect struct {
 	Target string
 	// Pos is the position of the redirected statement.
 	Pos scriptPos
+	// Command is the position of the simple command whose output is
+	// redirected; nil when the statement runs a compound command.
+	Command scriptPos
 }
 
 func (c shellCommand) program() string {
@@ -62,6 +68,10 @@ func parseShell(src string) (shellScript, bool) {
 		return out, false
 	}
 	stdin := map[*syntax.CallExpr][]string{}
+	// Walk visits a pipeline before its stages, so a nested pipe node
+	// inherits the position of the outermost one.
+	pipelines := map[*syntax.BinaryCmd]scriptPos{}
+	stages := map[*syntax.CallExpr]scriptPos{}
 	syntax.Walk(f, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.BinaryCmd:
@@ -71,6 +81,18 @@ func parseShell(src string) (shellScript, bool) {
 			if call, ok := n.Y.Cmd.(*syntax.CallExpr); ok {
 				stdin[call] = append(stdin[call], pipedSource(n.X)...)
 			}
+			pipeline, ok := pipelines[n]
+			if !ok {
+				pipeline = scriptPos{n.Pos().Offset()}
+			}
+			for _, st := range []*syntax.Stmt{n.X, n.Y} {
+				switch cmd := st.Cmd.(type) {
+				case *syntax.CallExpr:
+					stages[cmd] = pipeline
+				case *syntax.BinaryCmd:
+					pipelines[cmd] = pipeline
+				}
+			}
 		case *syntax.Stmt:
 			if n.Background || n.Disown || n.Coprocess {
 				out.Backgrounded = true
@@ -78,7 +100,11 @@ func parseShell(src string) (shellScript, bool) {
 			call, _ := n.Cmd.(*syntax.CallExpr)
 			for _, r := range n.Redirs {
 				if target, ok := outputRedirectTarget(r); ok {
-					out.OutputFiles = append(out.OutputFiles, outputRedirect{Target: target, Pos: scriptPos{n.Pos().Offset()}})
+					redirect := outputRedirect{Target: target, Pos: scriptPos{n.Pos().Offset()}}
+					if call != nil {
+						redirect.Command = scriptPos{call.Pos().Offset()}
+					}
+					out.OutputFiles = append(out.OutputFiles, redirect)
 				}
 				if call == nil {
 					continue
@@ -95,10 +121,11 @@ func parseShell(src string) (shellScript, bool) {
 				return true
 			}
 			cmd := shellCommand{
-				Args:   make([]string, 0, len(n.Args)),
-				Source: make([]string, 0, len(n.Args)),
-				Stdin:  stdin[n],
-				Pos:    scriptPos{n.Pos().Offset()},
+				Args:     make([]string, 0, len(n.Args)),
+				Source:   make([]string, 0, len(n.Args)),
+				Stdin:    stdin[n],
+				Pos:      scriptPos{n.Pos().Offset()},
+				Pipeline: stages[n],
 			}
 			for _, w := range n.Args {
 				cmd.Args = append(cmd.Args, literalWord(w))
@@ -213,7 +240,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin, Pos: c.Pos}
+	inner := shellCommand{Stdin: c.Stdin, Pos: c.Pos, Pipeline: c.Pipeline}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -252,10 +279,10 @@ func directlyWrapped(c shellCommand) []shellCommand {
 	return []shellCommand{inner}
 }
 
-// xargsInput stands in for an xargs -I input line inside a word. The
-// input may hold "..", so the stand-in climbs out of its directory and
-// /tmp/{} is not treated as a path under /tmp.
-const xargsInput = "../xargs-input"
+// xargsInput stands in for an xargs -I input line inside a word, as a
+// relative file name, so /tmp/{} is a path under /tmp and a bare {} in a
+// script is a workspace path.
+const xargsInput = "xargs-input"
 
 // optionValue reads the option at args[i]: its name (a long option
 // before any =, or the first value-taking letter of a short cluster), its
@@ -331,7 +358,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, Pos: c.Pos})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, Pos: c.Pos, Pipeline: c.Pipeline})
 		}
 		i = end
 	}
@@ -834,11 +861,19 @@ func withNestedShells(s shellScript) []shellScript {
 // nestUnder prefixes every position in s with the position of the shell
 // command that runs it.
 func nestUnder(s shellScript, outer scriptPos) shellScript {
+	under := func(p scriptPos) scriptPos {
+		if p == nil {
+			return nil
+		}
+		return append(slices.Clone(outer), p...)
+	}
 	for i := range s.Commands {
-		s.Commands[i].Pos = append(slices.Clone(outer), s.Commands[i].Pos...)
+		s.Commands[i].Pos = under(s.Commands[i].Pos)
+		s.Commands[i].Pipeline = under(s.Commands[i].Pipeline)
 	}
 	for i := range s.OutputFiles {
-		s.OutputFiles[i].Pos = append(slices.Clone(outer), s.OutputFiles[i].Pos...)
+		s.OutputFiles[i].Pos = under(s.OutputFiles[i].Pos)
+		s.OutputFiles[i].Command = under(s.OutputFiles[i].Command)
 	}
 	return s
 }
@@ -849,6 +884,14 @@ type fileEdit struct {
 	// Deletion is set for rm and find -delete, which also clean up
 	// scratch files after a test.
 	Deletion bool
+	// Command is set when the command at Pos makes the edit itself, and
+	// unset for a redirect.
+	Command bool
+	// Redirected is the position of the command whose output a redirect
+	// writes; nil for other edits.
+	Redirected scriptPos
+	// TeePipeline is the pipeline of a tee edit; nil for other edits.
+	TeePipeline scriptPos
 }
 
 // executeEdits returns the places where an execute command changes files:
@@ -863,7 +906,7 @@ func executeEdits(command string) []fileEdit {
 	for _, s := range withNestedShells(script) {
 		for _, r := range s.OutputFiles {
 			if !harmlessOutput(r.Target) {
-				out = append(out, fileEdit{Pos: r.Pos})
+				out = append(out, fileEdit{Pos: r.Pos, Redirected: r.Command})
 			}
 		}
 		for _, c := range s.Commands {
@@ -875,7 +918,11 @@ func executeEdits(command string) []fileEdit {
 				continue
 			}
 			prog := c.program()
-			out = append(out, fileEdit{Pos: c.Pos, Deletion: !writes && (prog == "rm" || prog == "find")})
+			edit := fileEdit{Pos: c.Pos, Deletion: !writes && (prog == "rm" || prog == "find"), Command: true}
+			if prog == "tee" {
+				edit.TeePipeline = c.Pipeline
+			}
+			out = append(out, edit)
 		}
 	}
 	return out
@@ -1013,9 +1060,23 @@ func hasPlusRefspec(args []string) bool {
 // commit made on no branch.
 const detachedHead = "detached HEAD"
 
+// previousBranch is what branchSwitch returns for git checkout - and
+// git switch -, which go back to the branch checked out before.
+const previousBranch = "-"
+
+var (
+	// commitOperand matches git checkout operands that name a commit
+	// rather than a branch, which detach HEAD: an abbreviated or full SHA,
+	// or revision syntax such as HEAD~1 or main@{1}.
+	commitOperand = regexp.MustCompile(`^[0-9a-f]{7,40}$|[~^]|@\{`)
+	// restoredPath matches git checkout operands that look like files,
+	// which git checkout restores without switching branches.
+	restoredPath = regexp.MustCompile(`^\./|\.[A-Za-z]{1,4}$`)
+)
+
 // branchSwitch reports how a command changes the checked-out branch:
-// the new branch name (detachedHead for --detach), and whether the
-// command switched at all.
+// the new branch name (detachedHead for --detach or a commit operand,
+// previousBranch for -), and whether the command switched at all.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
@@ -1037,11 +1098,25 @@ func branchSwitch(c shellCommand) (string, bool) {
 	if slices.Contains(args, "--") {
 		return "", false
 	}
-	operands := nonFlagOperands(args)
-	if len(operands) == 1 {
-		return operands[0], true
+	if slices.Contains(args, "-") {
+		return previousBranch, true
 	}
-	return "", false
+	operands := nonFlagOperands(args)
+	if len(operands) != 1 {
+		return "", false
+	}
+	op := operands[0]
+	if sub == "checkout" {
+		switch {
+		case op == "@{-1}":
+			return previousBranch, true
+		case restoredPath.MatchString(op):
+			return "", false
+		case commitOperand.MatchString(op):
+			return detachedHead, true
+		}
+	}
+	return op, true
 }
 
 func isGitCommit(c shellCommand) bool {

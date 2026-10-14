@@ -443,8 +443,9 @@ func rehydrate(ctx context.Context, dst, bundleDir string) error {
 func runGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, subprocessTimeout)
 	defer cancel()
-	// #nosec G204 -- callers pass fixed git subcommands; bundle content
-	// only reaches git as file paths inside temporary directories.
+	// Callers pass fixed git subcommands; bundle content only reaches git
+	// as file paths inside temporary directories.
+	// #nosec G204
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = []string{

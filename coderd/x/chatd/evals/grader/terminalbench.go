@@ -484,7 +484,52 @@ func runDocker(ctx context.Context, timeout time.Duration, args ...string) ([]by
 	if host := os.Getenv("DOCKER_HOST"); host != "" {
 		cmd.Env = append(cmd.Env, "DOCKER_HOST="+host)
 	}
-	return cmd.CombinedOutput()
+	output := &tailBuffer{limit: dockerOutputLimit}
+	cmd.Stdout = output
+	cmd.Stderr = output
+	err = cmd.Run()
+	return output.Bytes(), err
+}
+
+// dockerOutputLimit caps the docker output the grader keeps per command.
+// tests/test.sh runs agent-produced code for up to the verifier timeout,
+// and its output would otherwise all be held in the grader's memory.
+const dockerOutputLimit = 1 << 20
+
+// tailBuffer is an io.Writer that keeps the last limit bytes written to
+// it. It holds at most twice limit, so trimming is amortized.
+type tailBuffer struct {
+	limit int
+	buf   []byte
+	total int64
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.total += int64(len(p))
+	if len(p) >= b.limit {
+		b.buf = append(b.buf[:0], p[len(p)-b.limit:]...)
+		return len(p), nil
+	}
+	if len(b.buf)+len(p) > 2*b.limit {
+		n := copy(b.buf, b.buf[len(b.buf)-(b.limit-len(p)):])
+		b.buf = b.buf[:n]
+	}
+	b.buf = append(b.buf, p...)
+	return len(p), nil
+}
+
+// Bytes returns the kept tail, preceded by a line that says how many
+// earlier bytes were dropped, if any.
+func (b *tailBuffer) Bytes() []byte {
+	data := b.buf
+	if len(data) > b.limit {
+		data = data[len(data)-b.limit:]
+	}
+	dropped := b.total - int64(len(data))
+	if dropped == 0 {
+		return data
+	}
+	return append([]byte(fmt.Sprintf("[%d earlier bytes dropped]\n", dropped)), data...)
 }
 
 func dockerPath() string {

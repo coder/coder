@@ -471,7 +471,13 @@ func readJournalFailures(path string, landed map[string]bool, out map[string]str
 		return xerrors.Errorf("parse %s: %w", path, err)
 	}
 	for _, e := range j.Entries {
-		if landed[e.TrialID] || e.Status == "completed" || e.Status == "skipped" {
+		if landed[e.TrialID] {
+			continue
+		}
+		// A completed or skipped trial landed a bundle, so one that is
+		// missing (or not a directory) is reported rather than dropped.
+		if e.Status == "completed" || e.Status == "skipped" {
+			out[e.TrialID] = e.Status + ", but its bundle is missing"
 			continue
 		}
 		out[e.TrialID] = strings.TrimSpace(e.Status + ": " + truncate(e.Error, 300))

@@ -641,15 +641,39 @@ func checkTestAfterEdit(in *gradeInput, s checkSpec) (bool, string, map[string]a
 }
 
 // testFollowsEdit reports whether an execute command runs a command
-// matching re at or after its last file change. Deleting files after the
-// test, such as removing a scratch test, does not count as a later change
-// unless the command only deletes.
+// matching re after its last file change. A command that changes files
+// itself is never the test, even when its text matches. The test's own
+// output, through its redirect or a tee in its pipeline, is not a later
+// change. Deleting files after the test, such as removing a scratch test,
+// does not count as a later change unless the command only deletes.
 func testFollowsEdit(command string, re *regexp.Regexp) bool {
+	script, ok := parseShell(command)
+	if !ok {
+		return false
+	}
 	edits := executeEdits(command)
+	var tests []shellCommand
+	for _, s := range withNestedShells(script) {
+		for _, c := range s.Commands {
+			if !re.MatchString(strings.Join(c.Source, " ")) {
+				continue
+			}
+			if slices.ContainsFunc(edits, func(e fileEdit) bool { return e.Command && slices.Equal(e.Pos, c.Pos) }) {
+				continue
+			}
+			tests = append(tests, c)
+		}
+	}
+	testOutput := func(e fileEdit) bool {
+		return slices.ContainsFunc(tests, func(t shellCommand) bool {
+			return (e.Redirected != nil && slices.Equal(e.Redirected, t.Pos)) ||
+				(e.TeePipeline != nil && slices.Equal(e.TeePipeline, t.Pipeline))
+		})
+	}
 	var last scriptPos
 	for _, deletions := range []bool{false, true} {
 		for _, e := range edits {
-			if e.Deletion == deletions && (last == nil || slices.Compare(e.Pos, last) > 0) {
+			if e.Deletion == deletions && !testOutput(e) && (last == nil || slices.Compare(e.Pos, last) > 0) {
 				last = e.Pos
 			}
 		}
@@ -657,24 +681,15 @@ func testFollowsEdit(command string, re *regexp.Regexp) bool {
 			break
 		}
 	}
-	script, ok := parseShell(command)
-	if last == nil || !ok {
-		return false
-	}
-	for _, s := range withNestedShells(script) {
-		for _, c := range s.Commands {
-			if slices.Compare(c.Pos, last) >= 0 && re.MatchString(strings.Join(c.Source, " ")) {
-				return true
-			}
-		}
-	}
-	return false
+	return slices.ContainsFunc(tests, func(t shellCommand) bool {
+		return last == nil || slices.Compare(t.Pos, last) > 0
+	})
 }
 
 // checkExecuteMatches requires an execute call whose command matches
 // Pattern, optionally started with run_in_background (Background), after
-// the first execute matching After, and succeeding with exit code 0
-// (Successful).
+// the first execute matching After, and succeeding with exit code 0 in the
+// foreground (Successful).
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	start := 0
@@ -716,9 +731,12 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	return false, what, nil
 }
 
+// executeSucceeded requires an observed exit code of 0 from a call that
+// ran in the foreground: the trial.json fallback has no exit codes, and a
+// backgrounded command has not finished when its result arrives.
 func executeSucceeded(c toolCall) bool {
 	code, ok := exitCode(c)
-	return c.succeeded() && (!ok || code == 0)
+	return c.succeeded() && ok && code == 0 && !argTrue(c.Args, "run_in_background")
 }
 
 func argTrue(args json.RawMessage, key string) bool {
@@ -853,7 +871,7 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 	if len(defaults) == 0 {
 		defaults = []string{"main", "master"}
 	}
-	current := defaults[0]
+	current, previous := defaults[0], ""
 	commitsOff, commitsOn, detached := 0, 0, 0
 	count := func(branch string) {
 		switch {
@@ -874,7 +892,12 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		summaries := commitSummary.FindAllStringSubmatch(e.Call.resultField("output"), -1)
 		for _, c := range e.Script.Commands {
 			if b, ok := branchSwitch(c); ok && succeeded {
-				current = b
+				switch {
+				case b != previousBranch:
+					current, previous = b, current
+				case previous != "":
+					current, previous = previous, current
+				}
 			}
 			if !isGitCommit(c) {
 				continue
