@@ -16,7 +16,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -775,14 +774,17 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 // these settings (see site/src/theme/themeMode.ts). It returns "" when the
 // theme follows the OS color scheme, which the server cannot know.
 func themeClass(s codersdk.UserAppearanceSettings) string {
-	legacyAuto := slices.Contains([]string{"auto", "auto-protan-deuter", "auto-tritan"}, s.ThemePreference)
-	if s.ThemeMode == codersdk.ThemeModeSync || (s.ThemeMode != codersdk.ThemeModeSingle && legacyAuto) {
+	// Theme names are "<scheme>" or "<scheme>-<palette>".
+	scheme, _, _ := strings.Cut(s.ThemePreference, "-")
+	switch {
+	case s.ThemeMode == codersdk.ThemeModeSync,
+		s.ThemeMode != codersdk.ThemeModeSingle && scheme == "auto":
 		return ""
-	}
-	if slices.Contains([]string{"light", "light-protan-deuter", "light-tritan"}, s.ThemePreference) {
+	case scheme == "light":
 		return "light"
+	default:
+		return "dark"
 	}
-	return "dark"
 }
 
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
