@@ -283,7 +283,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     Disable and re-enable the toggle, or repeat the steps above.
 
 > [!NOTE]
-> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver; restarting the service is what clears its internal cache.
+> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver. Restarting the service is what clears its internal cache.
 > If you are running a network filtering agent (for example, Zscaler), it may shadow `.coder` lookups even after the tunnel comes back.
 > Check with your IT team if DNS still fails after a clean restart.
 
