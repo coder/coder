@@ -92,6 +92,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { BedrockInvokeModelNotice } from "./BedrockInvokeModelNotice";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -788,9 +789,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const overflowBadges = allBadges.slice(visibleCount);
 
 	const isReadOnlyView = readOnlyNotice !== undefined;
-	const readOnlyModel = isReadOnlyView
-		? modelOptions.find((option) => option.id === selectedModel)
-		: undefined;
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	const readOnlyModel = isReadOnlyView ? selectedModelOption : undefined;
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
@@ -1396,6 +1398,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
+				)}
+				{!isReadOnlyView && selectedModelOption?.bedrockInvokeModel && (
+					<BedrockInvokeModelNotice model={selectedModelOption} />
 				)}
 				{isEditingHistoryMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">

@@ -267,6 +267,22 @@ export const NoModelOptions: Story = {
 	},
 };
 
+export const BedrockInvokeModelNotice: Story = {
+	args: {
+		selectedModel: "model-config-bedrock",
+		modelOptions: [
+			{
+				id: "model-config-bedrock",
+				provider: "bedrock",
+				providerLabel: "AWS Bedrock",
+				model: "claude-opus-4-5",
+				displayName: "Claude Opus 4.5",
+				bedrockInvokeModel: true,
+			},
+		],
+	},
+};
+
 export const AIGatewayDisabledShowsSetupNotice: Story = {
 	args: {
 		// canConfigureAgentSetup: false and providerCount/modelCount left
