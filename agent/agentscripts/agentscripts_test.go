@@ -341,8 +341,7 @@ func (*executeOptionTestLogger) Flush(context.Context) error {
 	return nil
 }
 
-// Scripts with addresses but no dependencies run as before, and a
-// dependency on a stop-only script orders the stop execution without
+// A dependency on a stop-only script orders the stop execution without
 // touching the start execution.
 func TestExecuteFastPath(t *testing.T) {
 	t.Parallel()
@@ -397,9 +396,6 @@ func TestExecuteFastPath(t *testing.T) {
 	})
 }
 
-// Through the real runner, a dependent whose timeout is shorter than
-// its prerequisite's run time still succeeds, because its timeout starts
-// when it starts.
 func TestExecuteOrderedTimeoutStartsAfterWaiting(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

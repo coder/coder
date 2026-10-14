@@ -19,22 +19,16 @@ import (
 	"github.com/coder/quartz"
 )
 
-// dependencyLogInterval is how often a waiting script's log gets a summary
-// line. Thirty seconds is often enough to show the wait is still alive in
-// the dashboard, and rare enough not to flood the log when a prerequisite
-// takes minutes.
+// Often enough to show the wait is alive, rare enough not to flood the log.
 const dependencyLogInterval = 30 * time.Second
 
 // lifecycleExecutor runs one start or stop execution whose scripts carry
-// dependencies. The unit manager decides when each script runs, is skipped
-// or keeps waiting; the executor only starts scripts, records outcomes and
-// writes the two diagnostic log lines.
+// dependencies.
 type lifecycleExecutor struct {
 	clock           quartz.Clock
 	logger          slog.Logger
 	getScriptLogger func(uuid.UUID) ScriptLogger
-	// run is Runner.runTracked in production. Tests substitute a fake so no
-	// process starts.
+	// run is Runner.runTracked; tests replace it with a fake.
 	run func(context.Context, codersdk.WorkspaceAgentScript, ExecuteOption) error
 }
 
@@ -76,9 +70,8 @@ func lifecycleManager(scripts []codersdk.WorkspaceAgentScript) (*unit.Manager, m
 	manager := unit.NewManager()
 	scriptsByAddress := make(map[string]codersdk.WorkspaceAgentScript, len(scripts))
 
-	// Every addressed script is registered first, because a prerequisite
-	// with no dependencies of its own still needs a unit for its
-	// dependents' edges to point at.
+	// Both ends of an edge must be registered before the edge is added, and
+	// a prerequisite can come after its dependent in the list.
 	for _, script := range scripts {
 		if script.ResourceAddress == "" {
 			if len(script.Dependencies) > 0 {
@@ -125,8 +118,8 @@ func lifecycleManager(scripts []codersdk.WorkspaceAgentScript) (*unit.Manager, m
 	return manager, scriptsByAddress, nil
 }
 
-// lifecycleRequirement is a switch rather than a cast so a requirement word
-// the manager does not know cannot pass through as a third kind of edge.
+// lifecycleRequirement uses a switch rather than a cast so the codersdk and
+// unit requirement strings can change independently.
 func lifecycleRequirement(requirement codersdk.WorkspaceAgentScriptDependencyRequirement) (unit.Requirement, error) {
 	switch requirement {
 	case codersdk.WorkspaceAgentScriptDependencyRequirementSuccess:
@@ -187,8 +180,7 @@ func (e lifecycleExecutor) executeScript(
 		if err := record(unit.OutcomeSkipped); err != nil {
 			return err
 		}
-		// A skip is not an error. The prerequisite's own failure is what
-		// sets the lifecycle state.
+		// The prerequisite's own error already sets the lifecycle state.
 		return nil
 	case unit.DecisionRunnable:
 		if err := record(unit.OutcomeRunning); err != nil {
@@ -212,8 +204,6 @@ func recordOutcome(manager *unit.Manager, id unit.ID, outcome unit.Outcome) erro
 	return nil
 }
 
-// waitForDecision blocks until the manager says runnable or skip, or ctx
-// ends, writing one summary line per interval to the script's log.
 func (e lifecycleExecutor) waitForDecision(
 	ctx context.Context,
 	manager *unit.Manager,
@@ -280,8 +270,7 @@ func (e lifecycleExecutor) logWaiting(
 }
 
 // logSkipped names every direct success prerequisite that can no longer
-// succeed at the moment of the decision. A prerequisite still pending or
-// running did not cause the skip and is not named.
+// succeed at the moment of the decision.
 func (e lifecycleExecutor) logSkipped(
 	ctx context.Context,
 	script codersdk.WorkspaceAgentScript,
@@ -347,10 +336,8 @@ func (e lifecycleExecutor) sendScriptLog(ctx context.Context, script codersdk.Wo
 	}
 }
 
-// scriptOutcome uses a fixed rule so a script that finishes in the same
-// instant the context is canceled is recorded the same way whichever
-// goroutine ran first. A script's own timeout counts as timed out even
-// during cancellation; any other error during cancellation is canceled.
+// scriptOutcome keeps success and the script's own timeout even when the
+// context is canceled, because cancellation did not cause them.
 func scriptOutcome(runErr error, ctxErr error) unit.Outcome {
 	switch {
 	case runErr == nil:

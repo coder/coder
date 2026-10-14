@@ -232,9 +232,6 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		scripts = append(scripts, script)
 	}
 
-	// Only start and stop executions are ordered. Everything else, and any
-	// execution where no selected script has a dependency, keeps running
-	// every script at once.
 	if (option == ExecuteStartScripts || option == ExecuteStopScripts) && anyOrdered(scripts) {
 		executor := lifecycleExecutor{
 			clock:           r.Clock,
