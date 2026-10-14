@@ -425,6 +425,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	return (
 		<>
 			<AgentPageHeader
+				floating={project !== undefined}
 				chimeEnabled={chimeEnabled}
 				onToggleChime={handleChimeToggle}
 				webPush={webPush}

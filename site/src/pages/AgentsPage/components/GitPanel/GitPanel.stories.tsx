@@ -435,6 +435,30 @@ export const MultipleOrigins: Story = {
 	},
 };
 
+const mockOtherOriginPullRequest = makePrStatus({
+	remote_origin: "https://github.example.com/coder/other-project.git",
+	url: "https://github.example.com/coder/other-project/pull/23021",
+	pr_number: 23021,
+	head_branch: "feat/other-project",
+	git_branch: "feat/other-project",
+});
+
+/** Narrow panel: the switcher label truncates before View PR does. */
+export const NarrowPanelMultipleOrigins: Story = {
+	args: {
+		chatId: "test-chat",
+		primaryDiffStatus: mockOtherOriginPullRequest,
+		remoteDiffStats: [mockFirstPullRequest, mockOtherOriginPullRequest],
+	},
+	decorators: [
+		(Story) => (
+			<div className="h-full w-90">
+				<Story />
+			</div>
+		),
+	],
+};
+
 /** No remote changes and no working changes. */
 export const EmptyState: Story = {
 	args: {
