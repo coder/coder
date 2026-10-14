@@ -3,13 +3,20 @@ package templatebuilder_test
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"regexp"
+	"slices"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 )
@@ -583,16 +590,39 @@ func TestBundleTar(t *testing.T) {
 	})
 }
 
-// optionValuePattern matches a quoted `value = "..."` assignment. In the
-// quickstart base such a quoted literal only appears inside the languages
-// selector's option {} blocks: Docker labels assign `value = data....` and
-// presets assign `languages = jsonencode(...)`, neither of which is a quoted
-// `value = "..."`.
-var optionValuePattern = regexp.MustCompile(`(?m)^\s*value\s*=\s*"([^"]+)"`)
-
 // hasLanguageDispatchPattern matches the `if has_language <name>` call sites in
 // the quickstart language-install script (not the has_language definition).
 var hasLanguageDispatchPattern = regexp.MustCompile(`(?m)^\s*if has_language (\S+?);`)
+
+// jsonencodeContext evaluates the jsonencode calls the quickstart base uses for
+// list-valued parameter defaults and preset values.
+var jsonencodeContext = &hcl.EvalContext{
+	Functions: map[string]function.Function{"jsonencode": stdlib.JSONEncodeFunc},
+}
+
+// findBlocks returns the blocks of the given type whose labels start with
+// labels (or every block of that type when no labels are given).
+func findBlocks(body *hclsyntax.Body, blockType string, labels ...string) []*hclsyntax.Block {
+	var out []*hclsyntax.Block
+	for _, b := range body.Blocks {
+		if b.Type == blockType && len(b.Labels) >= len(labels) && slices.Equal(b.Labels[:len(labels)], labels) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// decodeJSONStringList evaluates an HCL expression that yields a JSON-encoded
+// list of strings, such as jsonencode(["a", "b"]).
+func decodeJSONStringList(t *testing.T, expr hclsyntax.Expression) []string {
+	t.Helper()
+	val, diags := expr.Value(jsonencodeContext)
+	require.False(t, diags.HasErrors(), diags.Error())
+	require.Equal(t, cty.String, val.Type())
+	var out []string
+	require.NoError(t, json.Unmarshal([]byte(val.AsString()), &out))
+	return out
+}
 
 // TestQuickstartLanguageSelectorMatchesInstallScript enforces that the
 // quickstart "languages" selector options and the language-install script's
@@ -600,6 +630,8 @@ var hasLanguageDispatchPattern = regexp.MustCompile(`(?m)^\s*if has_language (\S
 // two hand-maintained lists with nothing else binding them: if one gains or
 // loses a language without the other, a selected language would silently
 // install nothing (or a branch would be dead). This test fails on that drift.
+// It also enforces that the parameter default and every workspace preset only
+// reference languages the selector offers.
 func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 	t.Parallel()
 
@@ -607,9 +639,23 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 		"quickstart", "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext("quickstart"))
 	require.NoError(t, err)
 
+	file, diags := hclsyntax.ParseConfig(mainTF, "main.tf", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), diags.Error())
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+
+	blocks := findBlocks(body, "data", "coder_parameter", "languages")
+	require.Len(t, blocks, 1, "expected one coder_parameter named languages")
+	languages := blocks[0]
+
 	var selectorValues []string
-	for _, m := range optionValuePattern.FindAllSubmatch(mainTF, -1) {
-		selectorValues = append(selectorValues, string(m[1]))
+	for _, opt := range findBlocks(languages.Body, "option") {
+		attr, ok := opt.Body.Attributes["value"]
+		require.True(t, ok, "option at %s must set value", opt.DefRange())
+		val, diags := attr.Expr.Value(nil)
+		require.False(t, diags.HasErrors(), diags.Error())
+		require.Equal(t, cty.String, val.Type(), "option at %s value must be a string", opt.DefRange())
+		selectorValues = append(selectorValues, val.AsString())
 	}
 	require.NotEmpty(t, selectorValues,
 		"expected the quickstart languages selector to declare options")
@@ -628,6 +674,32 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 
 	require.ElementsMatch(t, selectorValues, dispatchNames,
 		"quickstart languages selector options must match the install script's has_language branches")
+
+	defaultAttr, ok := languages.Body.Attributes["default"]
+	require.True(t, ok, "expected the languages parameter to declare a default")
+	require.Subset(t, selectorValues, decodeJSONStringList(t, defaultAttr.Expr),
+		"languages default must be a subset of the selector options")
+
+	presets := findBlocks(body, "data", "coder_workspace_preset")
+	require.NotEmpty(t, presets, "expected the quickstart base to declare workspace presets")
+	for _, preset := range presets {
+		name := preset.Labels[1]
+		params, ok := preset.Body.Attributes["parameters"]
+		require.True(t, ok, "preset %s must declare parameters", name)
+		pairs, ok := params.Expr.(*hclsyntax.ObjectConsExpr)
+		require.True(t, ok, "preset %s parameters must be an object", name)
+		var found bool
+		for _, item := range pairs.Items {
+			key, diags := item.KeyExpr.Value(nil)
+			if diags.HasErrors() || !key.Type().Equals(cty.String) || key.AsString() != "languages" {
+				continue
+			}
+			found = true
+			require.Subset(t, selectorValues, decodeJSONStringList(t, item.ValueExpr),
+				"preset %s languages must be a subset of the selector options", name)
+		}
+		require.True(t, found, "preset %s must set languages", name)
+	}
 }
 
 // TestComposeBaseHonorsRegistryMirror verifies a base-embedded module source is
