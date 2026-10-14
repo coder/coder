@@ -154,9 +154,12 @@ func TestTelemetry(t *testing.T) {
 
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			ConnectionMedianLatencyMS: 1,
-			// Names from the same family, one of them an alias, so the fixed
-			// session count fields cover the app name folding.
-			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "zed": 3}),
+			SessionCounts: dbgen.SessionCounts(t, map[string]int64{
+				"cursor":  2,
+				"vscode":  1,
+				"zed":     3,
+				"unknown": 4,
+			}),
 		})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
@@ -276,6 +279,12 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+		require.Equal(t, map[string]int64{
+			"cursor":  2,
+			"vscode":  1,
+			"zed":     3,
+			"unknown": 4,
+		}, snapshot.WorkspaceAgentStats[0].SessionCounts)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountVSCode)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountSSH)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
@@ -565,6 +574,28 @@ func TestTelemetryInstallSource(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	deployment, _ := collectSnapshot(ctx, t, db, nil)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
+}
+
+// TestTelemetryExcludesExperimentRuleConditions guards against condition
+// text, which only the rules API may return, leaking into telemetry.
+func TestTelemetryExcludesExperimentRuleConditions(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sentinel := "telemetry-sentinel-" + uuid.NewString()
+	value, err := json.Marshal(map[string]any{"mode": "condition", "condition": fmt.Sprintf("user.email == %q", sentinel), "revision": 1})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{
+		Experiment: string(codersdk.ExperimentExample),
+		Value:      string(value),
+	}))
+
+	deployment, snapshot := collectSnapshot(ctx, t, db, nil)
+	for _, report := range []any{deployment, snapshot} {
+		data, err := json.Marshal(report)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), sentinel)
+	}
 }
 
 func TestTelemetryItem(t *testing.T) {

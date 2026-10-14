@@ -13,7 +13,9 @@ Terraform.
 
 You can read more about OpenTofu and HashiCorp's licensing in our [blog post](https://coder.com/blog/hashicorp-license) on the Terraform licensing changes.
 
-## Using a custom Terraform binary
+<a id="using-a-custom-terraform-binary"></a>
+
+## Use a custom Terraform binary
 
 You can change your deployment custom Terraform binary as long as it is in
 `PATH` and is within the

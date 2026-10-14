@@ -1,4 +1,4 @@
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import {
@@ -20,7 +20,7 @@ import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 import { WorkspaceSettings } from "./useWorkspaceSettings";
 
-export const WorkspaceSettingsLayout: FC = () => {
+export const WorkspaceSettingsLayout: React.FC = () => {
 	const params = useParams() as {
 		workspace: string;
 		username: string;

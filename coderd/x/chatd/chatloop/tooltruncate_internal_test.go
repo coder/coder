@@ -29,14 +29,14 @@ func TestToolResultByteBudget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, toolResultByteBudget(tt.contextLimit))
+			assert.Equal(t, tt.want, ToolResultByteBudget(tt.contextLimit))
 		})
 	}
 
 	t.Run("NeverBelowFloor", func(t *testing.T) {
 		t.Parallel()
 		for limit := int64(1); limit <= 200_000; limit += 137 {
-			assert.GreaterOrEqual(t, toolResultByteBudget(limit), minToolResultBytes)
+			assert.GreaterOrEqual(t, ToolResultByteBudget(limit), minToolResultBytes)
 		}
 	})
 }
@@ -47,7 +47,7 @@ func TestTruncateToolResultText(t *testing.T) {
 	t.Run("UnderLimitUnchanged", func(t *testing.T) {
 		t.Parallel()
 		in := "small output"
-		out, truncated := truncateToolResultText(in, 1024)
+		out, truncated := TruncateToolResultText(in, 1024)
 		assert.False(t, truncated)
 		assert.Equal(t, in, out)
 	})
@@ -55,7 +55,7 @@ func TestTruncateToolResultText(t *testing.T) {
 	t.Run("ExactlyAtLimitUnchanged", func(t *testing.T) {
 		t.Parallel()
 		in := strings.Repeat("a", 1024)
-		out, truncated := truncateToolResultText(in, 1024)
+		out, truncated := TruncateToolResultText(in, 1024)
 		assert.False(t, truncated)
 		assert.Equal(t, in, out)
 	})
@@ -63,7 +63,7 @@ func TestTruncateToolResultText(t *testing.T) {
 	t.Run("ZeroBudgetUnchanged", func(t *testing.T) {
 		t.Parallel()
 		in := strings.Repeat("a", 1024)
-		out, truncated := truncateToolResultText(in, 0)
+		out, truncated := TruncateToolResultText(in, 0)
 		assert.False(t, truncated)
 		assert.Equal(t, in, out)
 	})
@@ -72,7 +72,7 @@ func TestTruncateToolResultText(t *testing.T) {
 		t.Parallel()
 		in := strings.Repeat("A", 1000) + "MIDDLE" + strings.Repeat("B", 1000)
 		const maxBytes = 600
-		out, truncated := truncateToolResultText(in, maxBytes)
+		out, truncated := TruncateToolResultText(in, maxBytes)
 		require.True(t, truncated)
 		assert.LessOrEqual(t, len(out), maxBytes)
 		assert.True(t, utf8.ValidString(out))
@@ -87,7 +87,7 @@ func TestTruncateToolResultText(t *testing.T) {
 		// Each rune is 3 bytes, so cuts routinely land mid-rune.
 		in := strings.Repeat("界", 1000)
 		const maxBytes = 600
-		out, truncated := truncateToolResultText(in, maxBytes)
+		out, truncated := TruncateToolResultText(in, maxBytes)
 		require.True(t, truncated)
 		assert.LessOrEqual(t, len(out), maxBytes)
 		assert.True(t, utf8.ValidString(out), "truncated output must be valid UTF-8")
@@ -97,7 +97,7 @@ func TestTruncateToolResultText(t *testing.T) {
 		t.Parallel()
 		in := strings.Repeat("界", 10) // 30 bytes
 		const maxBytes = 10
-		out, truncated := truncateToolResultText(in, maxBytes)
+		out, truncated := TruncateToolResultText(in, maxBytes)
 		require.True(t, truncated)
 		assert.LessOrEqual(t, len(out), maxBytes)
 		assert.True(t, utf8.ValidString(out))

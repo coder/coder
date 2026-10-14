@@ -13,8 +13,9 @@ type PlanState struct {
 func planModules(plan *tfjson.Plan) []*tfjson.StateModule {
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
-		// We need the data resources for rich parameters. For some reason, they
-		// only show up in the PriorState.
+		// Terraform records data sources read during planning in
+		// PriorState rather than PlannedValues. Retain them for rich
+		// parameters and script ordering.
 		//
 		// We don't want all prior resources, because Quotas (and
 		// future features) would never know which resources are getting

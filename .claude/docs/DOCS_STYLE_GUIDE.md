@@ -14,7 +14,7 @@ This guide documents structure, research, and content patterns for documentation
 > Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > This file remains authoritative for structure, research, and content patterns.
 
-See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -165,7 +165,7 @@ superseded by the canonical content guidelines.
 ### Instructions
 
 - **Numbered lists** for sequential steps
-- **Start with verb**: "Navigate to", "Click", "Select", "Run"
+- **Start with verb**: "Navigate to", "Select", "Run" (write `select`, not `click`; DOC6 in [docs/AGENTS.md](../../docs/AGENTS.md))
 - **Be specific**: Include exact button/menu names in bold
 
 ## Code Examples
@@ -276,7 +276,7 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-**CRITICAL**: All documentation pages must be added to `docs/manifest.json` to appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
+Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
 
 ## Documentation lands with the change
 
@@ -359,12 +359,12 @@ Don't manually edit auto-generated sections.
 
 When renaming or moving documentation pages, redirects must be added to prevent broken links.
 
-**Important**: Redirects are NOT configured in this repository. The coder.com website runs on Vercel with Next.js and reads redirects from a separate repository:
+Redirects are configured in `docs/redirects.json` in this repository. The coder.com website runs on Vercel with Next.js, reads the file at build time, and rebuilds when it changes.
 
-- **Redirect configuration**: https://github.com/coder/coder.com/blob/master/redirects.json
+- **Redirect configuration**: `docs/redirects.json`, a JSON array of `{"source", "destination", "permanent"}` rules. Both paths are full `/docs/...` paths, `permanent` is optional and defaults to `true`, and a destination may be an external URL. A source is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
 - **Do NOT create** a `docs/_redirects` file - this format (used by Netlify/Cloudflare Pages) is not processed by coder.com
 
-When you rename or move a doc page, create a PR in coder/coder.com to add the redirect.
+When you rename or move a doc page, add the rule to `docs/redirects.json` in the same PR. Each release branch has its own copy, and the unversioned docs are served from the mainline release branch, so backport the move and its redirect together.
 
 ## Key Principles
 
@@ -372,7 +372,7 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 2. **Be precise** - Use exact numbers, permission names, and API paths for
    the values that belong on the page per
    [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-3. **Visual structure** - Organize around screenshots when available
+3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
-5. **Manifest inclusion** - Add to manifest.json for navigation
-6. **Add redirects** - When moving/renaming pages, add redirects in coder/coder.com repo
+5. **Manifest inclusion** - Add to `docs/manifest/` for navigation
+6. **Add redirects** - When moving/renaming pages, add a rule to `docs/redirects.json` in the same PR

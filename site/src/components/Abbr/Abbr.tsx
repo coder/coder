@@ -1,9 +1,8 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 
 type Pronunciation = "shorthand" | "acronym" | "initialism";
 
-type AbbrProps = ComponentProps<"abbr"> & {
+type AbbrProps = React.ComponentProps<"abbr"> & {
 	children: string;
 	title: string;
 	pronunciation?: Pronunciation;
@@ -19,7 +18,7 @@ type AbbrProps = ComponentProps<"abbr"> & {
  * - Better integration with screen readers (like exposing the title prop to
  *   them), with more options for influencing how they pronounce text
  */
-export const Abbr: FC<AbbrProps> = ({
+export const Abbr: React.FC<AbbrProps> = ({
 	children,
 	title,
 	pronunciation = "shorthand",

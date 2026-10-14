@@ -1,7 +1,6 @@
 import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
@@ -17,6 +16,7 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
@@ -25,18 +25,17 @@ import {
 
 type WorkspaceOutdatedTooltipProps = {
 	workspace: Workspace;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
-	workspace,
-	children,
-}) => {
+export const WorkspaceOutdatedTooltip: React.FC<
+	WorkspaceOutdatedTooltipProps
+> = ({ workspace, children }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	// Stop activation from bubbling to a parent `useClickableTableRow` row,
-	// which navigates on click, Enter (onKeyDown), and Space (onKeyUp). Radix
-	// composes its own click handler, so the popover still opens.
+	// Keep trigger clicks from triggering a parent clickable row's navigation.
+	// Radix composes its own click handler, so the popover still opens. The
+	// span's key handlers only satisfy Biome's lint/a11y/useKeyWithClickEvents.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -60,8 +59,6 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					size="small"
 					hoverEffect={false}
 					onClick={stopPropagation}
-					onKeyDown={stopPropagation}
-					onKeyUp={stopPropagation}
 				>
 					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>
@@ -74,7 +71,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 
 type TooltipContentProps = WorkspaceOutdatedTooltipProps & { isOpen: boolean };
 
-const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
+const WorkspaceOutdatedTooltipContent: React.FC<TooltipContentProps> = ({
 	workspace,
 	isOpen,
 }) => {

@@ -8,7 +8,7 @@ When implementing standard protocols (OAuth2, OpenID Connect, etc.):
 
 1. **Fetch and Analyze Official RFCs**:
    - Always read the actual RFC specifications before implementation
-   - Use WebFetch tool to get current RFC content for compliance verification
+   - Fetch the current RFC text (for example, with your harness's web fetch tool) for compliance verification
    - Document RFC requirements in code comments
 
 2. **Default Values Matter**:
@@ -66,15 +66,10 @@ var (
     errInvalidPKCE = xerrors.New("invalid code_verifier")
 )
 
-// Use OAuth2-compliant error responses
-type OAuth2Error struct {
-    Error            string `json:"error"`
-    ErrorDescription string `json:"error_description,omitempty"`
-}
-
-// Return proper OAuth2 errors
+// Return RFC 6749 errors with the shared helper; codersdk defines the
+// response type (codersdk.OAuth2Error) and the error codes.
 if errors.Is(err, errInvalidPKCE) {
-    writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The PKCE code verifier is invalid")
+    httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
     return
 }
 ```
@@ -136,7 +131,7 @@ roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user
 ## OAuth2/Authentication Work Patterns
 
 - Types go in `codersdk/oauth2.go` or similar
-- Handlers go in `coderd/oauth2.go` or `coderd/identityprovider/`
+- Handlers go in `coderd/oauth2.go` or `coderd/oauth2provider/`
 - Database fields need migration + audit table updates
 - Always support backward compatibility
 

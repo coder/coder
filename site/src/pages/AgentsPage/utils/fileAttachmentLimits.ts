@@ -1,13 +1,29 @@
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError, isApiErrorResponse } from "#/api/errors";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 
 export const formatAgentAttachmentTooLargeError = (fileSize: number): string =>
 	`File too large (${(fileSize / 1024 / 1024).toFixed(1)} MiB). Maximum is ${MaxChatFileSizeBytes / 1024 / 1024} MiB.`;
 
+// Unlike getErrorDetail, never fall back to the developer console hint:
+// upload errors render on compact chips next to the file.
+const getUploadErrorDetail = (error: unknown): string | undefined => {
+	if (isApiError(error)) {
+		return error.response.data.detail;
+	}
+	if (isApiErrorResponse(error)) {
+		return error.detail;
+	}
+	return undefined;
+};
+
 export const formatAgentAttachmentUploadError = (error: unknown): string => {
-	const message = getErrorMessage(error, "Upload failed");
-	const detail = getErrorDetail(error);
-	return detail ? `${message}. ${detail}` : message;
+	const message = getErrorMessage(error, "Upload failed").trim();
+	const detail = getUploadErrorDetail(error)?.trim();
+	if (!detail) {
+		return message;
+	}
+	const separator = /[.!?]$/.test(message) ? " " : ". ";
+	return `${message}${separator}${detail}`;
 };
 
 export const readAgentAttachmentText = (file: File): Promise<string> => {

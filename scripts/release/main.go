@@ -236,31 +236,29 @@ func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpen
 
 	logger.Info(ctx, "promoting selected version to stable")
 
-	// Update the release to latest.
-	updatedNewStable := cloneRelease(newStable)
-
+	// Update the release to latest. Only send the fields we change:
+	// releases on this repo are immutable, and GitHub rejects an edit
+	// that carries the tag, target commitish or assets of an immutable
+	// release (it answers 404 Not Found), even when those values are
+	// unchanged. Body, prerelease and make_latest remain editable.
 	updatedBody := removeMainlineBlurb(newStable.GetBody())
 	updatedBody = addStableSince(time.Now().UTC(), updatedBody)
-	updatedNewStable.Body = github.String(updatedBody)
-	updatedNewStable.MakeLatest = github.String("true")
-	updatedNewStable.Prerelease = github.Bool(false)
-	updatedNewStable.Draft = github.Bool(false)
+	edit := &github.RepositoryRelease{
+		Body:       github.String(updatedBody),
+		MakeLatest: github.String("true"),
+		Prerelease: github.Bool(false),
+	}
 	if !r.dryRun {
-		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), updatedNewStable)
+		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), edit)
 		if err != nil {
 			return xerrors.Errorf("edit release failed: %w", err)
 		}
 		logger.Info(ctx, "selected version promoted to stable", slog.F("url", newStable.GetHTMLURL()))
 	} else {
-		logger.Info(ctx, "dry-run: release not updated", slog.F("uncommitted_changes", cmp.Diff(newStable, updatedNewStable)))
+		logger.Info(ctx, "dry-run: release not updated", slog.F("body_diff", cmp.Diff(newStable.GetBody(), updatedBody)))
 	}
 
 	return nil
-}
-
-func cloneRelease(r *github.RepositoryRelease) *github.RepositoryRelease {
-	rr := *r
-	return &rr
 }
 
 // addStableSince adds a stable since note to the release body.
@@ -281,7 +279,7 @@ func addStableSince(date time.Time, body string) string {
 // Example:
 //
 //	> [!NOTE]
-//	> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).
+//	> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/reference/releases).
 func removeMainlineBlurb(body string) string {
 	lines := strings.Split(body, "\n")
 

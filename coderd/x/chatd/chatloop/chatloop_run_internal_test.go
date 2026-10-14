@@ -18,6 +18,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -174,6 +175,60 @@ func TestGenerateAssistant_ProviderContextSurvivesStreamError(t *testing.T) {
 	classified := chaterror.Classify(err)
 	require.Equal(t, "openai", classified.Provider)
 	require.Equal(t, "OpenAI returned an unexpected error.", classified.Message)
+}
+
+func TestGenerateAssistant_ProviderResponseID(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		finish fantasy.StreamPart
+		want   string
+	}{
+		{
+			name:   "anthropic message ID",
+			finish: fantasy.StreamPart{ID: "msg_anthropic"},
+			want:   "msg_anthropic",
+		},
+		{
+			name: "openai responses metadata",
+			finish: fantasy.StreamPart{ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderMetadata{ResponseID: "resp_openai"},
+			}},
+			want: "resp_openai",
+		},
+		{
+			name: "not reported",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			finish := tc.finish
+			finish.Type = fantasy.StreamPartTypeFinish
+			finish.FinishReason = fantasy.FinishReasonStop
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "hi"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+						finish,
+					}), nil
+				},
+			}
+
+			outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+				Model:    model,
+				Messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, outcome.Step.ProviderResponseID)
+		})
+	}
 }
 
 func TestGenerateAssistant_ErrorProviderOverridesTransportLabel(t *testing.T) {
@@ -954,6 +1009,9 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
@@ -1026,6 +1084,9 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
@@ -1104,6 +1165,9 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.True(t, notified)
@@ -1172,6 +1236,9 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
@@ -1261,6 +1328,9 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
+			nil,
+			nil,
+			StageModel{},
 		)
 	}()
 
@@ -1331,7 +1401,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1344,6 +1414,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1381,7 +1452,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1394,6 +1465,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1426,7 +1498,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1439,6 +1511,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1477,7 +1550,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 					return fantasy.ToolResponse{Type: "media", Data: tc.data, MediaType: tc.mediaType, Content: "Ran Playwright code"}, nil
 				},
 			)
-			result := executeSingleTool(
+			result, _ := executeSingleTool(
 				context.Background(),
 				map[string]fantasy.AgentTool{"screenshot": tool},
 				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
@@ -1490,6 +1563,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 				map[string]struct{}{},
 				nil,
 				defaultToolResultBytes,
+				nil,
 				nil,
 			)
 
@@ -1532,7 +1606,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		Input:      "{}",
 	}
 
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		toolMap,
 		tc,
@@ -1546,6 +1620,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		nil,
 		defaultToolResultBytes,
 		map[string]string{"close_agent": "interrupt_agent"},
+		nil,
 	)
 
 	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
@@ -1573,7 +1648,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	// No alias provided: the deprecated name is neither active nor in the
 	// tool map, so it surfaces a clear not-active error and the model can
 	// self-correct to the advertised name.
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		map[string]fantasy.AgentTool{},
 		tc,
@@ -1586,6 +1661,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
+		nil,
 		nil,
 	)
 
@@ -1603,7 +1679,7 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 			return fantasy.NewTextResponse("ok"), nil
 		},
 	)
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		map[string]fantasy.AgentTool{"server__direct": tool},
 		fantasy.ToolCallContent{ToolCallID: "call-direct", ToolName: "server__direct", Input: "{}"},
@@ -1616,6 +1692,7 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
+		nil,
 		nil,
 	)
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)

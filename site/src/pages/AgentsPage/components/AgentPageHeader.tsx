@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	BellIcon,
@@ -8,7 +9,6 @@ import {
 	Volume2Icon,
 	VolumeOffIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
 	Link,
@@ -17,7 +17,6 @@ import {
 	useLocation,
 	useOutletContext,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
@@ -28,24 +27,28 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 type AgentPageHeaderProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
+	/** On desktop, overlays the page instead of taking its own row. */
+	floating?: boolean;
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
 	onToggleNotifications?: () => Promise<void> | void;
 };
 
-export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
+export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	children,
 	mobileBack,
+	floating = false,
 	chimeEnabled: controlledChimeEnabled,
 	onToggleChime,
 	webPush: controlledWebPush,
@@ -113,7 +116,14 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	};
 
 	return (
-		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-0 sm:px-4 sm:py-0.5">
+		<div
+			className={cn(
+				"order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-0 sm:px-4 sm:py-0.5",
+				// The row spans the page width, so only its buttons take clicks.
+				floating &&
+					"sm:pointer-events-none sm:absolute sm:inset-x-0 sm:top-0 sm:z-10",
+			)}
+		>
 			{mobileBack ? (
 				<Button
 					asChild
@@ -139,14 +149,16 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					size="icon"
 					onClick={onExpandSidebar}
 					aria-label="Expand sidebar"
-					className="hidden size-7 min-w-0 shrink-0 sm:inline-flex"
+					className="pointer-events-auto hidden size-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
 			{children && isDesktop && (
-				<div className="hidden items-center gap-2 sm:flex">{children}</div>
+				<div className="pointer-events-auto hidden items-center gap-2 sm:flex">
+					{children}
+				</div>
 			)}
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && !isDesktop && (

@@ -1,12 +1,12 @@
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createMCPServerConfig } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -18,7 +18,7 @@ import {
 } from "../organizationParam";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
-const AddMCPServerPage: FC = () => {
+const AddMCPServerPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();

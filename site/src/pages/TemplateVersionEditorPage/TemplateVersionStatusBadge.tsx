@@ -1,5 +1,4 @@
 import { CheckIcon, CircleAlertIcon, HourglassIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Badge, type BadgeProps } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -9,7 +8,7 @@ type TemplateVersionStatusBadgeProps = {
 	version: TemplateVersion;
 };
 
-export const TemplateVersionStatusBadge: FC<
+export const TemplateVersionStatusBadge: React.FC<
 	TemplateVersionStatusBadgeProps
 > = ({ version }) => {
 	const { text, icon, variant } = getStatus(version);
@@ -26,7 +25,7 @@ const getStatus = (
 ): {
 	variant: NonNullable<BadgeProps["variant"]>;
 	text: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 } => {
 	switch (version.job.status) {
 		case "running":

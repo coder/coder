@@ -16,6 +16,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+const MaxAIProviderAPIKeys = 5
+
 // AIProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
 // Provider names are lowercase alphanumeric with hyphen separators so
 // they are safe in URLs.
@@ -82,34 +85,56 @@ func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
 //
 // On the wire, settings serialize as a JSON object that always carries
 // _type and _version discriminator keys alongside the type-specific
-// fields. Bedrock settings may also carry upstream headers in the same
-// object. The custom (Un)MarshalJSON implementations on this type handle
-// the routing automatically; callers should never marshal the concrete
-// settings struct directly.
+// fields. Bedrock and Claude Platform for AWS settings may also carry
+// upstream headers in the same object. The custom (Un)MarshalJSON
+// implementations on this type handle the routing automatically; callers
+// should never marshal the concrete settings struct directly.
+//
+// AIProviderTypeBedrock is a distinct provider type for historical reasons.
+// New Anthropic *authentication methods* do not get provider types: they are
+// settings variants on AIProviderTypeAnthropic, which is why
+// ClaudePlatformAWS has no matching AIProviderType.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// ClaudePlatformAWS, when set, indicates this provider targets
+	// Anthropic's AWS-hosted Messages API. Only valid for
+	// AIProviderTypeAnthropic.
+	ClaudePlatformAWS *AIProviderClaudePlatformAWSSettings `json:"-"`
 	// UpstreamHeaders, when set, carries custom headers sent on every
 	// upstream request for the provider (e.g. a routing session header
 	// required by OpenAI-compatible endpoints such as OpenCode Zen).
-	// Headers may be combined with Bedrock settings; when both are set,
-	// they are encoded in the Bedrock settings object.
+	// Headers may be combined with Bedrock or Claude Platform for AWS
+	// settings; when combined, they are encoded in that settings object.
 	UpstreamHeaders *AIProviderUpstreamHeadersSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil && (s.UpstreamHeaders == nil || s.UpstreamHeaders.IsZero())
+	return s.Bedrock == nil && s.ClaudePlatformAWS == nil && (s.UpstreamHeaders == nil || s.UpstreamHeaders.IsZero())
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
 // as JSON null so the column round-trips cleanly through SQL NULL.
+//
+// Exactly one variant may be set: a settings blob encodes a single
+// authentication method, and silently dropping the others would persist a
+// provider that authenticates differently from what the caller asked for.
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
+	if err := s.validateSingleVariant(); err != nil {
+		return nil, err
+	}
 	switch {
 	case s.Bedrock != nil:
 		wire := aiProviderBedrockSettingsWire{AIProviderBedrockSettings: *s.Bedrock}
+		if s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero() {
+			wire.Headers = s.UpstreamHeaders.Headers
+		}
+		return marshalSettings(wire)
+	case s.ClaudePlatformAWS != nil:
+		wire := aiProviderClaudePlatformAWSSettingsWire{AIProviderClaudePlatformAWSSettings: *s.ClaudePlatformAWS}
 		if s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero() {
 			wire.Headers = s.UpstreamHeaders.Headers
 		}
@@ -119,6 +144,22 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	default:
 		return []byte("null"), nil
 	}
+}
+
+// validateSingleVariant reports an error when more than one settings variant
+// is populated.
+func (s AIProviderSettings) validateSingleVariant() error {
+	var set []string
+	if s.Bedrock != nil {
+		set = append(set, AIProviderSettingsTypeBedrock)
+	}
+	if s.ClaudePlatformAWS != nil {
+		set = append(set, AIProviderSettingsTypeClaudePlatformAWS)
+	}
+	if len(set) > 1 {
+		return xerrors.Errorf("settings must carry exactly one authentication method, got %s", strings.Join(set, ", "))
+	}
+	return nil
 }
 
 // UnmarshalJSON inspects the _type discriminator and routes to the
@@ -164,6 +205,20 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 		}
 		s.UpstreamHeaders = &h
 		return nil
+	case AIProviderSettingsTypeClaudePlatformAWS:
+		if header.Version != AIProviderClaudePlatformAWSSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderClaudePlatformAWSSettingsVersion)
+		}
+		var wire aiProviderClaudePlatformAWSSettingsWire
+		if err := json.Unmarshal(data, &wire); err != nil {
+			return xerrors.Errorf("decode claude platform settings: %w", err)
+		}
+		s.ClaudePlatformAWS = &wire.AIProviderClaudePlatformAWSSettings
+		if wire.Headers != nil {
+			s.UpstreamHeaders = &AIProviderUpstreamHeadersSettings{Headers: wire.Headers}
+		}
+		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
 	}
@@ -190,6 +245,21 @@ func (aiProviderBedrockSettingsWire) settingsType() string {
 
 func (aiProviderBedrockSettingsWire) settingsVersion() int {
 	return AIProviderBedrockSettingsVersion
+}
+
+// aiProviderClaudePlatformAWSSettingsWire is the Claude Platform for AWS
+// counterpart of aiProviderBedrockSettingsWire.
+type aiProviderClaudePlatformAWSSettingsWire struct {
+	AIProviderClaudePlatformAWSSettings
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
+func (aiProviderClaudePlatformAWSSettingsWire) settingsType() string {
+	return AIProviderSettingsTypeClaudePlatformAWS
+}
+
+func (aiProviderClaudePlatformAWSSettingsWire) settingsVersion() int {
+	return AIProviderClaudePlatformAWSSettingsVersion
 }
 
 // settingsTyped is implemented by concrete settings structs so that
@@ -331,6 +401,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		})
 	}
 	if req.Settings.Bedrock != nil {
+		validations = append(validations, req.Settings.Bedrock.ValidateCredentials()...)
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		if req.Settings.Bedrock.ExternalID != "" {
@@ -347,6 +418,16 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Field:  "api_keys",
 			Detail: "type=copilot does not accept api_keys",
 		})
+	}
+	validations = append(validations, validateAIProviderSettingsVariants(req.Settings)...)
+	if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+		if req.Type != AIProviderTypeAnthropic {
+			validations = append(validations, ValidationError{
+				Field:  "settings",
+				Detail: "claude platform settings are only valid for type=anthropic",
+			})
+		}
+		validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
 	}
 	return validations
 }
@@ -401,10 +482,48 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	// omitted. Omitting any other field clears it, so the checks below apply
 	// to the patch exactly as they would to what gets stored.
 	if req.Settings != nil && req.Settings.Bedrock != nil {
+		if req.Settings.Bedrock.AccessKey != nil && req.Settings.Bedrock.AccessKeySecret != nil {
+			validations = append(validations, req.Settings.Bedrock.ValidateCredentials()...)
+		}
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings != nil {
+		validations = append(validations, validateAIProviderSettingsVariants(*req.Settings)...)
+		if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+			validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
+		}
+	}
+	return validations
+}
+
+// validateAIProviderSettingsVariants rejects a settings blob carrying more than
+// one authentication method. MarshalJSON would otherwise pick the first arm and
+// silently drop the rest.
+func validateAIProviderSettingsVariants(settings AIProviderSettings) []ValidationError {
+	if err := settings.validateSingleVariant(); err != nil {
+		return []ValidationError{{Field: "settings", Detail: err.Error()}}
+	}
+	return nil
+}
+
+// validateAIProviderClaudePlatformAWS checks the shape of a Claude Platform for
+// AWS settings blob.
+func validateAIProviderClaudePlatformAWS(cp AIProviderClaudePlatformAWSSettings) []ValidationError {
+	var validations []ValidationError
+	if cp.Region == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.region",
+			Detail: "region is required",
+		})
+	}
+	if cp.WorkspaceID == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.workspace_id",
+			Detail: "workspace_id is required",
+		})
 	}
 	return validations
 }
@@ -524,14 +643,37 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 	return validations
 }
 
-// validateAIProviderAPIKeys checks that each supplied key is non-empty
-// and free of leading/trailing whitespace. An empty slice itself is
+func validateAIProviderKeyCount(count int) []ValidationError {
+	if count > MaxAIProviderAPIKeys {
+		return []ValidationError{{
+			Field:  "api_keys",
+			Detail: fmt.Sprintf("api_keys must contain at most %d keys", MaxAIProviderAPIKeys),
+		}}
+	}
+	return nil
+}
+
+// ValidateAIProviderKeyUniqueness checks whether key is already in seen.
+// The field argument is used for error formatting.
+func ValidateAIProviderKeyUniqueness(key, field string, seen map[string]int) []ValidationError {
+	if prev, ok := seen[key]; ok {
+		return []ValidationError{{
+			Field:  field,
+			Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
+		}}
+	}
+	return nil
+}
+
+// validateAIProviderAPIKeys checks that at most five distinct keys are supplied,
+// each non-empty and free of leading/trailing whitespace. An empty slice is
 // permitted: on create it means "no keys yet"; on update it means
 // "clear all keys". Keys are stored verbatim; surrounding whitespace
 // would silently corrupt the credential, so callers must trim before
 // sending.
 func validateAIProviderAPIKeys(keys []string) []ValidationError {
-	var validations []ValidationError
+	validations := validateAIProviderKeyCount(len(keys))
+	seenKeys := make(map[string]int, len(keys))
 	for i, key := range keys {
 		switch {
 		case key == "":
@@ -545,17 +687,23 @@ func validateAIProviderAPIKeys(keys []string) []ValidationError {
 				Detail: "api_keys entries must not contain leading or trailing whitespace",
 			})
 		}
+		if duplicate := ValidateAIProviderKeyUniqueness(key, fmt.Sprintf("api_keys[%d]", i), seenKeys); len(duplicate) > 0 {
+			validations = append(validations, duplicate...)
+		} else {
+			seenKeys[key] = i
+		}
 	}
 	return validations
 }
 
 // validateAIProviderKeyMutations checks each entry has exactly one of
-// ID or APIKey set, that plaintexts are non-empty after trimming, and
-// that no ID is referenced twice in the same request. An empty slice
-// itself is permitted (it clears all keys).
+// ID or APIKey set, that plaintexts are non-empty without surrounding whitespace,
+// and that no ID or plaintext is repeated. At most five entries are permitted.
+// An empty slice is permitted (it clears all keys).
 func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationError {
-	var validations []ValidationError
+	validations := validateAIProviderKeyCount(len(muts))
 	seen := make(map[uuid.UUID]int, len(muts))
+	seenKeys := make(map[string]int, len(muts))
 	for i, m := range muts {
 		hasID := m.ID != nil
 		hasKey := m.APIKey != nil
@@ -575,6 +723,13 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
 				Detail: "api_key must not contain leading or trailing whitespace",
 			})
+		}
+		if hasKey && !hasID {
+			if duplicate := ValidateAIProviderKeyUniqueness(*m.APIKey, fmt.Sprintf("api_keys[%d].api_key", i), seenKeys); len(duplicate) > 0 {
+				validations = append(validations, duplicate...)
+			} else {
+				seenKeys[*m.APIKey] = i
+			}
 		}
 		if hasID && !hasKey {
 			if prev, ok := seen[*m.ID]; ok {

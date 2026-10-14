@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	Link as RouterLink,
 	useLocation,
@@ -54,14 +53,14 @@ import {
 } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
-const CollapsibleSection: FC<{
+const CollapsibleSection: React.FC<{
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	contentClassName?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	description,
@@ -79,9 +78,9 @@ const CollapsibleSection: FC<{
 		>
 			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
-					<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				) : (
-					<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				)}
 				<div>
 					<h3 className="m-0 text-sm font-medium text-content-primary">
@@ -97,7 +96,7 @@ const CollapsibleSection: FC<{
 	);
 };
 
-export const ModelFormFields: FC<{
+export const ModelFormFields: React.FC<{
 	form: FormikContextType<ModelFormValues>;
 	mode: "add" | "edit" | "duplicate";
 	providerStates: readonly ProviderState[];

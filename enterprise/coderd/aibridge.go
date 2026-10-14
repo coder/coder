@@ -395,9 +395,12 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 		// Fetch all interceptions (unpaginated) so we can aggregate
 		// session-level token metadata across every thread.
-		//nolint:exhaustruct // Let's be concise.
 		allRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
 			SessionID: sessionIDParam,
+			AfterID:   uuid.Nil,
+			BeforeID:  uuid.Nil,
+			// A limit of 0 returns every thread in the session.
+			Limit: 0,
 		})
 		if err != nil {
 			return xerrors.Errorf("list all session threads: %w", err)
@@ -1392,6 +1395,8 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
 // @Summary List organization AI spend by user
 // @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
@@ -1412,7 +1417,8 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 // @Param limit query int false "Page size (default 10, maximum 100)"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.OrganizationAISpendReport
-// @Router /api/v2/organizations/{organization}/ai/spend/users [get]
+// @Router /api/experimental/organizations/{organization}/ai/spend/users [get]
+// @x-apidocgen {"skip": true}
 func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)

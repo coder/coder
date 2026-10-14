@@ -55,8 +55,8 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	// Workspace provisioning. Start & stop are different so dormant workspaces can be
 	// stopped, but not stared.
-	ActionWorkspaceStart: "allows starting a workspace",
-	ActionWorkspaceStop:  "allows stopping a workspace",
+	ActionWorkspaceStart: "start a workspace",
+	ActionWorkspaceStop:  "stop a workspace",
 
 	// Running a workspace
 	ActionSSH:                "ssh into a given workspace",
@@ -78,6 +78,20 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var chatProjectActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat project",
+	ActionRead:   "read chat projects",
+	ActionUpdate: "update a chat project",
+	ActionDelete: "delete a chat project",
+	ActionShare:  "share a chat project with other users or groups",
+}
+
+var chatProjectMemoryActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat project memory",
+	ActionRead:   "read chat project memories",
+	ActionDelete: "delete a chat project memory",
+}
+
 var mcpServerConfigActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new MCP server config",
 	ActionRead:   "read MCP server config",
@@ -92,6 +106,14 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionUpdate: "update a chat model config",
 	ActionDelete: "delete a chat model config",
 	ActionShare:  "share a chat model config with other users or groups",
+}
+
+var organizationSkillActions = map[Action]ActionDefinition{
+	ActionCreate: "create an organization skill",
+	ActionRead:   "read organization skill metadata and content",
+	ActionUpdate: "update an organization skill",
+	ActionDelete: "delete an organization skill",
+	ActionShare:  "share an organization skill with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -119,6 +141,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_project": {
+		Actions: chatProjectActions,
+	},
+	"chat_project_memory": {
+		Actions: chatProjectMemoryActions,
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
@@ -254,6 +282,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete member",
 		},
 	},
+	"organization_skill": {
+		Actions: organizationSkillActions,
+	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: "access to debug routes",
@@ -276,7 +307,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create an api key",
 			ActionRead:   "read api key details (secrets are not stored)",
 			ActionDelete: "delete an api key",
-			ActionUpdate: "update an api key, eg expires",
+			ActionUpdate: "update an api key, for example its expiry",
 		},
 	},
 	"tailnet_coordinator": {

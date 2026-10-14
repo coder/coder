@@ -7,13 +7,12 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
 	useNavigate,
 	unstable_usePrompt as usePrompt,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
@@ -35,6 +34,7 @@ import {
 	TopbarIconButton,
 } from "#/components/FullPageLayout/Topbar";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -104,7 +104,7 @@ type TemplateVersionEditorProps = {
 	onActivePathChange: (path: string | undefined) => void;
 };
 
-export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
+export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	isBuilding,
 	canPublish,
 	template,

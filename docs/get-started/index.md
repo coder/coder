@@ -2,9 +2,8 @@
 title: Quickstart
 ---
 
-Follow this guide to get your first Coder development environment
-running in under 10 minutes. This guide covers the essential concepts and shows
-you how to create your first workspace and open it in your preferred editor.
+Follow this guide to get your first Coder development environment running in under 10&nbsp;minutes.
+This guide covers the essential concepts and shows you how to create your first workspace and open it in your preferred editor.
 This workspace includes a basic set of tools to edit most code bases.
 
 ## What you'll do
@@ -32,9 +31,9 @@ explained through a cooking analogy:
 
 ## Prerequisites
 
-- A machine with 2+ CPU cores and 4GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
+- A machine with 2+ CPU cores and 4&nbsp;GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
 - Familiarity with running commands in the terminal
-- 10 minutes of your time
+- 10&nbsp;minutes of your time
 
 <details>
 <summary>Why a separate machine?</summary>
@@ -166,7 +165,7 @@ Install the `coder` CLI to get started:
 1. Install Coder:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
    - For standalone binaries, system packages, or other alternate installation
@@ -266,10 +265,10 @@ organization can now create workspaces from it.
 <summary>What happens under the hood?</summary>
 
 A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
-When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
+When you create a workspace from this template, a Coder [provisioner](../install/plan/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
 For the Docker base template, that job starts a Docker container with the Coder agent pre-configured, along with any modules you selected.
 
-To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
+To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../install/plan/architecture.md).
 
 </details>
 
@@ -289,7 +288,7 @@ Now it's time to launch a workspace.
 
 1. Select **Create workspace**.
 
-After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
+After a short wait (10-15&nbsp;seconds on most modern computers), Coder will start your new workspace:
 
 ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
 
@@ -337,17 +336,38 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Now that you have your own workspace running, you can [customize your template](./customize-your-template/index.md) to fit your needs.
+Pick the goal that matches what you want to do next.
+Each path starts from the deployment you just built.
+
+### Hand a task to a coding agent
+
+[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
+Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
+You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
+Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
+
+If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
+
+### Make the workspace fit how you work
+
+The Quickstart template is a starting point.
+[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories. Each task takes about 10 minutes.
+
+To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
+
+### Bring in your team
+
+Coder is built for shared, remote infrastructure.
+When you're ready for other people to use it:
+
+1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
+1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
-- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
-  interface and API for delegating development work to coding agents in your
-  Coder deployment.
-
-- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
-
-- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
+- [Monitor your Coder deployment](../admin/monitoring/index.md)
+- [Browse the Coder Registry](https://registry.coder.com) for templates and modules you can add to your own deployment.
 
 ## Troubleshooting
 

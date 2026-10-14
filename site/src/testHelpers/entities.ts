@@ -21,7 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -378,6 +378,18 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.AssignableRoles = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	assignable: true,
+	built_in: true,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -510,6 +522,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter",
 };
 
@@ -533,6 +546,38 @@ export const MockUserOwner: TypesGen.User = {
 	has_ai_seat: false,
 	name: "",
 };
+
+export const MockChatProject: TypesGen.ChatProject = {
+	id: "chat-project-1",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockUserOwner.id,
+	name: "Launch",
+	description: "Chats for the launch work.",
+	icon: "",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
+export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
+	project_id: MockChatProject.id,
+	instructions:
+		"Use TypeScript for new code.\nRun the linters before committing.",
+	updated_by: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: MockUserOwner.avatar_url,
+	},
+	updated_at: "2026-10-02T12:00:00Z",
+};
+
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
 
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
@@ -1082,6 +1127,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	start_blocks_login: false,
 	timeout: 0,
 	display_name: "Startup Script",
+	resource_address: "",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -1567,7 +1613,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,
@@ -3086,6 +3132,7 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "workspace_app",
+	connection_method: "workspace_app",
 	web_info: {
 		user_agent:
 			'"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
@@ -3105,6 +3152,7 @@ const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
 export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
 	...MockWebConnectionLog,
 	type: "tunnel",
+	connection_method: "tunnel",
 	web_info: MockTunnelWebInfo,
 };
 
@@ -3133,6 +3181,7 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: undefined,
@@ -3157,6 +3206,7 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: "server shut down",
@@ -3358,6 +3408,14 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3421,6 +3479,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMCPServerConfigs: true,
+	viewAnyOrganizationSkills: true,
 	createAnyMCPServerConfig: true,
 	updateAnyMCPServerConfig: true,
 	deleteAnyMCPServerConfig: true,
@@ -3468,6 +3527,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMCPServerConfigs: false,
+	viewAnyOrganizationSkills: false,
 	createAnyMCPServerConfig: false,
 	updateAnyMCPServerConfig: false,
 	deleteAnyMCPServerConfig: false,
@@ -3509,6 +3569,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
 	shareMCPServerConfig: true,
+	viewOrganizationSkills: true,
+	createOrganizationSkill: true,
+	updateOrganizationSkill: true,
+	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3538,6 +3603,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
 	shareMCPServerConfig: false,
+	viewOrganizationSkills: false,
+	createOrganizationSkill: false,
+	updateOrganizationSkill: false,
+	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,
@@ -3868,10 +3938,41 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		apps: {
+			cursor: {
+				count: 24,
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+				family: "vscode",
+			},
+			vscode: {
+				count: 128,
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+				family: "vscode",
+			},
+			jetbrains: {
+				count: 5,
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+				family: "jetbrains",
+			},
+			ssh: {
+				count: 32,
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+				family: "ssh",
+			},
+			reconnecting_pty: {
+				count: 15,
+				display_name: "Web Terminal",
+				family: "reconnecting_pty",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,
@@ -4979,6 +5080,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		icon: "/icon/github.svg",
 		scope: "",
 		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4996,12 +5098,18 @@ export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	icon: "/icon/github.svg",
 	scope: "",
 	client_type: "public",
+	dynamically_registered: false,
 	endpoints: {
 		authorization: "http://127.0.0.1:3002/oauth2/authorize",
 		token: "http://127.0.0.1:3002/oauth2/token",
 		device_authorization: "",
 		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
 	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
 };
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
@@ -5584,6 +5692,46 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
+/**
+ * Claude Platform for AWS is an authentication method on the `anthropic`
+ * provider type, identified by the `claude_platform_aws` settings
+ * discriminator. Authentication is inferred from the provider key pool,
+ * falling back to ambient AWS credentials when the pool is empty.
+ */
+export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
+	id: "5b8c1d92-4e7a-4f38-9b21-6d3c0a7e5f42",
+	type: "anthropic",
+	name: "claude-platform",
+	display_name: "Claude Platform",
+	icon: "",
+	base_url: "https://aws-external-anthropic.us-east-1.api.aws",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "claude_platform_aws",
+		_version: 1,
+		region: "us-east-1",
+		workspace_id: "wrkspc_123",
+	},
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+/** The same provider with a workspace key in its provider key pool. */
+export const MockAIProviderClaudePlatformAWSAPIKey: TypesGen.AIProvider = {
+	...MockAIProviderClaudePlatformAWS,
+	id: "6c9d2e03-5f8b-4a49-8c32-7e4d1b8f6a53",
+	name: "claude-platform-key",
+	display_name: "Claude Platform (workspace key)",
+	api_keys: [
+		{
+			id: "7d0e3f14-6a9c-4b5a-9d43-8f5e2c9a7b64",
+			masked: "sk-ant-***\u2026***WXYZ",
+			created_at: "2026-05-14T10:00:00Z",
+		},
+	],
+};
+
 export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
 	type: "copilot",
@@ -5637,6 +5785,7 @@ export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
 	MockAIProviderCopilot,
 ];
 

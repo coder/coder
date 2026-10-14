@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 
 const alertVariants = cva(
@@ -28,7 +28,7 @@ const alertVariants = cva(
 		compoundVariants: [
 			{
 				prominent: false,
-				className: "border-border-default bg-surface-secondary",
+				className: "border-border bg-surface-secondary",
 			},
 			{
 				severity: "success",
@@ -63,16 +63,16 @@ const severityIcons = {
 export type AlertColor = "info" | "success" | "warning" | "error";
 
 export type AlertProps = {
-	actions?: ReactNode;
+	actions?: React.ReactNode;
 	dismissible?: boolean;
 	onDismiss?: () => void;
 	severity?: AlertColor;
 	prominent?: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	className?: string;
 };
 
-export const Alert: FC<AlertProps> = ({
+export const Alert: React.FC<AlertProps> = ({
 	children,
 	actions,
 	dismissible,
@@ -131,11 +131,11 @@ export const Alert: FC<AlertProps> = ({
 	);
 };
 
-export const AlertDescription: React.FC<React.PropsWithChildren> = ({
-	children,
-}) => {
+export const AlertDescription: React.FC<
+	React.PropsWithChildren<{ className?: string }>
+> = ({ children, className }) => {
 	return (
-		<span className="m-0 text-sm" data-pixel="ignore">
+		<span className={cn("m-0 text-sm", className)} data-pixel="ignore">
 			{children}
 		</span>
 	);

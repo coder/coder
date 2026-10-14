@@ -25,6 +25,8 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
 	status: "completed" | "error" | "running";
@@ -42,6 +44,13 @@ export type RenderBlock =
 	| {
 			type: "response";
 			text: string;
+			/**
+			 * A provider-executed call, such as web search, followed this text,
+			 * so later text starts a new block.
+			 */
+			beforeProviderTool?: boolean;
+			/** The model labeled this text as commentary on its work. */
+			narration?: boolean;
 	  }
 	| {
 			type: "thinking";
@@ -53,6 +62,7 @@ export type RenderBlock =
 	  }
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
+	| TypesGen.ChatWorkspaceFileReferencePart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -103,9 +113,11 @@ type StreamToolResult = {
 	name: string;
 	result?: unknown;
 	resultRaw?: string;
+	/** Reasoning deltas so far; absent when none arrived or the result is final. */
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
-	/** True while result deltas are still accumulating before the final result. */
+	/** True while result or reasoning deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };
@@ -115,4 +127,10 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
+	startedAt?: string;
+	/**
+	 * Set by a provider-executed result, so a search counts as a step even
+	 * before or without citations.
+	 */
+	providerToolRan?: boolean;
 };

@@ -149,8 +149,8 @@ type CreateTemplateRequest struct {
 	// DisplayName is the displayed name of the template.
 	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
-	// less than 128 bytes.
-	Description string `json:"description,omitempty" validate:"lt=128"`
+	// no longer than 128 Unicode code points.
+	Description string `json:"description,omitempty" validate:"lte=128"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`
@@ -674,6 +674,10 @@ func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, 
 
 // CreateUserWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	// Validate before URL resolution can interpret user input as a path or query.
+	if err := validateWorkspacePathSegment(user); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid user: %w", err)
+	}
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err

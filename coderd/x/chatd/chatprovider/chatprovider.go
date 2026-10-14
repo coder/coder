@@ -93,9 +93,10 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 	return unsupported
 }
 
-// ProviderAllowsAmbientCredentials reports whether provider can use
-// ambient credentials from the Coder server instead of an explicit
-// API key.
+// ProviderAllowsAmbientCredentials reports whether a direct client for
+// the provider type can use ambient credentials from the Coder server
+// instead of an explicit API key. Individual provider configs can also
+// support ambient credentials through ConfiguredProvider.SupportsAmbientCredentials.
 func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
 }
@@ -223,6 +224,9 @@ type ConfiguredProvider struct {
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
+	// SupportsAmbientCredentials reports that the provider configuration supports
+	// ambient credentials. It does not verify that credentials are available.
+	SupportsAmbientCredentials bool
 }
 
 // APIKey returns the effective API key for a provider.
@@ -391,10 +395,10 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
-		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
-			// Bedrock can use ambient AWS credentials from the Coder server
-			// without an explicit key, but only when the credential policy
-			// allows central credentials to satisfy the request.
+		case (normalizedProvider == fantasybedrock.Name || provider.SupportsAmbientCredentials) && provider.CentralAPIKeyEnabled:
+			// These provider configurations support ambient credentials without an
+			// explicit key, but only when the credential policy allows central
+			// credentials to satisfy the request.
 			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
 				resolved.Available = true
 			} else {
@@ -438,7 +442,7 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
+	if trimmedKey != "" || availability.Available {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }
@@ -558,6 +562,19 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	}
 
 	return "", "", false
+}
+
+// IsAnthropicFamilyModelID reports whether a model ID names a Claude
+// model regardless of the transport it is served through: OpenRouter and
+// Vercel namespaces ("anthropic/claude-haiku-4.5"), Bedrock IDs
+// ("anthropic.claude-...", "us.anthropic.claude-..."), and bare Claude
+// IDs on generic OpenAI-compatible gateways.
+func IsAnthropicFamilyModelID(modelID string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.HasPrefix(normalized, "anthropic/") ||
+		strings.HasPrefix(normalized, "anthropic.") ||
+		strings.Contains(normalized, ".anthropic.") ||
+		strings.Contains(normalized, "claude")
 }
 
 func isChatModelForProvider(provider, modelID string) bool {
@@ -953,7 +970,27 @@ func ProviderOptionsForCall(
 ) fantasy.ProviderOptions {
 	options := providerOptionsFromChatModelConfig(model, config.ProviderOptions)
 	effort := ResolveReasoningEffort(requestedEffort, config.ReasoningEffort)
-	return applyReasoningEffort(model, options, effort)
+	options = applyReasoningEffort(model, options, effort)
+	return ensureOpenAIResponsesIncludes(model, options)
+}
+
+// ensureOpenAIResponsesIncludes requests encrypted reasoning on every
+// Responses call, so reasoning can be replayed without provider-side storage.
+// An options block created here leaves Store unset, keeping the provider's
+// default.
+func ensureOpenAIResponsesIncludes(
+	model Model,
+	options fantasy.ProviderOptions,
+) fantasy.ProviderOptions {
+	if !model.Valid() || !model.transport.UsesResponses() {
+		return options
+	}
+	if options == nil {
+		options = fantasy.ProviderOptions{}
+	}
+	responsesOptions := ensureProviderOptions[fantasyopenai.ResponsesProviderOptions](options, fantasyopenai.Name)
+	responsesOptions.Include = chatopenai.EnsureResponseIncludes(responsesOptions.Include)
+	return options
 }
 
 func providerOptionsFromChatModelConfig(

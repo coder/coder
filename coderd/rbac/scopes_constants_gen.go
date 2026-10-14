@@ -53,6 +53,14 @@ const (
 	ScopeChatModelConfigRead                 ScopeName = "chat_model_config:read"
 	ScopeChatModelConfigShare                ScopeName = "chat_model_config:share"
 	ScopeChatModelConfigUpdate               ScopeName = "chat_model_config:update"
+	ScopeChatProjectCreate                   ScopeName = "chat_project:create"
+	ScopeChatProjectDelete                   ScopeName = "chat_project:delete"
+	ScopeChatProjectRead                     ScopeName = "chat_project:read"
+	ScopeChatProjectShare                    ScopeName = "chat_project:share"
+	ScopeChatProjectUpdate                   ScopeName = "chat_project:update"
+	ScopeChatProjectMemoryCreate             ScopeName = "chat_project_memory:create"
+	ScopeChatProjectMemoryDelete             ScopeName = "chat_project_memory:delete"
+	ScopeChatProjectMemoryRead               ScopeName = "chat_project_memory:read"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -110,6 +118,11 @@ const (
 	ScopeOrganizationMemberDelete            ScopeName = "organization_member:delete"
 	ScopeOrganizationMemberRead              ScopeName = "organization_member:read"
 	ScopeOrganizationMemberUpdate            ScopeName = "organization_member:update"
+	ScopeOrganizationSkillCreate             ScopeName = "organization_skill:create"
+	ScopeOrganizationSkillDelete             ScopeName = "organization_skill:delete"
+	ScopeOrganizationSkillRead               ScopeName = "organization_skill:read"
+	ScopeOrganizationSkillShare              ScopeName = "organization_skill:share"
+	ScopeOrganizationSkillUpdate             ScopeName = "organization_skill:update"
 	ScopePrebuiltWorkspaceDelete             ScopeName = "prebuilt_workspace:delete"
 	ScopePrebuiltWorkspaceUpdate             ScopeName = "prebuilt_workspace:update"
 	ScopeProvisionerDaemonCreate             ScopeName = "provisioner_daemon:create"
@@ -247,6 +260,14 @@ func (e ScopeName) Valid() bool {
 		ScopeChatModelConfigRead,
 		ScopeChatModelConfigShare,
 		ScopeChatModelConfigUpdate,
+		ScopeChatProjectCreate,
+		ScopeChatProjectDelete,
+		ScopeChatProjectRead,
+		ScopeChatProjectShare,
+		ScopeChatProjectUpdate,
+		ScopeChatProjectMemoryCreate,
+		ScopeChatProjectMemoryDelete,
+		ScopeChatProjectMemoryRead,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -304,6 +325,11 @@ func (e ScopeName) Valid() bool {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,
@@ -442,6 +468,14 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatModelConfigRead,
 		ScopeChatModelConfigShare,
 		ScopeChatModelConfigUpdate,
+		ScopeChatProjectCreate,
+		ScopeChatProjectDelete,
+		ScopeChatProjectRead,
+		ScopeChatProjectShare,
+		ScopeChatProjectUpdate,
+		ScopeChatProjectMemoryCreate,
+		ScopeChatProjectMemoryDelete,
+		ScopeChatProjectMemoryRead,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -499,6 +533,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,

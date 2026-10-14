@@ -19,8 +19,8 @@ If your dev container fails to start:
 
 ## Docker not available
 
-Dev containers require Docker, either via a running daemon (Docker-in-Docker) or
-a mounted socket from the host. Your template determines which approach is used.
+Dev containers require Docker, either via a running daemon (Docker-in-Docker) or a mounted socket from the host.
+Your template determines which approach is used.
 
 **If using Docker-in-Docker**, check that the daemon is running:
 
@@ -38,17 +38,18 @@ docker ps  # test access
 
 If you get permission errors, your user may need to be in the `docker` group.
 
-## Finding your dev container agent
+<a id="finding-your-dev-container-agent"></a>
 
-Use `coder show` to list all agents in your workspace, including dev container
-sub-agents:
+## Find your dev container agent
+
+Use `coder show` to list all agents in your workspace, including dev container sub-agents:
 
 ```console
 coder show <workspace>
 ```
 
-The agent name is derived from the workspace folder path. For details on how
-names are generated, see [Agent naming](./index.md#agent-naming).
+The agent name is derived from the workspace folder path.
+For details on how names are generated, see [Agent naming](./index.md#agent-naming).
 
 ## SSH connection issues
 
@@ -69,9 +70,9 @@ If `coder ssh <workspace>.<agent>` fails:
 
 ## VS Code connection issues
 
-VS Code connects to dev containers through the Coder extension. The extension
-uses the sub-agent information to route connections through the parent workspace
-agent to the dev container. If VS Code fails to connect:
+VS Code connects to dev containers through the Coder extension.
+The extension uses the sub-agent information to route connections through the parent workspace agent to the dev container.
+If VS Code fails to connect:
 
 1. Ensure you have the latest Coder VS Code extension.
 1. Verify the dev container is running in the Coder dashboard.
@@ -98,22 +99,22 @@ If features from your `devcontainer.json` aren't being applied:
 
 If your dev container takes a long time to start:
 
-1. **Use a pre-built image** instead of building from a Dockerfile. This avoids
-   the image build step, though features and lifecycle scripts still run.
-1. **Minimize features**. Each feature executes as a separate Docker layer
-   during the image build, which is typically the slowest part. Changing
-   `devcontainer.json` invalidates the layer cache, causing features to
-   reinstall on rebuild.
-1. **Check lifecycle scripts**. Commands in `postStartCommand` run on every
-   container start. Commands in `postCreateCommand` run once per build, so
-   they execute again after each rebuild.
+1. **Use a pre-built image** instead of building from a Dockerfile.
+   This avoids the image build step, though features and lifecycle scripts still run.
+1. **Minimize features**.
+   Each feature executes as a separate Docker layer during the image build, which is typically the slowest part.
+   Changing `devcontainer.json` invalidates the layer cache, causing features to reinstall on rebuild.
+1. **Check lifecycle scripts**.
+   Commands in `postStartCommand` run on every container start.
+   Commands in `postCreateCommand` run once per build, so they execute again after each rebuild.
 
-## Getting more help
+<a id="getting-more-help"></a>
+
+## Get more help
 
 If you continue to experience issues:
 
 1. Collect logs from `/tmp/coder-agent.log` (both workspace and container).
 1. Note the exact error messages.
-1. Check [Coder GitHub issues](https://github.com/coder/coder/issues) for
-   similar problems.
+1. Check [Coder GitHub issues](https://github.com/coder/coder/issues) for similar problems.
 1. Contact your Coder administrator for template-specific issues.

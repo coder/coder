@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQueries } from "react-query";
 import {
 	customNotificationTemplates,
@@ -38,7 +37,7 @@ function isNotificationTab(
 	return (NOTIFICATION_TABS as readonly string[]).includes(value);
 }
 
-const NotificationsPage: FC = () => {
+const NotificationsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { deploymentConfig } = useDeploymentConfig();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;

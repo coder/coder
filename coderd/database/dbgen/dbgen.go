@@ -81,6 +81,37 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {
+	t.Helper()
+
+	project, err := db.InsertChatProject(genCtx, database.InsertChatProjectParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:        takeFirst(seed.OwnerID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Icon:           seed.Icon,
+	})
+	require.NoError(t, err, "insert chat project")
+	return project
+}
+
+func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
+	t.Helper()
+
+	memory, err := db.InsertChatProjectMemory(genCtx, database.InsertChatProjectMemoryParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Body:           seed.Body,
+		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "insert chat project memory")
+	return memory
+}
+
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 
@@ -95,6 +126,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
+		ProjectID:         seed.ProjectID,
 		WorkspaceID:       seed.WorkspaceID,
 		BuildID:           seed.BuildID,
 		AgentID:           seed.AgentID,
@@ -102,6 +134,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		RootChatID:        seed.RootChatID,
 		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
+		TitleSource:       database.NullChatTitleSource{ChatTitleSource: seed.TitleSource, Valid: seed.TitleSource != ""},
 		Mode:              seed.Mode,
 		PlanMode:          seed.PlanMode,
 		Status:            takeFirst(seed.Status, database.ChatStatusWaiting),
@@ -141,6 +174,8 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
+		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -389,6 +424,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
+		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -413,6 +449,38 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	return cfg
 }
 
+func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer) database.ChatMCPServer {
+	t.Helper()
+
+	chatID := seed.ChatID
+	if chatID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		owner := User(t, db, database.User{})
+		model := ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		chatID = Chat(t, db, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		}).ID
+	}
+
+	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		ChatID:              chatID,
+		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Url:                 takeFirst(seed.Url, "https://mcp.example.com/mcp"),
+		Headers:             takeFirst(seed.Headers, "{}"),
+		HeadersKeyID:        seed.HeadersKeyID,
+		ToolAllowList:       takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:        takeFirstSlice(seed.ToolDenyList, []string{}),
+		AllowInSubagents:    seed.AllowInSubagents,
+		ForwardCoderHeaders: seed.ForwardCoderHeaders,
+	})
+	require.NoError(t, err, "upsert chat MCP server")
+	return server
+}
+
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
 	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
@@ -422,7 +490,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		ConnectionMethod: takeFirst(seed.ConnectionMethod, database.ConnectionLogMethodSSH),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
@@ -442,9 +510,9 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
 			Valid: takeFirst(seed.UserID.Valid, false),
 		},
-		SlugOrPort: sql.NullString{
-			String: takeFirst(seed.SlugOrPort.String, ""),
-			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		AppNameOrPort: sql.NullString{
+			String: takeFirst(seed.AppNameOrPort.String, ""),
+			Valid:  takeFirst(seed.AppNameOrPort.Valid, false),
 		},
 		ConnectionID: uuid.NullUUID{
 			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
@@ -453,6 +521,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		DisconnectReason: sql.NullString{
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
+		},
+		ClientSessionID: sql.NullString{
+			String: takeFirst(seed.ClientSessionID.String, ""),
+			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
@@ -470,16 +542,17 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
 		WorkspaceName:    []string{arg.WorkspaceName},
 		AgentName:        []string{arg.AgentName},
-		Type:             []database.ConnectionType{arg.Type},
+		ConnectionMethod: []database.ConnectionLogMethod{arg.ConnectionMethod},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
 		Ip:               []pqtype.Inet{arg.IP},
 		UserAgent:        []string{arg.UserAgent.String},
 		UserID:           []uuid.UUID{arg.UserID.UUID},
-		SlugOrPort:       []string{arg.SlugOrPort.String},
+		AppNameOrPort:    []string{arg.AppNameOrPort.String},
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		ClientSessionID:  []string{arg.ClientSessionID.String},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -756,6 +829,12 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	// Casting an empty string to jsonb is a Postgres error, not an empty
+	// list, so the default has to be written out.
+	dependencies := orig.Dependencies
+	if len(dependencies) == 0 {
+		dependencies = json.RawMessage(`[]`)
+	}
 	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -769,6 +848,8 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
 		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		ResourceAddress:  []string{takeFirst(orig.ResourceAddress, "")},
+		Dependencies:     []string{string(dependencies)},
 	})
 	require.NoError(t, err, "insert workspace agent script")
 	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
@@ -1093,6 +1174,27 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}
 
 	return org
+}
+
+// OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
+// required. Inserted skills are enabled.
+func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
+	t.Helper()
+
+	require.True(t, seed.OrganizationID.Valid, "organization skill requires an organization ID")
+	name := takeFirst(seed.Name, "skill-"+uuid.NewString())
+	description := takeFirst(seed.Description, "Organization skill fixture.")
+	skill, err := db.InsertOrganizationSkill(genCtx, database.InsertOrganizationSkillParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		OrganizationID: seed.OrganizationID.UUID,
+		Name:           name,
+		Description:    description,
+		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		GroupACL:       seed.GroupACL,
+		UserACL:        seed.UserACL,
+	})
+	require.NoError(t, err, "insert organization skill")
+	return skill
 }
 
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
@@ -2034,6 +2136,8 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
 		CacheWritePriceMicros: seed.CacheWritePriceMicros,
 		CostMicros:            seed.CostMicros,
+		ProviderModel:         seed.ProviderModel,
+		PricedModel:           seed.PricedModel,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

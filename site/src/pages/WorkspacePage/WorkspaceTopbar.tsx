@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -61,7 +60,7 @@ type WorkspaceTopbarProps = {
 	handleToggleFavorite: () => void;
 };
 
-export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
+export const WorkspaceTopbar: React.FC<WorkspaceTopbarProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -260,7 +259,7 @@ type OwnerBreadcrumbProps = Readonly<{
 	ownerAvatarUrl: string;
 }>;
 
-const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
+const OwnerBreadcrumb: React.FC<OwnerBreadcrumbProps> = ({
 	ownerName,
 	ownerAvatarUrl,
 }) => {
@@ -286,7 +285,7 @@ type OrganizationBreadcrumbProps = Readonly<{
 	orgIconUrl?: string;
 }>;
 
-const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
+const OrganizationBreadcrumb: React.FC<OrganizationBreadcrumbProps> = ({
 	orgName,
 	orgPageUrl,
 	orgIconUrl,
@@ -343,7 +342,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	templateDisplayName: string;
 }>;
 
-const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
+const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 	workspaceName,
 	templateIconUrl,
 	rootTemplateUrl,

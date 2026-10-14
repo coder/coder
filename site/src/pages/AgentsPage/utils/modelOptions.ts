@@ -122,11 +122,11 @@ export const isUnavailableHistoricalModelID = (
  * The function returns an empty string when the default is unavailable.
  */
 export const getUsableDefaultModelIDForOrganization = (
-	configs: readonly TypesGen.ChatModel[] | null | undefined,
+	configs: readonly TypesGen.ChatModel[],
 	modelOptions: readonly ModelSelectorOption[],
 	organizationID: string,
 ): string => {
-	if (!organizationID || !configs) {
+	if (!organizationID) {
 		return "";
 	}
 	const defaultConfig = configs.find(
@@ -161,6 +161,7 @@ export const providerInfoByIDFromDescriptors = (
 				displayName: providerDescriptor.display_name,
 				icon: providerDescriptor.icon,
 				enabled: providerDescriptor.enabled,
+				available: providerDescriptor.available,
 			},
 		]),
 	);
@@ -196,6 +197,9 @@ export const providerTypeByIDFromUserConfigs = (
 		),
 	);
 
+export const getModelLabel = (model: TypesGen.ChatModel): string =>
+	model.display_name.trim() || model.model || model.id;
+
 /**
  * Drops models whose provider row is disabled or missing. Provider descriptors
  * include disabled providers, while user provider configs may omit inaccessible
@@ -208,6 +212,31 @@ export const filterModelsWithEnabledProvider = (
 	models.filter((model) => {
 		const info = providerInfoByID.get(model.ai_provider_id);
 		return info !== undefined && info.enabled !== false;
+	});
+
+/** Unlike getModelOptionsFromModels, neither filters nor sorts. */
+export const toEnabledModelSelectorOptions = (
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly ModelSelectorOption[] =>
+	enabledModels.map((modelConfig) => {
+		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
+		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
+		return {
+			id: modelConfig.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: modelConfig.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: modelConfig.model,
+			displayName: modelConfig.display_name.trim() || modelConfig.model,
+			contextLimit: modelConfig.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
 	});
 
 export const getModelOptionsFromModels = (
@@ -320,63 +349,6 @@ export const getProviderForModelOption = (
 	modelOptions.find((option) => option.id === selectedModel)?.provider;
 
 export { formatProviderLabel } from "#/utils/aiProviders";
-
-export function resolveCompactionThreshold(
-	modelID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-): number | undefined {
-	if (!modelID || !Array.isArray(models)) {
-		return undefined;
-	}
-	const model = models.find((model) => model.id === modelID);
-	if (!model) {
-		return undefined;
-	}
-	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelID,
-	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
-	}
-	return model.compression_threshold;
-}
-
-/**
- * Context window the compaction trigger is measured against. Mirrors the
- * backend: when the organization routes compaction to an override model,
- * the history must also fit that model's window, so the smaller of the
- * two limits wins. Returns 0 when neither limit is known.
- */
-export function resolveCompactionContextLimit(
-	model: TypesGen.ChatModel,
-	models: readonly TypesGen.ChatModel[],
-	compactionModelIDByOrganization: ReadonlyMap<string, string>,
-): number {
-	const chatLimit = model.context_limit > 0 ? model.context_limit : 0;
-	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
-	const overrideLimit =
-		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
-	if (overrideLimit > 0 && (chatLimit <= 0 || overrideLimit < chatLimit)) {
-		return overrideLimit;
-	}
-	return chatLimit;
-}
-
-/**
- * Token count at which compaction triggers for the given context window and
- * threshold, or undefined when the window is unknown or compaction is
- * disabled (100%).
- */
-export function compactionTriggerTokens(
-	contextLimit: number,
-	thresholdPercent: number,
-): number | undefined {
-	if (contextLimit <= 0 || thresholdPercent >= 100) {
-		return undefined;
-	}
-	return Math.round((contextLimit * thresholdPercent) / 100);
-}
 
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],

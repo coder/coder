@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -29,7 +28,7 @@ const formatContextLimit = (contextLimit: number): string => {
 	return `${contextLimit.toLocaleString("en-US")} tokens`;
 };
 
-export const ModelRow: FC<ModelRowProps> = ({
+export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
@@ -39,6 +38,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
+	const providerType = providerTypeByID.get(model.ai_provider_id) ?? "";
 	// Models whose provider is missing or disabled cannot be used, so the
 	// status cell surfaces that regardless of the persisted enabled flag.
 	const providerNotice = !hasProvider
@@ -47,7 +47,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			? "The provider connected to this model is disabled."
 			: null;
 
-	// Keep tooltip activation from triggering the clickable row's navigation.
+	// Keep tooltip clicks from triggering the clickable row's navigation.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -63,9 +63,25 @@ export const ModelRow: FC<ModelRowProps> = ({
 							!model.enabled && "opacity-50",
 						)}
 					>
-						<ProviderIcon
-							provider={providerTypeByID.get(model.ai_provider_id) ?? ""}
-						/>
+						{providerType ? (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span
+										role="img"
+										aria-label={`Provider type: ${providerType}`}
+										className="flex items-center justify-center"
+									>
+										<ProviderIcon provider={providerType} />
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">
+									Provider type:{" "}
+									<code className="font-mono">{providerType}</code>
+								</TooltipContent>
+							</Tooltip>
+						) : (
+							<ProviderIcon provider={providerType} />
+						)}
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
 						<span
@@ -97,8 +113,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 										variant="warning"
 										className="shrink-0"
 										onClick={stopPropagation}
-										onKeyDown={stopPropagation}
-										onKeyUp={stopPropagation}
 									>
 										<button type="button">Unavailable</button>
 									</Badge>

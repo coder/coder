@@ -1,10 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
@@ -15,20 +17,66 @@ const (
 	ProviderBedrock   = "bedrock"
 )
 
+// ClaudePlatformSigningService is the AWS SigV4 service name for Anthropic's
+// AWS-hosted Messages API.
+const ClaudePlatformSigningService = "aws-external-anthropic"
+
+// AWSClaudePlatform carries configuration for Claude Platform for AWS:
+// Anthropic's native Messages API hosted on AWS. Unlike Bedrock it speaks the
+// standard Messages wire format with standard Anthropic model IDs, so requests
+// and responses pass through unchanged; only routing and authentication differ.
+type AWSClaudePlatform struct {
+	// Region is the AWS region. It is always required, including when BaseURL
+	// is set, because SigV4 signatures are region-scoped and a proxy base URL
+	// must still be signed for the real upstream region.
+	Region string
+	// WorkspaceID is sent as the anthropic-workspace-id header on every
+	// request. Required regardless of the credential used.
+	WorkspaceID string
+	// BaseURL overrides the default regional endpoint
+	// https://aws-external-anthropic.{region}.api.aws, for example to route
+	// through a proxy. Region still determines the signing scope.
+	BaseURL string
+}
+
+// ResolvedBaseURL returns the configured base URL, defaulting to the regional
+// Claude Platform endpoint.
+func (c AWSClaudePlatform) ResolvedBaseURL() string {
+	if c.BaseURL != "" {
+		return c.BaseURL
+	}
+	return fmt.Sprintf("https://aws-external-anthropic.%s.api.aws", c.Region)
+}
+
+// Validate verifies the Claude Platform configuration.
+func (c AWSClaudePlatform) Validate() error {
+	if c.Region == "" {
+		return xerrors.New("region required")
+	}
+	if c.WorkspaceID == "" {
+		return xerrors.New("workspace id required")
+	}
+	return nil
+}
+
 // Anthropic carries configuration for an Anthropic provider.
 type Anthropic struct {
+	// Logger records provider transport diagnostics.
+	Logger slog.Logger
 	// Name is the provider instance name. If empty, defaults to "anthropic".
 	Name    string
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
-	SendActorHeaders bool
+	KeyPool        *keypool.Pool
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	// ActorHeaderNames maps actor attributes to upstream header names.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
+	ActorHeaderNames map[string]string
 	// UpstreamHeaders carries admin-configured custom headers sent on
 	// every upstream request for this provider. Values may embed
-	// intercept.ChatIDPlaceholder for per-conversation stability. Nil or
+	// headers.ChatIDPlaceholder for per-conversation stability. Nil or
 	// empty leaves default behavior unchanged.
 	UpstreamHeaders map[string]string
 }
@@ -139,14 +187,16 @@ type OpenAI struct {
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
-	SendActorHeaders bool
+	KeyPool        *keypool.Pool
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	// ActorHeaderNames maps actor attributes to upstream header names.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
+	ActorHeaderNames map[string]string
 	// UpstreamHeaders carries admin-configured custom headers sent on
 	// every upstream request for this provider (e.g. a routing session
 	// header required by OpenAI-compatible endpoints such as OpenCode
-	// Zen). Values may embed intercept.ChatIDPlaceholder for
+	// Zen). Values may embed headers.ChatIDPlaceholder for
 	// per-conversation stability. Nil or empty leaves default behavior
 	// unchanged.
 	UpstreamHeaders map[string]string

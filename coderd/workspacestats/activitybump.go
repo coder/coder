@@ -24,6 +24,9 @@ const (
 	// ActivityBumpReasonAppActivity indicates the bump was triggered
 	// by app or port-forward activity.
 	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
+	// ActivityBumpReasonChatWorkspaceUpload indicates the bump was
+	// triggered by a chat file upload streaming into the workspace.
+	ActivityBumpReasonChatWorkspaceUpload ActivityBumpReason = "chat_workspace_upload"
 )
 
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer

@@ -1,17 +1,17 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
 import { insightsUserStatusCounts } from "#/api/queries/insights";
 import { licenses, licensesKey } from "#/api/queries/licenses";
+import { toast } from "#/components/Toaster/toast";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
-const LicensesSettingsPage: FC = () => {
+const LicensesSettingsPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const success = searchParams.get("success");

@@ -1,6 +1,4 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createUserSecret,
@@ -9,12 +7,13 @@ import {
 	updateUserSecret,
 	userSecrets,
 } from "#/api/queries/userSecrets";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { SecretsPageView } from "./SecretsPageView";
 import { buildImportSuccessMessage } from "./secretForm";
 
-const SecretsPage: FC = () => {
+const SecretsPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const { metadata } = useEmbeddedMetadata();

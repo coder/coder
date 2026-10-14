@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
@@ -59,7 +60,7 @@ func TestBuildProviderUpstreamHeaders(t *testing.T) {
 		BaseURL:         "https://opencode.ai/zen/go/v1",
 		Keys:            []string{"sk-zen"},
 		UpstreamHeaders: map[string]string{"x-opencode-session": "{{chat_id}}"},
-	}, codersdk.AIBridgeConfig{}, nil)
+	}, codersdk.AIBridgeConfig{}, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 
 	headers, ok := prov.(interface{ UpstreamHeaders() map[string]string })

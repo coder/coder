@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
@@ -32,9 +31,12 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -70,11 +72,13 @@ import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
-import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { useConversationEditingState } from "./hooks/useConversationEditingState";
+import {
+	type SendChatTurnOptions,
+	useConversationEditingState,
+} from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	draftInputStorageKeyPrefix,
@@ -99,7 +103,7 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const AgentChatPage: FC = () => {
+const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
@@ -167,6 +171,9 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	// The timeline folds steps by preference, so a cold load waits for it here
+	// rather than painting rows unfolded and then collapsing them.
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -314,6 +321,11 @@ const AgentChatPage: FC = () => {
 		...userSkills(),
 		staleTime: 60_000,
 	});
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -402,17 +414,6 @@ const AgentChatPage: FC = () => {
 		organizationName,
 		username: currentUser.username,
 	});
-
-	const handleCommit = (repoRoot: string) => {
-		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
-		const current = inputValueRef.current;
-		if (current.includes(commitPrompt)) {
-			return;
-		}
-		const prefix = current.trim() ? "\n\n" : "";
-		chatInputRef.current?.insertText(prefix + commitPrompt);
-		chatInputRef.current?.focus();
-	};
 
 	// Validate explicit and historical choices against organization options.
 	// Prefer the usable organization default before another organization model.
@@ -630,9 +631,12 @@ const AgentChatPage: FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		personalSkills: personalSkillsQuery.isSuccess
-			? personalSkillsQuery.data
-			: undefined,
+		// chatd skips disabled skills, so they never shadow a built-in
+		// command. A list with no data stays unknown, even after an error.
+		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
+		organizationSkills: organizationSkillsQuery.data?.filter(
+			(skill) => skill.enabled,
+		),
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,
@@ -660,15 +664,17 @@ const AgentChatPage: FC = () => {
 		setCachedChatPlanMode,
 	};
 
-	async function handleSend(
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) {
+	async function handleSend({
+		message,
+		attachments,
+		workspaceUploads,
+		editedMessageID,
+	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
+			workspaceUploads,
 			editedMessageID,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
 		});
@@ -689,19 +695,28 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	const isWaitingForPreferences =
+		preferencesQuery.isLoading &&
+		!chatQuery.isLoadingError &&
+		!chatMessagesQuery.isLoadingError;
+
 	return (
 		<>
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+			{chatQuery.isLoading ||
+			chatMessagesQuery.isLoading ||
+			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}
 					initialEditorState={editing.initialEditorState}
 					remountKey={editing.remountKey}
 					onContentChange={editing.handleLoadingDraftChange}
-					isInputDisabled={isInputDisabled}
+					// The loading view drops sends, so keep the composer disabled
+					// until the transcript can mount.
+					isInputDisabled={isInputDisabled || preferencesQuery.isLoading}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -747,7 +762,7 @@ const AgentChatPage: FC = () => {
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
-					models={modelCatalog?.models}
+					modelCatalog={modelCatalog}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					modelSelectorHelp={modelSelectorHelp}
 					modelCatalogError={modelsQuery.error}
@@ -779,7 +794,6 @@ const AgentChatPage: FC = () => {
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
-					handleCommit={handleCommit}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -805,7 +819,7 @@ const AgentChatPage: FC = () => {
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: FC = () => {
+const KeyedAgentChatPage: React.FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;

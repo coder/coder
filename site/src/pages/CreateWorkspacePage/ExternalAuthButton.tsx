@@ -1,5 +1,4 @@
 import { CheckIcon, RedoIcon } from "lucide-react";
-import type { FC } from "react";
 import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -24,7 +23,7 @@ type ExternalAuthButtonProps = {
 	canAuthenticate?: boolean;
 };
 
-export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
+export const ExternalAuthButton: React.FC<ExternalAuthButtonProps> = ({
 	auth,
 	displayRetry,
 	isLoading,

@@ -21,4 +21,6 @@ var GoleakOptions []goleak.Option = []goleak.Option{
 	// The go-winio library starts a process-level I/O completion port
 	// goroutine via sync.Once that is never terminated.
 	goleak.IgnoreAnyFunction("github.com/Microsoft/go-winio.ioCompletionProcessor"),
+	// The stall detector started from TestMain runs until the process exits.
+	goleak.IgnoreTopFunction("github.com/coder/coder/v2/testutil.StartStallDetector.func1"),
 }

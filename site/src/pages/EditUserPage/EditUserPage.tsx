@@ -1,7 +1,6 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
@@ -12,6 +11,7 @@ import {
 } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
@@ -23,7 +23,7 @@ import { pageTitle } from "#/utils/page";
 import { isUUID } from "#/utils/uuid";
 import { EditUserForm } from "./EditUserForm";
 
-const EditUserPage: FC = () => {
+const EditUserPage: React.FC = () => {
 	const { user: usernameOrId } = useParams() as { user: string };
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

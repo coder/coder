@@ -6,9 +6,8 @@ import {
 	RadioIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +25,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
+import { toast } from "#/components/Toaster/toast";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { getLatencyColor } from "#/utils/latency";
 import {
@@ -50,7 +50,7 @@ type MobileMenuProps = {
 	isDefaultOpen?: boolean; // Useful for storybook
 };
 
-export const MobileMenu: FC<MobileMenuProps> = ({
+export const MobileMenu: React.FC<MobileMenuProps> = ({
 	adminPermissions,
 	proxyContextValue,
 	user,
@@ -111,7 +111,9 @@ type ProxySettingsSubProps = {
 	proxyContextValue?: ProxyContextValue;
 };
 
-const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
+const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
+	proxyContextValue,
+}) => {
 	const selectedProxy = proxyContextValue?.proxy.proxy;
 	const latency = selectedProxy
 		? proxyContextValue?.proxyLatencies[selectedProxy?.id]
@@ -217,7 +219,7 @@ type AdminSettingsSubProps = {
 	permissions: AdminSettingsPermissions;
 };
 
-const AdminSettingsSub: FC<AdminSettingsSubProps> = ({ permissions }) => {
+const AdminSettingsSub: React.FC<AdminSettingsSubProps> = ({ permissions }) => {
 	const [open, setOpen] = useState(false);
 
 	return (
@@ -252,7 +254,7 @@ type UserSettingsSubProps = {
 	onSignOut: () => void;
 };
 
-const UserSettingsSub: FC<UserSettingsSubProps> = ({
+const UserSettingsSub: React.FC<UserSettingsSubProps> = ({
 	user,
 	supportLinks,
 	onSignOut,

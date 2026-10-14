@@ -27,6 +27,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -46,10 +48,10 @@ type responsesInterceptionBase struct {
 	reqPayload RequestPayload
 
 	cfg  intercept.Config
-	cred intercept.Credential
+	cred credential.Credential
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
-	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
-	// using a key pool or BYOK secret.
+	// calls target the Bedrock Mantle endpoint and are SigV4-signed, or
+	// bearer-authenticated when the request carries a user Bedrock API key.
 	bedrockMantle *awssig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -94,7 +96,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	} else {
 		// Only BYOK sets its credential here. Centralized keys are injected
 		// per-attempt in the failover loop.
-		if byok, ok := intercept.AsBYOK(i.cred); ok {
+		if byok, ok := credential.AsBYOK(i.cred); ok {
 			i.logger.Debug(ctx, "using byok auth",
 				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 			)
@@ -110,8 +112,8 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// or custom headers to apply.
 	if i.clientHeaders != nil || len(i.cfg.UpstreamHeaders) > 0 {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
-			intercept.ApplyUpstreamHeaders(req.Header, i.cfg.UpstreamHeaders, i.clientHeaders, i.cfg.ProviderName)
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
+			aibheaders.ApplyUpstreamHeaders(req.Header, i.cfg.UpstreamHeaders, i.clientHeaders, i.cfg.ProviderName)
 			return next(req)
 		}))
 	}
@@ -121,9 +123,9 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	// Bedrock mantle: install the SigV4 signing middleware last so it runs
-	// innermost (right before the HTTP send) and signs the request after all
-	// other headers are set.
+	// Bedrock mantle: install auth last so it runs innermost (right before the
+	// HTTP send) after all other headers are set. A user Bedrock API key is
+	// sent as a bearer token; otherwise the request is SigV4-signed.
 	if i.bedrockMantle != nil {
 		// Bedrock traffic carries Coder's PRM attribution marker. This runs
 		// before SigV4 signing so the marker is covered by the signature.
@@ -131,8 +133,14 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 			awssig.AppendPRMUserAgent(req)
 			return next(req)
 		}))
-		//nolint:bodyclose // SignMiddleware reads and closes only the request body.
-		opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		if byok, ok := credential.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth", slog.F("key_hint", byok.Hint()))
+			//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+			opts = append(opts, option.WithMiddleware(awssig.BearerMiddleware(byok.Secret)))
+		} else {
+			//nolint:bodyclose // SignMiddleware reads and closes only the request body.
+			opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		}
 	}
 
 	return responses.NewResponseService(opts...)
@@ -142,7 +150,7 @@ func (i *responsesInterceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *responsesInterceptionBase) Credential() intercept.Credential {
+func (i *responsesInterceptionBase) Credential() credential.Credential {
 	return i.cred
 }
 
@@ -153,7 +161,7 @@ func (i *responsesInterceptionBase) Setup(logger slog.Logger, rec recorder.Recor
 }
 
 func (i *responsesInterceptionBase) Model() string {
-	return i.reqPayload.model()
+	return i.reqPayload.Model()
 }
 
 func (i *responsesInterceptionBase) CorrelatingToolCallID() *string {
@@ -215,7 +223,7 @@ func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oa
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	cp, ok := intercept.AsCentralizedPool(i.cred)
+	cp, ok := credential.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}
@@ -279,6 +287,7 @@ func (i *responsesInterceptionBase) recordUserPrompt(ctx context.Context, respon
 	}
 
 	promptUsage := &recorder.PromptUsageRecord{
+		CreatedAt:      time.Now().UTC(),
 		InterceptionID: i.ID().String(),
 		MsgID:          responseID,
 		Prompt:         prompt,
@@ -291,6 +300,7 @@ func (i *responsesInterceptionBase) recordUserPrompt(ctx context.Context, respon
 func (i *responsesInterceptionBase) recordModelThoughts(ctx context.Context, response *responses.Response) {
 	for _, t := range i.extractModelThoughts(response) {
 		_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+			CreatedAt:      time.Now().UTC(),
 			InterceptionID: i.ID().String(),
 			Content:        t.Content,
 			Metadata:       t.Metadata,
@@ -341,6 +351,7 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 		}
 
 		if err := i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+			CreatedAt:      time.Now().UTC(),
 			InterceptionID: i.ID().String(),
 			MsgID:          response.ID,
 			// ItemID is always present; ToolCallID (call_id) is empty for
@@ -390,8 +401,10 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 	}
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 response.ID,
+		ProviderModel:         response.Model,
 		Input:                 inputNonCacheTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
@@ -424,8 +437,9 @@ func (*responsesInterceptionBase) extractModelThoughts(response *responses.Respo
 					continue
 				}
 				thoughts = append(thoughts, &recorder.ModelThoughtRecord{
-					Content:  summary.Text,
-					Metadata: recorder.Metadata{"source": recorder.ThoughtSourceReasoningSummary},
+					CreatedAt: time.Now().UTC(),
+					Content:   summary.Text,
+					Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceReasoningSummary},
 				})
 			}
 
@@ -448,8 +462,9 @@ func (*responsesInterceptionBase) extractModelThoughts(response *responses.Respo
 					continue
 				}
 				thoughts = append(thoughts, &recorder.ModelThoughtRecord{
-					Content:  part.Text,
-					Metadata: recorder.Metadata{"source": recorder.ThoughtSourceCommentary},
+					CreatedAt: time.Now().UTC(),
+					Content:   part.Text,
+					Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceCommentary},
 				})
 			}
 		}

@@ -222,3 +222,87 @@ func TestBufferRequestBodyRefreshesCloneBody(t *testing.T) {
 		require.Equal(t, []byte("request body"), cloneBody)
 	}
 }
+
+type staticRoundTripper struct {
+	body          string
+	contentLength int64
+}
+
+func (s *staticRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(strings.NewReader(s.body)),
+		ContentLength: s.contentLength,
+	}, nil
+}
+
+func TestMaxResponseBodyRoundTripper(t *testing.T) {
+	t.Parallel()
+
+	newReq := func(t *testing.T) *http.Request {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://example.invalid/", nil)
+		require.NoError(t, err)
+		return req
+	}
+
+	t.Run("ExactlyAtCapPasses", func(t *testing.T) {
+		t.Parallel()
+		body := strings.Repeat("a", 16)
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: body, contentLength: -1},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		got, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, body, string(got))
+	})
+
+	t.Run("UnknownLengthOverCapFailsOnRead", func(t *testing.T) {
+		t.Parallel()
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: strings.Repeat("a", 17), contentLength: -1},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		got, err := io.ReadAll(resp.Body)
+		require.ErrorIs(t, err, errInlineResponseTooLarge)
+		require.LessOrEqual(t, len(got), 16)
+	})
+
+	t.Run("ContentLengthOverCapFailsBeforeRead", func(t *testing.T) {
+		t.Parallel()
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: strings.Repeat("a", 17), contentLength: 17},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t)) //nolint:bodyclose // resp is nil on error
+		require.ErrorIs(t, err, errInlineResponseTooLarge)
+		require.Nil(t, resp)
+	})
+
+	t.Run("InlineClientPreservesGuard", func(t *testing.T) {
+		t.Parallel()
+		var hits atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		for _, base := range []*http.Client{nil, NewHTTPClient(nil)} {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			resp, err := inlineHTTPClient(base).Do(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			require.Error(t, err)
+		}
+		require.Zero(t, hits.Load())
+	})
+}

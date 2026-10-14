@@ -1,4 +1,4 @@
-import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
+import { cloneElement, isValidElement } from "react";
 import {
 	TableCell,
 	TableRow,
@@ -6,7 +6,7 @@ import {
 } from "#/components/Table/Table";
 import { Loader } from "../Loader/Loader";
 
-export const TableLoader: FC = () => {
+export const TableLoader: React.FC = () => {
 	return (
 		<TableRow>
 			<TableCell colSpan={999} className="text-center h-40">
@@ -18,10 +18,10 @@ export const TableLoader: FC = () => {
 
 type TableLoaderSkeletonProps = {
 	rows?: number;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
+export const TableLoaderSkeleton: React.FC<TableLoaderSkeletonProps> = ({
 	rows = 4,
 	children,
 }) => {
@@ -39,7 +39,7 @@ export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
 	);
 };
 
-export const TableRowSkeleton: FC<TableRowProps> = ({
+export const TableRowSkeleton: React.FC<TableRowProps> = ({
 	children,
 	...rowProps
 }) => {

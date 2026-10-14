@@ -1,5 +1,4 @@
 import { XIcon } from "lucide-react";
-import type { FC } from "react";
 import type {
 	Organization,
 	ProvisionerJob,
@@ -82,7 +81,7 @@ type OrganizationProvisionerJobsPageViewProps = {
 	onFilterChange: (filter: JobProvisionersFilter) => void;
 };
 
-const OrganizationProvisionerJobsPageView: FC<
+const OrganizationProvisionerJobsPageView: React.FC<
 	OrganizationProvisionerJobsPageViewProps
 > = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
 	if (!organization) {

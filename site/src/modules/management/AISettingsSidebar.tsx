@@ -1,17 +1,18 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
+import { readableInstructionsOrganizations } from "#/pages/AISettingsPage/InstructionsPage/readableInstructionsOrganizations";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
+import { readableSkillsOrganizations } from "#/pages/AISettingsPage/SkillsPage/readableSkillsOrganizations";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 
 /**
  * A sidebar for AI settings.
  */
-export const AISettingsSidebar: FC = () => {
+export const AISettingsSidebar: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements, organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
@@ -35,6 +36,16 @@ export const AISettingsSidebar: FC = () => {
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}
 			canShareOrganizationMCPServers={organizationMCPSharing.canShare}
+			canViewOrganizationInstructions={
+				readableInstructionsOrganizations(
+					organizations,
+					accessibleOrgsQuery.permissionsByOrganization,
+				).length > 0
+			}
+			skillOrganizations={readableSkillsOrganizations(
+				organizations,
+				accessibleOrgsQuery.permissionsByOrganization,
+			)}
 		/>
 	);
 };

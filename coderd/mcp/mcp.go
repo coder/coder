@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	stdslog "log/slog"
+	stdslog "log/slog" //nolint:depguard // mcp.ServerOptions.Logger requires a *log/slog.Logger; slogHandler forwards to cdr.dev/slog.
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -22,8 +22,8 @@ const (
 	// MCPServerInstructions is the instructions text for the MCP server.
 	MCPServerInstructions = "Coder MCP Server providing workspace and template management tools"
 
-	// Used in tests and aibridge.
-	MCPEndpoint = "/api/experimental/mcp/http"
+	// MCPEndpoint is the remote MCP HTTP endpoint path.
+	MCPEndpoint = codersdk.MCPEndpoint
 )
 
 // Server represents an MCP HTTP server instance
@@ -75,9 +75,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
-// Register all available MCP tools with the server excluding:
-// - ReportTask - which requires dependencies not available in the remote MCP context
-// - ChatGPT search and fetch tools, which are redundant with the standard tools.
+// Register all available MCP tools with the server excluding the ChatGPT
+// search and fetch tools, which are redundant with the standard tools.
 func (s *Server) RegisterTools(client *codersdk.Client, opts ...func(*toolsdk.Deps)) error {
 	if client == nil {
 		return xerrors.New("client cannot be nil: MCP HTTP server requires authenticated client")
@@ -90,10 +89,7 @@ func (s *Server) RegisterTools(client *codersdk.Client, opts ...func(*toolsdk.De
 	}
 
 	for _, tool := range toolsdk.All {
-		// the ReportTask tool requires dependencies not available in the remote MCP context
-		// the ChatGPT search and fetch tools are redundant with the standard tools.
-		if tool.Name == toolsdk.ToolNameReportTask ||
-			tool.Name == toolsdk.ToolNameChatGPTSearch || tool.Name == toolsdk.ToolNameChatGPTFetch {
+		if tool.Name == toolsdk.ToolNameChatGPTSearch || tool.Name == toolsdk.ToolNameChatGPTFetch {
 			continue
 		}
 

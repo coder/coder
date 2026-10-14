@@ -45,6 +45,7 @@ const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
 	{ path: "/ai/settings/templates", useStoryElement: true },
 	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/skills", useStoryElement: true },
 	{ path: "/ai/settings/lifecycle", useStoryElement: true },
 ];
 
@@ -80,6 +81,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	],
 	args: {
 		permissions: MockPermissions,
+		canViewOrganizationInstructions: false,
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/coder-agents"),
@@ -97,7 +99,7 @@ export const SpendVisible: Story = {
 	},
 };
 
-export const UserSpendActive: Story = {
+export const SpendActive: Story = {
 	args: {
 		canViewAISpend: true,
 	},
@@ -395,6 +397,29 @@ export const MCPServersHiddenWithoutPermission: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "MCP servers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const InstructionsForOrganizationAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canAccessOrganizationModels: true,
+		canViewOrganizationInstructions: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/instructions"),
+	},
+};
+
+export const SkillsForOrganizationAuditor: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyOrganizationSkills: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
 	},
 };
 

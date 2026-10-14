@@ -1,12 +1,5 @@
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	useCallback,
-	useContext,
-} from "react";
+import { createContext, useCallback, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import {
@@ -17,6 +10,7 @@ import {
 	updateProfile as updateProfileOptions,
 } from "#/api/queries/users";
 import type { UpdateUserProfileRequest, User } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { type Permissions, permissionChecks } from "#/modules/permissions";
 
@@ -41,7 +35,9 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 	undefined,
 );
 
-export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
 	const userMetadataState = metadata.user;
 

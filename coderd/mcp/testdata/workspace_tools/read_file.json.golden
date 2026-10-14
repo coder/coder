@@ -1,0 +1,17 @@
+{
+  "description": "Read a file from the workspace. Returns line-numbered content. The offset parameter is a 1-based line number (default: 1). The limit parameter is the number of lines to return (default: 2000). For large files, use offset and limit to paginate.",
+  "parameters": {
+    "limit": {
+      "type": "integer"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "path"
+  ]
+}

@@ -285,7 +285,23 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'chat_project:*',
+    'chat_project:create',
+    'chat_project:read',
+    'chat_project:update',
+    'chat_project:delete',
+    'chat_project_memory:*',
+    'chat_project_memory:create',
+    'chat_project_memory:read',
+    'chat_project_memory:delete',
+    'organization_skill:*',
+    'organization_skill:create',
+    'organization_skill:read',
+    'organization_skill:update',
+    'organization_skill:delete',
+    'organization_skill:share',
+    'chat_project:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -382,19 +398,25 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
-CREATE TYPE connection_status AS ENUM (
-    'connected',
-    'disconnected'
+CREATE TYPE chat_title_source AS ENUM (
+    'fallback',
+    'generated',
+    'user'
 );
 
-CREATE TYPE connection_type AS ENUM (
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
+
+CREATE TYPE connection_log_method AS ENUM (
     'ssh',
-    'vscode',
-    'jetbrains',
     'reconnecting_pty',
     'workspace_app',
     'port_forwarding',
     'tunnel'
+);
+
+CREATE TYPE connection_status AS ENUM (
+    'connected',
+    'disconnected'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -616,7 +638,14 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'experiment_rule',
+    'chat_project',
+    'chat_automation',
+    'chat_project_memory',
+    'chat_organization_system_prompt',
+    'chat_project_instructions',
+    'organization_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -970,10 +999,10 @@ BEGIN
         DELETE FROM organization_members
         WHERE user_id = OLD.id;
 
-        -- Remove their user_skills.
-        -- user_skills.user_id has ON DELETE CASCADE, but soft-delete
+        -- Remove their personal skills.
+        -- skills.user_id has ON DELETE CASCADE, but soft-delete
         -- does not remove the users row so the FK cascade never fires.
-        DELETE FROM user_skills
+        DELETE FROM skills
         WHERE user_id = OLD.id;
     END IF;
     RETURN NEW;
@@ -999,6 +1028,21 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_skill_user_acl_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Drop the departing member's direct grants so adding them back to the
+    -- organization does not silently restore access.
+    UPDATE skills
+    SET
+        user_acl = user_acl - OLD.user_id::text,
+        updated_at = now()
+    WHERE organization_id = OLD.organization_id AND user_acl ? OLD.user_id::text;
+    RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1016,6 +1060,45 @@ BEGIN
 	DELETE FROM user_ai_budget_overrides
 	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_skills_per_owner_limit() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    skill_count int;
+    skill_limit constant int := 100;
+BEGIN
+    -- Serialize skill-cap checks per owner so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit. FOR NO KEY
+    -- UPDATE does not block the KEY SHARE locks of unrelated foreign keys.
+    IF NEW.user_id IS NOT NULL THEN
+        PERFORM 1 FROM users WHERE id = NEW.user_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE user_id = NEW.user_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'user has reached the personal skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_user_limit';
+        END IF;
+    ELSIF NEW.organization_id IS NOT NULL THEN
+        PERFORM 1 FROM organizations WHERE id = NEW.organization_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE organization_id = NEW.organization_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'organization has reached the skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_organization_limit';
+        END IF;
+    ELSIF NEW.project_id IS NOT NULL THEN
+        PERFORM 1 FROM chat_projects WHERE id = NEW.project_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE project_id = NEW.project_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'project has reached the skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_project_limit';
+        END IF;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1092,32 +1175,6 @@ BEGIN
                   CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
     END IF;
 
-    RETURN NEW;
-END;
-$$;
-
-CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    skill_count int;
-    skill_limit constant int := 100;
-BEGIN
-    -- Serialize skill-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
-    FROM users
-    WHERE id = NEW.user_id
-    FOR UPDATE;
-
-    SELECT count(*) INTO skill_count
-    FROM user_skills
-    WHERE user_id = NEW.user_id;
-    IF skill_count >= skill_limit THEN
-        RAISE EXCEPTION 'user has reached the personal skill limit'
-            USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'user_skills_per_user_limit';
-    END IF;
     RETURN NEW;
 END;
 $$;
@@ -1731,6 +1788,8 @@ CREATE TABLE aibridge_token_usages (
     cache_read_price_micros bigint,
     cache_write_price_micros bigint,
     cost_micros bigint,
+    provider_model text,
+    priced_model text,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1741,6 +1800,10 @@ CREATE TABLE aibridge_token_usages (
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
 
 COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
+
+COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
@@ -2021,6 +2084,27 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_mcp_servers (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    slug text NOT NULL,
+    url text NOT NULL,
+    headers text DEFAULT '{}'::text NOT NULL,
+    headers_key_id text,
+    tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
+    tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
+    allow_in_subagents boolean DEFAULT false NOT NULL,
+    forward_coder_headers boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_mcp_servers IS 'MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers IS 'JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers_key_id IS 'The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2046,7 +2130,8 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config chat_message_search_tsv_config
+    search_tsv_config chat_message_search_tsv_config,
+    queued_message_id bigint
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2054,6 +2139,8 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
+
+COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2098,6 +2185,70 @@ CREATE TABLE chat_organization_model_overrides (
     reasoning_effort text,
     CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
+
+CREATE TABLE chat_organization_system_prompts (
+    organization_id uuid NOT NULL,
+    system_prompt text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_organization_system_prompts IS 'Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.';
+
+CREATE TABLE chat_project_instructions (
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    instructions text NOT NULL,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_instructions_not_blank CHECK ((length(btrim(instructions)) > 0))
+);
+
+COMMENT ON TABLE chat_project_instructions IS 'Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.';
+
+CREATE TABLE chat_project_memories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    body text NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_memories_body_length CHECK ((octet_length(body) <= 8192)),
+    CONSTRAINT chat_project_memories_description_length CHECK ((length(description) <= 150)),
+    CONSTRAINT chat_project_memories_name_format CHECK ((name ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text))
+);
+
+COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
+
+CREATE TABLE chat_projects (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    icon text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
+    CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+
+COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
+
+COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
+
+COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2209,6 +2360,9 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    project_id uuid,
+    title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
+    title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2233,6 +2387,12 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+
+COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
+
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2311,6 +2471,7 @@ CREATE VIEW chats_expanded AS
     c.last_read_message_id,
     c.dynamic_tools,
     c.organization_id,
+    c.project_id,
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
@@ -2332,7 +2493,9 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.title_source,
+    c.title_updated_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -2345,16 +2508,20 @@ CREATE TABLE connection_logs (
     workspace_id uuid NOT NULL,
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
-    type connection_type NOT NULL,
+    connection_method connection_log_method NOT NULL,
     ip inet,
     code integer,
     user_agent text,
     user_id uuid,
-    slug_or_port text,
+    app_name_or_port text,
     connection_id uuid,
     disconnect_time timestamp with time zone,
-    disconnect_reason text
+    disconnect_reason text,
+    client_session_id text,
+    CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
+
+COMMENT ON COLUMN connection_logs.connection_method IS 'How the connection was established.';
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
 
@@ -2362,13 +2529,15 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web co
 
 COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.';
+COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';
 
 COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 
 COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -2598,6 +2767,7 @@ CREATE TABLE mcp_server_configs (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
+    oauth2_resource text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -3008,6 +3178,29 @@ COMMENT ON COLUMN replicas.nats_port IS 'Port number for NATS clustering. 0 mean
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
     value text NOT NULL
+);
+
+CREATE TABLE skills (
+    id uuid NOT NULL,
+    user_id uuid,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    organization_id uuid,
+    project_id uuid,
+    enabled boolean DEFAULT true NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
+    CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
+    CONSTRAINT skills_name_size CHECK ((octet_length(name) <= 256)),
+    CONSTRAINT skills_single_owner CHECK ((num_nonnulls(user_id, organization_id, project_id) = 1)),
+    CONSTRAINT skills_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE UNLOGGED TABLE tailnet_coordinators (
@@ -3488,20 +3681,6 @@ CREATE TABLE user_secrets (
     CONSTRAINT user_secrets_enabled_requires_target CHECK (((NOT enabled) OR (env_name <> ''::text) OR (file_path <> ''::text)))
 );
 
-CREATE TABLE user_skills (
-    id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    name text NOT NULL,
-    description text DEFAULT ''::text NOT NULL,
-    content text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_skills_content_size CHECK ((octet_length(content) <= 65536)),
-    CONSTRAINT user_skills_description_size CHECK ((octet_length(description) <= 4096)),
-    CONSTRAINT user_skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
-    CONSTRAINT user_skills_name_size CHECK ((octet_length(name) <= 256))
-);
-
 CREATE TABLE user_status_changes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -3665,7 +3844,10 @@ CREATE TABLE workspace_agent_scripts (
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
     display_name text NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    resource_address text DEFAULT ''::text NOT NULL,
+    dependencies jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT workspace_agent_scripts_dependencies_is_array CHECK ((jsonb_typeof(dependencies) = 'array'::text))
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -4287,7 +4469,7 @@ ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT chat_debug_steps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_diff_statuses
-    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
+    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id, git_remote_origin, git_branch);
 
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
@@ -4300,6 +4482,12 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_slug_key UNIQUE (chat_id, slug);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
@@ -4315,6 +4503,18 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_organization_system_prompts
+    ADD CONSTRAINT chat_organization_system_prompts_pkey PRIMARY KEY (organization_id);
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_pkey PRIMARY KEY (project_id);
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4469,6 +4669,9 @@ ALTER TABLE ONLY provisioner_keys
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY tailnet_coordinators
     ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 
@@ -4549,9 +4752,6 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY user_skills
-    ADD CONSTRAINT user_skills_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
@@ -4777,6 +4977,8 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
+CREATE INDEX idx_chat_messages_chat_id ON chat_messages USING btree (chat_id, id DESC) WHERE (deleted = false);
+
 CREATE INDEX idx_chat_messages_chat_role_id ON chat_messages USING btree (chat_id, role, id DESC) WHERE (deleted = false);
 
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, id DESC) WHERE ((compressed = true) AND (deleted = false) AND (visibility = 'model'::chat_message_visibility));
@@ -4801,6 +5003,16 @@ CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING 
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
+CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
+
+CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
+
+CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
+
+CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
+
+CREATE INDEX idx_chat_projects_user_acl ON chat_projects USING gin (user_acl);
+
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
@@ -4816,6 +5028,8 @@ CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
+
+CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
@@ -4917,6 +5131,12 @@ COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
+CREATE UNIQUE INDEX skills_organization_id_name_idx ON skills USING btree (organization_id, name) WHERE (organization_id IS NOT NULL);
+
+CREATE UNIQUE INDEX skills_project_id_name_idx ON skills USING btree (project_id, name) WHERE (project_id IS NOT NULL);
+
+CREATE UNIQUE INDEX skills_user_id_name_idx ON skills USING btree (user_id, name);
+
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
 COMMENT ON INDEX template_usage_stats_start_time_idx IS 'Index for querying MAX(start_time).';
@@ -4934,8 +5154,6 @@ CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (
 CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
-
-CREATE UNIQUE INDEX user_skills_user_id_name_idx ON user_skills USING btree (user_id, name);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
@@ -5059,6 +5277,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
+CREATE TRIGGER trigger_delete_skill_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_skill_user_acl_on_org_member_delete();
+
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
@@ -5075,6 +5295,8 @@ CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
+CREATE TRIGGER trigger_skills_per_owner_limit BEFORE INSERT ON skills FOR EACH ROW EXECUTE FUNCTION enforce_skills_per_owner_limit();
+
 CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
 
 CREATE TRIGGER trigger_update_chat_history_after_message_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_insert();
@@ -5083,15 +5305,13 @@ CREATE TRIGGER trigger_update_chat_history_after_message_update AFTER UPDATE ON 
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
+CREATE TRIGGER trigger_upsert_skills BEFORE INSERT OR UPDATE ON skills FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
-CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
-
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
-
-CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -5157,6 +5377,12 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_headers_key_id_fkey FOREIGN KEY (headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5180,6 +5406,33 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_organization_system_prompts
+    ADD CONSTRAINT chat_organization_system_prompts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -5210,6 +5463,9 @@ ALTER TABLE ONLY chats
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
@@ -5361,6 +5617,15 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY tailnet_peers
     ADD CONSTRAINT tailnet_peers_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
@@ -5444,9 +5709,6 @@ ALTER TABLE ONLY user_secrets
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
-
-ALTER TABLE ONLY user_skills
-    ADD CONSTRAINT user_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

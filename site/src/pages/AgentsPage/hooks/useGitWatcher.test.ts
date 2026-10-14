@@ -87,17 +87,6 @@ describe("useGitWatcher", () => {
 		expect(result.current.hasReceivedChanges).toBe(false);
 	});
 
-	it("does not connect when chatId is undefined", () => {
-		const { result } = renderHook(() =>
-			useGitWatcher({ chatId: undefined, agentStatus: "connected" }),
-		);
-
-		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
-		expect(result.current.hasReceivedChanges).toBe(false);
-		expect(result.current.repositories.size).toBe(0);
-	});
-
 	it("does not connect when agentStatus is not connected", () => {
 		createMockSocket();
 
@@ -348,6 +337,91 @@ describe("useGitWatcher", () => {
 		}
 	});
 
+	it("replaces stale repositories with the first message after a reconnect", () => {
+		vi.useFakeTimers();
+
+		try {
+			vi.spyOn(Math, "random").mockReturnValue(0.5);
+			const socket1 = createMockSocket();
+
+			const { result } = renderHook(() =>
+				useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+			);
+
+			act(() => socket1.simulateOpen());
+			act(() =>
+				socket1.simulateMessage({
+					type: "changes",
+					repositories: [
+						{ repo_root: "/home/user/project-a", branch: "main" },
+						{ repo_root: "/home/user/project-b", branch: "main" },
+					],
+				}),
+			);
+			expect(result.current.repositories.size).toBe(2);
+
+			const socket2 = createMockSocket();
+			act(() => socket1.simulateClose());
+			act(() => vi.advanceTimersByTime(1000));
+			act(() => socket2.simulateOpen());
+
+			// project-a was deleted while disconnected, so the new
+			// connection's full state no longer includes it.
+			act(() =>
+				socket2.simulateMessage({
+					type: "changes",
+					repositories: [{ repo_root: "/home/user/project-b", branch: "main" }],
+				}),
+			);
+			expect([...result.current.repositories.keys()]).toEqual([
+				"/home/user/project-b",
+			]);
+
+			// Later messages on the same connection are deltas again.
+			act(() =>
+				socket2.simulateMessage({
+					type: "changes",
+					repositories: [{ repo_root: "/home/user/project-c", branch: "main" }],
+				}),
+			);
+			expect(result.current.repositories.size).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("clears stale repositories when the first message after a reconnect is empty", () => {
+		vi.useFakeTimers();
+
+		try {
+			vi.spyOn(Math, "random").mockReturnValue(0.5);
+			const socket1 = createMockSocket();
+
+			const { result } = renderHook(() =>
+				useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+			);
+
+			act(() => socket1.simulateOpen());
+			act(() =>
+				socket1.simulateMessage({
+					type: "changes",
+					repositories: [{ repo_root: "/home/user/project-a", branch: "main" }],
+				}),
+			);
+			expect(result.current.repositories.size).toBe(1);
+
+			const socket2 = createMockSocket();
+			act(() => socket1.simulateClose());
+			act(() => vi.advanceTimersByTime(1000));
+			act(() => socket2.simulateOpen());
+			act(() => socket2.simulateMessage({ type: "changes" }));
+
+			expect(result.current.repositories.size).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("sends a refresh message over the socket", () => {
 		const socket = createMockSocket();
 
@@ -445,9 +519,9 @@ describe("useGitWatcher", () => {
 		const socket1 = createMockSocket();
 
 		const { result, rerender } = renderHook(
-			({ chatId }: { chatId: string | undefined }) =>
+			({ chatId }: { chatId: string }) =>
 				useGitWatcher({ chatId, agentStatus: "connected" }),
-			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+			{ initialProps: { chatId: "chat-aaa" } },
 		);
 
 		act(() => socket1.simulateOpen());
@@ -509,9 +583,9 @@ describe("useGitWatcher", () => {
 			const socket1 = createMockSocket();
 
 			const { result, rerender } = renderHook(
-				({ chatId }: { chatId: string | undefined }) =>
+				({ chatId }: { chatId: string }) =>
 					useGitWatcher({ chatId, agentStatus: "connected" }),
-				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+				{ initialProps: { chatId: "chat-aaa" } },
 			);
 
 			act(() => socket1.simulateOpen());

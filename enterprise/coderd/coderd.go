@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/nats"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -46,7 +47,6 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -357,6 +357,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.listAIModelPrices)
 			r.Post("/", api.upsertAIModelPrices)
 		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/users", api.organizationAISpendUsers)
+		})
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -568,7 +577,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/export", api.exportOrganizationAISpend)
-			r.Get("/users", api.organizationAISpendUsers)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(

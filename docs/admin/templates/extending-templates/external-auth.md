@@ -1,4 +1,4 @@
-# External Authentication
+# External authentication
 
 Coder integrates with any OpenID Connect provider to automate away the need for
 developers to authenticate with external services within their workspace. This
@@ -9,7 +9,7 @@ service that requires authentication.
 
 External auth providers are configured using environment variables in the Coder
 Control Plane. See
-[External Authentication](../../external-auth/index.md) for how to configure
+[External Authentication](../../external-auth.md) for how to configure
 them.
 
 ## Git Providers
@@ -18,10 +18,12 @@ When developers use `git` inside their workspace, they are prompted to
 authenticate. After that, Coder will store and refresh tokens for future
 operations.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="../../../../site/static/external-auth.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows a developer being prompted to authenticate with an external provider and then using `git` in the workspace.
 
 ### Require git authentication in templates
 
@@ -45,7 +47,7 @@ For HTTPS Git operations, Coder selects from your template's declared providers 
 If two of your template's declared providers match the same host, Coder refuses the request instead of guessing between them.
 Coder also refuses when none of your declared providers match the host and one of them is missing from the deployment's configuration, rather than fall back to a provider your template never declared.
 A missing declaration doesn't affect hosts that your other declared providers still serve.
-For the full rules, refer to [OAuth (external auth)](../../external-auth/index.md#oauth-external-auth).
+For the full rules, refer to [OAuth (external auth)](../../external-auth.md#oauth-external-auth).
 
 To check the auth token being used **from inside a running workspace**, run:
 

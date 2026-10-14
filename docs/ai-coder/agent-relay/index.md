@@ -40,7 +40,7 @@ Agent Relay is not:
 
 ## Current state
 
-Agent Relay is in [early access](../../install/releases/feature-stages.md#early-access-features) and is in closed preview with select customers.
+Agent Relay is in [early access](../../reference/feature-stages.md#early-access-features) and is in closed preview with select customers.
 
 The daemon is distributed as a public container image and Helm chart:
 
@@ -63,4 +63,4 @@ If you want access to Agent Relay or want updates on the support status for your
 - [Agent Relay for Cursor](./cursor.md)
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Coder Agents](../agents/index.md)
-- [Architecture](../../admin/infrastructure/architecture.md)
+- [Architecture](../../install/plan/architecture.md)

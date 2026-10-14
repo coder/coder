@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -32,13 +32,9 @@ const normalizeMember = (
 	id: member.user_id,
 });
 
-export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
-	value,
-	onChange,
-	organizationId,
-	exclude,
-	className = "w-80",
-}) => {
+export const UserOrGroupAutocomplete: React.FC<
+	UserOrGroupAutocompleteProps
+> = ({ value, onChange, organizationId, exclude, className = "w-80" }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 

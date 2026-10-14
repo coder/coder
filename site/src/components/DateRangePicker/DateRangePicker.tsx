@@ -7,7 +7,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Calendar } from "#/components/Calendar/Calendar";
@@ -98,7 +98,7 @@ type DateRangePickerProps = {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
@@ -127,7 +127,7 @@ function fromBoundary(value: DateRangeValue): DayPickerDateRange {
 	return { from, to };
 }
 
-export const DateRangePicker: FC<DateRangePickerProps> = ({
+export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 	value,
 	onChange,
 	now,
@@ -252,7 +252,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			>
 				<div className="flex">
 					{/* Presets sidebar */}
-					<div className="flex flex-col border-r border-border-default p-2 text-sm">
+					<div className="flex flex-col border-r border-border p-2 text-sm">
 						{resolvedPresets.map((preset) => (
 							<button
 								key={preset.label}
@@ -273,7 +273,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 					{/* Calendar + footer */}
 					<div className="flex flex-col">
 						{/* Selected range display */}
-						<div className="flex items-center gap-2 border-b border-border-default px-4 py-2 text-sm">
+						<div className="flex items-center gap-2 border-b border-border px-4 py-2 text-sm">
 							<span
 								className={cn(
 									"rounded-md px-2 py-1 tabular-nums",
@@ -319,7 +319,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 						</div>
 
 						{/* Apply footer */}
-						<div className="flex items-center justify-end gap-2 border-t border-border-default px-4 py-2">
+						<div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
 							<Button variant="subtle" size="sm" onClick={() => setOpen(false)}>
 								Cancel
 							</Button>

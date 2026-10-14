@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -10,14 +9,14 @@ import {
 import { Link } from "#/components/Link/Link";
 
 type RequirePermissionProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	isFeatureVisible: boolean;
 };
 
 /**
  * Wraps routes that are available based on RBAC or licensing.
  */
-export const RequirePermission: FC<RequirePermissionProps> = ({
+export const RequirePermission: React.FC<RequirePermissionProps> = ({
 	children,
 	isFeatureVisible,
 }) => {

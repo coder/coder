@@ -1,9 +1,9 @@
-import { toast } from "sonner";
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import {
@@ -19,7 +19,10 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "../../utils/slashCommands";
-import type { PendingAttachment } from "../ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+} from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -29,12 +32,10 @@ import {
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
-/** @internal Exported for testing. */
-export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	editedMessageID?: number;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
@@ -42,6 +43,7 @@ export type SubmitChatTurnParams = {
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
+	organizationSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
@@ -113,16 +115,12 @@ export const resolveEditModelConfigID = ({
 	return undefined;
 };
 
-const persistLastModelConfigID = (modelConfigID: string): void => {
-	localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
-};
-
 const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
 	editedMessageID: number | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
+	// Built-ins only intercept new, text-only sends. A skill with the same
+	// name takes precedence at availability resolution.
 	if (editedMessageID !== undefined || content.length !== 1) {
 		return undefined;
 	}
@@ -251,12 +249,14 @@ export async function submitChatTurn(
 	const {
 		message,
 		attachments,
+		workspaceUploads,
 		editedMessageID,
 		composerParts,
 		clearPlanMode = false,
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
+		organizationSkills,
 		workspaceSkills,
 		compact,
 		clearChatContext,
@@ -285,6 +285,7 @@ export async function submitChatTurn(
 	const { content, hasContent } = buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		composerParts,
 	});
 	if (!hasContent || isSubmissionPending || !hasModelOptions) {
@@ -293,11 +294,11 @@ export async function submitChatTurn(
 
 	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
 	const builtInCommandResolution = builtInCommand
-		? resolveChatSlashCommandAvailability(
-				builtInCommand,
-				personalSkills,
-				workspaceSkills,
-			)
+		? resolveChatSlashCommandAvailability(builtInCommand, [
+				{ source: "personal", skills: personalSkills },
+				{ source: "org", skills: organizationSkills },
+				{ source: "workspace", skills: workspaceSkills },
+			])
 		: undefined;
 	if (builtInCommandResolution === "pending" && builtInCommand) {
 		const triggerText = chatSlashCommandTriggerText(builtInCommand);
@@ -368,9 +369,6 @@ export async function submitChatTurn(
 			},
 		});
 		scrollToEnd({ behavior: "smooth" });
-		if (editSelectedModelConfigID) {
-			persistLastModelConfigID(editSelectedModelConfigID);
-		}
 		return;
 	}
 
@@ -438,11 +436,6 @@ export async function submitChatTurn(
 				fetchQueueConvergence,
 			});
 		}
-	}
-	if (selectedModelConfigID) {
-		persistLastModelConfigID(selectedModelConfigID);
-	} else {
-		localStorage.removeItem(lastModelConfigIDStorageKey);
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);

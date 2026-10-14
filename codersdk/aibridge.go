@@ -668,9 +668,9 @@ func (p OrganizationAISpendPage) asRequestOption() RequestOption {
 // OrganizationAISpendUsers returns one page of per-user AI spend for the
 // organization matching the filter. It accounts for the same token usage as
 // ExportOrganizationAISpend over the same period.
-func (c *Client) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
+func (c *ExperimentalClient) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/users", organization.String()),
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/spend/users", organization.String()),
 		nil,
 		filter.asRequestOption(),
 		page.asRequestOption(),

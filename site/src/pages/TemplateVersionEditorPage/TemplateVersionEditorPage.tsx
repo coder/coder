@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { file, uploadFile } from "#/api/queries/files";
@@ -23,6 +22,7 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { existsFile, type FileTree, traverse } from "#/utils/filetree";
@@ -31,7 +31,7 @@ import { TarReader, TarWriter } from "#/utils/tar";
 import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-const TemplateVersionEditorPage: FC = () => {
+const TemplateVersionEditorPage: React.FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();

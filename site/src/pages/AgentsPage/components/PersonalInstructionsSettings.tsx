@@ -1,17 +1,15 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { InvisibleCharactersAlert } from "#/components/Alert/InvisibleCharactersAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 type MutationCallbacks = {
 	onSuccess?: () => void;
@@ -29,7 +27,7 @@ type PersonalInstructionsSettingsProps = {
 	isAnyPromptSaving: boolean;
 };
 
-export const PersonalInstructionsSettings: FC<
+export const PersonalInstructionsSettings: React.FC<
 	PersonalInstructionsSettingsProps
 > = ({
 	userPromptData,
@@ -59,10 +57,6 @@ export const PersonalInstructionsSettings: FC<
 		},
 	});
 
-	const userInvisibleCharCount = countInvisibleCharacters(
-		form.values.custom_prompt,
-	);
-
 	return (
 		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<h3 className="m-0 text-sm font-semibold text-content-primary">
@@ -84,15 +78,7 @@ export const PersonalInstructionsSettings: FC<
 				disabled={isAnyPromptSaving}
 				minRows={1}
 			/>
-			{userInvisibleCharCount > 0 && (
-				<Alert severity="warning">
-					<AlertDescription>
-						This text contains {userInvisibleCharCount} invisible Unicode{" "}
-						{userInvisibleCharCount !== 1 ? "characters" : "character"} that
-						could hide content. These will be stripped on save.
-					</AlertDescription>
-				</Alert>
-			)}
+			<InvisibleCharactersAlert text={form.values.custom_prompt} />
 			<div className="mt-2 flex min-h-6 justify-end gap-2">
 				{(form.dirty || isSavedVisible || isSavingUserPrompt) &&
 					(isSavedVisible ? (

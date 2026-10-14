@@ -2,18 +2,15 @@
 title: DX
 ---
 
-[DX](https://getdx.com) is a developer intelligence platform used by engineering
-leaders and platform engineers.
+[DX](https://getdx.com) is a developer intelligence platform used by engineering leaders and platform engineers.
 
 DX uses metadata attributes to assign information to individual users.
-While it's common to segment users by `role`, `level`, or `geo`, it’s become increasingly
-common to use DX attributes to better understand usage and adoption of tools.
+While it's common to segment users by `role`, `level`, or `geo`, it’s become increasingly common to use DX attributes to better understand usage and adoption of tools.
 
 You can create a `Coder` attribute in DX to segment and analyze the impact of Coder usage on a developer’s work, including:
 
 - Understanding the needs of power users or low Coder usage across the org
-- Correlate Coder usage with qualitative and quantitative engineering metrics,
-  such as PR throughput, deployment frequency, deep work, dev environment toil, and more.
+- Correlate Coder usage with qualitative and quantitative engineering metrics, such as PR throughput, deployment frequency, deep work, dev environment toil, and more.
 - Personalize user experiences
 
 ## Requirements
@@ -39,7 +36,7 @@ coder users list --output json | \
   jq -r '["username","email","created_at","status"], (.[] | [.username, .email, .created_at, .status]) | @csv' > users.csv
 ```
 
-Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+Visit the [users list](../../reference/cli/users/list.md) documentation for more options.
 
 ### API
 
@@ -85,6 +82,6 @@ After the attribute is uploaded, you'll have a Coder filter option within your D
 ## Related Resources
 
 - [DX Data Cloud Documentation](https://docs.getdx.com/)
-- [Coder CLI](../../reference/cli/users.md)
+- [Coder CLI](../../reference/cli/users/index.md)
 - [Coder API](../../reference/api/users.md)
 - [PlatformX Integration](./platformx.md)

@@ -1,4 +1,4 @@
-import { type FC, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -29,7 +29,9 @@ const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
 	return value === "vscode" || value === "vscode-insiders";
 };
 
-export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
+export const VSCodeDesktopButton: React.FC<VSCodeDesktopButtonProps> = (
+	props,
+) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
 	const [variant, setVariant] = useState<VSCodeVariant>(() => {
 		const previousVariant = localStorage.getItem(VARIANT_KEY);
@@ -111,7 +113,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	);
 };
 
-const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
+const VSCodeButton: React.FC<VSCodeDesktopButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
@@ -148,7 +150,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 	);
 };
 
-const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
+const VSCodeInsidersButton: React.FC<VSCodeDesktopButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,

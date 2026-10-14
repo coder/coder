@@ -1,0 +1,6 @@
+title: Validate your deployment
+description: Harden the deployment, then prove it works and holds up under load.
+path: ./install/validate/index.md
+icon_path: ./images/icons/health.svg
+children:
+  - include: install/validate/scale-testing.yml

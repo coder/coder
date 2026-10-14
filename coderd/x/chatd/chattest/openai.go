@@ -153,10 +153,14 @@ type OpenAIToolCall struct {
 
 // OpenAIChunkChoice represents a choice in a streaming chunk.
 type OpenAIChunkChoice struct {
-	Index        int              `json:"index"`
-	Delta        string           `json:"delta,omitempty"`
-	ToolCalls    []OpenAIToolCall `json:"tool_calls,omitempty"`
-	FinishReason string           `json:"finish_reason,omitempty"`
+	Index          int              `json:"index"`
+	Delta          string           `json:"delta,omitempty"`
+	ReasoningDelta string           `json:"reasoning_delta,omitempty"`
+	ToolCalls      []OpenAIToolCall `json:"tool_calls,omitempty"`
+	FinishReason   string           `json:"finish_reason,omitempty"`
+	// Phase labels the Responses API message item that the first delta
+	// of an output index opens.
+	Phase string `json:"phase,omitempty"`
 }
 
 // OpenAIChunk represents a streaming chunk from OpenAI.
@@ -374,10 +378,15 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 			choiceData := map[string]interface{}{
 				"index": choice.Index,
 			}
-			if choice.Delta != "" {
-				choiceData["delta"] = map[string]interface{}{
-					"content": choice.Delta,
+			if choice.Delta != "" || choice.ReasoningDelta != "" {
+				delta := map[string]interface{}{}
+				if choice.Delta != "" {
+					delta["content"] = choice.Delta
 				}
+				if choice.ReasoningDelta != "" {
+					delta["reasoning_content"] = choice.ReasoningDelta
+				}
+				choiceData["delta"] = delta
 			}
 			if len(choice.ToolCalls) > 0 {
 				// Tool calls come in the delta
@@ -514,6 +523,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 		itemType  string // "message" or "function_call"
 		itemID    string
 		text      string // accumulated text for message items
+		phase     string // phase for message items
 		callID    string // call_id for function_call items
 		toolName  string // function name for function_call items
 		arguments string // accumulated arguments for function_call items
@@ -736,7 +746,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 						}
 						if !writeEvent("response.output_item.done", map[string]interface{}{
 							"output_index": outputIndex,
-							"item": map[string]interface{}{
+							"item": withMessagePhase(map[string]interface{}{
 								"type":   "message",
 								"id":     state.itemID,
 								"role":   "assistant",
@@ -747,7 +757,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 										"text": state.text,
 									},
 								},
-							},
+							}, state.phase),
 						}) {
 							return
 						}
@@ -829,17 +839,18 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 				state = &outputItemState{
 					itemType: "message",
 					itemID:   fmt.Sprintf("msg_%s", uuid.New().String()[:8]),
+					phase:    choice.Phase,
 				}
 				outputs[outputIndex] = state
 				if !writeEvent("response.output_item.added", map[string]interface{}{
 					"output_index": outputIndex,
-					"item": map[string]interface{}{
+					"item": withMessagePhase(map[string]interface{}{
 						"type":    "message",
 						"id":      state.itemID,
 						"role":    "assistant",
 						"status":  "in_progress",
 						"content": []interface{}{},
-					},
+					}, state.phase),
 				}) {
 					return
 				}
@@ -867,6 +878,13 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
+}
+
+func withMessagePhase(item map[string]interface{}, phase string) map[string]interface{} {
+	if phase != "" {
+		item["phase"] = phase
+	}
+	return item
 }
 
 func (s *openAIServer) writeChatCompletionsNonStreaming(w http.ResponseWriter, resp *OpenAICompletion) {

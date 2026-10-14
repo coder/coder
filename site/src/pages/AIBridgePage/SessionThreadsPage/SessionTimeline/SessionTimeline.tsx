@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -45,7 +45,7 @@ type ExpandableTextProps = {
 	expandToMatch?: boolean;
 };
 
-const ExpandableText: FC<ExpandableTextProps> = ({
+const ExpandableText: React.FC<ExpandableTextProps> = ({
 	maxHeight,
 	text,
 	className,
@@ -118,7 +118,7 @@ type CollapseButtonProps = {
 	className?: string;
 };
 
-const CollapseButton: FC<CollapseButtonProps> = ({
+const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
 	onClick,
 	children,
@@ -150,7 +150,7 @@ type BracketConnectorProps = {
 	hideBottomLine?: boolean;
 };
 
-const BracketConnector: FC<BracketConnectorProps> = ({
+const BracketConnector: React.FC<BracketConnectorProps> = ({
 	children,
 	contentClassName,
 	firstRowHeight = "2rem",
@@ -182,7 +182,7 @@ type ThinkingBlockProps = {
 	text: string;
 };
 
-const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
+const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
 			<LoaderIcon className="size-icon-xs text-content-secondary" />
@@ -209,7 +209,7 @@ type ToolCallBlockProps = {
 	highlight: string;
 };
 
-const ToolCallBlock: FC<ToolCallBlockProps> = ({
+const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
@@ -274,7 +274,7 @@ type AgenticActionItemProps = {
 	highlight: string;
 };
 
-const AgenticActionItem: FC<AgenticActionItemProps> = ({
+const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
@@ -331,7 +331,7 @@ type ThreadItemProps = {
 	highlight: string;
 };
 
-const ThreadItem: FC<ThreadItemProps> = ({
+const ThreadItem: React.FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchPromptMatch,
@@ -360,20 +360,6 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	return (
 		<>
 			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
-				{/* left column: avatar and username */}
-				<div className="flex flex-row items-center gap-1">
-					<Avatar
-						src={initiator.avatar_url}
-						fallback={initiator.name ?? initiator.username}
-						size="sm"
-						className="shrink-0"
-					/>
-					<span className="text-sm text-content-secondary font-normal py-1">
-						{initiator.username}
-					</span>
-				</div>
-
-				{/* center column: prompt */}
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
@@ -416,15 +402,26 @@ const ThreadItem: FC<ThreadItemProps> = ({
 						</>
 					)}
 				</div>
-				{/* right column: details */}
-				<PromptTable
-					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
-					timestamp={new Date(thread.started_at)}
-					model={thread.model}
-					inputTokens={thread.token_usage.input_tokens}
-					outputTokens={thread.token_usage.output_tokens}
-					tokenUsageMetadata={thread.token_usage.metadata}
-				/>
+				<div className="flex flex-col gap-1 lg:max-w-64 min-w-0 shrink-0 w-full lg:w-auto">
+					<div className="flex items-center gap-1">
+						<Avatar
+							src={initiator.avatar_url}
+							fallback={initiator.name ?? initiator.username}
+							size="sm"
+							className="shrink-0"
+						/>
+						<span className="min-w-0 break-all text-sm text-content-secondary font-normal py-1">
+							{initiator.username}
+						</span>
+					</div>
+					<PromptTable
+						timestamp={new Date(thread.started_at)}
+						model={thread.model}
+						inputTokens={thread.token_usage.input_tokens}
+						outputTokens={thread.token_usage.output_tokens}
+						tokenUsageMetadata={thread.token_usage.metadata}
+					/>
+				</div>
 			</div>
 
 			{hasAgenticLoop ? (
@@ -509,7 +506,7 @@ type SessionTimelineProps = {
 	onFetchNextPage: () => void;
 };
 
-export const SessionTimeline: FC<SessionTimelineProps> = ({
+export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
 	networkCallSummary,
