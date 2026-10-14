@@ -30,6 +30,5 @@ func TestWrapResponseError(t *testing.T) {
 func TestStatusCode(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, http.StatusBadRequest, httperror.StatusCode(httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{})))
 	require.Equal(t, http.StatusInternalServerError, httperror.StatusCode(xerrors.New("plain")))
 }

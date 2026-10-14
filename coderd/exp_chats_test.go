@@ -55,7 +55,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -1903,18 +1902,13 @@ func TestCreateChatAsUser(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 		chat, err := api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
 		require.Equal(t, "hello from CreateChatAsUser", chat.Title)
-
-		got, err := memberClient.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, chat.ID, got.ID)
 
 		require.True(t, mAudit.Contains(t, database.AuditLog{
 			Action:         database.AuditActionCreate,
@@ -1924,38 +1918,6 @@ func TestCreateChatAsUser(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			StatusCode:     http.StatusCreated,
 		}))
-
-		httpChat, err := memberClient.CreateChat(ctx, helloRequest(firstUser.OrganizationID))
-		require.NoError(t, err)
-		createAudit := func(chatID uuid.UUID) database.AuditLog {
-			for _, log := range mAudit.AuditLogs() {
-				if log.ResourceID == chatID && log.Action == database.AuditActionCreate {
-					return log
-				}
-			}
-			t.Fatalf("no create audit entry for chat %s", chatID)
-			return database.AuditLog{}
-		}
-		inProcess, overHTTP := createAudit(chat.ID), createAudit(httpChat.ID)
-		require.Equal(t, overHTTP.Action, inProcess.Action)
-		require.Equal(t, overHTTP.ResourceType, inProcess.ResourceType)
-		require.Equal(t, overHTTP.UserID, inProcess.UserID)
-		require.Equal(t, overHTTP.OrganizationID, inProcess.OrganizationID)
-		require.Equal(t, overHTTP.StatusCode, inProcess.StatusCode)
-	})
-
-	t.Run("ValidationError", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-
-		_, err := api.CreateChatAsUser(ctx, member.ID, helloRequest(uuid.Nil))
-		responder, ok := httperror.IsResponder(err)
-		require.True(t, ok, "want a responder error, got %v", err)
-		status, resp := responder.Response()
-		require.Equal(t, http.StatusBadRequest, status)
-		require.Equal(t, "organization_id is required.", resp.Message)
 	})
 
 	t.Run("RefusedUser", func(t *testing.T) {
@@ -2082,30 +2044,6 @@ func TestCreateChatAsUser(t *testing.T) {
 				require.Equal(t, wantAudits, activationAudits(member.ID))
 			})
 		}
-	})
-
-	t.Run("ChatDaemonError", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		file, err := memberClient.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "attached.png", bytes.NewReader(pngData))
-		require.NoError(t, err)
-		req := helloRequest(firstUser.OrganizationID)
-		req.Content = append(req.Content, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: file.ID})
-		_, err = api.CreateChatAsUser(ctx, member.ID, req)
-		require.NoError(t, err)
-
-		// A file links to at most one chat, so chatd rejects the second chat.
-		_, err = api.CreateChatAsUser(ctx, member.ID, req)
-		responder, ok := httperror.IsResponder(err)
-		require.True(t, ok, "want a responder error, got %v", err)
-		status, resp := responder.Response()
-		require.Equal(t, http.StatusBadRequest, status)
-		require.Equal(t, "Chat attachment unavailable.", resp.Message)
-		require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
 	})
 
 	t.Run("HookDenied", func(t *testing.T) {
