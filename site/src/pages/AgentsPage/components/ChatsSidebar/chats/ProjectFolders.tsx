@@ -129,7 +129,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					)}
 					{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
 					{isShowingEmptyState && (
-						<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-5 text-center">
+						<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border mx-1 px-8 py-5 text-center">
 							<p className="m-0 text-sm text-content-secondary">
 								Group related chats together, with shared members and history.
 							</p>
