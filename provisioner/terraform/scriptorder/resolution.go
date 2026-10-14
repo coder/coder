@@ -34,25 +34,41 @@ type resolvedRule struct {
 }
 
 type phaseFilterWarning struct {
-	dataSourceAddress            string
-	ruleIndex                    int
-	inferredPhase                Phase
-	moduleSelectorsWithOmissions []string
+	dataSourceAddress                string
+	ruleIndex                        int
+	inferredPhase                    Phase
+	moduleSelectorsWithOmissions     []string
+	additionalModuleSelectorsOmitted int
 }
 
 func (w phaseFilterWarning) String() string {
-	selectors := make([]string, 0, len(w.moduleSelectorsWithOmissions))
+	selectors := make([]string, 0, len(w.moduleSelectorsWithOmissions)+1)
 	for _, selector := range w.moduleSelectorsWithOmissions {
-		selectors = append(selectors, `"`+selector+`"`)
+		selectors = append(selectors, fmt.Sprintf(
+			"%q", truncateDiagnosticValue(selector),
+		))
+	}
+	if w.additionalModuleSelectorsOmitted > 0 {
+		selectors = append(selectors, fmt.Sprintf(
+			"… (%d more)", w.additionalModuleSelectorsOmitted,
+		))
 	}
 	return fmt.Sprintf(
 		"script order data source %q rule %d inferred phase %q and omitted "+
 			"scripts in the other phase from module selectors: "+
 			"%s; set phase = %q explicitly to make this filtering intentional",
-		w.dataSourceAddress, w.ruleIndex, w.inferredPhase,
+		truncateDiagnosticValue(w.dataSourceAddress), w.ruleIndex, w.inferredPhase,
 		strings.Join(selectors, ", "), w.inferredPhase,
 	)
 }
+
+const (
+	// MaxWarnings is the maximum number of detailed phase-filter warnings
+	// returned for one Terraform conversion.
+	MaxWarnings = 100
+	// Each phase-filter warning is transported as one provisioner log.
+	maxPhaseFilterWarningSelectors = 20
+)
 
 type preparedRule struct {
 	identity    ruleIdentity
@@ -60,6 +76,18 @@ type preparedRule struct {
 	requirement Requirement
 	run         []resolvedSelector
 	after       []resolvedSelector
+}
+
+func (r *preparedRule) toResolvedRule(runtimeAddress string) resolvedRule {
+	return resolvedRule{
+		dataSourceAddress: r.identity.dataSourceAddress,
+		ruleIndex:         r.identity.ruleIndex,
+		runtimeAddress:    runtimeAddress,
+		phase:             r.phase,
+		requirement:       r.requirement,
+		run:               r.run,
+		after:             r.after,
+	}
 }
 
 // Order contains one deterministic dependency graph per runtime and
@@ -102,7 +130,11 @@ func (p *Program) prepareOrder() (Prepared, error) {
 			return Prepared{}, err
 		}
 		if warning != nil {
-			result.warnings = append(result.warnings, *warning)
+			if len(result.warnings) < MaxWarnings {
+				result.warnings = append(result.warnings, *warning)
+			} else {
+				result.warningsOmitted++
+			}
 		}
 		// A rule with an empty run or after address set contributes
 		// no dependency edges.
@@ -152,19 +184,16 @@ func prepareRule(
 
 	var warning *phaseFilterWarning
 	if inferred {
-		selectorsWithOmissions := map[string]struct{}{}
-		omissionGroups := [...][]string{runOmissions, afterOmissions}
-		for _, omissions := range omissionGroups {
-			for _, selector := range omissions {
-				selectorsWithOmissions[selector] = struct{}{}
-			}
-		}
+		selectorsWithOmissions, omitted := boundedPhaseFilterWarningSelectors(
+			runOmissions, afterOmissions,
+		)
 		if len(selectorsWithOmissions) > 0 {
 			warning = &phaseFilterWarning{
-				dataSourceAddress:            declaration.dataSourceAddress,
-				ruleIndex:                    declaration.ruleIndex,
-				inferredPhase:                phase,
-				moduleSelectorsWithOmissions: slices.Sorted(maps.Keys(selectorsWithOmissions)),
+				dataSourceAddress:                declaration.dataSourceAddress,
+				ruleIndex:                        declaration.ruleIndex,
+				inferredPhase:                    phase,
+				moduleSelectorsWithOmissions:     selectorsWithOmissions,
+				additionalModuleSelectorsOmitted: omitted,
 			}
 		}
 	}
@@ -176,6 +205,16 @@ func prepareRule(
 		run:         run,
 		after:       after,
 	}, warning, nil
+}
+
+func boundedPhaseFilterWarningSelectors(
+	selectorGroups ...[]string,
+) ([]string, int) {
+	selectors := slices.Concat(selectorGroups...)
+	slices.Sort(selectors)
+	selectors = slices.Compact(selectors)
+	renderCount := min(len(selectors), maxPhaseFilterWarningSelectors)
+	return slices.Clone(selectors[:renderCount]), len(selectors) - renderCount
 }
 
 // finalizeOrder validates runtime compatibility and self-dependencies
@@ -193,15 +232,7 @@ func (p *Prepared) finalizeOrder(
 		if err := rule.validateNoSelfDependency(); err != nil {
 			return nil, err
 		}
-		result = append(result, resolvedRule{
-			dataSourceAddress: rule.identity.dataSourceAddress,
-			ruleIndex:         rule.identity.ruleIndex,
-			runtimeAddress:    runtimeAddress,
-			phase:             rule.phase,
-			requirement:       rule.requirement,
-			run:               rule.run,
-			after:             rule.after,
-		})
+		result = append(result, rule.toResolvedRule(runtimeAddress))
 	}
 	return result, nil
 }
@@ -442,11 +473,21 @@ func (r *preparedRule) validateRuntime(
 	// selected scripts share one runtime.
 	firstAddr := addrs[0]
 	firstBinding := runtimeBindings[firstAddr]
+	if firstBinding.Error != "" {
+		return "", runtimeResolutionError(
+			r.identity, firstAddr, r.run, r.after, firstBinding.Error,
+		)
+	}
 	if firstBinding.RuntimeAddress == "" {
 		return "", missingRuntimeError(r.identity, firstAddr, r.run, r.after)
 	}
 	for _, addr := range addrs[1:] {
 		binding := runtimeBindings[addr]
+		if binding.Error != "" {
+			return "", runtimeResolutionError(
+				r.identity, addr, r.run, r.after, binding.Error,
+			)
+		}
 		if binding.RuntimeAddress == "" {
 			return "", missingRuntimeError(r.identity, addr, r.run, r.after)
 		}
@@ -467,6 +508,27 @@ func (r *preparedRule) validateRuntime(
 		}
 	}
 	return firstBinding.RuntimeAddress, nil
+}
+
+func runtimeResolutionError(
+	identity ruleIdentity,
+	address string,
+	run []resolvedSelector,
+	after []resolvedSelector,
+	runtimeError string,
+) error {
+	selector := findResolvedSelector(address, run, after)
+	return ruleError(
+		identity.dataSourceAddress,
+		identity.ruleIndex,
+		xerrors.Errorf(
+			"%s selector %q selects script %q, but its agent runtime could not be resolved: %s",
+			selector.field,
+			selector.raw,
+			address,
+			truncateDiagnosticValue(runtimeError),
+		),
+	)
 }
 
 func missingRuntimeError(
