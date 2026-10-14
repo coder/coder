@@ -2088,8 +2088,6 @@ func TestCreateChatAsUser(t *testing.T) {
 func TestActOnChatAsUser(t *testing.T) {
 	t.Parallel()
 
-	// The diff names the chat fields that differ, so a test can tell an
-	// empty diff from a real one.
 	mAudit := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
 		diff := audit.Map{}
 		oldChat, oldOK := old.(database.Chat)
@@ -2134,7 +2132,6 @@ func TestActOnChatAsUser(t *testing.T) {
 		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello again"}},
 	}
 	unarchiveRequest := codersdk.UpdateChatRequest{Archived: ptr.Ref(false)}
-	// chatWrites returns the write audit entries of a chat, oldest first.
 	chatWrites := func(chatID uuid.UUID) []database.AuditLog {
 		var logs []database.AuditLog
 		for _, log := range mAudit.AuditLogs() {
