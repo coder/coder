@@ -366,6 +366,11 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"restore -SW", "git restore -SW a.py", true},
 		{"branch -df", "git branch -df old", true},
 		{"branch -qD", "git branch -qD old", true},
+		// An operand that starts with a colon is a pathspec with magic,
+		// which no branch name can be.
+		{"checkout of a top pathspec", "git checkout -q ':(top)billing'", true},
+		{"checkout of a :/ pathspec", "git checkout ':/billing'", true},
+		{"checkout of an exclude pathspec", "git checkout -q ':!docs'", true},
 		{"checkout -bf names the branch f", "git checkout -bf main", false},
 		{"checkout -tf reads f as the track mode", "git checkout -tf main", false},
 		{"clean -n with an attached exclude pattern", "git clean -n -ef", false},

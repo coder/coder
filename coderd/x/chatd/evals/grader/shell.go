@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"path"
 	"regexp"
 	"slices"
@@ -25,13 +24,11 @@ type shellCommand struct {
 	InputFiles []string
 	// Pos orders the command within its execute call (see scriptPos).
 	Pos scriptPos
-	// End holds, for each level of Pos, the offset just past the
-	// statement there that holds the command: the statement of the shell
-	// command that runs its nested script, and last the command's own
-	// statement, its redirections included (see endsBefore). A level
-	// where a statement run in the background (&) holds the command has
-	// neverEnds, since the shell runs the next statement without waiting.
-	End scriptPos
+	// End holds, for each level of Pos, where the statement there that
+	// holds the command ends: the statement of the shell command that runs
+	// its nested script, and last the command's own statement (see
+	// endsBefore).
+	End []statementEnd
 	// Pipeline is the position of the pipeline the command is a stage of,
 	// prefixed like Pos; nil outside a pipeline.
 	Pipeline scriptPos
@@ -48,9 +45,14 @@ type shellCommand struct {
 	Conditional bool
 }
 
-// neverEnds is the End of a command at a level where the shell runs it in
-// the background.
-const neverEnds = math.MaxUint
+// statementEnd is where a statement that holds a command ends at one
+// level of the command's position: Stmt is the offset just past the
+// statement, its redirections included, and Job the offset just past the
+// innermost statement there that the shell runs in the background (&)
+// and that holds the command, or 0 outside one.
+type statementEnd struct {
+	Stmt, Job uint
+}
 
 // scriptPos is the source offset of a command or statement in an execute
 // command, preceded by the offsets of the shell commands that run it as a
@@ -187,14 +189,14 @@ func parseShell(src string) (shellScript, bool) {
 			if len(n.Args) == 0 {
 				return true
 			}
-			end, ok := stmtEnds[n]
-			if !ok {
-				end = n.End().Offset()
+			end := statementEnd{Stmt: n.End().Offset()}
+			if stmtEnd, ok := stmtEnds[n]; ok {
+				end.Stmt = stmtEnd
 			}
-			if slices.ContainsFunc(backgrounds, func(b [2]uint) bool {
-				return b[0] <= n.Pos().Offset() && n.Pos().Offset() < b[1]
-			}) {
-				end = neverEnds
+			for _, b := range backgrounds {
+				if b[0] <= n.Pos().Offset() && n.Pos().Offset() < b[1] && (end.Job == 0 || b[1] < end.Job) {
+					end.Job = b[1]
+				}
 			}
 			cmd := shellCommand{
 				Args:       make([]string, 0, len(n.Args)),
@@ -202,7 +204,7 @@ func parseShell(src string) (shellScript, bool) {
 				Stdin:      stdin[n],
 				InputFiles: inputs[n],
 				Pos:        scriptPos{n.Pos().Offset()},
-				End:        scriptPos{end},
+				End:        []statementEnd{end},
 				Pipeline:   stages[n],
 			}
 			for _, w := range n.Args {
@@ -236,14 +238,19 @@ func parseShell(src string) (shellScript, bool) {
 // endsBefore reports whether the shell has finished c by the time it
 // expands position p of the same execute call: at the first level where p
 // leaves the scripts that run c, p is at or after the end of the statement
-// there that holds c. The shell expands a position inside that statement,
-// such as an argument or redirection of c or of the bash -c that runs it,
-// before c runs.
+// there that holds c, and inside any background job that holds c there.
+// The shell expands a position inside that statement, such as an argument
+// or redirection of c or of the bash -c that runs it, before c runs. It
+// runs what follows a background job without waiting for the job, and a
+// nested script ends without waiting for the jobs it started.
 func (c shellCommand) endsBefore(p scriptPos) bool {
 	for j := range min(len(p), len(c.Pos), len(c.End)) {
-		if p[j] != c.Pos[j] {
-			return p[j] >= c.End[j]
+		if p[j] == c.Pos[j] {
+			continue
 		}
+		end := c.End[j]
+		return p[j] >= end.Stmt && (end.Job == 0 || p[j] < end.Job) &&
+			!slices.ContainsFunc(c.End[j+1:], func(e statementEnd) bool { return e.Job != 0 })
 	}
 	return false
 }
@@ -1707,8 +1714,9 @@ var (
 	commitOperand = regexp.MustCompile(`^[0-9a-f]{7,40}$|[~^]|@\{`)
 	// restoredPath matches git checkout operands that look like files or
 	// directories, which git checkout restores without switching
-	// branches. A branch name cannot end in a slash.
-	restoredPath = regexp.MustCompile(`^\./|\.[A-Za-z]{1,4}$|/$`)
+	// branches, and pathspecs with magic such as :(top)billing or :/billing.
+	// A branch name cannot hold a colon or end in a slash.
+	restoredPath = regexp.MustCompile(`^\./|^:|\.[A-Za-z]{1,4}$|/$`)
 )
 
 // branchSwitch reports how a command changes the checked-out branch:

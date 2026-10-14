@@ -252,17 +252,20 @@ export function configureSuite(evals: ExperimentBuilder, opts: SuiteOptions): Su
   return { guardrails, addCase, wanted };
 }
 
+// Paths are under $state, the directory each hidden-test run makes for
+// itself (see hiddenTestScript).
 const hiddenTestEnv: Record<string, string> = {
-  HOME: "/tmp/chatd-eval-home",
-  GOCACHE: "/tmp/chatd-eval-go/cache",
-  GOPATH: "/tmp/chatd-eval-go/path",
-  GOMODCACHE: "/tmp/chatd-eval-go/mod",
+  HOME: "$state/home",
+  TMPDIR: "$state/tmp",
+  GOCACHE: "$state/go/cache",
+  GOPATH: "$state/go/path",
+  GOMODCACHE: "$state/go/mod",
   GOFLAGS: "-mod=mod",
   GOPROXY: "off",
   GOTOOLCHAIN: "local",
   GOTELEMETRY: "off",
-  XDG_CACHE_HOME: "/tmp/chatd-eval-xdg",
-  npm_config_cache: "/tmp/chatd-eval-npm",
+  XDG_CACHE_HOME: "$state/xdg",
+  npm_config_cache: "$state/npm",
   PYTHONDONTWRITEBYTECODE: "1",
   NO_COLOR: "1",
 };
@@ -291,8 +294,22 @@ export function hiddenTestScript(goldenDir: URL): string {
   const reports = [...(golden.reports ?? [])];
   // The aegis collector runs command graders with only the base repo env,
   // not the grader's own env map, and there is no HOME in the grading
-  // container, so the script points every toolchain cache at /tmp itself.
-  const lines = ["set -e", ...Object.entries(hiddenTestEnv).map(([k, v]) => `export ${k}='${v}'`)];
+  // container, so the script points HOME, TMPDIR, and every toolchain
+  // cache at a directory of its own, which it removes when it ends. One
+  // grading container runs every trial's hidden tests, and the workspace's
+  // code runs in them, so what one trial leaves there, such as a
+  // sitecustomize.py in the Python user site or a Go build cache entry,
+  // must not reach the next. The removal first restores write permission,
+  // which a test may have taken from a directory there. When it fails
+  // anyway, the script says so and keeps the tests' exit status, which
+  // errexit would replace: the next run makes a directory of its own.
+  const lines = [
+    "set -e",
+    "state=$(mktemp -d)",
+    `trap '{ chmod -R u+rwX "$state"; rm -rf "$state"; } || echo "hidden tests: cannot remove $state" >&2' EXIT`,
+    'mkdir "$state/home" "$state/tmp"',
+    ...Object.entries(hiddenTestEnv).map(([k, v]) => `export ${k}="${v}"`),
+  ];
   const hiddenDir = join(root, "hidden");
   for (const file of listFiles(hiddenDir)) {
     const rel = relative(hiddenDir, file).split(sep).join("/");

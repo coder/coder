@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -97,15 +98,8 @@ func missingReports(reports []string, out string) []string {
 // with the forms the rules must tell apart.
 func TestHiddenPassReportsMatchShared(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("node is not installed")
-	}
 	ctx := testutil.Context(t, testutil.WaitLong)
-	strips, err := exec.CommandContext(ctx, "node", "-p", "Boolean(process.features.typescript)").Output()
-	require.NoError(t, err)
-	if strings.TrimSpace(string(strips)) != "true" {
-		t.Skip("this node does not run TypeScript files (node 22.18 or later does)")
-	}
+	skipWithoutTypeScriptNode(ctx, t)
 	fixture := t.TempDir()
 	for rel, data := range map[string]string{
 		"golden.json": `{"command":"true"}`,
@@ -149,6 +143,96 @@ func TestHiddenPassReportsMatchShared(t *testing.T) {
 		require.ElementsMatch(t, want, got[dir], "reports for %s", dir)
 	}
 }
+
+// Every trial's hidden tests run in one grading container, and the
+// workspace's code runs in them, so each run gets its own HOME, caches,
+// and TMPDIR and removes them when it ends: what one trial leaves there,
+// such as a sitecustomize.py in the Python user site, never reaches the
+// next. The removal also takes a directory that a test made read-only,
+// and when it fails, the run says so without failing the hidden tests,
+// since the next run makes a directory of its own.
+func TestHiddenTestStatePerRun(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("hidden-test commands use sh")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	skipWithoutTypeScriptNode(ctx, t)
+	script := hiddenTestCommand(ctx, t, map[string]any{
+		"command": `mkdir -p "$HOME" && test ! -e "$HOME/left-behind" && touch "$HOME/left-behind" && ` +
+			`mkdir -p "$TMPDIR/ro/sub" && touch "$TMPDIR/ro/sub/f" && chmod 555 "$TMPDIR/ro/sub" && chmod 0 "$TMPDIR/ro" && ` +
+			`echo "state=$HOME tmp=$TMPDIR"`,
+		"reports": []string{"^state=/"},
+	})
+	work := t.TempDir()
+	state := regexp.MustCompile(`(?m)^state=(/\S+) tmp=(/\S+)$`)
+	for range 2 {
+		run := exec.CommandContext(ctx, "sh", "-c", script)
+		run.Dir = work
+		// The grading container passes the command no HOME or TMPDIR.
+		run.Env = []string{"PATH=" + os.Getenv("PATH")}
+		out, err := run.CombinedOutput()
+		require.NoError(t, err, "%s", out)
+		m := state.FindSubmatch(out)
+		require.NotNil(t, m, "%s", out)
+		require.NoDirExists(t, string(m[1]), "HOME outlived its run")
+		require.NoDirExists(t, string(m[2]), "TMPDIR outlived its run")
+	}
+
+	bin := t.TempDir()
+	rm := filepath.Join(bin, "rm")
+	require.NoError(t, os.WriteFile(rm, []byte("#!/bin/sh\nexit 1\n"), 0o600))
+	require.NoError(t, os.Chmod(rm, 0o700))
+	script = hiddenTestCommand(ctx, t, map[string]any{"command": "echo ok", "reports": []string{"^ok$"}})
+	run := exec.CommandContext(ctx, "sh", "-c", script)
+	run.Dir = work
+	run.Env = []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "TMPDIR=" + t.TempDir()}
+	out, err := run.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	require.Contains(t, string(out), "hidden tests: cannot remove")
+}
+
+// hiddenTestCommand returns the hidden-test command that shared.ts builds
+// for a golden case with this golden.json and no hidden test files.
+func hiddenTestCommand(ctx context.Context, t *testing.T, golden map[string]any) string {
+	t.Helper()
+	fixture := t.TempDir()
+	data, err := json.Marshal(golden)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(fixture, "golden.json"), data, 0o600))
+	input, err := json.Marshal(map[string]any{"shared": filepath.Join("..", "shared.ts"), "dir": fixture})
+	require.NoError(t, err)
+	cmd := exec.CommandContext(ctx, "node", "--input-type=module", "-e", sharedScriptScript)
+	cmd.Stdin = bytes.NewReader(input)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	script, err := cmd.Output()
+	require.NoError(t, err, "node: %s", stderr.String())
+	return string(script)
+}
+
+// skipWithoutTypeScriptNode skips a test that imports shared.ts when node
+// is missing or too old to run TypeScript files.
+func skipWithoutTypeScriptNode(ctx context.Context, t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	strips, err := exec.CommandContext(ctx, "node", "-p", "Boolean(process.features.typescript)").Output()
+	require.NoError(t, err)
+	if strings.TrimSpace(string(strips)) != "true" {
+		t.Skip("this node does not run TypeScript files (node 22.18 or later does)")
+	}
+}
+
+// sharedScriptScript reads shared.ts's path and a golden directory from
+// stdin and prints that case's hidden-test command.
+const sharedScriptScript = `import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const { shared, dir } = JSON.parse(readFileSync(0, "utf8"));
+const { hiddenTestScript } = await import(pathToFileURL(shared).href);
+process.stdout.write(hiddenTestScript(pathToFileURL(dir + "/")));
+`
 
 // sharedReportsScript reads shared.ts's path and golden directories from
 // stdin and prints, for each directory, the reports that the hidden-test

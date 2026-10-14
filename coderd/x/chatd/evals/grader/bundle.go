@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,16 +75,21 @@ type workspaceChanges struct {
 // except Python bytecode, which running the tests leaves behind and
 // which is not an edit.
 func (w *workspaceChanges) changedPaths() []string {
+	return slices.DeleteFunc(w.allPaths(), interpreterCache)
+}
+
+// allPaths lists every path the trial created, modified, or deleted.
+func (w *workspaceChanges) allPaths() []string {
 	seen := map[string]bool{}
 	var out []string
 	for p := range w.Diff {
-		if !seen[p] && !interpreterCache(p) {
+		if !seen[p] {
 			seen[p] = true
 			out = append(out, p)
 		}
 	}
 	for p := range w.Untracked {
-		if !seen[p] && !interpreterCache(p) {
+		if !seen[p] {
 			seen[p] = true
 			out = append(out, p)
 		}
