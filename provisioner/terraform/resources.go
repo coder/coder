@@ -166,6 +166,7 @@ type State struct {
 	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 	HasExternalAgents     bool
+	agentCatalog          scriptOrderAgentCatalog
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -199,6 +200,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 	resources := make([]*proto.Resource, 0)
 	resourceAgents := map[string][]*proto.Agent{}
+	agentCatalog := scriptOrderAgentCatalog{}
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
@@ -422,6 +424,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		agents = append(agents, agent)
 		resourceAgents[agentResource.Label] = agents
+		agentCatalog.index(agent.Id, tfResource.Address)
 	}
 
 	// Associate Dev Containers with agents.
@@ -438,13 +441,15 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 					continue
 				}
 
-				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+				devcontainer := &proto.Devcontainer{
 					Id:              attrs.ID,
 					Name:            resource.Name,
 					WorkspaceFolder: attrs.WorkspaceFolder,
 					ConfigPath:      attrs.ConfigPath,
 					SubagentId:      attrs.SubAgentID,
-				})
+				}
+				agent.Devcontainers = append(agent.Devcontainers, devcontainer)
+				agentCatalog.index(devcontainer.SubagentId, resource.Address)
 			}
 		}
 	}
@@ -1048,6 +1053,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
 		HasExternalAgents:     hasExternalAgentResources(graph),
+		agentCatalog:          agentCatalog,
 	}, nil
 }
 
