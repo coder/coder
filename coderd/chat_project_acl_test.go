@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -83,9 +84,8 @@ func TestChatProjectSharing(t *testing.T) {
 			Description: "Written by a sharee",
 			Body:        "Sharee memory.",
 		})
-		requireSDKError(t, err, http.StatusForbidden)
-		err = sharee.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID)
-		requireSDKError(t, err, http.StatusForbidden)
+		require.NoError(t, err)
+		require.NoError(t, sharee.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID))
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		require.Equal(t, &project.ID, shareeChat.ProjectID)
 		_, err = sharee.ChatProjectACL(ctx, project.OrganizationID, project.ID)
@@ -293,6 +293,25 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, acl.Users)
 		require.Empty(t, acl.Groups)
+
+		// Entries that bypassed validation are hidden.
+		ownerUser, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubjectWithDB(ctx, t, db, ownerUser))
+		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
+			ID:       project.ID,
+			UserACL:  database.ChatACL{foreignUser.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		}))
+		acl, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		require.Empty(t, acl.Users)
+		require.Empty(t, acl.Groups)
+		require.NoError(t, db.UpdateChatProjectACLByID(ownerCtx, database.UpdateChatProjectACLByIDParams{
+			ID:       project.ID,
+			UserACL:  database.ChatACL{},
+			GroupACL: database.ChatACL{},
+		}))
 
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{strings.ToUpper(member.ID.String()): codersdk.ChatProjectRoleUse},

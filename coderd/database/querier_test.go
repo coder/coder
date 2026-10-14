@@ -2128,7 +2128,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
 
 		for _, projectID := range all {
-			accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{
+			accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{
 				ProjectID: projectID,
 				UserID:    tc.user.ID,
 			})
@@ -2141,7 +2141,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, all, ids(projects))
 	for _, projectID := range all {
-		accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: projectID, UserID: owner.ID})
 		require.NoError(t, err)
 		require.True(t, accessible)
 	}

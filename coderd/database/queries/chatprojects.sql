@@ -49,7 +49,7 @@ WHERE chat_projects.owner_id = @user_id::uuid
     )
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
--- name: IsChatProjectAccessibleByUserID :one
+-- name: IsChatProjectUsableByUserID :one
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects

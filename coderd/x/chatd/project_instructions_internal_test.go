@@ -107,7 +107,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 		ownerID := uuid.New()
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).
 			Return(database.ChatProject{ID: projectID, OwnerID: uuid.New()}, nil)
-		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), database.IsChatProjectAccessibleByUserIDParams{
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), database.IsChatProjectUsableByUserIDParams{
 			ProjectID: projectID,
 			UserID:    ownerID,
 		}).Return(false, nil)

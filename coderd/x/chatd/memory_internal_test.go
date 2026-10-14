@@ -40,7 +40,7 @@ func TestResolveProjectMemory(t *testing.T) {
 		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
 		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
-		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), database.IsChatProjectAccessibleByUserIDParams{
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), database.IsChatProjectUsableByUserIDParams{
 			ProjectID: project.ID,
 			UserID:    chat.OwnerID,
 		}).Return(true, nil)
@@ -55,7 +55,7 @@ func TestResolveProjectMemory(t *testing.T) {
 		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
 		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
-		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), gomock.Any()).Return(false, nil)
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), gomock.Any()).Return(false, nil)
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
 		_, _, ok := server.resolveProjectMemory(t.Context(), chat)
 		require.False(t, ok)
@@ -104,7 +104,7 @@ func TestResolveProjectMemory(t *testing.T) {
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
 		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
-		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), gomock.Any()).Return(false, xerrors.New("connection reset"))
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), gomock.Any()).Return(false, xerrors.New("connection reset"))
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
 		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}})
 		require.False(t, ok)

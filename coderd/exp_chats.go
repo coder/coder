@@ -1369,9 +1369,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// The chat owner must be able to use the project because its agent
-		// reads and writes project memory. The 404 matches an unreadable
-		// project so callers cannot probe for project IDs.
+		// 404, like an unreadable project, so IDs cannot be probed.
 		usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)

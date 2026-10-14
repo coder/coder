@@ -40,8 +40,7 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 
-	// The read check runs before allowChatSharing so the disabled response
-	// does not reveal that a project exists.
+	// Read check first so the disabled response does not reveal the project.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -117,8 +116,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// ACL keys must be canonical UUIDs: RBAC matches them as strings, so
-	// any other spelling would grant nothing and could not be removed.
+	// RBAC matches ACL keys as strings, so only canonical UUIDs work.
 	userRoles, userKeyErrs := canonicalChatProjectRoles(req.UserRoles, "user_roles")
 	groupRoles, groupKeyErrs := canonicalChatProjectRoles(req.GroupRoles, "group_roles")
 	if len(userKeyErrs)+len(groupKeyErrs) > 0 {
@@ -302,8 +300,23 @@ func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatPr
 		return []codersdk.ChatProjectUser{}, nil
 	}
 
-	//nolint:gocritic // Users who can read the project should see who it is shared with even without user read permission.
-	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
+	//nolint:gocritic // Project readers see who it is shared with without user read permission.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// Entries outside the project's organization grant nothing; hide them.
+	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get organization memberships: %w", err)
+	}
+	userIDs = userIDs[:0]
+	for _, membership := range memberships {
+		if slices.Contains(membership.OrganizationIDs, project.OrganizationID) {
+			userIDs = append(userIDs, membership.UserID)
+		}
+	}
+	if len(userIDs) == 0 {
+		return []codersdk.ChatProjectUser{}, nil
+	}
+	dbUsers, err := api.Database.GetUsersByIDs(sysCtx, userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get users: %w", err)
 	}
@@ -331,14 +344,17 @@ func (api *API) chatProjectACLGroups(ctx context.Context, project database.ChatP
 		return []codersdk.ChatProjectGroup{}, nil
 	}
 
-	//nolint:gocritic // Users who can read the project should see the groups it is shared with even without group read permission.
-	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
+	//nolint:gocritic // Project readers see shared groups without group read permission.
+	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		OrganizationID: project.OrganizationID,
+		GroupIds:       groupIDs,
+	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get groups: %w", err)
 	}
 	groups := make([]codersdk.ChatProjectGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		//nolint:gocritic // Users who can read the project should see shared group sizes even without group read permission.
+		//nolint:gocritic // Project readers see shared group sizes without group read permission.
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,

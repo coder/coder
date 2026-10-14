@@ -136,7 +136,10 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							target="_blank"
 							rel="noreferrer"
 						>
-							<span className="flex-1">{buildInfo?.version}</span>
+							<span className="flex-1">
+								{buildInfo?.version}
+								<span className="sr-only"> (opens in new tab)</span>
+							</span>
 							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
 						</a>
 					</DropdownMenuItem>

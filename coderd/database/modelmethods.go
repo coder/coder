@@ -79,6 +79,13 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 	}
 }
 
+// AuditableOrganizationSkill is the audit-log representation of an
+// organization skill. It is a separate type because audit decides per Go type
+// whether a resource requires an organization ID.
+type AuditableOrganizationSkill struct {
+	Skill
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
@@ -199,18 +206,14 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// Agent memory tools run as chatd and bypass this ACL, so chatd must check
-// IsChatProjectAccessibleByUserID for the chat owner before running them.
+// Project read grants memory read and write, matching what agent memory
+// tools can do in the sharee's chats. Those tools run as chatd and bypass
+// this ACL, so chatd checks IsChatProjectUsableByUserID first.
 func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	memoryACL := make(map[string][]policy.Action, len(projectACL))
 	for id, entry := range projectACL {
-		if !chatACLGrants(entry, policy.ActionRead) {
-			continue
-		}
-		if chatACLGrants(entry, policy.ActionUpdate) {
+		if chatACLGrants(entry, policy.ActionRead) {
 			memoryACL[id] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
-		} else {
-			memoryACL[id] = []policy.Action{policy.ActionRead}
 		}
 	}
 	return memoryACL
@@ -988,8 +991,20 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	return m.DebouncedUntil, false
 }
 
-func (s UserSkill) RBACObject() rbac.Object {
-	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
+func (s Skill) RBACObject() rbac.Object {
+	if s.UserID.Valid {
+		return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.UUID.String())
+	}
+	if s.OrganizationID.Valid {
+		return rbac.ResourceOrganizationSkill.
+			WithID(s.ID).
+			InOrg(s.OrganizationID.UUID).
+			WithGroupACL(s.GroupACL.RBACACL()).
+			WithACLUserList(s.UserACL.RBACACL())
+	}
+	// No role grants the empty resource type, so rows without an RBAC
+	// resource stay unauthorizable for every user, including site owners.
+	return rbac.Object{ID: s.ID.String()}
 }
 
 func (s UserSecret) RBACObject() rbac.Object {

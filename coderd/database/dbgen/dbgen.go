@@ -424,6 +424,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
+		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -1173,6 +1174,27 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	}
 
 	return org
+}
+
+// OrganizationSkill inserts a skill owned by seed.OrganizationID, which is
+// required. Inserted skills are enabled.
+func OrganizationSkill(t testing.TB, db database.Store, seed database.Skill) database.Skill {
+	t.Helper()
+
+	require.True(t, seed.OrganizationID.Valid, "organization skill requires an organization ID")
+	name := takeFirst(seed.Name, "skill-"+uuid.NewString())
+	description := takeFirst(seed.Description, "Organization skill fixture.")
+	skill, err := db.InsertOrganizationSkill(genCtx, database.InsertOrganizationSkillParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		OrganizationID: seed.OrganizationID.UUID,
+		Name:           name,
+		Description:    description,
+		Content:        takeFirst(seed.Content, fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\nFixture instructions.\n", name, description)),
+		GroupACL:       seed.GroupACL,
+		UserACL:        seed.UserACL,
+	})
+	require.NoError(t, err, "insert organization skill")
+	return skill
 }
 
 func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {

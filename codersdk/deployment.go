@@ -3831,7 +3831,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: "Disable chat and chat project sharing. Existing shares are ignored and new shares are rejected; creators and administrators keep access.",
+			Description: "Disable chat and chat project sharing. Existing shares stop granting access and new shares are rejected. Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.",
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
 
