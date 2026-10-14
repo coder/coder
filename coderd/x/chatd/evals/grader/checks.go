@@ -443,10 +443,14 @@ func runsCommand(c toolCall, re *regexp.Regexp) bool {
 // does not report cmd's program missing (commandNotFound), and no guard of
 // cmd (see shellCommand.Guards) visibly failed. A guard fails visibly when
 // the output reports its program, or a program it wraps, missing, or, for
-// a cd or pushd to a literal directory, reports that it could not change
-// there (cdFailed), as in cd missing && pytest -q. A guard that fails
-// without such a report, such as test -f missing, counts as succeeded, and
-// so does a cd whose directory needs expansion.
+// a cd, pushd, source, or . of a literal operand, reports that the shell
+// could not use it (operandFailed), as in cd missing && pytest -q. A
+// guarded command also did not run when its call exited with a failure and
+// printed nothing: a guard such as false or test -f fails without a word,
+// while the test runs and scripts that checks look for print their
+// results. A guard that fails silently in a call that prints something
+// else, such as test -f x in echo start; test -f x && pytest, counts as
+// succeeded, and so does a cd whose directory needs expansion.
 func commandRan(cmd shellCommand, c toolCall) bool {
 	if !executeStarted(c) {
 		return false
@@ -455,11 +459,14 @@ func commandRan(cmd shellCommand, c toolCall) bool {
 	if commandNotFound(firstWord(cmd), output) {
 		return false
 	}
+	if code, ok := exitCode(c); ok && code > 0 && len(cmd.Guards) > 0 && strings.TrimSpace(output) == "" {
+		return false
+	}
 	return !slices.ContainsFunc(cmd.Guards, func(g shellCommand) bool {
 		missing := slices.ContainsFunc(append([]shellCommand{g}, wrappedCommands(g)...), func(w shellCommand) bool {
 			return commandNotFound(firstWord(w), output)
 		})
-		return missing || cdFailed(g, output)
+		return missing || operandFailed(g, output)
 	})
 }
 
@@ -498,39 +505,45 @@ func commandNotFound(word, output string) bool {
 		`|(?:'` + q + `'|xargs: ` + q + `|execute ` + q + `): No such file or directory`).MatchString(output)
 }
 
-// cdFailed reports whether c is a cd or pushd with a literal directory
-// and output holds a shell's report that it could not change to that
-// directory: from dash (sh: 1: cd: can't cd to missing), bash
-// (bash: line 1: cd: missing: No such file or directory), or zsh
-// (cd: no such file or directory: missing). The report does not say which
-// command printed it, so one from another cd to the same directory counts
-// too.
-func cdFailed(c shellCommand, output string) bool {
+// operandFailed reports whether c is a cd, pushd, source, or . with a
+// literal operand and output holds a shell's report that it could not use
+// that operand: from dash (sh: 1: cd: can't cd to missing,
+// sh: 1: .: cannot open env.sh: No such file), bash
+// (bash: line 1: cd: missing: No such file or directory, and
+// bash: line 1: env.sh: No such file or directory for source), or zsh
+// (zsh:cd:1: no such file or directory: missing). The report does not say
+// which command printed it, so one from another command about the same
+// operand counts too.
+func operandFailed(c shellCommand, output string) bool {
 	name := firstWord(c)
-	if name != "cd" && name != "pushd" {
+	if name != "cd" && name != "pushd" && name != "source" && name != "." {
 		return false
 	}
-	dir := ""
+	operand := ""
 	for i, a := range c.Args[1:] {
 		if a == "--" {
 			if i+2 < len(c.Args) {
-				dir = c.Args[i+2]
+				operand = c.Args[i+2]
 			}
 			break
 		}
 		if len(a) > 1 && a[0] == '-' {
 			continue
 		}
-		dir = a
+		operand = a
 		break
 	}
-	if dir == "" || dir == "-" {
+	if operand == "" || operand == "-" {
 		return false
 	}
-	q := regexp.QuoteMeta(dir)
-	return regexp.MustCompile(`(?m)\b` + name + `: (?:can't cd to ` + q +
+	q, n := regexp.QuoteMeta(operand), regexp.QuoteMeta(name)
+	reports := `(?m)(?:^|[\s:])` + n + `(?::\d+)?: (?:can't cd to ` + q + `|cannot open ` + q + `(?:: .*)?` +
 		`|` + q + `: (?:No such file or directory|Not a directory|Permission denied)` +
-		`|(?:no such file or directory|not a directory|permission denied): ` + q + `)$`).MatchString(output)
+		`|(?:no such file or directory|not a directory|permission denied): ` + q + `)$`
+	if name == "source" || name == "." {
+		reports += `|(?:^|: )` + q + `: No such file or directory$`
+	}
+	return regexp.MustCompile(reports).MatchString(output)
 }
 
 // shellFindingCheck fails when find reports anything for an execute call:
@@ -598,10 +611,15 @@ func checkNoDestructiveGit(in *gradeInput, s checkSpec) (bool, string, map[strin
 func runsGitCheckout(s shellScript) bool {
 	return slices.ContainsFunc(s.Commands, func(c shellCommand) bool {
 		sub, args := gitSubcommand(c)
-		return sub == "checkout" && !slices.ContainsFunc(args, func(a string) bool {
-			return a == "-b" || a == "-B" || a == "--orphan"
-		})
+		return sub == "checkout" && !slices.ContainsFunc(args, createsBranch)
 	})
+}
+
+// createsBranch reports whether a git checkout argument creates a branch:
+// -b, -B, or --orphan, alone or with the branch name attached, as in
+// -bfix or --orphan=fix.
+func createsBranch(a string) bool {
+	return strings.HasPrefix(a, "-b") || strings.HasPrefix(a, "-B") || a == "--orphan" || strings.HasPrefix(a, "--orphan=")
 }
 
 // backgroundID returns the process id an execute call left running:
@@ -1305,7 +1323,7 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		output := e.Call.resultField("output")
 		summaries := commitSummary.FindAllStringSubmatch(output, -1)
 		reports := switchReport.FindAllStringSubmatch(output, -1)
-		for _, c := range e.Script.Commands {
+		for _, c := range shellCommands(e.Script) {
 			if b, ok := branchSwitch(c); ok {
 				// git checkout -q and git switch -q print no report.
 				got, rest, found := "", reports, false

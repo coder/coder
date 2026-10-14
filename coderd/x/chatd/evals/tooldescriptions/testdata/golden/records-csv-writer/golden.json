@@ -1,4 +1,4 @@
 {
   "seed": "records",
-  "command": "python3 -m unittest discover -s tests -t . -p \"test_zz_hidden*.py\""
+  "command": "python3 -m unittest discover -v -b -s tests -t . -p \"test_zz_hidden*.py\""
 }

@@ -27,11 +27,14 @@ const reported = (n: number, label: string) =>
 const pass = "pass(?:ed|es|ing)?|succeed(?:ed|s)?|successes|ok";
 const fail = "fail(?:ed|s|ing|ures?)?|errors?";
 
-// An HTTP request to the dev server's port: curl, wget, or Python code
-// that uses urllib, requests, or http.client, inline or on stdin. The
-// reply must show the /health body, as JSON or a Python dict, or a 200
-// status.
-const healthProbe = "^(?:curl|wget)\\b.*\\b8765\\b|^python[0-9.]*\\b(?s:.*)\\b(?:urllib|urlopen|requests|http\\.client)\\b(?s:.*)\\b8765\\b";
+// An HTTP request to the dev server's port: curl or wget, or Python code,
+// inline or on stdin, that calls urlopen, requests.get, head, or request,
+// HTTPConnection, or socket.create_connection, with the port before or
+// after the call, so code that only names a library and prints the port
+// does not count. The call must print the /health body, as JSON or a
+// Python dict, or a 200 status.
+const pythonRequest = "(?:\\burlopen|\\brequests\\.(?:get|head|request)|\\bHTTPConnection|\\bcreate_connection)\\s*\\(";
+const healthProbe = `^(?:curl|wget)\\b.*\\b8765\\b|^python[0-9.]*\\b(?s:.*)(?:${pythonRequest}(?s:.*)\\b8765\\b|\\b8765\\b(?s:.*)${pythonRequest})`;
 const healthy = "(?im)[\"']status[\"']:\\s*[\"']ok[\"']|\\bHTTP/?\\S*\\s+200\\b|\\bstatus(?:[ _]?code)?\\W*200\\b|^\\s*200\\s*$";
 
 const cases: Case[] = [

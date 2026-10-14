@@ -59,8 +59,9 @@ type workspaceChanges struct {
 	Diff map[string][]string
 	// Deleted lists tracked paths the trial removed.
 	Deleted map[string]bool
-	// Untracked maps new file paths to their content (empty when larger
-	// than maxScannedFileSize or not a regular file).
+	// Untracked maps new file paths to their content as git would commit
+	// it, a symlink's being its target path (empty when larger than
+	// maxScannedFileSize or neither a regular file nor a symlink).
 	Untracked map[string][]byte
 	// Unscanned lists the paths whose final content the grader cannot
 	// read: new regular files larger than maxScannedFileSize, tracked
@@ -120,10 +121,16 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 			if err != nil {
 				return err
 			}
-			if hdr.Typeflag != tar.TypeReg {
-				if hdr.Typeflag != tar.TypeDir {
-					w.Untracked[name] = nil
-				}
+			switch hdr.Typeflag {
+			case tar.TypeReg:
+			case tar.TypeDir:
+				return nil
+			case tar.TypeSymlink:
+				// git commits a symlink as its target path.
+				w.Untracked[name] = []byte(hdr.Linkname)
+				return nil
+			default:
+				w.Untracked[name] = nil
 				return nil
 			}
 			if hdr.Size > maxScannedFileSize {

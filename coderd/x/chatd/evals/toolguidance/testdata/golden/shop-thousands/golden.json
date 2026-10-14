@@ -1,4 +1,4 @@
 {
   "seed": "shop",
-  "command": "python3 -m unittest discover -s tests -t . && test -f tests/test_format.py"
+  "command": "python3 -m unittest discover -v -b -s tests -t . && test -f tests/test_format.py"
 }

@@ -274,14 +274,21 @@ const hiddenTestEnv: Record<string, string> = {
  * agent's checkout and changing them changes the bundle digest. The
  * workspace is the agent's, so the command fails instead of writing
  * through a symlink at a file's path or at a directory above it, which
- * could discard the file, as a link to /dev/null does.
+ * could discard the file, as a link to /dev/null does. For the same
+ * reason exit status 0 is not enough: the workspace's code runs in the
+ * test process and can end it early with status 0, as os._exit(0) in
+ * tests/__init__.py, a TestMain that never calls m.Run, or
+ * process.exit(0) in an imported module does, or skip the hidden tests.
+ * So the output must also report each hidden test passing (passReports)
+ * and match golden.json's reports, if any.
  */
 export function hiddenTestScript(goldenDir: URL): string {
   const root = fileURLToPath(goldenDir);
-  const golden = JSON.parse(readFileSync(join(root, "golden.json"), "utf8")) as { command: string };
+  const golden = JSON.parse(readFileSync(join(root, "golden.json"), "utf8")) as { command: string; reports?: string[] };
   if (typeof golden.command !== "string" || golden.command === "") {
     throw new Error(`${root}golden.json: command is required`);
   }
+  const reports = [...(golden.reports ?? [])];
   // The aegis collector runs command graders with only the base repo env,
   // not the grader's own env map, and there is no HOME in the grading
   // container, so the script points every toolchain cache at /tmp itself.
@@ -295,15 +302,58 @@ export function hiddenTestScript(goldenDir: URL): string {
     const parent = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : ".";
     const parts = rel.split("/");
     const paths = parts.map((_, i) => `'${parts.slice(0, i + 1).join("/")}'`);
-    const b64 = readFileSync(file).toString("base64");
+    const data = readFileSync(file);
+    reports.push(...passReports(rel, data.toString("utf8")));
     lines.push(
       `for p in ${paths.join(" ")}; do if [ -L "$p" ]; then echo "hidden test path $p is a symlink" >&2; exit 1; fi; done`,
       `mkdir -p '${parent}'`,
-      `printf '%s' '${b64}' | base64 -d > '${rel}'`,
+      `printf '%s' '${data.toString("base64")}' | base64 -d > '${rel}'`,
     );
   }
-  lines.push(golden.command);
+  if (reports.length === 0) {
+    throw new Error(`${root}: no hidden test or golden.json report shows that the hidden tests ran`);
+  }
+  lines.push('out=$(mktemp)', "status=0", `(${golden.command}) > "$out" 2>&1 || status=$?`, 'cat "$out"', 'if [ "$status" -ne 0 ]; then exit "$status"; fi');
+  for (const report of reports) {
+    if (/['\n]/.test(report)) {
+      throw new Error(`${root}: report ${JSON.stringify(report)} holds a quote or a newline`);
+    }
+    lines.push(`grep -E -q -e '${report}' "$out" || { echo 'hidden tests: no line matches ${report}' >&2; exit 1; }`);
+  }
   return lines.join("\n");
+}
+
+/**
+ * Returns extended regular expressions for the lines that report each
+ * test in a hidden test file passing: from unittest -v
+ * (test_x (tests.test_zz_hidden.Case.test_x) ... ok, without the final
+ * .test_x before Python 3.11), go test -v (--- PASS: TestX (0.00s)), and
+ * node --test with the TAP reporter (ok 1 - name). golden_test.go applies
+ * the same rules to each golden case's reference solution.
+ */
+function passReports(rel: string, text: string): string[] {
+  const reports: string[] = [];
+  const base = rel.slice(rel.lastIndexOf("/") + 1);
+  if (/^test\w*\.py$/.test(base)) {
+    const module = rel.slice(0, -".py".length).split("/").join("\\.");
+    let testCase = "";
+    for (const line of text.split("\n")) {
+      testCase = /^class (\w+)\(/.exec(line)?.[1] ?? testCase;
+      const test = /^ {4}def (test\w*)\(self\b/.exec(line)?.[1];
+      if (test !== undefined && testCase !== "") {
+        reports.push(`^${test} \\(${module}\\.${testCase}(\\.${test})?\\) \\.\\.\\. ok$`);
+      }
+    }
+  } else if (base.endsWith("_test.go")) {
+    for (const m of text.matchAll(/^func (Test\w+)\(\w+ \*testing\.T\)/gm)) {
+      reports.push(`^--- PASS: ${m[1]} \\(`);
+    }
+  } else if (base.endsWith(".test.js")) {
+    for (const m of text.matchAll(/^test\("([^"\\]+)"/gm)) {
+      reports.push(`^ok [0-9]+ - ${m[1].replace(/[.[\]()*+?{}|^$\\]/g, "\\$&")}$`);
+    }
+  }
+  return reports;
 }
 
 function listFiles(dir: string): string[] {

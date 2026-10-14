@@ -1,4 +1,4 @@
 {
   "seed": "lru",
-  "command": "go test ./..."
+  "command": "go test -v ./..."
 }

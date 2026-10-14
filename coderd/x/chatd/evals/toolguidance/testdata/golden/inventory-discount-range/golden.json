@@ -1,4 +1,4 @@
 {
   "seed": "inventory",
-  "command": "python3 -m unittest discover -s tests -t ."
+  "command": "python3 -m unittest discover -v -b -s tests -t ."
 }

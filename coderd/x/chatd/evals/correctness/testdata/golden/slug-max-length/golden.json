@@ -1,4 +1,4 @@
 {
   "seed": "slug",
-  "command": "node --test"
+  "command": "node --test --test-reporter=tap"
 }

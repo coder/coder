@@ -1192,6 +1192,19 @@ func withNestedShells(s shellScript) []shellScript {
 	return out
 }
 
+// shellCommands returns the simple commands of s and of the scripts its
+// shells run (see withNestedShells), in the order the shell runs them.
+func shellCommands(s shellScript) []shellCommand {
+	var out []shellCommand
+	for _, script := range withNestedShells(s) {
+		out = append(out, script.Commands...)
+	}
+	slices.SortStableFunc(out, func(a, b shellCommand) int {
+		return slices.Compare(a.Pos, b.Pos)
+	})
+	return out
+}
+
 // nestUnder places s under the shell command outer that runs it: every
 // position in s gets outer's position as a prefix, and every command in s
 // also needs outer's guards to succeed.

@@ -1,4 +1,4 @@
 {
   "seed": "wordfreq",
-  "command": "go test ./..."
+  "command": "go test -v ./..."
 }
