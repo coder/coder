@@ -29,6 +29,7 @@ import {
 	MockEntitlements,
 	MockOrganization2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -904,6 +905,39 @@ describe("ChatsSidebar move to project", () => {
 		expect(projectRequests).toBe(1);
 	});
 
+	it("shows the server message when the server refuses a move", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+			mockApiError({ message: "Cannot move an active chat." }),
+		);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await focusMenuItem(user, "menuitem", "Move to project");
+		await user.keyboard("{ArrowRight}");
+		await focusMenuItem(user, "menuitem", "Billing");
+		await user.keyboard("{Enter}");
+
+		// The menu closes on select, so the toast must outlive it.
+		await waitFor(() =>
+			expect(screen.queryByRole("menuitem", { name: "Billing" })).toBeNull(),
+		);
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
+		);
+	});
+
 	it.each<{ name: string; chat: Chat; filters: AgentSidebarFilters }>([
 		{
 			name: "an archived chat",
@@ -1102,6 +1136,9 @@ describe("ChatsSidebar project drops", () => {
 				</>
 			);
 		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
 		render(
 			<Wrapper experiments={["chat-projects"]}>
 				<StatusChange />
@@ -1163,9 +1200,19 @@ describe("ChatsSidebar project drops", () => {
 
 	// Subagent chats follow their root's project, so only the root row drags.
 	it.each([
-		{ row: "Spawner chat", outcome: "moves", body: mockBillingProject.id },
-		{ row: "Simple task", outcome: "moves nothing", body: undefined },
-	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
+		{
+			row: "Spawner chat",
+			outcome: "moves",
+			body: mockBillingProject.id,
+			expanded: "true",
+		},
+		{
+			row: "Simple task",
+			outcome: "moves nothing",
+			body: undefined,
+			expanded: "false",
+		},
+	])("$outcome on a mouse drag of $row", async ({ row, body, expanded }) => {
 		const user = userEvent.setup();
 		const update = vi
 			.spyOn(API.experimental, "updateChat")
@@ -1201,6 +1248,10 @@ describe("ChatsSidebar project drops", () => {
 		expect(update.mock.calls).toEqual(
 			body ? [["c1", { project_id: body }]] : [],
 		);
+		// A drop opens its folder so the user sees the chat arrive.
+		expect(
+			screen.getByRole("button", { name: /^(Expand|Collapse) Billing$/ }),
+		).toHaveAttribute("aria-expanded", expanded);
 	});
 });
 
