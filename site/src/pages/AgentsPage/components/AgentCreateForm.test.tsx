@@ -4,7 +4,6 @@ import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
 import { QueryClient } from "react-query";
 import { MemoryRouter } from "react-router";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -16,6 +15,7 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
@@ -24,6 +24,7 @@ import {
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
@@ -33,6 +34,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserPreferenceSettings,
@@ -777,49 +779,6 @@ describe("AgentCreateForm organization lock", () => {
 	});
 });
 
-describe("AgentCreateForm manage automations toggle", () => {
-	beforeEach(() => {
-		localStorage.clear();
-		dashboard.showOrganizations = false;
-		dashboard.experiments = [];
-	});
-
-	it("sends the enabled toggle with the create options", async () => {
-		dashboard.experiments = ["chat-automations"];
-		const { onCreateChat } = renderForm();
-
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
-		await submitMessage("check the nightly build every morning");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
-	});
-
-	it("sends the toggle as off once the chat-automations experiment turns off", async () => {
-		dashboard.experiments = ["chat-automations"];
-		const { onCreateChat, rerender } = renderForm();
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
-		await user().keyboard("{Escape}");
-
-		dashboard.experiments = [];
-		rerender({});
-		await submitMessage("check the nightly build every morning");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
-	});
-});
-
 describe("AgentCreateForm prefill", () => {
 	it("uploads the attachment once and sends it with the message, leaving the draft alone", async () => {
 		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
@@ -896,4 +855,154 @@ describe("AgentCreateForm prefill", () => {
 			userDraftAttachments,
 		);
 	});
+});
+
+describe("AgentCreateForm project picker", () => {
+	const otherOrganizationProject: TypesGen.ChatProject = {
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Elsewhere",
+	};
+
+	const createProjectQueryClient = () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [
+			MockChatProject,
+			otherOrganizationProject,
+		]);
+		return queryClient;
+	};
+
+	const pickProject = async (name: string) => {
+		await user().click(
+			await screen.findByRole("button", { name: /^Project:/ }),
+		);
+		await user().click(await screen.findByRole("option", { name }));
+	};
+
+	beforeEach(() => {
+		dashboard.experiments = ["chat-projects"];
+	});
+
+	afterEach(() => {
+		dashboard.experiments = [];
+	});
+
+	it("creates the chat outside any project by default", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("no project here");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBeUndefined();
+	});
+
+	it("creates the chat in the picked project", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await pickProject(MockChatProject.name);
+		await submitMessage("file this under launch");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("clears the picked project when the organization changes", async () => {
+		dashboard.showOrganizations = true;
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		const switchOrganization = async (name: string) => {
+			await user().click(
+				screen.getByRole("button", { name: /^Organization:/ }),
+			);
+			await user().click(await screen.findByRole("option", { name }));
+		};
+		await switchOrganization(MockOrganization2.display_name);
+		await switchOrganization(MockDefaultOrganization.display_name);
+		await submitMessage("back in the first organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockDefaultOrganization.id,
+			projectId: undefined,
+		});
+	});
+
+	it.each([
+		{ list: "refetches", isListLoaded: true, refetchFails: false },
+		{ list: "fails to refetch", isListLoaded: true, refetchFails: true },
+		{ list: "never loads", isListLoaded: false, refetchFails: true },
+	])(
+		"selects a project created from the picker when the list $list",
+		async ({ isListLoaded, refetchFails }) => {
+			const createdProject: TypesGen.ChatProject = {
+				...MockChatProject,
+				id: "chat-project-new",
+				name: "Fresh start",
+			};
+			const createChatProject = vi
+				.spyOn(API.experimental, "createChatProject")
+				.mockResolvedValue(createdProject);
+			const getChatProjects = vi.spyOn(API.experimental, "getChatProjects");
+			if (refetchFails) {
+				getChatProjects.mockRejectedValue(new Error("Network down"));
+			} else {
+				getChatProjects.mockResolvedValue([MockChatProject, createdProject]);
+			}
+			const { onCreateChat } = renderForm(
+				{},
+				{
+					queryClient: isListLoaded
+						? createProjectQueryClient()
+						: createQueryClient(),
+				},
+			);
+
+			await user().click(
+				await screen.findByRole("button", { name: /^Project:/ }),
+			);
+			await user().click(
+				await screen.findByRole("button", { name: "New project" }),
+			);
+			await user().type(
+				await screen.findByRole("textbox", { name: /Project name/ }),
+				createdProject.name,
+			);
+			await user().click(
+				screen.getByRole("button", { name: "Create project" }),
+			);
+			// The modal hides the composer until it closes.
+			await screen.findByRole("button", {
+				name: `Project: ${createdProject.name}`,
+			});
+			await submitMessage("start fresh");
+
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(createChatProject).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+				expect.objectContaining({ name: createdProject.name }),
+			);
+			expect(getChatProjects).toHaveBeenCalled();
+			expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
+		},
+	);
 });

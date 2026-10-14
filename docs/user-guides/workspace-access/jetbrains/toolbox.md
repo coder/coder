@@ -21,8 +21,7 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 1. Enter the URL address and select **Sign In**.
    ![JetBrains Toolbox Coder provider URL](../../../images/user-guides/jetbrains/toolbox/login-url.png)
 1. Authenticate to Coder adding a token for the session and select **Connect**.
-   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png)
-   After the authentication is completed, you are connected to your development environment and can open and work on projects.
+   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png) After the authentication is completed, you are connected to your development environment and can open and work on projects.
    ![JetBrains Toolbox Coder Workspaces](../../../images/user-guides/jetbrains/toolbox/workspaces.png)
 
 ## Use URI parameters

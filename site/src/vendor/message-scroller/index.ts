@@ -22,6 +22,7 @@ export const MessageScroller = {
 
 export {
   useMessageScroller,
+  useMessageScrollerUserLayoutIntent, // LOCAL CHANGE
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from "./components"

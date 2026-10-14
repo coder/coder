@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	chatACL,
 	setChatGroupRole,
@@ -39,6 +38,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClipboard } from "#/hooks/useClipboard";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";

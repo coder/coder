@@ -128,10 +128,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC212WithRole connects to the Agent API v2.12. The workspace
+	// ConnectRPC214WithRole connects to the Agent API v2.14. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC212WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC214WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -454,7 +454,7 @@ func (a *agent) init() {
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
-	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
@@ -1008,7 +1008,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC212WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC214WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1853,6 +1853,16 @@ func (a *agent) createTailnet(
 	}()
 
 	if err = a.trackGoroutine(func() {
+		// The SSH server should close all listeners passed into it, but we are
+		// seeing cases in CI where the upgrade listener is never closed during
+		// tests.  For now, ensure it is closed as a precaution.
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = sshUpgradeListener.Close()
+		}()
 		_ = a.sshServer.Serve(sshUpgradeListener)
 	}); err != nil {
 		return nil, err
@@ -1864,7 +1874,6 @@ func (a *agent) createTailnet(
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
-			_ = sshUpgradeListener.Close()
 			_ = ptyUpgradeListener.Close()
 		}()
 		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)

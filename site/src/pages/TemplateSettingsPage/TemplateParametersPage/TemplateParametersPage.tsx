@@ -4,7 +4,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import {
 	createAndBuildTemplateVersion,
 	enableTemplateParameterCompatibilityMode,
@@ -14,6 +13,7 @@ import {
 } from "#/api/queries/templates";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateParametersPageView } from "./TemplateParametersPageView";

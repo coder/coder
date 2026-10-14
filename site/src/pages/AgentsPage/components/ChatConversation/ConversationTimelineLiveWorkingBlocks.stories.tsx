@@ -131,6 +131,59 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
+// Once the final step starts its answer, its reasoning stays in the live
+// block and the text streams after it.
+export const AnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Summarizing the inspection",
+				created_at: workingFixtureTime(13),
+			},
+			{ type: "text", text: "The workspace looks healthy." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+// Narration before a web search stays in the live block, and the answer, cited
+// as it streams, renders after it.
+export const SearchAnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 1),
+		),
+		...buildStreamRenderState([
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+			},
+			{ type: "text", text: "The latest Coder release" },
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{ type: "text", text: " is v2.30." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
 export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",

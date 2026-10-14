@@ -960,7 +960,27 @@ func ProviderOptionsForCall(
 ) fantasy.ProviderOptions {
 	options := providerOptionsFromChatModelConfig(model, config.ProviderOptions)
 	effort := ResolveReasoningEffort(requestedEffort, config.ReasoningEffort)
-	return applyReasoningEffort(model, options, effort)
+	options = applyReasoningEffort(model, options, effort)
+	return ensureOpenAIResponsesIncludes(model, options)
+}
+
+// ensureOpenAIResponsesIncludes requests encrypted reasoning on every
+// Responses call, so reasoning can be replayed without provider-side storage.
+// An options block created here leaves Store unset, keeping the provider's
+// default.
+func ensureOpenAIResponsesIncludes(
+	model Model,
+	options fantasy.ProviderOptions,
+) fantasy.ProviderOptions {
+	if !model.Valid() || !model.transport.UsesResponses() {
+		return options
+	}
+	if options == nil {
+		options = fantasy.ProviderOptions{}
+	}
+	responsesOptions := ensureProviderOptions[fantasyopenai.ResponsesProviderOptions](options, fantasyopenai.Name)
+	responsesOptions.Include = chatopenai.EnsureResponseIncludes(responsesOptions.Include)
+	return options
 }
 
 func providerOptionsFromChatModelConfig(

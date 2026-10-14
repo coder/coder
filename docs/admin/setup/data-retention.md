@@ -2,20 +2,20 @@
 title: Data retention
 ---
 
-Coder supports configurable retention policies that automatically purge old
-Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway
-records. These policies help manage database growth by removing records older
-than a specified duration.
+Coder supports configurable retention policies that automatically purge old Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Gateway records.
+These policies help manage database growth by removing records older than a specified duration.
 
 ## Overview
 
 Large deployments can accumulate significant amounts of data over time.
 Retention policies help you:
 
-- **Reduce database size**: Automatically remove old records to free disk space.
-- **Improve performance**: Smaller tables mean faster queries and backups.
-- **Meet compliance requirements**: Configure retention periods that align with
-  your organization's data retention policies.
+- **Reduce database size**:
+  Automatically remove old records to free disk space.
+- **Improve performance**:
+  Smaller tables mean faster queries and backups.
+- **Meet compliance requirements**:
+  Configure retention periods that align with your organization's data retention policies.
 
 > [!NOTE]
 > Retention policies are disabled by default (set to `0`) to preserve existing behavior.
@@ -23,8 +23,7 @@ Retention policies help you:
 
 ## Configuration
 
-You can configure retention policies using CLI flags, environment variables, or
-a YAML configuration file.
+You can configure retention policies using CLI flags, environment variables, or a YAML configuration file.
 
 ### Settings
 
@@ -38,13 +37,11 @@ a YAML configuration file.
 
 > [!NOTE]
 > AI Gateway retention is configured separately from other retention settings.
-> See [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention) for
-> detailed configuration options.
+> See [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention) for detailed configuration options.
 
 ### Duration Format
 
-Retention durations support days (`d`) and weeks (`w`) in addition to standard
-Go duration units (`h`, `m`, `s`):
+Retention durations support days (`d`) and weeks (`w`) in addition to standard Go duration units (`h`, `m`, `s`):
 
 - `7d` - 7&nbsp;days
 - `2w` - 2&nbsp;weeks
@@ -90,8 +87,8 @@ ai_gateway:
 
 ### Background Purge Process
 
-Coder runs a background process that periodically deletes old records. The
-purge process:
+Coder runs a background process that periodically deletes old records.
+The purge process:
 
 1. Runs approximately every 10&nbsp;minutes.
 2. Processes records in batches to avoid database lock contention.
@@ -107,7 +104,8 @@ Each retention setting controls its data type independently:
 
 ### API Keys Special Behavior
 
-API key retention only affects **expired** keys. A key is deleted only when:
+API key retention only affects **expired** keys.
+A key is deleted only when:
 
 1. The key has expired (past its `expires_at` timestamp).
 2. The key has been expired for longer than the retention period.
@@ -115,15 +113,13 @@ API key retention only affects **expired** keys. A key is deleted only when:
 Setting `--api-keys-retention=7d` deletes keys that expired more than 7&nbsp;days ago.
 Active keys are never deleted by the retention policy.
 
-Keeping expired keys for a short period allows Coder to return a more helpful
-error message when users attempt to use an expired key.
+Keeping expired keys for a short period allows Coder to return a more helpful error message when users attempt to use an expired key.
 
 ### Workspace Agent Logs Behavior
 
-Workspace agent logs are deleted based on when the agent last connected, not the
-age of the logs themselves. **Logs from the latest build of each workspace are
-always retained** regardless of when the agent last connected. This ensures you
-can always debug issues with active workspaces.
+Workspace agent logs are deleted based on when the agent last connected, not the age of the logs themselves.
+**Logs from the latest build of each workspace are always retained** regardless of when the agent last connected.
+This ensures you can always debug issues with active workspaces.
 
 For non-latest builds, logs are deleted if the agent hasn't connected within the retention period.
 Setting `--workspace-agent-logs-retention=7d` deletes logs for agents that haven't connected in 7&nbsp;days (excluding those from the latest build).
@@ -133,9 +129,7 @@ Setting `--workspace-agent-logs-retention=7d` deletes logs for agents that haven
 AI Gateway retention applies to interception records and all related data, including token usage, prompts, and tool invocations.
 The default of 60&nbsp;days provides a reasonable balance between storage costs and the ability to analyze usage patterns.
 
-For details on what data is retained, see the
-[AI Gateway Data Retention](../../ai-coder/ai-gateway/setup.md#data-retention)
-documentation.
+For details on what data is retained, see the [AI Gateway Data Retention](../../ai-coder/ai-gateway/setup.md#data-retention) documentation.
 
 ## Best Practices
 
@@ -157,32 +151,30 @@ ai_gateway:
 ### Compliance Considerations
 
 > [!WARNING]
-> Audit Logs provide critical security and compliance information. Purging
-> Audit Logs may impact your organization's ability to investigate security
-> incidents or meet compliance requirements. Consult your security and
-> compliance teams before configuring Audit Log retention.
+> Audit Logs provide critical security and compliance information.
+> Purging Audit Logs may impact your organization's ability to investigate security incidents or meet compliance requirements.
+> Consult your security and compliance teams before configuring Audit Log retention.
 
 Common compliance frameworks have varying retention requirements:
 
-- **SOC 2**: Typically requires 1&nbsp;year of audit logs.
-- **HIPAA**: Requires 6&nbsp;years for certain records.
-- **PCI DSS**: Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately available.
-- **GDPR**: Requires data minimization but does not specify maximum retention.
+- **SOC 2**:
+  Typically requires 1&nbsp;year of audit logs.
+- **HIPAA**:
+  Requires 6&nbsp;years for certain records.
+- **PCI DSS**:
+  Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately available.
+- **GDPR**:
+  Requires data minimization but does not specify maximum retention.
 
 ### External Log Aggregation
 
-If you use an external log aggregation system (Splunk, Datadog, etc.), you can
-configure shorter retention periods in Coder since logs are preserved
-externally. See
-[Capture and export audit logs](../security/audit-logs.md#capture-and-export-audit-logs)
-for details on exporting logs.
+If you use an external log aggregation system (Splunk, Datadog, etc.), you can configure shorter retention periods in Coder since logs are preserved externally.
+See [Capture and export audit logs](../security/audit-logs.md#capture-and-export-audit-logs) for details on exporting logs.
 
 ### Database Maintenance
 
-After enabling retention policies, you may want to run a `VACUUM` operation on
-your PostgreSQL database to reclaim disk space. See
-[Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table)
-for guidance.
+After enabling retention policies, you may want to run a `VACUUM` operation on your PostgreSQL database to reclaim disk space.
+See [Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table) for guidance.
 
 <a id="keeping-data-indefinitely"></a>
 
@@ -203,19 +195,13 @@ ai_gateway:
 
 ## Monitoring
 
-The purge process logs deletion counts at the `DEBUG` level. To monitor
-retention activity, enable debug logging or search your logs for entries
-containing the table name (e.g., `audit_logs`, `connection_logs`, `api_keys`).
+The purge process logs deletion counts at the `DEBUG` level.
+To monitor retention activity, enable debug logging or search your logs for entries containing the table name (e.g., `audit_logs`, `connection_logs`, `api_keys`).
 
 ## Related Documentation
 
-- [Audit Logs](../security/audit-logs.md): Learn about Audit Logs and manual
-  purge procedures.
-- [Connection Logs](../monitoring/connection-logs.md): Learn about Connection
-  Logs and monitoring.
-- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for
-  centralized LLM and MCP proxy management.
-- [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure
-  AI Gateway data retention.
-- [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI
-  Gateway usage and metrics.
+- [Audit Logs](../security/audit-logs.md): Learn about Audit Logs and manual purge procedures.
+- [Connection Logs](../monitoring/connection-logs.md): Learn about Connection Logs and monitoring.
+- [AI Gateway](../../ai-coder/ai-gateway/index.md): Learn about AI Gateway for centralized LLM and MCP proxy management.
+- [AI Gateway Setup](../../ai-coder/ai-gateway/setup.md#data-retention): Configure AI Gateway data retention.
+- [AI Gateway Monitoring](../../ai-coder/ai-gateway/monitoring.md): Monitor AI Gateway usage and metrics.

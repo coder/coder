@@ -38,8 +38,10 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat sharing. Chat ACL checking is disabled and only owners
-          can access their chats.
+          Disable chat and chat project sharing. Existing shares stop granting
+          access and new shares are rejected. Owners keep access to their own
+          chats and projects, and administrators keep only the access their
+          roles grant.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
@@ -269,11 +271,6 @@ Configure the background chat processing daemon.
           earliest-uploaded files, and earlier messages show them as expired. A
           message that includes more files than the limit is rejected with HTTP
           400. Must be at least 1.
-
-      --chat-max-automations-per-owner int, $CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER (default: 50)
-          Maximum number of chat automations one user can own across all
-          organizations. Creating one more fails with HTTP 409. Must be at least
-          1.
 
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings that each Coder server

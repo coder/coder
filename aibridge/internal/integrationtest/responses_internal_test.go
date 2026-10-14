@@ -45,8 +45,11 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 		expectPromptRecorded string
 		expectToolRecorded   *recorder.ToolUsageRecord
 		expectTokenUsage     *recorder.TokenUsageRecord
-		userAgent            string
-		expectedClient       aibclient.Type
+		// expectCorrelatingToolCallID is the call_id of the tool result that
+		// links this interception to the one that issued the tool call.
+		expectCorrelatingToolCallID *string
+		userAgent                   string
+		expectedClient              aibclient.Type
 	}{
 		{
 			name:                 "blocking_simple",
@@ -134,6 +137,26 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 128,
 					"total_tokens":     212,
+				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+			},
+			expectedClient: aibclient.Unknown,
+		},
+		{
+			// Follow-up turn carrying a custom_tool_call_output must be
+			// correlated to the custom_tool_call recorded in the prior turn.
+			name:                        "blocking_custom_tool_result",
+			fixture:                     fixtures.OaiResponsesBlockingCustomToolResult,
+			expectModel:                 "gpt-5",
+			expectCorrelatingToolCallID: new("call_haf8njtwrVZ1754Gm6fjAtuA"),
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:         "resp_09c614364030cdf00069694260a1b281a0b3c2d1e0f9a8b7c6",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         112,
+				Output:        14,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     126,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
@@ -320,6 +343,27 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectedClient: aibclient.Unknown,
 		},
 		{
+			// Follow-up turn carrying a custom_tool_call_output must be
+			// correlated to the custom_tool_call recorded in the prior turn.
+			name:                        "streaming_custom_tool_result",
+			fixture:                     fixtures.OaiResponsesStreamingCustomToolResult,
+			streaming:                   true,
+			expectModel:                 "gpt-5",
+			expectCorrelatingToolCallID: new("call_2gSnF58IEhXLwlbnqbm5XKMd"),
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:         "resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         112,
+				Output:        14,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     126,
+				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+			},
+			expectedClient: aibclient.Unknown,
+		},
+		{
 			// web_search_call is a hosted tool executed server-side by the
 			// provider. It carries an item id but no call_id, so the recorded
 			// ToolCallID must be empty and the ItemID must be the output item's
@@ -454,6 +498,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			require.Equal(t, intc.Model, tc.expectModel)
 			require.Equal(t, tc.userAgent, intc.UserAgent)
 			require.Equal(t, string(tc.expectedClient), intc.Client)
+			require.Equal(t, tc.expectCorrelatingToolCallID, intc.CorrelatingToolCallID)
 
 			recordedPrompts := bridgeServer.Recorder.RecordedPromptUsages()
 			if tc.expectPromptRecorded != "" {
@@ -602,56 +647,92 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
 	fix := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
-	events := bytes.SplitAfter(fix.Streaming(), []byte("\n\n"))
-	require.Greater(t, len(events), 2)
-	head := bytes.Join(events[:2], nil)
-	tail := bytes.Join(events[2:], nil)
+	lf := bytes.ReplaceAll(fix.Streaming(), []byte("\r\n"), []byte("\n"))
+	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
 
-	release := make(chan struct{})
-	var releaseOnce sync.Once
-	releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+	// SSE allows LF and CRLF line endings, so the relay is exercised with
+	// both forms of the fixture stream.
+	for _, tc := range []struct {
+		name   string
+		stream []byte
+	}{
+		{name: "LF", stream: lf},
+		{name: "CRLF", stream: crlf},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(head)
-		w.(http.Flusher).Flush()
-		select {
-		case <-release:
-		case <-r.Context().Done():
-			return
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			events := splitSSEEvents(tc.stream)
+			require.Greater(t, len(events), 2)
+			head := bytes.Join(events[:2], nil)
+			tail := bytes.Join(events[2:], nil)
+
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(head)
+				w.(http.Flusher).Flush()
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+				_, _ = w.Write(tail)
+			}))
+			t.Cleanup(upstream.Close)
+			t.Cleanup(releaseUpstream)
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+			// Bound the wait with ctx: a buffered bridge never sends headers while
+			// upstream is held back.
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+			got := make([]byte, len(head))
+			_, err = io.ReadFull(resp.Body, got)
+			require.NoError(t, err)
+			require.Equal(t, string(head), string(got))
+
+			releaseUpstream()
+			rest, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, string(tc.stream), string(got)+string(rest))
+		})
+	}
+}
+
+// splitSSEEvents splits an SSE stream after each blank line, accepting LF and
+// CRLF line endings. Each event keeps its original bytes, so joining the
+// events reproduces the input exactly.
+func splitSSEEvents(stream []byte) [][]byte {
+	var events [][]byte
+	start, offset := 0, 0
+	for _, line := range bytes.SplitAfter(stream, []byte("\n")) {
+		offset += len(line)
+		if len(line) > 0 && len(bytes.TrimRight(line, "\r\n")) == 0 {
+			events = append(events, stream[start:offset])
+			start = offset
 		}
-		_, _ = w.Write(tail)
-	}))
-	t.Cleanup(upstream.Close)
-	t.Cleanup(releaseUpstream)
-
-	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
-
-	// Bound the wait with ctx: a buffered bridge never sends headers while
-	// upstream is held back.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
-
-	got := make([]byte, len(head))
-	_, err = io.ReadFull(resp.Body, got)
-	require.NoError(t, err)
-	require.Equal(t, string(head), string(got))
-
-	releaseUpstream()
-	rest, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, string(fix.Streaming()), string(got)+string(rest))
+	}
+	if start < len(stream) {
+		events = append(events, stream[start:])
+	}
+	return events
 }
 
 // Upstream accepts the stream but drops the connection before a complete
