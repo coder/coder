@@ -535,7 +535,7 @@ const AgentsPageLayout: React.FC = () => {
 			<div
 				data-testid="agents-main-panel"
 				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
 					isSettingsIndex ? "hidden sm:flex" : "flex",
 					!agentId &&
 						!isSettingsDetail &&

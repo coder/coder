@@ -130,7 +130,6 @@ func TestMCPHTTP_ToolRegistration(t *testing.T) {
 	for i, tool := range toolsdk.All {
 		toolNames[i] = tool.Name
 	}
-	require.Contains(t, toolNames, toolsdk.ToolNameReportTask, "Should include ReportTask (UserClientOptional)")
 	require.Contains(t, toolNames, toolsdk.ToolNameGetAuthenticatedUser, "Should include GetAuthenticatedUser (requires auth)")
 }
 

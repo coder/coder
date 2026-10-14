@@ -539,6 +539,12 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeOrganizationSkill                   APIKeyScope = "organization_skill:*"
+	ApiKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	ApiKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
+	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -829,7 +835,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare:
 		return true
 	}
 	return false
@@ -1089,6 +1101,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
 	}
 }
 
@@ -3755,6 +3773,8 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
+	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3838,7 +3858,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill:
 		return true
 	}
 	return false
@@ -3891,6 +3913,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
 	}
 }
 
@@ -5733,6 +5757,7 @@ type MCPServerConfig struct {
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
 }
 
 type MCPServerUserToken struct {
@@ -6069,6 +6094,21 @@ type Replica struct {
 type SiteConfig struct {
 	Key   string `db:"key" json:"key"`
 	Value string `db:"value" json:"value"`
+}
+
+type Skill struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Content        string        `db:"content" json:"content"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -6490,16 +6530,6 @@ type UserSecret struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
-}
-
-type UserSkill struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

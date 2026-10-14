@@ -288,7 +288,7 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -325,17 +325,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal plan: %w", err)
+		return nil, nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	isPrebuildClaimAttempt := !destroy &&
@@ -357,7 +357,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("convert plan state: %w", err)
+		return nil, nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
 	var resReps []*proto.ResourceReplacement
@@ -377,7 +377,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	return msg, nil
+	var planConfig *tfjson.Config
+	if hasScriptOrderDataSource(planModules(plan)) {
+		planConfig = plan.Config
+	}
+	return msg, planConfig, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {

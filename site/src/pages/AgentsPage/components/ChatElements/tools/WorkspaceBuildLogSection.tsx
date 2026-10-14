@@ -1,15 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { LogNotice } from "./LogNotice";
-import { followLogEnd, type ToolStatus } from "./utils";
+import { ToolCall } from "./ToolCall";
+import type { ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
@@ -99,16 +99,6 @@ export const WorkspaceBuildLogSection: React.FC<
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
-	// WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript.
-	const viewportRef = useRef<HTMLDivElement>(null);
-	const scrollHeightRef = useRef(0);
-	useLayoutEffect(() => {
-		scrollHeightRef.current = followLogEnd(
-			viewportRef.current,
-			scrollHeightRef.current,
-		);
-	}, [logs]);
-
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
@@ -144,20 +134,19 @@ export const WorkspaceBuildLogSection: React.FC<
 	}
 
 	return (
-		<ScrollArea
+		<ToolCall.Scrollable
 			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportRef={viewportRef}
-			viewportTabIndex={0}
-			viewportAriaLabel="Workspace build log"
-			scrollBarClassName="w-1.5"
+			ariaLabel="Workspace build log"
+			followEnd
 		>
+			{/* WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript. */}
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky
 				disableAutoscroll
 				className="border-0 rounded-none"
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };
