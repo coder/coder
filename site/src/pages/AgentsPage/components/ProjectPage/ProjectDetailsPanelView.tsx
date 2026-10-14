@@ -113,6 +113,7 @@ export const ProjectDetailsPanelView: React.FC<
 									<Button
 										size="sm"
 										variant="outline"
+										aria-label="Create instructions"
 										onClick={onEditInstructions}
 									>
 										Create

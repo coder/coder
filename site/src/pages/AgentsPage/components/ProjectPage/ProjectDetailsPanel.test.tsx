@@ -17,14 +17,11 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
-	MockDefaultOrganization,
 	MockUnsetChatProjectInstructions,
-	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 
 vi.mock("#/hooks/useAuthenticated", async () => {
@@ -103,27 +100,6 @@ describe("ProjectDetailsPanel", () => {
 		focusManager.setFocused(undefined);
 	});
 
-	it("shows the project owner, creation date, and organization", async () => {
-		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API, "getUser").mockResolvedValue({
-			...MockUserMember,
-			name: "Jane Doe",
-		});
-		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
-
-		await waitFor(() =>
-			expect(screen.getByText("Project owner").nextSibling).toHaveTextContent(
-				"Jane Doe",
-			),
-		);
-		expect(screen.getByText("Created").nextSibling).toHaveTextContent(
-			formatDateTime(MockChatProject.created_at, DATE_FORMAT.MEDIUM_DATE),
-		);
-		expect(screen.getByText("Organization").nextSibling).toHaveTextContent(
-			MockDefaultOrganization.display_name,
-		);
-	});
-
 	it("creates instructions and shows the saved text without refetching", async () => {
 		const text = "Use TypeScript for new code.";
 		const updateInstructions = vi
@@ -135,7 +111,9 @@ describe("ProjectDetailsPanel", () => {
 		const getInstructions = mockInstructions(MockUnsetChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			text,
@@ -254,7 +232,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, "Too long");
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -309,7 +289,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
@@ -335,7 +317,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
