@@ -238,11 +238,7 @@ describe("GitPanel per-ref views", () => {
 			mockDiffContents,
 		);
 
-		const mockLegacyRef = {
-			...MockChatDiffStatus,
-			pr_number: undefined,
-			url: "https://github.example.com/coder/coder/pull/23020",
-		};
+		const mockLegacyRef = { ...MockChatDiffStatus, pr_number: undefined };
 
 		renderPanel({
 			remoteDiffStats: [mockLegacyRef],
