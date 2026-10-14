@@ -161,9 +161,9 @@ sends the provider's configured **small fast model** for requests whose
 model identifier contains `haiku`, and the configured **model** for all
 other requests. This applies to Coder Agents models too: the model
 identifier of an Agents model that uses an InvokeModel provider is not sent
-to AWS, and the dashboard shows a warning when you add or edit such a
-model. To select the model on each request, use a [Mantle](#mantle)
-provider.
+to AWS. The dashboard shows a warning when you add or edit such a model,
+and the Agents chat input shows one when such a model is selected. To
+select the model on each request, use a [Mantle](#mantle) provider.
 
 #### Mantle
 
