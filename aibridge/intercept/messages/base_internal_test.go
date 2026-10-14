@@ -1013,20 +1013,18 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectKeptFields:   []string{"output_config"},
 		},
 		{
-			// Bedrock rejects thinking.type "enabled" for Mythos 5 with a 400.
-			name:               "mythos_5_model_with_enabled_thinking_is_sent_unchanged",
+			name:               "mythos_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "anthropic.claude-mythos-5",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
-			expectThinkingType: "enabled",
-			expectBudgetTokens: 5000,
+			expectThinkingType: "adaptive",
 		},
 		{
-			name:                "global_mythos_5_1_model_converts_adaptive_thinking_to_enabled_and_drops_output_config",
-			bedrockModel:        "global.anthropic.claude-mythos-5-1",
-			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
-			expectThinkingType:  "enabled",
-			expectBudgetTokens:  8000,
-			expectRemovedFields: []string{"output_config"},
+			name:               "global_mythos_5_1_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-mythos-5-1",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
 		},
 		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
