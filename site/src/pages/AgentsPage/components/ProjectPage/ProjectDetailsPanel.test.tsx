@@ -12,16 +12,37 @@ import type {
 	ChatProject,
 	ChatProjectInstructions,
 } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockChatProjectInstructions,
+	MockDefaultOrganization,
 	MockUnsetChatProjectInstructions,
+	MockUserMember,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
+
+vi.mock("#/hooks/useAuthenticated", async () => {
+	const { MockUserOwner } = await import("#/testHelpers/entities");
+	return {
+		useAuthenticated: () => ({ user: MockUserOwner, permissions: {} }),
+	};
+});
+
+vi.mock("#/modules/dashboard/useDashboard", async () => {
+	const { MockDefaultOrganization } = await import("#/testHelpers/entities");
+	return {
+		useDashboard: () => ({
+			organizations: [MockDefaultOrganization],
+			showOrganizations: true,
+		}),
+	};
+});
 
 const mockInstructions = (instructions: ChatProjectInstructions) =>
 	vi
@@ -62,7 +83,9 @@ const renderPanel = (project: ChatProject = MockChatProject) => {
 	const panel = (project: ChatProject) => (
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
 			<QueryClientProvider client={queryClient}>
-				<ProjectDetailsPanel project={project} />
+				<TooltipProvider>
+					<ProjectDetailsPanel project={project} />
+				</TooltipProvider>
 			</QueryClientProvider>
 		</ThemeOverride>
 	);
@@ -78,6 +101,27 @@ describe("ProjectDetailsPanel", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		focusManager.setFocused(undefined);
+	});
+
+	it("shows the project owner, creation date, and organization", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API, "getUser").mockResolvedValue({
+			...MockUserMember,
+			name: "Jane Doe",
+		});
+		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
+
+		await waitFor(() =>
+			expect(screen.getByText("Project owner").nextSibling).toHaveTextContent(
+				"Jane Doe",
+			),
+		);
+		expect(screen.getByText("Created").nextSibling).toHaveTextContent(
+			formatDateTime(MockChatProject.created_at, DATE_FORMAT.MEDIUM_DATE),
+		);
+		expect(screen.getByText("Organization").nextSibling).toHaveTextContent(
+			MockDefaultOrganization.display_name,
+		);
 	});
 
 	it("creates instructions and shows the saved text without refetching", async () => {

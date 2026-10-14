@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, within } from "storybook/test";
 import {
+	MockChatProject,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 
 const meta: Meta<typeof ProjectDetailsPanelView> = {
@@ -12,12 +14,14 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	component: ProjectDetailsPanelView,
 	decorators: [
 		(Story) => (
-			<div className="max-w-[30rem]">
+			<div className="max-w-[310px]">
 				<Story />
 			</div>
 		),
 	],
 	args: {
+		ownerLabel: "You",
+		createdAt: MockChatProject.created_at,
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),
@@ -27,6 +31,38 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 
 export default meta;
 type Story = StoryObj<typeof ProjectDetailsPanelView>;
+
+export const Default: Story = {};
+
+export const WithOrganization: Story = {
+	args: { organizationLabel: "Coder" },
+};
+
+export const OwnerLoading: Story = {
+	args: { ownerLabel: undefined },
+};
+
+export const OtherOwner: Story = {
+	args: { ownerLabel: "Jane Doe" },
+};
+
+export const OwnerUnknown: Story = {
+	args: { ownerLabel: "Unknown" },
+};
+
+/** Keyboard focus on the creation date shows the full timestamp. */
+export const CreatedDateFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", {
+				name: formatDateTime(
+					MockChatProject.created_at,
+					DATE_FORMAT.MEDIUM_DATE,
+				),
+			})
+			.focus();
+	},
+};
 
 export const Unset: Story = {
 	args: { instructions: MockUnsetChatProjectInstructions },

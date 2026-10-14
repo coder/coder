@@ -139,7 +139,7 @@ describe("AgentChatInput", () => {
 		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
 		const column = screen.getByTestId("chat-composer").parentElement;
 
-		expect(column).toHaveClass("max-w-3xl");
+		expect(column).toHaveClass("max-w-3xl", "sm:pb-4");
 
 		rerender(
 			<AppProviders>
@@ -147,9 +147,9 @@ describe("AgentChatInput", () => {
 			</AppProviders>,
 		);
 
-		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
-			"max-w-full",
-		);
+		const filledColumn = screen.getByTestId("chat-composer").parentElement;
+		expect(filledColumn).toHaveClass("max-w-full");
+		expect(filledColumn).not.toHaveClass("sm:pb-4");
 	});
 
 	it("accepts drafts without sending while submission is disabled", async () => {
