@@ -12,6 +12,7 @@ import { withToaster } from "#/testHelpers/storybook";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
+	MockBedrockInvokeModelProviderState,
 	MockCopilotProviderState,
 	MockOpenAIProviderState,
 } from "../testFixtures";
@@ -137,6 +138,13 @@ export const NoProviderConfigurationFields: Story = {
 		expect(
 			canvas.queryByRole("button", { name: /provider configuration/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const BedrockInvokeModelProvider: Story = {
+	args: {
+		providerStates: [MockBedrockInvokeModelProviderState],
+		selectedProviderState: MockBedrockInvokeModelProviderState,
 	},
 };
 

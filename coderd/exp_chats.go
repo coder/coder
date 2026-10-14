@@ -8098,16 +8098,14 @@ func (api *API) chatModelProviderDescriptors(
 			}
 		}
 		hasUserKey := userKeyStatus[provider.ID]
+		settings, err := db2sdk.AIProviderSettings(provider.Settings)
+		if err != nil {
+			return nil, xerrors.Errorf("decode AI provider settings: %w", err)
+		}
 		// Some provider configurations support ambient credentials rather than a
 		// stored key. Actual credential availability is checked by the gateway.
-		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock
-		if !supportsAmbientCredentials {
-			settings, err := db2sdk.AIProviderSettings(provider.Settings)
-			if err != nil {
-				return nil, xerrors.Errorf("decode AI provider settings: %w", err)
-			}
-			supportsAmbientCredentials = aiProviderSupportsAmbientCredentials(settings)
-		}
+		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock ||
+			aiProviderSupportsAmbientCredentials(settings)
 		out = append(out, codersdk.ChatModelProviderDescriptor{
 			ID:                 provider.ID,
 			Type:               string(provider.Type),
@@ -8118,9 +8116,19 @@ func (api *API) chatModelProviderDescriptors(
 			HasUserAPIKey:      hasUserKey,
 			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+			BedrockInvokeModel: chatModelProviderUsesBedrockInvokeModel(settings),
 		})
 	}
 	return out, nil
+}
+
+// chatModelProviderUsesBedrockInvokeModel reports whether the provider sends
+// its configured Bedrock models upstream in place of the requested model. It
+// mirrors the gateway's detection in aibridge.BedrockConfig.
+func chatModelProviderUsesBedrockInvokeModel(settings codersdk.AIProviderSettings) bool {
+	bedrock := settings.Bedrock
+	return bedrock != nil && bedrock.IsConfigured() &&
+		bedrock.ResolvedProtocol() == codersdk.AIProviderBedrockProtocolInvokeModel
 }
 
 // aiProviderSupportsAmbientCredentials reports whether the provider's settings

@@ -57,7 +57,7 @@ const providerInfoByID = new Map([
 
 type TestProvider = Pick<
 	ChatModelProviderDescriptor,
-	"available" | "unavailable_reason"
+	"available" | "unavailable_reason" | "bedrock_invoke_model"
 > & {
 	enabled?: boolean;
 	id?: string;
@@ -1169,6 +1169,31 @@ describe("resolveModelSelector", () => {
 				displayName: "GPT-4o",
 				contextLimit: 128_000,
 			},
+		]);
+	});
+
+	it("flags options whose provider uses the Bedrock InvokeModel protocol", () => {
+		const bedrockConfig = createConfig({
+			id: "config-bedrock",
+			ai_provider_id: "prov-bedrock",
+			model: "claude-sonnet-4-5",
+		});
+		const state = resolveModelSelector(testOrganizationID, {
+			data: {
+				...createCatalog([
+					{ provider: "openai", available: true },
+					{ provider: "bedrock", available: true, bedrock_invoke_model: true },
+				]),
+				models: [config, bedrockConfig],
+			},
+			isLoading: false,
+		});
+
+		expect(
+			state.options.map((option) => [option.id, option.bedrockInvokeModel]),
+		).toEqual([
+			["config-bedrock", true],
+			["config-openai", undefined],
 		]);
 	});
 });

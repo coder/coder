@@ -51,6 +51,7 @@ import {
 	useOrganizationModels,
 	useOrganizationModelsPath,
 } from "../organizationModels";
+import { BedrockInvokeModelAlert } from "./BedrockInvokeModelAlert";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
 const CollapsibleSection: React.FC<{
@@ -230,6 +231,13 @@ export const ModelFormFields: React.FC<{
 							Set as Coder Agents default model
 						</label>
 					</div>
+					{selectedProviderState.providerDescriptor.bedrock_invoke_model && (
+						<div className="sm:col-span-2">
+							<BedrockInvokeModelAlert
+								providerLabel={selectedProviderState.label}
+							/>
+						</div>
+					)}
 					<div className="grid gap-1.5">
 						<Label
 							htmlFor={displayNameField.id}

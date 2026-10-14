@@ -37,6 +37,11 @@ export type ModelSelectorOption = {
 	contextLimit?: number;
 	reasoningEffortDefault?: string;
 	reasoningEfforts?: readonly string[];
+	/**
+	 * Set when the provider uses the Bedrock InvokeModel protocol, which sends
+	 * the provider's configured model upstream instead of this option's model.
+	 */
+	bedrockInvokeModel?: boolean;
 };
 
 type ModelSelectorProps = {

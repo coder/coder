@@ -144,6 +144,7 @@ export type ProviderInfo = {
 	readonly enabled?: boolean;
 	readonly available?: boolean;
 	readonly unavailableReason?: TypesGen.ChatModelProviderUnavailableReason;
+	readonly bedrockInvokeModel?: boolean;
 };
 
 // Provider descriptors use `id`; personal provider configs use `provider_id`.
@@ -162,6 +163,7 @@ export const providerInfoByIDFromDescriptors = (
 				icon: providerDescriptor.icon,
 				enabled: providerDescriptor.enabled,
 				available: providerDescriptor.available,
+				bedrockInvokeModel: providerDescriptor.bedrock_invoke_model,
 			},
 		]),
 	);
@@ -293,6 +295,7 @@ export const getModelOptionsFromModels = (
 			...(contextLimit !== undefined ? { contextLimit } : {}),
 			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
 			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+			...(providerInfo.bedrockInvokeModel ? { bedrockInvokeModel: true } : {}),
 		});
 	}
 
