@@ -173,8 +173,8 @@ Use the hexadecimal text as the HMAC key, not the decoded bytes.
 Without a secret, forwarding remains unsigned.
 
 The existing create and update APIs accept `signing_secret`.
-Coder never returns it; responses expose only `has_signing_secret`.
-Omitting it in an update preserves the stored value; an explicit empty string clears it.
+Coder never returns it. Responses expose only `has_signing_secret`.
+Omitting it in an update preserves the stored value. An explicit empty string clears it.
 In the UI, leaving the secret field unchanged or blank preserves the existing secret.
 
 > [!WARNING]

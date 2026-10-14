@@ -204,7 +204,7 @@ Size your maintenance window for whichever are largest in your deployment:
   This is typically the slowest step on long-lived deployments with extensive build history.
   It is safe, but plan for the time.
 - **`workspaces`** receives full-table updates and new ACL check constraints.
-- **`usage_events`** has a check constraint revalidated and an index added; the cost scales with retained event volume.
+- **`usage_events`** has a check constraint revalidated and an index added. The cost scales with retained event volume.
 
 Several of these changes are irreversible, including the `users` service account reclassification and the cleanup of `user_secrets`, `organization_members`, and related rows for already soft-deleted users.
 Take a database backup before upgrading.
