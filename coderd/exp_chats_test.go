@@ -2092,7 +2092,6 @@ func TestActOnChatAsUser(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	createChatModel(t, client)
 
-	// newChat creates a running chat for a new member.
 	newChat := func(ctx context.Context, t *testing.T) (*codersdk.ExperimentalClient, codersdk.Chat) {
 		t.Helper()
 		memberClient, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)

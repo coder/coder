@@ -251,8 +251,6 @@ func (api *API) requireChatDaemon(ctx context.Context, rw http.ResponseWriter) b
 	return !maybeWriteChatError(ctx, rw, api.chatDaemonError())
 }
 
-// chatDaemonError returns the response error of requireChatDaemon when the
-// chat daemon does not exist, or nil.
 func (api *API) chatDaemonError() error {
 	if api.chatDaemon != nil {
 		return nil
@@ -1648,9 +1646,7 @@ func (api *API) InterruptChatAsUser(ctx context.Context, userID, chatID uuid.UUI
 	return api.interruptChat(ctx, chat)
 }
 
-// actAsUserOnChat returns ctx with the RBAC actor of userID, as actAsUser
-// does, and the chat as that user sees it, as ExtractChatParam loads it.
-// Every error implements httperror.Responder.
+// Errors implement httperror.Responder.
 func (api *API) actAsUserOnChat(ctx context.Context, userID, chatID uuid.UUID) (context.Context, database.Chat, error) {
 	ctx, err := api.actAsUser(ctx, userID)
 	if err != nil {
@@ -3093,9 +3089,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// checkSendChatMessage returns an error when callerID may not send a message
-// to chat. It runs before the request body is read. ctx must carry the RBAC
-// actor of callerID. Every error implements httperror.Responder.
+// ctx must carry callerID's RBAC actor. Errors implement httperror.Responder.
 func (api *API) checkSendChatMessage(ctx context.Context, callerID uuid.UUID, chat database.Chat) error {
 	if err := api.chatDaemonError(); err != nil {
 		return err
@@ -3127,10 +3121,8 @@ func (api *API) checkSendChatMessage(ctx context.Context, callerID uuid.UUID, ch
 	return nil
 }
 
-// sendChatMessage validates req and sends it to chat as callerID. The caller
-// must call checkSendChatMessage first. ctx must carry the RBAC actor of
-// callerID. Every error implements httperror.Responder with the response of
-// POST /api/v2/chats/{chat}/messages; write it with writeChatError.
+// The caller must first pass checkSendChatMessage. ctx must carry callerID's
+// RBAC actor. Errors implement httperror.Responder.
 func (api *API) sendChatMessage(
 	ctx context.Context,
 	callerID uuid.UUID,
@@ -3280,8 +3272,6 @@ func (api *API) sendChatMessage(
 	return response, nil
 }
 
-// sendChatMessageError maps an error from chatd.Server.SendMessage to the
-// response error of POST /api/v2/chats/{chat}/messages.
 func (api *API) sendChatMessageError(err error) error {
 	if hookErr := chatHookError(err, "Chat message denied by lifecycle hook."); hookErr != nil {
 		return hookErr
@@ -3851,9 +3841,7 @@ func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, chat)
 }
 
-// interruptChat interrupts chat. ctx must carry the RBAC actor of the
-// caller. Every error implements httperror.Responder with the response of
-// POST /api/v2/chats/{chat}/interrupt; write it with writeChatError.
+// ctx must carry the caller's RBAC actor. Errors implement httperror.Responder.
 func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk.Chat, error) {
 	if err := api.chatDaemonError(); err != nil {
 		return codersdk.Chat{}, err
