@@ -174,6 +174,58 @@ func TestDBBackendIntegration(t *testing.T) {
 		require.Equal(t, sql.NullString{String: "cursor", Valid: true}, row.AppNameOrPort)
 	})
 
+	t.Run("OrphanDisconnectThenLateConnectSeparateBatches", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		clock := quartz.NewMock(t)
+
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		connectTime := dbtime.Now()
+		disconnectTime := connectTime.Add(5 * time.Second)
+		event := func(status database.ConnectionStatus, at time.Time) database.UpsertConnectionLogParams {
+			return database.UpsertConnectionLogParams{
+				ID:               uuid.New(),
+				Time:             at,
+				OrganizationID:   ws.OrganizationID,
+				WorkspaceOwnerID: ws.OwnerID,
+				WorkspaceID:      ws.ID,
+				WorkspaceName:    ws.Name,
+				AgentName:        "main",
+				ConnectionMethod: database.ConnectionLogMethodSSH,
+				ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+				ConnectionStatus: status,
+				IP:               testIP(),
+			}
+		}
+		flush := func(item database.UpsertConnectionLogParams) database.ConnectionLog {
+			//nolint:gocritic // Test needs system context for the batcher.
+			b := connectionlog.NewDBBatcher(
+				dbauthz.AsConnectionLogger(ctx), db, log,
+				connectionlog.WithClock(clock),
+				connectionlog.WithBatchSize(100),
+			)
+			require.NoError(t, b.Upsert(ctx, item))
+			require.NoError(t, b.Close())
+			rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			return rows[0].ConnectionLog
+		}
+
+		row := flush(event(database.ConnectionStatusDisconnected, disconnectTime))
+		require.True(t, disconnectTime.Equal(row.ConnectTime))
+		require.Equal(t, database.ConnectionLogConnectTimeSourceDisconnect, row.ConnectTimeSource)
+
+		row = flush(event(database.ConnectionStatusConnected, connectTime))
+		require.True(t, connectTime.Equal(row.ConnectTime))
+		require.Equal(t, database.ConnectionLogConnectTimeSourceConnect, row.ConnectTimeSource)
+		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
+	})
+
 	t.Run("ConnectAndDisconnectSameBatch", func(t *testing.T) {
 		t.Parallel()
 

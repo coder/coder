@@ -4,7 +4,7 @@ import { Link } from "#/components/Link/Link";
 import { connectionLogMethodLabels } from "../../connectionLogMethodLabels";
 
 type ConnectionLogDescriptionProps = {
-	connectionLog: ConnectionLog;
+	connectionLog: Omit<ConnectionLog, "ssh_info">;
 };
 
 export const ConnectionLogDescription: React.FC<

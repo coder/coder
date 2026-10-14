@@ -93,8 +93,28 @@ type ConnectionLogWebInfo struct {
 	StatusCode int32 `json:"status_code"`
 }
 
+// ConnectionLogDurationStatus describes how a duration was determined.
+// It does not indicate whether the connection is active.
+type ConnectionLogDurationStatus string
+
+const (
+	ConnectionLogDurationRecorded       ConnectionLogDurationStatus = "recorded"
+	ConnectionLogDurationUnverified     ConnectionLogDurationStatus = "unverified"
+	ConnectionLogDurationNoDisconnect   ConnectionLogDurationStatus = "no_disconnect"
+	ConnectionLogDurationMissingConnect ConnectionLogDurationStatus = "missing_connect"
+	ConnectionLogDurationInvalid        ConnectionLogDurationStatus = "invalid"
+)
+
 type ConnectionLogSSHInfo struct {
 	ConnectionID uuid.UUID `json:"connection_id" format:"uuid"`
+	// ClientSessionID is an optional client-supplied correlation label, not a
+	// unique IDE-instance identifier. Related rows may overlap or have gaps.
+	ClientSessionID string `json:"client_session_id,omitempty"`
+	// DurationSeconds is the stored connect-to-disconnect interval, including
+	// unverified intervals labeled by DurationStatus. It is omitted when an
+	// endpoint is missing or the interval is invalid.
+	DurationSeconds *float64                    `json:"duration_seconds,omitempty"`
+	DurationStatus  ConnectionLogDurationStatus `json:"duration_status"`
 	// DisconnectTime is omitted if a disconnect event with the same connection ID
 	// has not yet been seen.
 	DisconnectTime *time.Time `json:"disconnect_time,omitempty" format:"date-time"`

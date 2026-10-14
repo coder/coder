@@ -2026,6 +2026,67 @@ func AllChatTitleSourceValues() []ChatTitleSource {
 	}
 }
 
+type ConnectionLogConnectTimeSource string
+
+const (
+	ConnectionLogConnectTimeSourceUnknown    ConnectionLogConnectTimeSource = "unknown"
+	ConnectionLogConnectTimeSourceConnect    ConnectionLogConnectTimeSource = "connect"
+	ConnectionLogConnectTimeSourceDisconnect ConnectionLogConnectTimeSource = "disconnect"
+)
+
+func (e *ConnectionLogConnectTimeSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionLogConnectTimeSource(s)
+	case string:
+		*e = ConnectionLogConnectTimeSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionLogConnectTimeSource: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionLogConnectTimeSource struct {
+	ConnectionLogConnectTimeSource ConnectionLogConnectTimeSource `json:"connection_log_connect_time_source"`
+	Valid                          bool                           `json:"valid"` // Valid is true if ConnectionLogConnectTimeSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionLogConnectTimeSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionLogConnectTimeSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionLogConnectTimeSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionLogConnectTimeSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionLogConnectTimeSource), nil
+}
+
+func (e ConnectionLogConnectTimeSource) Valid() bool {
+	switch e {
+	case ConnectionLogConnectTimeSourceUnknown,
+		ConnectionLogConnectTimeSourceConnect,
+		ConnectionLogConnectTimeSourceDisconnect:
+		return true
+	}
+	return false
+}
+
+func AllConnectionLogConnectTimeSourceValues() []ConnectionLogConnectTimeSource {
+	return []ConnectionLogConnectTimeSource{
+		ConnectionLogConnectTimeSourceUnknown,
+		ConnectionLogConnectTimeSourceConnect,
+		ConnectionLogConnectTimeSourceDisconnect,
+	}
+}
+
 type ConnectionLogMethod string
 
 const (
@@ -5564,6 +5625,8 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Source of connect_time: unknown when provenance is unavailable, connect for an observed connect event, disconnect for a standalone disconnect placeholder.
+	ConnectTimeSource ConnectionLogConnectTimeSource `db:"connect_time_source" json:"connect_time_source"`
 }
 
 type CryptoKey struct {

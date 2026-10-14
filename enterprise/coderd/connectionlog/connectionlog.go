@@ -210,30 +210,19 @@ func (b *DBBatcher) Close() error {
 	return nil
 }
 
-// addToBatch inserts an item into the batch, deduplicating by conflict
-// key on the fly. For entries with the same key, disconnect events are
-// preferred over connect events, and later events are preferred over
-// earlier ones.
-//
-// This is safe because each new connection gets a fresh UUID (see
-// agent/agent.go and agent/agentssh), so the only duplicate for the
-// same (connection_id, workspace_id, agent_name) is a connect/disconnect
-// pair for the same session. A "reconnect" always uses a new ID.
+// addToBatch merges events by their per-session connection ID, preserving
+// disconnect metadata when a late connect supplies the start time.
 func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 	entry := batchEntry{
 		UpsertConnectionLogParams: item,
+		connectTime:               item.Time,
+		connectTimeSource:         database.ConnectionLogConnectTimeSourceConnect,
 	}
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected {
-		// For standalone disconnect events, use the disconnect
-		// time as both connect and disconnect time. This matches
-		// the single-row UpsertConnectionLog behavior which uses
-		// @time for connect_time regardless of status. The SQL
-		// LEAST logic will correct connect_time if the real
-		// connect event arrives in a later batch.
-		entry.connectTime = item.Time
+		// A standalone disconnect uses its timestamp as a placeholder start until
+		// a connect event replaces it, in this batch or a later update.
+		entry.connectTimeSource = database.ConnectionLogConnectTimeSourceDisconnect
 		entry.disconnectTime = item.Time
-	} else {
-		entry.connectTime = item.Time
 	}
 
 	if !item.ConnectionID.Valid {
@@ -246,24 +235,30 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 		b.dedupedBatch[connID] = entry
 		return
 	}
-	// When merging entries for the same connection, always preserve
-	// the earliest non-zero connect_time and latest disconnect_time
-	// so the row records the full session span.
-	if !existing.connectTime.IsZero() && existing.connectTime.Before(entry.connectTime) {
-		entry.connectTime = existing.connectTime
-	}
-	if existing.disconnectTime.After(entry.disconnectTime) {
-		entry.disconnectTime = existing.disconnectTime
-	}
 
 	// Prefer disconnect over connect (superset of info).
 	// If same status, prefer the later event.
+	chosen := existing
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
 		existing.ConnectionStatus != database.ConnectionStatusDisconnected {
-		b.dedupedBatch[connID] = entry
-	} else if item.Time.After(existing.Time) {
-		b.dedupedBatch[connID] = entry
+		chosen = entry
+	} else if item.ConnectionStatus == existing.ConnectionStatus && item.Time.After(existing.Time) {
+		chosen = entry
 	}
+	chosen.connectTime, chosen.connectTimeSource = mergeConnectTime(existing, entry)
+	chosen.disconnectTime = existing.disconnectTime
+	if entry.disconnectTime.After(chosen.disconnectTime) {
+		chosen.disconnectTime = entry.disconnectTime
+	}
+	b.dedupedBatch[connID] = chosen
+}
+
+func mergeConnectTime(existing, incoming batchEntry) (time.Time, database.ConnectionLogConnectTimeSource) {
+	if incoming.connectTimeSource == database.ConnectionLogConnectTimeSourceConnect &&
+		(existing.connectTimeSource != database.ConnectionLogConnectTimeSourceConnect || incoming.connectTime.Before(existing.connectTime)) {
+		return incoming.connectTime, incoming.connectTimeSource
+	}
+	return existing.connectTime, existing.connectTimeSource
 }
 
 // batchLen returns the total number of entries currently buffered.
@@ -315,14 +310,12 @@ func (b *DBBatcher) run(ctx context.Context) {
 	}
 }
 
-// batchEntry wraps a connection log event with explicit connect and
-// disconnect times. When a connect and disconnect for the same session
-// are merged into one entry, connectTime preserves the original
-// session start while disconnectTime records when it ended.
+// batchEntry keeps session timestamps separate from the selected event's time.
 type batchEntry struct {
 	database.UpsertConnectionLogParams
-	connectTime    time.Time
-	disconnectTime time.Time
+	connectTime       time.Time
+	connectTimeSource database.ConnectionLogConnectTimeSource
+	disconnectTime    time.Time
 }
 
 // flush builds the batch params, clears the in-memory batch, and
@@ -376,24 +369,25 @@ func (b *DBBatcher) flush(ctx context.Context) {
 func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 	count := b.batchLen()
 	var (
-		ids              = make([]uuid.UUID, 0, count)
-		connectTime      = make([]time.Time, 0, count)
-		organizationID   = make([]uuid.UUID, 0, count)
-		workspaceOwnerID = make([]uuid.UUID, 0, count)
-		workspaceID      = make([]uuid.UUID, 0, count)
-		workspaceName    = make([]string, 0, count)
-		agentName        = make([]string, 0, count)
-		methods          = make([]database.ConnectionLogMethod, 0, count)
-		code             = make([]int32, 0, count)
-		codeValid        = make([]bool, 0, count)
-		ip               = make([]pqtype.Inet, 0, count)
-		userAgent        = make([]string, 0, count)
-		userID           = make([]uuid.UUID, 0, count)
-		appNameOrPort    = make([]string, 0, count)
-		connectionID     = make([]uuid.UUID, 0, count)
-		disconnectReason = make([]string, 0, count)
-		disconnectTime   = make([]time.Time, 0, count)
-		clientSessionID  = make([]string, 0, count)
+		ids               = make([]uuid.UUID, 0, count)
+		connectTime       = make([]time.Time, 0, count)
+		organizationID    = make([]uuid.UUID, 0, count)
+		workspaceOwnerID  = make([]uuid.UUID, 0, count)
+		workspaceID       = make([]uuid.UUID, 0, count)
+		workspaceName     = make([]string, 0, count)
+		agentName         = make([]string, 0, count)
+		methods           = make([]database.ConnectionLogMethod, 0, count)
+		code              = make([]int32, 0, count)
+		codeValid         = make([]bool, 0, count)
+		ip                = make([]pqtype.Inet, 0, count)
+		userAgent         = make([]string, 0, count)
+		userID            = make([]uuid.UUID, 0, count)
+		appNameOrPort     = make([]string, 0, count)
+		connectionID      = make([]uuid.UUID, 0, count)
+		disconnectReason  = make([]string, 0, count)
+		disconnectTime    = make([]time.Time, 0, count)
+		clientSessionID   = make([]string, 0, count)
+		connectTimeSource = make([]database.ConnectionLogConnectTimeSource, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -415,6 +409,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
 		clientSessionID = append(clientSessionID, e.ClientSessionID.String)
+		connectTimeSource = append(connectTimeSource, e.connectTimeSource)
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -425,24 +420,25 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 	}
 
 	return database.BatchUpsertConnectionLogsParams{
-		ID:               ids,
-		ConnectTime:      connectTime,
-		OrganizationID:   organizationID,
-		WorkspaceOwnerID: workspaceOwnerID,
-		WorkspaceID:      workspaceID,
-		WorkspaceName:    workspaceName,
-		AgentName:        agentName,
-		ConnectionMethod: methods,
-		Code:             code,
-		CodeValid:        codeValid,
-		Ip:               ip,
-		UserAgent:        userAgent,
-		UserID:           userID,
-		AppNameOrPort:    appNameOrPort,
-		ConnectionID:     connectionID,
-		DisconnectReason: disconnectReason,
-		DisconnectTime:   disconnectTime,
-		ClientSessionID:  clientSessionID,
+		ID:                ids,
+		ConnectTime:       connectTime,
+		OrganizationID:    organizationID,
+		WorkspaceOwnerID:  workspaceOwnerID,
+		WorkspaceID:       workspaceID,
+		WorkspaceName:     workspaceName,
+		AgentName:         agentName,
+		ConnectionMethod:  methods,
+		Code:              code,
+		CodeValid:         codeValid,
+		Ip:                ip,
+		UserAgent:         userAgent,
+		UserID:            userID,
+		AppNameOrPort:     appNameOrPort,
+		ConnectionID:      connectionID,
+		DisconnectReason:  disconnectReason,
+		DisconnectTime:    disconnectTime,
+		ClientSessionID:   clientSessionID,
+		ConnectTimeSource: connectTimeSource,
 	}
 }
 

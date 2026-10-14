@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -59,6 +59,17 @@ export const ConnectionLog: Story = {
 	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		connectionLogsQuery: mockSuccessResult,
+	},
+};
+
+export const HelpTooltipOpen: Story = {
+	args: {
+		connectionLogsQuery: mockSuccessResult,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: "More info" }),
+		);
 	},
 };
 
