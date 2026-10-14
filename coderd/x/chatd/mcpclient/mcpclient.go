@@ -140,8 +140,7 @@ type Server struct {
 	ModelIntent   bool
 }
 
-// InProcessServer is an MCP server in this process. mcpclient connects to
-// it over an in-memory transport.
+// InProcessServer supplies an MCP server for an in-memory connection.
 type InProcessServer struct {
 	ID     uuid.UUID
 	Slug   string
@@ -275,9 +274,8 @@ func ConnectInline(
 	)
 }
 
-// ConnectInProcess connects to MCP servers in this process. They need no
-// HTTP client or auth headers. Their tool counts, tool definitions, and
-// tool results have their own size caps.
+// ConnectInProcess connects to local MCP servers without HTTP or auth headers.
+// It caps tool counts, definition sizes, and result sizes.
 func ConnectInProcess(
 	ctx context.Context,
 	logger slog.Logger,
@@ -317,20 +315,15 @@ const (
 	// connectionKindInline is a server declared inline on a chat by the
 	// chat owner. It is untrusted and subject to caps and redaction.
 	connectionKindInline
-	// connectionKindInProcess is a server in this process. It is subject
-	// to caps.
 	connectionKindInProcess
 )
 
-// connectOptions carries the per-connect settings shared by every
-// server in one ConnectAll, ConnectInline, or ConnectInProcess call.
 type connectOptions struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	hooks      connectHooks
 	kind       connectionKind
-	// inProcessServers holds the MCP server for each Server ID of a
-	// ConnectInProcess call.
+
 	inProcessServers map[uuid.UUID]*mcp.Server
 }
 
@@ -477,10 +470,8 @@ func connectAllWithHooks(
 		)
 	})
 
-	// Warn about name collisions that may result from sanitization
-	// and truncation. When two tools resolve to the same name, the
-	// LLM tool-call dispatch map keeps only one, so the other
-	// becomes silently unreachable.
+	// Sanitization and truncation can create duplicate names. Callers must
+	// resolve these collisions before passing tools to the model.
 	for i := 1; i < len(tools); i++ {
 		if tools[i-1].Info().Name == tools[i].Info().Name {
 			prevTool, ok := tools[i-1].(MCPToolIdentifier)
@@ -594,10 +585,8 @@ func connectOne(
 		}
 		toolsResult, err := session.ListTools(connectCtx, nil)
 		if err != nil {
-			// Deliver the result before closing: Close sends a
-			// DELETE on the SDK's detached context and can wedge,
-			// which would otherwise convert a fast ListTools
-			// failure into a budget timeout for the caller.
+			// Deliver errors before closing: HTTP session cleanup can block
+			// on a DELETE request and exhaust the connection budget.
 			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
 			_ = session.Close()
 			return
@@ -609,11 +598,8 @@ func connectOne(
 	select {
 	case res = <-resCh:
 	case <-connectCtx.Done():
-		// Abandon the wedged goroutine; it exits once the
-		// transport's dial or response-header timeout fires. The
-		// reaper drains its late result and closes any session
-		// that still materialized so nothing leaks. It must not
-		// hold locks or block the caller.
+		// Do not wait for transport cleanup after the connection budget
+		// expires. Close any session returned after the timeout separately.
 		go func() {
 			if late := <-resCh; late.session != nil {
 				_ = late.session.Close()
@@ -660,10 +646,8 @@ func connectOne(
 	}
 
 	if len(tools) == 0 {
-		// Close the discarded session asynchronously: Close sends
-		// a DELETE on the SDK's detached context, so a server that
-		// wedges after a successful connect would otherwise hold
-		// the caller far past the connect budget.
+		// Close asynchronously because HTTP session cleanup can block
+		// on a DELETE request after the connection budget expires.
 		go func() { _ = session.Close() }()
 		return nil, nil, nil
 	}
@@ -681,8 +665,8 @@ const (
 	maxInlineToolResultBytes      = 256 << 10
 )
 
-// Caps for in-process servers. Their tool definitions and tool results
-// also reach the model and the chat messages.
+// Cap model-visible tool definitions and persisted tool results even
+// for in-process servers.
 const (
 	maxInProcessTools                = 64
 	maxInProcessToolDefinitionBytes  = 64 << 10
@@ -690,7 +674,6 @@ const (
 	maxInProcessToolResultBytes      = 256 << 10
 )
 
-// toolLimits are the caps on the tools of one server.
 type toolLimits struct {
 	tools            int
 	definitionBytes  int
@@ -698,7 +681,6 @@ type toolLimits struct {
 	resultBytes      int
 }
 
-// toolLimits returns the caps for kind, and false when kind has none.
 func (kind connectionKind) toolLimits() (toolLimits, bool) {
 	switch kind {
 	case connectionKindInline:
@@ -720,10 +702,9 @@ func (kind connectionKind) toolLimits() (toolLimits, bool) {
 	}
 }
 
-// validateToolDefinitions rejects a tool list that exceeds the count or
-// size caps in limits. Sizes are measured on the redacted definitions the
-// model sees. The whole server is skipped rather than truncated so the
-// model never sees a partial tool set.
+// Measure definitions after redaction, as the model sees them.
+// Reject the whole server on a limit violation so the model does not
+// receive a partial tool set.
 func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error {
 	if len(tools) > limits.tools {
 		return xerrors.Errorf(
@@ -755,10 +736,7 @@ func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error
 	return nil
 }
 
-// inMemoryTransport connects srv to a new in-memory pipe and returns the
-// client end. The server session ends when the client session closes the
-// pipe. jsonrpc2 keeps ctx values for tool handlers but not its
-// cancellation.
+// Closing the client session ends the server session through the shared pipe.
 func inMemoryTransport(ctx context.Context, srv *mcp.Server) (mcp.Transport, error) {
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	if _, err := srv.Connect(ctx, serverTransport, nil); err != nil {
@@ -1003,17 +981,15 @@ func truncateSummaryError(msg string) string {
 	return msg[:cut] + "... (truncated)"
 }
 
-// MCPToolIdentifier is implemented by tools that originate from
-// an MCP server config and can report the config's database ID.
+// MCPToolIdentifier reports a tool's server ID, which may be a database
+// config ID or an ID derived from an internal server's slug.
 type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
-// AppendTools appends tools to an existing tool list. When a new
-// tool has the same name as an earlier tool, the earlier tool wins and
-// the new one is dropped with a warning. Callers append tool sources in
-// order of trust, so a less trusted server, such as an end-user-chosen
-// one, never shadows a more trusted tool.
+// AppendTools appends tools and warns on duplicate names, keeping the
+// first tool. Callers must append sources in trust order to prevent
+// less trusted tools from replacing trusted tools.
 func AppendTools(
 	ctx context.Context,
 	logger slog.Logger,

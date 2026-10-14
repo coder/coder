@@ -54,7 +54,6 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 	return recorder
 }
 
-// newChatInlineEchoServer returns an MCP server with one echo tool.
 func newChatInlineEchoServer(name string, toolDescription string) *mcp.Server {
 	srv := newTestMCPServer(name)
 	srv.AddTool(&mcp.Tool{
@@ -307,8 +306,7 @@ func TestChatInlineMCPServers(t *testing.T) {
 			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		bot := newChatInlineEchoServer("bot", "Internal echo")
-		// MCP tool search stays on, so the test also checks that the
-		// admin tool that lost the collision is not deferred.
+		// Keep tool search enabled to catch deferral of the losing admin tool.
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.InternalMCPServers = []chatd.InternalMCPServer{{
 				Slug: "bot",

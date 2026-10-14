@@ -274,8 +274,8 @@ func (p *Server) buildTurnEnvironment(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn and coderd code
-	// picks the internal ones, so all of them are allowed in plan mode.
+	// Root plan-mode chats allow inline servers selected by the caller
+	// and internal servers selected by coderd.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
@@ -345,9 +345,8 @@ func (p *Server) buildTurnEnvironment(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// mcpCleanup, inlineMCPCleanup, and internalMCPCleanup are assigned by
-	// g2 goroutines and read only after g2.Wait, so no error path can run
-	// this before they are set.
+	// Once g2 starts, cleanup must wait for g2.Wait because its callbacks
+	// are assigned by g2 goroutines.
 	var mcpCleanup, inlineMCPCleanup, internalMCPCleanup func()
 	cleanup := func() {
 		if inlineMCPCleanup != nil {
@@ -848,13 +847,12 @@ func (p *Server) buildTurnEnvironment(
 		builtinToolNames[t.Info().Name] = true
 	}
 
-	// Tool sources join in order of trust: built-in, internal, admin,
-	// workspace, then inline. On a name collision the earlier tool
-	// keeps the name. All of them join before the plan-mode filter so
-	// they are subject to the same approved set.
+	// Append sources in trust order so less trusted tools cannot replace
+	// trusted tools: built-in, internal, admin, workspace, then inline.
+	// Apply the plan-mode filter after all sources join.
 	tools = mcpclient.AppendTools(ctx, logger, tools, internalMCPTools)
-	// Only the admin and workspace tools that keep their names can be
-	// deferred, so find_tools never hides a tool that won a collision.
+	// Exclude rejected tools from deferral so a name collision cannot
+	// hide the winning tool through the rejected tool's deferral policy.
 	numTools := len(tools)
 	tools = mcpclient.AppendTools(ctx, logger, tools, mcpTools)
 	mcpTools = tools[numTools:]
@@ -2002,18 +2000,14 @@ func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.Nu
 	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
 }
 
-// turnUsesMCPServers reports whether a turn of chat can use MCP servers.
-// Plan-mode subagents and explore-mode root chats use none.
 func turnUsesMCPServers(chat database.Chat) bool {
 	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
 	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
 }
 
-// filterMCPServersForTurn returns the external MCP servers visible on the
-// current turn and the set of their IDs. Outside plan mode every server is
-// visible and the set is nil. Plan-mode subagents see none: their trust
-// boundary is narrower than the root chat's. Root plan-mode chats see the
-// servers whose policy allows plan mode.
+// Plan-mode subagents have a narrower trust boundary and cannot use MCP
+// servers. Root plan-mode chats require policy approval. Outside plan mode,
+// all servers are visible and the approved-ID set is nil.
 func filterMCPServersForTurn[T any](
 	servers []T,
 	mode database.NullChatPlanMode,
@@ -2109,8 +2103,6 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2131,12 +2123,9 @@ func exploreToolAllowed(tool fantasy.AgentTool) bool {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
 	}
-	// External MCP tools pass through here. Org tools were
-	// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-	// tools come only from root chat servers with allow_in_subagents.
-	// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-	// workspace tools are excluded here too, in addition to the
-	// structural exclusion in runChat tool assembly.
+	// Org tools use the spawn-time snapshot; inline tools require
+	// allow_in_subagents. Internal servers decide access in ServerForChat.
+	// WorkspaceMCPTool lacks MCPToolIdentifier and remains excluded.
 	_, ok := tool.(mcpclient.MCPToolIdentifier)
 	return ok
 }
