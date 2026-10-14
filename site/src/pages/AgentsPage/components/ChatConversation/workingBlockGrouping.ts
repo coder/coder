@@ -114,8 +114,8 @@ type GetRowBlocksOptions = {
 
 /**
  * A row's blocks, or its work or answer section when the row ends a working
- * block. Files that hideAttachments drops are listed under Attachments once
- * their step persists.
+ * block. Files that hideAttachments drops from agent rows are listed under
+ * Attachments once their step persists.
  */
 export const getRowBlocks = (
 	blocks: readonly RenderBlock[],
