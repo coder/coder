@@ -143,7 +143,7 @@ nodes. Refer to sysbox's
 [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility)
 to ensure your nodes are compliant.
 
-To get started with `envbox` check out the
+To get started with `envbox`, refer to the
 [starter template](../../../../examples/templates/kubernetes-envbox)
 or visit the [repo](https://github.com/coder/envbox).
 
