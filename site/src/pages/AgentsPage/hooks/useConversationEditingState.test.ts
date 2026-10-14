@@ -404,6 +404,82 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps what was typed during a send after it succeeds", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		let resolveSend: () => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", "next state", false);
+		});
+		await act(async () => {
+			resolveSend();
+			await sent;
+		});
+
+		expect(mockInput.clear).toHaveBeenCalledTimes(1);
+		expect(result.current.inputValueRef.current).toBe("next");
+		expect(localStorage.getItem(expectedKey)).toBe("next state");
+		unmount();
+	});
+
+	it("puts a failed message in front of what was typed during it", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		const paragraph = (text: string) => ({
+			type: "paragraph",
+			children: [{ type: "text", text }],
+		});
+		const editorState = (text: string) =>
+			JSON.stringify({ root: { type: "root", children: [paragraph(text)] } });
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleContentChange("hello", editorState("hello"), false);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", editorState("next"), false);
+		});
+		await act(async () => {
+			rejectSend(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editorInitialValue).toBe("hello\n\nnext");
+		expect(result.current.inputValueRef.current).toBe("hello\n\nnext");
+		expect(JSON.parse(result.current.initialEditorState ?? "")).toEqual({
+			root: {
+				type: "root",
+				children: [paragraph("hello"), paragraph("next")],
+			},
+		});
+		unmount();
+	});
+
 	it("clears the composer and persisted draft after a successful send", async () => {
 		localStorage.setItem(expectedKey, "draft to clear");
 		const { result, onSend, unmount } = renderEditing();
