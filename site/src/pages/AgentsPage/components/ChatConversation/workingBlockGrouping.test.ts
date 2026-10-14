@@ -231,6 +231,36 @@ describe("groupWorkingBlocks", () => {
 		});
 	});
 
+	it("keeps a step's attachment inside the block instead of ending it there", () => {
+		const prompt = user("Go");
+		const attachment: TypesGen.ChatMessagePart = {
+			type: "file",
+			media_type: "text/csv",
+			name: "report.csv",
+			file_id: "report-file",
+		};
+		const steps = [
+			...step("a", 1, 2),
+			message(
+				"assistant",
+				[call("b", at(3), "attach_file"), attachment],
+				at(3),
+			),
+			message("tool", [result("b", at(4), { name: "attach_file" })], at(4)),
+			...step("c", 5, 6),
+		];
+		const answer = message("assistant", [text("Done.")], at(7));
+		const { rows, blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			steps[0].id,
+			steps[2].id,
+			steps[4].id,
+		]);
+		expect(blocks[0].endsWithAnswer).toBe(false);
+	});
+
 	it("treats an answer whose citations trail its text as the block's answer", () => {
 		const prompt = user("Go");
 		const steps = step("a", 1, 2);

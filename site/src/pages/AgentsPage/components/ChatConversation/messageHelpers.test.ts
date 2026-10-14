@@ -8,6 +8,7 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
+	getChatArtifacts,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -688,5 +689,53 @@ describe("deriveEvictedFileIds", () => {
 		);
 
 		expect([...evicted]).toEqual(["rec-1", "thumb-1"]);
+	});
+});
+
+describe("getChatArtifacts", () => {
+	it("lists assistant file parts newest first, skipping uploads and empty parts", () => {
+		const plan: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "text/markdown",
+			name: "plan.md",
+			file_id: "plan",
+		};
+		const screenshot: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "image/png",
+			data: "aGk=",
+		};
+		const report: TypesGen.ChatFilePart = {
+			type: "file",
+			media_type: "text/csv",
+			file_id: "report",
+		};
+		const messages: TypesGen.ChatMessage[] = [
+			{ ...buildMessage([plan], "assistant"), id: 1 },
+			{
+				...buildMessage([
+					{ type: "file", media_type: "image/png", file_id: "upload" },
+				]),
+				id: 2,
+			},
+			{
+				...buildMessage(
+					[
+						{ type: "text", text: "Here you go." },
+						screenshot,
+						{ type: "file", media_type: "text/plain" },
+						report,
+					],
+					"assistant",
+				),
+				id: 3,
+			},
+		];
+
+		expect(getChatArtifacts(messages)).toEqual([
+			{ key: "3:3", file: report },
+			{ key: "3:1", file: screenshot },
+			{ key: "1:0", file: plan },
+		]);
 	});
 });

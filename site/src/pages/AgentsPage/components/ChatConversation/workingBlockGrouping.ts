@@ -67,7 +67,8 @@ export type RowSection = "work" | "answer";
  * The answer is the content after a row's last reasoning, tool call, or
  * labeled narration, web searches included; text before it is narration.
  * Sources fold without splitting the answer, since OpenAI streams citations
- * between the deltas of one text part.
+ * between the deltas of one text part. Attachments fold too: they belong to
+ * the step that made them.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
@@ -89,7 +90,8 @@ export const splitRowBlocks = (
 		if (
 			index <= lastWorkIndex ||
 			!visible.has(block) ||
-			block.type === "sources"
+			block.type === "sources" ||
+			block.type === "file"
 		) {
 			work.push(block);
 		} else if (block.type === "response" && previous?.type === "response") {

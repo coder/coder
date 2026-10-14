@@ -109,6 +109,8 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	section?: RowSection;
+	// Attachments render only inside working blocks while steps collapse.
+	hideAttachments?: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -152,6 +154,7 @@ const ChatMessageItem = memo<{
 		renderKey,
 		message,
 		section,
+		hideAttachments = false,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -238,10 +241,13 @@ const ChatMessageItem = memo<{
 		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
 		const rowTools = parsed?.tools ?? liveTools;
-		const blocks =
+		const sectionBlocks =
 			section === undefined
 				? rowBlocks
 				: splitRowBlocks(rowBlocks, rowTools)[section];
+		const blocks = hideAttachments
+			? sectionBlocks.filter((block) => block.type !== "file")
+			: sectionBlocks;
 		// An answer whose only work was a search without citations folds
 		// nothing, and an empty row would still add a gap inside the block.
 		if (
@@ -513,7 +519,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
-		const workingBlocks = preferences.data?.collapse_assistant_steps
+		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
+		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
 					// requires_action is the agent waiting on the user, not working.
@@ -631,6 +638,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// row inside an expanded block does not remount its reasoning.
 		const renderRowContent = (index: number, section?: RowSection) => {
 			const row = renderRows[index];
+			const hideAttachments = collapseSteps && !groupedRows.has(index);
 			if (row.type === "live") {
 				return (
 					<ChatMessageItem
@@ -638,6 +646,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						organizationId={organizationId}
 						renderKey={row.key}
 						section={section}
+						hideAttachments={hideAttachments}
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -668,6 +677,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					renderKey={row.key}
 					message={message}
 					section={section}
+					hideAttachments={hideAttachments}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}

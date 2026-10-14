@@ -335,7 +335,7 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * next chat refetch is never mistaken for an evicted one.
  */
 export const deriveEvictedFileIds = (
-	entries: readonly ParsedMessageEntry[],
+	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
@@ -354,3 +354,20 @@ export const deriveEvictedFileIds = (
 			.filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };
+
+export type ChatArtifact = { key: string; file: TypesGen.ChatFilePart };
+
+/** Files the agent attached to its messages, newest first. */
+export const getChatArtifacts = (
+	messages: readonly TypesGen.ChatMessage[],
+): ChatArtifact[] =>
+	messages
+		.filter((message) => message.role === "assistant")
+		.flatMap((message) =>
+			(message.content ?? []).flatMap((part, partIndex) =>
+				part.type === "file" && (part.file_id || part.data)
+					? [{ key: `${message.id}:${partIndex}`, file: part }]
+					: [],
+			),
+		)
+		.reverse();

@@ -2,18 +2,39 @@ import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { ChatArtifacts } from "./ChatArtifacts";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
+import {
+	type ChatStore,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	useChatSelector,
+} from "./ChatConversation/chatStore";
+import {
+	deriveEvictedFileIds,
+	getChatArtifacts,
+} from "./ChatConversation/messageHelpers";
 import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
 	chatId: string;
 	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
 	isVisible: boolean;
+	store: ChatStore;
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 };
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
+	store,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
@@ -24,6 +45,18 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		...chatCost(rootChatId),
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
+
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const messages = orderedMessageIDs.flatMap((id) => {
+		const message = messagesByID.get(id);
+		return message ? [message] : [];
+	});
+	const artifacts = getChatArtifacts(messages);
+	const evictedFileIds = deriveEvictedFileIds(
+		messages.map((message) => ({ message })),
+		chatData?.files,
+	);
 
 	let content: React.ReactNode = null;
 	if (chatQuery.isError) {
@@ -45,8 +78,16 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	}
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-y-auto p-4">
+		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
+			<ChatArtifacts
+				artifacts={artifacts}
+				evictedFileIds={evictedFileIds}
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				onFetchMoreMessages={onFetchMoreMessages}
+			/>
 		</div>
 	);
 };

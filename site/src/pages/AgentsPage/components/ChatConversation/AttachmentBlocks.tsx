@@ -112,7 +112,9 @@ const getAttachmentExtension = (
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
 
-const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
+export const getAttachmentHref = (
+	block: FileAttachmentBlock,
+): string | null => {
 	if (block.file_id) {
 		return getChatFileURL(block.file_id);
 	}
@@ -543,10 +545,11 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-const FileCard: React.FC<{
+export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-}> = ({ block, href }) => {
+	className?: string;
+}> = ({ block, href, className }) => {
 	const { hasExpired } = useFileProbes();
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
@@ -557,7 +560,7 @@ const FileCard: React.FC<{
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
-				className="h-16 w-28"
+				className={cn("h-16 w-28", className)}
 			/>
 		);
 	}
@@ -575,7 +578,10 @@ const FileCard: React.FC<{
 				});
 			}}
 			aria-label={`Download ${displayName}`}
-			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
+			className={cn(
+				"inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary",
+				className,
+			)}
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
 				{badgeLabel ? (

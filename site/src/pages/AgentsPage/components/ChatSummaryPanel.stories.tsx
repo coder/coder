@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
@@ -61,11 +62,77 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
+		store: createChatStore(),
+		hasMoreMessages: false,
+		isFetchingMoreMessages: false,
+		hasFetchMoreError: false,
+		onFetchMoreMessages: fn(),
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
+
+const artifactMessages: TypesGen.ChatMessage[] = [
+	{
+		...MockChatMessage,
+		id: 1,
+		role: "user",
+		content: [
+			{ type: "text", text: "Here is the failing log." },
+			{
+				type: "file",
+				media_type: "text/plain",
+				name: "uploaded-ci.log",
+				file_id: "upload-file",
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "attach",
+				tool_name: "attach_file",
+				args: { path: "/home/coder/flaky-runs.csv" },
+			},
+			{
+				type: "file",
+				media_type: "text/csv",
+				name: "flaky-runs.csv",
+				file_id: "runs-file",
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 3,
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "screenshot",
+				tool_name: "computer",
+				args: { action: "screenshot" },
+			},
+			{
+				type: "file",
+				media_type: "image/png",
+				name: "ci-dashboard.png",
+				file_id: "screenshot-file",
+			},
+		],
+	},
+];
+
+const createArtifactStore = () => {
+	const store = createChatStore();
+	store.replaceMessages(artifactMessages);
+	return store;
+};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -137,4 +204,14 @@ export const GatewayUnavailable: Story = {
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 	},
+};
+
+// The user's upload stays in the transcript and is not an artifact.
+export const WithArtifacts: Story = {
+	args: { store: createArtifactStore() },
+	beforeEach: () =>
+		mockRequests({
+			summary:
+				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+		}),
 };

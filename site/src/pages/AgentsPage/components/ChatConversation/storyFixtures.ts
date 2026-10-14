@@ -319,6 +319,111 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/**
+ * MockWorkingMessages with an attach_file step from 5s to 6s between its two
+ * shell steps. chatd appends the attachment after the step's tool call.
+ */
+export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	...workingStepMessages(2, "first", 1, 4),
+	{
+		...MockChatMessage,
+		id: 4,
+		role: "assistant",
+		created_at: workingFixtureTime(5),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "attach",
+				tool_name: "attach_file",
+				args: { path: "/home/coder/report.pdf" },
+				created_at: workingFixtureTime(5),
+			},
+			{
+				type: "file",
+				media_type: "application/pdf",
+				name: "report.pdf",
+				file_id: "report-file",
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "tool",
+		created_at: workingFixtureTime(6),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "attach",
+				tool_name: "attach_file",
+				result: { name: "report.pdf" },
+				created_at: workingFixtureTime(6),
+			},
+		],
+	},
+	...workingStepMessages(6, "second", 7, 13),
+	{
+		...MockChatMessage,
+		id: 8,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+const planPath = "/home/coder/.coder/plans/PLAN.md";
+
+/**
+ * A turn that proposes a plan after the first step of MockWorkingMessages,
+ * with the plan file chatd attaches to the propose_plan call.
+ */
+export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	{
+		...MockChatMessage,
+		id: 4,
+		role: "assistant",
+		created_at: workingFixtureTime(5),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "plan",
+				tool_name: "propose_plan",
+				args: { path: planPath },
+				created_at: workingFixtureTime(5),
+			},
+			{
+				type: "file",
+				media_type: "text/markdown",
+				name: "PLAN.md",
+				file_id: "plan-file",
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "tool",
+		created_at: workingFixtureTime(6),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "plan",
+				tool_name: "propose_plan",
+				result: {
+					ok: true,
+					path: planPath,
+					kind: "plan",
+					file_id: "plan-file",
+					media_type: "text/markdown",
+				},
+				created_at: workingFixtureTime(6),
+			},
+		],
+	},
+];
+
 /** A question the agent asks after the first step of MockWorkingMessages. */
 export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
