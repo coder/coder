@@ -1,5 +1,5 @@
 ---
-title: Install Coder as a web app
+title: Install as PWA
 ---
 
 If you use Coder in a browser, you can install the dashboard or Coder Agents as a progressive web app (PWA).

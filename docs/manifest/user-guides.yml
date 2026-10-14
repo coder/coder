@@ -5,8 +5,8 @@ icon_path: ./images/icons/users.svg
 children:
   - include: user-guides/workspace-access.yml
   - include: user-guides/desktop.yml
-  - title: Install as a web app
-    description: Install the Coder dashboard or Coder Agents as a web app on your desktop, Android device, iPhone, or iPad.
+  - title: Install as PWA
+    description: Install the Coder dashboard or Coder Agents as a PWA on your desktop, Android device, iPhone, or iPad.
     path: ./user-guides/install-pwa.md
     icon_path: ./images/icons/computer-code.svg
   - title: Manage workspaces
