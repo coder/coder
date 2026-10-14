@@ -56,7 +56,6 @@ const meta: Meta<typeof ChatAttachments> = {
 		evictedFileIds: new Set(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(),
 	},
@@ -80,8 +79,8 @@ export const Empty: Story = {
 	args: { attachments: [] },
 };
 
-export const HydratingMessages: Story = {
-	args: { attachments: [], isHydratingMessages: true },
+export const LoadingAttachments: Story = {
+	args: { attachments: undefined },
 };
 
 export const EmptyWithEarlierMessages: Story = {

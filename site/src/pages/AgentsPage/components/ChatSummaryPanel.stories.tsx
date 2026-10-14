@@ -143,6 +143,12 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+const renderWithAttachments: Story["render"] = (args) => {
+	const store = createChatStore();
+	store.replaceMessages(mockAttachmentMessages);
+	return <ChatSummaryPanel {...args} store={store} />;
+};
+
 export const WithSummary: Story = {
 	beforeEach: () =>
 		mockRequests({
@@ -192,7 +198,6 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Gating disables both queries, so no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(
@@ -216,14 +221,23 @@ export const GatewayUnavailable: Story = {
 };
 
 export const WithAttachments: Story = {
-	render: (args) => {
-		const store = createChatStore();
-		store.replaceMessages(mockAttachmentMessages);
-		return <ChatSummaryPanel {...args} store={store} />;
-	},
+	render: renderWithAttachments,
 	beforeEach: () =>
 		mockRequests({
 			summary:
 				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
 		}),
+};
+
+// The first page of messages has not reached the store yet.
+export const LoadingMessages: Story = {
+	args: { isHydratingMessages: true },
+	beforeEach: () => mockRequests(),
+};
+
+// Hydration also follows each live message the store already holds.
+export const LiveMessageArriving: Story = {
+	args: { isHydratingMessages: true },
+	render: renderWithAttachments,
+	beforeEach: () => mockRequests(),
 };

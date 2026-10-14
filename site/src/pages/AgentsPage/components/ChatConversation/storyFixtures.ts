@@ -166,6 +166,62 @@ const workingStepMessages = (
 	},
 ];
 
+type AttachmentStep = {
+	toolCallId: string;
+	toolName: string;
+	args: Record<string, string>;
+	file: TypesGen.ChatFilePart;
+	result: unknown;
+};
+
+/**
+ * A tool step that attaches a file. The attachment is its own assistant
+ * message between the call and its result, as the server stores it.
+ */
+const attachmentStepMessages = (
+	id: number,
+	at: number,
+	{ toolCallId, toolName, args, file, result }: AttachmentStep,
+): TypesGen.ChatMessage[] => [
+	{
+		...MockChatMessage,
+		id,
+		role: "assistant",
+		created_at: workingFixtureTime(at),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: toolCallId,
+				tool_name: toolName,
+				args,
+				created_at: workingFixtureTime(at),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: id + 1,
+		role: "assistant",
+		created_at: workingFixtureTime(at + 1),
+		content: [file],
+	},
+	{
+		...MockChatMessage,
+		id: id + 2,
+		role: "tool",
+		created_at: workingFixtureTime(at + 1),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: toolCallId,
+				tool_name: toolName,
+				result,
+				created_at: workingFixtureTime(at + 1),
+			},
+		],
+	},
+];
+
 /**
  * One completed turn of two shell steps with part timestamps: prompt at 0s,
  * tool work from 1s to 13s, answer at 14s.
@@ -321,55 +377,22 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 
 /**
  * MockWorkingMessages with an attach_file step from 5s to 6s between its two
- * shell steps. Like chatd, it commits the attachment as its own assistant
- * message along with the tool result.
+ * shell steps.
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	{
-		...MockChatMessage,
-		id: 4,
-		role: "assistant",
-		created_at: workingFixtureTime(5),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "attach",
-				tool_name: "attach_file",
-				args: { path: "/home/coder/report.pdf" },
-				created_at: workingFixtureTime(5),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "assistant",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "file",
-				media_type: "application/pdf",
-				name: "report.pdf",
-				file_id: "report-file",
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 6,
-		role: "tool",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "attach",
-				tool_name: "attach_file",
-				result: { name: "report.pdf" },
-				created_at: workingFixtureTime(6),
-			},
-		],
-	},
+	...attachmentStepMessages(4, 5, {
+		toolCallId: "attach",
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.pdf" },
+		file: {
+			type: "file",
+			media_type: "application/pdf",
+			name: "report.pdf",
+			file_id: "report-file",
+		},
+		result: { name: "report.pdf" },
+	}),
 	...workingStepMessages(7, "second", 7, 13),
 	{
 		...MockChatMessage,
@@ -382,62 +405,27 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 
 const planPath = "/home/coder/.coder/plans/PLAN.md";
 
-/**
- * A turn that proposes a plan after the first step of MockWorkingMessages,
- * with its plan file committed as its own message like any tool attachment.
- */
+/** A turn that proposes a plan file after the first step of MockWorkingMessages. */
 export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
-	{
-		...MockChatMessage,
-		id: 4,
-		role: "assistant",
-		created_at: workingFixtureTime(5),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "plan",
-				tool_name: "propose_plan",
-				args: { path: planPath },
-				created_at: workingFixtureTime(5),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "assistant",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "file",
-				media_type: "text/markdown",
-				name: "PLAN.md",
-				file_id: "plan-file",
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 6,
-		role: "tool",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "plan",
-				tool_name: "propose_plan",
-				result: {
-					ok: true,
-					path: planPath,
-					kind: "plan",
-					file_id: "plan-file",
-					media_type: "text/markdown",
-				},
-				created_at: workingFixtureTime(6),
-			},
-		],
-	},
+	...attachmentStepMessages(4, 5, {
+		toolCallId: "plan",
+		toolName: "propose_plan",
+		args: { path: planPath },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "PLAN.md",
+			file_id: "plan-file",
+		},
+		result: {
+			ok: true,
+			path: planPath,
+			kind: "plan",
+			file_id: "plan-file",
+			media_type: "text/markdown",
+		},
+	}),
 ];
 
 /** A question the agent asks after the first step of MockWorkingMessages. */

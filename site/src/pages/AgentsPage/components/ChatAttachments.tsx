@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -10,15 +10,16 @@ import { FileCard } from "./ChatConversation/AttachmentBlocks";
 import { FileProbeProvider } from "./ChatConversation/FileProbeContext";
 import type { AgentAttachment } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
+import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	attachments: readonly AgentAttachment[];
+	/** Undefined while the chat's messages are still loading. */
+	attachments: readonly AgentAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
 } & Pick<
 	EarlierMessagesProps,
 	| "hasMoreMessages"
 	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
 	| "hasFetchMoreError"
 	| "onFetchMoreMessages"
 >;
@@ -29,61 +30,61 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	evictedFileIds,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 }) => {
 	return (
 		<Collapsible defaultOpen className="flex flex-col gap-3">
-			<h3 className="m-0">
-				<CollapsibleTrigger asChild>
-					<button
-						type="button"
-						className="group flex w-full cursor-pointer appearance-none items-center justify-between gap-2 rounded-md border-0 bg-transparent p-0 text-left font-sans text-sm font-medium text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-					>
-						{isHydratingMessages
-							? "Attachments"
-							: `Attachments (${attachments.length.toLocaleString("en-US")})`}
+			<SectionHeader
+				level="section"
+				label={
+					<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
+						{attachments
+							? `Attachments (${attachments.length.toLocaleString("en-US")})`
+							: "Attachments"}
 						<ChevronDownIcon
-							aria-hidden="true"
-							className="size-3.5 shrink-0 text-content-secondary transition-transform group-data-[state=open]:rotate-180"
+							aria-hidden
+							className="size-3.5 text-content-secondary"
 						/>
-					</button>
-				</CollapsibleTrigger>
-			</h3>
+					</CollapsibleTrigger>
+				}
+			/>
+			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
-				{attachments.length > 0 ? (
-					<FileProbeProvider evictedFileIds={evictedFileIds}>
-						<ul className="flex flex-col gap-2">
-							{attachments.map(({ key, file, href }) => (
-								<li key={key}>
-									<FileCard block={file} href={href} fullWidth />
-								</li>
-							))}
-						</ul>
-					</FileProbeProvider>
-				) : (
-					!isHydratingMessages && (
-						<p className="m-0 text-sm text-content-secondary">
-							{hasMoreMessages
-								? "No attachments in the loaded messages."
-								: "No attachments yet."}
-						</p>
-					)
-				)}
-				{hasMoreMessages && (
-					<Button
-						variant="outline"
-						size="sm"
-						className="self-start"
-						disabled={isFetchingMoreMessages || isHydratingMessages}
-						onClick={() => void onFetchMoreMessages()}
-					>
-						<Spinner loading={isFetchingMoreMessages} aria-hidden />
-						{hasFetchMoreError
-							? "Retry loading earlier messages"
-							: "Load earlier messages"}
-					</Button>
+				{attachments && (
+					<>
+						{attachments.length > 0 ? (
+							<FileProbeProvider evictedFileIds={evictedFileIds}>
+								<ul className="flex flex-col gap-2">
+									{attachments.map(({ key, file, href }) => (
+										<li key={key}>
+											<FileCard block={file} href={href} fullWidth />
+										</li>
+									))}
+								</ul>
+							</FileProbeProvider>
+						) : (
+							<p className="m-0 text-sm text-content-secondary">
+								{hasMoreMessages
+									? "No attachments in the loaded messages."
+									: "No attachments yet."}
+							</p>
+						)}
+						{hasMoreMessages && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="self-start"
+								disabled={isFetchingMoreMessages}
+								onClick={() => void onFetchMoreMessages()}
+							>
+								<Spinner loading={isFetchingMoreMessages} aria-hidden />
+								{hasFetchMoreError
+									? "Retry loading earlier messages"
+									: "Load earlier messages"}
+							</Button>
+						)}
+					</>
 				)}
 			</CollapsibleContent>
 		</Collapsible>

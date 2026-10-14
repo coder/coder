@@ -533,7 +533,7 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-/** Download card for an attachment, or its expired tile. */
+/** Download card for an attachment. Expiry comes from the enclosing FileProbeProvider. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
