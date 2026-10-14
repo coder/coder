@@ -176,7 +176,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). template and status accept multiple values (repeat the key or comma-separate) and match any of them."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). template, status, and owner accept multiple values (repeat the key or comma-separate) and match any of them."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -200,9 +200,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
-		filter.OwnerUsername = ""
+	if slices.Contains(filter.OwnerUsernames, codersdk.Me) {
+		// Avoid a user lookup, which scoped tokens may not be allowed to do.
+		requester := strings.ToLower(httpmw.UserAuthorization(ctx).FriendlyName)
+		for i, owner := range filter.OwnerUsernames {
+			if owner == codersdk.Me {
+				filter.OwnerUsernames[i] = requester
+			}
+		}
 	}
 
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
