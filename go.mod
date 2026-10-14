@@ -544,7 +544,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15
 	github.com/aws/aws-sdk-go-v2/service/bedrock v1.73.0
 	github.com/aymanbagabas/go-udiff v0.4.1
-	github.com/brianvoe/gofakeit/v7 v7.17.0
+	github.com/brianvoe/gofakeit/v7 v7.18.0
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.11.0
 	github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89
