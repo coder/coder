@@ -718,28 +718,40 @@ func checkBackgroundFollowedUp(in *gradeInput, s checkSpec) (bool, string, map[s
 	return true, fmt.Sprintf("%d background process(es) followed up", ids), metrics
 }
 
-// processExited reports whether a process_output result says the
-// process finished.
-func processExited(c toolCall) bool {
+// processOutputExit returns the exit code that a process_output result
+// reports for a process that no longer runs. chatd reports -1 for one
+// that a signal ended.
+func processOutputExit(c toolCall) (int, bool) {
 	var body struct {
 		Running  *bool  `json:"running"`
 		ExitCode *int   `json:"exit_code"`
 		Error    string `json:"error"`
 	}
 	if err := json.Unmarshal(c.Result, &body); err != nil {
-		return false
+		return 0, false
 	}
-	if body.Running != nil && *body.Running {
-		return false
+	if (body.Running != nil && *body.Running) || body.ExitCode == nil || body.Error != "" {
+		return 0, false
 	}
-	return body.ExitCode != nil && *body.ExitCode >= 0 && body.Error == ""
+	return *body.ExitCode, true
+}
+
+// processExited reports whether a process_output result says the
+// process finished with an exit code of its own, not one that a signal
+// ended.
+func processExited(c toolCall) bool {
+	code, ok := processOutputExit(c)
+	return ok && code >= 0
 }
 
 // stoppedProcess returns the process that call c shows stopped, through a
-// successful process_signal or a process_output showing that it exited,
-// or "" for any other call.
+// successful process_signal or a process_output showing that it no longer
+// runs, also when a signal ended it, or "" for any other call.
 func stoppedProcess(c toolCall) string {
-	if (c.Name == "process_signal" && c.succeeded()) || (c.Name == "process_output" && processExited(c)) {
+	if c.Name == "process_signal" && c.succeeded() {
+		return c.argField("process_id")
+	}
+	if _, ended := processOutputExit(c); c.Name == "process_output" && ended {
 		return c.argField("process_id")
 	}
 	return ""
