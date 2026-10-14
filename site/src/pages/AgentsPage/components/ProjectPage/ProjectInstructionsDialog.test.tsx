@@ -98,6 +98,42 @@ describe("ProjectInstructionsDialog", () => {
 		expect(props.onDelete).toHaveBeenCalledTimes(1);
 	});
 
+	it("clears a failed save's error before deleting", async () => {
+		const { user, props } = renderDialog({
+			instructions: MockChatProjectInstructions.instructions,
+			saveError: new Error("Save failed."),
+		});
+
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.click(
+			screen.getByRole("button", { name: "Delete instructions" }),
+		);
+
+		expect(props.onResetErrors).toHaveBeenCalledTimes(1);
+		expect(
+			vi.mocked(props.onResetErrors).mock.invocationCallOrder[0],
+		).toBeLessThan(vi.mocked(props.onDelete).mock.invocationCallOrder[0]);
+	});
+
+	it("clears a failed delete's error before saving", async () => {
+		const { user, props } = renderDialog({
+			instructions: MockChatProjectInstructions.instructions,
+			deleteError: new Error("Delete failed."),
+		});
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			" More.",
+		);
+		vi.mocked(props.onResetErrors).mockClear();
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onResetErrors).toHaveBeenCalledTimes(1);
+		expect(
+			vi.mocked(props.onResetErrors).mock.invocationCallOrder[0],
+		).toBeLessThan(vi.mocked(props.onSave).mock.invocationCallOrder[0]);
+	});
+
 	it("moves focus to Load latest when the saved instructions change during the delete confirmation", async () => {
 		const { user, props, rerenderWithInstructions } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,

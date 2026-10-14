@@ -25,7 +25,10 @@ type ProjectInstructionsDialogProps = {
 	readonly isDeleting: boolean;
 	readonly saveError: unknown;
 	readonly deleteError: unknown;
-	/** Called whenever the draft changes. */
+	/**
+	 * Called whenever the draft changes and before a save or delete starts,
+	 * so a stale error from the other action is never shown.
+	 */
 	readonly onResetErrors: () => void;
 	readonly onSave: (instructions: string) => void;
 	readonly onDelete: () => void;
@@ -107,6 +110,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (canSave) {
+						onResetErrors();
 						onSave(draft);
 					}
 				}}
@@ -215,6 +219,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				onClose={() => setIsConfirmingDelete(false)}
 				onConfirm={() => {
 					setIsConfirmingDelete(false);
+					onResetErrors();
 					onDelete();
 				}}
 				onCloseAutoFocus={(event) => {
