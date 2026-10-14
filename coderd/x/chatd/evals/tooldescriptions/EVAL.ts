@@ -50,35 +50,40 @@ const cases: Case[] = [
     prompt: "Does `python3 check.py` pass in this repo? Tell me the exit code it returns and why.",
     checks: [
       { id: "ran-check", type: "execute_matches", pattern: "check\\.py" },
-      { id: "exit-code", type: "final_text_matches", patterns: ["\\b3\\b", "(?i)queue_url"] },
+      // The 3 must follow exit-code wording, so "Python 3" does not count.
+      { id: "exit-code", type: "final_text_matches", patterns: ["(?i)\\b(exit|status|code|return)\\w*[^\\n0-9]{0,24}\\b3\\b", "(?i)queue_url"] },
       { id: "no-edits", type: "no_edits" },
     ],
     guardrails: [toolErrors(undefined, 2)],
   },
   {
     // execute run_in_background, then process_output and process_signal on
-    // the returned process id.
+    // the returned process id: of the last worker.py launch, so reading or
+    // stopping an earlier one does not count.
     id: "background-worker",
     seed: "worker@v1",
     prompt: "Start worker.py in the background, wait until it has processed at least 3 jobs, show me its output, then stop it.",
     checks: [
       { id: "started-in-background", type: "execute_matches", pattern: "worker\\.py", background: true },
-      { id: "read-output", type: "tool_succeeded", tool: "process_output" },
-      { id: "stopped", type: "tool_succeeded", tool: "process_signal" },
+      { id: "read-output", type: "tool_succeeded", tool: "process_output", process: "worker\\.py" },
+      { id: "stopped", type: "tool_succeeded", tool: "process_signal", process: "worker\\.py" },
       { id: "output-shown", type: "final_text_matches", pattern: "processed job ([3-9]|[1-9][0-9]+)" },
     ],
     guardrails: [toolErrors("process_output"), toolErrors("process_signal"), toolErrors(undefined, 3)],
   },
   {
-    // create_workspace: chatd turns an invalid requested name into a valid
-    // generated one (generatedWorkspaceName in chattool/createworkspace.go).
+    // create_workspace with a requested name that is not a valid workspace
+    // name. The model may pass it as is, which chatd replaces with a valid
+    // generated one (generatedWorkspaceName in chattool/createworkspace.go),
+    // or make it valid itself; either way the workspace must exist, carry a
+    // name from the request, and be named correctly in the reply.
     id: "create-workspace-invalid-name",
     seed: "records@v1",
     subjectEnv: { AEGIS_CODERAGENTS_WORKSPACE: "detached" },
     prompt: "Create a workspace called \"My Calc Env\" for this project and tell me the name it ended up with.",
     checks: [
       { id: "created", type: "tool_succeeded", tool: "create_workspace" },
-      { id: "named", type: "final_text_matches", pattern: "(?i)my-?calc-?env" },
+      { id: "named", type: "workspace_named", pattern: "(?i)^my-?calc-?env" },
     ],
     guardrails: [toolErrors("create_workspace"), toolErrors(undefined, 3)],
   },

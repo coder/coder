@@ -41,6 +41,7 @@ type checkSpec struct {
 	Keep           []string `json:"keep,omitempty"`
 	Branches       []string `json:"branches,omitempty"`
 	MaxLimit       int      `json:"max_limit,omitempty"`
+	Process        string   `json:"process,omitempty"`
 }
 
 type checkResult struct {
@@ -88,7 +89,7 @@ func parseChecks(raw json.RawMessage) ([]checkSpec, error) {
 		if _, ok := checkFuncs[s.Type]; !ok {
 			return nil, xerrors.Errorf("check %q has unknown type %q", s.ID, s.Type)
 		}
-		for _, p := range append([]string{s.Pattern, s.After}, s.Patterns...) {
+		for _, p := range append([]string{s.Pattern, s.After, s.Process}, s.Patterns...) {
 			if p == "" {
 				continue
 			}
@@ -122,6 +123,7 @@ func init() {
 		"final_text_matches":     checkFinalTextMatches,
 		"template_chosen":        checkTemplateChosen,
 		"final_workspaces":       checkFinalWorkspaces,
+		"workspace_named":        checkWorkspaceNamed,
 		"test_after_edit":        checkTestAfterEdit,
 		"execute_matches":        checkExecuteMatches,
 		"bounded_reads":          checkBoundedReads,
@@ -270,11 +272,32 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 	return true, "", map[string]any{"count": 0}
 }
 
+// checkToolSucceeded requires a successful call of Tool (or Tools). With
+// Process, only calls whose process_id is the process that the last
+// execute matching Process left running count, so reading or signaling
+// some other process does not.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
+	calls := in.tr.Calls
+	target := ""
+	if s.Process != "" {
+		re := regexp.MustCompile(s.Process)
+		start := -1
+		for i, c := range calls {
+			if c.Name == "execute" && re.MatchString(c.command()) {
+				if id := backgroundID(c); id != "" {
+					start, target = i, id
+				}
+			}
+		}
+		if start < 0 {
+			return false, "no execute matching " + s.Process + " left a process running", nil
+		}
+		calls = calls[start+1:]
+	}
 	failures := 0
-	for _, c := range in.tr.Calls {
-		if !tools[c.Name] {
+	for _, c := range calls {
+		if !tools[c.Name] || (target != "" && c.argField("process_id") != target) {
 			continue
 		}
 		if c.succeeded() {
@@ -283,6 +306,9 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		failures++
 	}
 	if failures == 0 {
+		if target != "" {
+			return false, "never called on process " + target, nil
+		}
 		return false, "never called", nil
 	}
 	return false, fmt.Sprintf("all %d call(s) failed", failures), nil
@@ -491,17 +517,32 @@ func checkNoText(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 			}
 		}
 	}
+	// A new file too large to scan may hold the text, so it fails the
+	// check instead of passing unread.
+	var unscanned []string
 	if scopes["files"] {
 		for _, p := range in.changes.changedPaths() {
+			if in.changes.Unscanned[p] {
+				unscanned = append(unscanned, p)
+				continue
+			}
 			if re.MatchString(strings.Join(in.changes.Diff[p], "\n")) || re.Match(in.changes.Untracked[p]) {
 				hits = append(hits, "file "+p)
 			}
 		}
 	}
+	metrics := map[string]any{"hits": len(hits), "unscanned": len(unscanned)}
+	var problems []string
 	if len(hits) > 0 {
-		return false, "found in " + strings.Join(hits, ", "), map[string]any{"hits": len(hits)}
+		problems = append(problems, "found in "+strings.Join(hits, ", "))
 	}
-	return true, "", map[string]any{"hits": 0}
+	if len(unscanned) > 0 {
+		problems = append(problems, fmt.Sprintf("cannot scan new files over %d MiB: %s", maxScannedFileSize>>20, strings.Join(limitList(unscanned, 10), ", ")))
+	}
+	if len(problems) > 0 {
+		return false, strings.Join(problems, "; "), metrics
+	}
+	return true, "", metrics
 }
 
 func checkFinalTextMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
@@ -605,6 +646,35 @@ func checkFinalWorkspaces(in *gradeInput, s checkSpec) (bool, string, map[string
 		}
 	}
 	return true, fmt.Sprintf("%d workspace(s)", n), metrics
+}
+
+// checkWorkspaceNamed requires a workspace left at the end of the trial
+// whose name matches Pattern and that the final reply names exactly, so a
+// reply that reports the requested name instead of the one the workspace
+// got fails.
+func checkWorkspaceNamed(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
+	if in.tr.Source != sourceAgentNative {
+		return false, "workspace state needs " + transcriptFile, nil
+	}
+	re := regexp.MustCompile(s.Pattern)
+	text := in.tr.finalText()
+	var unnamed []string
+	for _, ws := range in.tr.Workspaces {
+		if !re.MatchString(ws.Name) {
+			continue
+		}
+		// Workspace names are letters, digits, and hyphens, so any other
+		// character, such as the slash in owner/name, ends one.
+		named := regexp.MustCompile(`(?i)(^|[^a-z0-9-])` + regexp.QuoteMeta(ws.Name) + `($|[^a-z0-9-])`)
+		if named.MatchString(text) {
+			return true, "the reply names " + ws.Name, nil
+		}
+		unnamed = append(unnamed, ws.Name)
+	}
+	if len(unnamed) == 0 {
+		return false, "no workspace name matches " + s.Pattern, nil
+	}
+	return false, fmt.Sprintf("final text does not name %s (text: %q)", strings.Join(unnamed, ", "), truncate(text, 200)), nil
 }
 
 // isEdit reports whether a call changed workspace files.

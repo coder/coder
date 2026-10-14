@@ -19,6 +19,9 @@ type shellCommand struct {
 	// Stdin holds the source text of here-documents and here-strings fed
 	// to the command.
 	Stdin []string
+	// InputFiles holds the files redirected to the command's standard
+	// input with <, as "<expanded>" when the name needs expansion.
+	InputFiles []string
 	// Pos orders the command within its execute call (see scriptPos).
 	Pos scriptPos
 	// Pipeline is the position of the pipeline the command is a stage of,
@@ -68,6 +71,7 @@ func parseShell(src string) (shellScript, bool) {
 		return out, false
 	}
 	stdin := map[*syntax.CallExpr][]string{}
+	inputs := map[*syntax.CallExpr][]string{}
 	// Walk visits a pipeline before its stages, so a nested pipe node
 	// inherits the position of the outermost one.
 	pipelines := map[*syntax.BinaryCmd]scriptPos{}
@@ -114,6 +118,8 @@ func parseShell(src string) (shellScript, bool) {
 					stdin[call] = append(stdin[call], wordSource(r.Hdoc))
 				case syntax.WordHdoc:
 					stdin[call] = append(stdin[call], wordSource(r.Word))
+				case syntax.RdrIn:
+					inputs[call] = append(inputs[call], expandedOperand(literalWord(r.Word)))
 				}
 			}
 		case *syntax.CallExpr:
@@ -121,11 +127,12 @@ func parseShell(src string) (shellScript, bool) {
 				return true
 			}
 			cmd := shellCommand{
-				Args:     make([]string, 0, len(n.Args)),
-				Source:   make([]string, 0, len(n.Args)),
-				Stdin:    stdin[n],
-				Pos:      scriptPos{n.Pos().Offset()},
-				Pipeline: stages[n],
+				Args:       make([]string, 0, len(n.Args)),
+				Source:     make([]string, 0, len(n.Args)),
+				Stdin:      stdin[n],
+				InputFiles: inputs[n],
+				Pos:        scriptPos{n.Pos().Offset()},
+				Pipeline:   stages[n],
 			}
 			for _, w := range n.Args {
 				cmd.Args = append(cmd.Args, literalWord(w))
@@ -240,7 +247,7 @@ func directlyWrapped(c shellCommand) []shellCommand {
 		}
 	}
 	i += opts.operands
-	inner := shellCommand{Stdin: c.Stdin, Pos: c.Pos, Pipeline: c.Pipeline}
+	inner := shellCommand{Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline}
 	if hasSplit {
 		// env -S splits its value into words the way the shell would, then
 		// runs them followed by the remaining arguments.
@@ -358,7 +365,7 @@ func findExecCommands(c shellCommand) []shellCommand {
 			end++
 		}
 		if end > start {
-			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, Pos: c.Pos, Pipeline: c.Pipeline})
+			out = append(out, shellCommand{Args: c.Args[start:end], Source: c.Source[start:end], Stdin: c.Stdin, InputFiles: c.InputFiles, Pos: c.Pos, Pipeline: c.Pipeline})
 		}
 		i = end
 	}
@@ -536,12 +543,8 @@ func fileIOFindings(s shellScript) []string {
 		case "cat", "head", "tail", "less", "more":
 			flags := readCommandValueFlags[prog]
 			read, _ := commandOperands(c.Args[1:], flags.short, flags.long)
-			for _, op := range read {
-				// - is standard input.
-				if op != "-" {
-					out = append(out, prog+" reads "+op)
-					break
-				}
+			if f := firstFileRead(read, c.InputFiles); f != "" {
+				out = append(out, prog+" reads "+f)
 			}
 		case "tee":
 			for _, op := range nonFlagOperands(c.Args[1:]) {
@@ -555,12 +558,8 @@ func fileIOFindings(s shellScript) []string {
 				out = append(out, "sed -i edits files")
 				break
 			}
-			for _, op := range sedInputFiles(c.Args[1:]) {
-				// - is standard input.
-				if op != "-" {
-					out = append(out, "sed reads "+op)
-					break
-				}
+			if f := firstFileRead(sedInputFiles(c.Args[1:]), c.InputFiles); f != "" {
+				out = append(out, "sed reads "+f)
 			}
 		case "perl":
 			if hasFlag(c.Args[1:], "-i", "-pi", "-ni") {
@@ -575,6 +574,24 @@ func fileIOFindings(s shellScript) []string {
 		}
 	}
 	return append(out, interpreterEditFindings(s)...)
+}
+
+// firstFileRead returns the first file a reader reads through its
+// operands or a < redirection of its standard input, or "". An operand of
+// - is standard input, and redirecting a device such as /dev/null is not
+// a file read.
+func firstFileRead(operands, inputs []string) string {
+	for _, op := range operands {
+		if op != "-" {
+			return op
+		}
+	}
+	for _, f := range inputs {
+		if clean := path.Clean(f); clean != "/dev" && !strings.HasPrefix(clean, "/dev/") {
+			return f
+		}
+	}
+	return ""
 }
 
 // sedInPlace reports whether sed args edit files in place: --in-place, or
@@ -1064,7 +1081,7 @@ func destructiveGitFindings(s shellScript) []string {
 				out = append(out, "git reset --hard")
 			}
 		case "checkout":
-			if slices.Contains(args, "--") || slices.Contains(args, ".") || hasFlag(args, "-f", "--force") {
+			if checkoutDiscards(args) {
 				out = append(out, "git checkout discarding changes")
 			}
 		case "switch":
@@ -1094,6 +1111,20 @@ func destructiveGitFindings(s shellScript) []string {
 		}
 	}
 	return out
+}
+
+// checkoutDiscards reports whether git checkout args overwrite working
+// tree files: with --, -f, --ours, or --theirs, or with an operand of .
+// or one shaped like a file (restoredPath), which git checkout restores
+// from the index. The name after -b, -B, or --orphan is a new branch.
+func checkoutDiscards(args []string) bool {
+	if slices.Contains(args, "--") || hasFlag(args, "-f", "--force", "--ours", "--theirs") {
+		return true
+	}
+	operands, _ := commandOperands(args, "bB", []string{"--orphan"})
+	return slices.ContainsFunc(operands, func(op string) bool {
+		return op == "." || restoredPath.MatchString(op)
+	})
 }
 
 func hasShortFlagLetter(args []string, letter rune) bool {

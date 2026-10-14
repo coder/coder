@@ -63,6 +63,9 @@ type workspaceChanges struct {
 	// Untracked maps new file paths to their content (empty when larger
 	// than maxScannedFileSize or not a regular file).
 	Untracked map[string][]byte
+	// Unscanned lists the new regular files larger than
+	// maxScannedFileSize, whose content Untracked does not hold.
+	Unscanned map[string]bool
 }
 
 // changedPaths lists every path the trial created, modified, or deleted,
@@ -92,7 +95,7 @@ func interpreterCache(p string) bool {
 }
 
 func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
-	w := &workspaceChanges{Diff: map[string][]string{}, Deleted: map[string]bool{}, Untracked: map[string][]byte{}}
+	w := &workspaceChanges{Diff: map[string][]string{}, Deleted: map[string]bool{}, Untracked: map[string][]byte{}, Unscanned: map[string]bool{}}
 	diff, err := readCapped(filepath.Join(bundleDir, changesFile), maxDiffBytes)
 	switch {
 	case err == nil:
@@ -118,6 +121,7 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 			}
 			if hdr.Size > maxScannedFileSize {
 				w.Untracked[name] = nil
+				w.Unscanned[name] = true
 				return nil
 			}
 			data, err := io.ReadAll(body)
@@ -191,7 +195,9 @@ func parseDiff(diff []byte) (map[string][]string, map[string]bool) {
 	return files, deleted
 }
 
-// diffHeaderPath returns the b/ path of a "diff --git a/x b/x" header.
+// diffHeaderPath returns the path of a "diff --git a/P b/P" header, or ""
+// when the header names two different paths, as a rename's does; the
+// rename and ---/+++ lines that follow name those paths.
 func diffHeaderPath(rest string) string {
 	if strings.HasPrefix(rest, `"`) {
 		// Quoted paths: a/"..." b/"..."; take the last quoted token.
@@ -201,11 +207,17 @@ func diffHeaderPath(rest string) string {
 		}
 		return strings.TrimPrefix(unquoteGitPath(rest[idx+1:]), "b/")
 	}
-	idx := strings.LastIndex(rest, " b/")
-	if idx < 0 {
+	// An unquoted path may itself contain " b/", so split the header into
+	// two equal halves instead of at a separator.
+	n := len(rest) - len("a/ b/")
+	if n <= 0 || n%2 != 0 {
 		return ""
 	}
-	return rest[idx+3:]
+	p := rest[len("a/") : len("a/")+n/2]
+	if rest != "a/"+p+" b/"+p {
+		return ""
+	}
+	return p
 }
 
 func unquoteGitPath(s string) string {

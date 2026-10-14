@@ -23,7 +23,10 @@ people with read access to it.
   container cannot read a file bind-mounted from the cache. run.sh uses
   the daemon the docker CLI selects (`DOCKER_HOST`, `DOCKER_CONTEXT`, or
   the current context) and exports it as `DOCKER_HOST`, so aegis and the
-  grader use the same daemon.
+  grader use the same daemon. A daemon with SELinux enabled does not work
+  either: the pinned aegis docker provider bind-mounts trial directories
+  without a relabel option such as `:z`, so its containers cannot read
+  them, and run.sh stops at the same check.
 - Go, git, jq, and [mise](https://mise.jdx.dev). mise installs the aegis
   toolchain, including Node 24, inside the aegis checkout.
 - Read access to coder/aegis over HTTPS (for example through
@@ -60,14 +63,16 @@ The first run clones coder/aegis at the pinned commit, builds its CLI and
 runner image, and builds coder from your checkout. Later runs reuse the
 cache in `${CHATD_EVAL_CACHE:-$HOME/.cache/chatd-evals}`. Results land in
 `runs/<timestamp>-<pid>/` under that cache unless you pass `--out`, and
-run.sh prints the path. Keep `--out` outside the coder checkout: untracked
-output there makes the next default run see a dirty tree and rebuild coder.
+run.sh prints the path. A cache or `--out` directory inside the coder
+checkout does not make the checkout dirty (see
+[Comparing builds and prompts](#comparing-builds-and-prompts)).
 `--validate-only` and `--self-check` write no results directory. Even
 `--validate-only` needs the aegis CLI, so on a cold cache it also clones
 and builds aegis, which takes several minutes.
 
 Several runs may share one cache at once: each builds into its own
-temporary paths. Give each its own `--out`. On a cold cache, run
+temporary paths. Give each its own `--out`: each run grades with its own
+copy of the grader, `<out>/chatd-eval-grader`. On a cold cache, run
 `--validate-only` once first so concurrent runs do not each build aegis.
 Terminal-Bench imports rewrite the shared import directory, so run at most
 one `terminal-bench` suite or `--self-check` per cache at a time.
@@ -94,7 +99,7 @@ run has just made, so that run's trial can fail with an error such as
 | `--max-usd N` | per suite | Budget cap for each suite run; must be greater than 0. |
 | `--prompt-file PATH` | none | Adds a `candidate-prompt` arm with this system prompt. |
 | `--prompt-mode MODE` | `append` | `append` adds the file to the default prompt; `replace` replaces it. |
-| `--out DIR` | `<cache>/runs/<timestamp>-<pid>` | Results directory. Keep it outside the coder checkout. |
+| `--out DIR` | `<cache>/runs/<timestamp>-<pid>` | Results directory. |
 | `--validate-only` | | Compiles and validates the selected suites with the other flags' model, repeats, budget, prompt, and cases, then exits. Builds aegis on a cold cache. |
 | `--self-check` | | Terminal-Bench only: checks each task's reference solution, without a model. |
 | `--keep` | | Keeps temporary worktrees. Grading containers are always removed, also when run.sh is interrupted. |
@@ -108,7 +113,10 @@ used).
 
 To resume an interrupted run, run run.sh again with the same flags and the
 same `--out`: aegis skips the trials that already landed and runs the rest,
-and run.sh regrades the whole store. Changing a flag that is compiled into
+and run.sh regrades the whole store with this checkout's grader. The
+grader's path, `<out>/chatd-eval-grader`, is compiled into each suite
+bundle, so a resume with the same `--out` keeps the bundle digest even
+when the grader changed. Changing a flag that is compiled into
 the suite bundle, such as `--max-usd`, `--repeats`, `--model`, or
 `--prompt-file`, changes the bundle digest, so grading fails; run.sh then
 keeps the earlier `grading/` directory and exits nonzero. A digest
@@ -170,7 +178,7 @@ and scope guidance in an attached workspace.
 | `explain-reads-with-read-file` | reads with `read_file`, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
 | `rename-across-files` | searches through `execute` with rg or grep, edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file`, no shell redirection; hidden tests pass | line 56 |
-| `slow-tests-wait` | no duplicate run while one is still running; any run left in the background is followed up with a successful `process_output` or `process_signal` (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
+| `slow-tests-wait` | runs the tests; no duplicate run while one is still running; any run left in the background is followed up with a successful `process_output` or `process_signal` (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
 | `dev-server-readiness` | `run_in_background`, a readiness probe after the start that exits 0 in the foreground, no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
 | `large-log-targeted-search` | no unpaged `read_file` of the 30 MB log; answers 943 | "Prefer targeted searches and file reads over dumping ... large logs" (line 58) |
 | `dirty-tree-preserved` | no destructive git; the user's uncommitted `late_fee` survives; hidden tests pass | "Preserve unrelated user changes" (line 71), "Do not run destructive commands" (line 80) |
@@ -196,9 +204,9 @@ also has a `max_tool_errors` guardrail.
 | `edit-files-precise` | `edit_files` | Change one of two identical blocks in tab-indented Go, space-indented Python, and YAML. |
 | `read-file-deep-function` | `read_file` | Page to a function near line 2360 of a 2900-line file and fix it. Copying line-number prefixes into edit searches shows up as `edit_files` failures. |
 | `write-file-nested-path` | `write_file` | Create a file three directories deep. |
-| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. |
-| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. |
-| `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace. |
+| `execute-exit-code` | `execute` | Report a failing command's exit code and reason. The 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
+| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch. |
+| `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace, whether the model passes the name as is (chatd replaces it with a generated valid one) or makes it valid itself. The workspace's name must come from the request, and the reply must name it as it ended up. |
 
 ### correctness
 
@@ -283,12 +291,16 @@ with the paired contrast to `<out>/candidate/<suite>/report/`.
 
 Every build is stamped with its full commit SHA: `0.0.0-devel+<sha>`, or
 `0.0.0-devel+<sha>.dirty.<hash8>` for a dirty checkout, where the hash
-covers the diff and the untracked files git lists. The runner image tag
-adds a hash of the coder binary, so a change git does not see, such as in
-an untracked nested repository or a module replaced from outside the
-checkout, gets a new image under the same version. Edits under
+covers the diff and the untracked files git lists. Edits under
 `coderd/x/chatd/evals/` do not count as dirty, because they are not part
-of the coder binary.
+of the coder binary, and neither does a cache or `--out` directory inside
+the checkout. A clean build reuses the binary cached for its commit. A
+dirty one is rebuilt on every run, and so is a build that reads module
+source from outside the commit, through a `go.work` or a `go.mod`
+`replace` directive with a local path. The runner image tag adds a hash of
+the coder binary, so a change git does not see, such as in an untracked
+nested repository or in such an outside module, gets a new image under
+the same version.
 
 ## Reading results
 
@@ -433,10 +445,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   `no_shell_file_io`, `no_shell_background`, and `no_destructive_git`, so
   `bash -c 'git reset --hard'` is destructive. `no_shell_file_io` counts
   the in-place editors, redirects, `tee`, inline interpreter
-  code that writes files, and `cat`, `head`, `tail`, `less`, or `more`
-  with a file operand (one that needs expansion or that `xargs` supplies
-  counts; the count after `head -n` or `tail -n` does not, so
-  `git log | head -n 5` is not a read), but not `cp`, `mv`, `rm`, or the
+  code that writes files, and `cat`, `head`, `tail`, `less`, `more`, or
+  `sed` reading a file through an operand or a `<` redirection (an operand
+  that needs expansion or that `xargs` supplies counts; the count after
+  `head -n` or `tail -n` does not, so `git log | head -n 5` is not a read,
+  and neither is `cat < /dev/null`), but not `cp`, `mv`, `rm`, or the
   other file commands above. Inline interpreter code that only reads
   files, such as `python3 -c 'print(open("a.py").read())'`, is not
   counted, because reads in inline code are mostly data processing that
@@ -472,12 +485,19 @@ suite run: aegis stops scheduling trials when the cap is reached.
   named `cafe123` or `release.prod` is misread, a file without an
   extension such as `Makefile` reads as a branch, and checking out a tag
   or a remote-tracking ref (`v1.2`, `origin/main`) counts as a branch
-  switch, not as a detached HEAD. Unlike the shell checks, it does not
-  look inside `bash -c` scripts, so a commit made there is not counted.
+  switch, not as a detached HEAD. `no_destructive_git` reads the operand
+  the same way: one shaped like a file, or `--ours` or `--theirs`, restores
+  working-tree files and counts as destructive, so `git checkout Makefile`
+  is missed and checking out a branch named like `release.prod` counts.
+  Unlike the shell checks, `commit_off_default` does not look inside
+  `bash -c` scripts, so a commit made there is not counted.
   A quiet commit (`git commit -q`) prints no summary line, so it counts
   only when its whole `execute` call exits 0: when `make test` fails in
   `git commit -qam fix && make test`, the exit code cannot tell whether the
   commit ran, and the commit is not counted.
+- `no_text` scans the trial's diff and each new file up to 4 MiB. A larger
+  new file is not read, so it fails the check's `files` scope instead of
+  passing unscanned.
 - Terminal-Bench instructions name `/app`; agents may still write there
   instead of the working directory and fail the task.
 - Scheduled CI runs, multi-turn conversations, judge graders, and per-case

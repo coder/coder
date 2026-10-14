@@ -51,6 +51,7 @@ const cases: Case[] = [
     seed: "slowtests@v1",
     prompt: "Run the retry integration tests and tell me how many pass and how many fail.",
     checks: [
+      { id: "ran-tests", type: "execute_matches", pattern: testCommand },
       { id: "followed-up", type: "background_followed_up" },
       { id: "no-duplicate-run", type: "no_duplicate_run", pattern: testCommand },
       { id: "no-edits", type: "no_edits" },

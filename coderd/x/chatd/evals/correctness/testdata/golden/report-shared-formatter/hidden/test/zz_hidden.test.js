@@ -12,6 +12,13 @@ test("formatTable is exported and shared", () => {
   assert.equal(report.tsvReport(rows), report.formatTable(rows, "\t"));
 });
 
+// Equal output alone would also pass a new formatTable next to the old
+// duplicated bodies, so both reports must call it.
+test("csvReport and tsvReport use formatTable", () => {
+  assert.match(String(report.csvReport), /\bformatTable\s*\(/);
+  assert.match(String(report.tsvReport), /\bformatTable\s*\(/);
+});
+
 test("output unchanged", () => {
   const rows = [{ id: 3, customer: "tab\there", total: 0 }, {}];
   assert.equal(report.tsvReport(rows), 'id\tcustomer\ttotal\n3\t"tab\there"\t0\n\t\t\n');

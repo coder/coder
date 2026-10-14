@@ -251,16 +251,22 @@ DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}') || d
 export DOCKER_HOST
 
 mkdir -p "$CACHE"
+# Later steps run aegis from other directories and bind-mount cache paths,
+# so a relative CHATD_EVAL_CACHE must not stay relative.
+CACHE=$(cd "$CACHE" && pwd -P)
 
 cleanup_paths=()
-# Grading containers hold nothing worth keeping, so they go whatever
-# --keep says, also when run.sh is interrupted.
+# Grading containers and scratch directories, such as image build
+# contexts, hold nothing worth keeping, so they go whatever --keep says,
+# also when run.sh is interrupted.
 cleanup_containers=()
+cleanup_scratch=()
 cleanup() {
 	local p c
 	for c in "${cleanup_containers[@]}"; do
 		docker rm -f "$c" >/dev/null || echo "run.sh: docker rm -f $c failed; remove the container by hand" >&2
 	done
+	rm -rf "${cleanup_scratch[@]}"
 	if [[ $keep -eq 1 ]]; then
 		return
 	fi
@@ -359,23 +365,52 @@ check_bind_mounts() {
 	got=$(docker run --rm --pull=never --network none --user "$(id -u):$(id -g)" \
 		-v "$dir:/probe:ro" --entrypoint cat "$RUNNER_IMAGE" /probe/marker) || rc=$?
 	rm -rf "$dir"
-	[[ $rc -eq 0 && $got == "$dir" ]] || die "a container cannot read files bind-mounted from $CACHE (docker run exited $rc); use a local docker daemon"
+	[[ $rc -eq 0 && $got == "$dir" ]] || die "a container cannot read files bind-mounted from $CACHE (docker run exited $rc); use a local docker daemon without SELinux enabled"
 }
 
+# build_grader builds the grader into a directory of this run's own and
+# sets GRADER. install_grader later moves it into the results directory.
 build_grader() {
-	GRADER=$CACHE/bin/chatd-eval-grader
+	local dir
 	mkdir -p "$CACHE/bin"
+	dir=$(mktemp -d "$CACHE/bin/grader.XXXXXX")
+	cleanup_scratch+=("$dir")
+	GRADER=$dir/chatd-eval-grader
 	log "building chatd-eval-grader"
-	# Per-run temporary names let concurrent runs share the cache; mv
-	# replaces the binary atomically.
-	(cd "$REPO_ROOT" && CGO_ENABLED=0 GOOS=linux go build -o "$GRADER.new.$$" ./coderd/x/chatd/evals/grader)
-	mv "$GRADER.new.$$" "$GRADER"
+	(cd "$REPO_ROOT" && CGO_ENABLED=0 GOOS=linux go build -o "$GRADER" ./coderd/x/chatd/evals/grader)
+}
+
+# install_grader moves the grader into the results directory. Every suite
+# bundle records the grader's path, so a run that shares the cache never
+# grades with another run's grader, and resuming with the same --out keeps
+# the bundle digest and regrades with this checkout's grader.
+install_grader() {
+	mv -f "$GRADER" "$out/chatd-eval-grader"
+	GRADER=$out/chatd-eval-grader
+	export CHATD_EVAL_GRADER=$GRADER
+}
+
+# outside_module_source reports whether building the coder source in $1
+# (the commit $2 when $1 is empty) reads module source that the commit
+# does not hold: through a go.work, or a go.mod replace directive with a
+# local path.
+outside_module_source() {
+	local gowork gomod
+	gowork=$(cd "${1:-$REPO_ROOT}" && go env GOWORK)
+	[[ -n $gowork && $gowork != off ]] && return 0
+	if [[ -n $1 ]]; then
+		gomod=$(cd "$1" && go mod edit -json)
+	else
+		gomod=$(git -C "$REPO_ROOT" show "$2:go.mod" | go mod edit -json /dev/stdin)
+	fi
+	jq -e 'any(.Replace[]?; .New.Version == null)' <<<"$gomod" >/dev/null
 }
 
 # build_subject sets SUBJECT_IMAGE, SUBJECT_VERSION, and SUBJECT_CUSTOM for
 # the coder build named by $1 ("" for this checkout).
 build_subject() {
-	local want=$1 src sha id bin dirty_hash ctx tag version
+	local want=$1 src sha id bin dirty_hash ctx tag version p rebuild=0
+	local excludes=(":(exclude)$EVALS_PATHSPEC")
 	if [[ $want == release ]]; then
 		SUBJECT_IMAGE=$RUNNER_IMAGE
 		SUBJECT_VERSION=2.37.0
@@ -388,17 +423,23 @@ build_subject() {
 		id=$sha
 		# Dirty trees get a version of their own, hashed from the diff and the
 		# untracked files git lists. The evals directory is not part of the
-		# coder binary, so editing suites does not force a rebuild.
-		if [[ -n $(git -C "$src" status --porcelain -- . ":(exclude)$EVALS_PATHSPEC") ]]; then
+		# coder binary, so editing suites does not force a rebuild, and
+		# neither are a cache or results directory inside the checkout.
+		for p in "$CACHE" "$out"; do
+			if [[ $p == "$REPO_ROOT"/* ]]; then
+				excludes+=(":(exclude,literal)${p#"$REPO_ROOT"/}")
+			fi
+		done
+		if [[ -n $(git -C "$src" status --porcelain -- . "${excludes[@]}") ]]; then
 			dirty_hash=$(
 				cd "$src"
 				{
-					git diff HEAD --binary -- . ":(exclude)$EVALS_PATHSPEC"
+					git diff HEAD --binary -- . "${excludes[@]}"
 					# git records an untracked symlink as its target path,
 					# which may be a directory or missing, and lists an
 					# untracked nested repository as its directory, which is
 					# hashed by name only.
-					git ls-files --others --exclude-standard -z -- . ":(exclude)$EVALS_PATHSPEC" |
+					git ls-files --others --exclude-standard -z -- . "${excludes[@]}" |
 						while IFS= read -r -d '' f; do
 							if [[ -L $f ]]; then
 								printf 'symlink %s -> %s\n' "$f" "$(readlink -- "$f")"
@@ -426,7 +467,12 @@ build_subject() {
 	version=0.0.0-devel+$id
 	bin=$CACHE/coder/coder-$id
 	mkdir -p "$CACHE/coder"
-	if [[ ! -x $bin || $id == *.dirty.* || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
+	# A dirty tree, or module source from outside the commit, can change
+	# without changing the version, so its binary is never reused.
+	if [[ $id == *.dirty.* ]] || outside_module_source "$src" "$sha"; then
+		rebuild=1
+	fi
+	if [[ $rebuild -eq 1 || ! -x $bin || $("$bin" version --output json | jq -r '.version') != "v$version" ]]; then
 		log "building coder ${id:0:7}${id:40}"
 		if [[ -z $src ]]; then
 			mkdir -p "$CACHE/worktrees"
@@ -441,14 +487,15 @@ build_subject() {
 	SUBJECT_VERSION=$("$bin" version --output json | jq -r '.version | ltrimstr("v")')
 	[[ $SUBJECT_VERSION == "$version" ]] || die "$bin reports version $SUBJECT_VERSION, want $version"
 	# The tag also carries the binary's hash: a change git does not see, such
-	# as in an untracked nested repository or a module replaced from outside
-	# the checkout, changes the binary but not the version.
+	# as in an untracked nested repository or a module from outside the
+	# commit, changes the binary but not the version.
 	tag=$(printf '%s' "$SUBJECT_VERSION" | tr -c 'A-Za-z0-9_.-' '-' | cut -c1-100)-$(sha256sum "$bin" | cut -c1-12)-$RUNNER_TAG
 	SUBJECT_IMAGE=chatd-evals-runner:$tag
 	SUBJECT_CUSTOM=1
 	if ! docker image inspect "$SUBJECT_IMAGE" >/dev/null 2>&1; then
 		log "building $SUBJECT_IMAGE"
 		ctx=$(mktemp -d)
+		cleanup_scratch+=("$ctx")
 		cp "$bin" "$ctx/coder"
 		printf 'FROM %s\nCOPY --chmod=0755 coder /usr/local/bin/coder\n' "$RUNNER_IMAGE" >"$ctx/Dockerfile"
 		docker build -q -t "$SUBJECT_IMAGE" "$ctx" >/dev/null
@@ -676,7 +723,6 @@ if [[ $validate_only -eq 1 ]]; then
 fi
 runner_image
 build_grader
-export CHATD_EVAL_GRADER=$GRADER
 
 if [[ " ${selected[*]} " == *" terminal-bench "* ]]; then
 	terminal_bench_import
@@ -699,7 +745,8 @@ if [[ -z $out ]]; then
 	out=$CACHE/runs/$(date -u +%Y%m%dT%H%M%SZ)-$$
 fi
 mkdir -p "$out"
-out=$(cd "$out" && pwd)
+out=$(cd "$out" && pwd -P)
+install_grader
 log "writing results to $out"
 
 map_credentials
