@@ -24,7 +24,7 @@ type ChatSummaryPanelProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 };
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({

@@ -14,7 +14,7 @@ type ChatArtifactsProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 };
 
 export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
@@ -58,7 +58,7 @@ export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
 					size="sm"
 					className="self-start"
 					disabled={isFetchingMoreMessages}
-					onClick={() => void onFetchMoreMessages()}
+					onClick={() => onFetchMoreMessages()}
 				>
 					<Spinner loading={isFetchingMoreMessages} />
 					{hasFetchMoreError
