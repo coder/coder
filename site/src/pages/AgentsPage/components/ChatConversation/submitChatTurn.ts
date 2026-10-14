@@ -291,6 +291,7 @@ export async function submitChatTurn(
 			});
 		} catch (error) {
 			store.removePendingAction(pendingID);
+			scrollToEnd({ behavior: "smooth" });
 			onRequestError(error);
 			invalidateChat(agentId);
 			throw error;
@@ -329,6 +330,7 @@ export async function submitChatTurn(
 		await sendMessage(request);
 	} catch (error) {
 		store.removePendingAction(pendingID);
+		scrollToEnd({ behavior: "smooth" });
 		onRequestError(error);
 		invalidateChat(agentId);
 		throw error;
