@@ -291,28 +291,9 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 	return ids, nil
 }
 
-// requireQueueCapacity rejects the call when the chat already has
-// maxQueueSize queued messages with a *MessageQueueFullError that wraps
-// [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
-// inside the transaction immediately before inserting a new queued
-// message so the check is atomic with the insert.
-func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
-	if maxQueueSize <= 0 {
-		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
-	}
-	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
-	if err != nil {
-		return xerrors.Errorf("count queued messages: %w", err)
-	}
-	if count >= int64(maxQueueSize) {
-		return &MessageQueueFullError{Max: int64(maxQueueSize)}
-	}
-	return nil
-}
-
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSize int) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -320,9 +301,6 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSi
 	rawContent := m.Content.RawMessage
 	if !m.Content.Valid || len(rawContent) == 0 {
 		rawContent = json.RawMessage("null")
-	}
-	if err := tx.requireQueueCapacity(maxQueueSize); err != nil {
-		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          tx.chatID,
@@ -498,18 +476,20 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 			"invalid BusyBehavior",
 		)
 	}
-	switch from {
-	// Idle / empty-queue error: insert directly into history, clear
-	// last_error, leave queue alone.
-	case StateW, StateE0:
+	queuedCount, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+	}
+	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
+		return SendMessageResult{}, err
+	}
+	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
 		return tx.sendMessageDirect(chat, input)
-
-	// Error-with-queue: queue appends to the tail, promotes the previous
-	// head into history, and clears last_error. Interrupt inserts directly.
+	}
+	switch from {
+	// Error-with-queue: append to tail, promote previous head into
+	// history, clear last_error.
 	case StateE1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageDirect(chat, input)
-		}
 		return tx.sendMessageE1(chat, input)
 
 	// Running or interrupting, with or without a queue. Interrupt
@@ -520,15 +500,43 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Requires-action: queue keeps A*; interrupt cancels pending calls and
-	// inserts directly.
+	// Requires-action: queue keeps A*.
 	case StateA0, StateA1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageDirect(chat, input)
-		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
+}
+
+// sendMessageInsertsDirectly reports whether SendMessage from the state
+// inserts the message into history instead of the queue. W and E0 take
+// every send directly; E1 and A* take only interrupts directly.
+func sendMessageInsertsDirectly(from ExecutionState, behavior BusyBehavior) bool {
+	switch from {
+	case StateW, StateE0:
+		return true
+	case StateE1, StateA0, StateA1:
+		return behavior == BusyBehaviorInterrupt
+	default:
+		return false
+	}
+}
+
+// CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
+// SendMessage from chat, with queuedCount queued messages, would add to
+// a full queue. [Tx.SendMessage] calls it under the row lock; callers
+// outside a transaction can call it first to reject a send early.
+func CheckSendMessageQueueCapacity(chat database.Chat, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
+	from := ClassifyExecutionState(chat, queuedCount > 0, true)
+	if sendMessageInsertsDirectly(from, behavior) {
+		return nil
+	}
+	if maxQueueSize <= 0 {
+		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
+	}
+	if queuedCount >= int64(maxQueueSize) {
+		return &MessageQueueFullError{Max: int64(maxQueueSize)}
+	}
+	return nil
 }
 
 func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
@@ -556,7 +564,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -603,7 +611,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
