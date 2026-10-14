@@ -46,6 +46,3 @@ Menu labels vary by browser version.
 2. Select **Add to Home Screen**.
 3. If Safari offers **Open as Web App**, turn it on.
 4. Select **Add**.
-
-> [!NOTE]
-> After a Coder upgrade, an installed app's name or icon may take a while to update because your browser caches the app manifest.
