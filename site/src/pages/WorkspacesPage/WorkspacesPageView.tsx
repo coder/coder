@@ -179,7 +179,10 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 				) : (
 					!pageNumberIsInvalid && (
 						<PaginationAmount
-							paginationUnitLabel="workspaces"
+							paginationUnitLabel={{
+								singular: "workspace",
+								plural: "workspaces",
+							}}
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}

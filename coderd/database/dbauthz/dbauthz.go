@@ -3738,6 +3738,10 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
+func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
 	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
 		return database.GetChatProjectInstructionsByProjectIDRow{}, err
@@ -3776,6 +3780,10 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 
 func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
+}
+
+func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsOwnedOrSharedWithUserID)(ctx, userID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -4649,6 +4657,10 @@ func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organiza
 	}
 
 	return q.db.GetOrganizationResourceCountByID(ctx, organizationID)
+}
+
+func (q *querier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationSkillByIDForUpdate)(ctx, id)
 }
 
 func (q *querier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
@@ -7081,6 +7093,25 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
+// IsChatProjectAccessibleByUserID answers for another user, so it requires
+// reading every project.
+func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return false, err
+	}
+	if rbac.ChatACLDisabled() {
+		project, err := q.db.GetChatProjectByID(ctx, arg.ProjectID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return project.OwnerID == arg.UserID, nil
+	}
+	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
+}
+
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -7297,6 +7328,13 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 	return q.db.LockChatByID(ctx, id)
+}
+
+func (q *querier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.LockOrganizationMembersByUserIDsForShare(ctx, arg)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -7877,6 +7915,16 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
+	if rbac.ChatACLDisabled() {
+		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
+	}
+	fetch := func(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) (database.ChatProject, error) {
+		return q.db.GetChatProjectByID(ctx, arg.ID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 		return q.db.GetChatProjectByID(ctx, arg.ID)
@@ -8214,6 +8262,13 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
+}
+
+func (q *querier) UpdateOrganizationSkillACLByID(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
+		return q.db.GetOrganizationSkillByIDForUpdate(ctx, arg.ID)
+	}
+	return fetchAndQuery(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateOrganizationSkillACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.UpdateOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {

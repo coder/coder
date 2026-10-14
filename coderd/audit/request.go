@@ -169,6 +169,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.Skill:
 		return typed.Name
+	case database.AuditableOrganizationSkill:
+		return typed.Name
 	case database.ChatInstructionSettings:
 		return typed.Name
 	case database.ChatOperationalSettings:
@@ -287,6 +289,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.Skill:
 		return typed.ID
+	case database.AuditableOrganizationSkill:
+		return typed.ID
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
@@ -380,6 +384,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.Skill:
 		return database.ResourceTypeUserSkill
+	case database.AuditableOrganizationSkill:
+		return database.ResourceTypeOrganizationSkill
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
@@ -487,6 +493,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.Skill:
 		// User skills are global to the user across organizations.
 		return false
+	case database.AuditableOrganizationSkill:
+		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.
 		return false

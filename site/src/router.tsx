@@ -389,8 +389,8 @@ const CoderAgentsPage = lazy(
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
-const AgentSettingsPersonalSkillsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
+const AgentSettingsSkillsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSkillsPage"),
 );
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
@@ -473,6 +473,10 @@ const AISettingsUpdateMCPServerPage = lazy(
 		import(
 			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
 		),
+);
+
+const AISettingsSkillsPage = lazy(
+	() => import("./pages/AISettingsPage/SkillsPage/SkillsPage"),
 );
 
 const GlobalLayout = () => {
@@ -772,6 +776,7 @@ export const router = createBrowserRouter(
 							path="mcp-servers/:serverId"
 							element={<AISettingsUpdateMCPServerPage />}
 						/>
+						<Route path="skills" element={<AISettingsSkillsPage />} />
 						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
 							path="providers/add"
@@ -852,9 +857,10 @@ export const router = createBrowserRouter(
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
 						/>
+						<Route path="skills" element={<AgentSettingsSkillsPage />} />
 						<Route
 							path="personal-skills"
-							element={<AgentSettingsPersonalSkillsPage />}
+							element={<Navigate to="/agents/settings/skills" replace />}
 						/>
 						<Route
 							path="admin"
