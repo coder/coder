@@ -56,6 +56,12 @@ const source = (url: string, title: string): TypesGen.ChatMessagePart => ({
 	title,
 });
 const citation = source("https://go.example.com", "Go");
+const attachment = (name: string): TypesGen.ChatMessagePart => ({
+	type: "file",
+	media_type: "text/markdown",
+	name,
+	file_id: `file-${name}`,
+});
 const searchCall = (
 	id: string,
 	createdAt?: string,
@@ -467,6 +473,35 @@ describe("groupWorkingBlocks", () => {
 			[`${first[0].id}`, `${interlude.id}[0]`],
 			`${interlude.id}[1]`,
 			[`${second[0].id}`],
+		]);
+	});
+
+	it("renders attached files below their block and keeps the work after them in it", () => {
+		const prompt = user("Report");
+		const attach = message("assistant", [call("a", at(1), "attach_file")]);
+		const files = message("assistant", [attachment("report.md")]);
+		const attached = message("tool", [
+			result("a", at(2), { name: "attach_file" }),
+		]);
+		const steps = step("b", 3, 4);
+		const answer = message("assistant", [
+			reasoning("Wrap up", at(5), at(6)),
+			text("Done."),
+		]);
+		const layout = group([prompt, attach, files, attached, ...steps, answer]);
+
+		expect(layoutOf(layout)).toEqual([
+			`${prompt.id}`,
+			[`${attach.id}`, `${steps[0].id}`, `${answer.id}[0]`],
+			`${files.id}`,
+			`${answer.id}[1]`,
+		]);
+		expect(layout.blocks).toMatchObject([
+			{
+				stepCount: 2,
+				startedAt: WORKING_FIXTURE_START + 1000,
+				endedAt: WORKING_FIXTURE_START + 6000,
+			},
 		]);
 	});
 
@@ -1104,6 +1139,29 @@ describe("groupWorkingBlocks", () => {
 				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
 			});
+		});
+
+		it("stays live while files attached after its last step render below it", () => {
+			const prompt = user("Go");
+			const attach = message("assistant", [call("a", at(1), "attach_file")]);
+			const files = message("assistant", [attachment("report.md")]);
+			const attached = message("tool", [
+				result("a", at(2), { name: "attach_file" }),
+			]);
+			const entries = parseMessagesWithMergedTools([
+				prompt,
+				attach,
+				files,
+				attached,
+			]);
+			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
+			const { blocks } = groupWorkingBlocks(rows, entries, {
+				...defaultOptions,
+				isTurnActive: true,
+				isWorking: true,
+			});
+
+			expect(blocks).toMatchObject([{ isLive: true, endedAt: undefined }]);
 		});
 
 		it("stops the block's clock while an interrupt drains the turn", () => {
