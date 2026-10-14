@@ -20,7 +20,11 @@ import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+	type UploadState,
+} from "./AgentChatInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ organizations: [] }),
@@ -184,6 +188,85 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("sends pasted Unicode text without changing its code points", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const message = "你好 👩🏽‍💻 cafe\u0301\u200b\nمرحبا";
+		renderInput(<AgentChatInput {...inputProps} onSend={onSend} />);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste(message);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+
+		expect(onSend).toHaveBeenCalledExactlyOnceWith(message);
+	});
+
+	it("preserves a typed draft when a failed attachment is removed", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const onRemoveAttachment = vi.fn();
+		const mockFailedFile = createMockFile("failed.png", "image/png");
+		const mockUploadedFile = createMockFile("ready.png", "image/png");
+		const uploadStates = new Map<File, UploadState>([
+			[mockFailedFile, { status: "error", error: "Upload failed" }],
+			[mockUploadedFile, { status: "uploaded", fileId: "ready" }],
+		]);
+		const props = {
+			...inputProps,
+			onSend,
+			onRemoveAttachment,
+			uploadStates,
+		};
+		const { rerender } = renderInput(
+			<AgentChatInput
+				{...props}
+				attachments={[mockFailedFile, mockUploadedFile]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Keep this draft");
+		await user.click(screen.getByRole("button", { name: "Remove failed.png" }));
+		expect(onRemoveAttachment).toHaveBeenCalledExactlyOnceWith(mockFailedFile);
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...props} attachments={[mockUploadedFile]} />
+			</AppProviders>,
+		);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Keep this draft");
+	});
+
+	it("keeps an unsent draft across streaming and pending-send transitions", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const props = { ...inputProps, inputRef, onSend, onInterrupt: vi.fn() };
+		const { rerender } = renderInput(<AgentChatInput {...props} />);
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("A follow-up to queue");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("A follow-up to queue");
+		});
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...props} isStreaming isLoading />
+			</AppProviders>,
+		);
+		expect(inputRef.current?.getValue()).toBe("A follow-up to queue");
+		expect(onSend).not.toHaveBeenCalled();
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...props} isStreaming />
+			</AppProviders>,
+		);
+		await user.click(screen.getByRole("button", { name: "Queue" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("A follow-up to queue");
 	});
 
 	it("offers the chat organization's skills in the slash menu", async () => {
