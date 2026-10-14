@@ -111,6 +111,17 @@ export const MockBedrockProviderState: ProviderState = {
 	models: [mockBedrockClaude],
 };
 
+export const MockBedrockInvokeModelProviderState: ProviderState = {
+	...MockBedrockProviderState,
+	providerDescriptor: {
+		...MockBedrockProviderDescriptor,
+		bedrock_invoke_model: {
+			model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+			small_fast_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+		},
+	},
+};
+
 export const MockAzureProviderState: ProviderState = {
 	...MockOpenAIProviderState,
 	key: "prov-azure",
