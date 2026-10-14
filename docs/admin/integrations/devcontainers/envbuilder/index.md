@@ -2,6 +2,10 @@
 title: Envbuilder
 ---
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](../integration.md).
+
 Envbuilder is an open-source tool that builds development environments from
 [dev container](https://containers.dev/implementors/spec/) configuration files.
 Unlike the [Dev Containers integration](../integration.md),

@@ -2,6 +2,10 @@
 title: Envbuilder
 ---
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](../../integrations/devcontainers/integration.md).
+
 Envbuilder shifts environment definition from template administrators to
 developers. Instead of baking tools into template images, developers define
 their environments via `devcontainer.json` files in their repositories.

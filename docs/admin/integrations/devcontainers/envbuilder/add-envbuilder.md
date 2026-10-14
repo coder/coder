@@ -2,6 +2,10 @@
 title: Add an Envbuilder template
 ---
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](../integration.md).
+
 A Coder administrator adds an Envbuilder-compatible template to Coder. This
 allows the template to prompt the developer for their dev container repository's
 URL as a [parameter](../../../templates/extending-templates/parameters.md) when they create
