@@ -49,5 +49,4 @@ func TestCheckGraphCompleteSize(t *testing.T) {
 	err := checkGraphCompleteSize(response)
 	require.ErrorContains(t, err, strconv.Itoa(protobuf.Size(envelope))+" bytes")
 	require.ErrorContains(t, err, strconv.Itoa(drpcsdk.MaxMessageSize)+" byte message limit")
-	require.ErrorContains(t, err, "coder_script_order")
 }

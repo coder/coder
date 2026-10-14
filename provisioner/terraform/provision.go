@@ -365,6 +365,11 @@ func (s *server) Graph(
 		HasExternalAgents:     state.HasExternalAgents,
 	}
 	if err := checkGraphCompleteSize(response); err != nil {
+		if convertScriptOrder {
+			return provisionersdk.GraphError(
+				"%s; reduce the number of coder_script_order dependencies", err,
+			)
+		}
 		return provisionersdk.GraphError("%s", err)
 	}
 	return response
@@ -374,8 +379,9 @@ func (s *server) Graph(
 // DRPC transport in one message, so the import fails with a readable error
 // instead of a dropped connection. The session wraps the result in a
 // proto.Response before sending, so the check measures that envelope rather
-// than the bare GraphComplete. Script order dependencies are the only
-// unbounded addition to the response, so the error names them.
+// than the bare GraphComplete. The caller adds the script order hint when
+// that conversion ran, since it is the only unbounded addition to the
+// response and the hint would mislead templates without it.
 func checkGraphCompleteSize(response *proto.GraphComplete) error {
 	size := protobuf.Size(&proto.Response{
 		Type: &proto.Response_Graph{Graph: response},
@@ -384,7 +390,7 @@ func checkGraphCompleteSize(response *proto.GraphComplete) error {
 		return nil
 	}
 	return xerrors.Errorf(
-		"graph result is %d bytes, above the %d byte message limit; reduce the number of coder_script_order dependencies",
+		"graph result is %d bytes, above the %d byte message limit",
 		size, drpcsdk.MaxMessageSize,
 	)
 }
