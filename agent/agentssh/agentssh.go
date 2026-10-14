@@ -242,7 +242,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				}
 				directStreamLocalHandler(srv, conn, newChan, ctx)
 			},
-			"session": sessionChannelHandler,
+			"session": ssh.DefaultSessionHandler,
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
 			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
@@ -397,7 +397,6 @@ type sessionCloseTracker struct {
 var _ ssh.Session = &sessionCloseTracker{}
 
 func (s *sessionCloseTracker) track(code int) {
-	recordSessionTermination(s.Context())
 	s.exitOnce.Do(func() {
 		s.code.Store(int64(code))
 	})
@@ -524,12 +523,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		})
 		defer func() {
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", scr.exitCode())}
-			if cause := sessionShutdownCause(ctx); cause != nil {
+			if closedByShutdown(ctx) {
 				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
 					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
 				}
 				reason = codersdk.DisconnectReasonServerShutdown
-				fields = append(fields, cause.fields()...)
+				fields = append(fields, serverShutdownFields()...)
 			} else {
 				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
 			}
@@ -1151,8 +1150,8 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	}
 	defer func() {
 		fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
-		if cause := tracked.shutdownCause(); cause != nil {
-			fields = append(fields, cause.fields()...)
+		if tracked.shutdown.Load() {
+			fields = append(fields, serverShutdownFields()...)
 		}
 		logger.Info(context.Background(), "ssh connection complete", fields...)
 	}()
@@ -1278,12 +1277,11 @@ func (s *Server) Close() error {
 		return xerrors.New("server is closed")
 	}
 	s.closing = make(chan struct{})
-	cause := shutdownCause{}
-	// Preserve the cause before closing any channel or socket can wake its
+	// Record the shutdown before closing any channel or socket can wake its
 	// handler. Each connection retains it after the server is reused.
 	for conn := range s.conns {
 		if tracked, ok := conn.(*trackedSSHConn); ok {
-			tracked.recordTermination(&cause)
+			tracked.shutdown.Store(true)
 		}
 	}
 

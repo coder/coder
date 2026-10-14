@@ -1014,16 +1014,21 @@ startWatchLoop:
 				if !ok {
 					continue startWatchLoop
 				}
-				if w.LatestBuild.ID != shutdownBuildID &&
-					(w.LatestBuild.Transition == codersdk.WorkspaceTransitionStop || w.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete) {
-					switch w.LatestBuild.Job.Status {
-					case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobSucceeded:
-						shutdownBuildID = w.LatestBuild.ID
-						logger.Info(ctx, "workspace shutdown requested",
-							codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
-							slog.F("workspace_id", w.ID), slog.F("build_id", w.LatestBuild.ID),
-							slog.F("build_reason", w.LatestBuild.Reason), slog.F("transition", w.LatestBuild.Transition))
-					}
+				build := w.LatestBuild
+				stopping := build.Transition == codersdk.WorkspaceTransitionStop ||
+					build.Transition == codersdk.WorkspaceTransitionDelete
+				// Queued, failed, and canceled jobs do not establish a shutdown cause.
+				active := build.Job.Status == codersdk.ProvisionerJobRunning ||
+					build.Job.Status == codersdk.ProvisionerJobSucceeded
+				if stopping && active && build.ID != shutdownBuildID {
+					shutdownBuildID = build.ID
+					logger.Info(ctx, "workspace shutdown requested",
+						codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
+						slog.F("workspace_id", w.ID),
+						slog.F("build_id", build.ID),
+						slog.F("build_reason", build.Reason),
+						slog.F("transition", build.Transition),
+					)
 				}
 
 				// Transitioning to stop or delete could mean that

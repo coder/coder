@@ -136,30 +136,43 @@ func (a *ConnLogAPI) workspaceShutdownReason(ctx context.Context, workspaceID uu
 	if !tracing.ValidSessionID(clientSessionID) {
 		clientSessionID = ""
 	}
-	logger := a.Log.With(slog.F("workspace_id", workspaceID), slog.F("connection_id", uuid.UUID(connection.GetId())),
-		slog.F("client_session_id", clientSessionID))
+	logger := a.Log.With(
+		slog.F("workspace_id", workspaceID),
+		slog.F("connection_id", uuid.UUID(connection.GetId())),
+		slog.F("client_session_id", clientSessionID),
+	)
+
 	build, err := a.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 	if err != nil {
 		logger.Warn(ctx, "get shutdown workspace build", slog.Error(err))
 		return reason
 	}
+	stopping := build.Transition == database.WorkspaceTransitionStop ||
+		build.Transition == database.WorkspaceTransitionDelete
 	// A delayed report must not be attributed to a stop requested after the
 	// connection closed.
-	if build.CreatedAt.After(connection.GetTimestamp().AsTime()) ||
-		(build.Transition != database.WorkspaceTransitionStop && build.Transition != database.WorkspaceTransitionDelete) {
+	requestedAfterClose := build.CreatedAt.After(connection.GetTimestamp().AsTime())
+	if !stopping || requestedAfterClose {
 		return reason
 	}
+
 	job, err := a.Database.GetProvisionerJobByID(ctx, build.JobID)
 	if err != nil {
 		logger.Warn(ctx, "get shutdown provisioner job", slog.Error(err))
 		return reason
 	}
 	// Queued, failed, and canceled jobs do not establish a shutdown cause.
-	if job.JobStatus != database.ProvisionerJobStatusRunning && job.JobStatus != database.ProvisionerJobStatusSucceeded {
+	active := job.JobStatus == database.ProvisionerJobStatusRunning ||
+		job.JobStatus == database.ProvisionerJobStatusSucceeded
+	if !active {
 		return reason
 	}
+
 	logger.Info(ctx, "connection closed for workspace shutdown",
 		codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
-		slog.F("build_id", build.ID), slog.F("build_reason", build.Reason), slog.F("transition", build.Transition))
+		slog.F("build_id", build.ID),
+		slog.F("build_reason", build.Reason),
+		slog.F("transition", build.Transition),
+	)
 	return string(codersdk.DisconnectReasonWorkspaceStopped)
 }

@@ -2,11 +2,8 @@ package agentssh
 
 import (
 	"context"
-	"io"
 	"net"
-	"os"
 	"sync"
-	"syscall"
 	"testing"
 
 	"github.com/google/uuid"
@@ -45,7 +42,7 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 			channel, _, err := watcher.Accept()
 			require.NoError(t, err)
 			if shutdown {
-				conn.recordTermination(&shutdownCause{})
+				conn.shutdown.Store(true)
 			}
 			require.NoError(t, channel.Close())
 			require.NoError(t, channel.Close())
@@ -66,82 +63,9 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 	}
 }
 
-func TestSSHTransportTermination(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name         string
-		err          error
-		wantShutdown bool
-	}{
-		{name: "Success", wantShutdown: true},
-		{name: "EOF", err: io.EOF},
-		{name: "ClosedPipe", err: io.ErrClosedPipe},
-		{name: "ConnectionReset", err: &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}},
-		{name: "Deadline", err: os.ErrDeadlineExceeded, wantShutdown: true},
-		{name: "WrappedDeadline", err: &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}, wantShutdown: true},
-		{name: "Temporary", err: &net.OpError{Op: "read", Net: "tcp", Err: syscall.EAGAIN}, wantShutdown: true},
-	} {
-		for _, operation := range []string{"Read", "Write"} {
-			t.Run(tc.name+"/"+operation, func(t *testing.T) {
-				t.Parallel()
-				conn := &trackedSSHConn{Conn: shutdownErrorConn{err: tc.err}}
-				if operation == "Read" {
-					_, err := conn.Read(nil)
-					require.Equal(t, tc.err, err)
-				} else {
-					_, err := conn.Write(nil)
-					require.Equal(t, tc.err, err)
-				}
-				cause := &shutdownCause{}
-				conn.recordTermination(cause)
-				if tc.wantShutdown {
-					require.Equal(t, cause, conn.shutdownCause())
-				} else {
-					require.Nil(t, conn.shutdownCause())
-				}
-			})
-		}
-	}
+type shutdownNewChannel struct{ ssh.NewChannel }
 
-	t.Run("CloseBeforeShutdown", func(t *testing.T) {
-		t.Parallel()
-		conn := &trackedSSHConn{Conn: shutdownErrorConn{}}
-		require.NoError(t, conn.Close())
-		conn.recordTermination(&shutdownCause{})
-		require.Nil(t, conn.shutdownCause())
-	})
-
-	t.Run("ShutdownBeforeError", func(t *testing.T) {
-		t.Parallel()
-		conn := &trackedSSHConn{Conn: shutdownErrorConn{err: io.EOF}}
-		cause := &shutdownCause{}
-		conn.recordTermination(cause)
-		_, err := conn.Read(nil)
-		require.ErrorIs(t, err, io.EOF)
-		require.NoError(t, conn.Close())
-		conn.recordTermination(&shutdownCause{})
-		require.Equal(t, cause, conn.shutdownCause())
-	})
-}
-
-type shutdownErrorConn struct {
-	net.Conn
-	err error
-}
-
-func (c shutdownErrorConn) Read([]byte) (int, error)  { return 0, c.err }
-func (c shutdownErrorConn) Write([]byte) (int, error) { return 0, c.err }
-func (shutdownErrorConn) Close() error                { return nil }
-
-type shutdownNewChannel struct {
-	ssh.NewChannel
-	channel ssh.Channel
-}
-
-func (c shutdownNewChannel) Accept() (ssh.Channel, <-chan *ssh.Request, error) {
-	if c.channel != nil {
-		return c.channel, nil, nil
-	}
+func (shutdownNewChannel) Accept() (ssh.Channel, <-chan *ssh.Request, error) {
 	return shutdownChannel{}, nil, nil
 }
 
@@ -162,63 +86,6 @@ func (r *shutdownReporter) Connect(event proto.ConnectEvent) proto.Disconnection
 func (r *shutdownReporter) Disconnect(event proto.DisconnectEvent) {
 	r.disconnects = append(r.disconnects, event)
 }
-
-func TestJetbrainsChannelClosedBeforeShutdown(t *testing.T) {
-	t.Parallel()
-	for _, operation := range []string{"Close", "Read", "Write"} {
-		t.Run(operation, func(t *testing.T) {
-			t.Parallel()
-			conn := &trackedSSHConn{}
-			ctx := context.WithValue(testutil.Context(t, testutil.WaitLong), shutdownContextKey{}, conn)
-			reporter := &shutdownReporter{}
-			ending := make(chan struct{})
-			release := make(chan struct{})
-			releaseClose := sync.OnceFunc(func() { close(release) })
-			defer releaseClose()
-			watcher := &JetbrainsChannelWatcher{
-				NewChannel: shutdownNewChannel{channel: shutdownErrorChannel{}}, ctx: ctx,
-				logger: testutil.Logger(t), connectionReporter: reporter,
-				startSession: func(string) func() {
-					return func() {
-						if operation == "Close" {
-							close(ending)
-							<-release
-						}
-					}
-				},
-			}
-			channel, _, err := watcher.Accept()
-			require.NoError(t, err)
-			done := make(chan error, 1)
-			switch operation {
-			case "Close":
-				go func() { done <- channel.Close() }()
-				testutil.TryReceive(ctx, t, ending)
-			case "Read":
-				_, err := channel.Read(nil)
-				require.ErrorIs(t, err, io.EOF)
-			case "Write":
-				_, err := channel.Write(nil)
-				require.ErrorIs(t, err, io.ErrClosedPipe)
-			}
-			conn.recordTermination(&shutdownCause{})
-			if operation == "Close" {
-				releaseClose()
-				require.NoError(t, testutil.RequireReceive(ctx, t, done))
-			} else {
-				require.NoError(t, channel.Close())
-			}
-			require.Len(t, reporter.disconnects, 1)
-			require.Equal(t, "normal close", reporter.disconnects[0].Reason)
-		})
-	}
-}
-
-type shutdownErrorChannel struct{ ssh.Channel }
-
-func (shutdownErrorChannel) Read([]byte) (int, error)  { return 0, io.EOF }
-func (shutdownErrorChannel) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
-func (shutdownErrorChannel) Close() error              { return nil }
 
 func TestSSHShutdownWaitsForConnectionLog(t *testing.T) {
 	t.Parallel()

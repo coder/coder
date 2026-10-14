@@ -703,10 +703,15 @@ func TestWatchAndCloseShutdownReason(t *testing.T) {
 			if transition == codersdk.WorkspaceTransitionDelete {
 				shutdown.LatestBuild.Status = codersdk.WorkspaceStatusDeleting
 			}
-			send(shutdown)
+			// A queued job does not establish a shutdown cause.
+			queued := shutdown
+			queued.LatestBuild.ID = uuid.New()
+			send(queued)
 			shutdownLogs := func() []slog.SinkEntry {
 				return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "workspace shutdown requested" })
 			}
+			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobRunning
+			send(shutdown)
 			require.Eventually(t, func() bool { return len(shutdownLogs()) == 1 }, testutil.WaitLong, testutil.IntervalFast)
 			select {
 			case <-closed:
@@ -714,7 +719,7 @@ func TestWatchAndCloseShutdownReason(t *testing.T) {
 			default:
 			}
 			// Repeated updates for the same build should not repeat the reason.
-			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobRunning
+			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobSucceeded
 			send(shutdown)
 			failed := shutdown
 			failed.LatestBuild.ID = uuid.New()
