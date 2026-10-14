@@ -268,7 +268,7 @@ Coder customers have had success with both:
 
 - Use quotas to discourage users from creating many workspaces they don't need simultaneously.
 
-- Label workspace cloud resources by user, team, organization, or your own labelling conventions to track usage at different granularities.
+- Label workspace cloud resources by user, team, organization, or your own labeling conventions to track usage at different granularities.
 
 - Use autostop requirements to bring off-peak utilization down.
 
