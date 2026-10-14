@@ -22,7 +22,6 @@ const projectTemplateNotAvailable = "template not available in this chat's proje
 
 func TestProjectTemplateEnforcement(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 
 	user := dbgen.User(t, db, database.User{})
