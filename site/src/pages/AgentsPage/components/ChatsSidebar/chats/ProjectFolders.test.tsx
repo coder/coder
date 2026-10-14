@@ -7,18 +7,24 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
+type ProjectFoldersOptions = {
+	readonly error?: unknown;
+	readonly currentUserId?: string;
+};
+
 const projectFoldersElement = (
 	projects: readonly ChatProject[],
-	error?: unknown,
+	{ error, currentUserId = MockUserOwner.id }: ProjectFoldersOptions = {},
 ) => (
 	<MemoryRouter>
 		<ProjectFolders
-			currentUserId={MockUserOwner.id}
+			currentUserId={currentUserId}
 			projects={projects}
 			organizations={[MockDefaultOrganization]}
 			chatsByProjectId={new Map()}
@@ -35,8 +41,10 @@ const projectFoldersElement = (
 	</MemoryRouter>
 );
 
-const renderProjectFolders = (projects: readonly ChatProject[]) =>
-	render(projectFoldersElement(projects));
+const renderProjectFolders = (
+	projects: readonly ChatProject[],
+	options?: ProjectFoldersOptions,
+) => render(projectFoldersElement(projects, options));
 
 const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
 
@@ -90,7 +98,9 @@ describe("ProjectFolders", () => {
 		});
 		expect(newProjectButton).toHaveFocus();
 
-		rerender(projectFoldersElement([], new Error("Projects unavailable")));
+		rerender(
+			projectFoldersElement([], { error: new Error("Projects unavailable") }),
+		);
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
@@ -124,6 +134,21 @@ describe("ProjectFolders", () => {
 		renderProjectFolders([]);
 		await user.click(screen.getByRole("button", { name: "Projects" }));
 		expect(localStorage.getItem(collapsedKey)).toBeNull();
+	});
+
+	it("keeps the saved collapse state separate per user", async () => {
+		const user = userEvent.setup();
+		const firstMount = renderProjectFolders([]);
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		firstMount.unmount();
+
+		renderProjectFolders([], { currentUserId: MockUserMember.id });
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(
+			localStorage.getItem(
+				projectsSectionCollapsedStorageKey(MockUserMember.id),
+			),
+		).toBe("true");
 	});
 
 	it("names same-named projects by their organization", async () => {
