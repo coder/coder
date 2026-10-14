@@ -19,19 +19,23 @@ export const DraggableChatTreeNode: React.FC<DraggableChatTreeNodeProps> = ({
 }) => {
 	const { currentUserId } = useChatTree();
 	const canDrag = canDragChatToProject(chat, currentUserId);
-	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-		id: `move:${chat.id}`,
-		data: { chat } satisfies ChatDragData,
-		disabled: !canDrag,
-	});
+	const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
+		useDraggable({
+			id: `move:${chat.id}`,
+			data: { chat } satisfies ChatDragData,
+			disabled: !canDrag,
+		});
 	return (
-		<div
-			ref={setNodeRef}
-			className={cn(isDragging && "opacity-50")}
-			// Rows that cannot move get no drag role for screen readers.
-			{...(canDrag ? { ...attributes, ...listeners } : {})}
-		>
-			<ChatTreeNode chat={chat} />
+		<div ref={setNodeRef} className={cn(isDragging && "opacity-50")}>
+			<ChatTreeNode
+				chat={chat}
+				// Rows that cannot move get no drag role for screen readers.
+				dragHandleProps={
+					canDrag
+						? { ref: setActivatorNodeRef, ...attributes, ...listeners }
+						: undefined
+				}
+			/>
 		</div>
 	);
 };

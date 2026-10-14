@@ -1160,6 +1160,48 @@ describe("ChatsSidebar project drops", () => {
 		);
 		expect(update).toHaveBeenCalledTimes(1);
 	});
+
+	// Subagent chats follow their root's project, so only the root row drags.
+	it.each([
+		{ row: "Spawner chat", outcome: "moves", body: mockBillingProject.id },
+		{ row: "Simple task", outcome: "moves nothing", body: undefined },
+	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		const child = buildChat({
+			id: "c2",
+			title: "Simple task",
+			parent_chat_id: "c1",
+			organization_id: mockBillingProject.organization_id,
+		});
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Spawner chat",
+					organization_id: mockBillingProject.organization_id,
+					children: [child],
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(await screen.findByRole("button", { name: "Expand" }));
+		layoutDropTargets(240);
+
+		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
+		fireEvent.mouseDown(rowLink, { clientX: 10, clientY: 250 });
+		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
+		fireEvent.mouseMove(document, { clientX: 10, clientY: 40 });
+		fireEvent.mouseUp(document, { clientX: 10, clientY: 40 });
+		// A drop's mutation reaches the API one task later.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+		expect(update.mock.calls).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
 });
 
 describe("ChatsSidebar pinned reordering", () => {
