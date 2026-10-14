@@ -114,7 +114,7 @@ route both:
 - Traffic sent from the agent to the external IP of the corporate router to the
   VPN exit node.
 
-This behaviour is known as "hairpinning", and may not be supported in all
+This behavior is known as "hairpinning", and may not be supported in all
 network configurations.
 
 If hairpinning is not supported, deploying an internal STUN server can aid

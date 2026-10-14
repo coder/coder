@@ -491,7 +491,7 @@ curl -s -X POST https://coder.example.com/api/v2/chats \
   }"
 ```
 
-This pattern is the closest analogue to the Tasks API behavior of
+This pattern is the closest analog to the Tasks API behavior of
 `template_version_id` plus `coder-template-name`: you decide which
 template runs, the agent decides what to do inside it. The same approach
 works from the
