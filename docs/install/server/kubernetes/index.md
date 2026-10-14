@@ -28,7 +28,7 @@ This is required for storing data about your Coder deployment and resources.
 
 If you're in a public cloud such as [Google Cloud](https://cloud.google.com/sql/docs/postgres/), [AWS](https://aws.amazon.com/rds/postgresql/), [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql), you can use the managed PostgreSQL offerings they provide.
 Make sure that the PostgreSQL service is running and accessible from your cluster.
-It should be in the same network, same project, etc.
+It should be in the same network, same project, and so on.
 
 ### In-Cluster PostgreSQL (for proof of concepts)
 

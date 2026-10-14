@@ -8,7 +8,7 @@ Wildcard access URLs unlock Coder's full potential for modern development workfl
 
 ### Key benefits
 
-- **Enables port access**: Each application gets a unique subdomain with [port support](https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard) (e.g. `8080--main--myworkspace--john.coder.example.com`).
+- **Enables port access**: Each application gets a unique subdomain with [port support](https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard) (for example, `8080--main--myworkspace--john.coder.example.com`).
 - **Enhanced security**: Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
 - **Better compatibility**: Most applications are designed to work at the root of a hostname rather than at a subpath, making subdomain access more reliable
 
@@ -155,7 +155,7 @@ If workspace applications are not working:
 
 1. Verify the `CODER_WILDCARD_ACCESS_URL` environment variable is configured correctly:
    - Check the deployment settings in the Coder dashboard (Settings > Deployment)
-   - Ensure it matches your wildcard domain (e.g., `*.coder.example.com`)
+   - Ensure it matches your wildcard domain (for example, `*.coder.example.com`)
    - Restart the control plane if you made changes to the environment variable
 2. Check DNS resolution for wildcard subdomains:
 

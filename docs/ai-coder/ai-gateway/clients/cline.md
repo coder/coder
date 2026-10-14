@@ -24,7 +24,7 @@ To configure Cline to use AI Gateway, follow these steps:
 1. **API Provider**: Select **OpenAI Compatible**.
 1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 1. **OpenAI Compatible API Key**: Enter your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
-1. **Model ID** (Optional): Enter the model you wish to use (e.g., `gpt-5.2-codex`).
+1. **Model ID** (Optional): Enter the model you wish to use (for example, `gpt-5.2-codex`).
 
 ![Cline OpenAI Settings](../../../images/aibridge/clients/cline-openai.png)
 
@@ -52,7 +52,7 @@ To configure Cline to use AI Gateway, follow these steps:
 1. **API Provider**: Select **OpenAI Compatible**.
 1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 1. **OpenAI Compatible API Key**: Enter your personal OpenAI API key.
-1. **Model ID** (Optional): Enter the model you wish to use (e.g., `gpt-5.2-codex`).
+1. **Model ID** (Optional): Enter the model you wish to use (for example, `gpt-5.2-codex`).
 1. **Custom Headers**: Add `X-Coder-AI-Governance-Token` with your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 ![Cline BYOK OpenAI Settings](../../../images/aibridge/clients/cline-byok-openai.png)

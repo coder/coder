@@ -204,7 +204,7 @@ coder exp sync want "unit-b" "unit-a"
 Look for these patterns in existing templates:
 
 - `sleep` commands used to order scripts
-- Using files to coordinate startup between scripts (e.g. `touch /tmp/startup-complete`)
+- Using files to coordinate startup between scripts (for example, `touch /tmp/startup-complete`)
 - Scripts that fail intermittently on startup
 - Comments like "must run after X" or "wait for Y"
 

@@ -1148,7 +1148,7 @@ Specifies the custom docs URL.
 
 ### Proxy trusted headers
 
-Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
+Headers to trust for forwarding IP addresses. For example, Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
 
 - Type: `string-array`
 - Environment variable: `CODER_PROXY_TRUSTED_HEADERS`
@@ -1157,7 +1157,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 
 ### Proxy trusted origins
 
-Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
+Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. For example, 192.168.1.0/24.
 
 - Type: `string-array`
 - Environment variable: `CODER_PROXY_TRUSTED_ORIGINS`
@@ -1324,7 +1324,7 @@ Use special value 'disable' to turn off STUN completely.
 
 Coder configures a Content Security Policy (CSP) to protect against XSS attacks.
 This setting allows you to add additional CSP directives, which can open the attack surface of the deployment.
-Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
+Format matches the CSP directive format, for example, --additional-csp-policy="script-src https://example.com".
 
 - Type: `string-array`
 - Environment variable: `CODER_ADDITIONAL_CSP_POLICY`

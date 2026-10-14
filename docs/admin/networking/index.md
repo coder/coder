@@ -41,7 +41,7 @@ In order for clients to be able to establish direct connections:
 > regions far from the Coder control plane, consider deploying one or more
 > [workspace proxies](./workspace-proxies.md).
 
-- The client is connecting using the CLI (e.g. `coder ssh` or
+- The client is connecting using the CLI (for example, `coder ssh` or
   `coder port-forward`). Note that the
   [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
   and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
@@ -113,7 +113,7 @@ meaning that we need to use STUN to learn the IP address and port under which
 the client and agent can both contact each other. See [STUN and NAT](./stun.md)
 for more information on how this process works.
 
-If a direct connection is not available (e.g. client or server is behind NAT),
+If a direct connection is not available (for example, client or server is behind NAT),
 Coder will use a relayed connection. By default,
 [Coder uses Google's public STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses),
 but this can be disabled or changed for

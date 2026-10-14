@@ -68,7 +68,7 @@ This example assumes you're using CloudFlare as your DNS provider. For other
 providers, refer to the
 [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
 
-1. Create an API token for the DNS provider you're using: e.g.
+1. Create an API token for the DNS provider you're using, for example,
    [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token)
    with the following permissions:
 
@@ -179,5 +179,5 @@ providers, refer to the
 sudo systemctl restart nginx
 ```
 
-And that's it, you should now be able to access Coder at your sub(domain) e.g.
+And that's it, you should now be able to access Coder at your sub(domain), for example,
 `https://coder.example.com`.

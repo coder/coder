@@ -12,7 +12,7 @@ The user can set parameters in the dashboard UI and CLI.
 
 You'll likely want to hardcode certain template properties for workspaces, such
 as security group. But you can let developers specify other properties with
-parameters like instance size, geographical location, repository URL, etc.
+parameters like instance size, geographical location, repository URL, and so on.
 
 This example lets a developer choose a Docker host for the workspace:
 
@@ -340,7 +340,7 @@ workspace presets with optional `description` and `icon` fields:
   about the preset. This helps users understand what the preset is for and when
   to use it.
 - **icon**: A visual icon displayed alongside the preset name in the UI. Use
-  emoji icons with the format `/emojis/{code}.png` (e.g.,
+  emoji icons with the format `/emojis/{code}.png` (for example,
   `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
 
 For a complete list of all available fields, see the

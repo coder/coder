@@ -76,7 +76,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 ```
 
 > [!NOTE]
-> You may also set `API_BASE_URL` explicitly if needed (e.g.,
+> You may also set `API_BASE_URL` explicitly if needed (for example,
 > `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
 ## Known limitations
@@ -86,7 +86,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 The GitLab provider has some semantic differences compared to the GitHub
 provider:
 
-- **Approved** uses GitLab's threshold-based approval (e.g., "all required
+- **Approved** uses GitLab's threshold-based approval (for example, "all required
   approvals met") rather than GitHub's "at least one approval and no changes
   requested" model.
 - **Changes requested** has no GitLab equivalent. This field is always

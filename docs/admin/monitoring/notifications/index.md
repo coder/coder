@@ -357,9 +357,9 @@ messages._
   database
   - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL` (default: `15s`)
 - if a message is delivered successfully, it transitions to `sent` state
-- if a message encounters a non-retryable error (e.g. misconfiguration), it
+- if a message encounters a non-retryable error (for example, misconfiguration), it
   transitions to `permanent_failure`
-- if a message encounters a retryable error (e.g. temporary server outage), it
+- if a message encounters a retryable error (for example, temporary server outage), it
   transitions to `temporary_failure`
   - this message will be retried up to `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS`
     (default: 5)

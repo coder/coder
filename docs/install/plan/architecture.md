@@ -30,7 +30,7 @@ It offers:
 - Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
-- Workspace Web Applications (e.g for easy access to `code-server`)
+- Workspace Web Applications (for example, for easy access to `code-server`)
 - Agent registration
 
 ### provisionerd

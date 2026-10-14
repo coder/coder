@@ -13,7 +13,7 @@ additional requirements outlined further in this document.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace process logging adds a sidecar container to workspace pods that will
-log all processes started in the workspace container (e.g., commands executed in
+log all processes started in the workspace container (for example, commands executed in
 the terminal or processes created in the background by other processes).
 Processes launched inside containers or nested containers within the workspace
 are also logged. You can view the output from the sidecar or send it to a
@@ -318,6 +318,6 @@ fields @timestamp, log_processed.fields.cmdline
 - With `envbox` workspaces, this feature will detect and log startup processes
   begun in the outer container (including container initialization processes).
 - Because this feature logs **all** processes in the workspace, high levels of
-  usage (e.g., during a `make` run) will result in an abundance of output in the
+  usage (for example, during a `make` run) will result in an abundance of output in the
   sidecar container. Depending on how your Kubernetes cluster is configured, you
   may incur extra charges from your cloud provider to store the additional logs.

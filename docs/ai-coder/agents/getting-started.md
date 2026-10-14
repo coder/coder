@@ -112,7 +112,7 @@ Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
-- What type of work it supports (backend, frontend, data pipeline, etc.).
+- What type of work it supports (backend, frontend, data pipeline, and so on).
 
 When 128 characters is not enough, put the most important routing context near
 the top of the template's

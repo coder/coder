@@ -66,7 +66,7 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 ### 1. Configure an LLM provider
 
 With Tasks, LLM credentials are injected into the workspace as environment
-variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
+variables (for example, `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
 configured once in the control plane:
 
 1. Navigate to **Admin settings** > **AI** and select **Providers**.

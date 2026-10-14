@@ -11,7 +11,7 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.

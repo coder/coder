@@ -23,7 +23,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (for example, standalone binaries, system packages).
 
    ### Windows
 
