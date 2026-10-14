@@ -6,7 +6,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { Theme } from "#/theme";
 import { useTheme } from "#/theme/context";
-import { Bar } from "./Chart/Bar";
+import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
 	ChartBreadcrumbs,
@@ -17,6 +17,11 @@ import {
 	ChartToolbar,
 } from "./Chart/Chart";
 import {
+	ChartTable,
+	ChartTableRow,
+	ChartTableSection,
+} from "./Chart/ChartTable";
+import {
 	calcDuration,
 	calcOffset,
 	formatTime,
@@ -24,14 +29,6 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
-import {
-	YAxis,
-	YAxisHeader,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
 import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
@@ -85,36 +82,22 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
-				<YAxis>
-					<YAxisSection>
-						<YAxisHeader>{stage.name} stage</YAxisHeader>
-						<YAxisLabels>
-							{visibleTimings.map((t) => (
-								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>
-									{t.name}
-								</YAxisLabel>
-							))}
-						</YAxisLabels>
-					</YAxisSection>
-				</YAxis>
-
-				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSection>
+				<ChartTable caption={`Scripts in ${stage.name} stage`} ticks={ticks}>
+					<ChartTableSection label={`${stage.name} stage`} ticks={ticks}>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
+							const legend = legendsByStatus[t.status];
 
 							return (
-								<XAxisRow
-									key={t.name}
-									yAxisLabelId={encodeURIComponent(t.name)}
-								>
+								<ChartTableRow key={t.name} label={t.name}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<Bar
+											<FocusableBar
+												aria-label={`Status: ${legend.label}, exit code ${t.exitCode}`}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={legend.colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -126,11 +109,11 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									</Tooltip>
 
 									{formatTime(duration)}
-								</XAxisRow>
+								</ChartTableRow>
 							);
 						})}
-					</XAxisSection>
-				</XAxis>
+					</ChartTableSection>
+				</ChartTable>
 			</ChartContent>
 		</Chart>
 	);

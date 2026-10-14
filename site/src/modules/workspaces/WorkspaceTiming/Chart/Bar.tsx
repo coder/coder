@@ -21,6 +21,11 @@ type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 	colors?: BarColors;
 };
 
+const barClassName = cn(
+	"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
+	"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
+);
+
 type BarProps = BaseBarProps<React.ComponentProps<"div">>;
 
 export const Bar: React.FC<BarProps> = ({
@@ -33,11 +38,7 @@ export const Bar: React.FC<BarProps> = ({
 	return (
 		<div
 			{...htmlProps}
-			className={cn(
-				"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
-				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
-				htmlProps.className,
-			)}
+			className={cn(barClassName, htmlProps.className)}
 			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
 		/>
 	);
@@ -60,6 +61,35 @@ export const ClickableBar: React.FC<ClickableBarProps> = ({
 				"relative flex h-inherit min-w-[34px] cursor-pointer rounded-lg border border-border bg-surface-primary p-[7px]",
 				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
 				"outline-hidden hover:border-content-link focus-visible:border-content-link active:border-content-link",
+				htmlProps.className,
+			)}
+			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
+		/>
+	);
+};
+
+type FocusableBarProps = BaseBarProps<React.ComponentProps<"button">> & {
+	"aria-label": string;
+};
+
+/**
+ * A bar without an action of its own. It is focusable so keyboard users can
+ * open its tooltip.
+ */
+export const FocusableBar: React.FC<FocusableBarProps> = ({
+	colors,
+	scale,
+	value,
+	offset,
+	...htmlProps
+}) => {
+	return (
+		<button
+			type="button"
+			{...htmlProps}
+			className={cn(
+				barClassName,
+				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				htmlProps.className,
 			)}
 			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
