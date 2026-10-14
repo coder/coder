@@ -188,6 +188,82 @@ export const TextBetweenStepsSplitsBlocks: Story = {
 	},
 };
 
+// Files render below the block they were attached in, and the answer's
+// reasoning after them stays in that block.
+export const AttachedFilesRenderBelowBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWorkingMessages[0],
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "assistant",
+				created_at: workingFixtureTime(1),
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "attach",
+						tool_name: "attach_file",
+						args: { name: "report.md" },
+						created_at: workingFixtureTime(1),
+					},
+				],
+			},
+			{
+				...MockChatMessage,
+				id: 3,
+				role: "assistant",
+				created_at: workingFixtureTime(2),
+				content: [
+					{
+						type: "file",
+						media_type: "text/markdown",
+						name: "report.md",
+						file_id: "storybook-report",
+					},
+				],
+			},
+			{
+				...MockChatMessage,
+				id: 4,
+				role: "tool",
+				created_at: workingFixtureTime(2),
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "attach",
+						tool_name: "attach_file",
+						result: { name: "report.md" },
+						created_at: workingFixtureTime(2),
+					},
+				],
+			},
+			{
+				...MockChatMessage,
+				id: 5,
+				role: "assistant",
+				created_at: workingFixtureTime(4),
+				content: [
+					{
+						type: "reasoning",
+						text: "Summarizing the report",
+						created_at: workingFixtureTime(2),
+						completed_at: workingFixtureTime(3),
+					},
+					{ type: "text", text: "The inspection report is attached." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 2s (1 step)",
+			}),
+		);
+	},
+};
+
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
