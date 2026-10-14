@@ -288,6 +288,9 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn().mockRejectedValue(error);
 		const onRequestError = vi.fn();
 		const invalidateChat = vi.fn();
+		const scrollToEnd = vi.fn(() => {
+			expect(visibleTexts(store)).toEqual(["first"]);
+		});
 
 		await expect(
 			submitChatTurn(
@@ -296,10 +299,12 @@ describe("submitChatTurn", () => {
 					sendMessage,
 					onRequestError,
 					invalidateChat,
+					scrollToEnd,
 				}),
 			),
 		).rejects.toThrow("send failed");
 
+		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
 		expect(visibleTexts(store)).toEqual(["first"]);
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
@@ -356,6 +361,9 @@ describe("submitChatTurn", () => {
 		]);
 		const error = new Error("edit failed");
 		const onRequestError = vi.fn();
+		const scrollToEnd = vi.fn(() => {
+			expect(visibleTexts(store)).toEqual(["first", "answer"]);
+		});
 
 		await expect(
 			submitChatTurn(
@@ -365,10 +373,12 @@ describe("submitChatTurn", () => {
 					store,
 					editMessage: vi.fn().mockRejectedValue(error),
 					onRequestError,
+					scrollToEnd,
 				}),
 			),
 		).rejects.toThrow("edit failed");
 
+		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
 		expect(onRequestError).toHaveBeenCalledWith(error);
 		expect(visibleTexts(store)).toEqual(["first", "answer"]);
 	});
