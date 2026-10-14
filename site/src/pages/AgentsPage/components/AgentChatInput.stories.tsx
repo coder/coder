@@ -13,6 +13,7 @@ import {
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockBedrockInvokeModelSelectorOption } from "#/modules/aiModels/modelSelectorFixtures";
 import {
 	MockChatContextClean,
 	MockMCPServerConfig,
@@ -269,17 +270,8 @@ export const NoModelOptions: Story = {
 
 export const BedrockInvokeModelNotice: Story = {
 	args: {
-		selectedModel: "model-config-bedrock",
-		modelOptions: [
-			{
-				id: "model-config-bedrock",
-				provider: "bedrock",
-				providerLabel: "AWS Bedrock",
-				model: "claude-opus-4-5",
-				displayName: "Claude Opus 4.5",
-				bedrockInvokeModel: true,
-			},
-		],
+		selectedModel: MockBedrockInvokeModelSelectorOption.id,
+		modelOptions: [MockBedrockInvokeModelSelectorOption],
 	},
 };
 

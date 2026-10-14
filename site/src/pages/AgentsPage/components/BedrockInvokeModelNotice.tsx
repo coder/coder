@@ -1,10 +1,12 @@
-import { TriangleAlertIcon } from "lucide-react";
 import { Link } from "#/components/Link/Link";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import { docs } from "#/utils/docs";
+import { ComposerNoticeRow } from "./ComposerNoticeRow";
 
 type BedrockInvokeModelNoticeProps = {
-	model: ModelSelectorOption;
+	id: string;
+	modelOption: ModelSelectorOption;
 };
 
 /**
@@ -13,21 +15,26 @@ type BedrockInvokeModelNoticeProps = {
  */
 export const BedrockInvokeModelNotice: React.FC<
 	BedrockInvokeModelNoticeProps
-> = ({ model }) => {
+> = ({ id, modelOption }) => {
+	const providerLabel =
+		modelOption.providerLabel?.trim() ||
+		formatProviderLabel(modelOption.provider);
+
 	return (
-		<div className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs text-content-secondary">
-			<TriangleAlertIcon className="mt-px size-3.5 shrink-0 text-content-warning" />
+		<ComposerNoticeRow id={id} tone="secondary">
 			<span>
-				{model.providerLabel || "This provider"} uses the Bedrock InvokeModel
-				protocol, so requests use the model configured on the provider instead
-				of {model.displayName}.{" "}
+				{providerLabel} uses the Bedrock InvokeModel protocol, so requests use
+				the model configured on the provider instead of{" "}
+				{modelOption.displayName}.{" "}
 				<Link
 					href={docs("/ai-coder/ai-gateway/providers#invokemodel")}
+					target="_blank"
+					rel="noreferrer"
 					size="sm"
 				>
-					Learn more
+					Learn more about InvokeModel
 				</Link>
 			</span>
-		</div>
+		</ComposerNoticeRow>
 	);
 };

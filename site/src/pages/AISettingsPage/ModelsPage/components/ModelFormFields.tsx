@@ -232,9 +232,11 @@ export const ModelFormFields: React.FC<{
 						</label>
 					</div>
 					{selectedProviderState.providerDescriptor.bedrock_invoke_model && (
-						<BedrockInvokeModelAlert
-							providerLabel={selectedProviderState.label}
-						/>
+						<div className="sm:col-span-2">
+							<BedrockInvokeModelAlert
+								providerLabel={selectedProviderState.label}
+							/>
+						</div>
 					)}
 					<div className="grid gap-1.5">
 						<Label

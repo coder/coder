@@ -14,7 +14,6 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
-	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
@@ -98,6 +97,7 @@ import {
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ComposerNoticeRow } from "./ComposerNoticeRow";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
@@ -567,6 +567,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	fillWidth = false,
 }) => {
 	const warningId = useId();
+	const bedrockInvokeModelNoticeId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -792,7 +793,21 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
-	const readOnlyModel = isReadOnlyView ? selectedModelOption : undefined;
+	const bedrockInvokeModelOption =
+		!isReadOnlyView && selectedModelOption?.bedrockInvokeModel
+			? selectedModelOption
+			: undefined;
+	const composerDescriptionIds: string[] = [];
+	if (warning) {
+		composerDescriptionIds.push(warningId);
+	}
+	if (bedrockInvokeModelOption) {
+		composerDescriptionIds.push(bedrockInvokeModelNoticeId);
+	}
+	const composerDescribedBy =
+		composerDescriptionIds.length > 0
+			? composerDescriptionIds.join(" ")
+			: undefined;
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
@@ -1391,16 +1406,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDrop={onAttach ? handleDrop : undefined}
 			>
 				{warning && (
-					<div
-						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
-					>
-						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+					<ComposerNoticeRow id={warningId} tone="warning">
 						{warning}
-					</div>
+					</ComposerNoticeRow>
 				)}
-				{!isReadOnlyView && selectedModelOption?.bedrockInvokeModel && (
-					<BedrockInvokeModelNotice model={selectedModelOption} />
+				{bedrockInvokeModelOption && (
+					<BedrockInvokeModelNotice
+						id={bedrockInvokeModelNoticeId}
+						modelOption={bedrockInvokeModelOption}
+					/>
 				)}
 				{isEditingHistoryMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
@@ -1455,7 +1469,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
-						aria-describedby={warning ? warningId : undefined}
+						aria-describedby={composerDescribedBy}
 						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
@@ -1752,15 +1766,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							<Skeleton className="h-6 w-24 rounded" />
 						) : isReadOnlyView ? (
 							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
-								{readOnlyModel && (
+								{selectedModelOption && (
 									<ProviderIcon
-										provider={readOnlyModel.provider}
-										icon={readOnlyModel.providerIcon}
+										provider={selectedModelOption.provider}
+										icon={selectedModelOption.providerIcon}
 										className="size-3 shrink-0"
 									/>
 								)}
 								<span className="truncate">
-									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
+									{selectedModelOption?.displayName ?? modelSelectorPlaceholder}
 								</span>
 							</span>
 						) : (
