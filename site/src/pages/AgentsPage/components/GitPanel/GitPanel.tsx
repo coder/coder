@@ -15,6 +15,11 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "react-query";
+import {
+	invalidateChatDiffContents,
+	invalidateChatEntity,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ChatDiffStatus,
@@ -129,7 +134,11 @@ type GitPanelProps = {
 	chatId: string;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
+	/**
+	 * Callback to send a refresh to the git watcher. Returns false when
+	 * disconnected. The panel refetches the chat and its diff contents
+	 * itself.
+	 */
 	onRefresh: () => boolean;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
@@ -325,7 +334,10 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+	const queryClient = useQueryClient();
 	const handleRefresh = () => {
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatDiffContents(queryClient, chatId);
 		const sent = onRefresh();
 		if (!sent) {
 			toast.error("Unable to refresh git status.", {
@@ -488,29 +500,23 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-					{/*
-					 * The shared Button applies `disabled:pointer-events-none`,
-					 * which would suppress the native `title` tooltip when the
-					 * control is disabled. Wrap it in a span so the tooltip is
-					 * still reachable on hover in the disabled state.
-					 */}
-					<span title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={handleRefresh}
-							aria-label="Refresh"
-							disabled={!hasGitContext}
-							className="size-6 text-content-secondary hover:text-content-primary"
-						>
-							<RefreshCwIcon
-								className={cn(
-									"size-3.5",
-									spinning && "motion-safe:animate-spin-once",
-								)}
-							/>
-						</Button>
-					</span>
+					{/* Refresh stays enabled without git context, since a repo
+					    created after the chat touched its path only appears
+					    once the agent re-resolves the chat's paths. */}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="size-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
 				</div>
 			</div>
 			{/* PR title row: truncates with a hover tooltip only when the
