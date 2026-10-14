@@ -2297,6 +2297,83 @@ describe("useChatStore", () => {
 		expect(result.current.streamError).not.toBeNull();
 	});
 
+	// Another viewer's action can take an errored chat out of error, so the
+	// new turn supersedes this tab's request failure too.
+	it("clears a request failure when an errored chat starts a new turn", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-request-error-clears-on-new-turn";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		mockNewestPage(chatID, {
+			messages: [existingMessage],
+			queued_messages: [],
+			has_more: false,
+		});
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// The chat is in error, and this tab's send fails.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "error" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+		act(() => {
+			result.current.store.setStreamError({
+				kind: "generic",
+				message: "Prompt could not be sent.",
+			});
+		});
+		expect(result.current.streamError).not.toBeNull();
+
+		// Another viewer sends a message, and the chat starts a new turn.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		expect(result.current.streamError).toBeNull();
+	});
+
 	it("uses fallback message when error event has no message", async () => {
 		immediateAnimationFrame();
 
