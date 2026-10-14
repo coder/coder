@@ -70,13 +70,15 @@ No Vale rule.*
 
 ## Keep steps short
 
-Write each sentence in a step in 20 words or fewer.
-A step can hold an action and its expected result, as [Callouts inform, steps instruct](#callouts-inform-steps-instruct) describes, so the limit applies to each sentence, not to the whole step.
+Write each step in 20 words or fewer.
+The limit covers the whole step, including an expected result.
+When a step deliberately breaks into more than one paragraph, for example around a code block, count each paragraph on its own.
+Code blocks, images, and tables inside a step don't count toward the limit.
 Count words as [How to count words](./voice-and-tone.md#how-to-count-words) describes.
 Body prose gets a flexible 25-word target (refer to [Keep sentences and paragraphs short](./voice-and-tone.md#keep-sentences-and-paragraphs-short)).
 Steps get a firm limit because the reader is mid-task and holds the instruction in working memory while they act on it.
 
-When a step sentence needs more words, split the step into two steps, or move background information into the prose around the procedure.
+When a step needs more words, split the step into two steps, or move background information into the prose around the procedure.
 Do not cut words that carry meaning to meet the limit.
 
 **Do**:
