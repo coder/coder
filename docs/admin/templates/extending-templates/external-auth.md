@@ -18,10 +18,12 @@ When developers use `git` inside their workspace, they are prompted to
 authenticate. After that, Coder will store and refresh tokens for future
 operations.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="../../../../site/static/external-auth.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows a developer being prompted to authenticate with an external provider and then using `git` in the workspace.
 
 ### Require git authentication in templates
 

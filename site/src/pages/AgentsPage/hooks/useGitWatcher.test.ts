@@ -87,17 +87,6 @@ describe("useGitWatcher", () => {
 		expect(result.current.hasReceivedChanges).toBe(false);
 	});
 
-	it("does not connect when chatId is undefined", () => {
-		const { result } = renderHook(() =>
-			useGitWatcher({ chatId: undefined, agentStatus: "connected" }),
-		);
-
-		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
-		expect(result.current.hasReceivedChanges).toBe(false);
-		expect(result.current.repositories.size).toBe(0);
-	});
-
 	it("does not connect when agentStatus is not connected", () => {
 		createMockSocket();
 
@@ -445,9 +434,9 @@ describe("useGitWatcher", () => {
 		const socket1 = createMockSocket();
 
 		const { result, rerender } = renderHook(
-			({ chatId }: { chatId: string | undefined }) =>
+			({ chatId }: { chatId: string }) =>
 				useGitWatcher({ chatId, agentStatus: "connected" }),
-			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+			{ initialProps: { chatId: "chat-aaa" } },
 		);
 
 		act(() => socket1.simulateOpen());
@@ -509,9 +498,9 @@ describe("useGitWatcher", () => {
 			const socket1 = createMockSocket();
 
 			const { result, rerender } = renderHook(
-				({ chatId }: { chatId: string | undefined }) =>
+				({ chatId }: { chatId: string }) =>
 					useGitWatcher({ chatId, agentStatus: "connected" }),
-				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+				{ initialProps: { chatId: "chat-aaa" } },
 			);
 
 			act(() => socket1.simulateOpen());

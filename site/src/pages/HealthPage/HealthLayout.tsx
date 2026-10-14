@@ -92,7 +92,11 @@ export const HealthLayout: React.FC = () => {
 												}}
 											>
 												{isRefreshing ? (
-													<Spinner size="sm" loading />
+													<Spinner
+														size="sm"
+														loading
+														className="text-content-secondary"
+													/>
 												) : (
 													<RotateCcwIcon className="size-5" />
 												)}

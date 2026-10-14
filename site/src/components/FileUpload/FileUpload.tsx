@@ -38,7 +38,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 		return (
 			<div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border bg-surface-primary p-4">
 				<div className="flex flex-row items-center gap-4">
-					<FolderIcon className="size-icon-sm" />
+					<FolderIcon className="size-icon-sm shrink-0" />
 					<span>{file.name}</span>
 				</div>
 

@@ -26,7 +26,7 @@ type DesktopPanelProps = {
 	/** Absent while the workspace is stopped or rebuilding. */
 	workspaceAgent: WorkspaceAgent | undefined;
 	/** When true the panel is the active sidebar tab. */
-	isVisible?: boolean;
+	isVisible: boolean;
 };
 
 export const DesktopPanel: React.FC<DesktopPanelProps> = ({
@@ -147,7 +147,7 @@ export type DesktopPanelViewProps = DesktopWorkspaceStateProps & {
 	isControlling: boolean;
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
-	onPopOut?: () => void;
+	onPopOut: () => void;
 };
 
 export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({

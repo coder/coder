@@ -1,3 +1,5 @@
+import type { SkillSourceList } from "./skillAliases";
+
 /**
  * A built-in chat command offered by the "/" trigger menu. Unlike
  * personal skills, commands are fixed client-side actions: the
@@ -31,16 +33,19 @@ export const CHAT_SLASH_COMMANDS: readonly ChatSlashCommand[] = [
 
 type ChatSlashCommandResolution = "pending" | "available" | "unavailable";
 
+/**
+ * A skill from any source with a command's name makes the command
+ * unavailable. Pending until every list is known.
+ */
 export const resolveChatSlashCommandAvailability = (
 	command: ChatSlashCommand,
-	personalSkills: readonly { name: string }[] | undefined,
-	workspaceSkills: readonly { name: string }[] | undefined,
+	skillLists: readonly SkillSourceList<{ name: string }>[],
 ): ChatSlashCommandResolution => {
-	if (personalSkills === undefined || workspaceSkills === undefined) {
+	if (skillLists.some((list) => list.skills === undefined)) {
 		return "pending";
 	}
-	return [...personalSkills, ...workspaceSkills].some(
-		(skill) => skill.name === command.name,
+	return skillLists.some((list) =>
+		list.skills?.some((skill) => skill.name === command.name),
 	)
 		? "unavailable"
 		: "available";

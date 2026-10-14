@@ -5,10 +5,12 @@ title: Open in Coder
 You can embed an "Open in Coder" button into your git repos or internal wikis to
 let developers quickly launch a new workspace.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="../../images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows a developer selecting an "Open in Coder" button and launching a new workspace.
 
 ## How it works
 

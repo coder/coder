@@ -421,14 +421,9 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	loop.state.snapshotVersion = 1
 	loop.state.status = database.ChatStatusRunning
 
-	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 	)
-	tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(database.Chat{
-		ID:              chatID,
-		Status:          database.ChatStatusWaiting,
-		SnapshotVersion: 2,
-	}, nil)
 	tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
 		ID:              chatID,
 		Status:          database.ChatStatusWaiting,

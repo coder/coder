@@ -35,6 +35,8 @@ import {
 	FilterComboboxChips,
 	FilterComboboxChipsInput,
 	FilterComboboxContent,
+	FilterComboboxFlyoutContent,
+	FilterComboboxFlyoutRoot,
 	FilterComboboxGroup,
 	FilterComboboxInputGroup,
 	FilterComboboxItem,
@@ -71,10 +73,6 @@ const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
-
-// Flush with the main panel, like `DropdownMenuSubContent`.
-const flyoutPanelClassName =
-	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-full sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -570,43 +568,45 @@ export function FilterCombobox({
 							</div>
 						)
 					) : (
-						<div
-							className="relative flex items-start gap-1 overflow-visible"
-							onMouseLeave={() => {
-								updateFlyoutCategory(null);
-								setHighlightedCategoryKey(undefined);
-								actions.setHighlightedValue("");
-							}}
-						>
-							{!mainPanelEmpty && (
-								<MainPanel
-									// Typed text narrows the category rows, so a click enters
-									// the category and drops the text.
-									drillIn={
-										isCoarsePointer ||
-										activeCategoryKey !== null ||
-										categoriesNarrowedByText
-									}
-									{...mainPanelProps}
-								/>
-							)}
-							{categoryOptionsList ??
-								(flyoutOptions && (
-									<FlyoutCategoryPanel
-										key={flyoutOptions.category.key}
-										offset={panelOffset}
-										flyout={flyoutOptions}
-										selectedTokens={chipValues}
-										optionTokenFor={(option) =>
-											optionTokenFor(flyoutOptions.category.key, option)
+						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
+							<div
+								className="relative flex items-start gap-1 overflow-visible"
+								onMouseLeave={() => {
+									updateFlyoutCategory(null);
+									setHighlightedCategoryKey(undefined);
+									actions.setHighlightedValue("");
+								}}
+							>
+								{!mainPanelEmpty && (
+									<MainPanel
+										// Typed text narrows the category rows, so a click enters
+										// the category and drops the text.
+										drillIn={
+											isCoarsePointer ||
+											activeCategoryKey !== null ||
+											categoriesNarrowedByText
 										}
-										scope={scopeState(flyoutOptions.category.key)}
-										onToggleScope={toggleFlyoutScope}
-										onMouseEnter={cancelHoverSwitch}
-										onSelectOption={selectFlyoutOption}
+										{...mainPanelProps}
 									/>
-								))}
-						</div>
+								)}
+								{categoryOptionsList ??
+									(flyoutOptions && (
+										<FlyoutCategoryPanel
+											key={flyoutOptions.category.key}
+											offset={panelOffset}
+											flyout={flyoutOptions}
+											selectedTokens={chipValues}
+											optionTokenFor={(option) =>
+												optionTokenFor(flyoutOptions.category.key, option)
+											}
+											scope={scopeState(flyoutOptions.category.key)}
+											onToggleScope={toggleFlyoutScope}
+											onMouseEnter={cancelHoverSwitch}
+											onSelectOption={selectFlyoutOption}
+										/>
+									))}
+							</div>
+						</FilterComboboxFlyoutRoot>
 					)}
 				</FilterComboboxContent>
 			</FilterComboboxRoot>
@@ -1055,27 +1055,8 @@ function OptionsPanel({
 	onMouseEnter,
 	children,
 }: OptionsPanelProps) {
-	// A searchable panel is pinned to the top so its search field stays put.
-	const top = search ? 0 : offset;
-	return (
-		<div
-			onMouseEnter={onMouseEnter}
-			className={cn(
-				flyoutPanelClassName,
-				"p-2",
-				scope && "sm:min-w-60",
-				embedded &&
-					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
-			)}
-			style={
-				embedded
-					? undefined
-					: {
-							top,
-							maxHeight: `min(20rem, calc(var(--radix-popper-available-height) - ${top}px))`,
-						}
-			}
-		>
+	const content = (
+		<>
 			{search && category && (
 				<FlyoutSearch
 					label={category.label}
@@ -1096,7 +1077,20 @@ function OptionsPanel({
 					onToggle={onToggleScope}
 				/>
 			)}
-		</div>
+		</>
+	);
+	if (embedded) {
+		return <div className="flex min-h-0 w-full flex-1 flex-col">{content}</div>;
+	}
+	return (
+		<FilterComboboxFlyoutContent
+			onMouseEnter={onMouseEnter}
+			// A searchable panel is pinned to the top so its search field stays put.
+			alignOffset={search ? 0 : offset}
+			className={cn(scope && "min-w-60")}
+		>
+			{content}
+		</FilterComboboxFlyoutContent>
 	);
 }
 
@@ -1231,7 +1225,7 @@ function FlyoutCategoryPanel({
 					return (
 						<button
 							className={cn(
-								"flex min-h-8.5 w-full items-center gap-2 rounded-sm px-2 py-1.25 text-left text-sm font-normal text-nowrap text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
+								"flex min-h-8.5 w-full items-center gap-2 rounded-sm px-2 py-1.25 text-left text-sm font-normal text-nowrap text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								selected && "text-content-primary",
 							)}
 							key={token}

@@ -1,49 +1,33 @@
 import { Volume2Icon, VolumeOffIcon } from "lucide-react";
-import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 type ChimeButtonProps = {
-	enabled?: boolean;
-	onToggle?: () => void;
+	enabled: boolean;
+	onToggle: () => void;
 };
 
 export const ChimeButton: React.FC<ChimeButtonProps> = ({
 	enabled,
 	onToggle,
 }) => {
-	const [internalEnabled, setInternalEnabled] = useState(getChimeEnabled);
-	const isControlled = enabled !== undefined && onToggle !== undefined;
-	const isEnabled = isControlled ? enabled : internalEnabled;
-
-	const handleClick = () => {
-		if (isControlled) {
-			onToggle();
-			return;
-		}
-		const next = !internalEnabled;
-		setInternalEnabled(next);
-		setChimeEnabled(next);
-	};
-
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<Button
 					variant="subtle"
 					size="icon"
-					onClick={handleClick}
+					onClick={onToggle}
 					aria-label={
-						isEnabled ? "Mute completion chime" : "Enable completion chime"
+						enabled ? "Mute completion chime" : "Enable completion chime"
 					}
 					className="size-7 text-content-secondary hover:text-content-primary"
 				>
-					{isEnabled ? (
+					{enabled ? (
 						<Volume2Icon className="text-content-success" />
 					) : (
 						<VolumeOffIcon className="text-content-secondary" />
@@ -51,7 +35,7 @@ export const ChimeButton: React.FC<ChimeButtonProps> = ({
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				{isEnabled ? "Disable completion sound" : "Enable completion sound"}
+				{enabled ? "Disable completion sound" : "Enable completion sound"}
 			</TooltipContent>
 		</Tooltip>
 	);

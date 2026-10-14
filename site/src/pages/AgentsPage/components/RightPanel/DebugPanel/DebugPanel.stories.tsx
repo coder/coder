@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { toast } from "sonner";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
 import { API } from "#/api/api";
 import { chatDebugRunKey, chatDebugRunsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { DebugPanel } from "./DebugPanel";
 import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 

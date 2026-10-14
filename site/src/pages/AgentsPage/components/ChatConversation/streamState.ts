@@ -3,6 +3,7 @@ import { appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	markTextBeforeProviderTool,
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -25,24 +26,28 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			// Skip empty and whitespace-only deltas so they don't
-			// create a non-null StreamState with empty blocks, which
-			// would prematurely end the "starting" phase.
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(
+				nextState.blocks,
+				"response",
+				part.text,
+				part.narration,
+			);
+			// Keeps a leading whitespace-only delta from creating a non-null
+			// state with no blocks, which would end the "starting" phase early.
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
-			return {
-				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
-			};
+			return { ...nextState, blocks };
 		}
 		case "reasoning": {
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(nextState.blocks, "thinking", part.text);
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
+				startedAt: nextState.startedAt ?? part.created_at,
+				blocks,
 			};
 		}
 		case "tool-call": {
@@ -50,7 +55,11 @@ export const applyMessagePartToStreamState = (
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
 			if (part.provider_executed) {
-				return prev;
+				const blocks = markTextBeforeProviderTool(nextState.blocks);
+				const startedAt = nextState.startedAt ?? part.created_at;
+				return blocks === nextState.blocks && startedAt === nextState.startedAt
+					? prev
+					: { ...nextState, startedAt, blocks };
 			}
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === part.tool_name,
@@ -76,6 +85,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -94,9 +104,13 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-result": {
-			// Skip synthetic results for provider-executed tools.
+			// Provider-executed results render no card, but the search they end
+			// is a step. Recording it may create an empty state, which still
+			// shows the Thinking indicator.
 			if (part.provider_executed) {
-				return prev;
+				return nextState.providerToolRan
+					? nextState
+					: { ...nextState, providerToolRan: true };
 			}
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === part.tool_name,
@@ -119,6 +133,7 @@ export const applyMessagePartToStreamState = (
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
@@ -126,6 +141,7 @@ export const applyMessagePartToStreamState = (
 			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
@@ -149,6 +165,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,

@@ -787,71 +787,6 @@ func TestChatMessage_QueuedMessageID(t *testing.T) {
 	})
 }
 
-// TestChatMessageAutomationProvenance guards the API contract that
-// automation input carries automation_id and input_id while ordinary
-// input omits both keys, for history and queued messages alike.
-func TestChatMessageAutomationProvenance(t *testing.T) {
-	t.Parallel()
-
-	automationID := uuid.New()
-	inputID := uuid.New()
-	set := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
-
-	cases := []struct {
-		name      string
-		automated any
-		ordinary  any
-	}{
-		{
-			name: "ChatMessage",
-			automated: db2sdk.ChatMessage(database.ChatMessage{
-				ChatID:       uuid.New(),
-				Role:         database.ChatMessageRoleUser,
-				AutomationID: set(automationID),
-				InputID:      set(inputID),
-			}),
-			ordinary: db2sdk.ChatMessage(database.ChatMessage{
-				ChatID: uuid.New(),
-				Role:   database.ChatMessageRoleUser,
-			}),
-		},
-		{
-			name: "ChatQueuedMessage",
-			automated: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-				ChatID:       uuid.New(),
-				AutomationID: set(automationID),
-				InputID:      set(inputID),
-			}),
-			ordinary: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-				ChatID: uuid.New(),
-			}),
-		},
-	}
-
-	fieldsOf := func(t *testing.T, v any) map[string]json.RawMessage {
-		t.Helper()
-		raw, err := json.Marshal(v)
-		require.NoError(t, err)
-		var fields map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal(raw, &fields))
-		return fields
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			automated := fieldsOf(t, tc.automated)
-			require.JSONEq(t, `"`+automationID.String()+`"`, string(automated["automation_id"]))
-			require.JSONEq(t, `"`+inputID.String()+`"`, string(automated["input_id"]))
-
-			ordinary := fieldsOf(t, tc.ordinary)
-			require.NotContains(t, ordinary, "automation_id")
-			require.NotContains(t, ordinary, "input_id")
-		})
-	}
-}
-
 func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 
@@ -987,8 +922,6 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
-
-		ManageAutomationsEnabled: true,
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
@@ -997,6 +930,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	diffStatus := &database.ChatDiffStatus{
 		ChatID: input.ID,
 	}
+	diffStatuses := []database.ChatDiffStatus{*diffStatus}
 
 	fileRows := []database.GetChatFileMetadataByChatIDRow{
 		{
@@ -1009,7 +943,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 	}
 
-	got := db2sdk.Chat(input, diffStatus, fileRows)
+	got := db2sdk.ChatWithDiffStatuses(input, diffStatus, diffStatuses, fileRows)
 
 	require.Equal(t, &lastErrorPayload, got.LastError)
 
@@ -1145,6 +1079,28 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestPrimaryChatDiffStatus(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, db2sdk.PrimaryChatDiffStatus(nil))
+
+	older := dbtime.Now()
+	newer := older.Add(time.Minute)
+	// The primary is not first in the list. Equal report times go to
+	// the lowest origin, then the lowest branch.
+	statuses := []database.ChatDiffStatus{
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "first", UpdatedAt: older},
+		{GitRemoteOrigin: "https://github.com/b/r", GitBranch: "main", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "z", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "y", UpdatedAt: newer},
+	}
+
+	primary := db2sdk.PrimaryChatDiffStatus(statuses)
+	require.NotNil(t, primary)
+	require.Equal(t, "https://github.com/a/r", primary.GitRemoteOrigin)
+	require.Equal(t, "y", primary.GitBranch)
 }
 
 func TestChat_LastErrorFallback(t *testing.T) {
@@ -1286,4 +1242,31 @@ func TestChatQueuedMessage_MalformedContent(t *testing.T) {
 	})
 
 	require.Empty(t, queued.Content)
+}
+
+func TestConnectionLogType(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		method  database.ConnectionLogMethod
+		appName string
+		want    string
+	}{
+		{"VSCodeFamily", database.ConnectionLogMethodSSH, "cursor", "vscode"},
+		{"JetBrainsFamily", database.ConnectionLogMethodSSH, "goland", "jetbrains"},
+		{"Normalized", database.ConnectionLogMethodSSH, "Code-Server", "vscode"},
+		// Every other SSH app name, including an absent one, is plain SSH.
+		{"Absent", database.ConnectionLogMethodSSH, "", "ssh"},
+		{"SSHFamily", database.ConnectionLogMethodSSH, "zed", "ssh"},
+		{"Unregistered", database.ConnectionLogMethodSSH, "an_unregistered_ide", "ssh"},
+		// Other methods report themselves, whatever the app.
+		{"ReconnectingPTY", database.ConnectionLogMethodReconnectingPTY, "cursor", "reconnecting_pty"},
+		{"WorkspaceApp", database.ConnectionLogMethodWorkspaceApp, "vscode", "workspace_app"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, db2sdk.ConnectionLogType(tc.method, tc.appName))
+		})
+	}
 }

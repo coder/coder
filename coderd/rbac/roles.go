@@ -440,7 +440,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceChatAutomation, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -475,9 +475,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganization.Type:       {policy.ActionRead},
 			ResourceOrganizationMember.Type: {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
-			ResourceDeploymentStats.Type:  {policy.ActionRead},
-			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			ResourceChatModelConfig.Type:  {policy.ActionRead},
+			ResourceDeploymentStats.Type:   {policy.ActionRead},
+			ResourceDeploymentConfig.Type:  {policy.ActionRead},
+			ResourceChatModelConfig.Type:   {policy.ActionRead},
+			ResourceOrganizationSkill.Type: {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
@@ -614,6 +615,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
 							ResourceChatModelConfig.Type:    {policy.ActionRead},
+							ResourceOrganizationSkill.Type:  {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},
@@ -730,9 +732,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// Chat ActionDelete is intentionally excluded because hard-deletion goes
-		// through ResourceSystem in dbpurge. Members manage their own chat
-		// automations in full, including deletion.
+		// ActionDelete is intentionally excluded because hard-deletion goes through
+		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -749,16 +750,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionShare,
 								policy.ActionUpdate,
 							},
-							ResourceChatAutomation.Type: {
-								policy.ActionCreate,
-								policy.ActionRead,
-								policy.ActionUpdate,
-								policy.ActionDelete,
-							},
 							// Projects group a member's own chats, so they follow chat
 							// access. ChatProject.RBACObject sets WithOwner(OwnerID),
 							// which keeps them private to their owner.
 							ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
+							// Memory objects carry the owning project's owner, so this
+							// grant reaches only the member's own projects.
+							ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
 						}),
 					},
 				},
@@ -1268,8 +1266,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat and chat project permissions are intentionally omitted for service
-	// accounts, and GetAuthorizationUserRoles does not union agents-access from
+	// Chat, chat project, and chat project memory permissions are intentionally
+	// omitted for service accounts, and GetAuthorizationUserRoles does not union agents-access from
 	// the org defaults for them, so chat requires an explicit agents-access grant.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.

@@ -19,9 +19,12 @@ import type {
 	StreamState,
 } from "./types";
 
-/** Concatenate text chunks, skipping whitespace-only values. */
+/**
+ * Concatenate text chunks. A whitespace-only chunk is dropped only while the
+ * text is still empty, so paragraph breaks between chunks survive.
+ */
 const appendText = (current: string, next: string): string => {
-	if (!next.trim()) {
+	if (!current && !next.trim()) {
 		return current;
 	}
 	return `${current}${next}`;
@@ -84,6 +87,22 @@ export const ensureToolBlock = (
 		return blocks;
 	}
 	return [...blocks, { type: "tool", id }];
+};
+
+/**
+ * Provider-executed calls render no block, so without this mark the text
+ * before a web search would render as the answer. It skips citations that
+ * streamed after the text.
+ */
+export const markTextBeforeProviderTool = (
+	blocks: RenderBlock[],
+): RenderBlock[] => {
+	const index = blocks.findLastIndex((block) => block.type !== "sources");
+	const block = blocks[index];
+	if (block?.type !== "response" || block.beforeProviderTool) {
+		return blocks;
+	}
+	return blocks.with(index, { ...block, beforeProviderTool: true });
 };
 
 const isToolCallPart = (
@@ -226,7 +245,12 @@ export const parseMessageContent = (
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
-				parsed.blocks = appendTextBlock(parsed.blocks, "response", part.text);
+				parsed.blocks = appendTextBlock(
+					parsed.blocks,
+					"response",
+					part.text,
+					part.narration,
+				);
 				break;
 			}
 			case "reasoning": {
@@ -240,6 +264,7 @@ export const parseMessageContent = (
 				// tool card UI and let the sources component render
 				// their results.
 				if (part.provider_executed) {
+					parsed.blocks = markTextBeforeProviderTool(parsed.blocks);
 					break;
 				}
 				const id = part.tool_call_id || `tool-call-${index}`;
@@ -355,7 +380,8 @@ export const getEditableUserMessagePayload = (
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
+	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+	// whitespace-only chunks.
 	const text = (message.content ?? [])
 		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
 		.map((part) => part.text)

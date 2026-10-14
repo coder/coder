@@ -265,7 +265,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		cancelable  []fantasy.ToolCallContent
 		toolCallIDs map[string]uuid.UUID
 	)
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -425,7 +425,7 @@ func decideRequiresActionTimeout(
 	input chatWorkerTaskStartInput,
 ) (requiresActionTimeoutDecision, error) {
 	var decision requiresActionTimeoutDecision
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)

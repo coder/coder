@@ -55,9 +55,16 @@ You can filter connection logs by the following parameters:
      connected to.
 - `workspace_owner` - The username of the owner of the workspace being connected
     to.
-- `type` - The type of the connection, such as SSH, VS Code, or workspace app.
-    For more connection types, refer to the
-    [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
+- `method` - How the connection was established, such as `ssh`, `reconnecting_pty`, or `workspace_app`.
+  For every method, refer to the [`codersdk.ConnectionLogMethod` schema](../../reference/api/schemas.md#codersdkconnectionlogmethod).
+  For example, `method:ssh` matches every SSH connection, whichever app made it.
+- `app` - The name of the application that made an SSH or reconnecting PTY connection, such as `cursor`.
+  Repeat the filter to match any of several apps, for example `app:vscode app:cursor`.
+  Some clients report only `vscode` or `jetbrains` instead of their own name, so `app:vscode` and `app:jetbrains` can also include other VS Code-based editors and JetBrains IDEs.
+  Coder lowercases the value and replaces hyphens with underscores before it matches.
+  Workspace app slugs and forwarded ports don't match this filter.
+- `type` - Deprecated and will be removed in a future release.
+  Use `method` and `app` instead, as described in [Replace the type filter](#replace-the-type-filter).
 - `username`: The name of the user who initiated the connection.
    Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.
@@ -69,8 +76,20 @@ You can filter connection logs by the following parameters:
 - `workspace_id`: The ID of the workspace being connected to.
 - `connection_id`: The ID of the connection.
 - `status`: The status of the connection, either `ongoing` or `completed`.
-     Some events are neither ongoing nor completed, such as the opening of a
-     workspace app.
+  Only SSH and reconnecting PTY connections have a status.
+  A connection is `completed` after Coder receives its disconnect event, and `ongoing` until then.
+  Workspace app, port forwarding, and tunnel events never match a `status` filter.
+
+### Replace the type filter
+
+If you have saved searches or scripts that use the `type` filter, replace it with `method` and `app`:
+
+| `type` filter                                                                        | Replacement                                                                                       |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `type:ssh`                                                                           | `method:ssh`, which also matches SSH connections from VS Code and JetBrains apps                  |
+| `type:vscode`                                                                        | `method:ssh` with an `app` filter for each VS Code-based app, for example `app:vscode app:cursor` |
+| `type:jetbrains`                                                                     | `method:ssh app:jetbrains`, plus an `app` filter for any JetBrains IDE that reports its own name  |
+| `type:reconnecting_pty`, `type:workspace_app`, `type:port_forwarding`, `type:tunnel` | `method` with the same value, for example `method:workspace_app`                                  |
 
 <a id="capturingexporting-connection-logs"></a>
 
@@ -86,49 +105,80 @@ Visit the
 [`get-connection-logs` endpoint documentation](../../reference/api/enterprise.md#get-connection-logs)
 for details.
 
+Each connection log in the response describes the connection with these fields:
+
+- `connection_method`: How the connection was established, with the same values as the `method` filter.
+- `app_name`: The name of the application that made an SSH or reconnecting PTY connection, such as `vscode`.
+  The client reports this name, so treat it as a label rather than a verified identity.
+  The response omits this field when the app isn't known, and for workspace app, port forwarding, and tunnel connections.
+- `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
+- `type`: Deprecated.
+  Use `connection_method` and `app_name` instead.
+  It will be removed in a future release.
+
+If you read `type`, map its values to the new fields as follows:
+
+| `type`                                       | `connection_method` | `app_name`                                                    |
+|----------------------------------------------|---------------------|---------------------------------------------------------------|
+| `ssh`                                        | `ssh`               | Omitted, or an app outside the VS Code and JetBrains families |
+| `vscode`                                     | `ssh`               | An app in the VS Code family, such as `vscode`                |
+| `jetbrains`                                  | `ssh`               | An app in the JetBrains family, such as `jetbrains`           |
+| `reconnecting_pty`                           | `reconnecting_pty`  | Omitted unless the app is known                               |
+| `workspace_app`, `port_forwarding`, `tunnel` | Same as `type`      | Omitted                                                       |
+
+The `type` field keeps the same values, but the API schema describes it as a string rather than an enum.
+
 ### Service Logs
 
 Connection events are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
 
-Example of a [JSON formatted](../../reference/cli/server/index.md#--log-json)
-connection log entry, when an SSH connection is made:
+Each `connection_log` entry describes the connection with these fields:
+
+- `ConnectionMethod`: How the connection was established, with the same values as the API `connection_method` field.
+- `AppNameOrPort`: The name of the connecting application for SSH and reconnecting PTY connections, or the workspace app slug or forwarded port for workspace app and port forwarding connections.
+  The value is an empty string when there is nothing to report.
+
+If your log pipeline reads the `Type` or `SlugOrPort` fields, update it to read `ConnectionMethod` and `AppNameOrPort`, because entries no longer include the old fields.
+For SSH connections from a VS Code or JetBrains family app, `ConnectionMethod` is `ssh` and `AppNameOrPort` holds the app name, such as `vscode`.
+Every other former `Type` value matches `ConnectionMethod` directly.
+
+Example of a [JSON formatted](../../reference/cli/server/index.md#--log-json) connection log entry, when VS Code connects over SSH:
 
 ```json
 {
-    "ts": "2025-07-03T05:09:41.929840747Z",
+    "ts": "2026-10-07T11:34:37.428786242Z",
     "level": "INFO",
     "msg": "connection_log",
-    "caller": "/home/coder/coder/enterprise/audit/backends/slog.go:38",
+    "caller": "/home/coder/coder/enterprise/audit/backends/slog.go:36",
     "func": "github.com/coder/coder/v2/enterprise/audit/backends.(*SlogExporter).ExportStruct",
     "logger_names": ["coderd"],
     "fields": {
-        "request_id": "916ad077-e120-4861-8640-f449d56d2bae",
-        "ID": "ca5dfc63-dc43-463a-bb3e-38526866fd4b",
-        "OrganizationID": "1a2bb67e-0117-4168-92e0-58138989a7f5",
-        "WorkspaceOwnerID": "fe8f4bab-3128-41f1-8fec-1cc0755affe5",
-        "WorkspaceID": "05567e23-31e2-4c00-bd05-4d499d437347",
+        "ID": "2e3b3337-77ab-4677-b39f-ba98df4e8ae4",
+        "OrganizationID": "8654721b-2d93-4559-afdb-bdbdc2acbdc2",
+        "WorkspaceOwnerID": "1a7edc8c-b712-4a1f-9d8f-7727127912e2",
+        "WorkspaceID": "59d3e101-2d07-40c8-9bcd-d5fff4cc5266",
         "WorkspaceName": "dev",
         "AgentName": "main",
-        "Type": "ssh",
+        "ConnectionMethod": "ssh",
         "Code": null,
-        "Ip": "fd7a:115c:a1e0:4b86:9046:80e:6c70:33b7",
+        "IP": "fd7a:115c:a1e0:4b86:9046:80e:6c70:33b7",
         "UserAgent": "",
         "UserID": null,
-        "SlugOrPort": "",
-        "ConnectionID": "7a6fafdc-e3d0-43cb-a1b7-1f19802d7908",
+        "AppNameOrPort": "vscode",
+        "ConnectionID": "875ee185-cdf7-4cd1-98d7-d8a415e42a26",
         "DisconnectReason": "",
-        "Time": "2025-07-10T10:14:38.942776145Z",
+        "ClientSessionID": "",
+        "Time": "2026-10-07T11:34:37.428771813Z",
         "ConnectionStatus": "connected"
     }
 }
 ```
 
-Example of a [human readable](../../reference/cli/server/index.md#--log-human)
-connection log entry, when `code-server` is opened:
+Example of a [human readable](../../reference/cli/server/index.md#--log-human) connection log entry, when a user opens `code-server`:
 
-```console
-[API] 2025-07-03 06:57:16.157 [info]  coderd: connection_log  request_id=de3f6004-6cc1-4880-a296-d7c6ca1abf75  ID=f0249951-d454-48f6-9504-e73340fa07b7  Time="2025-07-03T06:57:16.144719Z"  OrganizationID=0665a54f-0b77-4a58-94aa-59646fa38a74  WorkspaceOwnerID=6dea5f8c-ecec-4cf0-a5bd-bc2c63af2efa  WorkspaceID=3c0b37c8-e58c-4980-b9a1-2732410480a5  WorkspaceName=dev  AgentName=main  Type=workspace_app  Code=200  Ip=127.0.0.1  UserAgent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"  UserID=6dea5f8c-ecec-4cf0-a5bd-bc2c63af2efa  SlugOrPort=code-server  ConnectionID=<nil>  DisconnectReason=""  ConnectionStatus=connected
+```txt
+2026-10-07 11:34:37.428 [info]  coderd: connection_log  ID=909a0310-a14c-4761-89d3-9779a328f14f  OrganizationID=dc39157d-b298-415d-8fc7-590e9055f244  WorkspaceOwnerID=17f1cc14-ac7a-4703-976e-73ea4547dceb  WorkspaceID=f2e648d4-95bc-4df3-a5c2-ee5be991da29  WorkspaceName=dev  AgentName=main  ConnectionMethod=workspace_app  Code=200  IP=127.0.0.1  UserAgent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"  UserID=17f1cc14-ac7a-4703-976e-73ea4547dceb  AppNameOrPort=code-server  ConnectionID=<nil>  DisconnectReason=""  ClientSessionID=""  Time="2026-10-07 11:34:37.428773435 +0000 UTC"  ConnectionStatus=connected
 ```
 
 ## Data Retention

@@ -11,12 +11,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -41,6 +43,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	}
 
 	var server Server
+	server.inflight = aibridge.NewInflightGate(slogtest.Make(t, nil))
 	registry := prometheus.NewRegistry()
 	require.NoError(t, registry.Register(server.KeyPoolStateCollector()))
 
@@ -55,7 +58,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	pool, err := NewCachedBridgePool(DefaultPoolOptions, []aibridge.Provider{firstProvider}, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
-	server.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
+	server.backend.Store(&backend{pool: pool})
 
 	metrics := gather(t, registry)
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "first", "valid"))
@@ -70,18 +73,18 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	// Replacing proxy snapshots similarly changes the output without
 	// registering another collector.
 	thirdProvider := newProvider(t, "third")
-	firstRouter, err := proxy.NewRouter([]aibridge.Provider{thirdProvider}, slogtest.Make(t, nil))
+	firstRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{thirdProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
-	server.backend.Store(&backend{proxyRouter: firstRouter, keyPools: firstRouter.KeyPools})
+	server.backend.Store(&backend{proxyRouter: firstRouter})
 
 	metrics = gather(t, registry)
 	require.False(t, testutil.PromGaugeGathered(t, metrics, "key_pool_state", "second", "valid"))
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "third", "valid"))
 
 	fourthProvider := newProvider(t, "fourth")
-	secondRouter, err := proxy.NewRouter([]aibridge.Provider{fourthProvider}, slogtest.Make(t, nil))
+	secondRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{fourthProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
-	server.backend.Store(&backend{proxyRouter: secondRouter, keyPools: secondRouter.KeyPools})
+	server.backend.Store(&backend{proxyRouter: secondRouter})
 
 	metrics = gather(t, registry)
 	require.False(t, testutil.PromGaugeGathered(t, metrics, "key_pool_state", "third", "valid"))
@@ -275,7 +278,9 @@ func TestReplaceProvidersDuringShutdownKeepsAdmissionClosed(t *testing.T) {
 		handler http.Handler
 	}{
 		{name: "Retained", handler: retained},
-		{name: "CurrentSnapshot", handler: server.backend.Load().proxyRouter},
+		{name: "CurrentSnapshot", handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server.backend.Load().proxyRouter.ServeHTTP(w, r)
+		})},
 		{name: "AcquiredAfterShutdown", handler: acquired},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

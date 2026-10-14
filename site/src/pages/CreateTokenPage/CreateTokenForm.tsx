@@ -27,7 +27,7 @@ import {
 	customLifetimeDay,
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
-	NANO_HOUR,
+	NANO_DAY,
 } from "./utils";
 
 dayjs.extend(utc);
@@ -61,13 +61,15 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 	);
 	const currentTime = dayjs(now ?? new Date());
 
+	// Formik keeps setFieldValue stable across renders, unlike `form` itself.
+	const { setFieldValue } = form;
 	useEffect(() => {
 		if (lifetimeDays !== "custom") {
-			void form.setFieldValue("lifetime", lifetimeDays);
+			void setFieldValue("lifetime", lifetimeDays);
 		} else {
-			void form.setFieldValue("lifetime", expDays);
+			void setFieldValue("lifetime", expDays);
 		}
-	}, [lifetimeDays, expDays]);
+	}, [lifetimeDays, expDays, setFieldValue]);
 
 	const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);
 
@@ -97,9 +99,13 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 							The token will expire on{" "}
 							<span data-pixel="ignore">
 								{currentTime
-									.add(form.values.lifetime, "days")
+									.add(form.values.lifetime * 24, "hours")
 									.utc()
-									.format("MMMM DD, YYYY")}
+									.format(
+										form.values.lifetime < 1
+											? "MMMM DD, YYYY [at] HH:mm [UTC]"
+											: "MMMM DD, YYYY",
+									)}
 							</span>
 						</>
 					) : (
@@ -130,9 +136,11 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 											{lt.label}
 										</SelectItem>
 									))}
-									<SelectItem value={String(customLifetimeDay.value)}>
-										{customLifetimeDay.label}
-									</SelectItem>
+									{(!maxTokenLifetime || maxTokenLifetime >= NANO_DAY) && (
+										<SelectItem value={String(customLifetimeDay.value)}>
+											{customLifetimeDay.label}
+										</SelectItem>
+									)}
 								</SelectContent>
 							</Select>
 						</div>
@@ -156,7 +164,7 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 									max={
 										maxTokenLifetime
 											? dayjs()
-													.add(maxTokenLifetime / NANO_HOUR / 24, "day")
+													.add(maxTokenLifetime / NANO_DAY, "day")
 													.format("YYYY-MM-DD")
 											: undefined
 									}

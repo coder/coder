@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
@@ -18,7 +19,6 @@ var _ Recorder = &DRPCRecorder{}
 
 // DRPCRecorder satisfies the Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type DRPCRecorder struct {
-	apiKeyID string
 	clientFn func(context.Context) (proto.DRPCRecorderClient, error)
 }
 
@@ -35,6 +35,10 @@ func (t *DRPCRecorder) client(ctx context.Context) (proto.DRPCRecorderClient, er
 }
 
 func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	apiKeyID, err := aibcontext.APIKeyIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	client, err := t.client(ctx)
 	if err != nil {
 		return err
@@ -42,7 +46,7 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *Interception
 
 	in := &proto.RecordInterceptionRequest{
 		Id:                          req.ID,
-		ApiKeyId:                    t.apiKeyID,
+		ApiKeyId:                    apiKeyID,
 		InitiatorId:                 req.InitiatorID,
 		Provider:                    req.Provider,
 		ProviderName:                req.ProviderName,
@@ -216,10 +220,8 @@ func marshalForProto(in Metadata) map[string]*anypb.Any {
 }
 
 // NewDRPCRecorder creates a [DRPCRecorder]. clientFn receives the context of
-// the record call it serves.
-func NewDRPCRecorder(aPIKeyID string, clientFn func(context.Context) (proto.DRPCRecorderClient, error)) *DRPCRecorder {
-	return &DRPCRecorder{
-		apiKeyID: aPIKeyID,
-		clientFn: clientFn,
-	}
+// the record call it serves. Each interception reads its authenticated API-key
+// ID from that context rather than storing request identity on the recorder.
+func NewDRPCRecorder(clientFn func(context.Context) (proto.DRPCRecorderClient, error)) *DRPCRecorder {
+	return &DRPCRecorder{clientFn: clientFn}
 }

@@ -11,7 +11,6 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
 import { chatModel } from "#/api/queries/chats";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { useDesktopPanel } from "./DesktopPanelContext";
@@ -60,7 +59,7 @@ const SUBAGENT_VERBS: Record<
  * the rendering logic for the three label variants readable.
  */
 function getSubagentLabel(
-	showDesktopPreview: boolean | undefined,
+	showDesktopPreview: boolean,
 	toolStatus: ToolStatus,
 	descriptor: SubagentDescriptor,
 	title: string,
@@ -120,15 +119,15 @@ const SubagentStatusIcon: React.FC<{
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
-	iconKind?: SubagentDescriptor["iconKind"];
-	showDesktopPreview?: boolean;
+	iconKind: SubagentDescriptor["iconKind"];
+	showDesktopPreview: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
-	iconKind = "bot",
-	showDesktopPreview = false,
+	iconKind,
+	showDesktopPreview,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
@@ -168,9 +167,9 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-	isTimeout?: boolean;
+	isTimeout: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
-	showDesktopPreview?: boolean;
+	showDesktopPreview: boolean;
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
@@ -186,7 +185,7 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
-	isTimeout = false,
+	isTimeout,
 	showDesktopPreview,
 	recordingFileId,
 	thumbnailFileId,
@@ -260,7 +259,7 @@ export const SubagentTool: React.FC<{
 			</ToolCall.HeaderLayout>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
-				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
+				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
@@ -278,45 +277,39 @@ export const SubagentTool: React.FC<{
 			)}
 			<ToolCall.Content>
 				{hasPrompt && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent prompt"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent prompt"
 					>
 						<div className="px-3 py-2">
 							<Response>{prompt ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasMessage && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent response"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent response"
 					>
 						<div className="px-3 py-2">
 							<Response>{message ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 
 				{hasReport && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default"
+					<ToolCall.Scrollable
+						className="mt-1.5 rounded-md border border-solid border-border"
 						viewportClassName="max-h-64"
-						viewportTabIndex={0}
-						viewportAriaLabel="Subagent report"
-						scrollBarClassName="w-1.5"
+						ariaLabel="Subagent report"
 					>
 						<div className="px-3 py-2">
 							<Response>{report ?? ""}</Response>
 						</div>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 			</ToolCall.Content>
 		</ToolCall.Root>

@@ -23,9 +23,12 @@ inputs:
     required: false
     default: ""
   test-packages:
-    description: "Packages to test (default: ./...)"
+    # go test starts packages in argument order and drops duplicates, so
+    # naming the three 100s+ packages ahead of ./... starts them at t=0
+    # instead of leaving them for the end of the run.
+    description: "Packages to test (default: heaviest first, then ./...)"
     required: false
-    default: "./..."
+    default: "./coderd ./enterprise/coderd ./cli ./..."
   run-regex:
     description: "Go test name regex passed via RUN"
     required: false

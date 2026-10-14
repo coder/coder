@@ -38,6 +38,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
+      docs-gen: ${{ steps.filter.outputs.docs-gen }}
       go: ${{ steps.filter.outputs.go }}
       site: ${{ steps.filter.outputs.site }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -72,6 +73,19 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            # Docs paths that make gen reads or rewrites. The gen job skips
+            # docs-only PRs that touch none of them. lint/docs-gen-filter
+            # fails when a file make gen writes is missing here; it does not
+            # check inputs.
+            docs-gen:
+              - "docs/manifest.json"
+              - "docs/manifest/**"
+              - "docs/reference/api/**"
+              - "docs/reference/api-key-scopes.md"
+              - "docs/reference/cli/**"
+              - "docs/admin/integrations/prometheus.md"
+              - "docs/admin/security/audit-logs.md"
+              - "docs/admin/setup/configuration-reference.md"
             db:
               - "**.sql"
               - "coderd/database/**"
@@ -319,8 +333,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
-          # branch tip) available so lint/emdash can diff against HEAD^
-          # without fetching the base branch at runtime.
+          # branch tip) available so lint/emdash and lint/go/new-code can
+          # diff against HEAD^ without fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
 
@@ -373,6 +387,12 @@ jobs:
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
         run: make --output-sync=line -j"$(nproc)" lint
+        env:
+          # lint/go/new-code only checks lines changed since this revision.
+          # Pull requests check out the merge commit, whose first parent is
+          # the base branch tip (kept by fetch-depth: 2). Other events compare
+          # HEAD with itself, so the pass reports nothing.
+          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD' }}
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -426,9 +446,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
+    needs: changes
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: ${{ !cancelled() }}
+    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -1584,7 +1605,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
-          keep-younger-than: 7 # days
+          keep-younger-than: 30 # days
           keep-tags: latest
           keep-tags-regexes: ^pr
           prune-tags-regexes: |

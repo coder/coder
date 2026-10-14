@@ -24,6 +24,14 @@ coder start [flags] <workspace>
 
 Return immediately after starting the workspace.
 
+### --template-version
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Start with a named version of the workspace template.
+
 ### -y, --yes
 
 |      |                   |

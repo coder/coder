@@ -20,10 +20,10 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -175,7 +175,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
-		models: [],
+		modelCatalog: undefined,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		isInputDisabled: false,
@@ -205,6 +205,14 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		unsupportedProviderNames: [],
+		onReasoningEffortChange: fn(),
+		isModelCatalogLoading: false,
+		onPlanModeToggle: fn(),
+		isWorkspaceLoading: false,
+		onImplementPlan: fn(),
+		onSendAskUserQuestionResponse: fn(),
+		urlTransform: (url: string) => url,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -463,24 +471,22 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const mockDiffStatus = {
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		};
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,
@@ -526,24 +532,22 @@ export const NarrowWithSidebarPanel: Story = {
  * the server.
  */
 export const RefreshInvalidatesPRDiff: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const mockDiffStatus = {
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		};
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,
@@ -758,6 +762,9 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -778,6 +785,9 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -797,6 +807,9 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel
 		/>
 	),
@@ -818,6 +831,9 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),

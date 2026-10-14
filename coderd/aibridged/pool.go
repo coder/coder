@@ -258,7 +258,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	rec := newRecorder(p.logger, p.tracer, req.APIKeyID, p.options.StructuredLogging, p.options.DisableContentRecording, clientFn)
+	rec := newRecorder(p.logger, p.tracer, p.options.StructuredLogging, p.options.DisableContentRecording, clientFn)
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.

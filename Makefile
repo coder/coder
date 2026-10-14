@@ -87,7 +87,8 @@ endif
 	coderd/rbac/object_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/rbacresources_gen.go \
-	codersdk/apikey_scopes_gen.go
+	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go
 
 # atomic_write runs a command, captures stdout into a temp file, and
 # atomically replaces $@. An optional second argument is a formatting
@@ -780,7 +781,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -800,11 +801,27 @@ lint/ts: site/node_modules/.installed
 GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
 GO_LINT_MEMLIMIT ?= 8GiB
 
+# --allow-serial-runners makes lint/go and lint/go/new-code wait for each
+# other's golangci-lint lock when `make -j lint` starts them together.
 lint/go:
-	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
+	./scripts/check_golangci_exclusions.sh
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
+
+# Revision whose merge base with HEAD bounds the lines lint/go/new-code checks.
+GO_LINT_NEW_CODE_BASE ?= origin/main
+
+# Rules the existing tree does not pass yet, applied only to changed lines.
+# golangci-lint matches changed lines against symlink-resolved file paths
+# made relative to PWD, so a checkout reached through a symlink would
+# silently report nothing; `pwd -P` resolves the working directory first.
+lint/go/new-code:
+	cd "$$(pwd -P)"
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)" \
+		--config=.golangci.new-code.yaml --new-from-merge-base="$(GO_LINT_NEW_CODE_BASE)"
+.PHONY: lint/go/new-code
 
 lint/examples: | _gen/bin/examplegen
 	_gen/bin/examplegen -lint
@@ -911,6 +928,12 @@ lint/actions/zizmor:
 lint/mise-versions:
 	./scripts/check_mise_versions.sh
 .PHONY: lint/mise-versions
+
+# Fails when the docs-gen filter in .github/workflows/ci.yaml misses a docs
+# file make gen writes.
+lint/docs-gen-filter:
+	go run ./scripts/docsgenfiltercheck $(GEN_FILES)
+.PHONY: lint/docs-gen-filter
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -1093,6 +1116,7 @@ GEN_FILES := \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -1114,7 +1138,10 @@ GEN_FILES := \
 	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 	$(AIBRIDGED_MOCKS)
 
-# all gen targets should be added here and to gen/mark-fresh
+# all gen targets should be added here and to gen/mark-fresh. Generated files
+# and inputs under any path in the docs filter in .github/workflows/ci.yaml
+# must also match its docs-gen filter, or CI skips gen for docs-only PRs that
+# edit them. lint/docs-gen-filter checks generated files but not inputs.
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
 # start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=
@@ -1157,6 +1184,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
@@ -1191,6 +1219,7 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
+		codersdk/dbenums_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1388,6 +1417,11 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 	$(call atomic_write,_gen/bin/typegen rbac codersdk)
 	touch "$@"
 
+# Reads coderd/database/models.go, which generate.sh writes with querier.go.
+codersdk/dbenums_gen.go: scripts/typegen/dbenums.gotmpl scripts/typegen/main.go coderd/database/querier.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen dbenums)
+	touch "$@"
+
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
@@ -1574,6 +1608,10 @@ helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/tes
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/mcp/*_test.go)
+	TZ=UTC go test ./coderd/mcp -run="Test.*Golden$$" -update
 	touch "$@"
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)

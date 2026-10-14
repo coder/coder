@@ -46,7 +46,14 @@ const MoreRolePill: React.FC<MoreRolePillProps> = ({ roles }) => {
 		<TooltipProvider>
 			<Tooltip delayDuration={0}>
 				<TooltipTrigger asChild>
-					<Badge>+{roles.length} more</Badge>
+					<Badge asChild hover>
+						<button
+							type="button"
+							aria-label={`+${roles.length} more role${roles.length === 1 ? "" : "s"}`}
+						>
+							+{roles.length} more
+						</button>
+					</Badge>
 				</TooltipTrigger>
 
 				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">

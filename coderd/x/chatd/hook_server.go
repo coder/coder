@@ -126,7 +126,7 @@ func loadDynamicPostToolUseState(
 	opts SubmitToolResultsOptions,
 ) (dynamicPostToolUseState, error) {
 	var state dynamicPostToolUseState
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		chat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)

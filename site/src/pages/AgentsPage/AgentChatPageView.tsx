@@ -53,7 +53,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -116,27 +115,26 @@ type AgentChatPageViewProps = {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	onManageAutomationsToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -161,8 +159,8 @@ type AgentChatPageViewProps = {
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
 
-	onImplementPlan?: () => Promise<void> | void;
-	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onImplementPlan: () => Promise<void> | void;
+	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -171,7 +169,7 @@ type AgentChatPageViewProps = {
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -279,7 +277,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
-	models,
+	modelCatalog,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -292,14 +290,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	onPlanModeToggle,
-	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
@@ -332,10 +329,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(chat.diff_status?.url)?.number,
-	);
-	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -445,9 +438,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// needs a workspace to render; the agent arrives once the build runs.
 	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
-	const availableBrowserApp = workspace
-		? getAgentBrowserApp(workspaceAgent)
-		: undefined;
+	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		browser: availableBrowserApp !== undefined,
@@ -674,9 +665,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
+						chatId={agentId}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={
@@ -685,7 +674,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						}
 						onRefresh={handleRefresh}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={chat.diff_statuses}
+						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
@@ -811,7 +801,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const chatOwnerWarning = isOtherUserReadOnly
+	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
@@ -875,18 +865,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										{unavailableModelNotice}
 									</div>
 								)}
-								{chatOwnerWarning && (
-									<div
-										role="status"
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{chatOwnerWarning}
-									</div>
-								)}
 								{isArchived && (
-									<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+									<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 										<ArchiveIcon className="size-4 shrink-0" />
 										This agent has been archived and is read-only.
 									</div>
@@ -947,13 +927,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
-										models={models}
+										modelCatalog={modelCatalog}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
+										readOnlyNotice={readOnlyNotice}
 										isSendPending={isSubmissionPending}
 										isInterruptPending={isInterruptPending}
 										hasModelOptions={hasModelOptions}
@@ -970,7 +951,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										reasoningEffort={reasoningEffort}
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
-										onManageAutomationsToggle={onManageAutomationsToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}
@@ -1052,9 +1032,9 @@ type AgentChatPageLoadingViewProps = {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	showRightPanel: boolean;
 };
 
@@ -1072,7 +1052,7 @@ export const AgentChatPageLoadingView: React.FC<
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,
@@ -1092,7 +1072,7 @@ export const AgentChatPageLoadingView: React.FC<
 						onToggleSidebar: () => {},
 					}}
 				/>
-				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(

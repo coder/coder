@@ -2,7 +2,6 @@ import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -65,21 +64,21 @@ import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 import { WriteFileTool } from "./WriteFileTool";
 
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
-	organizationId?: string;
+	organizationId: string;
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
 	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
-	isError?: boolean;
+	isError: boolean;
 	/** Set when the server persisted the result as {data, mime_type, text}. */
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
-	subagentTitles?: Map<string, string>;
+	subagentTitles: Map<string, string>;
 	/** Maps sub-agent chat IDs to their normalized variants. */
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentVariants: Map<string, SubagentVariant>;
 	/** When false, suppresses inline VNC previews while still
 	 * allowing the MonitorIcon variant to render. */
 	showDesktopPreviews?: boolean;
@@ -88,7 +87,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	/** MCP server config ID associated with this tool call. */
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -100,8 +99,8 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
 	hookRewritten?: boolean;
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -117,8 +116,8 @@ type ToolRendererProps = {
 	isError: boolean;
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
 	onImplementPlan?: () => Promise<void> | void;
@@ -131,8 +130,8 @@ type ToolRendererProps = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 // ---------------------------------------------------------------------------
@@ -234,7 +233,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	parsedCommands,
 	startedAt,
 	shellToolDisplayMode,
@@ -250,7 +248,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
-			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
 			startedAt={startedAt}
 			shellToolDisplayMode={shellToolDisplayMode}
@@ -263,7 +260,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
@@ -283,7 +279,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 		<ProcessOutputTool
 			output={output}
 			command={command || undefined}
-			modelIntent={modelIntent}
 			status={status}
 			processRunning={processRunning}
 			exitCode={exitCode}
@@ -460,7 +455,7 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
 	});
-	const inferredVariant = chatId ? subagentVariants?.get(chatId) : undefined;
+	const inferredVariant = chatId ? subagentVariants.get(chatId) : undefined;
 	const descriptor = getSubagentDescriptor({
 		name,
 		args: parsedArgs ?? args,
@@ -492,7 +487,7 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 		descriptor.fallbackTitle.charAt(0).toUpperCase() +
 		descriptor.fallbackTitle.slice(1);
 	if (chatId) {
-		const mappedTitle = subagentTitles?.get(chatId);
+		const mappedTitle = subagentTitles.get(chatId);
 		if (mappedTitle) {
 			title = mappedTitle;
 		}
@@ -762,7 +757,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	reasoning,
 	isError,
-	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -798,7 +792,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 			advice={advice}
 			reasoning={reasoning}
 			errorMessage={errorMessage || undefined}
-			modelIntent={modelIntent}
 		/>
 	);
 };
@@ -882,14 +875,11 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 				{label}
 			</div>
 		)}
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel={`Contents of ${file.name}`}
+			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
-			scrollBarClassName="w-1.5"
-			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer
 				file={file}
@@ -901,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 						: (file) => <DiffFileHeader file={file} />
 				}
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	</>
 );
 
@@ -1018,14 +1008,11 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 				iconUrl={mcpServer?.icon_url}
 				serverName={mcpServer?.display_name}
 				label={
-					modelIntent ? (
-						formatModelIntentLabel(modelIntent)
-					) : (
+					formatModelIntentLabel(modelIntent) || (
 						<ToolLabel
 							name={name}
 							args={args}
 							result={result}
-							isError={isError}
 							mcpSlug={mcpServer?.slug}
 						/>
 					)
@@ -1227,7 +1214,7 @@ export const Tool = memo(
 		args,
 		result,
 		reasoning,
-		isError = false,
+		isError,
 		isMedia,
 		killedBySignal,
 		subagentTitles,

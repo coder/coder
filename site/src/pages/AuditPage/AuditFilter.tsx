@@ -162,6 +162,14 @@ export const useResourceTypeFilterMenu = ({
 			label = "Chat instruction settings";
 		}
 
+		if (type === "chat_organization_system_prompt") {
+			label = "Chat organization system prompt";
+		}
+
+		if (type === "chat_project_instructions") {
+			label = "Chat project instructions";
+		}
+
 		if (type === "chat_operational_settings") {
 			label = "Chat operational settings";
 		}

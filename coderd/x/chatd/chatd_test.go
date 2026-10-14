@@ -15,11 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -31,6 +29,7 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -57,7 +56,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
-	"github.com/coder/coder/v2/coderd/rbac"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -261,8 +260,6 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	// Track tools sent in LLM requests. The first call is for the
 	// root chat which spawns a subagent; the second call is for the
 	// subagent itself.
@@ -417,8 +414,6 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-	_ = agenttest.New(t, client.URL, agentToken)
 
 	// Start an external MCP server whose tools should remain available to the
 	// root plan-mode chat but stay hidden from plan-mode subagents.
@@ -1347,173 +1342,63 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		"ask mode should continue exposing workspace MCP tools")
 }
 
-// TestUnarchiveChildChat covers the deterministic branches of the
-// Server.UnarchiveChat child path: every child unarchive attempt is
-// rejected with chatd.ErrArchiveRequiresRootChat.
-func TestUnarchiveChildChat(t *testing.T) {
+// TestArchiveStateRejectsChildChat verifies that Server.ArchiveChat and
+// Server.UnarchiveChat refuse child chats with ErrArchiveRequiresRootChat
+// whatever the family's archive state, leaving parent and child unchanged.
+func TestArchiveStateRejectsChildChat(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ChildWithActiveParentRejected", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		childArchived  bool
+		parentArchived bool
+		unarchive      bool
+	}{
+		{name: "ArchiveActiveChild"},
+		{name: "ArchiveArchivedChild", childArchived: true},
+		{name: "UnarchiveActiveChild", unarchive: true},
+		{name: "UnarchiveArchivedChild", childArchived: true, unarchive: true},
+		{name: "UnarchiveChildOfArchivedParent", childArchived: true, parentArchived: true, unarchive: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
+			db, ps := dbtestutil.NewDB(t)
+			replica := newTestServer(t, db, ps, uuid.New())
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+			parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+			child := dbgen.Chat(t, db, database.Chat{
+				OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID,
+				ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+				RootChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+			})
+			if tc.childArchived {
+				_, err := db.ArchiveChatByID(ctx, child.ID)
+				require.NoError(t, err)
+			}
+			if tc.parentArchived {
+				_, err := db.ArchiveChatByID(ctx, parent.ID)
+				require.NoError(t, err)
+			}
+			child, err := db.GetChatByID(ctx, child.ID)
+			require.NoError(t, err)
 
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
+			if tc.unarchive {
+				err = replica.UnarchiveChat(ctx, child)
+			} else {
+				err = replica.ArchiveChat(ctx, child)
+			}
+			require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
 
-		err := replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child should remain archived")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active")
-	})
-
-	t.Run("ChildWithArchivedParentRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
-		_, err := db.ArchiveChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-
-		err = replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child should remain archived")
-	})
-
-	t.Run("ActiveChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		_, child := insertParentWithActiveChild(t, db, user, org, model)
-
-		err := replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should stay active")
-	})
-}
-
-// TestArchiveChat_RejectsChildChat verifies that Server.ArchiveChat
-// refuses every child chat with chatd.ErrArchiveRequiresRootChat
-// regardless of the family's current archive state. Archive state
-// changes must always be issued against the root chat so the whole
-// family flips together.
-func TestArchiveChat_RejectsChildChat(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ActiveChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithActiveChild(t, db, user, org, model)
-
-		err := replica.ArchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should stay active after rejected archive")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active after rejected child archive")
-	})
-
-	t.Run("AlreadyArchivedChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
-
-		err := replica.ArchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat,
-			"child archive must be rejected even when the child is already archived")
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child archived flag should not change")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active")
-	})
-}
-
-// insertParentWithActiveChild creates a parent chat and an active
-// child chat linked to it. Both are returned in their initial
-// (active) state.
-func insertParentWithActiveChild(
-	t *testing.T,
-	db database.Store,
-	user database.User,
-	org database.Organization,
-	model database.ChatModelConfig,
-) (parent database.Chat, child database.Chat) {
-	t.Helper()
-	parent = dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "parent",
-	})
-	child = dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "child",
-		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
-	})
-	return parent, child
-}
-
-// insertParentWithArchivedChild creates an active parent and an
-// individually-archived child. The returned child reflects its
-// current (archived) state in the DB.
-func insertParentWithArchivedChild(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	user database.User,
-	org database.Organization,
-	model database.ChatModelConfig,
-) (parent database.Chat, child database.Chat) {
-	t.Helper()
-	parent, child = insertParentWithActiveChild(t, db, user, org, model)
-	_, err := db.ArchiveChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	child, err = db.GetChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	return parent, child
+			dbChild, err := db.GetChatByID(ctx, child.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.childArchived, dbChild.Archived, "child archived flag must not change")
+			dbParent, err := db.GetChatByID(ctx, parent.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.parentArchived, dbParent.Archived, "parent archived flag must not change")
+		})
+	}
 }
 
 func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
@@ -2063,7 +1948,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	const text = "investigate the flaky workspace upload tests today"
 
-	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, *chatd.Server, database.Chat) {
+	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, dbpubsub.Pubsub, *chatd.Server, database.Chat) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		server := newTestServer(t, db, ps, uuid.New())
@@ -2077,7 +1962,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 			ModelConfigID:  model.ID,
 		})
 		require.NoError(t, err)
-		return ctx, db, server, chat
+		return ctx, db, ps, server, chat
 	}
 	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
 		t.Helper()
@@ -2092,7 +1977,16 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PlaceholderTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, ps, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		titleEvents := make(chan codersdk.ChatWatchEvent, 1)
+		cancel, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), func(_ context.Context, payload []byte) {
+			var event codersdk.ChatWatchEvent
+			if json.Unmarshal(payload, &event) == nil && event.Kind == codersdk.ChatWatchEventKindTitleChange {
+				titleEvents <- event
+			}
+		})
+		require.NoError(t, err)
+		defer cancel()
 
 		result := send(ctx, t, server, chat.ID)
 		require.True(t, result.FirstUserTurn)
@@ -2101,11 +1995,13 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		stored, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+		// The sidebar learns the fallback title from a title_change event.
+		require.Equal(t, chatprompt.FallbackTitle(text), testutil.RequireReceive(ctx, t, titleEvents).Chat.Title)
 	})
 
 	t.Run("ExistingTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
+		ctx, db, _, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
 
 		result := send(ctx, t, server, chat.ID)
 		require.False(t, result.FirstUserTurn)
@@ -2118,7 +2014,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PriorVisibleMessage", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, _, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		send(ctx, t, server, chat.ID)
 		// Reset to an idle chat that still carries the placeholder
@@ -2142,6 +2038,83 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
 	})
+}
+
+// TestArchivedChatRejectsMutations verifies that every mutation verb
+// refuses an archived chat with ErrChatArchived inside its transaction,
+// with hooks disabled so the pre-dispatch admission check cannot mask a
+// missing in-transaction check.
+func TestArchivedChatRejectsMutations(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	message := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
+	_, err := db.ArchiveChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	chat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	content := []codersdk.ChatMessagePart{codersdk.ChatMessageText("after archive")}
+	for name, call := range map[string]func(context.Context) error{
+		"SendMessage": func(ctx context.Context) error {
+			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content})
+			return err
+		},
+		"EditMessage": func(ctx context.Context) error {
+			_, err := server.EditMessage(ctx, chatd.EditMessageOptions{ChatID: chat.ID, EditedMessageID: message.ID, Content: content})
+			return err
+		},
+		"PromoteQueued": func(ctx context.Context) error {
+			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
+			return err
+		},
+		"SubmitToolResults": func(ctx context.Context) error {
+			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
+		},
+		"CompactChat": func(ctx context.Context) error {
+			_, err := server.CompactChat(ctx, chat)
+			return err
+		},
+		"ClearChat": func(ctx context.Context) error {
+			_, err := server.ClearChat(ctx, chat)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			require.ErrorIs(t, call(ctx), chatd.ErrChatArchived)
+		})
+	}
+}
+
+// TestArchiveChatDeletesDebugRuns verifies that archiving schedules the
+// debug-row cleanup for the archived chat.
+func TestArchiveChatDeletesDebugRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	// Stamped outside the clock-skew buffer so the cleanup deletes it
+	// instead of leaving it for the stale sweeper.
+	staleStart := sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID: chat.ID, Kind: "chat_turn", Status: "completed", StartedAt: staleStart, UpdatedAt: staleStart,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, replica.ArchiveChat(ctx, chat))
+	chatd.WaitUntilIdleForTest(replica)
+
+	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "archive must delete the chat's debug runs")
 }
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
@@ -3242,7 +3215,8 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 			got.LastTurnSummary.Valid &&
 			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	// A requires_action runner stays active until tool results arrive.
+	require.NoError(t, server.Close())
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
@@ -3441,18 +3415,26 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		require.NoError(t, err)
 
 		testutil.TryReceive(ctx, t, streamStarted)
-		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:        chat.ID,
-			CreatedBy:     user.ID,
-			ModelConfigID: model.ID,
-			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
-		})
-		require.NoError(t, err)
-		require.True(t, queued.Queued)
+		for _, send := range []struct {
+			text     string
+			behavior chatd.SendMessageBusyBehavior
+		}{
+			{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
+			{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
+		} {
+			sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(send.text)},
+				BusyBehavior:  send.behavior,
+			})
+			require.NoError(t, err)
+			require.True(t, sent.Queued)
+		}
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		require.GreaterOrEqual(t, requestCount.Load(), int32(2))
+		require.GreaterOrEqual(t, requestCount.Load(), int32(3))
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
@@ -3477,7 +3459,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
+		require.Equal(t, []string{"start and call a tool", "interrupt", "queued"}, userTexts)
 		require.True(t, foundPartial)
 		// The interrupted attempt bills the model invocation window it
 		// opened, so the partial assistant row keeps a runtime.
@@ -4672,7 +4654,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 				return
 			}
 			var conflict *chatd.ToolResultStatusConflictError
-			if errors.As(submitErr, &conflict) {
+			if errors.As(submitErr, &conflict) && submitErr.Error() == conflict.Error() {
 				conflicts.Add(1)
 				return
 			}
@@ -5300,17 +5282,28 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		BuildNumber: 2,
 	}).Do()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	validationTrap := clock.Trap().NewTimer("chatd", "dial-validation-delay")
+	defer validationTrap.Close()
+	dialStarted := make(chan struct{})
 	var dialCalls atomic.Int32
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Clock = clock
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			dialCalls.Add(1)
 			require.Equal(t, dbAgent.ID, agentID)
+			close(dialStarted)
 			<-ctx.Done()
 			return nil, nil, ctx.Err()
 		}
 	})
+
+	validationTimer := validationTrap.MustWait(ctx)
+	validationTimer.MustRelease(ctx)
+	testutil.TryReceive(ctx, t, dialStarted)
+	advanceMockClockBy(ctx, t, clock, validationTimer.Duration)
 
 	var chatResult database.Chat
 	require.Eventually(t, func() bool {
@@ -5505,9 +5498,6 @@ func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.S
 		evaluator, err := experimentrules.New(cfg.Logger, experimentstest.Store{}, cfg.Experiments)
 		require.NoError(t, err)
 		cfg.ExperimentEvaluator = evaluator
-	}
-	if cfg.Authorizer == nil {
-		cfg.Authorizer = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	}
 	server, err := chatd.New(ps, cfg)
 	require.NoError(t, err)
@@ -5920,7 +5910,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
 		require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
 		require.Equal(t, "chat_summarized", resultPart.ToolName)
-		require.JSONEq(t, fmt.Sprintf(`{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100,"estimated_context_tokens":%d}`, (len(summaryText)+2)/3), string(resultPart.Result))
+		require.JSONEq(t, fmt.Sprintf(`{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100,"estimated_context_tokens":%d,"trigger_context_limit_tokens":100}`, (len(summaryText)+2)/3), string(resultPart.Result))
 		for _, msg := range []database.ChatMessage{compressed.summaries[0], compressed.calls[0], compressed.results[0]} {
 			require.False(t, msg.InputTokens.Valid)
 			require.False(t, msg.OutputTokens.Valid)
@@ -6043,7 +6033,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
 		require.Equal(t,
-			"Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
+			"Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation.",
 			chatLastErrorMessage(chat.LastError),
 		)
 		require.Equal(t, int32(2), streamCount.Load(), "over-limit history should fail before another model stream")
@@ -6903,7 +6893,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		})
 	}
 
-	t.Run("compaction triggers at the stricter override context limit", func(t *testing.T) {
+	t.Run("compaction triggers at 80% of the override window, ignoring its own threshold", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -6930,12 +6920,12 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			}
 		})
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-		// The chat model alone would not compact: 80 tokens of usage is
-		// 8% of its 1000-token limit. The override model's 100-token
-		// limit makes the effective threshold 70 tokens, so compaction
-		// must trigger.
-		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
-		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		// Usage 80 reaches 80% of the override's 100-token window but not the
+		// chat trigger at 90% of 1,000. The override's own threshold of 100
+		// would disable it if it were read.
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000, 90)
+		overrideModel := seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		updateChatModelCompressionThreshold(t, db, overrideModel, 100, 100)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 		ctrl := gomock.NewController(t)
@@ -6958,6 +6948,410 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
 			Title:          "compaction-override-limit",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("read the file and continue"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1)
+		// context_limit_tokens stays the chat model's window for chat usage.
+		var recorded chatloop.CompactionToolResult
+		require.NoError(t, json.Unmarshal(singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult).Result, &recorded))
+		require.Equal(t, int64(1_000), recorded.ContextLimitTokens)
+		require.Equal(t, int64(100), recorded.TriggerContextLimitTokens)
+		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
+	})
+
+	t.Run("summary cap fits the override window when the chat trigger binds", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			promptTokens         = 170_000
+			overrideContextLimit = 200_000
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		var summaryMaxTokens atomic.Int64
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Equal(t, overrideModelName, req.Model)
+				summaryMaxTokens.Store(int64(req.MaxTokens))
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				return readFileResponseWithInputTokens("/tmp/a.txt", promptTokens)
+			default:
+				require.Contains(t, body, compactionSummary)
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+				}, "continued after compaction")...)
+			}
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		// The chat trigger binds (10% of 1,000,000 = 100,000 < 80% of
+		// 200,000 = 160,000), but the override model summarizes.
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000_000, 10)
+		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", overrideContextLimit)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		setupToolExecutionAgentConn(t, mockConn)
+		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+			Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "compaction-override-summary-cap",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("read the file and continue"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		maxTokens := summaryMaxTokens.Load()
+		require.Positive(t, maxTokens)
+		require.LessOrEqual(t, promptTokens+maxTokens, int64(overrideContextLimit))
+		messages := chatMessages(ctx, t, db, chat.ID)
+		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
+	})
+
+	t.Run("manual summary cap fits the override window when the chat trigger binds", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			promptTokens         = 140_000
+			overrideContextLimit = 200_000
+		)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var summaryMaxTokens atomic.Int64
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Equal(t, overrideModelName, req.Model)
+				summaryMaxTokens.Store(int64(req.MaxTokens))
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  promptTokens,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		// Usage stays below both triggers (15% of 1,000,000 = 150,000 and
+		// 80% of 200,000 = 160,000); the chat trigger binds.
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000_000, 15)
+		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", overrideContextLimit)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Zero(t, summaryMaxTokens.Load())
+
+		_, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+
+		maxTokens := summaryMaxTokens.Load()
+		require.Positive(t, maxTokens)
+		require.LessOrEqual(t, promptTokens+maxTokens, int64(overrideContextLimit))
+	})
+
+	const (
+		chatOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
+		overrideOverLimitMessage = "Conversation compaction could not reduce the history below 80% of the organization override's context window. Start a new conversation, or ask an administrator to choose an override model with a larger context window."
+		bothOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold or 80% of the organization override's context window. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to choose an override model with a larger context window."
+	)
+	// Usage stays at 80 tokens, the chat threshold is 70%, and the override
+	// trigger is 80% of its window.
+	for _, tc := range []struct {
+		name                 string
+		chatContextLimit     int64
+		overrideContextLimit int64
+		wantMessage          string
+	}{
+		{
+			// Override point 72 binds; chat point 700.
+			name:                 "override trigger binds, usage below chat point",
+			chatContextLimit:     1_000,
+			overrideContextLimit: 90,
+			wantMessage:          overrideOverLimitMessage,
+		},
+		{
+			// Override point 72 binds; chat point 77.
+			name:                 "override trigger binds, usage reaches chat point",
+			chatContextLimit:     110,
+			overrideContextLimit: 90,
+			wantMessage:          bothOverLimitMessage,
+		},
+		{
+			// Chat point 70 binds; override point 800.
+			name:                 "chat trigger binds, usage below override point",
+			chatContextLimit:     100,
+			overrideContextLimit: 1_000,
+			wantMessage:          chatOverLimitMessage,
+		},
+		{
+			// Chat point 70 binds; override point 80.
+			name:                 "chat trigger binds, usage reaches override point",
+			chatContextLimit:     100,
+			overrideContextLimit: 100,
+			wantMessage:          bothOverLimitMessage,
+		},
+	} {
+		t.Run("next message fails when compaction stays over limit/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var streamCount atomic.Int32
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				body := anthropicRequestBody(t, *req)
+				if strings.Contains(body, "You are performing a context compaction") {
+					require.Equal(t, overrideModelName, req.Model)
+					return anthropicCompactionResponse(t, req, compactionSummary)
+				}
+				if !req.Stream {
+					return chattest.AnthropicNonStreamingResponse("title")
+				}
+				switch streamCount.Add(1) {
+				case 1:
+					return highUsageReadFileResponse("/tmp/a.txt")
+				default:
+					require.Contains(t, body, compactionSummary)
+					return highUsageTextResponse("still too large")
+				}
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			model = updateChatModelCompressionThreshold(t, db, model, tc.chatContextLimit, thresholdPercent)
+			seedOverrideModel(ctx, t, db, model, overrideModelName, "high", tc.overrideContextLimit)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+			mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+				Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+				Times(1)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "compaction-override-over-limit",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("read the file and stay too large"),
+				},
+			})
+			require.NoError(t, err)
+			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.False(t, chat.LastError.Valid)
+			require.Equal(t, int32(2), streamCount.Load())
+
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("continue after the large compacted turn"),
+				},
+			})
+			require.NoError(t, err)
+
+			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+			require.Equal(t, tc.wantMessage, chatLastErrorMessage(chat.LastError))
+			require.Equal(t, int32(2), streamCount.Load(), "over-limit history should fail before another model stream")
+		})
+	}
+
+	t.Run("a new lower override trigger compacts a chat summarized under the old trigger", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount, chatSummaries, overrideSummaries atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				if req.Model == overrideModelName {
+					overrideSummaries.Add(1)
+				} else {
+					chatSummaries.Add(1)
+				}
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				return highUsageReadFileResponse("/tmp/a.txt")
+			case 2:
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  50,
+					OutputTokens: 5,
+				}, "continued after compaction")...)
+			default:
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+				}, "second turn")...)
+			}
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		setupToolExecutionAgentConn(t, mockConn)
+		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+			Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "compaction-override-added-lower-trigger",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("read the file and continue"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.Equal(t, int32(1), chatSummaries.Load())
+
+		// The post-compaction usage of 50 is under the chat trigger at 70 but
+		// reaches the new binding override trigger at 80% of 60 = 48.
+		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 60)
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue under the new trigger"),
+			},
+		})
+		require.NoError(t, err)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid, chatLastErrorMessage(chat.LastError))
+		require.Equal(t, int32(1), overrideSummaries.Load())
+		messages := chatMessages(ctx, t, db, chat.ID)
+		requireTextPart(t, messages[len(messages)-1], "second turn")
+	})
+
+	t.Run("user threshold 100 does not disable the override model trigger", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Equal(t, overrideModelName, req.Model)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				return highUsageReadFileResponse("/tmp/a.txt")
+			default:
+				require.Contains(t, body, compactionSummary)
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+				}, "continued after compaction")...)
+			}
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
+		_, err := db.UpdateUserChatCompactionThreshold(ctx, database.UpdateUserChatCompactionThresholdParams{
+			UserID:           user.ID,
+			Key:              codersdk.CompactionThresholdKey(model.ID),
+			ThresholdPercent: 100,
+		})
+		require.NoError(t, err)
+		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		setupToolExecutionAgentConn(t, mockConn)
+		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+			Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "compaction-user-disabled",
 			ModelConfigID:  model.ID,
 			InitialUserContent: []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("read the file and continue"),
@@ -7131,6 +7525,109 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	toolNames = anthropicRequestToolNames(planRequest)
 	require.Contains(t, toolNames, "read_file")
 	require.NotContains(t, toolNames, "write_file")
+}
+
+// Claude models routed through an OpenRouter provider use the openai-compat
+// fantasy client, which must still emit Anthropic cache_control markers
+// on array-form content blocks. Other model families get none.
+func TestActiveServer_OpenRouterAnthropicPromptCaching(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		modelID     string
+		wantCaching bool
+	}{
+		{name: "Claude", modelID: "anthropic/claude-haiku-4.5", wantCaching: true},
+		{name: "GPT", modelID: "openai/gpt-5-mini", wantCaching: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var (
+				mu        sync.Mutex
+				streaming [][]byte
+			)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse(`{"title":"caching"}`)
+				}
+				mu.Lock()
+				streaming = append(streaming, req.RawBody)
+				mu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenrouter}, func(params *database.InsertAIProviderParams) {
+				params.BaseUrl = openAIURL
+			})
+			dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})
+			model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tt.modelID,
+				IsDefault:      true,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			})
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+				BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Len(t, streaming, 2)
+			body := streaming[1]
+			require.Equal(t, tt.modelID, gjson.GetBytes(body, "model").String())
+			messages := gjson.GetBytes(body, "messages").Array()
+			require.GreaterOrEqual(t, len(messages), 4)
+			require.Equal(t, "system", messages[0].Get("role").String())
+			firstUser := slices.IndexFunc(messages, func(msg gjson.Result) bool {
+				return msg.Get("role").String() == "user"
+			})
+			require.Positive(t, firstUser)
+			require.Equal(t, "hello", messages[firstUser].Get("content").String(), "earlier user message keeps string content")
+			require.NotContains(t, messages[firstUser].Raw, "cache_control")
+			last := messages[len(messages)-1]
+			require.Equal(t, "user", last.Get("role").String())
+
+			if !tt.wantCaching {
+				require.NotContains(t, string(body), "cache_control")
+				require.Equal(t, "continue", last.Get("content").String())
+				return
+			}
+			// Only the last system message carries the breakpoint and
+			// switches to array-form content.
+			lastSystem := messages[firstUser-1]
+			require.Equal(t, "system", lastSystem.Get("role").String())
+			for _, msg := range messages[:firstUser-1] {
+				require.NotContains(t, msg.Raw, "cache_control")
+			}
+			systemParts := lastSystem.Get("content").Array()
+			require.True(t, lastSystem.Get("content").IsArray(), "system content must be array form to carry cache_control")
+			require.Equal(t, "ephemeral", systemParts[len(systemParts)-1].Get("cache_control.type").String())
+			require.True(t, last.Get("content").IsArray(), "user content must be array form to carry cache_control")
+			userParts := last.Get("content").Array()
+			require.Equal(t, "continue", userParts[len(userParts)-1].Get("text").String())
+			require.Equal(t, "ephemeral", userParts[len(userParts)-1].Get("cache_control.type").String())
+		})
+	}
 }
 
 func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
@@ -8354,36 +8851,57 @@ func TestActiveServer_AnthropicDropsUnpairedProviderToolBeforePersist(t *testing
 func TestActiveServer_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	requests := newAnthropicRequestRecorder()
-	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		requests.record(req)
-		return chattest.AnthropicStreamingResponse(
-			anthropicWebSearchPairChunks("ws-1", `{"query":"coder"}`, "search done", "end_turn")...,
-		)
-	})
-	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-	model = enableAnthropicWebSearchForTest(t, db, model)
+	for _, tt := range []struct {
+		name      string
+		noResults bool
+	}{
+		{name: "WithResults"},
+		// Clients see a search that found nothing while it streams, so it
+		// must persist like any other.
+		{name: "NoResults", noResults: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-	})
-	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			chunks := anthropicWebSearchPairChunks("ws-1", `{"query":"coder"}`, "search done", "end_turn")
+			if tt.noResults {
+				for i := range chunks {
+					if chunks[i].ContentBlock.Type == "web_search_tool_result" {
+						chunks[i].ContentBlock.Content = []map[string]any{}
+					}
+				}
+			}
 
-	generationRequests := filterAnthropicStreamingRequests(requests.all())
-	require.Len(t, generationRequests, 1)
-	parts := chatToolParts(ctx, t, db, chat.ID)
-	toolCall := requireToolCallPart(t, parts, "web_search")
-	require.Equal(t, "ws-1", toolCall.ToolCallID)
-	require.True(t, toolCall.ProviderExecuted)
-	toolResult := requireToolResultPart(t, parts, "web_search")
-	require.Equal(t, "ws-1", toolResult.ToolCallID)
-	require.True(t, toolResult.ProviderExecuted)
-	require.NotEmpty(t, toolResult.ProviderMetadata)
-	messages := chatMessages(ctx, t, db, chat.ID)
-	requireTextPart(t, messages[len(messages)-1], "search done")
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			requests := newAnthropicRequestRecorder()
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				requests.record(req)
+				return chattest.AnthropicStreamingResponse(chunks...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			model = enableAnthropicWebSearchForTest(t, db, model)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			generationRequests := filterAnthropicStreamingRequests(requests.all())
+			require.Len(t, generationRequests, 1)
+			parts := chatToolParts(ctx, t, db, chat.ID)
+			toolCall := requireToolCallPart(t, parts, "web_search")
+			require.Equal(t, "ws-1", toolCall.ToolCallID)
+			require.True(t, toolCall.ProviderExecuted)
+			toolResult := requireToolResultPart(t, parts, "web_search")
+			require.Equal(t, "ws-1", toolResult.ToolCallID)
+			require.True(t, toolResult.ProviderExecuted)
+			require.NotEmpty(t, toolResult.ProviderMetadata)
+			messages := chatMessages(ctx, t, db, chat.ID)
+			requireTextPart(t, messages[len(messages)-1], "search done")
+		})
+	}
 }
 
 // TestActiveServer_AnthropicWebSearchFollowUpHasNoSyntheticCancellation
@@ -12654,7 +13172,7 @@ type overrideReadFailStore struct {
 }
 
 func (s *overrideReadFailStore) GetChatOrganizationModelOverride(ctx context.Context, arg database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
-	if s.fail.Load() {
+	if s.fail.Load() && arg.Context == "compaction" {
 		return database.ChatOrganizationModelOverride{}, xerrors.New("injected compaction override read failure")
 	}
 	return s.Store.GetChatOrganizationModelOverride(ctx, arg)
@@ -14059,17 +14577,14 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
-	dir := t.TempDir()
-	writtenPath := filepath.Join(dir, "written.txt")
-	startedPath := filepath.Join(dir, "started")
+	writtenPath := filepath.Join(t.TempDir(), "written.txt")
 	writeArgs, err := json.Marshal(map[string]string{"path": writtenPath, "content": "hello"})
 	require.NoError(t, err)
 	// The default timeout would end execute's wait before the interrupt.
 	executeArgs, err := json.Marshal(map[string]string{
-		"command": "touch started && sleep 300",
-		"workdir": dir,
+		"command": "sleep 300",
 		"timeout": "10m",
 	})
 	require.NoError(t, err)
@@ -14102,13 +14617,11 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		for _, path := range []string{writtenPath, startedPath} {
-			if _, err := os.Stat(path); err != nil {
-				return false
-			}
-		}
-		return true
-	}, testutil.IntervalFast, "write_file and execute should act on the agent")
+		_, err := os.Stat(writtenPath)
+		return err == nil
+	}, testutil.IntervalFast, "write_file should act on the agent")
+	conn := dialAgentForChat(ctx, t, client, resources[0].Agents[0].ID, chat.ID)
+	_ = awaitRunningChatProcess(ctx, t, conn)
 
 	_, err = expClient.InterruptChat(ctx, chat.ID)
 	require.NoError(t, err)
@@ -14138,9 +14651,10 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 }
 
 // TestEditMessageCancelsToolCallsOnAgent checks that editing a user message
-// kills the agent process of the running execute call the edit deletes, before
-// the replacement turn calls the model.
+// cancels the running execute call the edit deletes on the agent, before the
+// replacement turn calls the model.
 func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
+	t.Skip("flaky until PLAT-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -14163,10 +14677,16 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	agentID := resources[0].Agents[0].ID
 
+	type agentProcess struct {
+		conn workspacesdk.AgentConn
+		id   string
+	}
 	type modelRequest struct {
 		body       string
+		process    workspacesdk.ProcessOutputResponse
 		processErr error
 	}
 	// The fake model routes each request to the case whose prompt it
@@ -14178,9 +14698,11 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 		dynamicTools      []string
 		prompt            string
 		editedPrompt      string
-		pidPath           string
 		executeChunk      chattest.OpenAIChunk
 		editedTurnRequest chan modelRequest
+		// deletedProcess is the agent process of the execute call the edit
+		// deletes. The subtest stores it before the edit.
+		deletedProcess atomic.Pointer[agentProcess]
 	}
 	cases := []*editCase{
 		{name: "Baseline"},
@@ -14189,38 +14711,14 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	for _, tc := range cases {
 		tc.prompt = "Run the command for " + tc.name + "."
 		tc.editedPrompt = "Say done for " + tc.name + "."
-		dir := t.TempDir()
-		tc.pidPath = filepath.Join(dir, "pid")
-		// exec keeps the PID the shell wrote. The default timeout would end
-		// execute's wait before the edit.
+		// The default timeout would end execute's wait before the edit.
 		executeArgs, err := json.Marshal(map[string]string{
-			"command": "echo $$ > pid && exec sleep 300",
-			"workdir": dir,
+			"command": "sleep 300",
 			"timeout": "10m",
 		})
 		require.NoError(t, err)
 		tc.executeChunk = chattest.OpenAIToolCallChunk("execute", string(executeArgs))
 		tc.editedTurnRequest = make(chan modelRequest, 1)
-	}
-
-	// probeProcess sends signal 0 to the PID in pidPath. It returns
-	// os.ErrProcessDone once the process is gone. The agent reaps the
-	// process before it reports the exit, so a gone process is not a zombie.
-	probeProcess := func(pidPath string) error {
-		data, err := os.ReadFile(pidPath)
-		if err != nil {
-			return err
-		}
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err != nil {
-			return err
-		}
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-		defer proc.Release()
-		return proc.Signal(syscall.Signal(0))
 	}
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -14233,8 +14731,11 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 			case strings.Contains(body, tc.editedPrompt):
 				// The edited turn cancels deleted tool calls before it calls
 				// the model, and the cancel waits for the process to exit.
+				got := modelRequest{body: body}
+				proc := tc.deletedProcess.Load()
+				got.process, got.processErr = proc.conn.ProcessOutput(req.Context(), proc.id, nil)
 				select {
-				case tc.editedTurnRequest <- modelRequest{body: body, processErr: probeProcess(tc.pidPath)}:
+				case tc.editedTurnRequest <- got:
 				default:
 				}
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
@@ -14271,20 +14772,29 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			testutil.Eventually(ctx, t, func(context.Context) bool {
-				return probeProcess(tc.pidPath) == nil
-			}, testutil.IntervalFast, "execute should start the process on the agent")
+			conn := dialAgentForChat(ctx, t, client, agentID, chat.ID)
+			proc := awaitRunningChatProcess(ctx, t, conn)
 
+			providerToolCallID := tc.executeChunk.Choices[0].ToolCalls[0].ID
 			messages, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 			require.NoError(t, err)
-			var userMessageID int64
+			var userMessageID, assistantMessageID int64
 			for _, message := range messages.Messages {
-				if message.Role == codersdk.ChatMessageRoleUser {
+				if message.Role == codersdk.ChatMessageRoleUser && userMessageID == 0 {
 					userMessageID = message.ID
-					break
+				}
+				for _, part := range message.Content {
+					if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID == providerToolCallID {
+						assistantMessageID = message.ID
+					}
 				}
 			}
 			require.NotZero(t, userMessageID)
+			require.NotZero(t, assistantMessageID)
+			require.Equal(t, chattool.ToolCallID(chat.ID, assistantMessageID, providerToolCallID).String(), proc.ID,
+				"the agent should run the execute call under its tool call ID")
+			tc.deletedProcess.Store(&agentProcess{conn: conn, id: proc.ID})
+
 			_, err = expClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
@@ -14299,13 +14809,43 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 				return err == nil && got.Status == codersdk.ChatStatusWaiting
 			}, testutil.IntervalFast, "chat should wait after the edited turn")
 
-			require.ErrorIs(t, edited.processErr, os.ErrProcessDone,
-				"the deleted execute call's process should be gone when the edited turn calls the model")
+			require.NoError(t, edited.processErr)
+			require.False(t, edited.process.Running,
+				"the deleted execute call's process should have exited when the edited turn calls the model")
+			require.True(t, edited.process.Canceled,
+				"the agent should have received a cancel for the deleted execute call's tool call ID")
 			require.NotContains(t, edited.body, tc.prompt)
-			require.NotContains(t, edited.body, tc.executeChunk.Choices[0].ToolCalls[0].ID,
+			require.NotContains(t, edited.body, providerToolCallID,
 				"the edited turn's history should not contain the deleted execute call")
 		})
 	}
+}
+
+// dialAgentForChat dials the workspace agent and sends the chat ID header
+// that chatd sends, so the agent scopes process requests to chatID.
+func dialAgentForChat(ctx context.Context, t *testing.T, client *codersdk.Client, agentID, chatID uuid.UUID) workspacesdk.AgentConn {
+	t.Helper()
+	conn, err := workspacesdk.New(client).DialAgent(ctx, agentID, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	return conn
+}
+
+// awaitRunningChatProcess waits until the agent lists exactly one process
+// for conn's chat and that process is running, and returns it.
+func awaitRunningChatProcess(ctx context.Context, t *testing.T, conn workspacesdk.AgentConn) workspacesdk.ProcessInfo {
+	t.Helper()
+	var proc workspacesdk.ProcessInfo
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		list, err := conn.ListProcesses(ctx)
+		if err != nil || len(list.Processes) != 1 || !list.Processes[0].Running {
+			return false
+		}
+		proc = list.Processes[0]
+		return true
+	}, testutil.IntervalFast, "execute should start a process on the agent")
+	return proc
 }
 
 // TestEditMessageWithModelConfigOverride verifies that callers can

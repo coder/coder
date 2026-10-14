@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import type { PreviewParameter } from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
 import { DynamicParameter } from "./DynamicParameter";
@@ -534,6 +535,45 @@ describe("DynamicParameter", () => {
 
 			expect(mockOnChange).toHaveBeenCalledWith('["option1","option2"]');
 		});
+
+		it.each([
+			{ updatedValue: '["option3"]', expectedValue: '["option3","option2"]' },
+			{ updatedValue: "[]", expectedValue: '["option2"]' },
+		])(
+			"preserves an external value update to $updatedValue when selecting another option",
+			async ({ updatedValue, expectedValue }) => {
+				const user = userEvent.setup();
+				function ParameterWithExternalUpdate() {
+					const [value, setValue] = useState('["option1"]');
+					return (
+						<>
+							<button type="button" onClick={() => setValue(updatedValue)}>
+								Update parameter value
+							</button>
+							<DynamicParameter
+								parameter={mockMultiSelectParameter}
+								value={value}
+								onChange={(newValue) => {
+									mockOnChange(newValue);
+									setValue(newValue);
+								}}
+							/>
+						</>
+					);
+				}
+
+				render(<ParameterWithExternalUpdate />);
+				await user.click(
+					screen.getByRole("button", { name: "Update parameter value" }),
+				);
+				expect(mockOnChange).not.toHaveBeenCalled();
+
+				await user.click(screen.getByRole("combobox"));
+				await user.click(screen.getByRole("option", { name: "Option 2" }));
+
+				expect(mockOnChange).toHaveBeenCalledExactlyOnceWith(expectedValue);
+			},
+		);
 
 		it("handles option deselection", async () => {
 			render(

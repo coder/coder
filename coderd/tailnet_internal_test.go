@@ -1,14 +1,34 @@
 package coderd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tailscale.com/derp"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestEmbeddedDERPRegionDialer(t *testing.T) {
+	t.Parallel()
+
+	srv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
+	t.Cleanup(func() { _ = srv.Close() })
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	dial := embeddedDERPRegionDialer(ctx, testutil.Logger(t), srv)
+
+	require.Nil(t, dial(ctx, &tailcfg.DERPRegion{EmbeddedRelay: false}))
+
+	cancel()
+	conn := dial(ctx, &tailcfg.DERPRegion{EmbeddedRelay: true})
+	require.NotNil(t, conn, "an embedded region must never fall back to a network dial")
+	_, err := conn.Read(make([]byte, 1))
+	require.Error(t, err)
+}
 
 func TestPollingDERPClient_FirstRecvDoesNotWaitForTick(t *testing.T) {
 	t.Parallel()

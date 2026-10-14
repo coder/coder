@@ -360,20 +360,6 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 	return (
 		<>
 			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
-				{/* left column: avatar and username */}
-				<div className="flex flex-row items-center gap-1">
-					<Avatar
-						src={initiator.avatar_url}
-						fallback={initiator.name ?? initiator.username}
-						size="sm"
-						className="shrink-0"
-					/>
-					<span className="text-sm text-content-secondary font-normal py-1">
-						{initiator.username}
-					</span>
-				</div>
-
-				{/* center column: prompt */}
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
@@ -416,15 +402,26 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 						</>
 					)}
 				</div>
-				{/* right column: details */}
-				<PromptTable
-					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
-					timestamp={new Date(thread.started_at)}
-					model={thread.model}
-					inputTokens={thread.token_usage.input_tokens}
-					outputTokens={thread.token_usage.output_tokens}
-					tokenUsageMetadata={thread.token_usage.metadata}
-				/>
+				<div className="flex flex-col gap-1 lg:max-w-64 min-w-0 shrink-0 w-full lg:w-auto">
+					<div className="flex items-center gap-1">
+						<Avatar
+							src={initiator.avatar_url}
+							fallback={initiator.name ?? initiator.username}
+							size="sm"
+							className="shrink-0"
+						/>
+						<span className="min-w-0 break-all text-sm text-content-secondary font-normal py-1">
+							{initiator.username}
+						</span>
+					</div>
+					<PromptTable
+						timestamp={new Date(thread.started_at)}
+						model={thread.model}
+						inputTokens={thread.token_usage.input_tokens}
+						outputTokens={thread.token_usage.output_tokens}
+						tokenUsageMetadata={thread.token_usage.metadata}
+					/>
+				</div>
 			</div>
 
 			{hasAgenticLoop ? (

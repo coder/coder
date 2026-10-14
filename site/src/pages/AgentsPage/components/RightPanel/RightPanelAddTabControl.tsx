@@ -81,20 +81,20 @@ const AgentPortsSubMenu: React.FC<{
 export const RightPanelAddTabControl: React.FC<{
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
-	host?: string;
-	isRunning?: boolean;
+	host: string;
+	isRunning: boolean;
 	supportedSingletonTabs: readonly SingletonRightPanelTabId[];
 	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
 	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
 	onNewTerminal: () => void;
-	onOpenWorkspaceApp?: (app: WorkspaceApp) => void;
-	onOpenCommandApp?: (app: WorkspaceApp) => void;
-	onOpenPort?: (selection: PortSelection) => void;
+	onOpenWorkspaceApp: (app: WorkspaceApp) => void;
+	onOpenCommandApp: (app: WorkspaceApp) => void;
+	onOpenPort: (selection: PortSelection) => void;
 }> = ({
 	workspace,
 	agent,
-	host = "",
-	isRunning = false,
+	host,
+	isRunning,
 	supportedSingletonTabs,
 	visibleSingletonTabs,
 	onToggleSingletonTab,
@@ -116,7 +116,7 @@ export const RightPanelAddTabControl: React.FC<{
 	);
 
 	return (
-		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">
+		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-content-secondary">
 			<Button
 				variant="subtle"
 				size="icon"
@@ -124,7 +124,7 @@ export const RightPanelAddTabControl: React.FC<{
 				disabled={!canCreateTerminal}
 				aria-label="New terminal tab"
 				title="New terminal tab"
-				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border-default"
+				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border"
 			>
 				<PlusIcon className="size-3.5" />
 			</Button>
@@ -177,7 +177,7 @@ export const RightPanelAddTabControl: React.FC<{
 						<>
 							<DropdownMenuSeparator className="my-1" />
 							{userApps.map((app) => {
-								if (app.command && onOpenCommandApp) {
+								if (app.command) {
 									return (
 										<DropdownMenuItem
 											key={app.id}
@@ -197,7 +197,7 @@ export const RightPanelAddTabControl: React.FC<{
 										</DropdownMenuItem>
 									);
 								}
-								if (isWorkspaceAppEmbeddable(app) && onOpenWorkspaceApp) {
+								if (isWorkspaceAppEmbeddable(app)) {
 									return (
 										<DropdownMenuItem
 											key={app.id}
@@ -230,22 +230,19 @@ export const RightPanelAddTabControl: React.FC<{
 						</>
 					)}
 
-					{workspace &&
-						agent &&
-						onOpenPort &&
-						canShowPortForwarding(agent, host) && (
-							<>
-								<DropdownMenuSeparator className="my-1" />
-								<AgentPortsSubMenu
-									workspace={workspace}
-									agent={agent}
-									host={host}
-									isOpen={open}
-									isRunning={isRunning}
-									onPortSelect={onOpenPort}
-								/>
-							</>
-						)}
+					{workspace && agent && canShowPortForwarding(agent, host) && (
+						<>
+							<DropdownMenuSeparator className="my-1" />
+							<AgentPortsSubMenu
+								workspace={workspace}
+								agent={agent}
+								host={host}
+								isOpen={open}
+								isRunning={isRunning}
+								onPortSelect={onOpenPort}
+							/>
+						</>
+					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>

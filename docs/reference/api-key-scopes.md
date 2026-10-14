@@ -121,6 +121,13 @@ The `resource:*` form grants every action on that resource, including actions no
 | `file:create` | Create a file.                                                     |
 | `file:read`   | Read files.                                                        |
 
+### `inbox_notification`
+
+| Scope                       | Description                 |
+|-----------------------------|-----------------------------|
+| `inbox_notification:read`   | Read inbox notifications.   |
+| `inbox_notification:update` | Update inbox notifications. |
+
 ### `organization`
 
 | Scope                 | Description                                                                |
@@ -129,6 +136,17 @@ The `resource:*` form grants every action on that resource, including actions no
 | `organization:delete` | Delete an organization.                                                    |
 | `organization:read`   | Read organizations.                                                        |
 | `organization:update` | Update an organization.                                                    |
+
+### `organization_skill`
+
+| Scope                       | Description                                                                      |
+|-----------------------------|----------------------------------------------------------------------------------|
+| `organization_skill:*`      | Every action on `organization_skill`, including actions not listed on this page. |
+| `organization_skill:create` | Create an organization skill.                                                    |
+| `organization_skill:delete` | Delete an organization skill.                                                    |
+| `organization_skill:read`   | Read organization skill metadata and content.                                    |
+| `organization_skill:share`  | Share an organization skill with other users or groups.                          |
+| `organization_skill:update` | Update an organization skill.                                                    |
 
 ### `template`
 

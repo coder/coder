@@ -16,7 +16,7 @@ export function useWorkspaceWatch({
 	chatAgentId,
 }: {
 	workspaceId: string | undefined;
-	agentId: string | undefined;
+	agentId: string;
 	chatAgentId: string | undefined;
 }): void {
 	const queryClient = useQueryClient();
@@ -44,7 +44,7 @@ export function useWorkspaceWatch({
 			// Refetch once per chat/build/binding key for immediate repair
 			// after a rebuild; the chat query's refetchInterval owns retries
 			// when repair fails, so the latch never blocks recovery.
-			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
+			if (!isChatAgentBindingUnresolved(next, chatAgentId)) {
 				return;
 			}
 			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;

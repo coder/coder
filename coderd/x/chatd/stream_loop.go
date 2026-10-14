@@ -147,7 +147,7 @@ func (l *streamLoop) shouldFetch(hint streamSyncHint) bool {
 func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, error) {
 	var snapshot streamDBSnapshot
 	machine := chatstate.NewChatMachine(l.db, nil, l.chatID)
-	err := machine.ReadLock(ctx, func(tx database.Store) error {
+	err := machine.ReadSnapshot(func(tx database.Store) error {
 		chat, err := tx.GetChatByID(ctx, l.chatID)
 		if err != nil {
 			return xerrors.Errorf("get chat for stream: %w", err)

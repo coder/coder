@@ -7,12 +7,16 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { organizationSkills } from "#/api/queries/organizationSkills";
+import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -64,6 +68,11 @@ const inputProps = {
 	modelSelectorPlaceholder: "Select model",
 	hasModelOptions: true,
 	canConfigureAgentSetup: false,
+	initialValue: "",
+	onContentChange: vi.fn(),
+	planModeEnabled: false,
+	onPlanModeToggle: vi.fn(),
+	isModelCatalogLoading: false,
 } satisfies React.ComponentProps<typeof AgentChatInput>;
 
 const mockSentryMCP: TypesGen.MCPServerConfig = {
@@ -125,6 +134,24 @@ afterEach(() => {
 });
 
 describe("AgentChatInput", () => {
+	it("fills its container when the page column sets the width", () => {
+		localStorage.removeItem("agents.chat-full-width");
+		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const column = screen.getByTestId("chat-composer").parentElement;
+
+		expect(column).toHaveClass("max-w-3xl");
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...inputProps} fillWidth />
+			</AppProviders>,
+		);
+
+		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
+			"max-w-full",
+		);
+	});
+
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
@@ -142,6 +169,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -152,6 +184,33 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("offers the chat organization's skills in the slash menu", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(userSkills().queryKey, []);
+		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
+			{ ...MockSkill, name: "release-notes" },
+		]);
+
+		render(
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					chatOrganizationId="org-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/rel");
+		await user.click(
+			await screen.findByRole("option", { name: /release-notes/ }),
+		);
+		expect(inputRef.current?.getValue()).toBe("/release-notes");
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
@@ -171,6 +230,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -315,6 +379,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -363,6 +432,10 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -387,6 +460,10 @@ describe("AgentChatInput", () => {
 			modelSelectorPlaceholder: "Select model",
 			hasModelOptions: true,
 			canConfigureAgentSetup: false,
+			onContentChange: vi.fn(),
+			planModeEnabled: false,
+			onPlanModeToggle: vi.fn(),
+			isModelCatalogLoading: false,
 		};
 
 		stubViewport(false);
@@ -432,6 +509,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -472,6 +554,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -498,6 +585,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -543,6 +635,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -578,6 +675,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -617,6 +719,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -659,6 +766,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -699,6 +811,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
