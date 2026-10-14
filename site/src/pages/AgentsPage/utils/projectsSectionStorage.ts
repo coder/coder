@@ -1,9 +1,6 @@
-const projectsSectionCollapsedStorageKeyPrefix =
-	"agents.sidebar.projects-collapsed.";
-
 /** Per user, because the preference outlives sign-out in a shared browser. */
 export function projectsSectionCollapsedStorageKey(userId: string): string {
-	return `${projectsSectionCollapsedStorageKeyPrefix}${userId}`;
+	return `agents.sidebar.projects-collapsed.${userId}`;
 }
 
 /** Returns true when nothing is saved or storage is unavailable. */
