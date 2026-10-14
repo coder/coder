@@ -3415,18 +3415,26 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		require.NoError(t, err)
 
 		testutil.TryReceive(ctx, t, streamStarted)
-		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:        chat.ID,
-			CreatedBy:     user.ID,
-			ModelConfigID: model.ID,
-			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
-		})
-		require.NoError(t, err)
-		require.True(t, queued.Queued)
+		for _, send := range []struct {
+			text     string
+			behavior chatd.SendMessageBusyBehavior
+		}{
+			{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
+			{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
+		} {
+			sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(send.text)},
+				BusyBehavior:  send.behavior,
+			})
+			require.NoError(t, err)
+			require.True(t, sent.Queued)
+		}
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		require.GreaterOrEqual(t, requestCount.Load(), int32(2))
+		require.GreaterOrEqual(t, requestCount.Load(), int32(3))
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
@@ -3451,7 +3459,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
+		require.Equal(t, []string{"start and call a tool", "interrupt", "queued"}, userTexts)
 		require.True(t, foundPartial)
 		// The interrupted attempt bills the model invocation window it
 		// opened, so the partial assistant row keeps a runtime.
