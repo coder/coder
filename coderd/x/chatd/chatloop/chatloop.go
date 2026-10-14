@@ -263,6 +263,10 @@ type GenerateCompactionOptions struct {
 	// ToolDefinitions is copied from the parent generation request so the
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
+	// OmitToolDefinitions keeps ToolDefinitions out of the summary requests,
+	// for a summary model that cannot reuse them. StepUsage still counts
+	// them, so their size alone does not elide the history.
+	OmitToolDefinitions bool
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 

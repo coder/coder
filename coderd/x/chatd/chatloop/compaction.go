@@ -278,6 +278,19 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		minRoom = min(minRoom, *maxOutput)
 	}
 	config.elideFirst = config.summaryWindow > 0 && config.summaryWindow-config.estimatedInputTokens < minRoom
+	if config.elideFirst && opts.OmitToolDefinitions {
+		// The step's usage also counts the tool definitions that the
+		// summary requests omit. They stay in the estimate as a margin for
+		// the output cap, and come out only when they alone would elide
+		// the history.
+		toolTokens, err := estimateToolTokens(opts.ToolDefinitions)
+		if err != nil {
+			config.Logger.Warn(ctx, "failed to estimate omitted tool definitions", slog.Error(err))
+		} else if config.summaryWindow-(config.estimatedInputTokens-toolTokens) >= minRoom {
+			config.estimatedInputTokens -= toolTokens
+			config.elideFirst = false
+		}
+	}
 
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
@@ -349,7 +362,6 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedModel:        opts.ResolvedModel,
 		ModelConfigID:        opts.ModelConfigID,
 		SummaryCall:          opts.SummaryCall,
-		ToolDefinitions:      opts.ToolDefinitions,
 		Force:                opts.Force,
 		Source:               opts.Source,
 		ToolCallID:           opts.ToolCallID,
@@ -358,6 +370,9 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		Clock:                opts.Clock,
 		StreamSilenceTimeout: opts.StreamSilenceTimeout,
 		Logger:               opts.Logger,
+	}
+	if !opts.OmitToolDefinitions {
+		config.ToolDefinitions = opts.ToolDefinitions
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -413,6 +428,19 @@ func EstimateTrailingTokens(messages []fantasy.Message, unmeasuredAssistants int
 		unmeasuredAssistants--
 	}
 	return estimateMessagesTokens(messages[start:])
+}
+
+// estimateToolTokens approximates the prompt tokens of tool definitions
+// from their JSON encoding.
+func estimateToolTokens(tools []fantasy.Tool) (int64, error) {
+	if len(tools) == 0 {
+		return 0, nil
+	}
+	encoded, err := json.Marshal(tools)
+	if err != nil {
+		return 0, xerrors.Errorf("marshal tool definitions: %w", err)
+	}
+	return estimateTokens(len(encoded)), nil
 }
 
 func estimateTokens(byteCount int) int64 {

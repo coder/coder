@@ -1496,18 +1496,23 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 	// The step's 50,000 tokens, 2,000 for the trailing tool result, and 3
 	// for the summary prompt.
 	const fullInput = int64(52_003)
+	readFile := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}}
+	// About 10,000 tokens of definitions that the step's usage counts.
+	largeTools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 30_000)}}
 	cases := []struct {
 		name       string
 		window     int64
 		maxOutput  int64
+		tools      []fantasy.Tool
+		omitTools  bool
 		wantElided bool
 	}{
-		{name: "room below the floor", window: fullInput + 15_999, maxOutput: 20_000, wantElided: true},
-		{name: "room at the floor", window: fullInput + 16_000, maxOutput: 20_000},
-		{name: "a smaller output cap lowers the floor", window: fullInput + 10_000, maxOutput: 4_000},
-		{name: "unknown window", maxOutput: 20_000},
+		{name: "room below the floor", window: fullInput + 15_999, maxOutput: 20_000, tools: readFile, wantElided: true},
+		{name: "room at the floor", window: fullInput + 16_000, maxOutput: 20_000, tools: readFile},
+		{name: "a smaller output cap lowers the floor", window: fullInput + 10_000, maxOutput: 4_000, tools: readFile},
+		{name: "unknown window", maxOutput: 20_000, tools: readFile},
+		{name: "omitted tool definitions leave room", window: fullInput + 10_000, maxOutput: 20_000, tools: largeTools, omitTools: true},
 	}
-	toolDefinitions := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1522,23 +1527,32 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 				},
 			}
 			_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:           model,
-				Messages:        toolResultHistory(strings.Repeat("a", 6_000)),
-				Clock:           quartz.NewMock(t),
-				ContextLimit:    tc.window,
-				SummaryPrompt:   "summarize",
-				StepUsage:       fantasy.Usage{InputTokens: 50_000},
-				SummaryCall:     fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
-				ToolDefinitions: toolDefinitions,
-				Force:           true,
+				Model:               model,
+				Messages:            toolResultHistory(strings.Repeat("a", 6_000)),
+				Clock:               quartz.NewMock(t),
+				ContextLimit:        tc.window,
+				SummaryPrompt:       "summarize",
+				StepUsage:           fantasy.Usage{InputTokens: 50_000},
+				SummaryCall:         fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
+				ToolDefinitions:     tc.tools,
+				OmitToolDefinitions: tc.omitTools,
+				Force:               true,
 			})
 			require.NoError(t, err)
 			require.Len(t, calls, 1)
+			texts := toolResultTexts(calls[0].Prompt)
+			require.Len(t, texts, 1)
 			if tc.wantElided {
+				require.Contains(t, texts[0], "Coder truncated")
 				require.Nil(t, calls[0].Tools)
 				return
 			}
-			require.Equal(t, toolDefinitions, calls[0].Tools)
+			require.Equal(t, strings.Repeat("a", 6_000), texts[0])
+			if tc.omitTools {
+				require.Nil(t, calls[0].Tools)
+				return
+			}
+			require.Equal(t, tc.tools, calls[0].Tools)
 		})
 	}
 }

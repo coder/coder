@@ -1305,7 +1305,7 @@ func (s *taskStarter) generateCompaction(
 		// rejected.
 		if !sameCompactionProviderIdentity(prepared.Compaction.ChatModelConfig, overrideModel.dbConfig) ||
 			overrideModel.resolvedModel != prepared.Compaction.Options.ResolvedModel {
-			compactionOpts.ToolDefinitions = nil
+			compactionOpts.OmitToolDefinitions = true
 		}
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
