@@ -19,7 +19,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/testutil"
 )
 
 // scenarioLogger renders real human-readable log output to both the
@@ -45,8 +44,7 @@ func TestUpWithLoggerFreshInstall(t *testing.T) {
 	db := testSQLDB(t)
 	logger := scenarioLogger(t, "fresh-install")
 
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	err := migrations.UpWithLogger(ctx, db, logger.Named("migrations"))
+	err := migrations.UpWithLogger(db, logger.Named("migrations"))
 	require.NoError(t, err)
 }
 
@@ -57,16 +55,15 @@ func TestUpWithLoggerUpToDate(t *testing.T) {
 	}
 
 	db := testSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	// First run brings it fully up to date; not the scenario under test,
 	// so log it under its own name for reference.
 	setupLogger := scenarioLogger(t, "up-to-date-setup")
-	require.NoError(t, migrations.UpWithLogger(ctx, db, setupLogger.Named("migrations")))
+	require.NoError(t, migrations.UpWithLogger(db, setupLogger.Named("migrations")))
 
 	// Second run against the same, now-current database is the scenario:
 	// it should log nothing but "database schema is up to date".
 	logger := scenarioLogger(t, "up-to-date")
-	err := migrations.UpWithLogger(ctx, db, logger.Named("migrations"))
+	err := migrations.UpWithLogger(db, logger.Named("migrations"))
 	require.NoError(t, err)
 }

@@ -148,11 +148,9 @@ func UpWithFS(db *sql.DB, migs fs.FS) error {
 
 // UpWithLogger runs SQL migrations the same way Up does, additionally
 // reporting structured progress and outcome events to logger, named
-// "migrations" by convention. ctx is cancelled when coder server receives a
-// stop signal: the cancellation only triggers one log line, and migrations
-// are never cancelled, so the run always completes or fails on its own.
-func UpWithLogger(ctx context.Context, db *sql.DB, logger slog.Logger) error {
-	return runUp(ctx, db, migrations, logger, true)
+// "migrations" by convention.
+func UpWithLogger(db *sql.DB, logger slog.Logger) error {
+	return runUp(context.Background(), db, migrations, logger, true)
 }
 
 // runUp is the shared implementation behind Up, UpWithFS and UpWithLogger.
@@ -174,23 +172,6 @@ func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger, diag
 		}
 		retErr = srcErr
 	}()
-
-	if diagnostics {
-		// golang-migrate finishes the in-flight migration before stopping, so
-		// this never cancels migration SQL; it only logs once and asks
-		// golang-migrate not to start the next migration.
-		stopWatch := make(chan struct{})
-		defer close(stopWatch)
-		go func() {
-			select {
-			case <-ctx.Done():
-				logger.Warn(ctx, "stop signal received, database migrations continue",
-					slog.F("event", EventStopSignalReceived))
-				m.GracefulStop <- true
-			case <-stopWatch:
-			}
-		}()
-	}
 
 	mUpErr := m.Up()
 	if mUpErr != nil && errors.Is(mUpErr, migrate.ErrNoChange) {
@@ -256,7 +237,6 @@ const (
 	EventOutcomeRolledBack             Event = "db_migration_outcome_rolled_back"
 	EventOutcomeCommittedBeforeFailure Event = "db_migration_outcome_committed_before_failure"
 	EventOutcomeUnknown                Event = "db_migration_outcome_unknown"
-	EventStopSignalReceived            Event = "db_migration_stop_signal_received"
 )
 
 // Event derives the log event from the outcome itself, so the two can't

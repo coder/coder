@@ -830,7 +830,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("compute max idle connections: %w", err)
 			}
 			logger.Debug(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
-			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, stopCtx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
+			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
 				WithMaxOpenConns(maxOpenConns),
 				WithMaxIdleConns(maxIdleConns),
 			)
@@ -3231,11 +3231,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 }
 
 // getAndMigratePostgresDB connects to postgres and runs database migrations.
-// stopCtx is cancelled when coder server receives a stop signal; it is
-// threaded into the migration run separately from ctx because ctx is
-// wrapped in ConnectToPostgres's own 30-second dial timeout, which must
-// never be confused with an actual stop signal arriving mid-migration.
-func getAndMigratePostgresDB(ctx, stopCtx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string, opts ...PostgresConnectOption) (*sql.DB, string, error) {
+func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string, opts ...PostgresConnectOption) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
@@ -3249,7 +3245,7 @@ func getAndMigratePostgresDB(ctx, stopCtx context.Context, logger slog.Logger, p
 	}
 
 	migrate := func(db *sql.DB) error {
-		return migrations.UpWithLogger(stopCtx, db, logger.Named("migrations"))
+		return migrations.UpWithLogger(db, logger.Named("migrations"))
 	}
 	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrate, opts...)
 	if err != nil {
