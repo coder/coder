@@ -737,6 +737,7 @@ type DeploymentValues struct {
 	PostgresAuth                            string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	PostgresConnMaxOpen                     serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
 	PostgresConnMaxIdle                     serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
+	QuotaMaxConcurrentCommits               serpent.Int64                        `json:"quota_max_concurrent_commits,omitempty" typescript:",notnull"`
 	OAuth2                                  OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                                    OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                               TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -3642,6 +3643,21 @@ communicating directly.`,
 			Default: PostgresConnMaxIdleAuto,
 			Value:   &c.PostgresConnMaxIdle,
 			YAML:    "pgConnMaxIdle",
+		},
+		{
+			Name:        "Workspace Quota Max Concurrent Commits",
+			Description: "Maximum number of workspace quota transactions each replica runs at once. 0 uses a quarter of the Postgres max open connections, from 1 to 8. A positive value must be less than the max open connections, unless that is 1.",
+			Flag:        "quota-max-concurrent-commits",
+			Env:         "CODER_QUOTA_MAX_CONCURRENT_COMMITS",
+			YAML:        "quotaMaxConcurrentCommits",
+			Hidden:      true,
+			Default:     "0",
+			Value: serpent.Validate(&c.QuotaMaxConcurrentCommits, func(value *serpent.Int64) error {
+				if value.Value() < 0 {
+					return xerrors.New("must be greater than or equal to zero")
+				}
+				return nil
+			}),
 		},
 		{
 			Name:        "Secure Auth Cookie",

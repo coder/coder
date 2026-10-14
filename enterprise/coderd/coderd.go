@@ -83,6 +83,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
 	}
+	quotaLimit, err := quotaAdmissionLimit(
+		int(options.DeploymentValues.PostgresConnMaxOpen.Value()),
+		options.DeploymentValues.QuotaMaxConcurrentCommits.Value(),
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("invalid quota max concurrent commits: %w", err)
+	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
@@ -230,7 +237,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
 	// Created once, so committers replaced on entitlement changes share it.
-	api.quotaAdmission = semaphore.NewWeighted(quotaAdmissionLimit(int(options.DeploymentValues.PostgresConnMaxOpen.Value())))
+	api.quotaAdmission = semaphore.NewWeighted(quotaLimit)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {

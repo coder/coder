@@ -6,28 +6,79 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // longLockTimeout keeps the lock timeout out of reach of driveBackoff, which
 // advances the mock clock through every backoff.
 const longLockTimeout = 24 * time.Hour
+
+func TestQuotaAdmissionLimit(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		maxOpen    int
+		configured int64
+		want       int64
+		wantErr    bool
+	}{
+		{name: "Automatic", maxOpen: 10, want: 2},
+		{name: "AutomaticSingleConnection", maxOpen: 1, want: 1},
+		{name: "ExplicitSingleConnection", maxOpen: 1, configured: 1, want: 1},
+		{name: "TooManyForSingleConnection", maxOpen: 1, configured: 2, wantErr: true},
+		{name: "Override", maxOpen: 10, configured: 9, want: 9},
+		{name: "WholePool", maxOpen: 10, configured: 10, wantErr: true},
+		{name: "Negative", maxOpen: 10, configured: -1, wantErr: true},
+		{name: "AutomaticCap", maxOpen: 40, want: 8},
+		{name: "UnlimitedPoolAutomatic", want: 8},
+		{name: "UnlimitedPoolOverride", configured: 50, want: 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			limit, err := quotaAdmissionLimit(tc.maxOpen, tc.configured)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, limit)
+		})
+	}
+}
+
+func TestNewRejectsQuotaAdmissionWholePool(t *testing.T) {
+	t.Parallel()
+	api, err := New(context.Background(), &Options{Options: &agplcoderd.Options{
+		DeploymentValues: &codersdk.DeploymentValues{
+			PostgresConnMaxOpen:       serpent.Int64(10),
+			QuotaMaxConcurrentCommits: serpent.Int64(10),
+		},
+	}})
+	require.Nil(t, api)
+	require.ErrorContains(t, err, "invalid quota max concurrent commits")
+	require.ErrorContains(t, err, "must be less than postgres max open connections (10)")
+}
 
 func TestCommitQuotaConcurrency(t *testing.T) {
 	t.Parallel()
@@ -120,7 +171,9 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 
 		const poolSize = 2
 		quotaDB := f.pool(t, poolSize)
-		admission := semaphore.NewWeighted(quotaAdmissionLimit(poolSize))
+		limit, err := quotaAdmissionLimit(poolSize, 0)
+		require.NoError(t, err)
+		admission := semaphore.NewWeighted(limit)
 		clock := quartz.NewMock(t)
 		driveBackoff(ctx, t, clock)
 		var tryLocks atomic.Int32
@@ -186,39 +239,87 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.True(t, held.resp.Ok)
 	})
 
-	// A slow commit keeps its admission slot, and other owners' commits on
-	// the replica wait for it without using a connection.
-	t.Run("AdmissionLimitAppliesAcrossOwners", func(t *testing.T) {
+	// Slow quota work stays admitted while indexed lookups proceed without
+	// taking a slot. The remaining connections must remain available.
+	t.Run("SlowQuotaLeavesLookupAndPoolUsable", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		f := newQuotaFixture(t)
-		user := dbgen.User(t, f.db, database.User{})
-		otherUser := dbgen.User(t, f.db, database.User{})
-		org := f.org(t, 10, user, otherUser)
-
-		pause := newQuotaPause()
-		holder := f.committer(t, pause.store(f.db))
-		holder.admission = semaphore.NewWeighted(1)
-		holderDone := commitAsync(ctx, holder, f.build(t, user, org), 10)
-		testutil.TryReceive(ctx, t, pause.paused)
+		users := make([]database.User, 4)
+		for i := range users {
+			users[i] = dbgen.User(t, f.db, database.User{})
+		}
+		org := f.org(t, 10, users...)
+		builds := make([]database.WorkspaceBuild, len(users))
+		for i, user := range users {
+			builds[i] = f.build(t, user, org)
+		}
+		quotaDB := f.pool(t, 4)
+		limit, err := quotaAdmissionLimit(4, 0)
+		require.NoError(t, err)
+		admission := semaphore.NewWeighted(limit)
+		entered, release := make(chan struct{}, len(users)), make(chan struct{})
+		var lookups atomic.Int32
+		store := &quotaHookStore{
+			Store: database.New(quotaDB),
+			afterLookup: func(context.Context) error {
+				lookups.Add(1)
+				return nil
+			},
+			beforeConsumed: func(ctx context.Context) error {
+				entered <- struct{}{}
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		}
+		holder := f.committer(t, store)
+		holder.admission = admission
+		holderDone := commitAsync(ctx, holder, builds[0], 10)
+		testutil.TryReceive(ctx, t, entered)
 
 		clock := quartz.NewMock(t)
 		admit := clock.Trap().AfterFunc("commitQuota", "admission")
 		defer admit.Close()
-		otherDB := f.pool(t, 1)
-		other := f.committer(t, database.New(otherDB))
-		other.admission, other.clock = holder.admission, clock
-		otherDone := commitAsync(ctx, other, f.build(t, otherUser, org), 10)
-		admit.MustWait(ctx).MustRelease(ctx)
+		results := make([]<-chan commitResult, 0, len(users)-1)
+		for _, build := range builds[1:] {
+			c := f.committer(t, store)
+			c.admission, c.clock = admission, clock
+			results = append(results, commitAsync(ctx, c, build, 10))
+			admit.MustWait(ctx).MustRelease(ctx)
+		}
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return int(lookups.Load()) == len(users)
+		}, testutil.IntervalFast)
+
+		spare := make([]*sql.Conn, 0, 3)
+		for range 3 {
+			checkoutCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+			conn, err := quotaDB.Conn(checkoutCtx)
+			cancel()
+			require.NoError(t, err, "slow quota work must leave spare pool capacity")
+			t.Cleanup(func() { _ = conn.Close() })
+			spare = append(spare, conn)
+		}
 		clock.Advance(quotaLockTimeout).MustWait(ctx)
-		require.ErrorContains(t, testutil.RequireReceive(ctx, t, otherDone).err, "timed out after 30s waiting for workspace quota lock")
-		require.Zero(t, otherDB.Stats().OpenConnections)
+		for _, done := range results {
+			res := testutil.RequireReceive(ctx, t, done)
+			require.ErrorContains(t, res.err, "timed out after 30s waiting for workspace quota lock")
+			require.NotErrorIs(t, res.err, context.Canceled)
+		}
 
-		close(pause.resume)
-		require.NoError(t, testutil.RequireReceive(ctx, t, holderDone).err)
+		for _, conn := range spare {
+			require.NoError(t, conn.Close())
+		}
+		close(release)
+		res := testutil.RequireReceive(ctx, t, holderDone)
+		require.NoError(t, res.err)
+		require.True(t, res.resp.Ok)
 	})
-
 	// If InTx runs the closure more than once, as it does for SERIALIZABLE
 	// transactions, the response must come from the attempt that committed,
 	// not from an earlier attempt that was rolled back after permitting the
@@ -252,6 +353,174 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.EqualValues(t, 0, f.buildCost(ctx, t, first))
 	})
 
+	// A replica that does not take the lock must still participate in SSI,
+	// so old and new quota commits cannot both spend the same budget.
+	t.Run("UnlockedSerializableCommitCannotOverspend", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		f := newQuotaFixture(t)
+		user := dbgen.User(t, f.db, database.User{})
+		org := f.org(t, 10, user)
+		first := f.build(t, user, org)
+		second := f.build(t, user, org)
+
+		oldStore := database.New(f.sqlDB, database.WithSerialRetryCount(1))
+		old := dbtestutil.StartTx(t, oldStore, &database.TxOptions{Isolation: sql.LevelSerializable})
+		finishOld := sync.OnceValue(old.Done)
+		t.Cleanup(func() { _ = finishOld() })
+		consumed, err := old.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+			OwnerID: user.ID, OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		require.Zero(t, consumed)
+		budget, err := old.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID: user.ID, OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 10, budget)
+
+		res, err := f.committer(t, f.db).CommitQuota(ctx, commitRequest(second, 10))
+		require.NoError(t, err)
+		require.True(t, res.Ok)
+		err = old.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+			ID: first.ID, DailyCost: 10,
+		})
+		commitErr := finishOld()
+		require.True(t, database.IsSerializedError(err) || database.IsSerializedError(commitErr),
+			"the unlocked commit must abort instead of overspending: update=%v commit=%v", err, commitErr)
+		require.EqualValues(t, 0, f.buildCost(ctx, t, first))
+		require.EqualValues(t, 10, f.consumed(ctx, t, user, org))
+	})
+
+	// The try-lock can acquire the lock after its snapshot was taken and a
+	// holder committed. SSI must reject the stale cost increase and retry.
+	t.Run("SnapshotBeforeLockReleaseRetries", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		f := newQuotaFixture(t)
+		user := dbgen.User(t, f.db, database.User{})
+		org := f.org(t, 10, user)
+		first := f.build(t, user, org)
+		second := f.build(t, user, org)
+
+		holderPause := newQuotaPause()
+		holderDone := commitAsync(ctx, f.committer(t, holderPause.store(f.db)), first, 10)
+		testutil.TryReceive(ctx, t, holderPause.paused)
+
+		snapshotPause := newQuotaPause()
+		var attempts, serialized atomic.Int32
+		store := &quotaHookStore{
+			Store:     database.New(f.sqlDB),
+			onAttempt: func() { attempts.Add(1) },
+			afterAttempt: func(err error) {
+				if database.IsSerializedError(err) {
+					serialized.Add(1)
+				}
+			},
+			beforeTryLock: func(ctx context.Context, tx database.Store) error {
+				// This table-free statement pins the snapshot without
+				// creating extra read dependencies.
+				if _, err := tx.GetDatabaseNow(ctx); err != nil {
+					return err
+				}
+				return snapshotPause.wait(ctx)
+			},
+		}
+		waiterDone := commitAsync(ctx, f.committer(t, store), second, 10)
+		testutil.TryReceive(ctx, t, snapshotPause.paused)
+		close(holderPause.resume)
+		holderRes := testutil.RequireReceive(ctx, t, holderDone)
+		require.NoError(t, holderRes.err)
+		require.True(t, holderRes.resp.Ok)
+		close(snapshotPause.resume)
+
+		res := testutil.RequireReceive(ctx, t, waiterDone)
+		require.NoError(t, res.err)
+		require.False(t, res.resp.Ok)
+		require.EqualValues(t, 10, res.resp.CreditsConsumed)
+		require.EqualValues(t, 10, res.resp.Budget)
+		require.EqualValues(t, 2, attempts.Load())
+		require.EqualValues(t, 1, serialized.Load())
+		require.EqualValues(t, 0, f.buildCost(ctx, t, second))
+		require.EqualValues(t, 10, f.consumed(ctx, t, user, org))
+	})
+
+	// InTx's immediate retries can be exhausted by SSI conflicts across
+	// owners. The outer loop must release admission and back off safely.
+	t.Run("SerializationFailuresBackOffAndRetry", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		f := newQuotaFixture(t)
+		user := dbgen.User(t, f.db, database.User{})
+		org := f.org(t, 10, user)
+		build := f.build(t, user, org)
+		quotaDB := f.pool(t, 1)
+		var attempts atomic.Int32
+		store := &quotaHookStore{
+			Store: database.New(quotaDB),
+			beforeConsumed: func(context.Context) error {
+				if attempts.Add(1) <= 7 {
+					return &pq.Error{Code: "40001"}
+				}
+				return nil
+			},
+		}
+		clock := quartz.NewMock(t)
+		backoff := clock.Trap().NewTimer("commitQuota", "backoff")
+		defer backoff.Close()
+		c := f.committer(t, store)
+		c.clock = clock
+		c.admission = semaphore.NewWeighted(1)
+		done := commitAsync(ctx, c, build, 10)
+
+		for range 2 {
+			call := backoff.MustWait(ctx)
+			require.Zero(t, quotaDB.Stats().InUse)
+			require.True(t, c.admission.TryAcquire(1), "backoff must release admission")
+			c.admission.Release(1)
+			call.MustRelease(ctx)
+			clock.Advance(call.Duration).MustWait(ctx)
+		}
+		res := testutil.RequireReceive(ctx, t, done)
+		require.NoError(t, res.err)
+		require.True(t, res.resp.Ok)
+		require.EqualValues(t, 8, attempts.Load())
+		require.EqualValues(t, 10, f.buildCost(ctx, t, build))
+		require.EqualValues(t, 10, f.consumed(ctx, t, user, org))
+	})
+
+	t.Run("SerializationFailuresUseWaitBudget", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		f := newQuotaFixture(t)
+		user := dbgen.User(t, f.db, database.User{})
+		org := f.org(t, 10, user)
+		build := f.build(t, user, org)
+		var attempts atomic.Int32
+		store := &quotaHookStore{
+			Store: database.New(f.sqlDB),
+			beforeConsumed: func(context.Context) error {
+				attempts.Add(1)
+				return &pq.Error{Code: "40001"}
+			},
+		}
+		clock := quartz.NewMock(t)
+		driveBackoff(ctx, t, clock)
+		c := f.committer(t, store)
+		c.clock = clock
+		res := testutil.RequireReceive(ctx, t, commitAsync(ctx, c, build, 10))
+		require.ErrorContains(t, res.err, "timed out after 30s waiting for workspace quota lock")
+		require.NotErrorIs(t, res.err, context.Canceled)
+		require.False(t, database.IsSerializedError(res.err))
+		require.Greater(t, attempts.Load(), int32(3))
+		require.EqualValues(t, 0, f.buildCost(ctx, t, build))
+		require.Zero(t, f.advisoryLocks(ctx, t, false /* waitingOnly */))
+	})
+
 	t.Run("ErrorReleasesLock", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -273,8 +542,8 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.True(t, res.Ok)
 	})
 
-	// Only a miss is retried. A retry here would wait on a mock clock that
-	// nothing advances.
+	// Unrelated failures must not be retried. A retry here would wait on a
+	// mock clock that nothing advances.
 	t.Run("DoesNotRetryFailedAttempts", func(t *testing.T) {
 		t.Parallel()
 
@@ -381,28 +650,43 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		user := dbgen.User(t, f.db, database.User{})
 		build := f.build(t, user, f.org(t, 10, user))
 		quotaDB := f.pool(t, 1)
-		held, err := quotaDB.Conn(ctx)
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = held.Close() })
 		clock := quartz.NewMock(t)
 		admit := clock.Trap().AfterFunc("commitQuota", "admission")
 		defer admit.Close()
-		c := f.committer(t, database.New(quotaDB))
+		store := &quotaHookStore{Store: database.New(quotaDB)}
+		c := f.committer(t, store)
 		c.clock = clock
 
-		done := commitAsync(ctx, c, build, 10)
-		admit.MustWait(ctx).MustRelease(ctx)
-		testutil.Eventually(ctx, t, func(context.Context) bool { return quotaDB.Stats().WaitCount == 1 }, testutil.IntervalFast)
-		clock.Advance(quotaLockTimeout).MustWait(ctx)
-		require.ErrorContains(t, testutil.RequireReceive(ctx, t, done).err, "timed out after 30s waiting for workspace quota lock")
-
-		commitCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		done = commitAsync(commitCtx, c, build, 10)
-		admit.MustWait(ctx).MustRelease(ctx)
-		testutil.Eventually(ctx, t, func(context.Context) bool { return quotaDB.Stats().WaitCount == 2 }, testutil.IntervalFast)
-		cancel()
-		require.ErrorIs(t, testutil.RequireReceive(ctx, t, done).err, context.Canceled)
+		for _, timeout := range []bool{true, false} {
+			commitCtx, cancel := context.WithCancel(ctx)
+			pause := newQuotaPause()
+			store.afterLookup = pause.wait
+			done := commitAsync(commitCtx, c, build, 10)
+			admit.MustWait(ctx).MustRelease(ctx)
+			testutil.TryReceive(ctx, t, pause.paused)
+			// Drain the pool after lookup to exercise the quota transaction's
+			// bounded checkout, rather than the RPC-context lookup.
+			held, err := quotaDB.Conn(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = held.Close() })
+			close(pause.resume)
+			wantWaits := int64(1)
+			if !timeout {
+				wantWaits = 2
+			}
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return quotaDB.Stats().WaitCount == wantWaits
+			}, testutil.IntervalFast)
+			if timeout {
+				clock.Advance(quotaLockTimeout).MustWait(ctx)
+				require.ErrorContains(t, testutil.RequireReceive(ctx, t, done).err, "timed out after 30s waiting for workspace quota lock")
+			} else {
+				cancel()
+				require.ErrorIs(t, testutil.RequireReceive(ctx, t, done).err, context.Canceled)
+			}
+			cancel()
+			require.NoError(t, held.Close())
+		}
 	})
 
 	// Within a transaction, a commit would back off on the outer
@@ -453,7 +737,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.Zero(t, f.advisoryLocks(ctx, t, false /* waitingOnly */))
 	})
 
-	t.Run("SameBuildDeadlineUpdateNeedsOneAttempt", func(t *testing.T) {
+	t.Run("SameBuildDeadlineUpdateRetries", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -488,7 +772,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.True(t, res.resp.Ok)
 		require.EqualValues(t, 10, res.resp.CreditsConsumed)
 		require.EqualValues(t, 10, res.resp.Budget)
-		require.EqualValues(t, 1, attempts.Load(), "serialization retries must not hide the conflict")
+		require.EqualValues(t, 2, attempts.Load(), "the concurrent update must cause a safe serialization retry")
 		got, err := f.db.GetWorkspaceBuildByID(ctx, build.ID)
 		require.NoError(t, err)
 		require.True(t, deadline.Equal(got.Deadline), "quota commit must preserve the concurrent deadline update")
@@ -575,10 +859,13 @@ func (f quotaFixture) build(t *testing.T, owner database.User, org database.Orga
 }
 
 func (quotaFixture) committer(t *testing.T, store database.Store) *committer {
+	t.Helper()
+	limit, err := quotaAdmissionLimit(0, 0)
+	require.NoError(t, err)
 	return &committer{
 		Log:       testutil.Logger(t),
 		Database:  store,
-		admission: semaphore.NewWeighted(quotaAdmissionLimit(0)),
+		admission: semaphore.NewWeighted(limit),
 		clock:     quartz.NewReal(),
 	}
 }
@@ -719,9 +1006,12 @@ func (p *quotaPause) wait(ctx context.Context) error {
 // errors.
 type quotaHookStore struct {
 	database.Store
+	afterLookup    func(context.Context) error
+	beforeTryLock  func(context.Context, database.Store) error
 	beforeConsumed func(context.Context) error
 	afterConsumed  func(context.Context) error
 	onAttempt      func()
+	afterAttempt   func(error)
 	tryLocks       *atomic.Int32
 	tryLockErr     error
 	// attemptErr is joined to each quota attempt's result, like a COMMIT
@@ -737,7 +1027,11 @@ func (s *quotaHookStore) InTx(fn func(database.Store) error, opts *database.TxOp
 		}
 		inner := *s
 		inner.Store = tx
-		return fn(&inner)
+		err := fn(&inner)
+		if attempt && s.afterAttempt != nil {
+			s.afterAttempt(err)
+		}
+		return err
 	}, opts)
 	if attempt && s.attemptErr != nil {
 		return errors.Join(err, s.attemptErr)
@@ -745,7 +1039,25 @@ func (s *quotaHookStore) InTx(fn func(database.Store) error, opts *database.TxOp
 	return err
 }
 
+func (s *quotaHookStore) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+	workspace, err := s.Store.GetWorkspaceByID(ctx, id)
+	if err != nil {
+		return database.Workspace{}, err
+	}
+	if s.afterLookup != nil {
+		if err := s.afterLookup(ctx); err != nil {
+			return database.Workspace{}, err
+		}
+	}
+	return workspace, nil
+}
+
 func (s *quotaHookStore) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
+	if s.beforeTryLock != nil {
+		if err := s.beforeTryLock(ctx, s.Store); err != nil {
+			return false, err
+		}
+	}
 	if s.tryLocks != nil {
 		s.tryLocks.Add(1)
 	}

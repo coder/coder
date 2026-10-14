@@ -2198,3 +2198,32 @@ func TestExperimentsSafeAreKnown(t *testing.T) {
 		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
 }
+
+func TestDeploymentValues_QuotaMaxConcurrentCommits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		value   string
+		want    int64
+		wantErr bool
+	}{
+		{name: "Automatic", value: "0"},
+		{name: "Override", value: "9", want: 9},
+		{name: "Negative", value: "-1", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var dv codersdk.DeploymentValues
+			opts := dv.Options()
+			err := opts.ParseEnv([]serpent.EnvVar{{
+				Name: "CODER_QUOTA_MAX_CONCURRENT_COMMITS", Value: tc.value,
+			}})
+			if tc.wantErr {
+				require.ErrorContains(t, err, "must be greater than or equal to zero")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, dv.QuotaMaxConcurrentCommits.Value())
+		})
+	}
+}

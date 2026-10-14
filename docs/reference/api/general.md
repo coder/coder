@@ -562,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "proxy_trusted_origins": [
       "string"
     ],
+    "quota_max_concurrent_commits": 0,
     "rate_limit": {
       "api": 0,
       "disable_all": true

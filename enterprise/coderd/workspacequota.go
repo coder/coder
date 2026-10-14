@@ -24,13 +24,14 @@ import (
 )
 
 // quotaLockTimeout bounds how long a quota commit waits for an admission
-// slot, pooled connections, and earlier commits for the same owner and
-// organization. It doesn't bound BEGIN, COMMIT, or a running transaction.
+// slot, a connection for the quota transaction, and earlier commits for the
+// same owner and organization, including serialization retries. It doesn't
+// bound BEGIN, COMMIT, or a running transaction.
 const quotaLockTimeout = 30 * time.Second
 
-// A commit that finds the lock held retries after a full-jitter delay from
-// 25ms, doubling to 1s. A holder normally keeps the lock for milliseconds,
-// and the cap keeps each waiter to about two attempts a second.
+// Lock misses and exhausted serialization retries use a full-jitter delay
+// from 25ms, doubling to 1s. A holder normally keeps the lock for
+// milliseconds, and the cap keeps each waiter to about two attempts a second.
 const (
 	quotaBackoffBase = 25 * time.Millisecond
 	quotaBackoffMax  = time.Second
@@ -39,13 +40,25 @@ const (
 var errQuotaLockTimeout = xerrors.New("workspace quota lock timeout")
 
 // quotaAdmissionLimit returns how many quota transactions a replica runs at
-// once: a quarter of its connection pool, from 1 to 8. database/sql treats
-// zero as unlimited.
-func quotaAdmissionLimit(maxOpenConns int) int64 {
-	if maxOpenConns <= 0 {
-		return 8
+// once. A positive override must leave a spare pooled connection, unless
+// the pool has only one. Zero uses a quarter of the pool, from 1 to 8.
+func quotaAdmissionLimit(maxOpenConns int, configured int64) (int64, error) {
+	if configured < 0 {
+		return 0, xerrors.New("must be greater than or equal to zero")
 	}
-	return int64(min(max(maxOpenConns/4, 1), 8))
+	if configured > 0 {
+		if maxOpenConns == 1 && configured != 1 {
+			return 0, xerrors.New("must be 1 when postgres max open connections is 1")
+		}
+		if maxOpenConns > 1 && configured >= int64(maxOpenConns) {
+			return 0, xerrors.Errorf("must be less than postgres max open connections (%d)", maxOpenConns)
+		}
+		return configured, nil
+	}
+	if maxOpenConns <= 0 {
+		return 8, nil
+	}
+	return int64(min(max(maxOpenConns/4, 1), 8)), nil
 }
 
 type committer struct {
@@ -63,10 +76,11 @@ type committer struct {
 // Commits for the same owner and organization take turns through an
 // advisory lock. An attempt that finds it held commits its empty
 // transaction, returns its connection and admission slot, and retries after
-// a backoff. Waiters poll rather than queue, so a newer commit can win over
-// an older one, and the lock can sit idle for up to one backoff after a
-// release. Slots are shared across owners, so slow commits delay others on
-// the replica.
+// a backoff. Serialization failures also retry after returning the connection
+// and slot, since PostgreSQL has rolled the transaction back. Waiters poll
+// rather than queue, so a newer commit can win over an older one, and the
+// lock can sit idle for up to one backoff after a release. Slots are shared
+// across owners, so slow commits delay others on the replica.
 //
 // CommitQuota must not run within a transaction.
 func (c *committer) CommitQuota(
@@ -85,21 +99,15 @@ func (c *committer) CommitQuota(
 	admitTimer := c.clock.AfterFunc(lockTimeout, func() { cancelAdmit(errQuotaLockTimeout) }, "commitQuota", "admission")
 	defer admitTimer.Stop()
 
-	var (
-		nextBuild database.WorkspaceBuild
-		workspace database.Workspace
-	)
-	err = c.inQuotaTx(admitCtx, "commit_quota_lookup", func(s database.Store) error {
-		var err error
-		nextBuild, err = s.GetWorkspaceBuildByJobID(ctx, jobID)
-		if err != nil {
-			return err
-		}
-		workspace, err = s.GetWorkspaceByID(ctx, nextBuild.WorkspaceID)
-		return err
-	})
+	// These indexed lookups use the RPC context and do not need a quota
+	// admission slot or a transaction.
+	nextBuild, err := c.Database.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
-		return nil, c.timeoutError(ctx, admitCtx, err, lockTimeout, slog.F("job_id", jobID))
+		return nil, err
+	}
+	workspace, err := c.Database.GetWorkspaceByID(ctx, nextBuild.WorkspaceID)
+	if err != nil {
+		return nil, err
 	}
 
 	lockID := database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID)
@@ -110,18 +118,20 @@ func (c *committer) CommitQuota(
 		slog.F("organization_id", workspace.OrganizationID),
 		slog.F("lock_id", lockID),
 	}
-	for miss := 0; ; miss++ {
+	for retry := 0; ; retry++ {
 		resp, busy, err := c.commitQuotaAttempt(ctx, admitCtx, request, nextBuild, workspace, lockID)
-		if err != nil {
+		if err != nil && !database.IsSerializedError(err) {
 			return nil, c.timeoutError(ctx, admitCtx, err, lockTimeout, fields...)
 		}
-		if !busy {
+		if err == nil && !busy {
 			return resp, nil
 		}
-		// Only a miss is retried, since it read and wrote nothing. The delay
-		// is never zero, so every retry goes through a clock timer.
+		// A miss wrote nothing, and a serialization failure is a definite
+		// rollback. Other failures can have uncertain commit outcomes and
+		// must not be retried. Bound retries by the same admission timeout.
+		// The delay is never zero, so every retry goes through a clock timer.
 		//nolint:gosec // Jitter does not need cryptographic randomness.
-		delay := time.Duration(rand.Int64N(int64(min(quotaBackoffMax, quotaBackoffBase<<min(miss, 6))))) + 1
+		delay := time.Duration(rand.Int64N(int64(min(quotaBackoffMax, quotaBackoffBase<<min(retry, 6))))) + 1
 		timer := c.clock.NewTimer(delay, "commitQuota", "backoff")
 		select {
 		case <-timer.C:
@@ -147,17 +157,17 @@ func (c *committer) commitQuotaAttempt(
 		permit   bool
 		busy     bool
 	)
-	err := c.inQuotaTx(admitCtx, "commit_quota", func(s database.Store) error {
-		// InTx only retries SERIALIZABLE transactions, but reset anyway so the
-		// response always comes from the attempt that committed.
+	err := c.inQuotaTx(admitCtx, func(s database.Store) error {
+		// InTx can retry a serialization failure after permitting a build.
+		// Return only the result of the attempt that actually committed.
 		consumed, budget, permit, busy = 0, 0, false, false
 
 		// Quota commits for the same owner and organization take turns. The
-		// lock is held until commit, and READ COMMITTED gives each statement
-		// below a fresh snapshot, so the reads include every cost committed
-		// by the previous lock holder. Higher isolation levels can keep a
-		// snapshot taken before the lock was granted, so they can miss that
-		// cost; SERIALIZABLE also retains serialization conflicts and retries.
+		// lock is held until commit. SERIALIZABLE protects against commits
+		// on replicas that don't take this lock. The try-lock statement can
+		// take its snapshot just before a holder commits and still acquire
+		// the lock. A serialization failure then rolls back an unsafe cost
+		// increase, and the retry reads a fresh snapshot.
 		locked, err := s.TryAcquireLock(ctx, lockID)
 		if err != nil {
 			return xerrors.Errorf("try workspace quota lock: %w", err)
@@ -237,19 +247,19 @@ func (c *committer) commitQuotaAttempt(
 	}, false, nil
 }
 
-// inQuotaTx runs fn in a top-level READ COMMITTED transaction while holding
+// inQuotaTx runs fn in a top-level transaction while holding
 // an admission slot until the connection is back in the pool. admitCtx ends
 // the waits for the slot and the connection. Nested transactions are
 // rejected, since they would wait on the outer connection and could read
 // its snapshot.
-func (c *committer) inQuotaTx(admitCtx context.Context, id string, fn func(database.Store) error) error {
+func (c *committer) inQuotaTx(admitCtx context.Context, fn func(database.Store) error) error {
 	if err := c.admission.Acquire(admitCtx, 1); err != nil {
 		return xerrors.Errorf("wait for quota admission: %w", err)
 	}
 	defer c.admission.Release(1)
 	return c.Database.InTx(fn, &database.TxOptions{
-		Isolation:       sql.LevelReadCommitted,
-		TxIdentifier:    id,
+		Isolation:       sql.LevelSerializable,
+		TxIdentifier:    "commit_quota",
 		CheckoutContext: admitCtx,
 		RequireTopLevel: true,
 	})

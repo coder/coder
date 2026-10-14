@@ -697,7 +697,7 @@ func TestWorkspaceQuota(t *testing.T) {
 	})
 }
 
-// TestWorkspaceSerialization exercises PostgreSQL READ COMMITTED query
+// TestWorkspaceSerialization exercises PostgreSQL SERIALIZABLE query
 // interleavings through committer, rather than the production CommitQuota path.
 //
 // nolint:paralleltest,tparallel // Tests must run serially
@@ -751,7 +751,8 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		//  | CommitTx()                   |                  |
 		//  +------------------------------+------------------+
-		// Works!
+		// A completed build can be updated concurrently, causing a safe
+		// serialization failure. Production quota commits retry this case.
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -778,12 +779,13 @@ func TestWorkspaceSerialization(t *testing.T) {
 		// Run order
 
 		quota := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
-		quota.GetQuota(ctx, t)                         // Step 1
-		bumpDeadline()                                 // Interrupt
-		quota.GetAllowance(ctx, t)                     // Step 2
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+		quota.GetQuota(ctx, t)                                // Step 1
+		bumpDeadline()                                        // Interrupt
+		quota.GetAllowance(ctx, t)                            // Step 2
+		err := quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+		require.True(t, database.IsSerializedError(err), "%v", err)
 		// End commit
-		require.NoError(t, quota.Done())
+		require.Error(t, quota.Done())
 	})
 
 	// UpdateOtherBuildDeadline bumps a user's other workspace deadline
@@ -839,10 +841,10 @@ func TestWorkspaceSerialization(t *testing.T) {
 		// Run order
 
 		quota := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
-		quota.GetQuota(ctx, t)                         // Step 1
-		bumpDeadline()                                 // Interrupt
-		quota.GetAllowance(ctx, t)                     // Step 2
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+		quota.GetQuota(ctx, t)                                            // Step 1
+		bumpDeadline()                                                    // Interrupt
+		quota.GetAllowance(ctx, t)                                        // Step 2
+		assert.NoError(t, quota.UpdateWorkspaceBuildCostByID(ctx, t, 10)) // Step 3
 		// End commit
 		require.NoError(t, quota.Done())
 	})
@@ -863,7 +865,8 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
-		// Works!
+		// This completed build accepts an activity bump; SSI rolls back the
+		// quota write. In-progress builds are excluded by the activity query.
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -889,10 +892,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		err = one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		require.True(t, database.IsSerializedError(err), "%v", err)
 
 		// End commit
-		assert.NoError(t, one.Done())
+		require.Error(t, one.Done())
 	})
 
 	t.Run("BumpLastUsedAt", func(t *testing.T) {
@@ -930,7 +934,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, one.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		// End commit
 		assert.NoError(t, one.Done())
@@ -974,7 +978,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, one.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		// End commit
 		assert.NoError(t, one.Done())
@@ -1025,11 +1029,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, one.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		two.GetQuota(ctx, t)
 		two.GetAllowance(ctx, t)
-		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, two.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		// End commit
 		assert.NoError(t, one.Done())
@@ -1081,11 +1085,11 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, one.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		two.GetQuota(ctx, t)
 		two.GetAllowance(ctx, t)
-		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		assert.NoError(t, two.UpdateWorkspaceBuildCostByID(ctx, t, 10))
 
 		// End commit
 		assert.NoError(t, one.Done())
@@ -1130,7 +1134,7 @@ func graphWithCost(cost int32) []*proto.Response {
 	}}
 }
 
-// committer exposes quota queries in a READ COMMITTED transaction so tests
+// committer exposes quota queries in a SERIALIZABLE transaction so tests
 // can control their interleaving with unrelated database updates.
 type committer struct {
 	DBTx *dbtestutil.DBTx
@@ -1144,7 +1148,7 @@ type committer struct {
 // owner and organization blocks until the first one is done.
 func newCommitter(t *testing.T, db database.Store, workspace database.WorkspaceTable, build database.WorkspaceBuild) *committer {
 	quotaTX := dbtestutil.StartTx(t, db, &database.TxOptions{
-		Isolation: sql.LevelReadCommitted,
+		Isolation: sql.LevelSerializable,
 		ReadOnly:  false,
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1192,14 +1196,14 @@ func (c *committer) GetAllowance(ctx context.Context, t *testing.T) int64 {
 	return allowance
 }
 
-func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing.T, cost int32) bool {
+func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing.T, cost int32) error {
 	t.Helper()
 
 	err := c.DBTx.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
 		ID:        c.b.ID,
 		DailyCost: cost,
 	})
-	return assert.NoError(t, err)
+	return err
 }
 
 func (c *committer) Done() error {
