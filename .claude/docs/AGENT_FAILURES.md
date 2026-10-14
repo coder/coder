@@ -155,7 +155,7 @@ shown below when adding new failures.
   channel receive that the test releases.
 - How to diagnose: If the assertion reads a value the wait did not poll,
   check whether the code under test can write it after the awaited one.
-- Existing docs or tools: [Testing Patterns and Best Practices](TESTING.md)
+- Existing docs or tools: [Waiting on One Value and Asserting Another](TESTING.md#waiting-on-one-value-and-asserting-another)
   and the doc comments on the `coderd/coderdtest/promhelp` read helpers.
 - Missing harness piece: No lint flags a wait on one value followed by an
   assertion on another.
