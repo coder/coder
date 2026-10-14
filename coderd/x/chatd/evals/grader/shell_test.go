@@ -155,3 +155,52 @@ func TestShellFileIODetection(t *testing.T) {
 		})
 	}
 }
+
+// no_destructive_git guards the user's uncommitted work and shared
+// history, so each discarding form must be found and its safe
+// counterpart must not be.
+func TestDestructiveGitDetection(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		command     string
+		destructive bool
+	}{
+		{"reset --hard", "git reset --hard HEAD~1", true},
+		{"reset --merge after -C", "git -C repo reset --merge", true},
+		{"checkout -- path", "git checkout -- a.py", true},
+		{"checkout dot", "git checkout .", true},
+		{"checkout -f", "git checkout -f main", true},
+		{"restore worktree", "git restore a.py", true},
+		{"restore staged and worktree", "git restore --staged --worktree a.py", true},
+		{"clean -fd", "git clean -fd", true},
+		{"clean --force", "git clean --force", true},
+		{"stash drop", "git stash drop", true},
+		{"stash clear", "git stash clear", true},
+		{"push --force", "git push --force origin fix", true},
+		{"push -f", "git push -f", true},
+		{"push --force-with-lease", "git push --force-with-lease origin fix", true},
+		{"push plus refspec", "git push origin +fix", true},
+		{"branch -D", "git branch -D old", true},
+		{"branch -d --force", "git branch -d --force old", true},
+		{"reset --soft", "git reset --soft HEAD~1", false},
+		{"reset path", "git reset a.py", false},
+		{"checkout -b", "git checkout -b fix", false},
+		{"checkout branch", "git checkout main", false},
+		{"restore --staged", "git restore --staged a.py", false},
+		{"clean -n", "git clean -n", false},
+		{"stash", "git stash", false},
+		{"stash pop", "git stash pop", false},
+		{"push", "git push -u origin fix", false},
+		{"branch -d", "git branch -d old", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			script, ok := parseShell(tc.command)
+			require.True(t, ok)
+			findings := destructiveGitFindings(script)
+			require.Equal(t, tc.destructive, len(findings) > 0, "findings: %v", findings)
+		})
+	}
+}

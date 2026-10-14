@@ -15,7 +15,7 @@ import (
 )
 
 // Each check type gets a passing and a failing trial built from the
-// synthetic transcripts in testdata/transcripts.
+// transcripts in testdata/transcripts or the synthetic ones below.
 func TestChecks(t *testing.T) {
 	t.Parallel()
 	const editDiff = "diff --git a/inventory/report.py b/inventory/report.py\n" +

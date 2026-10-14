@@ -2,9 +2,12 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -140,6 +143,64 @@ func TestSummarizeRunRejectsUnreadableStore(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(store, "bundles", "exp2"), nil, 0o600))
 	_, err := summarizeRun(store, "", "candidate")
 	require.ErrorContains(t, err, "exp2")
+}
+
+// A build comparison lists every case either run graded, so a case that
+// only one build ran shows as n/a on the other side instead of vanishing,
+// and names both builds.
+func TestSummarizeCommandComparesBuilds(t *testing.T) {
+	t.Parallel()
+	graded := func(cases map[string]bool) (string, string) {
+		store, derived := t.TempDir(), t.TempDir()
+		for task, passed := range cases {
+			id := task + "__control__r1"
+			writeSummaryTrial(t, store, id, task, "control", "DONE")
+			dir := filepath.Join(derived, id)
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "measurements.json"), []byte(
+				`{"graders":{"checks":{"passed":`+strconv.FormatBool(passed)+`}}}`), 0o600))
+		}
+		return store, derived
+	}
+	candStore, candDerived := graded(map[string]bool{"case-a": true, "case-b": true})
+	baseStore, baseDerived := graded(map[string]bool{"case-a": false, "case-c": true})
+	const candLabel, baseLabel = "lifecycle 0.0.0-devel+0123456789abcdef0123456789abcdef01234567", "lifecycle 2.37.0"
+	jsonOut := filepath.Join(t.TempDir(), "comparison.json")
+	var stdout bytes.Buffer
+	require.NoError(t, summarizeCommand([]string{
+		"--store", candStore, "--derived", candDerived, "--label", candLabel,
+		"--baseline-store", baseStore, "--baseline-derived", baseDerived, "--baseline-label", baseLabel,
+		"--json", jsonOut,
+	}, &stdout))
+
+	out := stdout.String()
+	require.Contains(t, out, "== "+candLabel+" vs "+baseLabel+"\n")
+	_, comparison, ok := strings.Cut(out, "== "+candLabel+" vs ")
+	require.True(t, ok, out)
+	row := func(name string) []string {
+		for _, line := range strings.Split(comparison, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) > 0 && fields[0] == name {
+				return fields
+			}
+		}
+		t.Fatalf("no %s row in:\n%s", name, out)
+		return nil
+	}
+	require.Equal(t, []string{"case-a", "1/1"}, row("case-a")[:2])
+	require.Equal(t, "0/1", row("case-a")[4], "the baseline column holds the baseline rate")
+	require.Equal(t, []string{"case-b", "1/1"}, row("case-b")[:2])
+	require.Equal(t, "n/a", row("case-b")[len(row("case-b"))-1])
+	require.Equal(t, []string{"case-c", "n/a", "1/1"}, row("case-c")[:3])
+	require.Equal(t, []string{"overall", "2/2"}, row("overall")[:2])
+
+	data, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+	var summaries map[string]runSummary
+	require.NoError(t, json.Unmarshal(data, &summaries))
+	require.Equal(t, candLabel, summaries["candidate"].Label)
+	require.Equal(t, baseLabel, summaries["baseline"].Label)
+	require.Equal(t, newRate(1, 2), summaries["baseline"].Overall)
 }
 
 func writeSummaryTrial(t *testing.T, store, id, task, variant, completion string, members ...tarEntry) {
