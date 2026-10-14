@@ -36,6 +36,9 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
+	// Set from a submit's clear until the send settles, so the editor's
+	// change event for that clear keeps the persisted draft.
+	const isSendPendingRef = useRef(false);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -104,16 +107,17 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer for an in-flight history edit and
-	// returns a rollback function that restores the editing draft
-	// if the send fails.
-	const clearInputForHistoryEdit = (message: string) => {
+	// Clears the composer at submit and returns a rollback function that
+	// restores it, and the editing draft of a history edit, if the send
+	// fails.
+	const clearInputForSend = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			messageId: editingMessageId,
 		};
 
+		isSendPendingRef.current = true;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
 		setEditingMessageId(null);
@@ -161,21 +165,18 @@ export function useConversationEditingState(deps: {
 			editedMessageID,
 		});
 
-		// For history edits, clear input immediately and prepare
-		// a rollback in case the send fails.
-		const rollback =
-			editedMessageID !== undefined
-				? clearInputForHistoryEdit(message)
-				: undefined;
+		const rollback = clearInputForSend(message);
 
 		try {
 			await sendPromise;
 		} catch (error) {
+			rollback();
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
 			throw error;
+		} finally {
+			isSendPendingRef.current = false;
 		}
 
 		finalizeSuccessfulSend(editedMessageID);
@@ -192,6 +193,9 @@ export function useConversationEditingState(deps: {
 		// Don't overwrite the persisted draft while editing a history message.
 		// The original draft is saved in React state and should survive a cancel.
 		if (editingMessageId !== null) {
+			return;
+		}
+		if (isSendPendingRef.current) {
 			return;
 		}
 

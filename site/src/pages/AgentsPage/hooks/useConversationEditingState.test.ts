@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
-import { useConversationEditingState } from "./useConversationEditingState";
+import {
+	BuiltInCommandPendingError,
+	useConversationEditingState,
+} from "./useConversationEditingState";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -357,21 +360,45 @@ describe("useConversationEditingState", () => {
 	it("preserves the composer and draft when send fails", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
 		result.current.chatInputRef.current = mockInput.handle;
-		onSend.mockRejectedValueOnce(new Error("boom"));
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
 		});
 
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("");
+
 		await act(async () => {
-			await expect(
-				result.current.handleSendFromInput({ message: "hello" }),
-			).rejects.toThrow("boom");
+			rejectSend(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.clear).not.toHaveBeenCalled();
 		expect(mockInput.focus).not.toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(result.current.editorInitialValue).toBe("hello");
+		expect(result.current.initialEditorState).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+
+		// A command whose availability is still loading restores it too.
+		onSend.mockRejectedValueOnce(new BuiltInCommandPendingError());
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "hello" });
+		});
 		expect(result.current.inputValueRef.current).toBe("hello");
 		expect(localStorage.getItem(expectedKey)).toBe("hello");
 		unmount();
