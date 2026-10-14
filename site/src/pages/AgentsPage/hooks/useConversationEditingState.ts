@@ -37,6 +37,9 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
+	// Set from a submit's clear until the send settles, so the editor's
+	// change event for that clear keeps the persisted draft.
+	const isSendPendingRef = useRef(false);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -107,15 +110,17 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer for an in-flight edit and returns a rollback
-	// function that restores the editing draft if the send fails.
-	const clearInputForEdit = (message: string) => {
+	// Clears the composer at submit and returns a rollback function that
+	// restores it, and the editing draft of a history edit, if the send
+	// fails.
+	const clearInputForSend = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			target: editingTarget,
 		};
 
+		isSendPendingRef.current = true;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
 		setEditingTarget(null);
@@ -162,17 +167,18 @@ export function useConversationEditingState(deps: {
 			editingTarget: target,
 		});
 
-		const rollback =
-			target !== undefined ? clearInputForEdit(message) : undefined;
+		const rollback = clearInputForSend(message);
 
 		try {
 			await sendPromise;
 		} catch (error) {
+			rollback();
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
 			throw error;
+		} finally {
+			isSendPendingRef.current = false;
 		}
 
 		finalizeSuccessfulSend(target);
@@ -189,6 +195,9 @@ export function useConversationEditingState(deps: {
 		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
 		if (editingTarget !== null) {
+			return;
+		}
+		if (isSendPendingRef.current) {
 			return;
 		}
 

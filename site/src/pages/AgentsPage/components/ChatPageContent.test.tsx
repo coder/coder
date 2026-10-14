@@ -270,6 +270,47 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
+	it("holds the attachments of a pending send and restores them when it fails", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "file-1",
+		});
+		let rejectSend: (error: Error) => void = () => {};
+		const onSend = vi
+			.fn()
+			.mockReturnValueOnce(
+				new Promise((_resolve, reject) => {
+					rejectSend = reject;
+				}),
+			)
+			.mockResolvedValue(undefined);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File(["png"], "shot.png", { type: "image/png" }),
+		);
+		const send = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		const sent = { fileId: "file-1", mediaType: "image/png" };
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+		expect(
+			screen.queryByRole("button", { name: "Remove shot.png" }),
+		).toBeNull();
+
+		rejectSend(new Error("send failed"));
+		await screen.findByRole("button", { name: "Remove shot.png" });
+		await user.click(send);
+		expect(onSend).toHaveBeenCalledTimes(2);
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+	});
+
 	it("offers no queue actions on a row a pending send draws", async () => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();

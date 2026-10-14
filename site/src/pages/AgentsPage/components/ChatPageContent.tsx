@@ -674,6 +674,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	// The composer shows none of its attachments while a submit holds them;
+	// they return if it fails.
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
@@ -753,6 +756,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
+					setIsSubmitting(true);
 					try {
 						await onSend({
 							message,
@@ -762,6 +766,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
+					} finally {
+						setIsSubmitting(false);
 					}
 					if (isEditing) {
 						editAttachments.resetAttachments();
@@ -773,14 +779,14 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
-			attachments={attachments}
+			attachments={isSubmitting ? [] : attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
+				uploads: isSubmitting ? [] : visibleWorkspaceUploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
