@@ -100,8 +100,8 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
+		if err := chatstate.CheckSendMessageQueueCapacity(chat, queuedCount, busyBehaviorToChatState(busyBehavior), p.chatLimits.MaxQueuedMessagesPerChat); err != nil {
+			return SendMessageResult{}, err
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
