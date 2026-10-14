@@ -20,7 +20,9 @@ import (
 )
 
 // dependencyLogInterval is how often a waiting script's log gets a summary
-// line. The RFC fixes it at 30 seconds.
+// line. Thirty seconds is often enough to show the wait is still alive in
+// the dashboard, and rare enough not to flood the log when a prerequisite
+// takes minutes.
 const dependencyLogInterval = 30 * time.Second
 
 // lifecycleExecutor runs one start or stop execution whose scripts carry

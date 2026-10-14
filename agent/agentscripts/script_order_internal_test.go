@@ -26,7 +26,7 @@ const (
 	requireCompletion = codersdk.WorkspaceAgentScriptDependencyRequirementCompletion
 )
 
-// E7, E8: a success dependent does not start until its prerequisite has
+// A success dependent does not start until its prerequisite has
 // finished.
 func TestLifecycleExecutorOrdersScripts(t *testing.T) {
 	t.Parallel()
@@ -49,7 +49,7 @@ func TestLifecycleExecutorOrdersScripts(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
-// E9: a dependent with two prerequisites waits for both.
+// A dependent with two prerequisites waits for both.
 func TestLifecycleExecutorWaitsForEveryPrerequisite(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -78,7 +78,7 @@ func TestLifecycleExecutorWaitsForEveryPrerequisite(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
-// E10: the dependent's timeout is measured from when it starts. The
+// The dependent's timeout is measured from when it starts. The
 // executor hands run a context with no deadline of its own, so the timeout
 // context created inside run cannot have started during the wait. The
 // real-process version of this test is TestExecuteOrderedTimeoutStartsAfterWaiting.
@@ -112,7 +112,7 @@ func TestLifecycleExecutorTimeoutStartsAfterWaiting(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
-// E11, E20: the outcome rule for a finished script.
+// The outcome rule for a finished script.
 func TestScriptOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +138,7 @@ func TestScriptOutcome(t *testing.T) {
 	}
 }
 
-// E12, E13, E15: what each requirement does after each prerequisite outcome.
+// What each requirement does after each prerequisite outcome.
 func TestLifecycleExecutorRequirements(t *testing.T) {
 	t.Parallel()
 
@@ -181,7 +181,7 @@ func TestLifecycleExecutorRequirements(t *testing.T) {
 	}
 }
 
-// E14: a skipped script counts as impossible for its own success
+// A skipped script counts as impossible for its own success
 // dependents and as complete for its completion dependents.
 func TestLifecycleExecutorPropagatesSkippedOutcomes(t *testing.T) {
 	t.Parallel()
@@ -206,7 +206,7 @@ func TestLifecycleExecutorPropagatesSkippedOutcomes(t *testing.T) {
 	require.Equal(t, []string{`Skipping script: dependency "coder_script.b" was skipped.`}, logs.outputs(d.LogSourceID))
 }
 
-// E16: a script with one success and one completion prerequisite.
+// A script with one success and one completion prerequisite.
 func TestLifecycleExecutorMixedRequirements(t *testing.T) {
 	t.Parallel()
 
@@ -255,7 +255,7 @@ func TestLifecycleExecutorMixedRequirements(t *testing.T) {
 	})
 }
 
-// E17: the skip happens on the first impossible edge and the line names
+// The skip happens on the first impossible edge and the line names
 // every cause known at that moment, in address order.
 func TestLifecycleExecutorSkipsOnFirstImpossibleEdge(t *testing.T) {
 	t.Parallel()
@@ -319,7 +319,7 @@ func TestLifecycleExecutorSkipsOnFirstImpossibleEdge(t *testing.T) {
 	})
 }
 
-// E18, E19: one waiting line per interval, naming the prerequisites still
+// One waiting line per interval, naming the prerequisites still
 // unmet in address order, with the cumulative wait.
 func TestLifecycleExecutorWaitingLogsAreCombinedAndSorted(t *testing.T) {
 	t.Parallel()
@@ -372,7 +372,7 @@ func TestLifecycleExecutorWaitingLogsAreCombinedAndSorted(t *testing.T) {
 	require.Len(t, logs.outputs(install.LogSourceID), 3)
 }
 
-// E18: a script whose decision arrives before the first interval writes no
+// A script whose decision arrives before the first interval writes no
 // waiting line, and a script with no prerequisites never creates a ticker.
 func TestLifecycleExecutorNoWaitingLineWhenDecidedEarly(t *testing.T) {
 	t.Parallel()
@@ -403,7 +403,7 @@ func TestLifecycleExecutorNoWaitingLineWhenDecidedEarly(t *testing.T) {
 	require.Empty(t, logs.outputs(install.LogSourceID))
 }
 
-// E20: cancellation stops the running script, leaves waiting scripts
+// Cancellation stops the running script, leaves waiting scripts
 // unstarted with no skip line, and records canceled for all of them.
 func TestLifecycleExecutorCancellation(t *testing.T) {
 	t.Parallel()
@@ -450,7 +450,7 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 	}
 }
 
-// E22: stop scripts are ordered the same way as start scripts.
+// Stop scripts are ordered the same way as start scripts.
 func TestLifecycleExecutorStopScripts(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -473,7 +473,7 @@ func TestLifecycleExecutorStopScripts(t *testing.T) {
 	require.Equal(t, ExecuteStopScripts, runs.option("coder_script.report_stop"))
 }
 
-// E23: every execution starts from a fresh manager, so an earlier failure
+// Every execution starts from a fresh manager, so an earlier failure
 // does not carry over.
 func TestLifecycleExecutorFreshManagerPerExecution(t *testing.T) {
 	t.Parallel()
@@ -495,7 +495,7 @@ func TestLifecycleExecutorFreshManagerPerExecution(t *testing.T) {
 	require.True(t, second.started("coder_script.install"))
 }
 
-// E24: scripts without a resource address start at once alongside the
+// Scripts without a resource address start at once alongside the
 // ordered ones.
 func TestLifecycleExecutorAddresslessScriptsRunAtOnce(t *testing.T) {
 	t.Parallel()
@@ -521,7 +521,7 @@ func TestLifecycleExecutorAddresslessScriptsRunAtOnce(t *testing.T) {
 	require.NoError(t, testutil.RequireReceive(ctx, t, done))
 }
 
-// E26, E32: the execution's error is the prerequisite's own error. A skip
+// The execution's error is the prerequisite's own error. A skip
 // adds nothing to it.
 func TestLifecycleExecutorSkipIsNotAnError(t *testing.T) {
 	t.Parallel()
@@ -555,7 +555,7 @@ func TestLifecycleExecutorSkipIsNotAnError(t *testing.T) {
 	}
 }
 
-// E4, E5, E6: an inconsistent dependency list fails before any script runs.
+// An inconsistent dependency list fails before any script runs.
 func TestLifecycleExecutorRejectsInvalidDependenciesBeforeRunning(t *testing.T) {
 	t.Parallel()
 
@@ -638,7 +638,7 @@ func TestLifecycleExecutorRejectsInvalidDependenciesBeforeRunning(t *testing.T) 
 	}
 }
 
-// E35: many waiters wake together, and nothing outlives the execution.
+// Many waiters wake together, and nothing outlives the execution.
 func TestLifecycleExecutorManyWaiters(t *testing.T) {
 	t.Parallel()
 
