@@ -279,14 +279,15 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if config.elideFirst && opts.OmitToolDefinitions {
 		// The step's usage also counts the tool definitions that the
 		// summary requests omit. They stay in the estimate as a margin for
-		// the output cap, and come out only when they alone would elide
-		// the history.
+		// the output cap while the summary has room to spare. Near the
+		// window the margin would shrink the cap below the floor, or leave
+		// no room and so no clamp at all, so they come out.
 		toolTokens, err := estimateToolTokens(opts.ToolDefinitions)
 		if err != nil {
 			config.Logger.Warn(ctx, "failed to estimate omitted tool definitions", slog.Error(err))
-		} else if config.summaryWindow-(config.estimatedInputTokens-toolTokens) >= minRoom {
+		} else {
 			config.estimatedInputTokens -= toolTokens
-			config.elideFirst = false
+			config.elideFirst = config.summaryWindow-config.estimatedInputTokens < minRoom
 		}
 	}
 

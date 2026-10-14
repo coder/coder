@@ -1273,6 +1273,8 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
+	// About 49 tokens of definitions that the step's usage counts.
+	tools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 60)}}
 	cases := []struct {
 		name         string
 		contextLimit int64
@@ -1285,8 +1287,10 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		// that persisted without usage.
 		interrupted         string
 		summaryContextLimit int64
-		cap                 int64
-		wantCap             int64
+		// omittedTools are tool definitions that the summary requests omit.
+		omittedTools []fantasy.Tool
+		cap          int64
+		wantCap      int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
 		{name: "reserves trailing messages", contextLimit: 100, inputTokens: 72, trailing: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
@@ -1296,6 +1300,8 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
 		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
+		// Only the omitted definitions push the estimate past the window.
+		{name: "leaves omitted tool definitions out", contextLimit: 160, inputTokens: 120, summaryContextLimit: 100, omittedTools: tools, cap: 64_000, wantCap: 27},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1340,6 +1346,8 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				StepUsage:             fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
 				SummaryTrailingTokens: EstimateTrailingTokens(messages, unmeasuredAssistants),
 				SummaryCall:           fantasy.Call{MaxOutputTokens: &capTokens},
+				ToolDefinitions:       tc.omittedTools,
+				OmitToolDefinitions:   tc.omittedTools != nil,
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
