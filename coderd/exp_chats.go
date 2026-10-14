@@ -8116,26 +8116,19 @@ func (api *API) chatModelProviderDescriptors(
 			HasUserAPIKey:      hasUserKey,
 			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			BedrockInvokeModel: chatModelProviderBedrockInvokeModel(settings),
+			BedrockInvokeModel: chatModelProviderUsesBedrockInvokeModel(settings),
 		})
 	}
 	return out, nil
 }
 
-// chatModelProviderBedrockInvokeModel returns the models a Bedrock InvokeModel
-// provider sends upstream in place of the requested model, or nil when the
-// provider does not remap models. It mirrors the gateway's detection in
-// aibridge.BedrockConfig.
-func chatModelProviderBedrockInvokeModel(settings codersdk.AIProviderSettings) *codersdk.ChatModelProviderBedrockInvokeModel {
+// chatModelProviderUsesBedrockInvokeModel reports whether the provider sends
+// its configured Bedrock models upstream in place of the requested model. It
+// mirrors the gateway's detection in aibridge.BedrockConfig.
+func chatModelProviderUsesBedrockInvokeModel(settings codersdk.AIProviderSettings) bool {
 	bedrock := settings.Bedrock
-	if bedrock == nil || !bedrock.IsConfigured() ||
-		bedrock.ResolvedProtocol() != codersdk.AIProviderBedrockProtocolInvokeModel {
-		return nil
-	}
-	return &codersdk.ChatModelProviderBedrockInvokeModel{
-		Model:          bedrock.Model,
-		SmallFastModel: bedrock.SmallFastModel,
-	}
+	return bedrock != nil && bedrock.IsConfigured() &&
+		bedrock.ResolvedProtocol() == codersdk.AIProviderBedrockProtocolInvokeModel
 }
 
 // aiProviderSupportsAmbientCredentials reports whether the provider's settings

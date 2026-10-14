@@ -22446,17 +22446,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatModelProviderBedrockInvokeModel": {
-            "type": "object",
-            "properties": {
-                "model": {
-                    "type": "string"
-                },
-                "small_fast_model": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.ChatModelProviderDescriptor": {
             "type": "object",
             "properties": {
@@ -22467,12 +22456,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "bedrock_invoke_model": {
-                    "description": "BedrockInvokeModel is set when the provider uses the AWS Bedrock\nInvokeModel protocol. That protocol ignores the model a client requests\nand sends the provider's configured models upstream instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatModelProviderBedrockInvokeModel"
-                        }
-                    ]
+                    "description": "BedrockInvokeModel reports whether the provider uses the AWS Bedrock\nInvokeModel protocol. That protocol ignores the model a client requests\nand sends the provider's configured models upstream instead.",
+                    "type": "boolean"
                 },
                 "display_name": {
                     "type": "string"

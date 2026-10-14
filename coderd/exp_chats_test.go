@@ -4114,19 +4114,15 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		overrides := make(map[uuid.UUID]*codersdk.ChatModelProviderBedrockInvokeModel)
+		invokeModelByProvider := make(map[uuid.UUID]bool)
 		for _, descriptor := range response.Providers {
-			overrides[descriptor.ID] = descriptor.BedrockInvokeModel
+			invokeModelByProvider[descriptor.ID] = descriptor.BedrockInvokeModel
 		}
 
-		want := &codersdk.ChatModelProviderBedrockInvokeModel{
-			Model:          "us.anthropic.claude-sonnet-5",
-			SmallFastModel: "us.anthropic.claude-haiku-5-5",
-		}
-		require.Equal(t, want, overrides[defaultProtocol.ID])
-		require.Equal(t, want, overrides[invokeModel.ID])
-		require.Contains(t, overrides, mantle.ID)
-		require.Nil(t, overrides[mantle.ID])
+		require.True(t, invokeModelByProvider[defaultProtocol.ID])
+		require.True(t, invokeModelByProvider[invokeModel.ID])
+		require.Contains(t, invokeModelByProvider, mantle.ID)
+		require.False(t, invokeModelByProvider[mantle.ID])
 	})
 }
 
