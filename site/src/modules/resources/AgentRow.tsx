@@ -720,6 +720,9 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 																) : (
 																	<CopyIcon />
 																)}
+																<span className="sr-only">
+																	Copy selected logs
+																</span>
 															</Button>
 														</TooltipTrigger>
 														<TooltipContent>
