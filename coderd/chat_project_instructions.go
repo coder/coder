@@ -72,8 +72,7 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
 
@@ -185,8 +184,7 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
 	aReq, commitAudit := audit.InitRequestWithCancel[database.AuditableChatProjectInstructions](rw, &audit.RequestParams{

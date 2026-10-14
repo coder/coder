@@ -38,6 +38,8 @@ func TestChatProjectSharing(t *testing.T) {
 			Body:        "Sharees read and write project memories.",
 		})
 		require.NoError(t, err)
+		_, err = client.UpdateChatProjectInstructions(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "Owner instructions."})
+		require.NoError(t, err)
 
 		sharee, shareeUser := newChatProjectMember(t, client, firstUser.OrganizationID)
 		_, err = sharee.GetChatProject(ctx, project.OrganizationID, project.ID)
@@ -86,6 +88,13 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, sharee.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID))
+		instructions, err := sharee.ChatProjectInstructions(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Owner instructions.", instructions.Instructions)
+		_, err = sharee.UpdateChatProjectInstructions(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "Sharee instructions."})
+		requireSDKError(t, err, http.StatusForbidden)
+		err = sharee.DeleteChatProjectInstructions(ctx, project.OrganizationID, project.ID)
+		requireSDKError(t, err, http.StatusForbidden)
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		require.Equal(t, &project.ID, shareeChat.ProjectID)
 		_, err = sharee.ChatProjectACL(ctx, project.OrganizationID, project.ID)
@@ -164,6 +173,11 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, admin.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID))
+		_, err = admin.UpdateChatProjectInstructions(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "Admin instructions."})
+		require.NoError(t, err)
+		instructions, err := client.ChatProjectInstructions(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Admin instructions.", instructions.Instructions)
 
 		err = admin.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{firstUser.UserID.String(): codersdk.ChatProjectRoleUse},

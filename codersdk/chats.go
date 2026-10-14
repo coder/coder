@@ -265,7 +265,9 @@ type ChatProjectRole string
 const (
 	// ChatProjectRoleUse can start chats and read and write memories.
 	ChatProjectRoleUse ChatProjectRole = "use"
-	// ChatProjectRoleAdmin can also edit and share the project, but not delete it.
+	// ChatProjectRoleAdmin can also edit the project and its instructions,
+	// which every chat in the project gets as system prompt, and share it, but
+	// not delete it.
 	ChatProjectRoleAdmin   ChatProjectRole = "admin"
 	ChatProjectRoleDeleted ChatProjectRole = ""
 )
@@ -295,7 +297,7 @@ type UpdateChatProjectACL struct {
 }
 
 // ChatProjectInstructions are instructions added to the system prompt of
-// every chat in a project, for every user who chats there. A project without
+// every chat in a project whose owner can still use the project. A project without
 // instructions has an empty Instructions string and nil UpdatedBy and
 // UpdatedAt.
 type ChatProjectInstructions struct {
