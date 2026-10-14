@@ -178,7 +178,7 @@ func (d *pgTxnDriver) Lock() error {
 		return xerrors.Errorf("exec select: %w", err)
 	}
 	d.logger.Info(d.ctx, "acquired database migration lock",
-		slog.F("event", EventLockAcquired), slog.F("phase", phase), slog.F("waited", time.Since(start)))
+		slog.F("event", EventLockAcquired), slog.F("phase", phase), slog.F("waited_ms", durationMillis(time.Since(start))))
 	return nil
 }
 
@@ -318,7 +318,7 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 	d.logPerMigration(EventStepApplied, "database migration applied, pending commit",
 		slog.F("version", version), slog.F("name", name),
 		slog.F("position", position), slog.F("total", total),
-		slog.F("duration", duration))
+		slog.F("duration_ms", durationMillis(duration)))
 	return nil
 }
 
@@ -512,7 +512,7 @@ func (d *pgTxnDriver) startHeartbeat(since time.Time, phase heartbeatPhase) (sto
 }
 
 func (d *pgTxnDriver) logHeartbeat(since time.Time, phase heartbeatPhase) {
-	elapsed := time.Since(since).Truncate(time.Second)
+	elapsed := time.Since(since)
 
 	d.mu.Lock()
 	pid := d.backendPID
@@ -522,7 +522,7 @@ func (d *pgTxnDriver) logHeartbeat(since time.Time, phase heartbeatPhase) {
 
 	state, waitEvent, blockedBy := d.queryBackendState(pid)
 
-	rest := []slog.Field{slog.F("elapsed", elapsed), slog.F("state", state)}
+	rest := []slog.Field{slog.F("elapsed_ms", durationMillis(elapsed)), slog.F("state", state)}
 	if waitEvent != "" {
 		rest = append(rest, slog.F("wait_event", waitEvent))
 	}

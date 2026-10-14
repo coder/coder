@@ -290,6 +290,13 @@ type Result struct {
 	Failed                *Failure
 }
 
+// durationMillis returns d in milliseconds as a float, rounded to the nearest
+// microsecond so no value is truncated. The unit lives in the field name's
+// _ms suffix, so the logged value is a plain number.
+func durationMillis(d time.Duration) float64 {
+	return float64(d.Round(time.Microsecond).Microseconds()) / 1000
+}
+
 // logOutcome classifies and logs how the run concluded, and returns the
 // Result it derived that from. It runs after m.Up() returns, because only
 // then do we know both the driver's commit result and whether a later,
@@ -317,7 +324,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 			logger.Info(ctx, "database migration outcome: no change",
 				slog.F("event", EventOutcomeNoChange), slog.F("status", "success"),
 				slog.F("count", 0), slog.F("schema_version", fromVersion),
-				slog.F("total_duration", time.Since(runStart)))
+				slog.F("total_duration_ms", durationMillis(time.Since(runStart))))
 
 		case errors.Is(finalErr, migrate.ErrLockTimeout):
 			// golang-migrate's own LockTimeout gave up waiting for the
@@ -327,7 +334,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 			result.Failed = &Failure{Version: inFlightVersion, Name: inFlightName, SQLState: sqlState, Err: finalErr}
 			logger.Error(ctx, "gave up waiting for database migration lock",
 				slog.F("event", EventOutcomeLockTimeout), slog.F("status", "failure"),
-				slog.F("count", 0), slog.F("waited", time.Since(runStart)))
+				slog.F("count", 0), slog.F("waited_ms", durationMillis(time.Since(runStart))))
 
 		case errors.As(finalErr, &migrate.ErrDirty{}):
 			// The database is confirmed dirty, logged again here (in
@@ -337,7 +344,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 			logger.Error(ctx, "database migration outcome: dirty schema",
 				slog.F("event", EventOutcomeDirty), slog.F("status", "failure"),
 				slog.F("count", 0), slog.F("schema_version", fromVersion),
-				slog.F("total_duration", time.Since(runStart)),
+				slog.F("total_duration_ms", durationMillis(time.Since(runStart))),
 				slog.F("error", fmt.Sprintf("dirty database version %d", fromVersion)))
 
 		case errors.Is(commitErr, pq.ErrInFailedTransaction):
@@ -350,7 +357,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 			logger.Error(ctx, "rolled back database migrations",
 				slog.F("event", EventOutcomeRolledBack), slog.F("status", "failure"),
 				slog.F("count", 0), slog.F("schema_version", fromVersion),
-				slog.F("total_duration", time.Since(runStart)), slog.F("failed_duration", time.Since(inFlightStart)))
+				slog.F("total_duration_ms", durationMillis(time.Since(runStart))), slog.F("failed_duration_ms", durationMillis(time.Since(inFlightStart))))
 
 		default:
 			// A bare failure before the first migration (reading the
@@ -366,8 +373,8 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 	// migration's own start, so this covers any lock-wait before the first
 	// migration and the final commit, the same span every len(applied)==0
 	// branch above already measures. One formula, one meaning, for every
-	// outcome's total_duration.
-	totalDuration := time.Since(runStart)
+	// outcome's total_duration_ms.
+	totalDuration := durationMillis(time.Since(runStart))
 
 	switch {
 	case commitErr == nil && finalErr == nil:
@@ -376,7 +383,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 		logger.Info(ctx, "committed database migrations",
 			slog.F("event", result.Outcome.Event()), slog.F("status", "success"),
 			slog.F("count", len(applied)), slog.F("from_version", fromVersion),
-			slog.F("to_version", last.Version), slog.F("total_duration", totalDuration))
+			slog.F("to_version", last.Version), slog.F("total_duration_ms", totalDuration))
 
 	case commitErr == nil && finalErr != nil:
 		// The failed migration (reading its source file) never started,
@@ -387,7 +394,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 		logger.Error(ctx, "committed database migrations before failure",
 			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("from_version", fromVersion),
-			slog.F("to_version", last.Version), slog.F("total_duration", totalDuration))
+			slog.F("to_version", last.Version), slog.F("total_duration_ms", totalDuration))
 
 	case errors.Is(commitErr, pq.ErrInFailedTransaction):
 		// The failing migration's own SQL ran for a real amount of time
@@ -400,7 +407,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 		logger.Error(ctx, "rolled back database migrations",
 			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("schema_version", fromVersion),
-			slog.F("total_duration", totalDuration), slog.F("failed_duration", time.Since(inFlightStart)))
+			slog.F("total_duration_ms", totalDuration), slog.F("failed_duration_ms", durationMillis(time.Since(inFlightStart))))
 
 	default:
 		// The commit's own result could not be classified: this is a
@@ -410,7 +417,7 @@ func logOutcome(ctx context.Context, logger slog.Logger, d *pgTxnDriver, finalEr
 		logger.Warn(ctx, "database migration commit outcome unknown",
 			slog.F("event", result.Outcome.Event()), slog.F("status", "failure"),
 			slog.F("count", len(applied)), slog.F("version", fromVersion),
-			slog.F("total_duration", totalDuration), slog.Error(commitErr))
+			slog.F("total_duration_ms", totalDuration), slog.Error(commitErr))
 	}
 
 	return result

@@ -729,8 +729,10 @@ func TestLogOutcomeRolledBackWithNoPriorSuccess(t *testing.T) {
 	require.Equal(t, "failure", fields["status"])
 	require.EqualValues(t, 0, fields["count"])
 	require.EqualValues(t, 613, fields["schema_version"])
-	require.Contains(t, fields, "total_duration")
-	require.Contains(t, fields, "failed_duration")
+	require.Contains(t, fields, "total_duration_ms")
+	require.Contains(t, fields, "failed_duration_ms")
+	require.IsType(t, float64(0), fields["total_duration_ms"])
+	require.IsType(t, float64(0), fields["failed_duration_ms"])
 }
 
 // TestLogOutcomeNoOutcomeLineOnBarePreflightFailure confirms a failure with
@@ -753,4 +755,3 @@ func TestLogOutcomeNoOutcomeLineOnBarePreflightFailure(t *testing.T) {
 	require.NotNil(t, result.Failed)
 	require.Empty(t, sink.Entries(), "a bare pre-flight failure should log no outcome line here")
 }
-
