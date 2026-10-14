@@ -133,7 +133,8 @@ The Coder docs rarely need these terms, but sample data, persona examples, and f
 
 > The form has an optional field for the user's preferred gender pronouns.
 
-*Enforced by `Coder.LGBTQ` (planned), adapted from the curated alex lexicon.*
+*Enforced by `Coder.LGBTQ` (`warning`), adapted from the curated alex lexicon.
+The rule flags `a transgender` only when a verb or conjunction follows it, so `a transgender person` stays clean.*
 
 ## Descriptive link text
 
