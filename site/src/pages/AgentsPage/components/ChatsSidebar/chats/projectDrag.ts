@@ -81,7 +81,10 @@ export const projectIdForTarget = (
 	return target?.kind === "unfiled" && chat.project_id ? null : undefined;
 };
 
-/** The project_id that a drop on over sets, as projectIdForTarget returns it. */
+/**
+ * As projectIdForTarget, for the target under a drop. A drop outside every
+ * target changes nothing.
+ */
 export const projectIdForDrop = (
 	chat: Chat,
 	over: { readonly data: DataRef } | null,
@@ -111,10 +114,8 @@ export const dragKeyboardCoordinates: KeyboardCoordinateGetter = (
 	if (!draggedChatOf(active)) {
 		return sortableKeyboardCoordinates(event, args);
 	}
-	if (
-		(event.code !== "ArrowDown" && event.code !== "ArrowUp") ||
-		!collisionRect
-	) {
+	const isArrowKey = event.code === "ArrowDown" || event.code === "ArrowUp";
+	if (!isArrowKey || !collisionRect) {
 		return undefined;
 	}
 	event.preventDefault();

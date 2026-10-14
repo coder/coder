@@ -610,6 +610,34 @@ export const MoveToProjectSubmenu: Story = {
 	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
 };
 
+export const MoveToProjectSubmenuUnfiled: Story = {
+	args: {
+		chat: { ...MockChat, organization_id: MockChatProject.organization_id },
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectBlocked: Story = {
+	args: { chat: mockLaunchChat, liveChatStatus: "running" },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
 export const MoveToProjectSubmenuNoProjects: Story = {
 	parameters: {
 		experiments: ["chat-projects"],

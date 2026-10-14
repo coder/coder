@@ -456,7 +456,7 @@ describe("ProjectChatsList", () => {
 		const user = userEvent.setup();
 		const mockBillingProject = {
 			...MockChatProject,
-			id: "mockBillingProject",
+			id: "billing",
 			name: "Billing",
 		};
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));

@@ -19,13 +19,15 @@ export const chatProjects = () =>
 		queryFn: () => API.experimental.getChatProjects(),
 	});
 
+// A module-level select keeps one identity, so react-query reuses the grouping
+// until the list changes instead of grouping again on every render.
 const groupByOrganization = (projects: readonly TypesGen.ChatProject[]) =>
 	Object.groupBy(projects, (project) => project.organization_id);
 
 /**
  * Groups the chatProjects() list by organization ID in server order. The
  * sidebar keeps the list current and the project mutations invalidate it, so
- * a reader that mounts later sends no request.
+ * a menu that mounts later sends no request.
  */
 export const chatProjectsByOrganization = () =>
 	queryOptions({

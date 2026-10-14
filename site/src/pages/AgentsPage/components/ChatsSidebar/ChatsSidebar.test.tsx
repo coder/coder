@@ -832,7 +832,7 @@ const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
 describe("ChatsSidebar move to project", () => {
 	const mockBillingProject = {
 		...MockChatProject,
-		id: "mockBillingProject-project",
+		id: "billing-project",
 		name: "Billing",
 	};
 
@@ -987,12 +987,12 @@ describe("ChatsSidebar move to project", () => {
 describe("ChatsSidebar project drops", () => {
 	const mockBillingProject = {
 		...MockChatProject,
-		id: "mockBillingProject",
+		id: "billing",
 		name: "Billing",
 	};
 	const mockOpsProject = {
 		...mockBillingProject,
-		id: "mockOpsProject",
+		id: "ops",
 		name: "Ops",
 		organization_id: "other-org",
 	};

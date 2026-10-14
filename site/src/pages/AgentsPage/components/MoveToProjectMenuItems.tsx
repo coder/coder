@@ -39,7 +39,10 @@ export const useMoveChatToProject = () => {
 
 type MoveToProjectMenuItemsProps = {
 	readonly chat: Chat;
-	/** Turns the submenu off unless the chat and its subagents are idle. */
+	/**
+	 * Turns the submenu off while the chat or a subagent is in a state that
+	 * blocks archiving.
+	 */
 	readonly blocked: boolean;
 	/** The ID of the hint that explains why the submenu is off. */
 	readonly describedBy?: string;
@@ -99,7 +102,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 						>
 							<ChatProjectIcon project={project} />
 							<span className="truncate">{project.name}</span>
-							{isCurrent && <CheckIcon className="ml-auto shrink-0" />}
+							{isCurrent && <CheckIcon className="ml-auto" />}
 						</Item>
 					);
 				})}
