@@ -7,9 +7,14 @@ import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
+	MockAppearanceConfig,
+	MockBuildInfo,
 	MockChatProject,
+	MockDefaultOrganization,
+	MockEntitlements,
 	MockUserMember,
 	MockUserOwner,
 	MockWorkspace,
@@ -46,9 +51,15 @@ class MockIntersectionObserver {
 	}
 }
 
+const projectChat: Chat = {
+	...MockChat,
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+};
+
 const buildChats = (count: number, offset = 0): Chat[] =>
 	Array.from({ length: count }, (_, index) => ({
-		...MockChat,
+		...projectChat,
 		id: `chat-${offset + index}`,
 		title: `Chat ${offset + index}`,
 	}));
@@ -77,17 +88,29 @@ const renderList = (
 	render(
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
 			<QueryClientProvider client={createTestQueryClient()}>
-				<MemoryRouter initialEntries={[initialEntry]}>
-					<Routes>
-						<Route element={<Outlet context={outletContext} />}>
-							<Route
-								path="/agents/projects/project"
-								element={<ProjectChatsList project={MockChatProject} />}
-							/>
-						</Route>
-						<Route path="/agents/:agentId" element={<LocationDisplay />} />
-					</Routes>
-				</MemoryRouter>
+				<DashboardContext.Provider
+					value={{
+						entitlements: MockEntitlements,
+						experiments: ["chat-projects"],
+						appearance: MockAppearanceConfig,
+						buildInfo: MockBuildInfo,
+						organizations: [MockDefaultOrganization],
+						showOrganizations: false,
+						canViewOrganizationSettings: false,
+					}}
+				>
+					<MemoryRouter initialEntries={[initialEntry]}>
+						<Routes>
+							<Route element={<Outlet context={outletContext} />}>
+								<Route
+									path="/agents/projects/project"
+									element={<ProjectChatsList project={MockChatProject} />}
+								/>
+							</Route>
+							<Route path="/agents/:agentId" element={<LocationDisplay />} />
+						</Routes>
+					</MemoryRouter>
+				</DashboardContext.Provider>
 			</QueryClientProvider>
 		</ThemeOverride>,
 	);
@@ -200,7 +223,7 @@ describe("ProjectChatsList", () => {
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, owner_id: owner.id },
+				{ ...projectChat, owner_id: owner.id },
 			]);
 			renderList();
 
@@ -229,7 +252,7 @@ describe("ProjectChatsList", () => {
 			.mockResolvedValue();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 			{
-				...MockChat,
+				...projectChat,
 				diff_status: {
 					chat_id: MockChat.id,
 					pull_request_title: "",
@@ -261,7 +284,7 @@ describe("ProjectChatsList", () => {
 		"archives and deletes a project chat workspace (confirmation: %s)",
 		async (requiresConfirmation) => {
 			const user = userEvent.setup();
-			const chat = { ...MockChat, workspace_id: MockWorkspace.id };
+			const chat = { ...projectChat, workspace_id: MockWorkspace.id };
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
 			vi.spyOn(API, "getWorkspace").mockResolvedValue({
 				...MockWorkspace,
@@ -315,7 +338,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder, expectedOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, pin_order: pinOrder },
+				{ ...projectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 			renderList();
@@ -341,7 +364,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, pin_order: pinOrder },
+				{ ...projectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
 				new Error("Pin update rejected"),
@@ -427,5 +450,43 @@ describe("ProjectChatsList", () => {
 			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
 		});
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+	});
+
+	it("drops a row as soon as its chat moves to another project", async () => {
+		const user = userEvent.setup();
+		const billing = { ...MockChatProject, id: "billing", name: "Billing" };
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+			billing,
+		]);
+		// The move stays pending, so no refetch can remove the row.
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise(() => {}),
+		);
+		renderList();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open chat actions for Chat 0",
+			}),
+		);
+		const trigger = await screen.findByRole("menuitem", {
+			name: "Move to project",
+		});
+		trigger.focus();
+		await user.keyboard("{ArrowRight}");
+		const target = await screen.findByRole("menuitem", { name: "Billing" });
+		await waitFor(() => expect(target).toHaveFocus());
+		await user.keyboard("{Enter}");
+
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+			project_id: billing.id,
+		});
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("link", { name: /Chat 0/ }),
+			).not.toBeInTheDocument(),
+		);
 	});
 });

@@ -98,6 +98,7 @@ import {
 	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
+	moveChatToProject,
 	openChat,
 	organizationChatModelsKey,
 	patchChatEntity,
@@ -1516,6 +1517,32 @@ describe("pinChat optimistic update", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
 		).toBe(5);
+	});
+});
+
+describe("moveChatToProject", () => {
+	it("restores the project when the move fails", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { project_id: "project-a" }),
+		]);
+		queryClient.setQueryData(
+			chatEntityKey(chatId),
+			makeChat(chatId, { project_id: "project-a" }),
+		);
+		const mutation = moveChatToProject(queryClient);
+		const variables = { chatId, projectId: null };
+
+		const context = await mutation.onMutate(variables);
+		expect(readInfiniteChats(queryClient)?.[0].project_id).toBeUndefined();
+
+		mutation.onError(new Error("conflict"), variables, context);
+		expect(readInfiniteChats(queryClient)?.[0].project_id).toBe("project-a");
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.project_id,
+		).toBe("project-a");
 	});
 });
 
@@ -3707,6 +3734,34 @@ describe("mergeWatchedChatSummary", () => {
 			status: "waiting",
 			updated_at: "2025-01-01T00:00:02.000Z",
 		});
+	});
+
+	it("takes project_id only from project_change events", () => {
+		const cachedChat = makeChat("chat-1", {
+			project_id: "project-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		// A move does not change updated_at.
+		const moved = mergeWatchedChatSummary(
+			cachedChat,
+			makeChat("chat-1", {
+				project_id: "project-b",
+				updated_at: "2025-01-01T00:00:00.000Z",
+			}),
+			{ eventKind: "project_change" },
+		);
+		expect(moved.project_id).toBe("project-b");
+
+		const delayedStatus = makeChat("chat-1", {
+			project_id: "project-a",
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		expect(
+			mergeWatchedChatSummary(moved, delayedStatus, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({ project_id: "project-b", status: "running" });
 	});
 
 	it("does not let an older summary row revert fields a newer event set", () => {

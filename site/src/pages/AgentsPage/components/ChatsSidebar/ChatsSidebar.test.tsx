@@ -36,6 +36,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { NIL_UUID } from "../../utils/modelOptions";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -823,6 +824,161 @@ describe("ChatsSidebar pin actions", () => {
 			);
 		},
 	);
+});
+
+describe("ChatsSidebar move to project", () => {
+	const billing = {
+		...MockChatProject,
+		id: "billing-project",
+		name: "Billing",
+	};
+
+	const renderSidebar = (
+		chats: Chat[],
+		sidebarFilters: AgentSidebarFilters = defaultSidebarFilters,
+	) =>
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={chats}
+					sidebarFilters={sidebarFilters}
+				/>
+			</Wrapper>,
+		);
+
+	beforeEach(() => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, billing]),
+			),
+		);
+	});
+
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		{ target: "Billing", projectId: billing.id },
+		{ target: "Remove from project", projectId: NIL_UUID },
+	])("moves a chat with $target", async ({ target, projectId }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		let projectRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				projectRequests += 1;
+				return HttpResponse.json([MockChatProject, billing]);
+			}),
+		);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		// Folders start closed, and MockChatProject is the Launch folder.
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await focusMenuItem(user, "menuitem", "Move to project");
+		await user.keyboard("{ArrowRight}");
+		await focusMenuItem(user, "menuitem", target);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
+		);
+		expect(projectRequests).toBe(1);
+	});
+
+	it.each<{ name: string; chat: Chat; filters: AgentSidebarFilters }>([
+		{
+			name: "an archived chat",
+			chat: buildChat({ id: "c1", title: "Fix invoice dates", archived: true }),
+			filters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+		},
+		{
+			name: "a shared chat",
+			chat: buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				owner_id: "sharing-user-id",
+				shared: true,
+			}),
+			filters: defaultSidebarFilters,
+		},
+	])("offers no move for $name", async ({ chat, filters }) => {
+		const user = userEvent.setup();
+		renderSidebar([chat], filters);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await screen.findByRole("menuitem", { name: "Copy ID" });
+		expect(
+			screen.queryByRole("menuitem", { name: "Move to project" }),
+		).toBeNull();
+	});
+
+	it("offers no move for a subagent chat", async () => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			title: "Check the totals",
+			parent_chat_id: "c1",
+		});
+		renderSidebar([
+			buildChat({ id: "c1", title: "Fix invoice dates", children: [child] }),
+		]);
+
+		await user.click(await screen.findByRole("button", { name: "Expand" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Check the totals",
+			}),
+		);
+		await screen.findByRole("menuitem", { name: "Copy ID" });
+		expect(
+			screen.queryByRole("menuitem", { name: "Move to project" }),
+		).toBeNull();
+	});
+
+	it("turns the move off while a subagent runs", async () => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			parent_chat_id: "c1",
+			status: "running",
+		});
+		renderSidebar([
+			buildChat({ id: "c1", title: "Fix invoice dates", children: [child] }),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		const trigger = await screen.findByRole("menuitem", {
+			name: "Move to project",
+		});
+		expect(trigger).toHaveAttribute("aria-disabled", "true");
+		expect(trigger).toHaveAccessibleDescription(
+			"Interrupt or wait for the agent to finish first.",
+		);
+	});
 });
 
 describe("ChatsSidebar pinned reordering", () => {

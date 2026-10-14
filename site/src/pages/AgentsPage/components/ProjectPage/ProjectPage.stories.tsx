@@ -19,7 +19,12 @@ import { ProjectPage } from "./ProjectPage";
 const chatQueries = (chats: Chat[]) => [
 	{
 		key: projectChatsKey(MockChatProject.id),
-		data: { pages: [chats], pageParams: [0] },
+		data: {
+			pages: [
+				chats.map((chat) => ({ ...chat, project_id: MockChatProject.id })),
+			],
+			pageParams: [0],
+		},
 	},
 	...chats.map((chat) => ({
 		key: chatCostTreeKey(chat.id),

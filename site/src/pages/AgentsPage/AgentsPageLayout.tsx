@@ -97,6 +97,7 @@ export type AgentsPageOutletContext = {
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"diff_status_change",
+	"project_change",
 	"status_change",
 ]);
 

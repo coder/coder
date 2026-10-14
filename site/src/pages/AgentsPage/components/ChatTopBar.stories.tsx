@@ -60,7 +60,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
@@ -601,7 +601,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,
