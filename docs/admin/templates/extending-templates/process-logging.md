@@ -15,7 +15,7 @@ Workspace process logging adds a sidecar container to workspace pods that will l
 Processes launched inside containers or nested containers within the workspace are also logged.
 You can view the output from the sidecar or send it to a monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
-Please note that these logs are not recorded or captured by the Coder organization in any way, shape, or form.
+Note that these logs are not recorded or captured by the Coder organization in any way, shape, or form.
 
 ## How this works
 
