@@ -495,6 +495,36 @@ func TestLifecycleExecutorFreshManagerPerExecution(t *testing.T) {
 	require.True(t, second.started("coder_script.install"))
 }
 
+// A script that leaves without recording its own outcome is recorded as
+// failed, so its dependents are decided instead of waiting until the
+// context ends.
+func TestLifecycleExecutorRecordsFailureOnUnrecordedExit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	runs := newScriptOrderRuns()
+	logs := newScriptOrderTestLogs()
+	executor := newTestExecutor(t, runs, logs)
+
+	clone := scriptOrderTestScript("coder_script.clone")
+	install := scriptOrderTestScript("coder_script.install", scriptOrderTestDependency("coder_script.clone", requireSuccess))
+	scripts := []codersdk.WorkspaceAgentScript{clone, install}
+	manager, byAddress, err := lifecycleManager(scripts)
+	require.NoError(t, err)
+	// Pre-setting the outcome makes the executor's own update fail.
+	require.NoError(t, manager.UpdateOutcome("coder_script.clone", unit.OutcomeRunning))
+
+	err = executor.executeWith(ctx, manager, byAddress, scripts, ExecuteStartScripts)
+	require.ErrorIs(t, err, unit.ErrSameOutcomeAlreadySet)
+	require.NoError(t, ctx.Err())
+
+	require.Empty(t, runs.allStarted())
+	u, err := manager.Unit("coder_script.clone")
+	require.NoError(t, err)
+	require.Equal(t, unit.OutcomeFailed, u.Outcome())
+	require.Equal(t, []string{`Skipping script: dependency "coder_script.clone" failed.`}, logs.outputs(install.LogSourceID))
+}
+
 // Scripts without a resource address start at once alongside the
 // ordered ones.
 func TestLifecycleExecutorAddresslessScriptsRunAtOnce(t *testing.T) {

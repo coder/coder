@@ -139,16 +139,34 @@ func lifecycleRequirement(requirement codersdk.WorkspaceAgentScriptDependencyReq
 }
 
 // executeScript waits for the manager's decision, then skips or runs the
-// script and records exactly one terminal outcome for it. Each goroutine
-// records only its own unit, so no unit is updated twice.
+// script. Every exit records one terminal outcome, because dependents only
+// wake on one and the execution would otherwise stay open until the agent
+// shuts down. Each goroutine records only its own unit, so no unit is
+// updated twice.
 func (e lifecycleExecutor) executeScript(
 	ctx context.Context,
 	manager *unit.Manager,
 	scriptsByAddress map[string]codersdk.WorkspaceAgentScript,
 	script codersdk.WorkspaceAgentScript,
 	option ExecuteOption,
-) error {
+) (err error) {
 	id := unit.ID(script.ResourceAddress)
+
+	terminal := false
+	record := func(outcome unit.Outcome) error {
+		if err := recordOutcome(manager, id, outcome); err != nil {
+			return err
+		}
+		if outcome.Terminal() {
+			terminal = true
+		}
+		return nil
+	}
+	defer func() {
+		if !terminal {
+			err = errors.Join(err, recordOutcome(manager, id, unit.OutcomeFailed))
+		}
+	}()
 
 	evaluation, err := e.waitForDecision(ctx, manager, script)
 	if err == nil {
@@ -158,7 +176,7 @@ func (e lifecycleExecutor) executeScript(
 	}
 	if err != nil {
 		if ctx.Err() != nil {
-			return errors.Join(err, recordOutcome(manager, id, unit.OutcomeCanceled))
+			return errors.Join(err, record(unit.OutcomeCanceled))
 		}
 		return err
 	}
@@ -166,14 +184,14 @@ func (e lifecycleExecutor) executeScript(
 	switch evaluation.Decision {
 	case unit.DecisionSkip:
 		e.logSkipped(ctx, script, scriptsByAddress, evaluation)
-		if err := recordOutcome(manager, id, unit.OutcomeSkipped); err != nil {
+		if err := record(unit.OutcomeSkipped); err != nil {
 			return err
 		}
 		// A skip is not an error. The prerequisite's own failure is what
 		// sets the lifecycle state.
 		return nil
 	case unit.DecisionRunnable:
-		if err := recordOutcome(manager, id, unit.OutcomeRunning); err != nil {
+		if err := record(unit.OutcomeRunning); err != nil {
 			return err
 		}
 	default:
@@ -181,14 +199,12 @@ func (e lifecycleExecutor) executeScript(
 	}
 
 	runErr := e.run(ctx, script, option)
-	if err := recordOutcome(manager, id, scriptOutcome(runErr, ctx.Err())); err != nil {
+	if err := record(scriptOutcome(runErr, ctx.Err())); err != nil {
 		return errors.Join(runErr, err)
 	}
 	return runErr
 }
 
-// recordOutcome wraps rather than ignores the manager's error so a unit
-// that is updated twice shows up as a failure instead of a hang.
 func recordOutcome(manager *unit.Manager, id unit.ID, outcome unit.Outcome) error {
 	if err := manager.UpdateOutcome(id, outcome); err != nil {
 		return xerrors.Errorf("record script %q outcome %q: %w", id, outcome, err)
