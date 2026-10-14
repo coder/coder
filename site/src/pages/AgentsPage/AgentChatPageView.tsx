@@ -663,6 +663,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						store={store}
 						hasMoreMessages={hasMoreMessages}
 						isFetchingMoreMessages={isFetchingMoreMessages}
+						isHydratingMessages={isHydratingMessages}
 						hasFetchMoreError={hasFetchMoreError}
 						onFetchMoreMessages={onFetchMoreMessages}
 					/>

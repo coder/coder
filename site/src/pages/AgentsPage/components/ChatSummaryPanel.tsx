@@ -4,12 +4,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { ChatArtifacts } from "./ChatArtifacts";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
-import {
-	type ChatStore,
-	selectMessagesByID,
-	selectOrderedMessageIDs,
-	useChatSelector,
-} from "./ChatConversation/chatStore";
+import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
 	getChatArtifacts,
@@ -21,11 +16,14 @@ type ChatSummaryPanelProps = {
 	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
 	isVisible: boolean;
 	store: ChatStore;
-	hasMoreMessages: boolean;
-	isFetchingMoreMessages: boolean;
-	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => void;
-};
+} & Pick<
+	React.ComponentProps<typeof ChatArtifacts>,
+	| "hasMoreMessages"
+	| "isFetchingMoreMessages"
+	| "isHydratingMessages"
+	| "hasFetchMoreError"
+	| "onFetchMoreMessages"
+>;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
@@ -33,6 +31,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	store,
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 }) => {
@@ -46,12 +45,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const messages = orderedMessageIDs.flatMap((id) => {
-		const message = messagesByID.get(id);
-		return message ? [message] : [];
-	});
+	const messages = useChatMessages(store);
 	const artifacts = getChatArtifacts(messages);
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
@@ -85,6 +79,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 				evictedFileIds={evictedFileIds}
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
+				isHydratingMessages={isHydratingMessages}
 				hasFetchMoreError={hasFetchMoreError}
 				onFetchMoreMessages={onFetchMoreMessages}
 			/>

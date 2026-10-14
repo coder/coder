@@ -11,6 +11,7 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
+	isAttachmentOnlyRow,
 	splitRowBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
@@ -97,6 +98,13 @@ const result = (
 	is_error: options.isError,
 	created_at: createdAt,
 });
+
+const mockAttachment: TypesGen.ChatMessagePart = {
+	type: "file",
+	media_type: "text/csv",
+	name: "report.csv",
+	file_id: "report-file",
+};
 
 /** One persisted step: an assistant tool call followed by its hidden result. */
 const step = (
@@ -233,12 +241,6 @@ describe("groupWorkingBlocks", () => {
 
 	it("keeps a step's attachment inside the block instead of ending it there", () => {
 		const prompt = user("Go");
-		const mockAttachment: TypesGen.ChatMessagePart = {
-			type: "file",
-			media_type: "text/csv",
-			name: "report.csv",
-			file_id: "report-file",
-		};
 		// chatd persists a tool's attachments as their own assistant message.
 		const steps = [
 			...step("a", 1, 2),
@@ -1221,6 +1223,34 @@ describe("splitRowBlocks", () => {
 		).toEqual([
 			{ type: "response", text: "Checked the logs." },
 			{ type: "response", text: "The fix is in." },
+		]);
+	});
+});
+
+describe("isAttachmentOnlyRow", () => {
+	it("flags only assistant rows that show nothing but attachments", () => {
+		const upload = message("user", [mockAttachment]);
+		const attachmentOnly = message("assistant", [mockAttachment]);
+		const answerWithFile = message("assistant", [
+			text("Report:"),
+			mockAttachment,
+		]);
+		const withHookNotice = message("assistant", [
+			mockAttachment,
+			{ type: "hook-notice", text: "Scanned by policy." },
+		]);
+		const { rows } = group([
+			upload,
+			attachmentOnly,
+			answerWithFile,
+			withHookNotice,
+		]);
+
+		expect(rows.map((row) => isAttachmentOnlyRow(row))).toEqual([
+			false,
+			true,
+			false,
+			false,
 		]);
 	});
 });

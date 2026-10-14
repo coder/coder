@@ -16,7 +16,7 @@ import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
-	getChatFileURL,
+	getAttachmentHref,
 	handleAttachmentDownloadClick,
 	isAbortError,
 	isRasterImageMediaType,
@@ -111,18 +111,6 @@ const getAttachmentExtension = (
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
-
-export const getAttachmentHref = (
-	block: FileAttachmentBlock,
-): string | null => {
-	if (block.file_id) {
-		return getChatFileURL(block.file_id);
-	}
-	if (block.data) {
-		return `data:${block.media_type};base64,${block.data}`;
-	}
-	return null;
-};
 
 const getAttachmentDisplayName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
@@ -545,11 +533,12 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
+/** Download card for an attachment without a preview, or its expired tile. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
-	className?: string;
-}> = ({ block, href, className }) => {
+	fullWidth?: boolean;
+}> = ({ block, href, fullWidth = false }) => {
 	const { hasExpired } = useFileProbes();
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
@@ -560,7 +549,7 @@ export const FileCard: React.FC<{
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
 				labels={fileAttachmentFailureLabels}
-				className={cn("h-16 w-28", className)}
+				className={cn("h-16", fullWidth ? "w-full" : "w-28")}
 			/>
 		);
 	}
@@ -579,8 +568,8 @@ export const FileCard: React.FC<{
 			}}
 			aria-label={`Download ${displayName}`}
 			className={cn(
-				"inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary",
-				className,
+				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary",
+				fullWidth ? "w-full" : "max-w-sm",
 			)}
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">

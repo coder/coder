@@ -12,6 +12,7 @@ describe("ChatArtifacts", () => {
 				evictedFileIds={new Set()}
 				hasMoreMessages
 				isFetchingMoreMessages={false}
+				isHydratingMessages={false}
 				hasFetchMoreError={false}
 				onFetchMoreMessages={onFetchMoreMessages}
 			/>,

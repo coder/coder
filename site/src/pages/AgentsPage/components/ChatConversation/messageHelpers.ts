@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { getAttachmentHref } from "../../utils/chatAttachments";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
@@ -232,18 +233,6 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 	);
 };
 
-/** An assistant message that shows nothing but files its tools attached. */
-export const isAttachmentOnlyMessage = ({
-	message,
-	parsed,
-}: ParsedMessageEntry): boolean => {
-	if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
-		return false;
-	}
-	const { visibleBlocks } = getVisibleContent(parsed.blocks, parsed.tools);
-	return visibleBlocks.length > 0 && visibleBlocks.every(isFileRenderBlock);
-};
-
 const mergeReadFileMessageGroup = (
 	group: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry => {
@@ -367,19 +356,30 @@ export const deriveEvictedFileIds = (
 	);
 };
 
-export type ChatArtifact = { key: string; file: TypesGen.ChatFilePart };
+export type ChatArtifact = {
+	key: string;
+	file: TypesGen.ChatFilePart;
+	href: string;
+};
 
-/** Files the agent attached to its messages, newest first. */
+/**
+ * Downloadable files the agent attached to its messages, newest first. Files
+ * the user uploaded are not artifacts.
+ */
 export const getChatArtifacts = (
 	messages: readonly TypesGen.ChatMessage[],
 ): ChatArtifact[] =>
 	messages
 		.filter((message) => message.role === "assistant")
 		.flatMap((message) =>
-			(message.content ?? []).flatMap((part, partIndex) =>
-				part.type === "file" && (part.file_id || part.data)
-					? [{ key: `${message.id}:${partIndex}`, file: part }]
-					: [],
-			),
+			(message.content ?? []).flatMap((part, partIndex) => {
+				if (part.type !== "file") {
+					return [];
+				}
+				const href = getAttachmentHref(part);
+				return href
+					? [{ key: `${message.id}:${partIndex}`, file: part, href }]
+					: [];
+			}),
 		)
 		.reverse();

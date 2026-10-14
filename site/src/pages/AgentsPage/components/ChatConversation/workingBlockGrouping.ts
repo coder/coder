@@ -107,6 +107,26 @@ export const splitRowBlocks = (
 	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
 };
 
+/**
+ * A row that shows nothing but attachments, so it renders empty once they are
+ * hidden. chatd commits a local tool's attachments with its result, as an
+ * assistant message of their own after the call.
+ */
+export const isAttachmentOnlyRow = (row: TimelineRow): boolean => {
+	if (row.type !== "message") {
+		return false;
+	}
+	const { message, parsed } = row.entry;
+	if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
+		return false;
+	}
+	const { visibleBlocks } = getVisibleContent(parsed.blocks, parsed.tools);
+	return (
+		visibleBlocks.length > 0 &&
+		visibleBlocks.every((block) => block.type === "file")
+	);
+};
+
 type RowContent = ReturnType<typeof getVisibleContent>;
 
 type MemberRow = {

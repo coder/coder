@@ -41,7 +41,6 @@ import {
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 	getVisibleContent,
-	isAttachmentOnlyMessage,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
@@ -56,6 +55,7 @@ import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
 	groupWorkingBlocks,
+	isAttachmentOnlyRow,
 	type RowSection,
 	splitRowBlocks,
 } from "./workingBlockGrouping";
@@ -110,8 +110,7 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	section?: RowSection;
-	// While steps collapse, attachments show only inside working blocks; the
-	// Summary panel lists every one.
+	// While steps collapse, attachments show only inside working blocks.
 	hideAttachments: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
@@ -781,14 +780,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						];
 					}
 
-					if (groupedRows.has(index)) {
-						return [];
-					}
-					// With its attachments hidden, the row would render an empty item.
 					if (
-						collapseSteps &&
-						row.type === "message" &&
-						isAttachmentOnlyMessage(row.entry)
+						groupedRows.has(index) ||
+						(collapseSteps && isAttachmentOnlyRow(row))
 					) {
 						return [];
 					}

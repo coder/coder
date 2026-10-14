@@ -12,6 +12,7 @@ const mockArtifacts: ChatArtifact[] = [
 			name: "dashboard-screenshot.png",
 			file_id: "screenshot-file",
 		},
+		href: "/api/v2/chats/files/screenshot-file",
 	},
 	{
 		key: "5:2",
@@ -21,6 +22,7 @@ const mockArtifacts: ChatArtifact[] = [
 			name: "latency-report.csv",
 			file_id: "report-file",
 		},
+		href: "/api/v2/chats/files/report-file",
 	},
 	{
 		key: "4:1",
@@ -30,6 +32,7 @@ const mockArtifacts: ChatArtifact[] = [
 			name: "PLAN.md",
 			file_id: "plan-file",
 		},
+		href: "/api/v2/chats/files/plan-file",
 	},
 	{
 		key: "3:1",
@@ -38,6 +41,7 @@ const mockArtifacts: ChatArtifact[] = [
 			media_type: "application/octet-stream",
 			file_id: "unnamed-file",
 		},
+		href: "/api/v2/chats/files/unnamed-file",
 	},
 	{
 		key: "2:1",
@@ -47,6 +51,7 @@ const mockArtifacts: ChatArtifact[] = [
 			name: "quarterly-infrastructure-cost-breakdown-for-every-workspace-template.pdf",
 			file_id: "long-name-file",
 		},
+		href: "/api/v2/chats/files/long-name-file",
 	},
 ];
 
@@ -65,6 +70,7 @@ const meta: Meta<typeof ChatArtifacts> = {
 		evictedFileIds: new Set(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
+		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(),
 	},
@@ -77,6 +83,10 @@ export const WithArtifacts: Story = {};
 
 export const Empty: Story = {
 	args: { artifacts: [] },
+};
+
+export const HydratingMessages: Story = {
+	args: { artifacts: [], isHydratingMessages: true },
 };
 
 export const EmptyWithEarlierMessages: Story = {

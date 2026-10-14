@@ -65,6 +65,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 		store: createChatStore(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
+		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(),
 	},
@@ -99,6 +100,13 @@ const mockArtifactMessages: TypesGen.ChatMessage[] = [
 				tool_name: "attach_file",
 				args: { path: "/home/coder/flaky-runs.csv" },
 			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 3,
+		role: "assistant",
+		content: [
 			{
 				type: "file",
 				media_type: "text/csv",
@@ -109,7 +117,7 @@ const mockArtifactMessages: TypesGen.ChatMessage[] = [
 	},
 	{
 		...MockChatMessage,
-		id: 3,
+		id: 4,
 		role: "assistant",
 		content: [
 			{
@@ -118,6 +126,13 @@ const mockArtifactMessages: TypesGen.ChatMessage[] = [
 				tool_name: "computer",
 				args: { action: "screenshot" },
 			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "assistant",
+		content: [
 			{
 				type: "file",
 				media_type: "image/png",
@@ -183,7 +198,7 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Gating disables both queries, so nothing renders and no API call fires.
+		// Gating disables both queries, so no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(
@@ -206,7 +221,6 @@ export const GatewayUnavailable: Story = {
 	},
 };
 
-// The user's upload stays in the transcript and is not an artifact.
 export const WithArtifacts: Story = {
 	args: { store: createArtifactStore() },
 	beforeEach: () =>

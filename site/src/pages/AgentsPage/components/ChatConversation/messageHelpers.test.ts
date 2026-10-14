@@ -733,9 +733,17 @@ describe("getChatArtifacts", () => {
 		];
 
 		expect(getChatArtifacts(messages)).toEqual([
-			{ key: "3:3", file: mockReportFile },
-			{ key: "3:1", file: mockScreenshotFile },
-			{ key: "1:0", file: mockPlanFile },
+			{
+				key: "3:3",
+				file: mockReportFile,
+				href: "/api/v2/chats/files/report",
+			},
+			{
+				key: "3:1",
+				file: mockScreenshotFile,
+				href: "data:image/png;base64,aGk=",
+			},
+			{ key: "1:0", file: mockPlanFile, href: "/api/v2/chats/files/plan" },
 		]);
 	});
 });
