@@ -1,18 +1,25 @@
 package chatloop
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -28,6 +35,27 @@ const (
 	// running without the debug row is preferable to blocking
 	// compaction on a slow or locked DB.
 	compactionDebugCreateRunTimeout = 5 * time.Second
+
+	// minSummaryOutputTokens is the least room for the summary that the
+	// full summary request must leave in the window. With less, the cap
+	// clamp would truncate the summary, so the elided request goes first.
+	minSummaryOutputTokens = int64(16_000)
+
+	// elidedToolResultMinBytes is what an elided tool result keeps at
+	// least: enough for its leading summary and trailing status.
+	elidedToolResultMinBytes = 1 << 10
+
+	// mediaTokenEstimate approximates one image or file part, about what
+	// providers bill for a typical screenshot. Providers bill images by
+	// dimensions, so the encoded size would overcount them by orders of
+	// magnitude.
+	mediaTokenEstimate = int64(1_600)
+
+	// compactionContextTooLargeMessage tells the user how to recover a
+	// conversation that is too large to summarize.
+	compactionContextTooLargeMessage = "The conversation is too large for the model's context window and could not be compacted. " +
+		"Edit an earlier message to remove large content, or start a new conversation. " +
+		"If this keeps happening, ask an administrator to check the model's context limit."
 
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
 		"Summarize the conversation so a new assistant can seamlessly " +
@@ -103,6 +131,21 @@ type CompactionOptions struct {
 	// ToolDefinitions is copied from the parent generation request so the
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
+
+	// SummaryWindow is the summary model's context window, or zero when
+	// unknown. It bounds the summary cap and the elided request.
+	SummaryWindow int64
+	// EstimatedInputTokens estimates the input of the full summary
+	// request: the trigger step's prompt and output, the trailing
+	// messages, and the summary prompt.
+	EstimatedInputTokens int64
+	// ElideFirst sends the elided summary request before the full one
+	// because the full one leaves too little of SummaryWindow for the
+	// summary.
+	ElideFirst bool
+
+	// Logger records summary requests that fail.
+	Logger slog.Logger
 
 	// Clock and StreamSilenceTimeout guard the summary stream against a
 	// provider that opens the stream but stops yielding parts. Zero values
@@ -195,8 +238,15 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		config.ContextLimit,
 		opts.ContextLimitFallback,
 	)
-	usagePercent, compact := shouldCompact(
+	usagePercent, _ := shouldCompact(
 		contextTokens,
+		contextLimit,
+		config.ThresholdPercent,
+	)
+	// contextTokens predates the trailing messages, which the next model
+	// call also sends.
+	_, compact := shouldCompact(
+		contextTokens+opts.TrailingTokens,
 		contextLimit,
 		config.ThresholdPercent,
 	)
@@ -204,27 +254,21 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		return CompactionResult{}, nil
 	}
 
-	// Sum-enforcing providers reject requests whose input plus
-	// max_tokens exceeds the context window, so bound the summary cap
-	// by the remaining window. contextTokens covers only the trigger
-	// step's prompt, so also reserve that step's output, the tool
-	// results executed after it, and the summary prompt appended by
-	// generateCompactionSummary, all of which become input to the
-	// summary request. Degenerate cases (unknown limit, no room left)
-	// leave the cap unchanged.
-	if config.SummaryCall.MaxOutputTokens != nil {
-		promptBytes := len(config.SummaryPrompt) + len(config.SummaryHint)
-		promptTokens := int64((promptBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
-		reserved := opts.StepUsage.OutputTokens + promptTokens + trailingToolResultTokens(opts.Messages)
-		windowLimit := contextLimit
-		if opts.SummaryContextLimit > 0 {
-			windowLimit = opts.SummaryContextLimit
-		}
-		remaining := windowLimit - contextTokens - reserved
-		if remaining > 0 && remaining < *config.SummaryCall.MaxOutputTokens {
-			config.SummaryCall.MaxOutputTokens = &remaining
-		}
+	// contextTokens covers only the trigger step's prompt, so the summary
+	// request's input also includes that step's output, the trailing
+	// messages, and the summary prompt appended by
+	// generateCompactionSummary.
+	config.EstimatedInputTokens = contextTokens + opts.StepUsage.OutputTokens + opts.TrailingTokens +
+		estimateTokens(len(config.SummaryPrompt)+len(config.SummaryHint))
+	config.SummaryWindow = contextLimit
+	if opts.SummaryContextLimit > 0 {
+		config.SummaryWindow = opts.SummaryContextLimit
 	}
+	minRoom := minSummaryOutputTokens
+	if maxOutput := config.SummaryCall.MaxOutputTokens; maxOutput != nil && *maxOutput < minRoom {
+		minRoom = *maxOutput
+	}
+	config.ElideFirst = config.SummaryWindow > 0 && config.SummaryWindow-config.EstimatedInputTokens < minRoom
 
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
@@ -262,7 +306,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		Runtime:             summaryRuntime,
 		ProviderResponseID:  responseID,
 	}
-	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+	result.EstimatedContextTokens = estimateTokens(len(result.SystemSummary))
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(CompactionToolResult{
 			Summary:                   summary,
@@ -304,6 +348,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		PublishMessagePart:   opts.PublishMessagePart,
 		Clock:                opts.Clock,
 		StreamSilenceTimeout: opts.StreamSilenceTimeout,
+		Logger:               opts.Logger,
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -341,35 +386,151 @@ func publishCompactionError(config CompactionOptions, msg string) {
 	)
 }
 
-// trailingToolResultTokens estimates tokens for the tool-result
-// messages that follow the usage-measured assistant step. Local tools
-// execute before compaction, so their results are input to the summary
-// request but absent from StepUsage.
-func trailingToolResultTokens(messages []fantasy.Message) int64 {
-	totalBytes := 0
-	for i := len(messages) - 1; i >= 0 && messages[i].Role == fantasy.MessageRoleTool; i-- {
-		for _, part := range messages[i].Content {
-			result, ok := part.(fantasy.ToolResultPart)
-			if !ok {
-				resultPtr, okPtr := part.(*fantasy.ToolResultPart)
-				if !okPtr || resultPtr == nil {
-					continue
-				}
-				result = *resultPtr
-			}
-			switch output := result.Output.(type) {
-			case fantasy.ToolResultOutputContentText:
-				totalBytes += len(output.Text)
-			case fantasy.ToolResultOutputContentError:
-				if output.Error != nil {
-					totalBytes += len(output.Error.Error())
-				}
-			case fantasy.ToolResultOutputContentMedia:
-				totalBytes += len(output.Data) + len(output.Text)
+// EstimateTrailingTokens estimates the prompt tokens of the messages after
+// the last assistant message, typically the results of its tool calls. They
+// are input to the next model call but absent from the usage reported for
+// the step that produced that message.
+func EstimateTrailingTokens(messages []fantasy.Message) int64 {
+	start := len(messages)
+	for start > 0 && messages[start-1].Role != fantasy.MessageRoleAssistant {
+		start--
+	}
+	return estimateMessagesTokens(messages[start:])
+}
+
+func estimateTokens(bytes int) int64 {
+	return int64((bytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+}
+
+// estimateMessagesTokens approximates the prompt tokens of messages from
+// their content size.
+func estimateMessagesTokens(messages []fantasy.Message) int64 {
+	textBytes := 0
+	mediaParts := int64(0)
+	for _, msg := range messages {
+		for _, part := range msg.Content {
+			partBytes, partMedia := messagePartSize(part)
+			textBytes += partBytes
+			mediaParts += partMedia
+		}
+	}
+	return estimateTokens(textBytes) + mediaParts*mediaTokenEstimate
+}
+
+// messagePartSize returns the text bytes and the number of media
+// attachments that part adds to a prompt.
+func messagePartSize(part fantasy.MessagePart) (textBytes int, mediaParts int64) {
+	if text, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+		return len(text.Text), 0
+	}
+	if reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part); ok {
+		return len(reasoning.Text), 0
+	}
+	if _, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
+		return 0, 1
+	}
+	if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
+		return len(call.ToolName) + len(call.Input), 0
+	}
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	if !ok {
+		return 0, 0
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
+		return len(output.Text), 0
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
+		return len(output.Error.Error()), 0
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output); ok {
+		return len(output.Text), 1
+	}
+	return 0, 0
+}
+
+// elideToolResults returns a copy of messages in which the largest tool
+// result texts are cut to one common size, keeping their head and tail, so
+// the copy's estimate fits budgetTokens. Cut results keep at least
+// elidedToolResultMinBytes, so the copy can still exceed the budget. It
+// reports the bytes removed; zero means nothing was cut and messages is
+// returned unchanged.
+func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy.Message, int) {
+	excessBytes := (estimateMessagesTokens(messages) - budgetTokens) * bytesPerTokenEstimate
+	if excessBytes <= 0 {
+		return messages, 0
+	}
+	var sizes []int
+	for _, msg := range messages {
+		for _, part := range msg.Content {
+			if _, text, ok := elidableToolResult(part); ok {
+				sizes = append(sizes, len(text))
 			}
 		}
 	}
-	return int64((totalBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+	if len(sizes) == 0 {
+		return messages, 0
+	}
+	keepBytes := toolResultElisionSize(sizes, excessBytes)
+
+	elided := slices.Clone(messages)
+	removed := 0
+	for i, msg := range elided {
+		var content []fantasy.MessagePart
+		for j, part := range msg.Content {
+			result, text, ok := elidableToolResult(part)
+			if !ok || len(text) <= keepBytes {
+				continue
+			}
+			truncated, _ := TruncateToolResultText(text, keepBytes)
+			result.Output = fantasy.ToolResultOutputContentText{Text: truncated}
+			if content == nil {
+				// The content slices are shared with the caller's messages.
+				content = slices.Clone(msg.Content)
+			}
+			content[j] = result
+			removed += len(text) - len(truncated)
+		}
+		if content != nil {
+			elided[i].Content = content
+		}
+	}
+	return elided, removed
+}
+
+// elidableToolResult returns a locally executed tool result and its text
+// when the text is longer than elidedToolResultMinBytes.
+func elidableToolResult(part fantasy.MessagePart) (fantasy.ToolResultPart, string, bool) {
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	if !ok || result.ProviderExecuted {
+		return fantasy.ToolResultPart{}, "", false
+	}
+	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output)
+	if !ok || len(output.Text) <= elidedToolResultMinBytes {
+		return fantasy.ToolResultPart{}, "", false
+	}
+	return result, output.Text, true
+}
+
+// toolResultElisionSize returns the largest size such that cutting every
+// result above it to that size removes at least excessBytes, but never less
+// than elidedToolResultMinBytes. Every size must exceed that minimum.
+func toolResultElisionSize(sizes []int, excessBytes int64) int {
+	slices.SortFunc(sizes, func(a, b int) int { return cmp.Compare(b, a) })
+	var cutBytes int64
+	for i, size := range sizes {
+		cutBytes += int64(size)
+		// Cutting the i+1 largest results to keepBytes removes at least
+		// excessBytes. The size holds when no smaller result needs a cut.
+		keepBytes := (cutBytes - excessBytes) / int64(i+1)
+		nextBytes := int64(elidedToolResultMinBytes)
+		if i+1 < len(sizes) {
+			nextBytes = max(nextBytes, int64(sizes[i+1]))
+		}
+		if keepBytes >= nextBytes {
+			return int(keepBytes)
+		}
+	}
+	return elidedToolResultMinBytes
 }
 
 // contextTokensFromUsage returns the total context token count from
@@ -504,31 +665,127 @@ func startCompactionDebugRun(
 	}
 }
 
+// Summary request kinds, from the largest request to the smallest.
+const (
+	summaryRequestFull         = "full"
+	summaryRequestWithoutTools = "without_tools"
+	summaryRequestElided       = "elided"
+)
+
+// summaryRequest is the shape of one summary request.
+type summaryRequest struct {
+	kind            string
+	history         []fantasy.Message
+	tools           []fantasy.Tool
+	maxOutputTokens *int64
+	inputTokens     int64
+	elidedBytes     int
+}
+
+// newSummaryRequest builds the summary request of kind. It reports false
+// when kind cannot shrink the request: no tools to drop or no tool results
+// to elide.
+func newSummaryRequest(kind string, messages []fantasy.Message, options CompactionOptions) (summaryRequest, bool) {
+	request := summaryRequest{kind: kind, history: messages, inputTokens: options.EstimatedInputTokens}
+	switch kind {
+	case summaryRequestFull:
+		request.tools = options.ToolDefinitions
+	case summaryRequestWithoutTools:
+		if len(options.ToolDefinitions) == 0 {
+			return summaryRequest{}, false
+		}
+	case summaryRequestElided:
+		// Halving leaves room for the summary and absorbs both the
+		// estimate's error and a configured window larger than the
+		// provider's real one.
+		budget := estimateMessagesTokens(messages)
+		if options.SummaryWindow > 0 {
+			budget = min(budget, options.SummaryWindow)
+		}
+		request.history, request.elidedBytes = elideToolResults(messages, budget/2)
+		if request.elidedBytes == 0 {
+			return summaryRequest{}, false
+		}
+		request.inputTokens = estimateMessagesTokens(request.history) +
+			estimateTokens(len(options.SummaryPrompt)+len(options.SummaryHint))
+	default:
+		return summaryRequest{}, false
+	}
+	request.maxOutputTokens = summaryOutputCap(options.SummaryCall.MaxOutputTokens, options.SummaryWindow, request.inputTokens)
+	return request, true
+}
+
+// summaryOutputCap bounds maxOutputTokens by the room inputTokens leaves in
+// window, since sum-enforcing providers reject requests whose input plus
+// max_tokens exceeds the context window. An unknown window or no room left
+// leaves the cap unchanged.
+func summaryOutputCap(maxOutputTokens *int64, window, inputTokens int64) *int64 {
+	if maxOutputTokens == nil || window <= 0 {
+		return maxOutputTokens
+	}
+	remaining := window - inputTokens
+	if remaining > 0 && remaining < *maxOutputTokens {
+		return &remaining
+	}
+	return maxOutputTokens
+}
+
+func (r summaryRequest) attributes(sent int) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.Int(AttrSummaryRequests, sent),
+		attribute.String(AttrSummaryRequest, r.kind),
+		attribute.Int64(AttrSummaryEstimatedInputTokens, r.inputTokens),
+		attribute.Int64(AttrSummaryMaxOutputTokens, ptr.NilToEmpty(r.maxOutputTokens)),
+		attribute.Int(AttrSummaryToolCount, len(r.tools)),
+		attribute.Int(AttrSummaryElidedBytes, r.elidedBytes),
+	}
+}
+
+func (r summaryRequest) logFields(err error) []slog.Field {
+	return []slog.Field{
+		slog.F("summary_request", r.kind),
+		slog.F("estimated_input_tokens", r.inputTokens),
+		slog.F("max_output_tokens", ptr.NilToEmpty(r.maxOutputTokens)),
+		slog.F("tool_count", len(r.tools)),
+		slog.F("elided_bytes", r.elidedBytes),
+		slog.Error(err),
+	}
+}
+
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
 // complete history (system prompt, user/assistant turns, tool
 // results). A final user message with the summary prompt is appended
 // before calling the model.
+//
+// Compaction is the recovery path for an over-limit conversation, so a
+// request the model rejects for its size falls back to smaller ones:
+// first without tool definitions, then with the largest tool results
+// elided. options.ElideFirst starts with the elided request.
 func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
 	options CompactionOptions,
 ) (summary string, responseID string, err error) {
-	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
-	summaryPrompt = append(summaryPrompt, messages...)
 	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
 	if strings.TrimSpace(options.SummaryHint) != "" {
 		summaryParts = append(summaryParts, fantasy.TextPart{Text: options.SummaryHint})
 	}
-	summaryPrompt = append(summaryPrompt, fantasy.Message{
-		Role:    fantasy.MessageRoleUser,
-		Content: summaryParts,
-	})
-	// Claude only reads the cache at explicit breakpoints, so without
-	// these the shared tool and history prefix is never a cache hit.
-	if applyPromptCaching := promptCachingStrategyFor(model, model.Model()); applyPromptCaching != nil {
-		applyPromptCaching(summaryPrompt)
+	applyPromptCaching := promptCachingStrategyFor(model, model.Model())
+	summaryPromptFor := func(history []fantasy.Message) []fantasy.Message {
+		summaryPrompt := make([]fantasy.Message, 0, len(history)+1)
+		summaryPrompt = append(summaryPrompt, history...)
+		summaryPrompt = append(summaryPrompt, fantasy.Message{
+			Role:    fantasy.MessageRoleUser,
+			Content: summaryParts,
+		})
+		// Claude only reads the cache at explicit breakpoints, so without
+		// these the shared tool and history prefix is never a cache hit.
+		if applyPromptCaching != nil {
+			applyPromptCaching(summaryPrompt)
+		}
+		return summaryPrompt
 	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
@@ -547,9 +804,6 @@ func generateCompactionSummary(
 		finishDebugRun(err)
 	}()
 
-	call := options.SummaryCall
-	call.Prompt = summaryPrompt
-	call.Tools = options.ToolDefinitions
 	clock := options.Clock
 	if clock == nil {
 		clock = quartz.NewReal()
@@ -560,7 +814,7 @@ func generateCompactionSummary(
 	}
 	// TTFT is an assistant-generation measurement, so the summary stream
 	// records neither its histogram nor its stage.
-	streamSummaryText := func() (string, error) {
+	streamSummaryText := func(call fantasy.Call) (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,
 			options.ResolvedProvider,
@@ -650,48 +904,89 @@ func generateCompactionSummary(
 		}
 		return joined, nil
 	}
-	summary, err = streamSummaryText()
-	if err != nil && len(call.Tools) > 0 && isContextTooLargeError(err) {
-		// Tool definitions keep the summary request on the parent turn's
-		// cacheable prefix, but they also make it larger than the turn
-		// that just overflowed. Compaction is the recovery path for an
-		// over-limit conversation, so fall back to the tool-less request,
-		// which still fits whenever the history alone does. The rejection
-		// can arrive from the stream open or as an in-stream error part,
-		// so the retry wraps the whole attempt.
-		call.Tools = nil
-		summary, err = streamSummaryText()
+	kinds := []string{summaryRequestFull, summaryRequestWithoutTools, summaryRequestElided}
+	if options.ElideFirst {
+		// The full requests are larger, so they run only when there is
+		// nothing to elide.
+		kinds = []string{summaryRequestElided, summaryRequestFull, summaryRequestWithoutTools}
 	}
-	return summary, responseID, err
+	span := trace.SpanFromContext(ctx)
+	sent := 0
+	for _, kind := range kinds {
+		request, ok := newSummaryRequest(kind, messages, options)
+		if !ok {
+			continue
+		}
+		sent++
+		span.SetAttributes(request.attributes(sent)...)
+		call := options.SummaryCall
+		call.Prompt = summaryPromptFor(request.history)
+		call.Tools = request.tools
+		call.MaxOutputTokens = request.maxOutputTokens
+		summary, err = streamSummaryText(call)
+		if err == nil {
+			return summary, responseID, nil
+		}
+		options.Logger.Warn(ctx, "compaction summary request failed", request.logFields(err)...)
+		// Tool definitions keep the summary request on the parent turn's
+		// cacheable prefix, but the tools and the full history both make
+		// it larger than the turn that overflowed. The rejection can
+		// arrive from the stream open or as an in-stream error part, so
+		// the next request repeats the whole attempt.
+		if kind == summaryRequestElided || !isContextTooLargeError(err) {
+			break
+		}
+	}
+	if isContextTooLargeError(err) {
+		classified := chaterror.Classify(err)
+		classified.Kind = codersdk.ChatErrorKindConfig
+		classified.Message = compactionContextTooLargeMessage
+		classified.Retryable = false
+		classified.RetryAfter = 0
+		err = chaterror.WithClassification(err, classified)
+	}
+	return "", responseID, err
 }
 
 // contextTooLargePhrases are context-window rejections fantasy does not
 // parse, such as the OpenAI Responses API "Your input exceeds the context
-// window of this model." and Anthropic-family "too long" rejections
-// without token counts. The response body is included so the OpenAI
+// window of this model.", Anthropic-family "too long" rejections without
+// token counts, and the Anthropic "input length and `max_tokens` exceed
+// context limit" rejection. The response body is included so the OpenAI
 // error code "context_length_exceeded" matches regardless of wording.
 var contextTooLargePhrases = []string{
 	"context window",
 	"context length",
 	"context_length",
+	"context limit",
 	"too long",
 }
 
 // isContextTooLargeError reports whether a provider rejected a request for
 // its size: the prompt exceeded the model's context window, or the body
 // exceeded a request size limit on the provider or a gateway in front of it.
+// The rejection can arrive as an HTTP 400 or inside an HTTP 200 stream,
+// where fantasy reports it with no status code or, for spec-shaped OpenAI
+// Responses error events, as a plain *fantasy.Error.
 func isContextTooLargeError(err error) bool {
-	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
-	if !ok {
-		return false
+	if providerErr, ok := errors.AsType[*fantasy.ProviderError](err); ok {
+		if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
+			return true
+		}
+		if providerErr.IsRetryable() ||
+			(providerErr.StatusCode != http.StatusBadRequest && providerErr.StatusCode != 0) {
+			return false
+		}
+		return hasContextTooLargePhrase(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	}
-	if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
-		return true
+	if fantasyErr, ok := errors.AsType[*fantasy.Error](err); ok {
+		return hasContextTooLargePhrase(fantasyErr.Error())
 	}
-	if providerErr.StatusCode != http.StatusBadRequest {
-		return false
-	}
-	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return false
+}
+
+func hasContextTooLargePhrase(text string) bool {
+	text = strings.ToLower(text)
 	for _, phrase := range contextTooLargePhrases {
 		if strings.Contains(text, phrase) {
 			return true

@@ -890,7 +890,8 @@ func (server *Server) prepareGeneration(
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
+	compactionTrailingTokens := chatloop.EstimateTrailingTokens(compactionPromptMessages)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionTrailingTokens, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -909,6 +910,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		TrailingTokens:       compactionTrailingTokens,
 		SummaryCall:          compactionSummaryCall(resolved),
 		ToolDefinitions:      toolDefinitions,
 	}
@@ -1030,7 +1032,11 @@ func bindingCompactionTriggerSource(chat, override compactionTrigger) compaction
 	}
 }
 
-func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
+// shouldCompactPromptUsage reports whether a step's measured prompt usage
+// plus trailingTokens, an estimate of the messages added after that step,
+// reaches the trigger. Unmeasured usage never does, so a freshly compacted
+// history is not compacted again before its first step.
+func shouldCompactPromptUsage(usage fantasy.Usage, trailingTokens, contextLimit int64, thresholdPercent int32) bool {
 	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false
 	}
@@ -1038,7 +1044,7 @@ func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, threshold
 	if contextTokens <= 0 {
 		return false
 	}
-	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
+	usagePercent := (float64(contextTokens+trailingTokens) / float64(contextLimit)) * 100
 	return usagePercent >= float64(thresholdPercent)
 }
 

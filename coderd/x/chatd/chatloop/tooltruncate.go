@@ -10,13 +10,16 @@ const (
 	// window a single tool result may occupy: at most 1/3 of the
 	// window. This caps a single oversized result (most often a large
 	// MCP response) so it cannot overflow the prompt on its own, while
-	// still letting a useful amount of output through. The divisor is
-	// deliberately larger than 2 so the absolute cap stays sane on
-	// large-context (e.g. 1M-token) models, where a more generous
-	// fraction would still admit multi-megabyte results. Cumulative
+	// still letting a useful amount of output through. Cumulative
 	// growth across many results is handled separately by context
 	// compaction.
 	toolResultContextDivisor = 3
+
+	// maxToolResultBytes caps the per-result budget on large-context
+	// models, where a third of the window still admits a result that
+	// moves the prompt past the compaction threshold and near the
+	// provider's limit in one step.
+	maxToolResultBytes = 256 << 10 // 256KB
 
 	// bytesPerTokenEstimate converts a token budget into a byte budget.
 	// Tool output is capped before tokenization, so this is a coarse,
@@ -43,27 +46,17 @@ const (
 	truncationMarkerReserve = 256
 )
 
-// maxIntValue is the largest value of the platform int type.
-const maxIntValue = int(^uint(0) >> 1)
-
 // ToolResultByteBudget converts a model context-window size (in
 // tokens) into the maximum number of bytes a single tool result may
 // contribute to the prompt. A context limit <= 0 means the window is
 // unknown and the default budget is used. The result is never below
-// minToolResultBytes.
+// minToolResultBytes nor above maxToolResultBytes.
 func ToolResultByteBudget(contextLimitTokens int64) int {
 	if contextLimitTokens <= 0 {
 		return defaultToolResultBytes
 	}
 	budgetBytes := contextLimitTokens / toolResultContextDivisor * bytesPerTokenEstimate
-	if budgetBytes < minToolResultBytes {
-		return minToolResultBytes
-	}
-	// Clamp to the int range for 32-bit safety on very large windows.
-	if budgetBytes > int64(maxIntValue) {
-		return maxIntValue
-	}
-	return int(budgetBytes)
+	return int(min(max(budgetBytes, minToolResultBytes), maxToolResultBytes))
 }
 
 // TruncateToolResultText caps text to at most maxBytes using a

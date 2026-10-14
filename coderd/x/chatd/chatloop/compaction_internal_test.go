@@ -3,8 +3,12 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,7 +17,11 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -487,6 +495,227 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 	}
 }
 
+func contextWindowError() error {
+	return &fantasy.ProviderError{
+		Title:      "bad request",
+		Message:    "Your input exceeds the context window of this model. Please adjust your input and try again.",
+		StatusCode: http.StatusBadRequest,
+	}
+}
+
+// toolResultHistory returns a user message followed by one read_file call
+// per result, each answered with that result.
+func toolResultHistory(results ...string) []fantasy.Message {
+	messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+	for i, result := range results {
+		callID := fmt.Sprintf("call-%d", i)
+		messages = append(messages,
+			fantasy.Message{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{fantasy.ToolCallPart{ToolCallID: callID, ToolName: "read_file", Input: "{}"}},
+			},
+			fantasy.Message{
+				Role:    fantasy.MessageRoleTool,
+				Content: []fantasy.MessagePart{fantasy.ToolResultPart{ToolCallID: callID, Output: fantasy.ToolResultOutputContentText{Text: result}}},
+			},
+		)
+	}
+	return messages
+}
+
+func toolResultTexts(prompt []fantasy.Message) []string {
+	var texts []string
+	for _, msg := range prompt {
+		for _, part := range msg.Content {
+			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok {
+				continue
+			}
+			if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
+				texts = append(texts, output.Text)
+			}
+		}
+	}
+	return texts
+}
+
+// TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge covers a
+// history the provider rejects even without tool definitions: the third
+// request cuts the large tool result, the caller's messages stay intact,
+// and the compaction span describes the request that fit.
+func TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge(t *testing.T) {
+	t.Parallel()
+
+	large := strings.Repeat("a", 60_000)
+	messages := toolResultHistory(large, "small result")
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+	}
+	var calls []fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			calls = append(calls, call)
+			// The provider's real window fits the history only once the
+			// large result is cut.
+			if slices.Contains(toolResultTexts(call.Prompt), large) {
+				return nil, contextWindowError()
+			}
+			return summaryTextStream(), nil
+		},
+	}
+	recorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() {
+		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+	})
+	ctx, span := tracerProvider.Tracer("test").Start(context.Background(), "compaction")
+
+	summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
+		SummaryPrompt:   "summarize",
+		ToolDefinitions: toolDefinitions,
+	})
+	span.End()
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Len(t, calls, 3)
+	require.Equal(t, toolDefinitions, calls[0].Tools)
+	require.Nil(t, calls[1].Tools)
+	require.Equal(t, calls[0].Prompt, calls[1].Prompt)
+	require.Nil(t, calls[2].Tools)
+	texts := toolResultTexts(calls[2].Prompt)
+	require.Len(t, texts, 2)
+	require.Contains(t, texts[0], "Coder truncated")
+	require.Equal(t, "small result", texts[1])
+	elidedHistory := calls[2].Prompt[:len(calls[2].Prompt)-1]
+	require.LessOrEqual(t, estimateMessagesTokens(elidedHistory), estimateMessagesTokens(messages)/2)
+	require.Equal(t, toolResultHistory(large, "small result"), messages, "the caller's messages must not change")
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	attrs := attribute.NewSet(ended[0].Attributes()...)
+	attr := func(key attribute.Key) attribute.Value {
+		value, ok := attrs.Value(key)
+		require.True(t, ok, "missing span attribute %s", key)
+		return value
+	}
+	require.EqualValues(t, 3, attr(AttrSummaryRequests).AsInt64())
+	require.Equal(t, summaryRequestElided, attr(AttrSummaryRequest).AsString())
+	require.Zero(t, attr(AttrSummaryToolCount).AsInt64())
+	require.EqualValues(t, len(large)-len(texts[0]), attr(AttrSummaryElidedBytes).AsInt64())
+}
+
+// TestGenerateCompactionSummaryReportsConversationTooLarge covers a history
+// no request fits: every request shape is tried, and the rejection is
+// classified as a non-retryable configuration error that tells the user how
+// to recover.
+func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
+	t.Parallel()
+
+	rejection := contextWindowError()
+	calls := 0
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+			calls++
+			return nil, rejection
+		},
+	}
+
+	_, _, err := generateCompactionSummary(context.Background(), model,
+		toolResultHistory(strings.Repeat("a", 60_000)),
+		CompactionOptions{
+			SummaryPrompt:    "summarize",
+			ResolvedProvider: "openai",
+			ToolDefinitions:  []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+		},
+	)
+	require.ErrorIs(t, err, rejection)
+	require.Equal(t, 3, calls)
+	classified := chaterror.Classify(err)
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.Equal(t, compactionContextTooLargeMessage, classified.Message)
+	require.False(t, classified.Retryable)
+	require.Equal(t, "openai", classified.Provider)
+}
+
+// TestGenerateCompactionSummaryRetriesInStreamOverflow drives the OpenAI
+// Responses client through each shape a context-window rejection takes
+// inside an HTTP 200 stream. Bedrock Mantle sends the error envelope.
+func TestGenerateCompactionSummaryRetriesInStreamOverflow(t *testing.T) {
+	t.Parallel()
+
+	const overflow = "Your input exceeds the context window of this model. Please adjust your input and try again."
+	cases := []struct {
+		name  string
+		event string
+	}{
+		{
+			name:  "error envelope",
+			event: `{"error":{"code":"context_length_exceeded","message":"` + overflow + `","type":"invalid_request_error"}}`,
+		},
+		{
+			name:  "error event",
+			event: `{"type":"error","code":"context_length_exceeded","message":"` + overflow + `","param":null,"sequence_number":0}`,
+		},
+		{
+			name:  "response failed event",
+			event: `{"type":"response.failed","sequence_number":0,"response":{"id":"resp_1","object":"response","status":"failed","error":{"code":"context_length_exceeded","message":"` + overflow + `"}}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var mu sync.Mutex
+			var toolCounts []int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.True(t, strings.HasSuffix(r.URL.Path, "/responses"), "unexpected path %s", r.URL.Path)
+				var body struct {
+					Tools []json.RawMessage `json:"tools"`
+				}
+				if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+					http.Error(w, "invalid request body", http.StatusBadRequest)
+					return
+				}
+				mu.Lock()
+				toolCounts = append(toolCounts, len(body.Tools))
+				mu.Unlock()
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, err := fmt.Fprintf(w, "data: %s\n\n", tc.event)
+				assert.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+			client, err := fantasyopenai.New(
+				fantasyopenai.WithAPIKey("test-key"),
+				fantasyopenai.WithBaseURL(server.URL),
+				fantasyopenai.WithUseResponsesAPI(),
+			)
+			require.NoError(t, err)
+			model, err := client.LanguageModel(t.Context(), "gpt-4.1")
+			require.NoError(t, err)
+
+			_, _, err = generateCompactionSummary(t.Context(), model,
+				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				CompactionOptions{
+					SummaryPrompt:    "summarize",
+					ResolvedProvider: "openai",
+					ToolDefinitions: []fantasy.Tool{
+						fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+					},
+				},
+			)
+			require.Error(t, err)
+			require.Equal(t, codersdk.ChatErrorKindConfig, chaterror.Classify(err).Kind)
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, []int{1, 0}, toolCounts, "the rejected request is retried without tools")
+		})
+	}
+}
+
 func TestIsContextTooLargeError(t *testing.T) {
 	t.Parallel()
 
@@ -545,6 +774,58 @@ func TestIsContextTooLargeError(t *testing.T) {
 				Message:    "Request Entity Too Large",
 			},
 			want: true,
+		},
+		{
+			name: "anthropic input plus max_tokens wording",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "input length and `max_tokens` exceed context limit: 188240 + 21333 > 200000, decrease input length or `max_tokens` and try again",
+			},
+			want: true,
+		},
+		{
+			// An error event inside an HTTP 200 stream carries no status.
+			name: "in-stream error",
+			err: &fantasy.ProviderError{
+				Title:        "stream error",
+				Message:      "Your input exceeds the context window of this model. Please adjust your input and try again.",
+				ResponseBody: []byte(`{"error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"invalid_request_error"}}`),
+			},
+			want: true,
+		},
+		{
+			name: "in-stream error code in response body",
+			err: &fantasy.ProviderError{
+				Title:        "stream error",
+				Message:      "Invalid request.",
+				ResponseBody: []byte(`{"error":{"code":"context_length_exceeded","message":"Invalid request."}}`),
+			},
+			want: true,
+		},
+		{
+			name: "transient in-stream error",
+			err: &fantasy.ProviderError{
+				Title:          "stream error",
+				Message:        "context window service unavailable",
+				TransientError: true,
+			},
+			want: false,
+		},
+		{
+			name: "responses error event",
+			err: &fantasy.Error{
+				Title:   "response error",
+				Message: "Your input exceeds the context window of this model. (code: context_length_exceeded)",
+			},
+			want: true,
+		},
+		{
+			name: "unrelated responses failure",
+			err: &fantasy.Error{
+				Title:   "response failed",
+				Message: "The server had an error while processing your request. (code: server_error)",
+			},
+			want: false,
 		},
 		{
 			name: "unrelated bad request",
@@ -849,9 +1130,9 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 // TestGenerateCompaction_ClampsSummaryCapToRemainingWindow pins the
 // summary output cap bound: sum-enforcing providers reject requests
 // whose input plus max_tokens exceeds the context window, so the cap
-// shrinks to the remaining window minus the trigger step's output and
-// the appended summary prompt (ceil(bytes/3) tokens), and degenerate
-// cases stay unchanged.
+// shrinks to the remaining window minus the trigger step's output, the
+// trailing tokens, and the appended summary prompt (ceil(bytes/3)
+// tokens), and degenerate cases stay unchanged.
 func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
@@ -860,13 +1141,13 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		contextLimit        int64
 		inputTokens         int64
 		outputTokens        int64
-		toolResultBytes     int
+		trailingTokens      int64
 		summaryContextLimit int64
 		cap                 int64
 		wantCap             int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
-		{name: "reserves trailing tool results", contextLimit: 100, inputTokens: 72, toolResultBytes: 30, cap: 64_000, wantCap: 16},
+		{name: "reserves trailing tokens", contextLimit: 100, inputTokens: 72, trailingTokens: 10, cap: 64_000, wantCap: 16},
 		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryContextLimit: 160_000, cap: 64_000, wantCap: 9998},
 		{name: "uses a larger summary window", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryContextLimit: 1_000, cap: 64_000, wantCap: 913},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
@@ -892,31 +1173,276 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				},
 			}
 			capTokens := tc.cap
-			messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
-			if tc.toolResultBytes > 0 {
-				messages = append(messages, fantasy.Message{
-					Role: fantasy.MessageRoleTool,
-					Content: []fantasy.MessagePart{fantasy.ToolResultPart{
-						ToolCallID: "call-1",
-						Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", tc.toolResultBytes)},
-					}},
-				})
-			}
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
 				Model:               model,
-				Messages:            messages,
+				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 				Clock:               quartz.NewMock(t),
 				ThresholdPercent:    70,
 				ContextLimit:        tc.contextLimit,
 				SummaryContextLimit: tc.summaryContextLimit,
 				SummaryPrompt:       "prompt",
 				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				TrailingTokens:      tc.trailingTokens,
 				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
 			require.NotNil(t, gotCap)
 			require.Equal(t, tc.wantCap, *gotCap)
+		})
+	}
+}
+
+// TestGenerateCompaction_CountsTrailingTokens verifies the threshold gate
+// adds the trailing messages to the trigger step's usage while the result
+// reports the measured usage.
+func TestGenerateCompaction_CountsTrailingTokens(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		trailingTokens int64
+		wantCalls      int
+	}{
+		{name: "below threshold", trailingTokens: 5},
+		{name: "trailing tokens reach threshold", trailingTokens: 15, wantCalls: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := 0
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+					calls++
+					return summaryTextStream(), nil
+				},
+			}
+			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+				Model:            model,
+				Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Clock:            quartz.NewMock(t),
+				ThresholdPercent: 70,
+				ContextLimit:     100,
+				StepUsage:        fantasy.Usage{InputTokens: 60},
+				TrailingTokens:   tc.trailingTokens,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantCalls, calls)
+			if tc.wantCalls == 0 {
+				require.Empty(t, result.SummaryReport)
+				return
+			}
+			require.Equal(t, "summary", result.SummaryReport)
+			require.Equal(t, int64(60), result.ContextTokens)
+			require.InDelta(t, 60, result.UsagePercent, 0.001)
+		})
+	}
+}
+
+// TestGenerateCompaction_ElidesFirstNearTheWindow verifies that when the
+// full summary request would leave too little of the window for the
+// summary, the elided request goes first with a cap that fits the window,
+// and the full request runs only when nothing can be elided.
+func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
+	t.Parallel()
+
+	const (
+		contextLimit = int64(25_000)
+		maxOutput    = int64(20_000)
+	)
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+	}
+	summarize := func(t *testing.T, messages []fantasy.Message) []fantasy.Call {
+		t.Helper()
+		var calls []fantasy.Call
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			ModelName:    "fake-model",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				calls = append(calls, call)
+				return summaryTextStream(), nil
+			},
+		}
+		capTokens := maxOutput
+		result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+			Model:            model,
+			Messages:         messages,
+			Clock:            quartz.NewMock(t),
+			ThresholdPercent: 70,
+			ContextLimit:     contextLimit,
+			SummaryPrompt:    "summarize",
+			// The full request's input, about 20,103 tokens, leaves 4,897
+			// tokens of the window for the summary.
+			StepUsage:       fantasy.Usage{InputTokens: 20_000, OutputTokens: 100},
+			SummaryCall:     fantasy.Call{MaxOutputTokens: &capTokens},
+			ToolDefinitions: toolDefinitions,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "summary", result.SummaryReport)
+		return calls
+	}
+
+	t.Run("elides before the full request", func(t *testing.T) {
+		t.Parallel()
+
+		calls := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)))
+		require.Len(t, calls, 1)
+		require.Nil(t, calls[0].Tools)
+		require.Contains(t, toolResultTexts(calls[0].Prompt)[0], "Coder truncated")
+		require.NotNil(t, calls[0].MaxOutputTokens)
+		require.Less(t, *calls[0].MaxOutputTokens, maxOutput)
+		require.LessOrEqual(t, estimateMessagesTokens(calls[0].Prompt)+*calls[0].MaxOutputTokens, contextLimit)
+	})
+
+	t.Run("sends the full request when nothing can be elided", func(t *testing.T) {
+		t.Parallel()
+
+		calls := summarize(t, toolResultHistory("small result"))
+		require.Len(t, calls, 1)
+		require.Equal(t, toolDefinitions, calls[0].Tools)
+		require.Equal(t, []string{"small result"}, toolResultTexts(calls[0].Prompt))
+		require.NotNil(t, calls[0].MaxOutputTokens)
+		require.Equal(t, int64(4_897), *calls[0].MaxOutputTokens)
+	})
+}
+
+func TestElideToolResults(t *testing.T) {
+	t.Parallel()
+
+	toolResult := func(callID, text string) fantasy.ToolResultPart {
+		return fantasy.ToolResultPart{ToolCallID: callID, Output: fantasy.ToolResultOutputContentText{Text: text}}
+	}
+	toolErr := xerrors.New("boom")
+	newMessages := func() []fantasy.Message {
+		return []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+			{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+					ToolCallID:       "web_search",
+					ProviderExecuted: true,
+					Output:           fantasy.ToolResultOutputContentText{Text: strings.Repeat("p", 50_000)},
+				}},
+			},
+			{
+				Role: fantasy.MessageRoleTool,
+				Content: []fantasy.MessagePart{
+					toolResult("a", strings.Repeat("a", 30_000)),
+					toolResult("b", strings.Repeat("b", 20_000)),
+					toolResult("c", strings.Repeat("c", 4_000)),
+					toolResult("d", strings.Repeat("d", 500)),
+					fantasy.ToolResultPart{ToolCallID: "e", Output: fantasy.ToolResultOutputContentError{Error: toolErr}},
+				},
+			},
+		}
+	}
+
+	t.Run("cuts the largest results to a common size", func(t *testing.T) {
+		t.Parallel()
+
+		messages := newMessages()
+		// Cutting about 26,000 bytes takes the two largest results to about
+		// 12,000 bytes each, above the third largest.
+		budget := estimateMessagesTokens(messages) - 26_000/bytesPerTokenEstimate
+		elided, removed := elideToolResults(messages, budget)
+		require.Equal(t, newMessages(), messages, "the caller's messages must not change")
+		require.LessOrEqual(t, estimateMessagesTokens(elided), budget)
+
+		texts := toolResultTexts(elided)
+		require.Len(t, texts, 5)
+		require.Equal(t, strings.Repeat("p", 50_000), texts[0], "provider-executed results are not cut")
+		require.Contains(t, texts[1], "Coder truncated")
+		require.Contains(t, texts[2], "Coder truncated")
+		require.InDelta(t, len(texts[1]), len(texts[2]), 16)
+		require.Greater(t, len(texts[2]), 4_000)
+		require.Equal(t, strings.Repeat("c", 4_000), texts[3])
+		require.Equal(t, strings.Repeat("d", 500), texts[4])
+		require.Equal(t, messages[2].Content[4], elided[2].Content[4])
+		require.Equal(t, 50_000-len(texts[1])-len(texts[2]), removed)
+	})
+
+	t.Run("keeps a floor of each result", func(t *testing.T) {
+		t.Parallel()
+
+		elided, removed := elideToolResults(newMessages(), 0)
+		require.Positive(t, removed)
+		texts := toolResultTexts(elided)
+		require.Len(t, texts, 5)
+		require.Len(t, texts[0], 50_000)
+		for _, text := range texts[1:4] {
+			require.Contains(t, text, "Coder truncated")
+			require.LessOrEqual(t, len(text), elidedToolResultMinBytes)
+		}
+		require.Equal(t, strings.Repeat("d", 500), texts[4])
+	})
+
+	t.Run("leaves a history that fits", func(t *testing.T) {
+		t.Parallel()
+
+		messages := newMessages()
+		elided, removed := elideToolResults(messages, estimateMessagesTokens(messages))
+		require.Zero(t, removed)
+		require.Equal(t, messages, elided)
+	})
+}
+
+func TestEstimateTrailingTokens(t *testing.T) {
+	t.Parallel()
+
+	toolCall := fantasy.Message{
+		Role:    fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{fantasy.ToolCallPart{ToolCallID: "call", ToolName: "read_file", Input: "{}"}},
+	}
+	toolResult := fantasy.Message{
+		Role: fantasy.MessageRoleTool,
+		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+			ToolCallID: "call",
+			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", 300)},
+		}},
+	}
+	image := fantasy.Message{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "image/png"}},
+	}
+	cases := []struct {
+		name     string
+		messages []fantasy.Message
+		want     int64
+	}{
+		{
+			name:     "ends with an assistant message",
+			messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), toolCall},
+			want:     0,
+		},
+		{
+			name: "counts every message after the last assistant message",
+			messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+				toolCall,
+				toolResult,
+				textMessage(fantasy.MessageRoleUser, "abc"),
+			},
+			want: 101,
+		},
+		{
+			name:     "counts media by part, not by size",
+			messages: []fantasy.Message{toolCall, image},
+			want:     mediaTokenEstimate,
+		},
+		{
+			name:     "counts the whole history without an assistant message",
+			messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "abc")},
+			want:     1,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, EstimateTrailingTokens(tc.messages))
 		})
 	}
 }

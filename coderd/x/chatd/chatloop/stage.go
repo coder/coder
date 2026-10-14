@@ -52,6 +52,15 @@ const (
 	AttrTurnOutcome         = "turn_outcome"
 	AttrMCPServersConnected = "mcp_servers_connected"
 	AttrMCPServersFailed    = "mcp_servers_failed"
+
+	// Compaction summary request attributes describe the last summary
+	// request sent.
+	AttrSummaryRequests             = "summary_requests"
+	AttrSummaryRequest              = "summary_request"
+	AttrSummaryEstimatedInputTokens = "summary_estimated_input_tokens"
+	AttrSummaryMaxOutputTokens      = "summary_max_output_tokens"
+	AttrSummaryToolCount            = "summary_tool_count"
+	AttrSummaryElidedBytes          = "summary_elided_bytes"
 )
 
 // TurnOutcome is how a chat turn closed.

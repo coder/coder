@@ -861,26 +861,26 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 		// produced for a ~6,000-token conversation.
 		assert.True(t, shouldCompactPromptUsage(
 			fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
-			contextLimit, 80))
+			0, contextLimit, 80))
 	})
 
 	t.Run("correct per-step usage does not trigger", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
 			fantasy.Usage{InputTokens: 6000, TotalTokens: 6030},
-			contextLimit, 80))
+			0, contextLimit, 80))
 	})
 
 	t.Run("threshold 100 disables compaction", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 500000}, contextLimit, 100))
+			fantasy.Usage{InputTokens: 500000}, 0, contextLimit, 100))
 	})
 
 	t.Run("zero context limit disables compaction", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 6000}, 0, 80))
+			fantasy.Usage{InputTokens: 6000}, 0, 0, 80))
 	})
 
 	t.Run("counts cache read and creation tokens", func(t *testing.T) {
@@ -891,14 +891,27 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 			CacheCreationTokens: 5000,
 		}
 		// 211,000 / 262,144 = ~80.5%
-		assert.True(t, shouldCompactPromptUsage(usage, contextLimit, 80))
+		assert.True(t, shouldCompactPromptUsage(usage, 0, contextLimit, 80))
 	})
 
 	t.Run("falls back to TotalTokens when granular fields are missing", func(t *testing.T) {
 		t.Parallel()
 		assert.True(t, shouldCompactPromptUsage(
 			fantasy.Usage{TotalTokens: 211000},
-			contextLimit, 80))
+			0, contextLimit, 80))
+	})
+
+	t.Run("counts trailing tokens on top of measured usage", func(t *testing.T) {
+		t.Parallel()
+		usage := fantasy.Usage{InputTokens: 150000}
+		// 150,000 / 262,144 = ~57%; with 60,000 trailing tokens ~80.1%.
+		assert.False(t, shouldCompactPromptUsage(usage, 0, contextLimit, 80))
+		assert.True(t, shouldCompactPromptUsage(usage, 60000, contextLimit, 80))
+	})
+
+	t.Run("trailing tokens without measured usage do not trigger", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, shouldCompactPromptUsage(fantasy.Usage{}, 500000, contextLimit, 80))
 	})
 }
 
