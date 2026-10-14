@@ -453,14 +453,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 						onSelect={handleSelectItem}
 					/>
 				</div>
-				{selectedPrUrl && (
-					<Button asChild variant="outline" size="sm" className="h-6">
-						<a href={selectedPrUrl} target="_blank" rel="noreferrer">
-							View PR
-							<ExternalLinkIcon />
-						</a>
-					</Button>
-				)}
+				{selectedPrUrl && <ViewPrButton href={selectedPrUrl} />}
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border">
@@ -581,6 +574,15 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		</div>
 	);
 };
+
+const ViewPrButton: React.FC<{ href: string }> = ({ href }) => (
+	<Button asChild variant="outline" size="sm" className="h-6">
+		<a href={href} target="_blank" rel="noreferrer">
+			View PR
+			<ExternalLinkIcon />
+		</a>
+	</Button>
+);
 
 // ---------------------------------------------------------------
 // Git view switcher: dropdown for the active PR/Branch/Working view.

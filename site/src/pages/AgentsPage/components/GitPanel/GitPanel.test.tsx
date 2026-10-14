@@ -233,6 +233,29 @@ describe("GitPanel per-ref views", () => {
 		);
 	});
 
+	it("links a legacy ref's PR from its URL", () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		// Rows older than the pr_number column carry only the PR URL.
+		const mockLegacyRef = {
+			...MockChatDiffStatus,
+			pr_number: undefined,
+			url: "https://github.com/coder/coder/pull/23020",
+		};
+
+		renderPanel({
+			remoteDiffStats: [mockLegacyRef],
+			primaryDiffStatus: mockLegacyRef,
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockLegacyRef.url,
+		);
+	});
+
 	it("adopts the first refs when they arrive after mount", async () => {
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
