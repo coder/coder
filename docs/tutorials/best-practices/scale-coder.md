@@ -195,7 +195,7 @@ Monitor these metrics to understand your connection pool behavior:
   If this is 0, control plane performance will start to degrade.
   This just provides a point-in-time view of the connections, however.
 
-  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (i.e. no free connections); `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
+  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (that is, no free connections); `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
 
   If either of these values seem unacceptably high, try tuning the above settings.
 - **Churn**:

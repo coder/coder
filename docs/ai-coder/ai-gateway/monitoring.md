@@ -211,7 +211,7 @@ Available query filters:
 - `client` - Filter by client name.
   Possible values are listed below.
 - `initiator` - Filter by user ID or username
-- `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
+- `provider` - Filter by AI provider (for example, `openai`, `anthropic`)
 - `model` - Filter by model name
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp

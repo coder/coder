@@ -108,7 +108,7 @@ Some web applications require a [secure context](https://developer.mozilla.org/e
 A browser typically considers an origin secure if the connection is to `localhost`, or over `HTTPS`.
 
 Because Coder Connect uses its own hostnames and does not provide TLS to the browser, Google Chrome and Firefox will not allow any web APIs that require a secure context.
-Even though the browser displays a warning about an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (e.g. `coder port-forward`).
+Even though the browser displays a warning about an insecure connection without `HTTPS`, the underlying tunnel is encrypted with WireGuard in the same fashion as other Coder workspace connections (for example, `coder port-forward`).
 
 <details><summary>If you require secure context web APIs, identify the workspace hostnames as secure in your browser settings.</summary>
 
@@ -118,7 +118,7 @@ Even though the browser displays a warning about an insecure connection without 
 
 1. Open Chrome and visit `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
 
-1. Enter the full workspace hostname, including the `http` scheme and the port (e.g. `http://your-workspace.coder:8080`), into the **Insecure origins treated as secure** text field.
+1. Enter the full workspace hostname, including the `http` scheme and the port (for example, `http://your-workspace.coder:8080`), into the **Insecure origins treated as secure** text field.
 
    If you need to enter multiple URLs, use a comma to separate them.
 
