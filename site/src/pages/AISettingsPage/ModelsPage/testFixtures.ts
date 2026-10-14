@@ -111,6 +111,13 @@ export const MockBedrockProviderState: ProviderState = {
 	models: [mockBedrockClaude],
 };
 
+export const mockBedrockClaudeHaiku: ChatModel = {
+	...mockBedrockClaude,
+	id: "model-bedrock-claude-haiku",
+	model: "claude-haiku-4-5",
+	display_name: "Claude Haiku 4.5 (Bedrock)",
+};
+
 export const MockBedrockInvokeModelProviderState: ProviderState = {
 	...MockBedrockProviderState,
 	providerDescriptor: {
@@ -119,6 +126,14 @@ export const MockBedrockInvokeModelProviderState: ProviderState = {
 			model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
 			small_fast_model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 		},
+	},
+};
+
+export const MockBedrockInvokeModelWithoutModelsProviderState: ProviderState = {
+	...MockBedrockProviderState,
+	providerDescriptor: {
+		...MockBedrockProviderDescriptor,
+		bedrock_invoke_model: { model: "", small_fast_model: "" },
 	},
 };
 

@@ -235,9 +235,8 @@ export const ModelFormFields: React.FC<{
 					</div>
 					{bedrockInvokeModel && (
 						<BedrockInvokeModelAlert
-							className="sm:col-span-2"
 							providerLabel={selectedProviderState.label}
-							invokeModel={bedrockInvokeModel}
+							configuredModels={bedrockInvokeModel}
 							modelIdentifier={form.values.model}
 						/>
 					)}
