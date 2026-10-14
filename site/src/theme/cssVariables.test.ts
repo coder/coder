@@ -85,7 +85,12 @@ function extractBlocks(css: string, selector: string): string[] {
 
 		const selectors = selectorList.split(",").map((value) => value.trim());
 		if (selectors.includes(selector)) {
-			blocks.push(block);
+			blocks.push(
+				block.replace(
+					/@apply\s+([\w-]+);/g,
+					(_, utility: string) => extractBlock(css, `@utility ${utility}`) ?? "",
+				),
+			);
 		}
 	}
 	return blocks;
