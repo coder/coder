@@ -92,7 +92,7 @@ The [Coder Registry](https://registry.coder.com) is a platform where you can fin
 
 Templates help create self-service development environments using Terraform-defined infrastructure, while _Modules_ simplify template creation by providing common features like workspace applications, third-party integrations, or helper scripts.
 
-Please note that the Registry is a hosted service and isn't available for offline use.
+Note that the Registry is a hosted service and isn't available for offline use.
 
 ### AI Gateway
 

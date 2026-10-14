@@ -44,7 +44,7 @@ deployment.
 
 ## Use cases
 
-We strive to keep the following use cases up to date, but please note that
+We strive to keep the following use cases up to date, but note that
 changes to API queries and routes can occur. For the most recent queries and
 payloads, we recommend checking the relevant documentation.
 

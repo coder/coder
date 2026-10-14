@@ -223,7 +223,7 @@ The control plane maintains a pool of connections to PostgreSQL. You can tune th
 pool size with the following settings:
 
 > [!NOTE]
-> When adjusting these settings, please ensure that your PostgreSQL Server has `max_connections`
+> When adjusting these settings, ensure that your PostgreSQL Server has `max_connections`
 > set appropriately to accommodate all control plane replicas multiplied by the
 > maximum number of open connections. We recommend configuring an additional 20%
 > of connections to account for churn and other clients.

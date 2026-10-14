@@ -145,7 +145,7 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 > [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file,
 > then reference that data in Terraform.
 >
-> If you have a use case for external data fetching, please file an issue or create a discussion in the
+> If you have a use case for external data fetching, file an issue or create a discussion in the
 > [Coder GitHub repository](https://github.com/coder/coder).
 
 ## Available Form Input Types
@@ -824,7 +824,7 @@ data "coder_parameter" "your_groups" {
 ## Troubleshooting
 
 Dynamic Parameters is now in general availability. We're tracking a list of known issues [here in Github](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc%20is%3Aissue%20is%3Aopen%20label%3Aparameters) as we continue to polish and improve the workflow.
-If you have any issues during upgrade, please file an issue in our
+If you have any issues during upgrade, file an issue in our
 [GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label and include a
 [Playground link](https://playground.coder.app/parameters) where applicable.
 We appreciate the feedback and look forward to what the community creates with this system!
@@ -852,14 +852,14 @@ Select **Settings** > **Parameters** on the template, then select **Use paramete
 You can also set the `use_classic_parameter_flow` field through the
 [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
-If your template's parameters do not work with Dynamic Parameters, please
+If your template's parameters do not work with Dynamic Parameters,
 [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ### Template variables not showing up
 
 Dynamic Parameters are GA as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0). Template variables are fully supported in Dynamic Parameters.
 
-If you are experiencing issues with template variables, try upgrading to the latest version. Otherwise, please file an issue in our Github.
+If you are experiencing issues with template variables, try upgrading to the latest version. Otherwise, file an issue in our Github.
 
 ### Can I use registry modules with Dynamic Parameters?
 
