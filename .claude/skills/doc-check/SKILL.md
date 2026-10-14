@@ -305,7 +305,8 @@ changes. When a doc page is renamed or moved:
 1. Update every link that relies on the old location.
 2. Add a rule to `docs/redirects.json` that maps the old path to the new
    one, in the same PR as the rename. For example:
-   `{"source": "/docs/old/path", "destination": "/docs/new/path"}`.
+   `{"source": "old/path", "destination": "new/path"}`.
+   Routes are relative to the docs root, so leave out `/docs`. Use `"/"` as the destination for the docs root.
 
 Do not create a `docs/_redirects` file in this repo; that format isn't
 processed by coder.com.
