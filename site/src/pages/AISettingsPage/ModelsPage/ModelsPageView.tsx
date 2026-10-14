@@ -113,6 +113,7 @@ type ModelsPageViewProps = {
 	models: readonly ChatModel[];
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
+	providerIconByID: ReadonlyMap<string, string>;
 	canCreateModel: boolean;
 };
 
@@ -123,6 +124,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	models,
 	providerStates,
 	providerTypeByID,
+	providerIconByID,
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
@@ -372,6 +374,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
+								providerIconByID={providerIconByID}
 								hasProvider={hasProviderByModelId.get(model.id) ?? false}
 								providerEnabled={
 									providerEnabledByModelId.get(model.id) ?? false

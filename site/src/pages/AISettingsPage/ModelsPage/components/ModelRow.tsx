@@ -16,6 +16,7 @@ type ModelRowProps = {
 	model: ChatModel;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
+	providerIconByID: ReadonlyMap<string, string>;
 	hasProvider: boolean;
 	providerEnabled: boolean;
 	onClick: () => void;
@@ -32,6 +33,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
+	providerIconByID,
 	hasProvider,
 	providerEnabled,
 	onClick,
@@ -39,6 +41,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
 	const providerType = providerTypeByID.get(model.ai_provider_id) ?? "";
+	const providerIcon = providerIconByID.get(model.ai_provider_id);
 	// Models whose provider is missing or disabled cannot be used, so the
 	// status cell surfaces that regardless of the persisted enabled flag.
 	const providerNotice = !hasProvider
@@ -71,7 +74,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 										aria-label={`Provider type: ${providerType}`}
 										className="flex items-center justify-center"
 									>
-										<ProviderIcon provider={providerType} />
+										<ProviderIcon provider={providerType} icon={providerIcon} />
 									</span>
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
@@ -80,7 +83,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 								</TooltipContent>
 							</Tooltip>
 						) : (
-							<ProviderIcon provider={providerType} />
+							<ProviderIcon provider={providerType} icon={providerIcon} />
 						)}
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">

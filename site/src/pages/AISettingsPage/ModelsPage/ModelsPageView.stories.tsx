@@ -53,6 +53,7 @@ const meta: Meta<typeof ModelsPageView> = {
 			["prov-anthropic", "anthropic"],
 			["prov-bedrock", "bedrock"],
 		]),
+		providerIconByID: new Map(),
 		canCreateModel: true,
 	},
 	parameters: {
@@ -105,6 +106,24 @@ export const Default: Story = {
 		const menu = await within(document.body).findByRole("menu");
 		await within(menu).findByRole("menuitem", { name: "Anthropic" });
 		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const CustomProviderIcon: Story = {
+	args: {
+		models: [mockGPT5, mockProviderDisabledModel, mockOrphanedModel],
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		providerTypeByID: new Map([
+			["prov-openai", "openai"],
+			["prov-openai-disabled", "openai"],
+		]),
+		providerIconByID: new Map([
+			["prov-openai", "/icon/coder.svg"],
+			["prov-openai-disabled", ""],
+		]),
+	},
+	parameters: {
+		pixel: { exclude: false },
 	},
 };
 

@@ -16,6 +16,7 @@ const meta: Meta<typeof ModelRow> = {
 		model: mockGPT5,
 		providerLabel: "OpenAI",
 		providerTypeByID,
+		providerIconByID: new Map(),
 		hasProvider: true,
 		providerEnabled: true,
 		onClick: () => {},
@@ -41,6 +42,14 @@ export const WithProvider: Story = {
 		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Unavailable")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();
+	},
+};
+
+export const CustomIconWithUnmappedProviderType: Story = {
+	args: {
+		providerLabel: "Internal Gateway",
+		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
+		providerIconByID: new Map([["prov-openai", "/icon/coder.svg"]]),
 	},
 };
 

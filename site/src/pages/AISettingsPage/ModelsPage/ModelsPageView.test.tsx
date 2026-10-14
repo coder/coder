@@ -46,6 +46,7 @@ const renderModelsPageView = () => {
 						["prov-bedrock", "bedrock"],
 					])
 				}
+				providerIconByID={new Map()}
 				canCreateModel
 			/>
 		</OrganizationModelsContext.Provider>
