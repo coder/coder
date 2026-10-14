@@ -3469,6 +3469,61 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		require.NotNil(t, result.CreatedAt)
 	})
 
+	t.Run("interrupt message runs before earlier queued message", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		streamStarted := make(chan struct{})
+		var requestCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if requestCount.Add(1) == 1 {
+				close(streamStarted)
+				<-req.Context().Done()
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+		testutil.TryReceive(ctx, t, streamStarted)
+
+		for _, send := range []struct {
+			text     string
+			behavior chatd.SendMessageBusyBehavior
+		}{
+			{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
+			{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
+		} {
+			result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(send.text)},
+				BusyBehavior:  send.behavior,
+			})
+			require.NoError(t, err)
+			require.True(t, result.Queued)
+		}
+
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		var userTexts []string
+		for _, msg := range chatMessages(ctx, t, db, chat.ID) {
+			if msg.Role != database.ChatMessageRoleUser {
+				continue
+			}
+			sdkMessage := db2sdk.ChatMessage(msg)
+			require.Len(t, sdkMessage.Content, 1)
+			userTexts = append(userTexts, sdkMessage.Content[0].Text)
+		}
+		require.Equal(t, []string{"hello", "interrupt", "queued"}, userTexts)
+	})
+
 	t.Run("tool execution cancellation commits interrupted result", func(t *testing.T) {
 		t.Parallel()
 

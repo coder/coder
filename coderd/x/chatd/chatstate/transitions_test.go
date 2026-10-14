@@ -673,9 +673,10 @@ func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 		return err
 	}))
 
-	require.NotNil(t, send.QueuedMessage, "interrupt from A0 queues the user message")
-	require.Len(t, send.InsertedMessages, 1,
-		"the synthetic tool cancellation must be reported to callers")
+	require.Nil(t, send.QueuedMessage, "interrupt from A0 inserts the user message directly")
+	require.Len(t, send.InsertedMessages, 2,
+		"the synthetic tool cancellation and the user message must be reported to callers")
+	require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
 	cancel := send.InsertedMessages[0]
 	require.Equal(t, database.ChatMessageRoleTool, cancel.Role)
 	require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
@@ -683,6 +684,41 @@ func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	require.Equal(t, seeded.pendingToolCallID, parts[0].ToolCallID)
+}
+
+// TestSendMessageInterruptQueueOrder checks that the interrupt send that
+// starts an interruption runs before earlier queued messages, and that an
+// interrupt send during the interruption goes to the queue tail.
+func TestSendMessageInterruptQueueOrder(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	queued := sendQueuedMessage(t, f, m, "queued")
+	require.NotNil(t, queued.QueuedMessage)
+	first := sendInterruptMessage(t, f, m, created.Chat.ID, "first interrupt")
+	require.NotNil(t, first.QueuedMessage)
+	second := sendInterruptMessage(t, f, m, created.Chat.ID, "second interrupt")
+	require.NotNil(t, second.QueuedMessage)
+	require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
+
+	wantQueue := []int64{first.QueuedMessage.ID, queued.QueuedMessage.ID, second.QueuedMessage.ID}
+	require.Equal(t, wantQueue, queuedIDsByPosition(ctx, t, f, created.Chat.ID))
+	require.Equal(t, wantQueue, clientQueueIDs(t, f, created.Chat.ID),
+		"clients see the queue in promotion order")
+
+	var finish chatstate.FinishInterruptionResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		finish, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+		return err
+	}))
+	require.NotNil(t, finish.PromotedMessage)
+	assertChatMessageText(t, *finish.PromotedMessage, "first interrupt")
+	require.Equal(t, []int64{queued.QueuedMessage.ID, second.QueuedMessage.ID},
+		queuedIDsByPosition(ctx, t, f, created.Chat.ID))
 }
 
 // TestEditMessageNonUserReturnsSentinel asserts that editing a

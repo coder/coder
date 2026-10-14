@@ -884,10 +884,11 @@ const (
 	// ChatBusyBehaviorQueue queues the message for processing after
 	// the current run finishes.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt queues the message and interrupts
-	// the active run. The partial assistant response is persisted
-	// before the queued message is promoted, preserving correct
-	// conversation order.
+	// ChatBusyBehaviorInterrupt interrupts the active run, and the
+	// message runs next, ahead of earlier queued messages. The partial
+	// assistant response is persisted before the message is promoted,
+	// preserving correct conversation order. While an interruption is
+	// pending, further messages go to the queue tail.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 

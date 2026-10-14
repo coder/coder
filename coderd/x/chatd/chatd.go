@@ -1091,10 +1091,12 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt queues the message and
-	// interrupts the active run. The queued message is
-	// auto-promoted after the interrupted assistant response is
-	// persisted, ensuring correct message ordering.
+	// SendMessageBusyBehaviorInterrupt interrupts the active run, and
+	// the message runs next, ahead of earlier queued messages. The
+	// message is auto-promoted after the interrupted assistant
+	// response is persisted, ensuring correct message ordering. While
+	// an interruption is pending, further messages go to the queue
+	// tail.
 	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
 )
 
