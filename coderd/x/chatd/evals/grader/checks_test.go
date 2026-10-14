@@ -248,7 +248,7 @@ func TestChecks(t *testing.T) {
 		// The output read after the stop shows the jobs buffered before it.
 		"worker-signal-then-read": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
 			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": true}},
-			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"success": true, "output": "processed job 3", "exit_code": 143}})...),
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"success": true, "output": "processed job 3\nworker stopped", "exit_code": 0}})...),
 		"worker-read-then-failed-stop": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"output": "processed job 3"}},
 			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": false, "error": "signal process: permission denied"}})...),

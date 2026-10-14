@@ -250,10 +250,12 @@ done
 docker_endpoint=$(docker context inspect --format '{{len .TLSMaterial}} {{.Endpoints.docker.SkipTLSVerify}} {{.Endpoints.docker.Host}}') ||
 	die "cannot resolve the docker daemon; set DOCKER_HOST"
 read -r docker_tls docker_tls_skip DOCKER_HOST <<<"$docker_endpoint"
-# Those commands get DOCKER_HOST alone, so they reach only a unix:// or
-# tcp:// daemon that needs no TLS settings.
-if [[ $DOCKER_HOST != unix://* && $DOCKER_HOST != tcp://* ]]; then
-	die "the grader's docker commands get only DOCKER_HOST, which reaches a unix:// or tcp:// daemon, not $DOCKER_HOST; use a local docker daemon's unix socket"
+# Those commands get DOCKER_HOST alone, so they cannot use TLS or ssh
+# settings. A tcp:// daemon without TLS can be reachable from the trial and
+# Terminal-Bench containers, which run agent code with network access, and
+# its API controls the host, so only a unix socket is accepted.
+if [[ $DOCKER_HOST != unix://* ]]; then
+	die "the docker daemon must be a local unix socket, not $DOCKER_HOST: the grader's docker commands get only DOCKER_HOST, and a tcp:// daemon without TLS can be reachable from the containers that run agent code"
 fi
 if [[ $docker_tls != 0 || $docker_tls_skip != false ]]; then
 	die "the grader's docker commands get only DOCKER_HOST, without the TLS settings that $DOCKER_HOST needs; use a local docker daemon's unix socket"

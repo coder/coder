@@ -23,11 +23,14 @@ people with read access to it.
   container cannot read a file bind-mounted from the cache. run.sh uses
   the daemon the docker CLI selects (`DOCKER_HOST`, `DOCKER_CONTEXT`, or
   the current context) and exports it as `DOCKER_HOST`, so aegis and the
-  grader use the same daemon. The grader's docker commands get that
-  variable alone, so run.sh also stops when the host is not `unix://` or
-  `tcp://` (`ssh://`, for one) or the daemon needs TLS settings
-  (`DOCKER_TLS_VERIFY`, `DOCKER_TLS`, or a context with TLS material or
-  with TLS verification skipped). A daemon with SELinux enabled does not work
+  grader use the same daemon. run.sh stops when that host is not a
+  `unix://` socket (`tcp://` or `ssh://`, for example) or the daemon needs
+  TLS settings (`DOCKER_TLS_VERIFY`, `DOCKER_TLS`, or a context with TLS
+  material or with TLS verification skipped): the grader's docker commands
+  get that variable alone, and a `tcp://` daemon without TLS can be
+  reachable from the trial and Terminal-Bench containers, where agent code
+  runs with network access and could control the host through the
+  daemon's API. A daemon with SELinux enabled does not work
   either: the pinned aegis docker provider bind-mounts trial directories
   without a relabel option such as `:z`, so its containers cannot read
   them, and run.sh stops at the same check.
@@ -451,7 +454,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   (`--allow-unsafe-host-subprocess-graders`). It copies the agent's tree
   into the task image with `tests/` mounted read-only, memory, CPU, and
   process limits, and no host environment. Network stays on because the
-  tasks' `test.sh` installs `uv` and `pytest`. The tests run the agent's
+  tasks' `test.sh` installs `uv` and `pytest`, so the tests' code reaches
+  what the host's network reaches. That is why run.sh takes only a docker
+  daemon on a unix socket: through a daemon that listens on TCP without
+  TLS, that code could control the host. A daemon that listens on such a
+  port as well as on its socket is not supported. The tests run the agent's
   code, so the grader copies `/logs/verifier` out of the container as a
   tar stream and keeps only regular files, directories, and hard links
   between those files. It lists every symlink or special file there in
