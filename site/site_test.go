@@ -228,6 +228,67 @@ func TestInjectionUserAppearance(t *testing.T) {
 	}, got)
 }
 
+func TestInjectionThemeClass(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		unauthed   bool
+		mode       codersdk.ThemeMode
+		preference string
+		want       string
+	}{
+		{name: "Unauthenticated", unauthed: true, want: "dark"},
+		{name: "SingleDark", mode: codersdk.ThemeModeSingle, preference: "dark-tritan", want: "dark"},
+		{name: "SingleLight", mode: codersdk.ThemeModeSingle, preference: "light-protan-deuter", want: "light"},
+		{name: "SingleUnknown", mode: codersdk.ThemeModeSingle, preference: "auto", want: "dark"},
+		{name: "LegacyLight", preference: "light", want: "light"},
+		{name: "LegacyAuto", preference: "auto-tritan", want: ""},
+		{name: "Sync", mode: codersdk.ThemeModeSync, preference: "light", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			handler, err := site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
+				Database:  db,
+				SiteFS: fstest.MapFS{
+					"index.html": &fstest.MapFile{Data: []byte("{{ .ThemeClass }}")},
+				},
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			if !tt.unauthed {
+				ctx := context.Background()
+				user := dbgen.User(t, db, database.User{})
+				_, err = db.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+					UserID:          user.ID,
+					ThemePreference: tt.preference,
+				})
+				require.NoError(t, err)
+				_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+					UserID:    user.ID,
+					ThemeMode: string(tt.mode),
+				})
+				require.NoError(t, err)
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: time.Now().Add(time.Hour),
+				})
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+			}
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, tt.want, rw.Body.String())
+		})
+	}
+}
+
 func TestRenderPermissionsResolvesMe(t *testing.T) {
 	t.Parallel()
 
