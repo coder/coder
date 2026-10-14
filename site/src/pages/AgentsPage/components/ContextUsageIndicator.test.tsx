@@ -6,7 +6,11 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 const usage = {
 	usedTokens: 26_000,
 	contextLimitTokens: 1_100_000,
-	compressionThreshold: 70,
+	compactionThreshold: {
+		percent: 70,
+		source: "model" as const,
+		organizationOverrideNotLoaded: false,
+	},
 };
 
 describe("ContextUsageIndicator", () => {

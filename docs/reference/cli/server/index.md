@@ -1307,7 +1307,7 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code>        |
 | YAML        | <code>networking.http.disablePasswordAuth</code> |
 
-Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
+Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. This applies to all users, including owners. Ensure an owner can sign in through your identity provider before enabling this. To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.
 
 ### -c, --config
 
@@ -1865,17 +1865,6 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 | Default     | <code>25</code>                                           |
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
-
-### --chat-max-automations-per-owner
-
-|             |                                                    |
-|-------------|----------------------------------------------------|
-| Type        | <code>int</code>                                   |
-| Environment | <code>$CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER</code> |
-| YAML        | <code>chat.maxAutomationsPerOwner</code>           |
-| Default     | <code>50</code>                                    |
-
-Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.
 
 ### --chat-stream-silence-timeout
 

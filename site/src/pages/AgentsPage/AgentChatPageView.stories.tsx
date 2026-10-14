@@ -20,12 +20,13 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockChat,
 	MockChatContextDirty,
+	MockChatDiffStatus,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -180,7 +181,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
-		models: [],
+		modelCatalog: undefined,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		isInputDisabled: false,
@@ -324,15 +325,19 @@ const DetailsNavigationPage: React.FC = () => {
 		<StoryAgentChatPageView
 			chat={{ context: MockChatContextDirty }}
 			store={store}
-			models={[
-				{
-					...MockChatModel,
-					id: defaultModelID,
-					organization_id: MockChat.organization_id,
-					context_limit: 1_100_000,
-					compression_threshold: 70,
-				},
-			]}
+			modelCatalog={{
+				models: [
+					{
+						...MockChatModel,
+						id: defaultModelID,
+						organization_id: MockChat.organization_id,
+						context_limit: 1_100_000,
+						compression_threshold: 70,
+					},
+				],
+				providers: [],
+				unsupported_providers: [],
+			}}
 			showSidebarPanel={open}
 			onSetShowSidebarPanel={setOpen}
 		/>
@@ -537,24 +542,22 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const mockDiffStatus = {
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		};
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,
@@ -600,24 +603,22 @@ export const NarrowWithSidebarPanel: Story = {
  * the server.
  */
 export const RefreshInvalidatesPRDiff: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			chat={{
-				diff_status: {
-					chat_id: AGENT_ID,
-					url: "https://github.com/coder/coder/pull/123",
-					pr_number: 123,
-					pull_request_title: "fix: resolve race condition in workspace builds",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				} satisfies ChatDiffStatus,
-			}}
-		/>
-	),
+	render: () => {
+		const mockDiffStatus = {
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		};
+		return (
+			<StoryAgentChatPageView
+				showSidebarPanel
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
+			/>
+		);
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,

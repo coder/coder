@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -16,6 +15,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverridesKey,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -24,6 +24,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
 	MockChatMessage,
@@ -52,7 +53,10 @@ import {
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	buildLongConversation,
+	MockWorkingMessages,
+} from "./components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
@@ -68,17 +72,8 @@ const AgentChatPageLayout: React.FC = () => {
 							chatErrorReasons: {},
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
-							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: (
-								_chatId: string,
-								_workspaceId: string,
-							) => {},
-							requestUnarchiveAgent: () => {},
-							requestPinAgent: () => {},
-							requestUnpinAgent: () => {},
+							navigateAfterArchive: () => {},
 							onOpenRenameDialog: () => {},
-							isArchiving: false,
-							archivingChatId: undefined,
 							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
@@ -311,7 +306,7 @@ const buildQueries = (
 		mcpServers?: readonly TypesGen.MCPServerConfig[];
 	},
 ) => {
-	const diffStatus: TypesGen.ChatDiffStatus = {
+	const mockDiffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
 		url: opts?.diffUrl,
 		pull_request_title: "",
@@ -321,12 +316,13 @@ const buildQueries = (
 		deletions: opts?.diffUrl ? 1 : 0,
 		changed_files: opts?.diffUrl ? 2 : 0,
 	};
-	const chatWithDiffStatus: TypesGen.Chat = {
+	const mockChatWithDiffStatus: TypesGen.Chat = {
 		...chat,
-		diff_status: diffStatus,
+		diff_status: mockDiffStatus,
+		diff_statuses: [mockDiffStatus],
 	};
 	return [
-		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: mockChatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -339,7 +335,7 @@ const buildQueries = (
 		},
 		{
 			key: chatListKey(toChatListParams()),
-			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+			data: { pages: [[mockChatWithDiffStatus]], pageParams: [0] },
 		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
@@ -396,6 +392,10 @@ const buildQueries = (
 		{
 			key: userCompactionThresholdsKey,
 			data: MockUserChatCompactionThresholds,
+		},
+		{
+			key: organizationChatModelOverridesKey(chat.organization_id),
+			data: { overrides: [] },
 		},
 	];
 };
@@ -965,6 +965,39 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const mockContextUsageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	usage: { input_tokens: 50_000, context_limit: 200_000 },
+};
+
+export const CompactionHintSurvivesOverrideFetchError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(MockChat, {
+				messages: [mockContextUsageMessage],
+				queued_messages: [],
+				has_more: false,
+			}),
+			organizationChatModelOverridesKey(MockChat.organization_id),
+		),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", {
+				name: /Context usage: 25%.*organization override not loaded/,
+			}),
+		);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,
@@ -1573,6 +1606,34 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+// The preference request never settles, so the capture shows the skeleton
+// still gating messages that have already loaded.
+export const ColdLoadWaitsForCollapsePreference: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Cold load",
+					status: "waiting",
+				},
+				{
+					messages: MockWorkingMessages,
+					queued_messages: [],
+					has_more: false,
+				},
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 
@@ -2835,6 +2896,7 @@ export const SlashCompactCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2883,6 +2945,7 @@ export const SlashClearCommandSubmits: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2932,6 +2995,7 @@ export const SlashClearCommandConflictShowsError: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2991,10 +3055,12 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				id: "5f3f847b-6e77-4be4-a591-6c04ee0e0e78",
 				name: "compact",
 				description: "Personal compact skill",
+				enabled: true,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-01T00:00:00Z",
 			},
 		]);
+		spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -3549,6 +3615,30 @@ export const DetailQueryError: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+	},
+};
+
+// The preference request never settles, so the capture shows the chat error
+// taking precedence over the preference gate.
+export const DetailQueryErrorWhilePreferenceLoads: Story = {
+	parameters: {
+		queries: withoutQuery(
+			withoutQuery(
+				buildQueries(mockErrorChat, {
+					messages: [],
+					queued_messages: [],
+					has_more: false,
+				}),
+				chatEntityKey(CHAT_ID),
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 

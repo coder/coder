@@ -1,6 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
+
+const modelThreshold = (
+	percent: number,
+	organizationOverrideNotLoaded = false,
+): ResolvedCompactionThreshold => ({
+	percent,
+	source: "model",
+	organizationOverrideNotLoaded,
+});
 
 const meta: Meta<typeof ContextUsageIndicator> = {
 	title: "pages/AgentsPage/ContextUsageIndicator",
@@ -10,7 +20,7 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 		usage: {
 			usedTokens: 211_400,
 			contextLimitTokens: 1_000_000,
-			compressionThreshold: 70,
+			compactionThreshold: modelThreshold(70),
 		},
 	},
 };
@@ -31,7 +41,47 @@ export const Disabled: Story = {
 		usage: {
 			usedTokens: 26_000,
 			contextLimitTokens: 1_100_000,
-			compressionThreshold: 100,
+			compactionThreshold: modelThreshold(100),
+		},
+	},
+};
+export const OrganizationOverride: Story = {
+	...Open,
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 200_000,
+			compactionThreshold: { source: "organization", pointTokens: 32_000 },
+		},
+	},
+};
+export const OrganizationOverrideBeyondWindow: Story = {
+	...Open,
+	args: {
+		usage: {
+			usedTokens: 5_200,
+			contextLimitTokens: 10_000,
+			compactionThreshold: { source: "organization", pointTokens: 16_000 },
+		},
+	},
+};
+export const OrganizationOverrideNotLoaded: Story = {
+	...Open,
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: modelThreshold(70, true),
+		},
+	},
+};
+export const DisabledOrganizationOverrideNotLoaded: Story = {
+	...Open,
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: modelThreshold(100, true),
 		},
 	},
 };
@@ -41,7 +91,7 @@ export const Estimated: Story = {
 		usage: {
 			usedTokens: 350,
 			contextLimitTokens: 200_000,
-			compressionThreshold: 70,
+			compactionThreshold: modelThreshold(70),
 			estimated: true,
 		},
 	},
@@ -56,7 +106,7 @@ export const ZeroThreshold: Story = {
 		usage: {
 			usedTokens: 26_000,
 			contextLimitTokens: 1_100_000,
-			compressionThreshold: 0,
+			compactionThreshold: modelThreshold(0),
 		},
 	},
 };

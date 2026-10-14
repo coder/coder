@@ -8,7 +8,9 @@ import {
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { isStaleChunkReloadPending } from "#/utils/staleChunkReload";
 
 const errorPageTitle = "Something went wrong";
 
@@ -16,6 +18,11 @@ const errorPageTitle = "Something went wrong";
 // to split it off from the rest of the code, and pass the value via props
 export const GlobalErrorBoundary: React.FC = () => {
 	const error = useRouteError();
+	// The failed import is expected after a redeploy and the page is already
+	// reloading, so keep showing a loader instead of an error.
+	if (isStaleChunkReloadPending()) {
+		return <Loader fullscreen />;
+	}
 	return <GlobalErrorBoundaryInner error={error} />;
 };
 

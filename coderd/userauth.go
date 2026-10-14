@@ -531,7 +531,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // Creating the API key as the user instead of as system.
-	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
+	cookie, key, err := api.createLoginAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
@@ -595,8 +595,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	// If password authentication is disabled and the user does not have the
-	// owner role, block the request.
+	// Password authentication is disabled for all users, including owners.
 	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
@@ -2074,7 +2073,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		key = *oldKey
 	} else {
 		//nolint:gocritic
-		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
+		cookie, newKey, err := api.createLoginAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
 			UserID:          user.ID,
 			LoginType:       params.LoginType,
 			DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),

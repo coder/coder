@@ -102,7 +102,7 @@ func TestComputeCost(t *testing.T) {
 			price: database.AIModelPrice{
 				InputPrice: nullInt64(999),
 			},
-			inputTokens: 1002, // 1002 * 999 = 1_000_998
+			inputTokens: 1002, // 1002 times 999 is 1_000_998.
 			want:        1,
 		},
 		{

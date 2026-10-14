@@ -1,4 +1,10 @@
+import {
+	compactionThresholdLabel as bindingCompactionThresholdLabel,
+	isCompactionPointBeyondWindow,
+	type ResolvedCompactionThreshold,
+} from "../compactionTriggers";
 import type { AgentContextUsage } from "../components/ContextUsageIndicator";
+import { compactionTriggerTokens } from "./modelOptions";
 
 /** Formats context counts consistently in the ring and Details panel. */
 export const formatContextTokenCount = (
@@ -32,12 +38,61 @@ export const contextUsageLabel = (usage: AgentContextUsage | null): string => {
 		: label;
 };
 
-/** Describes whether and when automatic compaction is enabled. */
+const compactionThresholdUnavailableLabel =
+	"Auto-compaction threshold unavailable";
+
+const isKnownContextLimit = (
+	contextLimit: number | undefined,
+): contextLimit is number =>
+	contextLimit !== undefined &&
+	Number.isFinite(contextLimit) &&
+	contextLimit > 0;
+
+/** Match chatloop normalization of out-of-range chat thresholds. */
+const normalizeChatCompactionThreshold = (
+	threshold: ResolvedCompactionThreshold,
+): ResolvedCompactionThreshold =>
+	threshold.source !== "organization" &&
+	(threshold.percent < 0 || threshold.percent > 100)
+		? { ...threshold, percent: 70 }
+		: threshold;
+
+/**
+ * Describes whether and when automatic compaction is enabled, measuring an
+ * organization override's point against the displayed context window.
+ */
 export const compactionThresholdLabel = (
-	threshold: number | undefined,
+	threshold: ResolvedCompactionThreshold | undefined,
+	contextLimit: number | undefined,
 ): string => {
-	if (threshold === undefined || !Number.isFinite(threshold))
-		return "Auto-compaction threshold unavailable";
-	if (threshold === 100) return "Auto-compaction disabled";
-	return `Compacts at ${threshold < 0 || threshold > 100 ? 70 : threshold}%`;
+	if (threshold === undefined) return compactionThresholdUnavailableLabel;
+	if (threshold.source === "organization") {
+		if (!isKnownContextLimit(contextLimit))
+			return compactionThresholdUnavailableLabel;
+	} else if (!Number.isFinite(threshold.percent)) {
+		return compactionThresholdUnavailableLabel;
+	}
+	return (
+		bindingCompactionThresholdLabel(
+			normalizeChatCompactionThreshold(threshold),
+			contextLimit ?? 0,
+		) ?? "Auto-compaction disabled"
+	);
+};
+
+/** Token count at which the binding compaction trigger fires, when known. */
+export const compactionThresholdTokens = (
+	threshold: ResolvedCompactionThreshold | undefined,
+	contextLimit: number | undefined,
+): number | undefined => {
+	if (threshold === undefined) return undefined;
+	if (threshold.source !== "organization")
+		return compactionTriggerTokens(contextLimit, threshold.percent);
+	if (
+		!isKnownContextLimit(contextLimit) ||
+		isCompactionPointBeyondWindow(threshold.pointTokens, contextLimit)
+	)
+		return undefined;
+	// The backend compacts once usage reaches the point.
+	return Math.max(1, Math.ceil(threshold.pointTokens));
 };

@@ -1,19 +1,34 @@
 import { describe, expect, it } from "vitest";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import {
 	compactionThresholdLabel,
+	compactionThresholdTokens,
 	contextUsageLabel,
 	formatContextTokenCount,
 } from "./contextUsage";
 
+const modelThreshold = (
+	percent: number,
+	organizationOverrideNotLoaded = false,
+): ResolvedCompactionThreshold => ({
+	percent,
+	source: "model",
+	organizationOverrideNotLoaded,
+});
+const organizationThreshold = (
+	pointTokens: number,
+): ResolvedCompactionThreshold => ({ source: "organization", pointTokens });
+
 describe("contextUsageLabel", () => {
 	it.each([0, 70, 100, undefined])(
 		"uses the full window with a %s threshold",
-		(compressionThreshold) => {
+		(percent) => {
 			expect(
 				contextUsageLabel({
 					usedTokens: 211_400,
 					contextLimitTokens: 1_000_000,
-					compressionThreshold,
+					compactionThreshold:
+						percent === undefined ? undefined : modelThreshold(percent),
 				}),
 			).toBe("21% - 211.4K / 1M context used");
 		},
@@ -52,11 +67,58 @@ describe("compactionThresholdLabel", () => {
 		[100, "Auto-compaction disabled"],
 		[-1, "Compacts at 70%"],
 		[101, "Compacts at 70%"],
-		[undefined, "Auto-compaction threshold unavailable"],
 		[Number.NaN, "Auto-compaction threshold unavailable"],
 		[Number.POSITIVE_INFINITY, "Auto-compaction threshold unavailable"],
-	])("describes the %s threshold", (threshold, expected) => {
-		expect(compactionThresholdLabel(threshold)).toBe(expected);
+	])("describes the %s chat threshold", (percent, expected) => {
+		expect(compactionThresholdLabel(modelThreshold(percent), 1_000)).toBe(
+			expected,
+		);
+	});
+	it("does not invent a threshold before settings load", () => {
+		expect(compactionThresholdLabel(undefined, 1_000)).toBe(
+			"Auto-compaction threshold unavailable",
+		);
+	});
+	it("flags chat thresholds when the organization override did not load", () => {
+		expect(compactionThresholdLabel(modelThreshold(70, true), 1_000)).toBe(
+			"Compacts at 70% (organization override not loaded)",
+		);
+		expect(compactionThresholdLabel(modelThreshold(100, true), 1_000)).toBe(
+			"Compaction off (organization override not loaded)",
+		);
+	});
+	it("measures a binding organization override against the window", () => {
+		expect(
+			compactionThresholdLabel(organizationThreshold(32_000), 200_000),
+		).toBe("Compacts at 16% (organization override)");
+		expect(
+			compactionThresholdLabel(organizationThreshold(16_000), 10_000),
+		).toBe("Auto-compaction disabled");
+		expect(
+			compactionThresholdLabel(organizationThreshold(32_000), undefined),
+		).toBe("Auto-compaction threshold unavailable");
+	});
+});
+describe("compactionThresholdTokens", () => {
+	it("resolves the chat trigger like the backend", () => {
+		expect(compactionThresholdTokens(modelThreshold(70), 1_000)).toBe(700);
+		expect(compactionThresholdTokens(modelThreshold(100), 1_000)).toBe(
+			undefined,
+		);
+		expect(compactionThresholdTokens(undefined, 1_000)).toBe(undefined);
+	});
+	it("rounds an organization point up to the first triggering token count", () => {
+		expect(
+			compactionThresholdTokens(organizationThreshold(6_400.4), 20_000),
+		).toBe(6_401);
+	});
+	it("omits organization points that are unknown or beyond the window", () => {
+		expect(
+			compactionThresholdTokens(organizationThreshold(16_000), 10_000),
+		).toBe(undefined);
+		expect(
+			compactionThresholdTokens(organizationThreshold(16_000), undefined),
+		).toBe(undefined);
 	});
 });
 describe("formatContextTokenCount", () => {

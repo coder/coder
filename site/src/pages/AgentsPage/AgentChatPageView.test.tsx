@@ -27,7 +27,7 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 				effectiveSelectedModel={chat.last_model_config_id}
 				setSelectedModel={vi.fn()}
 				modelOptions={[]}
-				models={[]}
+				modelCatalog={undefined}
 				mcpServers={[]}
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={vi.fn()}

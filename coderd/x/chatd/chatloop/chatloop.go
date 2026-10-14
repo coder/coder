@@ -238,6 +238,12 @@ type GenerateCompactionOptions struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
+	// SummaryContextLimit is the summary model's window. When positive, it
+	// bounds the summary cap instead of the trigger's limit.
+	SummaryContextLimit int64
+	// ChatContextLimit is the chat model's window, recorded for chat usage
+	// display.
+	ChatContextLimit int64
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
 	// prompt and prepared tool definitions.
@@ -300,6 +306,12 @@ type reasoningState struct {
 	text      string
 	options   fantasy.ProviderMetadata
 	startedAt time.Time
+}
+
+type textState struct {
+	text      string
+	options   fantasy.ProviderMetadata
+	narration bool
 }
 
 // GenerateAssistant performs one assistant model stream and returns the
@@ -967,7 +979,7 @@ func processStepStream(
 	var result stepResult
 
 	providerExecutedCalls := make(map[string]bool)
-	activeTextContent := make(map[string]string)
+	activeTextContent := make(map[string]textState)
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
@@ -976,19 +988,30 @@ func processStepStream(
 	for part := range stream {
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
-			activeTextContent[part.ID] = ""
+			// OpenAI labels narration when the text starts, so every delta
+			// can carry the label before the text ends.
+			activeTextContent[part.ID] = textState{
+				options:   part.ProviderMetadata,
+				narration: chatprompt.IsNarration(part.ProviderMetadata),
+			}
 
 		case fantasy.StreamPartTypeTextDelta:
-			if _, exists := activeTextContent[part.ID]; exists {
-				activeTextContent[part.ID] += part.Delta
+			textPart := codersdk.ChatMessageText(part.Delta)
+			if active, exists := activeTextContent[part.ID]; exists {
+				active.text += part.Delta
+				activeTextContent[part.ID] = active
+				textPart.Narration = active.narration
 			}
-			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(part.Delta))
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, textPart)
 
 		case fantasy.StreamPartTypeTextEnd:
-			if text, exists := activeTextContent[part.ID]; exists {
+			if active, exists := activeTextContent[part.ID]; exists {
+				if len(part.ProviderMetadata) > 0 {
+					active.options = part.ProviderMetadata
+				}
 				result.content = append(result.content, fantasy.TextContent{
-					Text:             text,
-					ProviderMetadata: part.ProviderMetadata,
+					Text:             active.text,
+					ProviderMetadata: active.options,
 				})
 				delete(activeTextContent, part.ID)
 			}

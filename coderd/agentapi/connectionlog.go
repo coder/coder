@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/sdk2db"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -41,7 +42,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	connectionType, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(req.GetConnection().GetType())
+	method, appName, err := sdk2db.ConnectionLogFromAgentType(req.GetConnection().GetType())
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
 		AgentName:        a.AgentName,
-		Type:             connectionType,
+		ConnectionMethod: method,
+		AppNameOrPort:    sql.NullString{String: appName, Valid: appName != ""},
 		Code:             code,
 		IP:               logIP,
 		ConnectionID: uuid.NullUUID{
@@ -116,8 +118,6 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		},
 		// N/A
 		UserAgent: sql.NullString{},
-		// N/A
-		SlugOrPort: sql.NullString{},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)

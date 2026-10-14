@@ -161,6 +161,7 @@ export const providerInfoByIDFromDescriptors = (
 				displayName: providerDescriptor.display_name,
 				icon: providerDescriptor.icon,
 				enabled: providerDescriptor.enabled,
+				available: providerDescriptor.available,
 			},
 		]),
 	);
@@ -195,6 +196,9 @@ export const providerTypeByIDFromUserConfigs = (
 			([id, info]) => [id, info.provider],
 		),
 	);
+
+export const getModelLabel = (model: TypesGen.ChatModel): string =>
+	model.display_name.trim() || model.model || model.id;
 
 /**
  * Drops models whose provider row is disabled or missing. Provider descriptors
@@ -354,54 +358,6 @@ function normalizeCompactionThreshold(
 		return undefined;
 	}
 	return threshold < 0 || threshold > 100 ? 70 : threshold;
-}
-
-export function resolveCompactionThreshold(
-	modelID: string,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-): number | undefined {
-	if (!Array.isArray(models) || !userThresholds) {
-		return undefined;
-	}
-	const model = models.find((model) => model.id === modelID);
-	if (!model) {
-		return undefined;
-	}
-	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelID,
-	);
-	return normalizeCompactionThreshold(
-		userOverride?.threshold_percent ?? model.compression_threshold,
-	);
-}
-
-/**
- * Context window the compaction trigger is measured against. Mirrors the
- * backend: when the organization routes compaction to an override model,
- * the history must also fit that model's window, so the smaller of the
- * two limits wins. Returns 0 when neither limit is known.
- */
-export function resolveCompactionContextLimit(
-	model: TypesGen.ChatModel,
-	models: readonly TypesGen.ChatModel[],
-	compactionModelIDByOrganization: ReadonlyMap<string, string>,
-): number {
-	const chatLimit =
-		Number.isFinite(model.context_limit) && model.context_limit > 0
-			? model.context_limit
-			: 0;
-	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
-	const overrideLimit =
-		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
-	if (
-		Number.isFinite(overrideLimit) &&
-		overrideLimit > 0 &&
-		(chatLimit <= 0 || overrideLimit < chatLimit)
-	) {
-		return overrideLimit;
-	}
-	return chatLimit;
 }
 
 /**

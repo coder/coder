@@ -31,9 +31,8 @@ type PassthroughTransportWrapper interface {
 	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
 }
 
-// ErrNoCredential is returned when a request resolves to centralized
-// authentication but the provider has no centralized keys configured (and the
-// request is not BYOK), so it cannot be authenticated.
+// ErrNoCredential is returned when a request has no usable BYOK credential
+// and the provider has no configured alternative for upstream authentication.
 var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
 
 // Provider defines routes (bridged and passed through) for given provider.

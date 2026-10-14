@@ -17,7 +17,10 @@ import {
 	MockChatContextDirty,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import { useChatContext } from "./useChatContext";
 
 const dirtyChat: Chat = { ...MockChat, context: MockChatContextDirty };
@@ -39,6 +42,13 @@ const alternateModel: ChatModel = {
 	context_limit: 50000,
 	compression_threshold: 80,
 };
+// 80% of the 100K compaction override window, below the chat model's 60%.
+const organizationThreshold = {
+	source: "organization",
+	pointTokens: 80000,
+} as const;
+const userThreshold = (percent: number) =>
+	({ percent, source: "user", organizationOverrideNotLoaded: false }) as const;
 const messages: ChatMessage[] = [
 	{
 		...MockChatMessage,
@@ -73,7 +83,11 @@ const Harness = ({
 	const state = useChatContext({
 		chat,
 		messages: chatMessages,
-		models,
+		modelCatalog: {
+			models: [...models],
+			providers: [MockChatModelProviderDescriptor],
+			unsupported_providers: [],
+		},
 		isReadOnly,
 		selectedModelId: selection,
 	});
@@ -169,15 +183,15 @@ afterEach(() => {
 });
 
 describe("useChatContext", () => {
-	it("resolves context-only usage against the smaller compaction model and user threshold", async () => {
+	it("resolves context-only usage against the chat model window and binding organization trigger", async () => {
 		const { inspect, onInspect } = setup();
 		await inspect();
 		expect(onInspect).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				contextUsage: expect.objectContaining({
 					usedTokens: 150,
-					contextLimitTokens: 100000,
-					compressionThreshold: 60,
+					contextLimitTokens: 200000,
+					compactionThreshold: organizationThreshold,
 					context: dirtyChat.context,
 				}),
 			}),
@@ -202,8 +216,8 @@ describe("useChatContext", () => {
 			expect.objectContaining({
 				contextUsage: expect.objectContaining({
 					usedTokens: 150,
-					contextLimitTokens: 100000,
-					compressionThreshold: 60,
+					contextLimitTokens: 200000,
+					compactionThreshold: organizationThreshold,
 				}),
 			}),
 		);
@@ -218,7 +232,7 @@ describe("useChatContext", () => {
 				contextUsage: expect.objectContaining({
 					usedTokens: 150,
 					contextLimitTokens: 50000,
-					compressionThreshold: 45,
+					compactionThreshold: userThreshold(45),
 				}),
 			}),
 		);
@@ -231,15 +245,15 @@ describe("useChatContext", () => {
 		expect(onInspect).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				contextUsage: expect.objectContaining({
-					contextLimitTokens: 100000,
-					compressionThreshold: 60,
+					contextLimitTokens: 200000,
+					compactionThreshold: organizationThreshold,
 				}),
 			}),
 		);
 	});
 
 	it.each([
-		{ archived: true, isReadOnly: false, threshold: 60 },
+		{ archived: true, isReadOnly: false, threshold: organizationThreshold },
 		{ archived: false, isReadOnly: true, threshold: undefined },
 		{ archived: true, isReadOnly: true, threshold: undefined },
 	])(
@@ -255,8 +269,8 @@ describe("useChatContext", () => {
 			expect(onInspect).toHaveBeenLastCalledWith(
 				expect.objectContaining({
 					contextUsage: expect.objectContaining({
-						contextLimitTokens: 100000,
-						compressionThreshold: threshold,
+						contextLimitTokens: 200000,
+						compactionThreshold: threshold,
 					}),
 					onApplyContext: undefined,
 				}),
@@ -264,9 +278,12 @@ describe("useChatContext", () => {
 		},
 	);
 
-	it.each([0, 100])(
-		"retains known settings at %i%% before the first message or context snapshot",
-		async (threshold) => {
+	it.each([
+		{ threshold: 0, compactionThreshold: userThreshold(0) },
+		{ threshold: 100, compactionThreshold: organizationThreshold },
+	])(
+		"retains known settings at $threshold% before the first message or context snapshot",
+		async ({ threshold, compactionThreshold }) => {
 			const { queryClient, inspect, onInspect } = setup({
 				chat: MockChat,
 				chatMessages: [],
@@ -282,8 +299,8 @@ describe("useChatContext", () => {
 			expect(onInspect).toHaveBeenLastCalledWith(
 				expect.objectContaining({
 					contextUsage: {
-						contextLimitTokens: 100000,
-						compressionThreshold: threshold,
+						contextLimitTokens: 200000,
+						compactionThreshold,
 						context: undefined,
 					},
 					onApplyContext: undefined,
@@ -524,7 +541,7 @@ describe("useChatContext", () => {
 		);
 	});
 
-	it("retains the summary-only estimate marker with the effective window", async () => {
+	it("retains the summary-only estimate marker with the chat model window", async () => {
 		const { inspect, onInspect } = setup({
 			chatMessages: [MockChatCompactionMessage],
 		});
@@ -534,13 +551,13 @@ describe("useChatContext", () => {
 				contextUsage: expect.objectContaining({
 					usedTokens: 12000,
 					estimated: true,
-					contextLimitTokens: 100000,
+					contextLimitTokens: 200000,
 				}),
 			}),
 		);
 	});
 
-	it("does not invent an effective window or threshold when settings fail", async () => {
+	it("does not invent a threshold when settings fail", async () => {
 		vi.mocked(
 			API.experimental.getUserChatCompactionThresholds,
 		).mockRejectedValue(new Error("Forbidden"));
@@ -567,8 +584,8 @@ describe("useChatContext", () => {
 			expect.objectContaining({
 				contextUsage: expect.objectContaining({
 					usedTokens: 150,
-					contextLimitTokens: undefined,
-					compressionThreshold: undefined,
+					contextLimitTokens: 200000,
+					compactionThreshold: undefined,
 				}),
 			}),
 		);

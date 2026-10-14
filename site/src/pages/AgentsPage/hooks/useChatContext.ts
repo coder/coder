@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	chat as chatQuery,
 	organizationChatModelOverrides,
@@ -8,17 +7,16 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import type { AgentContextUsage } from "../components/AgentChatInput";
 import { getLatestContextUsage } from "../components/ChatConversation/chatHelpers";
-import {
-	resolveCompactionContextLimit,
-	resolveCompactionThreshold,
-} from "../utils/modelOptions";
+import { providerInfoByIDFromDescriptors } from "../utils/modelOptions";
 
 type UseChatContextOptions = {
 	chat: TypesGen.Chat;
 	messages: readonly TypesGen.ChatMessage[];
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	isReadOnly?: boolean;
 	selectedModelId?: string;
 };
@@ -27,7 +25,7 @@ type UseChatContextOptions = {
 export const useChatContext = ({
 	chat,
 	messages,
-	models,
+	modelCatalog,
 	isReadOnly = false,
 	selectedModelId,
 }: UseChatContextOptions) => {
@@ -44,54 +42,37 @@ export const useChatContext = ({
 		!observedChat.archived && !isReadOnly && selectedModelId
 			? selectedModelId
 			: observedChat.last_model_config_id;
+	const models = modelCatalog?.models;
 	const model = models?.find((candidate) => candidate.id === modelId);
-	const compactionOverride = overridesQuery.data?.overrides.find(
-		(override) => override.context === "compaction",
-	);
-	const compactionModel = models?.find(
-		(candidate) => candidate.id === compactionOverride?.model_config_id,
-	);
-	// An unavailable override catalog cannot establish the effective window.
-	const contextLimit =
-		model &&
-		models &&
-		overridesQuery.data &&
-		(!compactionOverride || compactionModel)
-			? resolveCompactionContextLimit(
-					model,
-					models,
-					new Map(
-						compactionOverride
-							? [
-									[
-										observedChat.organization_id,
-										compactionOverride.model_config_id,
-									],
-								]
-							: [],
-					),
-				)
-			: undefined;
+	// Compaction measures usage against the chat model's own window; an
+	// organization override only adds a second trigger point.
 	const contextLimitTokens =
-		contextLimit && contextLimit > 0 ? contextLimit : undefined;
+		model && Number.isFinite(model.context_limit) && model.context_limit > 0
+			? model.context_limit
+			: undefined;
 	const rawUsage = getLatestContextUsage(messages, contextLimitTokens);
 	// User settings belong to the viewer, but compaction uses the chat owner.
-	const compressionThreshold = isReadOnly
-		? undefined
-		: resolveCompactionThreshold(
-				modelId,
-				thresholdsQuery.data?.thresholds,
-				models,
-			);
+	// Wait for both settings so the label never shows a guessed trigger.
+	const compactionThreshold =
+		isReadOnly || !thresholdsQuery.data || overridesQuery.isPending
+			? undefined
+			: resolveChatCompactionThreshold(
+					modelId,
+					thresholdsQuery.data.thresholds,
+					models,
+					providerInfoByIDFromDescriptors(modelCatalog?.providers),
+					overridesQuery,
+				);
 	const contextUsage: AgentContextUsage | null =
 		rawUsage ||
 		observedChat.context ||
 		contextLimitTokens !== undefined ||
-		compressionThreshold !== undefined
+		compactionThreshold !== undefined
 			? {
 					...rawUsage,
-					contextLimitTokens,
-					compressionThreshold,
+					contextLimitTokens:
+						rawUsage?.contextLimitTokens ?? contextLimitTokens,
+					compactionThreshold,
 					context: observedChat.context,
 				}
 			: null;

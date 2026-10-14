@@ -22,8 +22,10 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Agent access to a template      | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
 | Advisor runtime limits          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |

@@ -9,7 +9,14 @@ import {
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
+
+const modelThreshold = (percent: number): ResolvedCompactionThreshold => ({
+	percent,
+	source: "model",
+	organizationOverrideNotLoaded: false,
+});
 
 const PanelFrame = (Story: React.FC) => (
 	<div className="h-[760px] w-[360px] max-w-full border border-solid border-border">
@@ -48,7 +55,7 @@ const meta: Meta<typeof ChatDetailsPanel> = {
 		usage: {
 			usedTokens: 26_000,
 			contextLimitTokens: 1_100_000,
-			compressionThreshold: 70,
+			compactionThreshold: modelThreshold(70),
 			context: MockChatContextClean,
 		},
 		onApplyContext: fn(),
@@ -194,11 +201,24 @@ export const UsageWithoutTokenCounts: Story = {
 	play: expandResources,
 };
 export const CompactionDisabled: Story = {
-	args: { usage: { ...meta.args?.usage, compressionThreshold: 100 } },
+	args: {
+		usage: { ...meta.args?.usage, compactionThreshold: modelThreshold(100) },
+	},
 	play: expandResources,
 };
 export const ZeroThreshold: Story = {
-	args: { usage: { ...meta.args?.usage, compressionThreshold: 0 } },
+	args: {
+		usage: { ...meta.args?.usage, compactionThreshold: modelThreshold(0) },
+	},
+	play: expandResources,
+};
+export const OrganizationOverride: Story = {
+	args: {
+		usage: {
+			...meta.args?.usage,
+			compactionThreshold: { source: "organization", pointTokens: 160_000 },
+		},
+	},
 	play: expandResources,
 };
 export const EstimatedUsage: Story = {

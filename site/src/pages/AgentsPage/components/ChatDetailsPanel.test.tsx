@@ -21,7 +21,11 @@ const props: React.ComponentProps<typeof ChatDetailsPanel> = {
 	usage: {
 		usedTokens: 12000,
 		contextLimitTokens: 200000,
-		compressionThreshold: 70,
+		compactionThreshold: {
+			percent: 70,
+			source: "model",
+			organizationOverrideNotLoaded: false,
+		},
 		context: MockChatContextDirty,
 	},
 };

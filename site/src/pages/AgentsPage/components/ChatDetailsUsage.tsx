@@ -1,8 +1,8 @@
 import {
 	compactionThresholdLabel,
+	compactionThresholdTokens,
 	formatContextTokenCount,
 } from "../utils/contextUsage";
-import { compactionTriggerTokens } from "../utils/modelOptions";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 
 export const ChatDetailsUsage: React.FC<{
@@ -16,12 +16,9 @@ export const ChatDetailsUsage: React.FC<{
 	const percent = hasUsage && hasLimit ? (used / limit) * 100 : undefined;
 	const percentLabel =
 		percent === undefined ? undefined : `${Math.round(percent)}%`;
-	const threshold = usage?.compressionThreshold;
-	const thresholdLabel = compactionThresholdLabel(threshold);
-	const trigger =
-		threshold !== undefined && limit !== undefined
-			? compactionTriggerTokens(limit, threshold)
-			: undefined;
+	const threshold = usage?.compactionThreshold;
+	const thresholdLabel = compactionThresholdLabel(threshold, limit);
+	const trigger = compactionThresholdTokens(threshold, limit);
 	const tokensLabel = hasUsage
 		? hasLimit
 			? `${formatContextTokenCount(used)} of ${formatContextTokenCount(limit)} tokens used.`
@@ -64,7 +61,7 @@ export const ChatDetailsUsage: React.FC<{
 			<p className="m-0 text-xs text-content-secondary">{tokensLabel}</p>
 			<p className="m-0 text-xs text-content-secondary">
 				{thresholdLabel}
-				{trigger !== undefined && threshold !== 100
+				{trigger !== undefined
 					? ` (${formatContextTokenCount(trigger)} tokens)`
 					: ""}
 				.

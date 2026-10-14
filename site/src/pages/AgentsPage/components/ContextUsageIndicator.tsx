@@ -7,6 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import {
 	compactionThresholdLabel,
 	contextUsageLabel,
@@ -21,9 +22,9 @@ export type AgentContextUsage = {
 	readonly outputTokens?: number;
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
+	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -40,9 +41,12 @@ export const ContextUsageIndicator: React.FC<{
 	const suppressFocusOpen = useRef(false);
 	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const label = contextUsageLabel(usage);
-	const thresholdLabel = compactionThresholdLabel(usage?.compressionThreshold);
 	const used = usage?.usedTokens;
 	const limit = usage?.contextLimitTokens;
+	const thresholdLabel = compactionThresholdLabel(
+		usage?.compactionThreshold,
+		limit,
+	);
 	const percent =
 		used !== undefined &&
 		Number.isFinite(used) &&

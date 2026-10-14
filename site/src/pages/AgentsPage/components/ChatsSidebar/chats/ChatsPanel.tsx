@@ -22,7 +22,10 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
+import { getErrorMessage } from "#/api/errors";
+import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
@@ -35,6 +38,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -48,10 +52,6 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import {
-	AutomationsMobileLink,
-	AutomationsNavItem,
-} from "../../Automations/AutomationsNavItem";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -99,23 +99,12 @@ type ChatsPanelProps = {
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
-	readonly onArchiveAgent: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onMarkChatRead: (chatId: string) => void;
-	readonly onMarkChatUnread: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -146,20 +135,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatErrorReasons,
 	modelConfigs,
 	isLoadingModelConfigs,
-	onArchiveAgent,
-	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
-	onPinAgent,
-	onUnpinAgent,
-	onMarkChatRead,
-	onMarkChatUnread,
-	onReorderPinnedAgent,
+	onArchiveSuccess,
+	navigateAfterArchive,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
-	isArchiving,
-	archivingChatId,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -231,6 +212,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+	const queryClient = useQueryClient();
+	const reorderMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 
 	// Clear the local override when fresh data arrives from
 	// the server (the mutation's onSettled invalidates queries).
@@ -298,7 +286,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		reorderMutation.mutate({ chatId: activeId, pinOrder: newIndex + 1 });
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -396,16 +384,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
-		onMarkChatRead,
-		onMarkChatUnread,
+		onArchiveSuccess,
+		navigateAfterArchive,
 		onOpenRenameDialog,
 	};
 
@@ -462,7 +443,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<SearchIcon />
 						</Button>
 					)}
-					<AutomationsMobileLink />
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
@@ -568,7 +548,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
-				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				{!chatProjectsEnabled && chatsHeader}

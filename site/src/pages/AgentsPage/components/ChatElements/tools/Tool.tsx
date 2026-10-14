@@ -2,7 +2,6 @@ import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -876,14 +875,11 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 				{label}
 			</div>
 		)}
-		<ScrollArea
+		<ToolCall.Scrollable
 			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel={`Contents of ${file.name}`}
+			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"
-			scrollBarClassName="w-1.5"
-			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer
 				file={file}
@@ -895,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 						: (file) => <DiffFileHeader file={file} />
 				}
 			/>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	</>
 );
 
@@ -1017,7 +1013,6 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 							name={name}
 							args={args}
 							result={result}
-							isError={isError}
 							mcpSlug={mcpServer?.slug}
 						/>
 					)

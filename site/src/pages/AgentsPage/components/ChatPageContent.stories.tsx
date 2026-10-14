@@ -3,6 +3,7 @@ import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	chatPromptsKey,
+	organizationChatModelOverridesKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -14,7 +15,10 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
@@ -100,12 +104,11 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 		],
 	};
 
-const mockCompactionModels: readonly TypesGen.ChatModel[] = [
-	{
-		...MockChatModel,
-		id: MockChat.last_model_config_id,
-	},
-];
+const mockCompactionModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [{ ...MockChatModel, id: MockChat.last_model_config_id }],
+	providers: [MockChatModelProviderDescriptor],
+	unsupported_providers: [],
+};
 
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
@@ -473,7 +476,7 @@ const CompactionChatPageInput: React.FC = () => {
 	const contextState = useChatContext({
 		chat: MockChat,
 		messages: [...store.getSnapshot().messagesByID.values()],
-		models: mockCompactionModels,
+		modelCatalog: mockCompactionModelCatalog,
 	});
 	return (
 		<div className="mx-auto w-full max-w-3xl p-4">
@@ -530,6 +533,10 @@ export const CompactsAtUserOverride: Story = {
 				data: mockUserChatCompactionThresholdsWithOverride,
 			},
 			{
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
+				data: { overrides: [] },
+			},
+			{
 				key: chatPromptsKey(MockChat.id),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
 			},
@@ -556,6 +563,10 @@ export const CompactsAtHistoricalModelDefault: Story = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
+				data: { overrides: [] },
 			},
 			{
 				key: chatPromptsKey(MockChat.id),
