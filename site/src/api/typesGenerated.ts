@@ -3250,6 +3250,18 @@ export interface ChatModelOverridesResponse {
 
 // From codersdk/chats.go
 /**
+ * ChatModelProviderBedrockInvokeModel describes the models an AWS Bedrock
+ * InvokeModel provider sends upstream regardless of the requested model.
+ * Requests for model IDs containing "haiku" use SmallFastModel; all other
+ * requests use Model.
+ */
+export interface ChatModelProviderBedrockInvokeModel {
+	readonly model: string;
+	readonly small_fast_model: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
@@ -3268,6 +3280,12 @@ export interface ChatModelProviderDescriptor {
 	readonly allow_user_api_key: boolean;
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
+	/**
+	 * BedrockInvokeModel is set when the provider uses the AWS Bedrock
+	 * InvokeModel protocol. That protocol ignores the model a client requests
+	 * and sends the provider's configured models upstream instead.
+	 */
+	readonly bedrock_invoke_model?: ChatModelProviderBedrockInvokeModel;
 }
 
 // From codersdk/chats.go

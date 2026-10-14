@@ -2709,6 +2709,19 @@ type ChatModelProviderDescriptor struct {
 	AllowUserAPIKey    bool                               `json:"allow_user_api_key"`
 	Available          bool                               `json:"available"`
 	UnavailableReason  ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
+	// BedrockInvokeModel is set when the provider uses the AWS Bedrock
+	// InvokeModel protocol. That protocol ignores the model a client requests
+	// and sends the provider's configured models upstream instead.
+	BedrockInvokeModel *ChatModelProviderBedrockInvokeModel `json:"bedrock_invoke_model,omitempty"`
+}
+
+// ChatModelProviderBedrockInvokeModel describes the models an AWS Bedrock
+// InvokeModel provider sends upstream regardless of the requested model.
+// Requests for model IDs containing "haiku" use SmallFastModel; all other
+// requests use Model.
+type ChatModelProviderBedrockInvokeModel struct {
+	Model          string `json:"model"`
+	SmallFastModel string `json:"small_fast_model"`
 }
 
 // OrganizationChatModelsResponse is the org chat model config collection:

@@ -4902,6 +4902,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "allow_user_api_key": true,
       "available": true,
+      "bedrock_invoke_model": {
+        "model": "string",
+        "small_fast_model": "string"
+      },
       "display_name": "string",
       "enabled": true,
       "has_api_key": true,

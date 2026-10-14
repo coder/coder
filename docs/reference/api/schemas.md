@@ -4423,12 +4423,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
 | `overrides` | array of [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
 
+## codersdk.ChatModelProviderBedrockInvokeModel
+
+```json
+{
+  "model": "string",
+  "small_fast_model": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `model`            | string | false    |              |             |
+| `small_fast_model` | string | false    |              |             |
+
 ## codersdk.ChatModelProviderDescriptor
 
 ```json
 {
   "allow_user_api_key": true,
   "available": true,
+  "bedrock_invoke_model": {
+    "model": "string",
+    "small_fast_model": "string"
+  },
   "display_name": "string",
   "enabled": true,
   "has_api_key": true,
@@ -4443,19 +4463,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                                                       | Required | Restrictions | Description |
-|-------------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `allow_user_api_key`    | boolean                                                                                    | false    |              |             |
-| `available`             | boolean                                                                                    | false    |              |             |
-| `display_name`          | string                                                                                     | false    |              |             |
-| `enabled`               | boolean                                                                                    | false    |              |             |
-| `has_api_key`           | boolean                                                                                    | false    |              |             |
-| `has_effective_api_key` | boolean                                                                                    | false    |              |             |
-| `has_user_api_key`      | boolean                                                                                    | false    |              |             |
-| `icon`                  | string                                                                                     | false    |              |             |
-| `id`                    | string                                                                                     | false    |              |             |
-| `type`                  | string                                                                                     | false    |              |             |
-| `unavailable_reason`    | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
+| Name                    | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                                             |
+|-------------------------|----------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_user_api_key`    | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `available`             | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `bedrock_invoke_model`  | [codersdk.ChatModelProviderBedrockInvokeModel](#codersdkchatmodelproviderbedrockinvokemodel) | false    |              | Bedrock invoke model is set when the provider uses the AWS Bedrock InvokeModel protocol. That protocol ignores the model a client requests and sends the provider's configured models upstream instead. |
+| `display_name`          | string                                                                                       | false    |              |                                                                                                                                                                                                         |
+| `enabled`               | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `has_api_key`           | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `has_effective_api_key` | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `has_user_api_key`      | boolean                                                                                      | false    |              |                                                                                                                                                                                                         |
+| `icon`                  | string                                                                                       | false    |              |                                                                                                                                                                                                         |
+| `id`                    | string                                                                                       | false    |              |                                                                                                                                                                                                         |
+| `type`                  | string                                                                                       | false    |              |                                                                                                                                                                                                         |
+| `unavailable_reason`    | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason)   | false    |              |                                                                                                                                                                                                         |
 
 ## codersdk.ChatModelProviderOptions
 
@@ -12454,6 +12475,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     {
       "allow_user_api_key": true,
       "available": true,
+      "bedrock_invoke_model": {
+        "model": "string",
+        "small_fast_model": "string"
+      },
       "display_name": "string",
       "enabled": true,
       "has_api_key": true,

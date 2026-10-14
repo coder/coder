@@ -4085,6 +4085,49 @@ func TestListChatModelConfigs(t *testing.T) {
 		}
 		t.Fatal("bedrock provider descriptor not found")
 	})
+
+	t.Run("BedrockDescriptorReportsInvokeModelOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		newBedrockProvider := func(protocol codersdk.AIProviderBedrockProtocol) database.AIProvider {
+			settings, err := json.Marshal(codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "us.anthropic.claude-sonnet-5",
+					SmallFastModel: "us.anthropic.claude-haiku-5-5",
+					Protocol:       protocol,
+				},
+			})
+			require.NoError(t, err)
+			return dbgen.AIProvider(t, db, database.AIProvider{
+				Type:     database.AIProviderTypeBedrock,
+				Settings: sql.NullString{String: string(settings), Valid: true},
+			})
+		}
+		defaultProtocol := newBedrockProvider("")
+		invokeModel := newBedrockProvider(codersdk.AIProviderBedrockProtocolInvokeModel)
+		mantle := newBedrockProvider(codersdk.AIProviderBedrockProtocolMantle)
+
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		overrides := make(map[uuid.UUID]*codersdk.ChatModelProviderBedrockInvokeModel)
+		for _, descriptor := range response.Providers {
+			overrides[descriptor.ID] = descriptor.BedrockInvokeModel
+		}
+
+		want := &codersdk.ChatModelProviderBedrockInvokeModel{
+			Model:          "us.anthropic.claude-sonnet-5",
+			SmallFastModel: "us.anthropic.claude-haiku-5-5",
+		}
+		require.Equal(t, want, overrides[defaultProtocol.ID])
+		require.Equal(t, want, overrides[invokeModel.ID])
+		require.Contains(t, overrides, mantle.ID)
+		require.Nil(t, overrides[mantle.ID])
+	})
 }
 
 func TestGetChatModel(t *testing.T) {
