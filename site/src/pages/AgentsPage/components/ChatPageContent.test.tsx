@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -309,6 +309,46 @@ describe("ChatPageInput", () => {
 		expect(onSend).toHaveBeenLastCalledWith(
 			expect.objectContaining({ attachments: [sent] }),
 		);
+	});
+
+	it("keeps an attachment added while a send is pending", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile")
+			.mockResolvedValueOnce({ id: "file-1" })
+			.mockResolvedValueOnce({ id: "file-2" });
+		let resolveSend: () => void = () => {};
+		const onSend = vi.fn().mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		const fileInput = await screen.findByTestId("chat-attachment-file-input");
+		await user.upload(
+			fileInput,
+			new File(["png"], "first.png", { type: "image/png" }),
+		);
+		const send = await screen.findByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+		await user.upload(
+			fileInput,
+			new File(["png"], "second.png", { type: "image/png" }),
+		);
+		await screen.findByRole("button", { name: "Remove second.png" });
+
+		await act(async () => {
+			resolveSend();
+		});
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "Remove first.png" }),
+			).toBeNull(),
+		);
+		expect(
+			screen.getByRole("button", { name: "Remove second.png" }),
+		).toBeInTheDocument();
 	});
 
 	it("offers no queue actions on a row a pending send draws", async () => {

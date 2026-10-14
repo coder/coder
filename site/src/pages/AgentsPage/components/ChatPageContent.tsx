@@ -674,9 +674,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
-	// The composer shows none of its attachments while a submit holds them;
-	// they return if it fails.
-	const [isSubmitting, setIsSubmitting] = useState(false);
+	// The attachments of the submit in flight. The composer hides them until
+	// the request settles and shows them again if it fails. Attachments added
+	// during the request stay in the composer.
+	const [submittedAttachments, setSubmittedAttachments] = useState<
+		readonly File[] | null
+	>(null);
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
@@ -756,7 +759,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
-					setIsSubmitting(true);
+					setSubmittedAttachments(attachments);
 					try {
 						await onSend({
 							message,
@@ -765,28 +768,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
-						setIsSubmitting(false);
+						setSubmittedAttachments(null);
 						return;
 					}
-					setIsSubmitting(false);
+					setSubmittedAttachments(null);
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
 						setPreservedWorkspaceUploads([]);
 					} else {
-						composeAttachments.resetAttachments();
+						for (const file of attachments) {
+							composeAttachments.handleRemoveAttachment(file);
+						}
 						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
-			attachments={isSubmitting ? [] : attachments}
+			attachments={
+				submittedAttachments
+					? attachments.filter((file) => !submittedAttachments.includes(file))
+					: attachments
+			}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: isSubmitting ? [] : visibleWorkspaceUploads,
+				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,

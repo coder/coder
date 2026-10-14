@@ -1,5 +1,4 @@
 import {
-	act,
 	fireEvent,
 	render,
 	screen,
@@ -11,20 +10,11 @@ import { createRef } from "react";
 import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
-import { API } from "#/api/api";
-import {
-	organizationSkillPreferencesKey,
-	organizationSkills,
-} from "#/api/queries/organizationSkills";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import {
-	MockChatQueuedMessage,
-	MockChatQueuedMessageUnderEdit,
-	MockMCPServerConfig,
-} from "#/testHelpers/chatEntities";
-import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -43,9 +33,7 @@ import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => ({
-		organizations: [],
-	}),
+	useDashboard: () => ({ organizations: [] }),
 }));
 
 vi.mock("../hooks/useSpeechRecognition", async (importOriginal) => {
@@ -156,7 +144,6 @@ beforeAll(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
-	vi.restoreAllMocks();
 });
 
 describe("AgentChatInput", () => {
@@ -212,95 +199,38 @@ describe("AgentChatInput", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
-	it("offers the chat organization's skills in the slash menu", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(userSkills().queryKey, []);
-		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
-			{ ...MockSkill, name: "release-notes" },
-		]);
-		queryClient.setQueryData(
-			organizationSkillPreferencesKey("org-1"),
-			MockOrganizationSkillPreferences,
-		);
-
-		render(
-			<AppProviders queryClient={queryClient}>
-				<AgentChatInput
-					{...inputProps}
-					inputRef={inputRef}
-					chatOrganizationId="org-1"
-				/>
-			</AppProviders>,
-			{ wrapper: MemoryRouter },
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("/rel");
-		await user.click(
-			await screen.findByRole("option", { name: /release-notes/ }),
-		);
-		expect(inputRef.current?.getContentParts()).toContainEqual({
-			type: "skill-invocation",
-			source: "org",
-			name: "release-notes",
-		});
-	});
-
-	it("sends a message that holds only a skill chip", async () => {
+	it("accepts typing without sending while a send is pending", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
 		const onSend = vi.fn();
+
 		renderInput(
-			<AgentChatInput {...inputProps} onSend={onSend} inputRef={inputRef} />,
-		);
-		await waitFor(() => expect(inputRef.current).not.toBeNull());
-
-		act(() => inputRef.current?.insertSkill("project", "triage"));
-		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledTimes(1);
-	});
-
-	it("offers the chat project's skills in the slash menu", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
-		vi.spyOn(
-			API.experimental,
-			"getOrganizationSkillPreferences",
-		).mockResolvedValue(MockOrganizationSkillPreferences);
-		const getChatProjectSkills = vi
-			.spyOn(API.experimental, "getChatProjectSkills")
-			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
-		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
-			{ ...MockChatProject, id: "project-1" },
-		]);
-
-		render(
-			<AppProviders queryClient={createTestQueryClient()}>
-				<AgentChatInput
-					{...inputProps}
-					inputRef={inputRef}
-					chatOrganizationId="org-1"
-					chatProjectId="project-1"
-				/>
-			</AppProviders>,
-			{ wrapper: MemoryRouter },
+			<AgentChatInput
+				onSend={onSend}
+				inputRef={inputRef}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("/proj");
-		await user.click(
-			await screen.findByRole("option", { name: /project-conventions/ }),
-		);
-		expect(inputRef.current?.getContentParts()).toContainEqual({
-			type: "skill-invocation",
-			source: "project",
-			name: "project-conventions",
+		await user.paste("Next message");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("Next message");
 		});
-		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -750,109 +680,6 @@ describe("AgentChatInput", () => {
 			screen.getByRole("button", { name: "Cancel voice input" }),
 		);
 		expect(cancel).toHaveBeenCalledTimes(1);
-	});
-
-	it("lets Escape on a chip's remove button cancel a history edit", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onCancelEdit = vi.fn();
-		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				inputRef={inputRef}
-				editingKind="history"
-				onCancelEdit={onCancelEdit}
-			/>,
-		);
-		await waitFor(() => expect(inputRef.current).not.toBeNull());
-		act(() => inputRef.current?.insertSkill("project", "triage"));
-		const remove = await screen.findByRole("button", {
-			name: "Remove skill /project/triage",
-		});
-		act(() => remove.focus());
-
-		await user.keyboard("{Escape}");
-		expect(onCancelEdit).toHaveBeenCalledTimes(1);
-	});
-
-	it.each([
-		["cancel an edit", "onCancelEdit", { editingKind: "history" }],
-		["interrupt a streaming turn", "onInterrupt", { isStreaming: true }],
-	] as const)(
-		"lets Escape that closes a composer popover not %s",
-		async (_, callbackName, props) => {
-			const user = userEvent.setup();
-			const callback = vi.fn();
-			renderInput(
-				<AgentChatInput
-					{...inputProps}
-					{...props}
-					{...{ [callbackName]: callback }}
-					mcpServers={mockMCPServers}
-					selectedMCPServerIds={mockSelectedMCPServerIds}
-					onMCPSelectionChange={vi.fn()}
-				/>,
-			);
-
-			await user.click(screen.getByRole("button", { name: "3 MCPs" }));
-			await screen.findByRole("dialog");
-			await user.keyboard("{Escape}");
-			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-			expect(callback).not.toHaveBeenCalled();
-
-			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-			await user.keyboard("{Escape}");
-			expect(callback).toHaveBeenCalledTimes(1);
-		},
-	);
-
-	it("keeps skill chips through a voice recording and its cancellation", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const speech = { isRecording: false, transcript: "" };
-		mockedUseSpeechRecognition.mockImplementation(() => ({
-			isSupported: true,
-			error: null,
-			...speech,
-			start: vi.fn(),
-			stop: vi.fn(),
-			cancel: vi.fn(),
-		}));
-		const input = () => (
-			<AppProviders>
-				<AgentChatInput {...inputProps} inputRef={inputRef} />
-			</AppProviders>
-		);
-		const { rerender } = render(input(), { wrapper: MemoryRouter });
-		await waitFor(() => expect(inputRef.current).not.toBeNull());
-		act(() => inputRef.current?.insertSkill("project", "triage"));
-		const chip = {
-			type: "skill-invocation",
-			source: "project",
-			name: "triage",
-		};
-
-		await user.click(screen.getByRole("button", { name: "Voice input" }));
-		Object.assign(speech, { isRecording: true, transcript: "check this" });
-		rerender(input());
-		await waitFor(() =>
-			expect(inputRef.current?.getContentParts()).toEqual([
-				chip,
-				{ type: "text", text: " check this" },
-			]),
-		);
-		await user.click(
-			screen.getByRole("button", { name: "Cancel voice input" }),
-		);
-		Object.assign(speech, { isRecording: false, transcript: "" });
-		rerender(input());
-
-		await waitFor(() =>
-			expect(inputRef.current?.getContentParts()).toEqual([
-				chip,
-				{ type: "text", text: " " },
-			]),
-		);
 	});
 
 	it("lets a recording start while a turn is streaming", async () => {

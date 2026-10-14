@@ -1509,7 +1509,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<ChatMessageInput
 						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
@@ -1522,7 +1521,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
+						// Stays editable during a send, so the user can write the
+						// next message. handleSubmit does not send while isLoading.
+						disabled={isReadOnly}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
 						projectId={chatProjectId}
