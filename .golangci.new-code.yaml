@@ -1,0 +1,49 @@
+# Lint rules that the existing tree does not pass yet. `make lint/go/new-code`
+# runs this config with --new-from-merge-base, so it only reports issues on
+# lines changed since the merge base. Keep the full-tree rules in
+# .golangci.yaml.
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - forbidigo
+    - nolintlint
+  settings:
+    errcheck:
+      check-blank: true
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^time\.Sleep$
+          pkg: ^time$
+          msg: use a quartz mock clock or testutil.Eventually instead of sleeping in tests
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      # Unused directives can only be detected with every linter from
+      # .golangci.yaml enabled, which this config does not do.
+      allow-unused: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+      - linters:
+          - forbidigo
+        path-except: _test\.go
+    paths:
+      - scripts/rules.go
+      - node_modules
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

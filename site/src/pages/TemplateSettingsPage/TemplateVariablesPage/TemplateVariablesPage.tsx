@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import {
 	createAndBuildTemplateVersion,
 	templateVersion,
@@ -20,6 +19,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";

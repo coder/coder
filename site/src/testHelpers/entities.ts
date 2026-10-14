@@ -1106,6 +1106,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	start_blocks_login: false,
 	timeout: 0,
 	display_name: "Startup Script",
+	resource_address: "",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -3386,6 +3387,14 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3449,6 +3458,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMCPServerConfigs: true,
+	viewAnyOrganizationSkills: true,
 	createAnyMCPServerConfig: true,
 	updateAnyMCPServerConfig: true,
 	deleteAnyMCPServerConfig: true,
@@ -3496,6 +3506,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMCPServerConfigs: false,
+	viewAnyOrganizationSkills: false,
 	createAnyMCPServerConfig: false,
 	updateAnyMCPServerConfig: false,
 	deleteAnyMCPServerConfig: false,
@@ -3537,6 +3548,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
 	shareMCPServerConfig: true,
+	viewOrganizationSkills: true,
+	createOrganizationSkill: true,
+	updateOrganizationSkill: true,
+	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3566,6 +3582,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
 	shareMCPServerConfig: false,
+	viewOrganizationSkills: false,
+	createOrganizationSkill: false,
+	updateOrganizationSkill: false,
+	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,
