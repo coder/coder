@@ -244,19 +244,19 @@ const (
 type Event string
 
 const (
-	EventInventoryPending              Event = "migration_inventory_pending"
-	EventInventoryUpToDate             Event = "migration_inventory_up_to_date"
-	EventInventoryDirty                Event = "migration_inventory_dirty"
-	EventLockWaitStarted               Event = "migration_lock_wait_started"
-	EventLockAcquired                  Event = "migration_lock_acquired"
-	EventRunStarted                    Event = "migration_run_started"
-	EventRunApplied                    Event = "migration_run_applied"
-	EventHeartbeat                     Event = "migration_heartbeat"
-	EventOutcomeCommitted              Event = "migration_outcome_committed"
-	EventOutcomeRolledBack             Event = "migration_outcome_rolled_back"
-	EventOutcomeCommittedBeforeFailure Event = "migration_outcome_committed_before_failure"
-	EventOutcomeUnknown                Event = "migration_outcome_unknown"
-	EventStopSignalReceived            Event = "migration_stop_signal_received"
+	EventInventoryPending              Event = "db_migration_inventory_pending"
+	EventInventoryUpToDate             Event = "db_migration_inventory_up_to_date"
+	EventInventoryDirty                Event = "db_migration_inventory_dirty"
+	EventLockWaitStarted               Event = "db_migration_lock_wait_started"
+	EventLockAcquired                  Event = "db_migration_lock_acquired"
+	EventStepStarted                   Event = "db_migration_step_started"
+	EventStepApplied                   Event = "db_migration_step_applied"
+	EventHeartbeat                     Event = "db_migration_heartbeat"
+	EventOutcomeCommitted              Event = "db_migration_outcome_committed"
+	EventOutcomeRolledBack             Event = "db_migration_outcome_rolled_back"
+	EventOutcomeCommittedBeforeFailure Event = "db_migration_outcome_committed_before_failure"
+	EventOutcomeUnknown                Event = "db_migration_outcome_unknown"
+	EventStopSignalReceived            Event = "db_migration_stop_signal_received"
 )
 
 // Event derives the log event from the outcome itself, so the two can't

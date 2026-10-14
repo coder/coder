@@ -16,6 +16,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+
+	"github.com/coder/coder/v2/buildinfo"
 )
 
 const (
@@ -258,7 +260,7 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 		total := d.total
 		d.mu.Unlock()
 
-		d.logPerMigration(EventRunStarted, "starting database migration",
+		d.logPerMigration(EventStepStarted, "starting database migration",
 			slog.F("version", version), slog.F("name", name),
 			slog.F("position", position), slog.F("total", total))
 
@@ -287,25 +289,33 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 	d.inFlightName = ""
 	d.mu.Unlock()
 
-	d.logPerMigration(EventRunApplied, "database migration applied, pending commit",
+	d.logPerMigration(EventStepApplied, "database migration applied, pending commit",
 		slog.F("version", version), slog.F("name", name),
 		slog.F("position", position), slog.F("total", total),
 		slog.F("duration", duration))
 	return nil
 }
 
-// logPerMigration logs the started/applied lines at DEBUG on an empty
-// database, since a first boot applies every migration, and at INFO
-// otherwise. The inventory and outcome lines are unaffected. event is
-// prepended so it stays the first field regardless of the caller's fields.
+// perMigrationDebugThreshold is the pending count above which per-migration
+// lines demote to DEBUG. A truly empty database always has a pending count
+// well above this (every historical migration is pending), so a fresh
+// install is still covered; a non-empty database that fell behind several
+// releases is covered too, which a plain "is the database empty" check
+// missed.
+const perMigrationDebugThreshold = 25
+
+// logPerMigration logs the started/applied lines at DEBUG when the pending
+// count exceeds perMigrationDebugThreshold, and at INFO otherwise. The
+// inventory and outcome lines are unaffected. event is prepended so it
+// stays the first field regardless of the caller's fields.
 func (d *pgTxnDriver) logPerMigration(event Event, msg string, fields ...slog.Field) {
 	d.mu.Lock()
-	empty := d.fromVersion == database.NilVersion
+	tooManyPending := d.total > perMigrationDebugThreshold
 	d.mu.Unlock()
 
 	fields = append([]slog.Field{slog.F("event", event)}, fields...)
 
-	if empty {
+	if tooManyPending {
 		d.logger.Debug(d.ctx, msg, fields...)
 		return
 	}
@@ -370,7 +380,8 @@ func (d *pgTxnDriver) logPending(version int, dirty bool) {
 	}
 	d.logger.Info(d.ctx, "database migrations required",
 		slog.F("event", EventInventoryPending),
-		slog.F("current_version", version), slog.F("target_version", target), slog.F("pending", total))
+		slog.F("current_version", version), slog.F("target_version", target), slog.F("pending", total),
+		slog.F("coder_version", buildinfo.Version()))
 }
 
 // pendingMigrations walks the source driver from version to count the

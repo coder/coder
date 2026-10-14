@@ -543,3 +543,60 @@ func TestUpWithLoggerSlowButUnblockedMigrationReportsRunning(t *testing.T) {
 	t.Logf("UpWithLogger returned after %s: %v", time.Since(start), err)
 	require.NoError(t, err)
 }
+
+// TestUpWithLoggerManyPendingDemotesToDebug confirms per-migration lines
+// demote to DEBUG once the pending count exceeds perMigrationDebugThreshold,
+// even on a database that is not empty. A plain "is the database empty"
+// check misses this: a database that fell behind by enough releases has a
+// large pending count too, without ever being empty. Real evidence for
+// this: a genuine 139-migration upgrade in testing logged all 278
+// per-migration lines at INFO, 94% of that boot log, because the database
+// was not empty.
+func TestUpWithLoggerManyPendingDemotesToDebug(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db := scenarioDB(t)
+	ctx := context.Background()
+
+	setupLogger := scenarioLogger(t, "many-pending-setup")
+	require.NoError(t, runUp(ctx, db, nil, setupLogger.Named("migrations"), true))
+
+	var currentVersion int
+	require.NoError(t, db.QueryRow("SELECT version FROM schema_migrations").Scan(&currentVersion))
+
+	dir, nextVersion := scratchMigrations(t)
+	require.Equal(t, currentVersion+1, nextVersion)
+
+	const pendingCount = perMigrationDebugThreshold + 1
+	for i := 0; i < pendingCount; i++ {
+		version := nextVersion + i
+		name := fmt.Sprintf("scratch_many_%d", i)
+		writeScratchMigration(t, dir, version, name,
+			fmt.Sprintf("CREATE TABLE %s (id int);\n", name),
+			fmt.Sprintf("DROP TABLE %s;\n", name))
+	}
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelDebug)
+	err := runUp(ctx, db, os.DirFS(dir), logger.Named("migrations"), true)
+	require.NoError(t, err)
+
+	var stepLines, otherLines int
+	for _, e := range sink.Entries() {
+		switch e.Message {
+		case "starting database migration", "database migration applied, pending commit":
+			stepLines++
+			require.Equal(t, slog.LevelDebug, e.Level,
+				"per-migration line %q should demote to DEBUG once pending exceeds the threshold, even on a non-empty database", e.Message)
+		case "database migrations required", "committed database migrations":
+			otherLines++
+			require.Equal(t, slog.LevelInfo, e.Level,
+				"line %q should stay INFO regardless of pending count", e.Message)
+		}
+	}
+	require.Equal(t, pendingCount*2, stepLines, "expected a start+applied pair for each of the %d pending migrations", pendingCount)
+	require.Equal(t, 2, otherLines, "expected exactly the inventory and outcome lines")
+}
