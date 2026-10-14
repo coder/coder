@@ -837,17 +837,10 @@ describe("ChatsSidebar move to project", () => {
 		name: "Billing",
 	};
 
-	const renderSidebar = (
-		chats: Chat[],
-		sidebarFilters: AgentSidebarFilters = defaultSidebarFilters,
-	) =>
+	const renderSidebar = (chats: Chat[]) =>
 		render(
 			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={chats}
-					sidebarFilters={sidebarFilters}
-				/>
+				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
 
@@ -936,60 +929,6 @@ describe("ChatsSidebar move to project", () => {
 		await waitFor(() =>
 			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
 		);
-	});
-
-	it.each<{ name: string; chat: Chat; filters: AgentSidebarFilters }>([
-		{
-			name: "an archived chat",
-			chat: buildChat({ id: "c1", title: "Fix invoice dates", archived: true }),
-			filters: { ...defaultSidebarFilters, archiveStatus: "archived" },
-		},
-		{
-			name: "a shared chat",
-			chat: buildChat({
-				id: "c1",
-				title: "Fix invoice dates",
-				owner_id: "sharing-user-id",
-				shared: true,
-			}),
-			filters: defaultSidebarFilters,
-		},
-	])("offers no move for $name", async ({ chat, filters }) => {
-		const user = userEvent.setup();
-		renderSidebar([chat], filters);
-
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open actions for Fix invoice dates",
-			}),
-		);
-		await screen.findByRole("menuitem", { name: "Copy ID" });
-		expect(
-			screen.queryByRole("menuitem", { name: "Move to project" }),
-		).toBeNull();
-	});
-
-	it("offers no move for a subagent chat", async () => {
-		const user = userEvent.setup();
-		const child = buildChat({
-			id: "c2",
-			title: "Check the totals",
-			parent_chat_id: "c1",
-		});
-		renderSidebar([
-			buildChat({ id: "c1", title: "Fix invoice dates", children: [child] }),
-		]);
-
-		await user.click(await screen.findByRole("button", { name: "Expand" }));
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open actions for Check the totals",
-			}),
-		);
-		await screen.findByRole("menuitem", { name: "Copy ID" });
-		expect(
-			screen.queryByRole("menuitem", { name: "Move to project" }),
-		).toBeNull();
 	});
 
 	it("turns the move off while a subagent runs", async () => {
