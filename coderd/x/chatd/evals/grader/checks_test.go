@@ -576,6 +576,30 @@ func TestChecks(t *testing.T) {
 		"skipped-detach-then-quiet-commit": executeTranscript(t, "Done.",
 			execCall{"git switch -qc fix", "", 0},
 			execCall{"test -f ready || git checkout -q --detach; git commit -qam fix", "", 0}),
+		// A glob operand is a pathspec, which leaves main checked out.
+		"glob-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git checkout -q 'billing/*' && git commit -qam fix", "", 0}),
+		// :/billing checks out the newest commit whose message matches
+		// billing, as a detached HEAD, when one does.
+		"message-search-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git switch -qc fix", "", 0},
+			execCall{"git checkout -q ':/billing' && git commit -qam fix", "", 0}),
+		"glob-revision-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git switch -qc fix", "", 0},
+			execCall{"git checkout -q 'HEAD^{/fix.*}' && git commit -qam fix", "", 0}),
+		// git checkout - goes back to fix after a detached HEAD, and to
+		// the branch before fix after a pathspec checkout.
+		"message-search-checkout-and-back-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git switch -qc fix", "", 0},
+			execCall{"git checkout -q ':/billing'; git checkout -q -; git commit -qam fix", "", 0}),
+		"skipped-message-search-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git switch -qc fix", "", 0},
+			execCall{"test -f ready || git checkout -q ':/billing'; git commit -qam fix", "", 0}),
+		// With --pathspec-from-file, the operand is the tree the listed
+		// files come from, not a branch to switch to.
+		"pathspec-file-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{"git switch -qc fix", "", 0},
+			execCall{"git checkout -q main --pathspec-from-file=paths.txt && git commit -qam fix", "", 0}),
 		"switch-then-skipped-commit": executeTranscript(t, "Done.",
 			execCall{"git switch -qc fix; true || git commit -qam fix", "", 0}),
 		// A commit the shell skipped on main takes no summary line from a
@@ -886,6 +910,12 @@ func TestChecks(t *testing.T) {
 		{"quiet commit after a skipped switch to main", "skipped-switch-to-main-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"quiet commit after a skipped switch to the previous branch", "skipped-switch-to-the-previous-branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"quiet commit after a skipped detach", "skipped-detach-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit on main after checking out a glob", "glob-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a message search checkout", "message-search-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after checking out a revision with a glob", "glob-revision-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a message search checkout and a return", "message-search-checkout-and-back-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a skipped message search checkout", "skipped-message-search-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after checking out files from main", "pathspec-file-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, true},
 		{"commit the shell skipped after a switch", "switch-then-skipped-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"commit the shell skipped on main", "skipped-commit-on-main-then-feature-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"search output read from the background", "search-read-from-the-background", "", nil, `{"type":"execute_matches","pattern":"^grep\\b.*calc_total","output":"calc_total"}`, true},

@@ -371,6 +371,15 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"checkout of a top pathspec", "git checkout -q ':(top)billing'", true},
 		{"checkout of a :/ pathspec", "git checkout ':/billing'", true},
 		{"checkout of an exclude pathspec", "git checkout -q ':!docs'", true},
+		// No branch name holds a glob character either, and
+		// --pathspec-from-file reads pathspecs from a file.
+		{"checkout of a ** pathspec", "git checkout -q 'billing/**'", true},
+		{"checkout of a ? glob", "git checkout 'billing/invoice.p?'", true},
+		{"checkout of a bracket glob", "git checkout -q 'billing/invoice.p[y]'", true},
+		{"checkout of a negated bracket glob", "git checkout -q 'billing/[^x]*'", true},
+		{"checkout of a branch and a glob", "git checkout main 'billing/*'", true},
+		{"checkout --pathspec-from-file", "git checkout --pathspec-from-file=paths.txt", true},
+		{"checkout of a tree with --pathspec-from-file", "git checkout main --pathspec-from-file paths.txt", true},
 		{"checkout -bf names the branch f", "git checkout -bf main", false},
 		{"checkout -tf reads f as the track mode", "git checkout -tf main", false},
 		{"clean -n with an attached exclude pattern", "git clean -n -ef", false},

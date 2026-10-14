@@ -1641,14 +1641,15 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 }
 
 // checkoutDiscards reports whether a git checkout overwrites working
-// tree files: with --, -f, --ours (-2), or --theirs (-3), or with an
-// operand of ., one shaped like a file or directory (restoredPath), or
-// one that names a path in keep or a directory above one, which git
-// checkout restores from the index. A bare directory name such as billing
-// reads as a branch by its shape, so only keep tells it apart. The name
-// after -b, -B, or --orphan is a new branch, not an operand.
+// tree files: with --, -f, --ours (-2), --theirs (-3), or
+// --pathspec-from-file, or with an operand of ., one shaped like a file
+// or directory (restoredPath), or one that names a path in keep or a
+// directory above one, which git checkout restores from the index. A
+// bare directory name such as billing reads as a branch by its shape, so
+// only keep tells it apart. The name after -b, -B, or --orphan is a new
+// branch, not an operand.
 func checkoutDiscards(g gitArgs, keep []string) bool {
-	if g.EndOfOptions || g.has("f23", "--force", "--ours", "--theirs") {
+	if g.EndOfOptions || g.has("f23", "--force", "--ours", "--theirs", "--pathspec-from-file") {
 		return true
 	}
 	return slices.ContainsFunc(g.Operands, func(op string) bool {
@@ -1714,17 +1715,19 @@ var (
 	commitOperand = regexp.MustCompile(`^[0-9a-f]{7,40}$|[~^]|@\{`)
 	// restoredPath matches git checkout operands that look like files or
 	// directories, which git checkout restores without switching
-	// branches, and pathspecs with magic such as :(top)billing or :/billing.
-	// A branch name cannot hold a colon or end in a slash.
-	restoredPath = regexp.MustCompile(`^\./|^:|\.[A-Za-z]{1,4}$|/$`)
+	// branches: pathspecs with magic such as :(top)billing, globs such as
+	// billing/*, and paths. A branch name cannot hold a colon or a glob
+	// character, or end in a slash.
+	restoredPath = regexp.MustCompile(`^\./|^:|[*?\[]|\.[A-Za-z]{1,4}$|/$`)
 )
 
 // branchSwitch reports how a command changes the checked-out branch:
 // the new branch name (detachedHead for -d, --detach, or a commit
-// operand, previousBranch for - or @{-1}), and whether the command
-// switched at all: HEAD and @ name the current branch, which git checkout
-// keeps and git switch refuses. Options are read as git reads them
-// (parseGitArgs), so -qbfix creates fix.
+// operand, previousBranch for - or @{-1}, unknownBranch for an operand
+// that git may read as a commit or as a pathspec), and whether the
+// command switched at all: HEAD and @ name the current branch, which git
+// checkout keeps and git switch refuses. Options are read as git reads
+// them (parseGitArgs), so -qbfix creates fix.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
@@ -1743,7 +1746,7 @@ func branchSwitch(c shellCommand) (string, bool) {
 	if b, ok := g.value(create, "--create", "--force-create", "--orphan"); ok {
 		return b, b != ""
 	}
-	if g.EndOfOptions {
+	if g.EndOfOptions || g.has("", "--pathspec-from-file") {
 		return "", false
 	}
 	if slices.Contains(g.Operands, "-") {
@@ -1762,6 +1765,12 @@ func branchSwitch(c shellCommand) (string, bool) {
 	}
 	if sub == "checkout" {
 		switch {
+		case strings.HasPrefix(op, ":/") || strings.ContainsAny(op, "*?[") && commitOperand.MatchString(op):
+			// git checks out the commit that a revision such as :/billing
+			// (the newest commit whose message matches billing) or
+			// HEAD^{/fix.*} names, and reads it as a pathspec when it
+			// names none.
+			return unknownBranch, true
 		case restoredPath.MatchString(op):
 			return "", false
 		case commitOperand.MatchString(op):

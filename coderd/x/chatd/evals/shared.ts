@@ -283,7 +283,10 @@ const hiddenTestEnv: Record<string, string> = {
  * tests/__init__.py, a TestMain that never calls m.Run, or
  * process.exit(0) in an imported module does, or skip the hidden tests.
  * So the output must also report each hidden test passing (passReports)
- * and match golden.json's reports, if any.
+ * and match golden.json's reports, if any. Code written to print those
+ * lines itself still passes: it runs in the test process and can read
+ * whatever the hidden tests can, so no check here stops an agent that
+ * attacks its grader (see the README's security model).
  */
 export function hiddenTestScript(goldenDir: URL): string {
   const root = fileURLToPath(goldenDir);

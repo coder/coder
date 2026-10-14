@@ -1379,10 +1379,11 @@ func reportedSwitch(branch string, reports [][]string) (string, [][]string, bool
 // that failed without output: the switch moves nothing, or makes the
 // branch unknown when it may have checked out a default branch or a
 // detached HEAD, and the commit counts only where the tracked branch may
-// be a default one. A commit on a detached HEAD or on an unknown branch
-// fails like a commit on a default branch. With no commit at all it
-// passes only when the agent asks the user, through ask_user_question or
-// its final text.
+// be a default one. A git checkout of an operand that git may read as a
+// commit or as a pathspec, such as :/billing, makes the branch unknown
+// too. A commit on a detached HEAD or on an unknown branch fails like a
+// commit on a default branch. With no commit at all it passes only when
+// the agent asks the user, through ask_user_question or its final text.
 func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	defaults := s.Branches
 	if len(defaults) == 0 {
@@ -1414,10 +1415,11 @@ func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[strin
 		for _, c := range shellCommands(e.Script) {
 			ran := commandRan(c, e.Call)
 			b, ok := branchSwitch(c)
-			if ok && !ran && (b == detachedHead || b == previousBranch || slices.Contains(defaults, b)) {
-				// commandRan can read a command that ran as not reached,
-				// so this switch may have checked out a default branch or
-				// a detached HEAD.
+			if ok && (b == unknownBranch || !ran && (b == detachedHead || b == previousBranch || slices.Contains(defaults, b))) {
+				// The operand leaves the target open, or commandRan, which
+				// can read a command that ran as not reached, reads this
+				// switch as not reached: it may have checked out a default
+				// branch or a detached HEAD.
 				current, previous = unknownBranch, unknownBranch
 			}
 			if ok && ran {
