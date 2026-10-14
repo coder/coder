@@ -14,7 +14,7 @@ guide.
 
 ## Set up metrics
 
-To set up metrics monitoring, please read our
+To set up metrics monitoring, read our
 [Prometheus integration guide](../integrations/prometheus.md). The following
 links point to relevant sections there.
 

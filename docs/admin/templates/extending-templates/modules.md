@@ -51,7 +51,7 @@ across templates. Some of the modules we publish are,
    [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
 6. [`vault-github`](https://registry.coder.com/modules/coder/vault-github)
 
-For a full list of available modules please check
+For a full list of available modules, check
 [Coder module registry](https://registry.coder.com/modules).
 
 ## Module caching

@@ -10,7 +10,7 @@ For other security tips, visit our guide to
 ## Security Advisories
 
 > [!CAUTION]
-> If you discover a vulnerability in Coder, please do not hesitate to report it
+> If you discover a vulnerability in Coder, report it
 > to us by following the [security policy](../../../SECURITY.md).
 
 Security advisories are published on the

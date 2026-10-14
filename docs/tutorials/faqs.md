@@ -497,7 +497,7 @@ It is because, more than likely, the supported OS of either the container image
 or VM/VPS doesn't have the proper C libraries to run the VS Code Server. For
 instance, Alpine is not supported at all. If so, you need to find a container
 image or supported OS for the VS Code Server. For more information on OS
-prerequisites for Linux, please look at the VSCode docs.
+prerequisites for Linux, look at the VSCode docs.
 <https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?

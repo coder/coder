@@ -6,7 +6,7 @@ title: Feature stages
 Some Coder features are released in feature stages before they are generally
 available.
 
-If you encounter an issue with any Coder feature, please submit a
+If you encounter an issue with any Coder feature, submit a
 [GitHub issue](https://github.com/coder/coder/issues) or join the
 [Coder Discord](https://discord.gg/coder).
 
@@ -172,7 +172,7 @@ some features may be incomplete.
 
 We keep documentation about beta features up-to-date with the latest
 information, including planned features, limitations, and workarounds. If you
-encounter an issue, please contact your
+encounter an issue, contact your
 [Coder account team](https://coder.com/contact), reach out on
 [Discord](https://discord.gg/coder), or create a
 [GitHub issues](https://github.com/coder/coder/issues) if there isn't one
@@ -193,7 +193,7 @@ available in the documentation.
 All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
 They have been tested, are stable, and are enabled by default.
 
-If your Coder license includes an SLA, please consult it for an outline of
+If your Coder license includes an SLA, consult it for an outline of
 specific expectations.
 
 For support, consult our knowledgeable and growing community on
@@ -206,7 +206,7 @@ We intend [Coder documentation](https://github.com/coder/coder/blob/main/contrib
 [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth)
 and all features should have some form of complete documentation that outlines
 how to use or implement a feature. If you discover an error or if you have a
-suggestion that could improve the documentation, please
+suggestion that could improve the documentation,
 [submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
 
 Some GA features can be disabled for air-gapped deployments. Consult the
