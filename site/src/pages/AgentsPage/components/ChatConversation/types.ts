@@ -75,6 +75,11 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	/**
+	 * After each content part, the index of the newest block, or -1 while there
+	 * is none, so a part that renders nothing maps to the block before it.
+	 */
+	partBlockIndices: number[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
 };

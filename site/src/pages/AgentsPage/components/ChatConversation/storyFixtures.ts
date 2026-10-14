@@ -116,11 +116,11 @@ export const workingFixtureTime = (seconds: number) =>
 
 /** Two completed steps that ran for the twelve seconds before the pinned clock. */
 export const MockWorkingBlock: WorkingBlock = {
-	key: "working:through:message:5",
+	key: "working:through:message:4",
 	liveKey: "working:live:message:1:0",
 	slices: [
-		{ rowIndex: 1, pieces: { start: 0, end: 1 }, key: "message:2" },
-		{ rowIndex: 2, pieces: { start: 0, end: 1 }, key: "message:4" },
+		{ rowIndex: 1, pieceRange: { start: 0, end: 1 }, key: "message:2" },
+		{ rowIndex: 2, pieceRange: { start: 0, end: 1 }, key: "message:4" },
 	],
 	memberIds: [2, 4],
 	pieceKeys: ["2:0", "4:0"],

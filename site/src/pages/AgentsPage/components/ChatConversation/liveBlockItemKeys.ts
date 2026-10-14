@@ -3,7 +3,7 @@ import type { WorkingBlock } from "./workingBlockGrouping";
 type LiveBlockIdentity = {
 	itemKey: string;
 	firstPieceKey: string | undefined;
-	livePiece: number | undefined;
+	liveWorkOrdinal: number | undefined;
 	streamStartedAt: string | undefined;
 };
 
@@ -22,11 +22,12 @@ const continuesLiveBlock = (
 		return false;
 	}
 
-	// Output can close a live-only block mid-stream and the next work opens
-	// another, so the stream's blocks tell apart by their piece of it.
+	// Output can close a live-only block mid-stream while the next work opens
+	// another, so blocks of one stream match by their work ordinal in it.
 	if (identity.streamStartedAt === streamStartedAt) {
 		return (
-			identity.livePiece !== undefined && block.livePiece === identity.livePiece
+			identity.liveWorkOrdinal !== undefined &&
+			block.liveWorkOrdinal === identity.liveWorkOrdinal
 		);
 	}
 
@@ -89,18 +90,18 @@ export const reconcileLiveBlockKeys = (
 			nextItemKeys = new Map(nextItemKeys).set(block.key, itemKey);
 		}
 
-		const firstPieceKey = block.pieceKeys[0];
+		const firstPieceKey = block.pieceKeys.at(0);
 		if (
 			block.isLive &&
 			(nextIdentity?.itemKey !== itemKey ||
 				nextIdentity.firstPieceKey !== firstPieceKey ||
-				nextIdentity.livePiece !== block.livePiece ||
+				nextIdentity.liveWorkOrdinal !== block.liveWorkOrdinal ||
 				nextIdentity.streamStartedAt !== streamStartedAt)
 		) {
 			nextIdentity = {
 				itemKey,
 				firstPieceKey,
-				livePiece: block.livePiece,
+				liveWorkOrdinal: block.liveWorkOrdinal,
 				streamStartedAt,
 			};
 		}
