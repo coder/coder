@@ -3,9 +3,13 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -135,5 +139,58 @@ func TestProvisionerKeys(t *testing.T) {
 		require.Equal(t, owner.OrganizationID, created.OrganizationID)
 		require.Equal(t, "bar", created.Tags["foo"])
 		require.NoError(t, provisionerkey.Validate(created.Key))
+	})
+
+	t.Run("CreateJSONMetadataUnavailable", func(t *testing.T) {
+		t.Parallel()
+
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+
+		// Fail only the list call, so the key is created but its metadata
+		// lookup fails.
+		proxy := httputil.NewSingleHostReverseProxy(client.URL)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/provisionerkeys") {
+				http.Error(w, "list unavailable", http.StatusInternalServerError)
+				return
+			}
+			proxy.ServeHTTP(w, r)
+		}))
+		t.Cleanup(srv.Close)
+		proxyURL, err := client.URL.Parse(srv.URL)
+		require.NoError(t, err)
+		proxyClient := codersdk.New(proxyURL, codersdk.WithSessionToken(orgAdminClient.SessionToken()))
+
+		name := "json-key-no-metadata"
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, conf := newCLI(
+			t,
+			"provisioner", "keys", "create", name, "--tag", "foo=bar", "--output", "json",
+		)
+		clitest.SetupConfig(t, proxyClient, conf)
+
+		var stdout, stderr bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var created struct {
+			codersdk.ProvisionerKey
+			Key string `json:"key"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &created))
+		require.Equal(t, name, created.Name)
+		require.Equal(t, uuid.Nil, created.ID)
+		require.Equal(t, "bar", created.Tags["foo"])
+		require.NoError(t, provisionerkey.Validate(created.Key))
+		require.Contains(t, stderr.String(), "Could not fetch metadata")
 	})
 }
