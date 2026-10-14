@@ -88,7 +88,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 6 rows in the table above name 9 checks, because the markdownlint row bundles 4, and those 9 checks cover 8 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 7 rows in the table above name 10 checks, because the markdownlint row bundles 4, and those 10 checks cover 9 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
