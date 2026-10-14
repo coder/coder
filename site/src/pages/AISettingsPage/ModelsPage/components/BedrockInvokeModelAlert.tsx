@@ -21,7 +21,9 @@ export const BedrockInvokeModelAlert: React.FC<
 				the requested model with the model configured on the provider. To choose
 				the model per request, switch the provider to the Mantle protocol.{" "}
 				<Link
-					href={docs("/ai-coder/ai-gateway/providers#invokemodel")}
+					href={docs(
+						"/ai-coder/ai-gateway/providers#how-invokemodel-selects-the-model",
+					)}
 					target="_blank"
 					rel="noreferrer"
 				>

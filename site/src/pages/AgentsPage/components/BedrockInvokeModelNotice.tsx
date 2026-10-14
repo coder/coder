@@ -27,7 +27,9 @@ export const BedrockInvokeModelNotice: React.FC<
 				the model configured on the provider instead of{" "}
 				{modelOption.displayName}.{" "}
 				<Link
-					href={docs("/ai-coder/ai-gateway/providers#invokemodel")}
+					href={docs(
+						"/ai-coder/ai-gateway/providers#how-invokemodel-selects-the-model",
+					)}
 					target="_blank"
 					rel="noreferrer"
 					size="sm"
