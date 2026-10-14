@@ -1,6 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
-import { getPartBlockIndices } from "./messageParsing";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -13,8 +12,12 @@ import type {
 export type RowSlice = {
 	rowIndex: number;
 	/** Half-open range of the row's pieces from `splitRowPieces`. */
-	pieces?: { start: number; end: number };
-	/** Unique among the slices of one row, and the row key for its first. */
+	pieceRange?: { start: number; end: number };
+	/**
+	 * The row key, plus an ordinal counted separately over the row's work
+	 * slices and its output runs. The first of each keeps the bare key, so a
+	 * row that splits does not remount its reasoning or streaming text.
+	 */
 	key: string;
 };
 
@@ -26,8 +29,11 @@ export type WorkingBlock = {
 	 * while live survives.
 	 */
 	liveKey: string;
-	/** One work piece per member row, oldest first. */
-	slices: RowSlice[];
+	/**
+	 * Each member row's work piece, oldest first, or an empty slice for the
+	 * stream before a step.
+	 */
+	slices: Required<RowSlice>[];
 	/**
 	 * Persisted member message IDs, oldest first. A merged read_file row
 	 * contributes every message it merged, so unlike row keys the list grows
@@ -35,12 +41,12 @@ export type WorkingBlock = {
 	 */
 	memberIds: number[];
 	/**
-	 * Durable `${messageId}:${workPiece}` keys of the persisted slices, which
-	 * survive paging and the block's own completion.
+	 * Durable `${messageId}:${workOrdinal}` keys of the persisted slices,
+	 * which survive paging and the block's own completion.
 	 */
 	pieceKeys: string[];
-	/** The work piece ordinal of the block's slice of the live row. */
-	livePiece?: number;
+	/** The work ordinal of the block's slice of the live row. */
+	liveWorkOrdinal?: number;
 	/** Distinct visible tools plus web searches, not rows. */
 	stepCount: number;
 	isLive: boolean;
@@ -52,11 +58,17 @@ export type WorkingBlock = {
 };
 
 /** The timeline in render order: rows, parts of rows, and working blocks. */
-export type TimelineItem =
+type TimelineItem =
 	| { type: "slice"; slice: RowSlice }
 	| { type: "block"; block: WorkingBlock };
 
-type WorkingBlockLayout = {
+/** A row outside every working block, which renders whole. */
+export const wholeRowItem = (
+	row: TimelineRow,
+	rowIndex: number,
+): TimelineItem => ({ type: "slice", slice: { rowIndex, key: row.key } });
+
+export type WorkingBlockLayout = {
 	blocks: WorkingBlock[];
 	items: TimelineItem[];
 };
@@ -83,10 +95,8 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * A run of a row's visible blocks. Work, the reasoning, tool calls, and
- * citations, folds into a working block. Output, the text and files the
- * assistant addresses to the user, renders in the transcript and closes the
- * block before it.
+ * Work (reasoning, tool calls, citations) folds into a working block. Output
+ * (text, files) renders in the transcript and closes the block before it.
  */
 type RowPiece = {
 	kind: "work" | "output";
@@ -103,24 +113,28 @@ type RowPieces = {
 };
 
 /**
- * The text item a block continues: the output's last text, with nothing but
- * citations between it and the block.
+ * The text item a block continues: the output's last text, when no search
+ * followed it and only citations sit between it and the block.
  */
 const textBefore = (piece: PieceDraft | undefined, previousIndex: number) => {
-	const item = piece?.kind === "output" ? piece.items.at(-1) : undefined;
-	const block = item?.block;
-	return item &&
-		block?.type === "response" &&
+	if (piece?.kind !== "output") {
+		return undefined;
+	}
+	const item = piece.items[piece.items.length - 1];
+	const { block } = item;
+	return block.type === "response" &&
 		!block.beforeProviderTool &&
-		item.indices.at(-1) === previousIndex
-		? { item, block }
+		item.indices[item.indices.length - 1] === previousIndex
+		? { piece, item, block }
 		: undefined;
 };
 
-const splitVisibleBlocks = (
+/** Work and output pieces alternate. */
+export const splitRowPieces = (
 	blocks: readonly RenderBlock[],
-	visible: ReadonlySet<RenderBlock>,
+	tools: readonly MergedTool[],
 ): RowPieces => {
+	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
 	const pieces: PieceDraft[] = [];
 	const push = (kind: RowPiece["kind"], item: PieceItem) => {
 		const last = pieces.at(-1);
@@ -135,7 +149,7 @@ const splitVisibleBlocks = (
 	// citations.
 	let previousIndex = -1;
 	for (const [index, block] of blocks.entries()) {
-		const text = textBefore(pieces.at(-1), previousIndex);
+		const priorText = textBefore(pieces.at(-1), previousIndex);
 		if (block.type !== "sources") {
 			previousIndex = index;
 		}
@@ -143,64 +157,54 @@ const splitVisibleBlocks = (
 			continue;
 		}
 
-		if (block.type === "sources") {
+		if (block.type === "sources" && priorText) {
 			// OpenAI streams citations between the deltas of one text part, so
-			// they fold ahead of the text instead of splitting it.
-			const output = pieces.at(-1);
-			if (text && output) {
-				output.items.pop();
-				if (output.items.length === 0) {
-					pieces.pop();
-				}
-				push("work", { block, indices: [index] });
-				push("output", text.item);
-			} else {
-				push("work", { block, indices: [index] });
+			// they fold ahead of the text, where persisted rows store them,
+			// instead of splitting it.
+			priorText.piece.items.pop();
+			if (priorText.piece.items.length === 0) {
+				pieces.pop();
 			}
-		} else if (block.type === "thinking" || block.type === "tool") {
+			push("work", { block, indices: [index] });
+			push("output", priorText.item);
+		} else if (
+			block.type === "sources" ||
+			block.type === "thinking" ||
+			block.type === "tool"
+		) {
 			push("work", { block, indices: [index] });
 		} else if (
 			block.type === "response" &&
-			text &&
-			(text.block.narration ?? false) === (block.narration ?? false)
+			priorText &&
+			// Parsing keeps narration and answer text apart, so merging does too.
+			Boolean(priorText.block.narration) === Boolean(block.narration)
 		) {
-			text.item.block = { ...block, text: `${text.block.text}${block.text}` };
-			text.item.indices.push(index);
+			priorText.item.block = {
+				...block,
+				text: `${priorText.block.text}${block.text}`,
+			};
+			priorText.item.indices.push(index);
 		} else {
 			push("output", { block, indices: [index] });
 		}
 	}
 
 	const pieceOfBlock = blocks.map(() => -1);
-	return {
-		pieces: pieces.map((piece, pieceIndex) => {
-			for (const item of piece.items) {
-				for (const index of item.indices) {
-					pieceOfBlock[index] = pieceIndex;
-				}
+	for (const [pieceIndex, { items }] of pieces.entries()) {
+		for (const { indices } of items) {
+			for (const index of indices) {
+				pieceOfBlock[index] = pieceIndex;
 			}
-			return {
-				kind: piece.kind,
-				blocks: piece.items.map(({ block }) => block),
-			};
-		}),
+		}
+	}
+	return {
+		pieces: pieces.map(({ kind, items }) => ({
+			kind,
+			blocks: items.map(({ block }) => block),
+		})),
 		pieceOfBlock,
 	};
 };
-
-/**
- * Splits a row's visible blocks into alternating work and output pieces.
- * Citations right after text fold ahead of it, where persisted rows store
- * them.
- */
-export const splitRowPieces = (
-	blocks: readonly RenderBlock[],
-	tools: readonly MergedTool[],
-): RowPiece[] =>
-	splitVisibleBlocks(
-		blocks,
-		new Set(getVisibleContent(blocks, tools).visibleBlocks),
-	).pieces;
 
 /**
  * Pieces of a row that can fold, or undefined for a row that never folds and
@@ -230,9 +234,7 @@ const getRowPieces = (
 
 	const { visibleBlocks, visibleTools } = getVisibleContent(blocks, tools);
 	if (visibleBlocks.length === 0) {
-		return row.type === "live"
-			? { pieces: [], pieceOfBlock: blocks.map(() => -1) }
-			: undefined;
+		return row.type === "live" ? splitRowPieces(blocks, tools) : undefined;
 	}
 
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
@@ -248,7 +250,7 @@ const getRowPieces = (
 		return undefined;
 	}
 
-	return splitVisibleBlocks(blocks, new Set(visibleBlocks));
+	return splitRowPieces(blocks, tools);
 };
 
 /**
@@ -257,12 +259,12 @@ const getRowPieces = (
  * work started.
  */
 const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
-	const timestamps =
-		part.type === "reasoning"
-			? [part.created_at, part.completed_at]
-			: part.type === "tool-call" || part.type === "tool-result"
-				? [part.created_at]
-				: [];
+	let timestamps: (string | undefined)[] = [];
+	if (part.type === "reasoning") {
+		timestamps = [part.created_at, part.completed_at];
+	} else if (part.type === "tool-call" || part.type === "tool-result") {
+		timestamps = [part.created_at];
+	}
 	return timestamps
 		.filter((timestamp) => timestamp !== undefined)
 		.map((timestamp) => Date.parse(timestamp));
@@ -271,8 +273,16 @@ const getPartTimestamps = (part: TypesGen.ChatMessagePart): number[] => {
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
+type DraftSlice = {
+	rowIndex: number;
+	start: number;
+	end: number;
+	/** The slice's ordinal among its row's work pieces. */
+	workOrdinal: number;
+};
+
 type Draft = {
-	slices: { rowIndex: number; start: number; end: number }[];
+	slices: DraftSlice[];
 	toolIds: Set<string>;
 	sourceBlocks: number;
 	searches: number;
@@ -284,11 +294,9 @@ type Draft = {
 };
 
 /**
- * Folds consecutive work into working blocks. Any output, even a sentence
- * between two tool calls of one step, closes the open block, and the next
- * work opens a new one below it. Timestamps come from the raw entries,
- * because the timeline rows already dropped tool-result messages and merged
- * read_file runs.
+ * Any output, even a sentence between two tool calls of one step, closes the
+ * open block. Timestamps come from the raw entries, because the timeline rows
+ * already dropped tool-result messages and merged read_file runs.
  */
 export const groupWorkingBlocks = (
 	rows: readonly TimelineRow[],
@@ -320,10 +328,11 @@ export const groupWorkingBlocks = (
 		// The empty stream before each step extends a block but never starts
 		// one, so a turn's first moments keep the thinking indicator.
 		if (split.pieces.length === 0 && open) {
-			open.slices.push({ rowIndex, start: 0, end: 0 });
+			open.slices.push({ rowIndex, start: 0, end: 0, workOrdinal: 0 });
 			open.containsLiveRow = true;
 		}
 
+		let workOrdinal = 0;
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
 			if (piece.kind === "output") {
 				if (open) {
@@ -349,7 +358,13 @@ export const groupWorkingBlocks = (
 				drafts.push(open);
 			}
 
-			open.slices.push({ rowIndex, start: pieceIndex, end: pieceIndex + 1 });
+			open.slices.push({
+				rowIndex,
+				start: pieceIndex,
+				end: pieceIndex + 1,
+				workOrdinal,
+			});
+			workOrdinal += 1;
 			open.containsLiveRow ||= row.type === "live";
 			pieceDrafts[rowIndex][pieceIndex] = open;
 			for (const block of piece.blocks) {
@@ -364,53 +379,31 @@ export const groupWorkingBlocks = (
 		openAfter[rowIndex] = open;
 	}
 
-	// Work that rendered nothing, like a search without citations, counts
-	// toward the block of the nearest visible work before it in its row, or
-	// right after the output before it. Before the row's first block it
-	// counts toward the block that row continues.
-	const getSlotDraft = (
+	// Work that rendered nothing joins the block of the nearest visible block
+	// before it in its row if that is work, else of the nearest one after it.
+	// Failing both, work first in its row joins the block the row continues.
+	const getDraftAtBlock = (
 		rowIndex: number,
 		blockIndex: number,
 	): Draft | undefined => {
-		const split = rowPieces[rowIndex];
-		if (!split) {
+		const pieceOfBlock = rowPieces[rowIndex]?.pieceOfBlock;
+		if (!pieceOfBlock) {
 			return undefined;
 		}
-		const { pieces, pieceOfBlock } = split;
-		const draftAt = (index: number) => {
-			const piece = pieceOfBlock[index];
-			return pieces[piece].kind === "work"
-				? pieceDrafts[rowIndex][piece]
-				: undefined;
-		};
-		const next = pieceOfBlock.findIndex(
-			(piece, index) => index > blockIndex && piece !== -1,
+		const draftAt = (index: number) =>
+			pieceDrafts[rowIndex][pieceOfBlock[index]];
+		const nextBlockIndex = pieceOfBlock.findIndex(
+			(pieceIndex, index) => index > blockIndex && pieceIndex !== -1,
 		);
-		const draftAfter = next === -1 ? undefined : draftAt(next);
-		const previous = pieceOfBlock.findLastIndex(
-			(piece, index) => index <= blockIndex && piece !== -1,
+		const draftAfter =
+			nextBlockIndex === -1 ? undefined : draftAt(nextBlockIndex);
+		const atOrBeforeIndex = pieceOfBlock.findLastIndex(
+			(pieceIndex, index) => index <= blockIndex && pieceIndex !== -1,
 		);
-		if (previous === -1) {
+		if (atOrBeforeIndex === -1) {
 			return draftAfter ?? openAtStart[rowIndex];
 		}
-		return draftAt(previous) ?? draftAfter;
-	};
-
-	const getRowDraft = (
-		rowIndex: number,
-		entry: ParsedMessageEntry,
-	): ((partIndex: number) => Draft | undefined) => {
-		// A merged read_file row is all work, and its blocks come from
-		// several messages, so part positions do not apply.
-		if (rowPieces[rowIndex]?.pieces.every((piece) => piece.kind === "work")) {
-			return () => pieceDrafts[rowIndex][0];
-		}
-
-		let partBlockIndices: number[] | undefined;
-		return (partIndex) => {
-			partBlockIndices ??= getPartBlockIndices(entry.message.content);
-			return getSlotDraft(rowIndex, partBlockIndices[partIndex]);
-		};
+		return draftAt(atOrBeforeIndex) ?? draftAfter;
 	};
 
 	const rowOfMessage = new Map<number, number>();
@@ -420,41 +413,56 @@ export const groupWorkingBlocks = (
 		}
 	}
 
-	let previousRow: number | undefined;
+	let previousRowIndex: number | undefined;
 	for (const entry of entries) {
 		const rowIndex = rowOfMessage.get(entry.message.id);
 		const parts = entry.message.content ?? [];
 		let getDraft: (partIndex: number) => Draft | undefined;
 		if (rowIndex !== undefined) {
-			previousRow = rowIndex;
-			getDraft = getRowDraft(rowIndex, entry);
+			previousRowIndex = rowIndex;
+			// A row of only work is one piece, so every part joins its block. A
+			// merged read_file row relies on this: its blocks come from several
+			// messages, so part positions do not apply.
+			getDraft = rowPieces[rowIndex]?.pieces.every(
+				(piece) => piece.kind === "work",
+			)
+				? () => pieceDrafts[rowIndex][0]
+				: (partIndex) =>
+						getDraftAtBlock(rowIndex, entry.parsed.partBlockIndices[partIndex]);
 		} else {
 			// A hidden entry, like a tool result, counts toward the block open
-			// after the previous row. A search that rendered no row counts
-			// toward the block the next row starts.
-			const nextRow = previousRow === undefined ? 0 : previousRow + 1;
+			// after the previous row. With none open, a search that rendered no
+			// row counts toward the block the next row starts.
+			const nextRowIndex =
+				previousRowIndex === undefined ? 0 : previousRowIndex + 1;
 			const draft =
-				(previousRow === undefined ? undefined : openAfter[previousRow]) ??
+				(previousRowIndex === undefined
+					? undefined
+					: openAfter[previousRowIndex]) ??
 				(parts.some(isProviderToolResult) &&
-				rowPieces[nextRow]?.pieces[0]?.kind === "work"
-					? pieceDrafts[nextRow][0]
+				rowPieces[nextRowIndex]?.pieces.at(0)?.kind === "work"
+					? pieceDrafts[nextRowIndex][0]
 					: undefined);
 			getDraft = () => draft;
 		}
 
 		for (const [partIndex, part] of parts.entries()) {
 			const timestamps = getPartTimestamps(part);
+			// Results, not calls: a step can end with a provider call
+			// unanswered, and the next step issues that call again.
 			const isSearch = isProviderToolResult(part);
 			if (timestamps.length === 0 && !isSearch) {
 				continue;
 			}
 
-			const toolDraft =
-				(part.type === "tool-call" || part.type === "tool-result") &&
-				!part.provider_executed
-					? draftOfTool.get(part.tool_call_id || `${part.type}-${partIndex}`)
+			// A tool's parts join its call's block, even from a later message.
+			const toolId =
+				part.type === "tool-call" || part.type === "tool-result"
+					? part.tool_call_id
 					: undefined;
-			const draft = toolDraft ?? getDraft(partIndex);
+			const draft =
+				(toolId === undefined ? undefined : draftOfTool.get(toolId)) ??
+				getDraft(partIndex);
 			if (!draft) {
 				continue;
 			}
@@ -476,21 +484,21 @@ export const groupWorkingBlocks = (
 			}
 		}
 
-		// The stream's clock starts at its first reasoning or tool call, so it
-		// belongs to the stream's first work. Before any work it belongs to
-		// the block the stream extends, unless a search follows text.
-		const firstWork = liveSplit.pieces.findIndex(
+		// The stream's clock starts at its first reasoning or tool call, a
+		// search included, so it belongs to the first work. Before any work it
+		// belongs to the block the stream extends, unless a search follows text.
+		const firstWorkIndex = liveSplit.pieces.findIndex(
 			(piece) => piece.kind === "work",
 		);
-		const marksSearch = options.liveBlocks.some(
+		const searchLeadInIndex = options.liveBlocks.findLastIndex(
 			(block) => block.type === "response" && block.beforeProviderTool,
 		);
-		const clockDraft =
-			firstWork === -1
-				? marksSearch
-					? undefined
-					: openAtStart[liveRowIndex]
-				: liveDrafts[firstWork];
+		let clockDraft: Draft | undefined;
+		if (firstWorkIndex !== -1) {
+			clockDraft = liveDrafts[firstWorkIndex];
+		} else if (searchLeadInIndex === -1) {
+			clockDraft = openAtStart[liveRowIndex];
+		}
 		const streamStartedAt = options.streamState?.startedAt;
 		if (clockDraft && streamStartedAt !== undefined) {
 			clockDraft.times.push(Date.parse(streamStartedAt));
@@ -499,21 +507,15 @@ export const groupWorkingBlocks = (
 		// Until the step persists, one flag stands in for its searches. The
 		// search sits with its citations, or else after the text it marked.
 		if (options.streamState?.providerToolRan) {
-			const cited = liveSplit.pieces.findIndex(
+			const citedPieceIndex = liveSplit.pieces.findIndex(
 				(piece) =>
 					piece.kind === "work" &&
 					piece.blocks.some((block) => block.type === "sources"),
 			);
 			const searchDraft =
-				cited === -1
-					? getSlotDraft(
-							liveRowIndex,
-							options.liveBlocks.findLastIndex(
-								(block) =>
-									block.type === "response" && block.beforeProviderTool,
-							),
-						)
-					: liveDrafts[cited];
+				citedPieceIndex === -1
+					? getDraftAtBlock(liveRowIndex, searchLeadInIndex)
+					: liveDrafts[citedPieceIndex];
 			if (searchDraft) {
 				searchDraft.searches += 1;
 			}
@@ -529,7 +531,7 @@ export const groupWorkingBlocks = (
 	// Completed reasoning alone stays visible. The live turn folds from its
 	// first reasoning, so thinking never shows and then vanishes once a tool
 	// call arrives, and unfolds only when output follows it without steps.
-	const kept = drafts.filter(
+	const blockDrafts = drafts.filter(
 		(draft) =>
 			getStepCount(draft) > 0 ||
 			(draft.containsLiveRow &&
@@ -537,56 +539,47 @@ export const groupWorkingBlocks = (
 				!draft.followedByOutput),
 	);
 
-	const workOrdinal = (rowIndex: number, pieceIndex: number) =>
-		(rowPieces[rowIndex]?.pieces ?? [])
-			.slice(0, pieceIndex)
-			.filter((piece) => piece.kind === "work").length;
-	const sliceKey = (rowIndex: number, ordinal: number) =>
-		ordinal === 0 ? rows[rowIndex].key : `${rows[rowIndex].key}:${ordinal}`;
-	const lastMessageRowIndex = rows.findLastIndex(
-		(row) => row.type === "message",
-	);
-	const lastDraft = kept.at(-1);
+	const sliceKey = (rowIndex: number, sliceOrdinal: number) =>
+		sliceOrdinal === 0
+			? rows[rowIndex].key
+			: `${rows[rowIndex].key}:${sliceOrdinal}`;
+	// Output persisted after a block completes it even while the chat still
+	// runs; output still streaming does not.
+	const nothingPersistedAfter = ({ rowIndex, end }: DraftSlice) =>
+		rows[rowIndex].type === "live" ||
+		(rowIndex === rows.findLastIndex((row) => row.type === "message") &&
+			end === rowPieces[rowIndex]?.pieces.length);
 	const blockOfPiece: (WorkingBlock | undefined)[][] = rows.map(() => []);
 	const rowInBlock = rows.map(() => false);
 
-	const blocks = kept.map((draft): WorkingBlock => {
+	const blocks = blockDrafts.map((draft, draftIndex): WorkingBlock => {
 		const first = draft.slices[0];
 		const last = draft.slices[draft.slices.length - 1];
-		const lastOrdinal = workOrdinal(last.rowIndex, last.start);
-
-		// Output persisted after the block completes it even while the chat
-		// still runs; output still streaming does not.
 		const isLive =
 			options.isWorking &&
-			draft === lastDraft &&
-			(rows[last.rowIndex].type === "live" ||
-				(last.rowIndex === lastMessageRowIndex &&
-					last.end === rowPieces[last.rowIndex]?.pieces.length));
-
+			draftIndex === blockDrafts.length - 1 &&
+			nothingPersistedAfter(last);
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
-		const throughKey = `working:through:${sliceKey(last.rowIndex, lastOrdinal)}`;
 
 		const block: WorkingBlock = {
-			key: isLive ? liveKey : throughKey,
+			key: isLive
+				? liveKey
+				: `working:through:${sliceKey(last.rowIndex, last.workOrdinal)}`,
 			liveKey,
-			slices: draft.slices.map(({ rowIndex, start, end }) => ({
+			slices: draft.slices.map(({ rowIndex, start, end, workOrdinal }) => ({
 				rowIndex,
-				pieces: { start, end },
-				key: sliceKey(rowIndex, workOrdinal(rowIndex, start)),
+				pieceRange: { start, end },
+				key: sliceKey(rowIndex, workOrdinal),
 			})),
 			memberIds: draft.slices.flatMap(({ rowIndex }) =>
 				rowMessageIds(rows[rowIndex]),
 			),
-			pieceKeys: draft.slices.flatMap(({ rowIndex, start }) =>
-				rowMessageIds(rows[rowIndex]).map(
-					(id) => `${id}:${workOrdinal(rowIndex, start)}`,
-				),
+			pieceKeys: draft.slices.flatMap(({ rowIndex, workOrdinal }) =>
+				rowMessageIds(rows[rowIndex]).map((id) => `${id}:${workOrdinal}`),
 			),
-			livePiece: draft.slices
-				.filter(({ rowIndex }) => rowIndex === liveRowIndex)
-				.map(({ start }) => workOrdinal(liveRowIndex, start))
-				.at(0),
+			liveWorkOrdinal: draft.slices.find(
+				({ rowIndex }) => rowIndex === liveRowIndex,
+			)?.workOrdinal,
 			stepCount: getStepCount(draft),
 			isLive,
 			isPartial:
@@ -609,8 +602,9 @@ export const groupWorkingBlocks = (
 	// each run of them as one slice.
 	const items: TimelineItem[] = [];
 	for (const [rowIndex, row] of rows.entries()) {
-		if (!rowInBlock[rowIndex]) {
-			items.push({ type: "slice", slice: { rowIndex, key: row.key } });
+		const split = rowPieces[rowIndex];
+		if (!rowInBlock[rowIndex] || !split) {
+			items.push(wholeRowItem(row, rowIndex));
 			continue;
 		}
 
@@ -624,7 +618,7 @@ export const groupWorkingBlocks = (
 				type: "slice",
 				slice: {
 					rowIndex,
-					pieces: { start: runStart, end },
+					pieceRange: { start: runStart, end },
 					key: sliceKey(rowIndex, runOrdinal),
 				},
 			});
@@ -632,7 +626,7 @@ export const groupWorkingBlocks = (
 			runOrdinal += 1;
 		};
 
-		const pieceCount = rowPieces[rowIndex]?.pieces.length ?? 0;
+		const pieceCount = split.pieces.length;
 		for (let pieceIndex = 0; pieceIndex < pieceCount; pieceIndex++) {
 			const block = blockOfPiece[rowIndex][pieceIndex];
 			if (!block) {
@@ -642,7 +636,10 @@ export const groupWorkingBlocks = (
 
 			endRun(pieceIndex);
 			const first = block.slices[0];
-			if (first.rowIndex === rowIndex && first.pieces?.start === pieceIndex) {
+			if (
+				first.rowIndex === rowIndex &&
+				first.pieceRange.start === pieceIndex
+			) {
 				items.push({ type: "block", block });
 			}
 		}

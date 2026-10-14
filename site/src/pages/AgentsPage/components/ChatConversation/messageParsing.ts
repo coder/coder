@@ -75,6 +75,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 });
@@ -233,12 +234,15 @@ export const mergeTools = (
 	return merged;
 };
 
-const parseParts = (
+export const parseMessageContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
-	partBlockIndices?: number[],
 ): ParsedMessageContent => {
+	if (!content || content.length === 0) {
+		return emptyParsedMessageContent();
+	}
+
 	const parsed = emptyParsedMessageContent();
-	for (const [index, part] of (content ?? []).entries()) {
+	for (const [index, part] of content.entries()) {
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
@@ -355,26 +359,9 @@ const parseParts = (
 				break;
 			}
 		}
-		partBlockIndices?.push(parsed.blocks.length - 1);
+		parsed.partBlockIndices.push(parsed.blocks.length - 1);
 	}
 	return parsed;
-};
-
-export const parseMessageContent = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): ParsedMessageContent => parseParts(content);
-
-/**
- * For each part, the index of the newest block once that part has parsed, or
- * -1 while there is none, so a part that renders nothing maps to the block
- * before it.
- */
-export const getPartBlockIndices = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): number[] => {
-	const indices: number[] = [];
-	parseParts(content, indices);
-	return indices;
 };
 
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>

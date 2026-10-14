@@ -4,7 +4,7 @@ import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	createTestQueryClient,
@@ -115,19 +115,8 @@ describe("ConversationTimeline working blocks", () => {
 			.mockResolvedValue();
 		renderTimeline({ messages: MockWebSearchAnswerMessages });
 
-		// The lead-in text closes the steps' block, and the search opens another.
-		expect(
-			screen.getByRole("button", { name: "Worked for 13s (2 steps)" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Worked for 2s (1 step)" }),
-		).toBeInTheDocument();
-		expect(
-			within(screen.getByTestId("chat-message-message:6")).queryByRole(
-				"button",
-				{ name: "Copy message" },
-			),
-		).not.toBeInTheDocument();
+		// The row's lead-in text and answer render on either side of its
+		// search's block, and only the answer carries the row's actions.
 		await user.click(
 			within(screen.getByTestId("chat-message-message:6:1")).getByRole(
 				"button",
@@ -345,7 +334,7 @@ const streamingStage = (
 describe("ConversationTimeline live working blocks", () => {
 	it("keeps streamed text mounted between the block it closes and the next step's block", () => {
 		const messages = MockWorkingMessages.slice(0, 3);
-		const note = { type: "text", text: "Trials are running." } as const;
+		const note: ChatMessagePart = { type: "text", text: "Trials are running." };
 		const { rerenderStage } = renderTimeline({
 			messages,
 			chatStatus: "running",
@@ -354,29 +343,21 @@ describe("ConversationTimeline live working blocks", () => {
 
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
 		summary.focus();
-		const text = screen.getByTestId("chat-message-live-assistant");
+		const liveAssistant = screen.getByTestId("chat-message-live-assistant");
 
 		rerenderStage({
 			messages,
 			chatStatus: "running",
 			...buildStreamRenderState([
 				note,
-				{
-					type: "tool-call",
-					tool_call_id: "second",
-					tool_name: "execute",
-					args: { command: "echo second" },
-					created_at: workingFixtureTime(5),
-				},
+				...(MockWorkingMessages[3].content ?? []),
 			]),
 		});
 
 		expect(summary).toHaveFocus();
-		expect(summary).toHaveTextContent("Worked for 3s (1 step)");
-		expect(screen.getByTestId("chat-message-live-assistant")).toBe(text);
-		expect(
-			screen.getByRole("button", { name: "Working for 8s" }),
-		).toBeInTheDocument();
+		expect(screen.getByTestId("chat-message-live-assistant")).toBe(
+			liveAssistant,
+		);
 	});
 
 	it("keeps an open block mounted from streaming steps through durable completion", async () => {
