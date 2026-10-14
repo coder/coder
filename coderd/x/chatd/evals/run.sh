@@ -376,7 +376,16 @@ build_subject() {
 				cd "$src"
 				{
 					git diff HEAD --binary -- . ":(exclude)$EVALS_PATHSPEC"
-					git ls-files --others --exclude-standard -z -- . ":(exclude)$EVALS_PATHSPEC" | xargs -0 -r sha256sum
+					# git records an untracked symlink as its target path,
+					# which may be a directory or missing.
+					git ls-files --others --exclude-standard -z -- . ":(exclude)$EVALS_PATHSPEC" |
+						while IFS= read -r -d '' f; do
+							if [[ -L $f ]]; then
+								printf 'symlink %s -> %s\n' "$f" "$(readlink -- "$f")"
+							else
+								sha256sum -- "$f"
+							fi
+						done
 				} | sha256sum | cut -c1-8
 			)
 			id=$id.dirty.$dirty_hash
