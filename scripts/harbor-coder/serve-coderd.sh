@@ -17,13 +17,13 @@ mkdir -p "${STATE}"
 
 URL="http://localhost:${PORT}"
 nohup "${STATE}/coder" server --http-address "0.0.0.0:${PORT}" --access-url "${URL}" \
-  --telemetry=false --cache-dir "${STATE}/cache" --global-config "${STATE}/config" \
-  --provisioner-daemons 4 >"${STATE}/coderd.log" 2>&1 &
+	--telemetry=false --cache-dir "${STATE}/cache" --global-config "${STATE}/config" \
+	--provisioner-daemons 4 >"${STATE}/coderd.log" 2>&1 &
 echo $! >"${STATE}/coderd.pid"
 
 export PATH="${STATE}:${PATH}"
 uv tool run --from harbor python -m harbor_coder.bootstrap \
-  --url "${URL}" --template-dir "${ROOT}/scripts/harbor-coder/template" \
-  --state-dir "${STATE}" --model "${HARBOR_CODER_MODEL:-claude-haiku-4-5}" >"${ENV_FILE}"
+	--url "${URL}" --template-dir "${ROOT}/scripts/harbor-coder/template" \
+	--state-dir "${STATE}" --model "${HARBOR_CODER_MODEL:-claude-haiku-4-5}" >"${ENV_FILE}"
 chmod 600 "${ENV_FILE}"
 echo "HARBOR_CODER_BIN=${STATE}/coder" >>"${ENV_FILE}"
