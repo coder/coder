@@ -1,8 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
@@ -15,7 +17,7 @@ const renderChatPageInput = (
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
+			modelCatalog={undefined}
 			onSend={vi.fn()}
 			onDeleteQueuedMessage={vi.fn()}
 			onPromoteQueuedMessage={vi.fn()}
@@ -69,7 +71,157 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe("ChatPageInput", () => {
+	describe.each([
+		{
+			viewer: "read-only viewer",
+			isOwner: false,
+			canUpdateChat: false,
+			archived: false,
+			canDelete: false,
+			canPromote: false,
+		},
+		{
+			viewer: "owner",
+			isOwner: true,
+			canUpdateChat: true,
+			archived: false,
+			canDelete: true,
+			canPromote: true,
+		},
+		{
+			viewer: "non-owner with update permission",
+			isOwner: false,
+			canUpdateChat: true,
+			archived: false,
+			canDelete: true,
+			canPromote: false,
+		},
+		{
+			viewer: "owner without update permission",
+			isOwner: true,
+			canUpdateChat: false,
+			archived: false,
+			canDelete: false,
+			canPromote: false,
+		},
+		{
+			viewer: "owner of an archived chat",
+			isOwner: true,
+			canUpdateChat: true,
+			archived: true,
+			canDelete: true,
+			canPromote: false,
+		},
+	])(
+		"queue permissions for $viewer",
+		({ isOwner, canUpdateChat, archived, canDelete, canPromote }) => {
+			it.each(["Remove from queue", "Send now", "Enter"])(
+				"gates %s",
+				async (action) => {
+					const user = userEvent.setup();
+					const onDeleteQueuedMessage = vi.fn();
+					const onPromoteQueuedMessage = vi.fn();
+					const chat = {
+						...MockChat,
+						id: "",
+						owner_id: isOwner ? MockChat.owner_id : "other-user",
+						archived,
+					};
+					const store = createChatStore();
+					store.setQueuedMessages([MockChatQueuedMessage]);
+					vi.spyOn(API, "checkAuthorization").mockImplementation(
+						async ({ checks }) =>
+							Object.fromEntries(
+								Object.keys(checks).map((key) => [
+									key,
+									key === "canUpdateChat" ? canUpdateChat : true,
+								]),
+							),
+					);
+					const { queryClient } = renderChatPageInput(store, {
+						chat,
+						onDeleteQueuedMessage,
+						onPromoteQueuedMessage,
+					});
+					act(() => {
+						queryClient.setQueryData(
+							getAuthorizationKey({
+								checks: {
+									canUpdateChat: {
+										object: {
+											resource_type: "chat",
+											owner_id: chat.owner_id,
+											organization_id: chat.organization_id,
+										},
+										action: "update",
+									},
+								},
+							}),
+							{ canUpdateChat },
+						);
+					});
+
+					if (action === "Enter") {
+						await user.click(await screen.findByRole("textbox"));
+						await user.keyboard("{Enter}");
+					} else {
+						await screen.findByRole("textbox");
+						for (const button of screen.queryAllByRole("button", {
+							name: action,
+						})) {
+							await user.click(button);
+						}
+					}
+
+					expect(onDeleteQueuedMessage.mock.calls).toEqual(
+						action === "Remove from queue" && canDelete
+							? [[MockChatQueuedMessage.id]]
+							: [],
+					);
+					expect(onPromoteQueuedMessage.mock.calls).toEqual(
+						action !== "Remove from queue" && canPromote
+							? [[MockChatQueuedMessage.id]]
+							: [],
+					);
+				},
+			);
+		},
+	);
+	it("retries a failed queue permission check before allowing removal", async () => {
+		const user = userEvent.setup();
+		const onDeleteQueuedMessage = vi.fn();
+		const checkQueuePermissions = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("Unable to check queue permissions."))
+			.mockResolvedValue({ canUpdateChat: true });
+		vi.spyOn(API, "checkAuthorization").mockImplementation(
+			async ({ checks }) =>
+				"canUpdateChat" in checks
+					? checkQueuePermissions()
+					: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		renderChatPageInput(store, { onDeleteQueuedMessage });
+
+		await user.click(
+			await screen.findByRole("button", { name: "Retry queue permissions" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Remove from queue" }),
+		);
+
+		expect(checkQueuePermissions).toHaveBeenCalledTimes(2);
+		expect(onDeleteQueuedMessage).toHaveBeenCalledWith(
+			MockChatQueuedMessage.id,
+		);
+	});
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
