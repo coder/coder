@@ -35,6 +35,10 @@ type lifecycleExecutor struct {
 func (e lifecycleExecutor) execute(ctx context.Context, scripts []codersdk.WorkspaceAgentScript, option ExecuteOption) error {
 	manager, scriptsByAddress, err := lifecycleManager(scripts)
 	if err != nil {
+		// The agent log is not visible in the dashboard.
+		for _, script := range scripts {
+			e.sendScriptLog(ctx, script, "Lifecycle scripts did not run: "+err.Error())
+		}
 		return err
 	}
 	return e.executeWith(ctx, manager, scriptsByAddress, scripts, option)

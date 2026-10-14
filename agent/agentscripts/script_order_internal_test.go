@@ -626,7 +626,8 @@ func TestLifecycleExecutorRejectsInvalidDependenciesBeforeRunning(t *testing.T) 
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			runs := newScriptOrderRuns()
-			executor := newTestExecutor(t, runs, newScriptOrderTestLogs())
+			logs := newScriptOrderTestLogs()
+			executor := newTestExecutor(t, runs, logs)
 
 			err := executor.execute(ctx, test.scripts, ExecuteStartScripts)
 			require.ErrorContains(t, err, test.wantErr)
@@ -637,6 +638,9 @@ func TestLifecycleExecutorRejectsInvalidDependenciesBeforeRunning(t *testing.T) 
 				require.ErrorIs(t, err, unit.ErrConflictingRequirement)
 			}
 			require.Empty(t, runs.allStarted())
+			for _, script := range test.scripts {
+				require.Equal(t, []string{"Lifecycle scripts did not run: " + err.Error()}, logs.outputs(script.LogSourceID))
+			}
 		})
 	}
 }
