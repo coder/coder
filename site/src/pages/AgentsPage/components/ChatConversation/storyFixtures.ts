@@ -177,10 +177,7 @@ const workingStepMessages = (
 	},
 ];
 
-/**
- * The attachment is its own assistant message between the call and its
- * result, as the server stores it.
- */
+/** A tool step that attaches `file`, in the message shape the server stores. */
 export const attachmentStepMessages = ({
 	id,
 	toolCallId,

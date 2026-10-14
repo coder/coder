@@ -180,7 +180,6 @@ export const NotVisible: Story = {
 	beforeEach: () => mockRequests({ summary: "Should never be fetched." }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Gating disables both queries, so no summary renders and no API call fires.
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		expect(

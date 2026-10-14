@@ -7,13 +7,12 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { FileCard } from "./ChatConversation/AttachmentBlocks";
-import { FileProbeProvider } from "./ChatConversation/FileProbeContext";
 import type { AgentAttachment } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	/** Undefined while the chat's messages are still loading. */
+	/** Undefined until the chat's first message page loads. */
 	attachments: readonly AgentAttachment[] | undefined;
 	evictedFileIds: ReadonlySet<string>;
 } & Pick<
@@ -52,15 +51,21 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
 				{attachments && attachments.length > 0 && (
-					<FileProbeProvider evictedFileIds={evictedFileIds}>
-						<ul className="flex flex-col gap-2">
-							{attachments.map(({ key, file, href }) => (
-								<li key={key}>
-									<FileCard block={file} href={href} fullWidth />
-								</li>
-							))}
-						</ul>
-					</FileProbeProvider>
+					<ul className="flex flex-col gap-2">
+						{attachments.map(({ key, file, href }) => (
+							<li key={key}>
+								<FileCard
+									block={file}
+									href={href}
+									expired={
+										file.file_id !== undefined &&
+										evictedFileIds.has(file.file_id)
+									}
+									fullWidth
+								/>
+							</li>
+						))}
+					</ul>
 				)}
 				{attachments?.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">

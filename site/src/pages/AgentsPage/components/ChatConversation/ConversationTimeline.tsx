@@ -635,6 +635,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// row inside an expanded block does not remount its reasoning.
 		const renderRowContent = (index: number, section?: RowSection) => {
 			const row = renderRows[index];
+			// With steps collapsed, files show only inside working blocks.
 			const hideAttachments = collapseSteps && !groupedRows.has(index);
 			if (row.type === "live") {
 				return (

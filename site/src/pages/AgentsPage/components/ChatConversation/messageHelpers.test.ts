@@ -757,7 +757,6 @@ describe("getLoadedAgentAttachments", () => {
 		);
 
 		expect(getLoadedAgentAttachments([], true)).toBeUndefined();
-		// A live message keeps hydration on for one commit after the store has it.
 		expect(getLoadedAgentAttachments([reply], true)).toHaveLength(1);
 		expect(getLoadedAgentAttachments([], false)).toEqual([]);
 	});

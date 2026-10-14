@@ -533,18 +533,18 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-/** Expiry comes from the enclosing FileProbeProvider. */
+/** Download card for a chat file. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
+	expired: boolean;
 	fullWidth?: boolean;
-}> = ({ block, href, fullWidth = false }) => {
-	const { hasExpired } = useFileProbes();
+}> = ({ block, href, expired, fullWidth = false }) => {
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
 
-	if (block.file_id !== undefined && hasExpired(block.file_id)) {
+	if (expired) {
 		return (
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
@@ -605,6 +605,7 @@ export const AttachmentBlock: React.FC<{
 	framePreview?: boolean;
 }> = ({ block, onImageClick, onTextFileClick, framePreview = false }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
+	const { hasExpired } = useFileProbes();
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
@@ -685,5 +686,11 @@ export const AttachmentBlock: React.FC<{
 		return null;
 	}
 
-	return <FileCard block={block} href={href} />;
+	return (
+		<FileCard
+			block={block}
+			href={href}
+			expired={block.file_id !== undefined && hasExpired(block.file_id)}
+		/>
+	);
 };

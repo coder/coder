@@ -386,9 +386,8 @@ export const getAgentAttachments = (
 		.reverse();
 
 /**
- * Undefined until the chat's first message page reaches the store. Hydration
- * also follows every live message, which the store already holds, so only an
- * empty store means that page has not landed.
+ * Undefined until the chat's first message page reaches the store; gating on
+ * isHydratingMessages alone would blank the list on every live message.
  */
 export const getLoadedAgentAttachments = (
 	messages: readonly TypesGen.ChatMessage[],
