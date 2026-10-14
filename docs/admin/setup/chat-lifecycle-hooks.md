@@ -26,7 +26,8 @@ CODER_EXPERIMENTS=agent-lifecycle-hooks
 ```
 
 Without the experiment, an enabled hook configuration is inactive: `coder server` logs a warning at startup and dispatches no hook events.
-Enabled hook settings are still validated at startup when a hook URL is set. Leaving the URL unset, or setting `CODER_CHAT_HOOK_ENABLED=false`, makes the hook settings inert and skips their validation.
+Enabled hook settings are still validated at startup when a hook URL is set.
+Leaving the URL unset, or setting `CODER_CHAT_HOOK_ENABLED=false`, makes the hook settings inert and skips their validation.
 The experiment list is read at startup, so enabling or disabling it requires a `coder server` restart.
 
 Set the following deployment options on `coder server`.
@@ -46,7 +47,8 @@ Use a dedicated secret and rotate it through your existing secret-management pro
 Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches fail until the consumer accepts the new value.
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
 Coder requires the configured URL to use HTTPS unless `CODER_CHAT_HOOK_ALLOW_INSECURE` is set.
-Plain HTTP removes more than transport privacy: hook responses are what allow or deny tool calls and can rewrite prompts and tool inputs, so anyone on the network path can forge them. Coder logs a warning at startup when hooks run over plain HTTP.
+Plain HTTP removes more than transport privacy: hook responses are what allow or deny tool calls and can rewrite prompts and tool inputs, so anyone on the network path can forge them.
+Coder logs a warning at startup when hooks run over plain HTTP.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
 Configure the consumer with the same `CODER_CHAT_HOOK_URL` value, because that URL is the audience Coder signs into every dispatch.
 The consumer compares the `aud` claim against its configured audience and rejects a mismatch.
@@ -144,16 +146,20 @@ Coder dispatches `user_prompt_submit` exactly once per submission, when the prom
 
 ### When tool calls are admitted
 
-Coder dispatches `pre_tool_use` once per tool call, after the model finishes proposing it and before the assistant message is stored. The stored message therefore carries the input the tool actually runs with, and stored message content is never rewritten afterwards.
+Coder dispatches `pre_tool_use` once per tool call, after the model finishes proposing it and before the assistant message is stored.
+The stored message therefore carries the input the tool actually runs with, and stored message content is never rewritten afterwards.
 
 Two consequences follow:
 
 - Clients stream the model's proposed tool input while the dispatch is in flight, then converge on the stored input once the message is committed.
   A rewritten call keeps displaying the original input until the whole batch is admitted, and the row spinner remains after the live **Thinking** indicator clears.
   Coder dispatches a batch sequentially, so that window is bounded by `CODER_CHAT_HOOK_TIMEOUT` multiplied by the number of tool calls in the step, not by a single timeout.
-- A tool call that is already in chat history was admitted before it was stored, so Coder executes it with the stored input instead of dispatching a second decision. If a consumer's policy changes between those two points, the change applies to later calls, not to calls already admitted. A call stored before hooks were configured is likewise not admitted retroactively, the same way an earlier prompt isn't.
+- A tool call that is already in chat history was admitted before it was stored, so Coder executes it with the stored input instead of dispatching a second decision.
+  If a consumer's policy changes between those two points, the change applies to later calls, not to calls already admitted.
+  A call stored before hooks were configured is likewise not admitted retroactively, the same way an earlier prompt isn't.
 
-The per-chat debug endpoint records what the model proposed, including tool input that a consumer replaced. It reports provider behavior and is not part of the chat transcript.
+The per-chat debug endpoint records what the model proposed, including tool input that a consumer replaced.
+It reports provider behavior and is not part of the chat transcript.
 
 ## Plan failure recovery
 
@@ -194,7 +200,8 @@ Use event-specific identifiers for logical duplicates:
 | `user_prompt_submit`                  | Dispatch occurs before a message ID exists. Avoid non-idempotent external effects because identical prompt content can be submitted twice. |
 | `pre_compact`, `post_compact`, `stop` | Don't rely on `turn_id` surviving recovery. Make external effects safe to repeat.                                                          |
 
-Rejecting duplicates breaks Coder's retries. Return the same decision whenever the payload identifies the same logical event.
+Rejecting duplicates breaks Coder's retries.
+Return the same decision whenever the payload identifies the same logical event.
 
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` when the agent loop starts again, with `source` set to `resume` when the chat already contains an assistant reply and `startup` otherwise.
