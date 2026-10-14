@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { WorkspaceTimingsResponse } from "./storybookData";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 
@@ -18,6 +18,13 @@ export default meta;
 type Story = StoryObj<typeof WorkspaceTimings>;
 
 export const Open: Story = {};
+
+export const StageInfoFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "About plan" }).focus();
+		await screen.findByRole("tooltip");
+	},
+};
 
 export const Close: Story = {
 	args: {
