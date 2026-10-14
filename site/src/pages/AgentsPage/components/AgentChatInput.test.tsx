@@ -182,6 +182,40 @@ describe("AgentChatInput", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
+	it("accepts typing without sending while a send is pending", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				inputRef={inputRef}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Next message");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("Next message");
+		});
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
