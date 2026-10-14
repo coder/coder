@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -309,15 +310,30 @@ func (tr *transcript) assistantTexts() []string {
 	return out
 }
 
-// finalText is the text of the last assistant message that has any.
+// finalText is the model's closing reply: the text of the last assistant
+// message that has any, from after its last tool call or tool result.
+// A turn that ends with a tool call or a tool result, because generation
+// failed or stopped after the call, has no closing reply, so the text
+// sent before the call does not count.
 func (tr *transcript) finalText() string {
 	for i := len(tr.Messages) - 1; i >= 0; i-- {
 		msg := tr.Messages[i]
-		if msg.Role != codersdk.ChatMessageRoleAssistant {
-			continue
+		var text []string
+		toolPart := false
+		for j := len(msg.Content) - 1; j >= 0 && !toolPart; j-- {
+			switch part := msg.Content[j]; part.Type {
+			case codersdk.ChatMessagePartTypeToolCall, codersdk.ChatMessagePartTypeToolResult:
+				toolPart = true
+			case codersdk.ChatMessagePartTypeText:
+				if msg.Role == codersdk.ChatMessageRoleAssistant && strings.TrimSpace(part.Text) != "" {
+					text = append(text, part.Text)
+				}
+			default:
+			}
 		}
-		if parts := textParts(msg); len(parts) > 0 {
-			return strings.Join(parts, "\n")
+		if len(text) > 0 || toolPart {
+			slices.Reverse(text)
+			return strings.Join(text, "\n")
 		}
 	}
 	return ""

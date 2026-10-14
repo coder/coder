@@ -345,6 +345,21 @@ runner_image() {
 		log "building runner image $RUNNER_IMAGE"
 		aegis_env "$AEGIS_DIR" env PATH="$go_path" mise run image >&2
 	fi
+	check_bind_mounts
+}
+
+# check_bind_mounts stops unless a container running as this user reads a
+# file bind-mounted from the cache. Bind mounts resolve on the daemon's
+# host, so a remote daemon of the same architecture fails here instead of
+# after the builds.
+check_bind_mounts() {
+	local dir got rc=0
+	dir=$(mktemp -d "$CACHE/bind-check.XXXXXX")
+	printf '%s\n' "$dir" >"$dir/marker"
+	got=$(docker run --rm --pull=never --network none --user "$(id -u):$(id -g)" \
+		-v "$dir:/probe:ro" --entrypoint cat "$RUNNER_IMAGE" /probe/marker) || rc=$?
+	rm -rf "$dir"
+	[[ $rc -eq 0 && $got == "$dir" ]] || die "a container cannot read files bind-mounted from $CACHE (docker run exited $rc); use a local docker daemon"
 }
 
 build_grader() {
@@ -371,8 +386,8 @@ build_subject() {
 		src=$REPO_ROOT
 		sha=$(git -C "$src" rev-parse HEAD)
 		id=$sha
-		# Dirty trees get a version of their own so a declared version never
-		# names two different builds. The evals directory is not part of the
+		# Dirty trees get a version of their own, hashed from the diff and the
+		# untracked files git lists. The evals directory is not part of the
 		# coder binary, so editing suites does not force a rebuild.
 		if [[ -n $(git -C "$src" status --porcelain -- . ":(exclude)$EVALS_PATHSPEC") ]]; then
 			dirty_hash=$(
@@ -407,7 +422,7 @@ build_subject() {
 	# data from every checkout (a linked worktree, for one), an unstamped
 	# build reports a bare 0.0.0-devel that two different commits would
 	# share, and two commits can share a short prefix. The version names the
-	# cached binary and the image tag.
+	# cached binary and starts the image tag.
 	version=0.0.0-devel+$id
 	bin=$CACHE/coder/coder-$id
 	mkdir -p "$CACHE/coder"
@@ -425,7 +440,10 @@ build_subject() {
 	fi
 	SUBJECT_VERSION=$("$bin" version --output json | jq -r '.version | ltrimstr("v")')
 	[[ $SUBJECT_VERSION == "$version" ]] || die "$bin reports version $SUBJECT_VERSION, want $version"
-	tag=$(printf '%s' "$SUBJECT_VERSION" | tr -c 'A-Za-z0-9_.-' '-' | cut -c1-100)-$RUNNER_TAG
+	# The tag also carries the binary's hash: a change git does not see, such
+	# as in an untracked nested repository or a module replaced from outside
+	# the checkout, changes the binary but not the version.
+	tag=$(printf '%s' "$SUBJECT_VERSION" | tr -c 'A-Za-z0-9_.-' '-' | cut -c1-100)-$(sha256sum "$bin" | cut -c1-12)-$RUNNER_TAG
 	SUBJECT_IMAGE=chatd-evals-runner:$tag
 	SUBJECT_CUSTOM=1
 	if ! docker image inspect "$SUBJECT_IMAGE" >/dev/null 2>&1; then

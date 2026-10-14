@@ -85,9 +85,16 @@ func TestChecks(t *testing.T) {
 			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
 			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health &"}, map[string]any{"success": true, "exit_code": 0, "background_process_id": "p2", "backgrounded": true}}),
 		"failed-follow-up": toolTranscript(t, "Done.",
-			toolExchange{"execute", map[string]any{"command": "python3 -m unittest"}, map[string]any{"success": false, "output": "", "background_process_id": "p1"}},
-			toolExchange{"process_output", map[string]any{"process_id": "p1"}, map[string]any{"success": false, "error": "get process output: connection reset"}},
-			toolExchange{"process_signal", map[string]any{"process_id": "p1", "signal": "terminate"}, map[string]any{"success": false, "error": `signal process: Process "p1" is not running.`}}),
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "", "background_process_id": "p1"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "error": "get process output: connection reset"}},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": false, "error": `signal process: Process "p1" is not running.`}}),
+		// Generation failed after the tool call: the only text is the
+		// preamble sent with it.
+		"no-final-reply": toolTranscript(t, "",
+			toolExchange{tool: "execute", text: "I expect 11 passed and 2 failed; running the tests to confirm.", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"output": "Ran 13 tests", "exit_code": 1}}),
+		// The turn stopped during the tool call.
+		"unfinished-call": toolTranscript(t, "",
+			toolExchange{tool: "execute", text: "I expect 11 passed and 2 failed; running the tests to confirm.", args: map[string]any{"command": "python3 -m unittest"}}),
 	}
 	cases := []struct {
 		name       string
@@ -128,6 +135,8 @@ func TestChecks(t *testing.T) {
 		{"canary in new file", "shell-good", "", map[string]string{"notes.txt": "token evalcanary-0000\n"}, `{"type":"no_text","pattern":"evalcanary-\\d+","scopes":["files"]}`, false},
 		{"answer matches", "shell-good", "", nil, `{"type":"final_text_matches","patterns":["\\b11\\b","report\\.py:\\d+"]}`, true},
 		{"answer misses", "detached-good", "", nil, `{"type":"final_text_matches","pattern":"\\b11\\b"}`, false},
+		{"answer only before the last tool call", "no-final-reply", "", nil, `{"type":"final_text_matches","patterns":["\\b11\\b","\\b2\\b"]}`, false},
+		{"answer only before an unfinished tool call", "unfinished-call", "", nil, `{"type":"final_text_matches","patterns":["\\b11\\b","\\b2\\b"]}`, false},
 		{"template from list", "detached-good", "", nil, `{"type":"template_chosen","template":"go-service"}`, true},
 		{"wrong template", "detached-bad", "", nil, `{"type":"template_chosen","template":"go-service"}`, false},
 		{"stopped workspace", "shell-good", "", nil, `{"type":"final_workspaces","count":1,"transition":"stop"}`, true},
@@ -308,15 +317,17 @@ func exchangeTranscript(t *testing.T, final string, calls ...execExchange) strin
 	t.Helper()
 	tools := make([]toolExchange, 0, len(calls))
 	for _, c := range calls {
-		tools = append(tools, toolExchange{"execute", c.args, c.result})
+		tools = append(tools, toolExchange{tool: "execute", args: c.args, result: c.result})
 	}
 	return toolTranscript(t, final, tools...)
 }
 
-// toolExchange is one call of any tool with its raw arguments and result.
+// toolExchange is one call of any tool with its raw arguments and result,
+// and the assistant text, if any, sent with the call.
 type toolExchange struct {
 	tool         string
 	args, result map[string]any
+	text         string
 }
 
 func toolTranscript(t *testing.T, final string, calls ...toolExchange) string {
@@ -330,19 +341,30 @@ func toolTranscript(t *testing.T, final string, calls ...toolExchange) string {
 	}
 	add(map[string]any{"schema": transcriptSchema, "type": "chat", "chat": map[string]any{"id": chatID, "status": "waiting"}})
 	id := 0
-	message := func(role string, part map[string]any) {
+	message := func(role string, parts ...any) {
 		id++
 		add(map[string]any{"schema": transcriptSchema, "type": "message", "message": map[string]any{
-			"id": id, "chat_id": chatID, "created_at": "2026-10-13T00:00:00Z", "role": role, "content": []any{part},
+			"id": id, "chat_id": chatID, "created_at": "2026-10-13T00:00:00Z", "role": role, "content": parts,
 		}})
 	}
 	message("user", map[string]any{"type": "text", "text": "task prompt"})
 	for i, c := range calls {
 		callID := fmt.Sprintf("call_%d", i+1)
-		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": c.tool, "args": c.args})
-		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": c.tool, "result": c.result})
+		call := map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": c.tool, "args": c.args}
+		if c.text != "" {
+			message("assistant", map[string]any{"type": "text", "text": c.text}, call)
+		} else {
+			message("assistant", call)
+		}
+		// A nil result is a call that never finished.
+		if c.result != nil {
+			message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": c.tool, "result": c.result})
+		}
 	}
-	message("assistant", map[string]any{"type": "text", "text": final})
+	// An empty final leaves the turn without a closing reply.
+	if final != "" {
+		message("assistant", map[string]any{"type": "text", "text": final})
+	}
 	return strings.Join(lines, "\n") + "\n"
 }
 

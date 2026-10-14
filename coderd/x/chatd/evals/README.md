@@ -18,8 +18,9 @@ people with read access to it.
   operating system.
 - A local Docker daemon, with permission to run containers as your user.
   Trials and grading bind-mount files from this host and run binaries
-  built here, so a remote daemon does not work, and run.sh stops when the
-  daemon's architecture differs from the one Go builds for. run.sh uses
+  built here, so a remote daemon does not work: run.sh stops when the
+  daemon's architecture differs from the one Go builds for, or when a
+  container cannot read a file bind-mounted from the cache. run.sh uses
   the daemon the docker CLI selects (`DOCKER_HOST`, `DOCKER_CONTEXT`, or
   the current context) and exports it as `DOCKER_HOST`, so aegis and the
   grader use the same daemon.
@@ -281,8 +282,11 @@ second arm to the same experiment, so run.sh also writes the aegis report
 with the paired contrast to `<out>/candidate/<suite>/report/`.
 
 Every build is stamped with its full commit SHA: `0.0.0-devel+<sha>`, or
-`0.0.0-devel+<sha>.dirty.<hash8>` for a dirty checkout, so two builds never
-share a declared version, cached binary, or image tag. Edits under
+`0.0.0-devel+<sha>.dirty.<hash8>` for a dirty checkout, where the hash
+covers the diff and the untracked files git lists. The runner image tag
+adds a hash of the coder binary, so a change git does not see, such as in
+an untracked nested repository or a module replaced from outside the
+checkout, gets a new image under the same version. Edits under
 `coderd/x/chatd/evals/` do not count as dirty, because they are not part
 of the coder binary.
 
