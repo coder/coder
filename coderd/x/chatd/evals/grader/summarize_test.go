@@ -33,6 +33,8 @@ func TestSummarizeRun(t *testing.T) {
 		tarEntry{hdr: tar.Header{Name: "stdout.log", Typeflag: tar.TypeReg, Mode: 0o644}, body: "starting\n" +
 			"coderagents: coder server exited during startup (exit status 1)\nserver log tail:\n" +
 			"Using built-in PostgreSQL (/tmp/coder/postgres)\nfailed to open telemetry\nStarted HTTP listener\n"})
+	// A finished trial with no measurements has no verdict yet.
+	writeTrial("case-a__control__r8", "DONE")
 	// Guardrails never decide task success, so the failed guardrail leaves
 	// the graded trial successful.
 	measured := filepath.Join(derived, "case-a__control__r1")
@@ -60,25 +62,27 @@ func TestSummarizeRun(t *testing.T) {
 
 	s, err := summarizeRun(store, derived, "candidate")
 	require.NoError(t, err)
-	require.Equal(t, 7, s.Trials)
+	require.Equal(t, 8, s.Trials)
 	require.Equal(t, map[string]string{
 		"case-a__control__r3": "infra_failed: sandbox start timed out",
 		"case-a__control__r6": "completed, but its bundle is missing",
 		"case-a__control__r7": "skipped, but its bundle is missing",
 	}, s.JournalOnly)
-	require.Equal(t, 2, s.Ungraded)
+	require.Equal(t, 3, s.Ungraded)
 	require.Len(t, s.Failures, 3)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)
 	require.False(t, s.Failures[0].TaskSuccess)
 	require.Equal(t, "sidecar coderagents: get workspace: context deadline exceeded", s.Failures[1].FailReason)
 	require.Equal(t, "coderagents: coder server exited during startup (exit status 1)", s.Failures[2].FailReason)
-	low, high := wilson(1, 2)
-	require.Equal(t, rate{Passed: 1, Total: 2, Rate: 0.5, Low: low, High: high}, s.Overall)
+	// The ungraded r4 and r5 did not finish either, so they are failures
+	// too, while r1 is the only success and r8 is left out.
+	low, high := wilson(1, 4)
+	require.Equal(t, rate{Passed: 1, Total: 4, Rate: 0.25, Low: low, High: high}, s.Overall)
 	require.Equal(t, 1, s.ByCase["case-a"].Passed)
-	require.Equal(t, 2, s.ByCase["case-a"].Total)
+	require.Equal(t, 4, s.ByCase["case-a"].Total)
 	require.Equal(t, 0, s.Graders["guardrails"].Passed)
 	require.Equal(t, 2, s.Graders["hidden_tests"].Passed, "grader rates still report what each grader saw")
-	require.InDelta(t, 1.0, s.CostUSD, 1e-9)
+	require.InDelta(t, 1.25, s.CostUSD, 1e-9)
 
 	var create toolRow
 	for _, row := range s.Tools {

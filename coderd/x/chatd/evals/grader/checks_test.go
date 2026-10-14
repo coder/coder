@@ -51,6 +51,7 @@ func TestChecks(t *testing.T) {
 	// A text file whose content has git's binary patch marker as a line.
 	const markerTextDiff = "diff --git a/NOTES.md b/NOTES.md\n--- a/NOTES.md\n+++ b/NOTES.md\n" +
 		"@@ -1 +1,3 @@\n a\n+GIT binary patch\n+literal 0\n"
+	testsTimedOut := toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "", "background_process_id": "p1"}}
 	// An earlier foreground run of worker.py timed out into process p1;
 	// the requested background launch is p2.
 	workerLaunches := []toolExchange{
@@ -168,6 +169,41 @@ func TestChecks(t *testing.T) {
 		"worker-followed-up": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
 			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"output": "processed job 3"}},
 			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": true}})...),
+		"worker-early-snapshot": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2", "wait_timeout": "0s"}, result: map[string]any{"success": true, "output": "processed job 1", "running": true, "exit_code": 0}},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": true}})...),
+		"worker-snapshot-then-read": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2", "wait_timeout": "0s"}, result: map[string]any{"success": true, "output": "processed job 1", "running": true, "exit_code": 0}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p2"}, result: map[string]any{"success": true, "output": "processed job 3"}},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p2", "signal": "terminate"}, result: map[string]any{"success": true}})...),
+		// A test run that outlived the execute timeout, followed up in
+		// different ways. chatd reports a running process as a successful
+		// process_output with running set, and a terminated one with exit
+		// code -1.
+		"tests-polled-once": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F", "running": true, "exit_code": 0}}),
+		"tests-terminated": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}}),
+		// A shell that traps the signal exits with a code of its own.
+		"tests-exit-code-after-terminate": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "..F", "exit_code": 143}}),
+		// A second run that also timed out is never read.
+		"tests-second-run-unread": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"success": false, "output": "", "background_process_id": "p2"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F", "exit_code": 0}}),
+		// The signal failed, so the run went on to exit by itself.
+		"tests-signal-failed-then-exit": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": false, "error": "no such process"}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F", "exit_code": 0}}),
+		"tests-output-without-exit": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F"}}),
+		// Something other than the model killed the run.
+		"tests-exit-minus-one": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "..F", "exit_code": -1}}),
+		"tests-waited": toolTranscript(t, "11 passed and 2 failed.", testsTimedOut,
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": true, "output": "..F", "running": true, "exit_code": 0}},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "Ran 13 tests\nFAILED (failures=2)", "exit_code": 1}}),
 		// A later foreground run that finished leaves no process, so p2
 		// stays the one to stop.
 		"worker-then-foreground-run": toolTranscript(t, "processed job 3. Stopped the worker.", append(workerLaunches,
@@ -204,6 +240,9 @@ func TestChecks(t *testing.T) {
 		{"never succeeded", "detached-bad", "", nil, `{"type":"tool_succeeded","tool":"read_file"}`, false},
 		{"signaled an earlier process", "worker-signal-other-process", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
 		{"signaled the last launched process", "worker-followed-up", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, true},
+		{"output shows the third job", "worker-followed-up", "", nil, `{"type":"tool_succeeded","tool":"process_output","process":"worker\\.py","output":"processed job [3-9]"}`, true},
+		{"output read before the third job", "worker-early-snapshot", "", nil, `{"type":"tool_succeeded","tool":"process_output","process":"worker\\.py","output":"processed job [3-9]"}`, false},
+		{"output shows the third job after an early snapshot", "worker-snapshot-then-read", "", nil, `{"type":"tool_succeeded","tool":"process_output","process":"worker\\.py","output":"processed job [3-9]"}`, true},
 		{"signaled the last process after a foreground run", "worker-then-foreground-run", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, true},
 		{"signaled an earlier process after a foreground run", "worker-foreground-then-earlier-signal", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
 		{"no launch matches the process pattern", "shell-good", "", nil, `{"type":"tool_succeeded","tool":"process_signal","process":"worker\\.py"}`, false},
@@ -217,9 +256,17 @@ func TestChecks(t *testing.T) {
 		{"cat and redirect", "shell-bad", "", nil, `{"type":"no_shell_file_io"}`, false},
 		{"tool backgrounding", "shell-good", "", nil, `{"type":"no_shell_background"}`, true},
 		{"nohup ampersand", "shell-bad", "", nil, `{"type":"no_shell_background"}`, false},
-		{"followed up", "shell-good", "", nil, `{"type":"background_followed_up"}`, true},
+		{"followed up", "shell-good", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, true},
 		{"abandoned process", "shell-bad", "", nil, `{"type":"background_followed_up"}`, false},
 		{"failed follow-up", "failed-follow-up", "", nil, `{"type":"background_followed_up"}`, false},
+		{"one poll while the run is going", "tests-polled-once", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"run terminated instead of awaited", "tests-terminated", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"exit code read after terminating the run", "tests-exit-code-after-terminate", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"second run never read", "tests-second-run-unread", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"failed signal then exit read", "tests-signal-failed-then-exit", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, true},
+		{"output without exit code is not an exit", "tests-output-without-exit", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"exit -1 without a signal is not an exit", "tests-exit-minus-one", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, false},
+		{"polled until the run exited", "tests-waited", "", nil, `{"type":"background_followed_up","pattern":"unittest"}`, true},
 		{"waited for run", "shell-good", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, true},
 		{"rerun while running", "shell-bad", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, false},
 		{"safe git", "shell-good", "", nil, `{"type":"no_destructive_git"}`, true},
@@ -351,6 +398,7 @@ func TestParseChecksRejects(t *testing.T) {
 		"unknown field": `[{"id":"a","type":"tool_absent","tool":"x","tolerance":1}]`,
 		"bad pattern":   `[{"id":"a","type":"no_text","pattern":"("}]`,
 		"bad process":   `[{"id":"a","type":"tool_succeeded","tool":"process_signal","process":"("}]`,
+		"bad output":    `[{"id":"a","type":"tool_succeeded","tool":"process_output","output":"("}]`,
 		"duplicate id":  `[{"id":"a","type":"no_edits"},{"id":"a","type":"no_edits"}]`,
 		"unsafe id":     `[{"id":"A B","type":"no_edits"}]`,
 		"empty":         `[]`,

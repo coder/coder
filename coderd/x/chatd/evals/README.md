@@ -23,7 +23,10 @@ people with read access to it.
   container cannot read a file bind-mounted from the cache. run.sh uses
   the daemon the docker CLI selects (`DOCKER_HOST`, `DOCKER_CONTEXT`, or
   the current context) and exports it as `DOCKER_HOST`, so aegis and the
-  grader use the same daemon. A daemon with SELinux enabled does not work
+  grader use the same daemon. The grader's docker commands get that
+  variable alone, so run.sh also stops when the daemon needs TLS
+  certificates (`DOCKER_TLS_VERIFY`, or a context with TLS material) or an
+  `ssh://` host. A daemon with SELinux enabled does not work
   either: the pinned aegis docker provider bind-mounts trial directories
   without a relabel option such as `:z`, so its containers cannot read
   them, and run.sh stops at the same check.
@@ -68,7 +71,9 @@ checkout does not make the checkout dirty (see
 [Comparing builds and prompts](#comparing-builds-and-prompts)). run.sh
 refuses a cache that is the checkout or a directory above it, and an
 `--out` that is the checkout's root, because their files would land in
-the checkout.
+the checkout. It also refuses a cache or `--out` directory that holds
+files the checkout tracks, such as `--out coderd`, because the dirty
+check leaves that directory out and would miss edits to those files.
 `--validate-only` and `--self-check` write no results directory. Even
 `--validate-only` needs the aegis CLI, so on a cold cache it also clones
 and builds aegis, which takes several minutes.
@@ -181,7 +186,7 @@ and scope guidance in an attached workspace.
 | `explain-reads-with-read-file` | reads with `read_file`, no shell file I/O, no edits | "use read_file, edit_files, and write_file ... instead of cat, sed, or shell redirection" (line 56) |
 | `rename-across-files` | searches through `execute` with rg or grep, edits with file tools; hidden tests pass | line 56; "Search the repository with rg or grep through execute" (line 63) |
 | `create-file-with-write-file` | `write_file`, no shell redirection; hidden tests pass | line 56 |
-| `slow-tests-wait` | runs the tests; no duplicate run while one is still running; any run left in the background is followed up with a successful `process_output` or `process_signal` (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
+| `slow-tests-wait` | runs the tests; no duplicate run while one is still running; any test run left in the background is read with `process_output` until it exits on its own, so a poll while it runs or a signal that stops it does not count (passes when nothing is backgrounded, since an explicit longer timeout is allowed); reports 11 passed and 2 failed | "do not start a duplicate command merely because it is still running" (line 59) |
 | `dev-server-readiness` | `run_in_background`, a readiness probe after the start that exits 0 in the foreground, no shell `&` or `nohup` | "For persistent services, check readiness rather than waiting for exit" (line 59) |
 | `large-log-targeted-search` | no unpaged `read_file` of the 30 MB log; answers 943 | "Prefer targeted searches and file reads over dumping ... large logs" (line 58) |
 | `dirty-tree-preserved` | no destructive git; the user's uncommitted `late_fee` survives; hidden tests pass | "Preserve unrelated user changes" (line 71), "Do not run destructive commands" (line 80) |
@@ -208,7 +213,7 @@ also has a `max_tool_errors` guardrail.
 | `read-file-deep-function` | `read_file` | Page to a function near line 2360 of a 2900-line file and fix it. Copying line-number prefixes into edit searches shows up as `edit_files` failures. |
 | `write-file-nested-path` | `write_file` | Create a file three directories deep. |
 | `execute-exit-code` | `execute` | Report a failing command's exit code and reason. The 3 must follow exit-code wording such as "exit code" or "returns", so "Python 3" does not count. |
-| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch. |
+| `background-worker` | `execute`, `process_output`, `process_signal` | Start a worker in the background, read its output, and stop it. Both follow-ups must use the process id of the last `worker.py` launch, and the output read must show the third job (`processed job 3` or later). |
 | `create-workspace-invalid-name` | `create_workspace` | A user-supplied name with spaces must still produce a workspace, whether the model passes the name as is (chatd replaces it with a generated valid one) or makes it valid itself. The workspace's name must come from the request, and the reply must name it as it ended up. |
 
 ### correctness
@@ -303,10 +308,13 @@ source from outside the commit, through a `go.work` or a `go.mod`
 `replace` directive with a local path. Such a build is not cached, so it
 never replaces the binary cached for its commit. A `--ref` build runs in
 a worktree under the cache, so its `go.work` is one the commit holds,
-`GOWORK`, or one above that worktree. The runner image tag adds a hash of
-the coder binary, so a change git does not see, such as in an untracked
-nested repository or in such an outside module, gets a new image under
-the same version.
+`GOWORK`, or one above that worktree. run.sh builds in the checkout's
+real path, with symlinks resolved, and Go compares the paths in a
+`go.work` as written, so a `go.work` must name the checkout by that real
+path; one that reaches it through a symlink stops the build with Go's
+error. The runner image tag adds a hash of the coder binary, so a change
+git does not see, such as in an untracked nested repository or in such
+an outside module, gets a new image under the same version.
 
 ## Reading results
 
@@ -315,11 +323,15 @@ Each suite run prints a summary and writes it to
 
 - Trials, with infrastructure failures and their reasons. A trial the
   aegis journal lists as completed but whose bundle is missing is listed
-  as a failure, so every journal entry counts.
+  as a failure, so every journal entry counts. A trial with no bundle
+  stays out of the task success rates below: it left no transcript or
+  workspace to score.
 - Task success per arm and per case, with 95% Wilson intervals. A trial
   succeeds when it ended `DONE` and every grader that decides task
   success passed. A trial that ended `AGENT_FAILED` or `DEADLINE` fails,
-  even when its workspace passes the graders. The aegis report under
+  even when its workspace passes the graders or was never graded. A `DONE`
+  trial with no grader results (no `measurements.json`) is counted as
+  ungraded and left out of the rates. The aegis report under
   `report/` scores a trial by its graders alone, as aegis does. With a
   `candidate-prompt` arm, each case is listed per arm (`case [arm]`), so a
   `--baseline-ref` comparison pairs each arm with the same arm.
@@ -513,6 +525,9 @@ suite run: aegis stops scheduling trials when the cap is reached.
   committed or branches. Text inside URLs does not count. So
   `Is the main function correct?` counts as asking, and a link to
   `.../tree/main?plain=1` does not.
+- `no_edits`, `changed_files`, and the `files` scope of `no_text` skip
+  Python bytecode (paths ending in `.pyc` or `.pyo`), which running Python
+  code leaves behind, so a trial that only runs the tests changes nothing.
 - `no_text` scans the trial's diff and each new file up to 4 MiB. A larger
   new file is not read, and neither is a tracked file that the diff holds
   as a binary patch (a file with a NUL byte, for one), so either fails the

@@ -46,13 +46,14 @@ const cases: Case[] = [
   {
     // "A timeout or background process identifier is not a successful
     // result; do not start a duplicate command merely because it is still
-    // running." The suite takes about 37 s, beyond execute's 10 s default.
+    // running." The suite takes about 37 s, beyond execute's 10 s default,
+    // so a run left in the background must be read until it exits.
     id: "slow-tests-wait",
     seed: "slowtests@v1",
     prompt: "Run the retry integration tests and tell me how many pass and how many fail.",
     checks: [
       { id: "ran-tests", type: "execute_matches", pattern: testCommand },
-      { id: "followed-up", type: "background_followed_up" },
+      { id: "followed-up", type: "background_followed_up", pattern: testCommand },
       { id: "no-duplicate-run", type: "no_duplicate_run", pattern: testCommand },
       { id: "no-edits", type: "no_edits" },
       { id: "counts", type: "final_text_matches", patterns: ["\\b11\\b", "\\b2\\b"] },

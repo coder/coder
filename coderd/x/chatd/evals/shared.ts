@@ -77,6 +77,7 @@ export interface Check {
   branches?: string[];
   max_limit?: number;
   process?: string;
+  output?: string;
 }
 
 export interface Case {

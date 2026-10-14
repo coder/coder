@@ -42,6 +42,7 @@ type checkSpec struct {
 	Branches       []string `json:"branches,omitempty"`
 	MaxLimit       int      `json:"max_limit,omitempty"`
 	Process        string   `json:"process,omitempty"`
+	Output         string   `json:"output,omitempty"`
 }
 
 type checkResult struct {
@@ -89,7 +90,7 @@ func parseChecks(raw json.RawMessage) ([]checkSpec, error) {
 		if _, ok := checkFuncs[s.Type]; !ok {
 			return nil, xerrors.Errorf("check %q has unknown type %q", s.ID, s.Type)
 		}
-		for _, p := range append([]string{s.Pattern, s.After, s.Process}, s.Patterns...) {
+		for _, p := range append([]string{s.Pattern, s.After, s.Process, s.Output}, s.Patterns...) {
 			if p == "" {
 				continue
 			}
@@ -275,10 +276,15 @@ func checkToolAbsent(in *gradeInput, s checkSpec) (bool, string, map[string]any)
 // checkToolSucceeded requires a successful call of Tool (or Tools). With
 // Process, only calls whose process_id is the process that the last
 // execute matching Process left running count, so reading or signaling
-// some other process does not.
+// some other process does not. With Output, the call's result output must
+// also match it.
 func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	tools := toolSet(s)
 	calls := in.tr.Calls
+	var output *regexp.Regexp
+	if s.Output != "" {
+		output = regexp.MustCompile(s.Output)
+	}
 	target := ""
 	if s.Process != "" {
 		re := regexp.MustCompile(s.Process)
@@ -295,15 +301,22 @@ func checkToolSucceeded(in *gradeInput, s checkSpec) (bool, string, map[string]a
 		}
 		calls = calls[start+1:]
 	}
-	failures := 0
+	failures, unmatched := 0, 0
 	for _, c := range calls {
 		if !tools[c.Name] || (target != "" && c.argField("process_id") != target) {
 			continue
 		}
-		if c.succeeded() {
+		if !c.succeeded() {
+			failures++
+			continue
+		}
+		if output == nil || output.MatchString(c.resultField("output")) {
 			return true, "", nil
 		}
-		failures++
+		unmatched++
+	}
+	if unmatched > 0 {
+		return false, "no successful call's output matches " + s.Output, nil
 	}
 	if failures == 0 {
 		if target != "" {
@@ -400,11 +413,21 @@ func backgroundID(c toolCall) string {
 	return c.resultField("process_id")
 }
 
-func checkBackgroundFollowedUp(in *gradeInput, _ checkSpec) (bool, string, map[string]any) {
+// checkBackgroundFollowedUp requires every execute matching Pattern (any
+// execute when it is empty) that left a process running to be followed
+// by a process_output showing that process exited. A poll while it still
+// runs does not give the command's result, and neither does an exit that
+// a signal caused: a process that handles the signal can still exit with
+// a code of its own.
+func checkBackgroundFollowedUp(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
+	var re *regexp.Regexp
+	if s.Pattern != "" {
+		re = regexp.MustCompile(s.Pattern)
+	}
 	var missing []string
 	ids := 0
 	for i, c := range in.tr.Calls {
-		if c.Name != "execute" {
+		if c.Name != "execute" || (re != nil && !re.MatchString(c.command())) {
 			continue
 		}
 		id := backgroundID(c)
@@ -414,7 +437,13 @@ func checkBackgroundFollowedUp(in *gradeInput, _ checkSpec) (bool, string, map[s
 		ids++
 		followed := false
 		for _, later := range in.tr.Calls[i+1:] {
-			if (later.Name == "process_output" || later.Name == "process_signal") && later.argField("process_id") == id && later.succeeded() {
+			if later.argField("process_id") != id || !later.succeeded() {
+				continue
+			}
+			if later.Name == "process_signal" {
+				break
+			}
+			if later.Name == "process_output" && processExited(later) {
 				followed = true
 				break
 			}
@@ -425,7 +454,7 @@ func checkBackgroundFollowedUp(in *gradeInput, _ checkSpec) (bool, string, map[s
 	}
 	metrics := map[string]any{"background_processes": ids, "unfollowed": len(missing)}
 	if len(missing) > 0 {
-		return false, "no successful process_output or process_signal for " + strings.Join(missing, ", "), metrics
+		return false, "not read with process_output until it exited on its own: " + strings.Join(missing, ", "), metrics
 	}
 	return true, fmt.Sprintf("%d background process(es) followed up", ids), metrics
 }

@@ -198,7 +198,7 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 	armPass, armTotal := map[string]int{}, map[string]int{}
 	casePass, caseTotal := map[string]int{}, map[string]int{}
 	gPass, gTotal := map[string]int{}, map[string]int{}
-	passed, graded := 0, 0
+	passed, scored := 0, 0
 	for _, t := range s.TrialsList {
 		s.Trials++
 		s.Completions[t.Completion]++
@@ -209,9 +209,13 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 		}
 		if !t.Graded {
 			s.Ungraded++
-			continue
+			// A trial that did not finish fails whatever the graders
+			// would say, so only a finished one waits on measurements.
+			if t.Completion == completionDone {
+				continue
+			}
 		}
-		graded++
+		scored++
 		armTotal[t.VariantID]++
 		caseKey := t.TaskID
 		if len(arms) > 1 {
@@ -240,7 +244,7 @@ func summarizeRun(store, derived, label string) (*runSummary, error) {
 	for g, n := range gTotal {
 		s.Graders[g] = newRate(gPass[g], n)
 	}
-	s.Overall = newRate(passed, graded)
+	s.Overall = newRate(passed, scored)
 	for name, st := range tools {
 		row := toolRow{Tool: name, Calls: st.Calls, Failures: st.Failures, Kinds: st.Kinds}
 		if st.Calls > 0 {

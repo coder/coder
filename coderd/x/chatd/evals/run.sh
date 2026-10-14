@@ -247,7 +247,14 @@ done
 # The grader's docker commands read no docker config, and aegis passes
 # subprocess graders no DOCKER_HOST, so pin the daemon that the docker CLI
 # selects here (DOCKER_HOST, DOCKER_CONTEXT, or the current context).
-DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}') || die "cannot resolve the docker daemon; set DOCKER_HOST"
+docker_endpoint=$(docker context inspect --format '{{len .TLSMaterial}} {{.Endpoints.docker.SkipTLSVerify}} {{.Endpoints.docker.Host}}') ||
+	die "cannot resolve the docker daemon; set DOCKER_HOST"
+read -r docker_tls docker_tls_skip DOCKER_HOST <<<"$docker_endpoint"
+# Those commands get DOCKER_HOST alone, so they cannot reach a daemon that
+# needs TLS certificates or ssh.
+if [[ $DOCKER_HOST != unix://* && $DOCKER_HOST != tcp://* ]] || [[ $docker_tls != 0 || $docker_tls_skip != false ]]; then
+	die "the grader's docker commands get only DOCKER_HOST, so they cannot reach $DOCKER_HOST, which needs TLS or ssh; use a local docker daemon's unix socket"
+fi
 export DOCKER_HOST
 
 mkdir -p "$CACHE"
@@ -258,6 +265,17 @@ CACHE=$(cd "$CACHE" && pwd -P)
 # the checkout or a directory above it can put its own files in the checkout
 # ($CACHE/coder is a checkout named coder), so every build would be dirty.
 [[ $REPO_ROOT/ != "${CACHE%/}"/* ]] || die "CHATD_EVAL_CACHE ($CACHE) is this checkout or contains it; use a directory of its own"
+
+# refuse_tracked stops when $2 is inside the checkout and holds tracked
+# files. The dirty check leaves such a directory out, so edits to those
+# files would go unseen and a clean binary cached for HEAD would run.
+refuse_tracked() {
+	local what=$1 dir=$2
+	[[ $dir == "$REPO_ROOT"/* ]] || return 0
+	[[ -z $(git -C "$REPO_ROOT" ls-files -- ":(literal)${dir#"$REPO_ROOT"/}") ]] ||
+		die "$what ($dir) holds files this checkout tracks; use a directory of its own"
+}
+refuse_tracked CHATD_EVAL_CACHE "$CACHE"
 
 cleanup_paths=()
 # Grading containers and scratch directories, such as image build
@@ -305,7 +323,7 @@ aegis_tool_path() {
 }
 
 bootstrap_aegis() {
-	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src tmp tool_path
+	local ref=${CHATD_EVAL_AEGIS_REF:-$AEGIS_REF_DEFAULT} src tmp tool_path err
 	src=$AEGIS_REPO
 	if [[ -n ${CHATD_EVAL_AEGIS_DIR:-} ]]; then
 		# The checkout the user passed in is only read: clone its commit.
@@ -331,12 +349,12 @@ bootstrap_aegis() {
 			aegis_env "$tmp" mise exec -- env CGO_ENABLED=0 GOOS=linux go build -o bin/aegis ./cmd/aegis
 		} >&2
 		touch "$tmp/.chatd-evals-ready"
-		# A concurrent run that finished first may already be using its copy.
-		if [[ -f $AEGIS_DIR/.chatd-evals-ready ]]; then
+		# A rename never replaces a directory that has files, so when two
+		# runs race on a cold cache, the first to finish publishes its copy
+		# and the other uses it, never removing a copy that may be in use.
+		if ! err=$(mv -T "$tmp" "$AEGIS_DIR" 2>&1); then
+			[[ -f $AEGIS_DIR/.chatd-evals-ready ]] || die "cannot publish aegis to $AEGIS_DIR: $err"
 			rm -rf "$tmp"
-		else
-			rm -rf "$AEGIS_DIR"
-			mv "$tmp" "$AEGIS_DIR"
 		fi
 	fi
 	AEGIS=$AEGIS_DIR/bin/aegis
@@ -549,7 +567,7 @@ map_credentials() {
 }
 
 terminal_bench_import() {
-	local repo=$CACHE/terminal-bench/repo-${TB_COMMIT:0:7} args=() c tmp
+	local repo=$CACHE/terminal-bench/repo-${TB_COMMIT:0:7} args=() c tmp err
 	if [[ ! -d $repo/tasks ]]; then
 		log "fetching Terminal-Bench ${TB_COMMIT:0:7}"
 		mkdir -p "$CACHE/terminal-bench"
@@ -558,11 +576,10 @@ terminal_bench_import() {
 		git init -q "$tmp"
 		git -C "$tmp" fetch -q --depth 1 "$TB_REPO" "$TB_COMMIT"
 		git -C "$tmp" checkout -q --detach FETCH_HEAD
-		if [[ -d $repo/tasks ]]; then
+		# Published like the aegis checkout in bootstrap_aegis.
+		if ! err=$(mv -T "$tmp" "$repo" 2>&1); then
+			[[ -d $repo/tasks ]] || die "cannot publish Terminal-Bench to $repo: $err"
 			rm -rf "$tmp"
-		else
-			rm -rf "$repo"
-			mv "$tmp" "$repo"
 		fi
 	fi
 	TB_DIR=$CACHE/terminal-bench/import-${TB_COMMIT:0:7}
@@ -765,6 +782,7 @@ out=$(cd "$out" && pwd -P)
 # Results below the checkout root are left out of the dirty hash; results in
 # the root itself cannot be.
 [[ $out != "$REPO_ROOT" ]] || die "--out is this checkout's root; use a directory of its own"
+refuse_tracked --out "$out"
 install_grader
 log "writing results to $out"
 
