@@ -39,6 +39,8 @@ export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
+	/** Scopes the saved collapse state of the Projects section. */
+	readonly currentUserId: string;
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
@@ -53,6 +55,7 @@ type ProjectFoldersProps = {
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
+	currentUserId,
 	projects,
 	organizations,
 	chatsByProjectId,
@@ -67,13 +70,13 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const [isExpanded, setIsExpanded] = useState(
-		getPersistedProjectsSectionExpanded,
+	const [isExpanded, setIsExpanded] = useState(() =>
+		getPersistedProjectsSectionExpanded(currentUserId),
 	);
 	const toggleExpanded = () => {
 		const next = !isExpanded;
 		setIsExpanded(next);
-		savePersistedProjectsSectionExpanded(next);
+		savePersistedProjectsSectionExpanded(currentUserId, next);
 	};
 	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
 	// The empty state has its own New project button, so the header's

@@ -7,6 +7,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserOwner,
 } from "#/testHelpers/entities";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
@@ -15,6 +16,7 @@ const renderProjectFolders = (projects: readonly ChatProject[]) =>
 	render(
 		<MemoryRouter>
 			<ProjectFolders
+				currentUserId={MockUserOwner.id}
 				projects={projects}
 				organizations={[MockDefaultOrganization]}
 				chatsByProjectId={new Map()}
@@ -30,6 +32,8 @@ const renderProjectFolders = (projects: readonly ChatProject[]) =>
 		</MemoryRouter>,
 	);
 
+const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+
 describe("ProjectFolders", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -43,6 +47,7 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
+					currentUserId={MockUserOwner.id}
 					projects={[MockChatProject]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
@@ -91,16 +96,12 @@ describe("ProjectFolders", () => {
 		const firstMount = renderProjectFolders([]);
 
 		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(projectsSectionCollapsedStorageKey)).toBe(
-			"true",
-		);
+		expect(localStorage.getItem(collapsedKey)).toBe("true");
 		firstMount.unmount();
 
-		// The remounted section starts collapsed, so one click expands it and
-		// clears the saved state.
 		renderProjectFolders([]);
 		await user.click(screen.getByRole("button", { name: "Projects" }));
-		expect(localStorage.getItem(projectsSectionCollapsedStorageKey)).toBeNull();
+		expect(localStorage.getItem(collapsedKey)).toBeNull();
 	});
 
 	it("names same-named projects by their organization", async () => {
@@ -115,6 +116,7 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
+					currentUserId={MockUserOwner.id}
 					projects={[MockChatProject, otherProject]}
 					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}

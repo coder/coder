@@ -569,6 +569,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					{chatProjectsEnabled && (
 						<ChatTreeContext value={chatTreeCtx}>
 							<ProjectFolders
+								currentUserId={currentUserId}
 								projects={projects}
 								organizations={organizations}
 								chatsByProjectId={chatsByProjectId}

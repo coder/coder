@@ -2938,8 +2938,9 @@ export const ProjectsSectionCollapsed: Story = {
 		],
 	},
 	beforeEach: () => {
-		localStorage.setItem(projectsSectionCollapsedStorageKey, "true");
-		return () => localStorage.removeItem(projectsSectionCollapsedStorageKey);
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
 	},
 };
 
