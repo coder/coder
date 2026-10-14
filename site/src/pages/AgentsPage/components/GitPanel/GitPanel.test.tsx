@@ -144,7 +144,7 @@ describe("GitPanel", () => {
 });
 
 describe("GitPanel per-ref views", () => {
-	it("fetches the selected ref's diff, not the primary's", async () => {
+	it("fetches and links the selected ref, not the primary", async () => {
 		const user = userEvent.setup();
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
@@ -196,6 +196,10 @@ describe("GitPanel per-ref views", () => {
 				expect.any(AbortSignal),
 			),
 		);
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
 	});
 
 	it("fetches a branch-only ref's diff even without a PR URL", async () => {
@@ -226,6 +230,24 @@ describe("GitPanel per-ref views", () => {
 				}),
 				expect.any(AbortSignal),
 			),
+		);
+	});
+
+	it("links a legacy ref's PR from its URL", () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		const mockLegacyRef = { ...MockChatDiffStatus, pr_number: undefined };
+
+		renderPanel({
+			remoteDiffStats: [mockLegacyRef],
+			primaryDiffStatus: mockLegacyRef,
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockLegacyRef.url,
 		);
 	});
 
