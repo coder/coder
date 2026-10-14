@@ -1,6 +1,6 @@
 # Word choice
 
-Coder documentation uses canonical brand and product names, plain language for product actions, and "refer to" instead of "see" for navigational pointers.
+Coder documentation uses canonical brand and product names, plain language for product actions, and "refer to" or "visit" instead of "see" for navigational pointers.
 The rules on this page set those defaults.
 
 For inclusive-language substitutions like `allowlist` or `primary`, refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
@@ -11,6 +11,17 @@ For inclusive-language substitutions like `allowlist` or `primary`, refer to [Ac
 Feature names are capitalized as proper nouns when the prose names the feature.
 The underlying generic concept stays lowercase.
 
+The same name can take two forms:
+
+- **Title case names the feature.**
+  "You can use AI Gateway to audit connections between your users and your model providers."
+- **Sentence case names an instance of the feature**, the thing a deployment runs or a user creates.
+  "Users can connect to your AI gateway through Claude Code by setting `$ANTHROPIC_BASE_URL` to your AI gateway's URL."
+
+Coder Workspaces is the feature.
+A Coder workspace is an instance of it, and a user can create one or more workspaces.
+An article or a possessive before the name (`an`, `your`, `the deployment's`) usually signals an instance.
+
 When the prose refers to the Coder command-line interface as a tool, wrap it in backticks: `coder`.
 The bare lowercase `coder` (no backticks) is wrong.
 It reads as a misspelling of the product name.
@@ -19,10 +30,13 @@ It reads as a misspelling of the product name.
 |---------------------------------|--------------------------------------------------------------------------------------|
 | Coder                           | coder (referring to the product, no backticks)                                       |
 | `coder` (the CLI, in backticks) | coder (the CLI, no backticks)                                                        |
-| AI Gateway                      | AI gateway, AIGateway, AI Bridge                                                     |
+| AI Gateway (the feature)        | AI gateway (referring to the feature), AIGateway, AI Bridge                          |
+| an AI gateway, your AI gateway  | an AI Gateway (referring to one instance)                                            |
 | Coder Agents                    | Coder agents, coder agents (referring to the product)                                |
-| Coder Workspaces                | Coder workspaces, coder workspaces (referring to the product)                        |
-| Workspace Proxy                 | workspace proxy (referring to the feature)                                           |
+| Coder Workspaces (the feature)  | Coder workspaces, coder workspaces (referring to the product)                        |
+| a Coder workspace, workspaces   | a Coder Workspace (referring to one instance)                                        |
+| Workspace Proxy (the feature)   | workspace proxy (referring to the feature)                                           |
+| a workspace proxy               | a Workspace Proxy (referring to one proxy)                                           |
 | workspace                       | Workspace (referring to the object a developer creates, configures, and connects to) |
 | template                        | Template (referring to the generic concept)                                          |
 | agent                           | Agent (referring to the generic concept)                                             |
@@ -34,6 +48,8 @@ It reads as a misspelling of the product name.
 >
 > Open the AI Gateway integration page to configure model providers.
 >
+> Set `$ANTHROPIC_BASE_URL` to your AI gateway's URL.
+>
 > Coder Workspaces are cloud development environments defined with Terraform.
 > Create a workspace from a template, then connect to it with your IDE.
 
@@ -43,11 +59,15 @@ It reads as a misspelling of the product name.
 >
 > Open the ai gateway integration page to configure model providers.
 >
+> Set `$ANTHROPIC_BASE_URL` to your AI Gateway's URL.
+> (The sentence means one deployed gateway, so the name is an instance.)
+>
 > Coder workspaces are cloud development environments defined with Terraform.
 > (Lowercase "workspaces" here reads as the generic object, not the named product.)
 
-*Enforced by `Coder.ProductTerms` (planned).
-The planned rule's term list must include `Coder Workspaces` and `Coder Agents` alongside the other named products.*
+*Enforced by `Coder.ProductTerms` (planned) for names that have one fixed form.
+The planned rule's term list must include `Coder Workspaces` and `Coder Agents` alongside the other named products.
+Whether a name means the feature or an instance depends on meaning that Vale can't see, so reviewers check that part of the rule.*
 
 > [!NOTE]
 > `Coder Workspaces` and `Coder Agents` name the products: the platform capability that Coder markets and ships as a whole.
@@ -196,6 +216,97 @@ Word the same action the same way each time it occurs, so the reader recognizes 
 Documentation-only.
 No Vale rule.*
 
+## Choose words that have one meaning
+
+Some common words carry two meanings, and the reader must guess which one the sentence means.
+Use the word that has only the meaning you intend.
+
+| Don't    | Problem                                                                        | Do                                                       |
+|----------|--------------------------------------------------------------------------------|----------------------------------------------------------|
+| `ensure` | Formal, and translates poorly                                                  | `make sure`                                              |
+| `should` | Mixes an obligation ("you should back up") with an expected result             | `must` for an obligation, the present tense for a result |
+| `may`    | Mixes permission ("you may skip this") with possibility ("the build may fail") | `can` for ability or permission, `might` for possibility |
+| `since`  | Mixes time ("since version 2.20") with cause ("since the agent is offline")    | `because` for cause, `after` or `starting in` for time   |
+
+The month `May` followed by a day or a year ("May 5, 2026", "May 2026") isn't the word `may`.
+
+**Do**:
+
+> Make sure that the agent is connected.
+>
+> After you push the template, the updated form appears.
+>
+> The build might fail if the image is missing.
+>
+> Restart the agent, because the configuration changed.
+
+**Don't**:
+
+> Ensure the agent is connected.
+>
+> After you push the template, users should see the updated form.
+>
+> The build may fail if the image is missing.
+>
+> Restart the agent, since the configuration changed.
+
+*Adapted from ASD-STE100 Issue 9, which approves one meaning per word.
+Enforced by `Coder.AmbiguousWords` (planned).*
+
+## Use US spelling
+
+Use US spelling, with [Merriam-Webster](https://www.merriam-webster.com/) as the reference.
+When Merriam-Webster lists two spellings, use the first.
+Mixed spellings make the docs look unedited and make search less reliable.
+
+The common British patterns and their US forms:
+
+| Pattern            | Don't                           | Do                           |
+|--------------------|---------------------------------|------------------------------|
+| `-ise`, `-isation` | organise, authorisation         | organize, authorization      |
+| `-our`             | behaviour, colour, neighbouring | behavior, color, neighboring |
+| `-re`              | centre, metre                   | center, meter                |
+| `-ence` nouns      | licence, defence                | license, defense             |
+| `-ogue`            | analogue, catalogue             | analog, catalog              |
+| Doubled `l`        | cancelled, labelled, modelling  | canceled, labeled, modeling  |
+| Other words        | grey, whilst, amongst           | gray, while, among           |
+
+Many words end in `-ise` in US English too, such as `advertise`, `enterprise`, `exercise`, `otherwise`, and `promise`.
+The rule changes only the words that US English spells with `-ize`.
+
+Names keep their own spelling, such as a product, an organization, or a UI label that uses British spelling.
+Put a literal UI label in bold and a literal identifier in a code span.
+
+*Enforced by `Coder.USSpelling` (planned).*
+
+## Limit noun stacks to three words
+
+A noun stack is a string of nouns in which each noun modifies the next.
+A stack of four or more words forces the reader to work out which word modifies which.
+Rewrite a long stack with a preposition or a relative clause.
+
+These count as one word in a stack:
+
+- A product or feature name from the [glossary](../../reference/glossary.md), such as `AI Gateway` or `Workspace Proxy`.
+- A literal UI label in bold.
+- An identifier in a code span.
+
+**Do**:
+
+> Check the health check endpoint for the workspace proxy.
+>
+> Set the timeout for the agent connection.
+
+**Don't**:
+
+> Check the workspace proxy health check endpoint.
+>
+> Set the workspace agent connection timeout value.
+
+*Adapted from ASD-STE100 Issue 9, rules 2.1 and 2.2.
+Documentation-only.
+No Vale rule yet: a prototype with part-of-speech matching missed every test stack, so reviewers check this rule.*
+
 ## Phrasal verbs and their noun forms
 
 English uses two spellings for many product actions: two words when the term is a verb (`set up`, `log in`), and one word (or hyphenated) when the term is a noun (`setup`, `login`).
@@ -240,11 +351,14 @@ Treat them consistently across the docs.
 ## Whose for people, not things
 
 "Whose" is the possessive of "who", so it implies the antecedent is a person.
-When the antecedent is an inanimate object or an abstract concept, prefer "with", "where", or "that has".
+When the antecedent is an inanimate object or an abstract concept, prefer "that has" or "where".
+
+Avoid "with" as the replacement.
+It can mean "has", "uses", or "together with", so "a chat with pruned records" can read as a chat that was pruned along with its records.
 
 **Do**:
 
-> A chat with pruned gateway records reports no cost.
+> A chat that has pruned gateway records reports no cost.
 >
 > A template that has conflicting variables fails validation.
 >
@@ -257,20 +371,25 @@ When the antecedent is an inanimate object or an abstract concept, prefer "with"
 > A template whose variables conflict fails validation.
 >
 > A region whose proxies are all unhealthy drops workspace connections.
+>
+> A chat with pruned gateway records reports no cost.
 
-*Documentation-only.
-No Vale rule.*
+*Adapted from ASD-STE100 Issue 9, general recommendation GR-2 for "with".
+Documentation-only.
+No Vale rule: Vale can't tell whether "with" is ambiguous in a sentence, so reviewers check this rule.*
 
-## Refer to, check out, visit, not see
+## Refer to or visit, not see or check out
 
-When the prose points the reader at another page, section, or external resource, choose the verb that matches the register:
+When the prose points the reader at another page, section, or external resource, use one of two verbs:
 
 - **Refer to** is the formal default for cross-references inside the docs.
-  Use it when the destination is a reference page, a specification, or any resource the reader should consult before continuing this doc.
-- **Check out** is informal.
-  Use it in tutorials and step-by-step passages where the conversational register suits the content.
-  Do not use it in reference material.
-- **Visit** is best when the destination is an external URL or another site, especially when the reader leaves the docs.
+  Use it when the destination is a reference page, a specification, or any resource the reader consults before continuing this doc.
+- **Visit** works for any destination, inside or outside the docs.
+  It's the better choice for an external URL or another site, and it gives you a second verb so the prose doesn't repeat "refer to" in every paragraph.
+
+Do not use **check out** for cross-references.
+It's a conversational phrasal verb that suits the blog, not the docs, and in developer docs it collides with the Git sense ("check out a branch").
+That Git sense is fine.
 
 Do not use **see** as a navigational verb.
 Reserve **see** for the rare case where the prose describes what a reader observes in the product UI ("You see a list of templates on the Templates page").
@@ -284,7 +403,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, refer to the [Coder CLI reference](../../reference/cli/index.md).
 >
-> Check out the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Visit the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
 >
 > Visit the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
@@ -294,13 +413,13 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, see the [Coder CLI reference](../../reference/cli/index.md).
 >
-> See the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Check out the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
 >
 > See the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
 > Add a Ruby option, then see why the option alone doesn't install the toolchain.
 
-*Enforced by `Coder.SeeAlternatives` (planned).*
+*Enforced by `Coder.SeeAlternatives` (planned) and `Coder.CheckOut` (planned).*
 
 ## Learn more, not Next steps
 
