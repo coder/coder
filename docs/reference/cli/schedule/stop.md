@@ -11,7 +11,7 @@ Edit workspace stop schedule
 ## Usage
 
 ```console
-coder schedule stop <workspace-name> { <duration> | manual }
+coder schedule stop [flags] <workspace-name> { <duration> | manual }
 ```
 
 ## Description
@@ -32,3 +32,23 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 
  $ coder schedule stop my-workspace 2h30m
 ```
+
+## Options
+
+### -c, --column
+
+|         |                                                                           |
+|---------|---------------------------------------------------------------------------|
+| Type    | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
+| Default | <code>workspace,starts at,starts next,stops after,stops next</code>       |
+
+Columns to display in table output.
+
+### -o, --output
+
+|         |                          |
+|---------|--------------------------|
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
+
+Output format.

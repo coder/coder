@@ -8,7 +8,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
@@ -27,6 +26,7 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -268,7 +268,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		organizationId,
 		projectId: formProjectId,
 		planMode,
-		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -291,7 +290,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
-			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 			...(formProjectId ? { project_id: formProjectId } : {}),
@@ -427,6 +425,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	return (
 		<>
 			<AgentPageHeader
+				floating={project !== undefined}
 				chimeEnabled={chimeEnabled}
 				onToggleChime={handleChimeToggle}
 				webPush={webPush}

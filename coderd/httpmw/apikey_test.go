@@ -3,11 +3,13 @@ package httpmw_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -38,6 +40,131 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestAPIKeyResource(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+	origin, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+	const (
+		reports  = "https://coder.example.com/reports"
+		jobs     = "https://coder.example.com/jobs"
+		metadata = "https://discovery.example.com/reports"
+	)
+
+	for _, tc := range []struct {
+		name              string
+		audience          string
+		resourceURI       string
+		delegatedResource string
+		wrongKey          bool
+		invalidSecret     bool
+		missingToken      bool
+		queryToken        bool
+		status            int
+	}{
+		{name: "DefaultRoot", audience: origin.String(), status: http.StatusNoContent},
+		{name: "DefaultRejectsPathAudience", audience: reports, status: http.StatusForbidden},
+		{name: "ReportsResource", audience: reports, resourceURI: reports, status: http.StatusNoContent},
+		{name: "JobsResource", audience: jobs, resourceURI: jobs, status: http.StatusNoContent},
+		{name: "NormalizedResource", audience: "https://CODER.example.com:443/reports/", resourceURI: reports, status: http.StatusNoContent},
+		{name: "ResourceRejectsRoot", audience: origin.String(), resourceURI: reports, status: http.StatusForbidden},
+		{name: "ResourceRejectsOtherResource", audience: jobs, resourceURI: reports, status: http.StatusForbidden},
+		{name: "ResourceRejectsOtherDeployment", audience: "https://other.example.com/reports", resourceURI: reports, status: http.StatusForbidden},
+		{name: "ReportsDelegation", audience: reports, delegatedResource: reports, status: http.StatusNoContent},
+		{name: "JobsDelegation", audience: jobs, delegatedResource: jobs, status: http.StatusNoContent},
+		{name: "DelegationOverridesDestinationResource", audience: reports, resourceURI: jobs, delegatedResource: reports, status: http.StatusNoContent},
+		{name: "DelegationRejectsDestinationAudience", audience: jobs, resourceURI: jobs, delegatedResource: reports, status: http.StatusForbidden},
+		{name: "DelegationRejectsRoot", audience: origin.String(), delegatedResource: reports, status: http.StatusForbidden},
+		{name: "DelegationRejectsOtherResource", audience: jobs, delegatedResource: reports, status: http.StatusForbidden},
+		{name: "DelegationRejectsOtherDeployment", audience: "https://other.example.com/reports", delegatedResource: reports, status: http.StatusForbidden},
+		{name: "DelegationRejectsSubstitutedKey", audience: reports, delegatedResource: reports, wrongKey: true, status: http.StatusUnauthorized},
+		{name: "DelegationRejectsInvalidSecret", audience: reports, delegatedResource: reports, invalidSecret: true, status: http.StatusUnauthorized},
+		{name: "DelegationRequiresCredential", audience: reports, delegatedResource: reports, missingToken: true, status: http.StatusUnauthorized},
+		{name: "DelegationRejectsQueryToken", audience: reports, delegatedResource: reports, queryToken: true, status: http.StatusUnauthorized},
+		{name: "ResourceDiscoveryWithoutCredential", resourceURI: reports, missingToken: true, status: http.StatusUnauthorized},
+		{name: "UnboundLegacyResource", resourceURI: reports, status: http.StatusNoContent},
+		{name: "UnboundLegacyDelegation", delegatedResource: reports, status: http.StatusNoContent},
+		{name: "UnboundLegacyRejectsSubstitutedKey", delegatedResource: reports, wrongKey: true, status: http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			key, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID: user.ID, LoginType: database.LoginTypeOAuth2ProviderApp,
+				Scopes: database.APIKeyScopes{database.ApiKeyScopeUserRead},
+			})
+			dbgen.OAuth2ProviderAppToken(t, db, database.OAuth2ProviderAppToken{
+				AppID: app.ID, UserID: user.ID, APIKeyID: key.ID, HashPrefix: []byte(key.ID),
+				Audience: sql.NullString{String: tc.audience, Valid: tc.audience != ""},
+			})
+			delegatedID := key.ID
+			if tc.wrongKey {
+				otherKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+				delegatedID = otherKey.ID
+			}
+			if tc.invalidSecret {
+				token = key.ID + "-" + strings.Repeat("0", 22)
+			}
+
+			for _, precheck := range []bool{false, true} {
+				t.Run(fmt.Sprintf("Precheck=%t", precheck), func(t *testing.T) {
+					t.Parallel()
+					// Request-controlled resource and delegation hints must have no
+					// effect, whether or not server-owned delegation is present.
+					req := httptest.NewRequest(http.MethodGet, "https://untrusted.example.com/api/v2/users/me?resource="+url.QueryEscape(reports), nil)
+					req.Header.Set("X-Coder-API-Key-Delegation", key.ID)
+					req.Header.Set("X-Coder-MCP-Delegation", "true")
+					req.Header.Set("X-Forwarded-Uri", "/reports")
+					req.Header.Set("X-Forwarded-Host", "coder.example.com")
+					req.Header.Set("Referer", reports)
+					if tc.queryToken {
+						q := req.URL.Query()
+						q.Set("access_token", token)
+						req.URL.RawQuery = q.Encode()
+					} else if !tc.missingToken {
+						req.Header.Set("Authorization", "Bearer "+token)
+					}
+					if tc.delegatedResource != "" {
+						req = req.WithContext(httpmw.WithAPIKeyDelegation(req.Context(), tc.delegatedResource, delegatedID))
+					}
+					originalURL := req.URL.String()
+					handler := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+						DB: db, AccessURL: origin, Logger: testutil.Logger(t),
+						ResourceURI: tc.resourceURI, ResourceMetadataURL: metadata,
+					})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, originalURL, r.URL.String())
+						assert.Equal(t, key.ID, httpmw.APIKey(r).ID)
+						actor := httpmw.UserAuthorization(r.Context())
+						assert.Equal(t, user.ID.String(), actor.ID)
+						assert.Equal(t, key.ScopeSet(), actor.Scope)
+						w.WriteHeader(http.StatusNoContent)
+					}))
+					if precheck {
+						handler = httpmw.PrecheckAPIKey(httpmw.ValidateAPIKeyConfig{DB: db, Logger: testutil.Logger(t)})(handler)
+					}
+					rw := httptest.NewRecorder()
+					handler.ServeHTTP(rw, req)
+					require.Equal(t, tc.status, rw.Code)
+					if tc.wrongKey {
+						var response codersdk.Response
+						require.NoError(t, json.NewDecoder(rw.Body).Decode(&response))
+						require.Equal(t, "Delegated requests must use the credential that authenticated the originating request.", response.Message)
+						require.NotContains(t, response.Message, key.ID)
+						require.NotContains(t, response.Message, delegatedID)
+						require.NotContains(t, rw.Header().Get("WWW-Authenticate"), "expired")
+					}
+					require.Equal(t, originalURL, req.URL.String())
+					if tc.status != http.StatusNoContent {
+						require.Contains(t, rw.Header().Get("WWW-Authenticate"), `resource_metadata="`+metadata+`"`)
+					}
+				})
+			}
+		})
+	}
+}
 
 func randomAPIKeyParts() (id string, secret string, hashedSecret []byte) {
 	id, _ = cryptorand.String(10)

@@ -3133,6 +3133,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		10,
 		nil,
 	)
+	go reconciler.Run(ctx)
+	t.Cleanup(func() {
+		reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
+	})
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 

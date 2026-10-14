@@ -73,12 +73,6 @@ export const RBACResourceActions: Partial<
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
-	chat_automation: {
-		create: "create a new chat automation",
-		delete: "delete a chat automation",
-		read: "read chat automations",
-		update: "update a chat automation",
-	},
 	chat_model_config: {
 		create: "create a new chat model config",
 		delete: "delete a chat model config",
@@ -193,6 +187,13 @@ export const RBACResourceActions: Partial<
 		delete: "delete member",
 		read: "read member",
 		update: "update an organization member",
+	},
+	organization_skill: {
+		create: "create an organization skill",
+		delete: "delete an organization skill",
+		read: "read organization skill metadata and content",
+		share: "share an organization skill with other users or groups",
+		update: "update an organization skill",
 	},
 	prebuilt_workspace: {
 		delete: "delete prebuilt workspace",

@@ -1,15 +1,14 @@
-import { useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { Logs, LogsHeader } from "#/components/Logs/Logs";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
 import { LogNotice } from "./LogNotice";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceAgentLogSectionProps = {
@@ -71,17 +70,6 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
-	const endRef = useRef<HTMLDivElement>(null);
-	const hasScrolledRef = useRef(false);
-	useLayoutEffect(() => {
-		// After the call completes, scroll only for the first batch: scrollIntoView
-		// also moves the chat transcript.
-		if (logs.length > 0 && (isCallRunning || !hasScrolledRef.current)) {
-			endRef.current?.scrollIntoView({ block: "end" });
-			hasScrolledRef.current = true;
-		}
-	}, [logs, isCallRunning]);
-
 	if (logs.length === 0) {
 		return isCallRunning ? <WaitingForAgentStartup /> : null;
 	}
@@ -95,19 +83,17 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 	}));
 
 	return (
-		<ScrollArea
+		<ToolCall.Scrollable
 			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Workspace agent startup log"
-			scrollBarClassName="w-1.5"
+			ariaLabel="Workspace agent startup log"
+			followEnd
 		>
 			<div className="font-mono">
 				<LogsHeader title="Agent startup" detail={agent.name} />
 				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
-				<div ref={endRef} />
 			</div>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };
 

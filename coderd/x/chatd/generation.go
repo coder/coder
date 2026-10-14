@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -70,7 +72,11 @@ type generationPrepared struct {
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider string
+	ResolvedProvider    string
+	ReasoningProvenance reasoningProvenance
+	// ReasoningRejected reports whether the provider rejected the
+	// encrypted reasoning replayed into this step's model call.
+	ReasoningRejected *atomic.Bool
 
 	StageModel chatloop.StageModel
 
@@ -92,6 +98,17 @@ type generationPrepared struct {
 	Debug *generationDebug
 }
 
+// stepReasoningProvenance returns the provenance to stamp on the step's
+// reasoning. A rejection starts the provider's next epoch, so later steps
+// leave out the reasoning the rejected call replayed.
+func (p generationPrepared) stepReasoningProvenance() reasoningProvenance {
+	provenance := p.ReasoningProvenance
+	if p.ReasoningRejected != nil && p.ReasoningRejected.Load() {
+		provenance.Epoch++
+	}
+	return provenance
+}
+
 // generationCompaction contains compaction inputs prepared for generation.
 type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
@@ -102,6 +119,12 @@ type generationCompaction struct {
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
+	// TriggerSource names the trigger whose threshold and limit Options
+	// carry.
+	TriggerSource compactionTriggerSource
+	// OtherTrigger is the trigger that does not bind while the override
+	// trigger is enabled, and zero otherwise.
+	OtherTrigger    compactionTrigger
 	Required        bool
 	Options         chatloop.GenerateCompactionOptions
 	PendingUserRows []database.ChatMessage
@@ -143,13 +166,28 @@ const (
 	generationFinishReasonMaxSteps      generationFinishReason = "max_steps"
 )
 
-var errCompactionStillOverLimit = chaterror.WithClassification(
-	xerrors.New("compaction left the chat above the compaction limit"),
-	chaterror.ClassifiedError{
-		Message: "Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
-		Kind:    codersdk.ChatErrorKindConfig,
-	},
-)
+var errCompactionStillOverLimit = xerrors.New("compaction left the chat above the compaction limit")
+
+// compactionStillOverLimitError wraps errCompactionStillOverLimit with a
+// message naming the settings that can clear the binding trigger.
+// otherOverLimit reports whether the history also reaches the other
+// enabled trigger's point, so neither setting clears the error alone.
+func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimit bool, thresholdPercent int32, contextLimit int64) error {
+	message := "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
+	switch {
+	case otherOverLimit:
+		message = fmt.Sprintf("Conversation compaction could not reduce the history below your compaction threshold or %d%% of the organization override's context window. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to choose an override model with a larger context window.", compactionOverrideWindowPercent)
+	case source == compactionTriggerSourceOrganization:
+		message = fmt.Sprintf("Conversation compaction could not reduce the history below %d%% of the organization override's context window. Start a new conversation, or ask an administrator to choose an override model with a larger context window.", compactionOverrideWindowPercent)
+	}
+	return chaterror.WithClassification(
+		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),
+		chaterror.ClassifiedError{
+			Message: message,
+			Kind:    codersdk.ChatErrorKindConfig,
+		},
+	)
+}
 
 type generationDecision struct {
 	kind           generationActionKind
@@ -205,6 +243,8 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
+	compactionTriggerSource    compactionTriggerSource
+	compactionOtherTrigger     compactionTrigger
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -272,7 +312,12 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusAfterCompaction:
 		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	case compactionStatusStillOverLimit:
-		return generationDecision{}, terminalGeneration(errCompactionStillOverLimit)
+		return generationDecision{}, terminalGeneration(compactionStillOverLimitError(
+			input.compactionTriggerSource,
+			postCompactionOverLimit(input.messages, input.compactionOtherTrigger),
+			input.compactionThresholdPercent,
+			input.compactionContextLimit,
+		))
 	case compactionStatusNotNeeded:
 		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	default:
@@ -287,16 +332,28 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 	return compaction.Options.ThresholdPercent
 }
 
-// generationCompactionContextLimit returns the context limit the compaction
-// trigger was evaluated against at prepare time (the stricter of the chat and
-// override models' limits). The still-over-limit check must compare against
-// the same limit, otherwise a stricter override loops through repeated
-// compactions instead of surfacing errCompactionStillOverLimit.
+// generationCompactionContextLimit returns the binding trigger's context
+// limit. The still-over-limit check must use it, or a binding override
+// trigger compacts repeatedly instead of returning errCompactionStillOverLimit.
 func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	if compaction == nil {
 		return 0
 	}
 	return compaction.Options.ContextLimit
+}
+
+func generationCompactionOtherTrigger(compaction *generationCompaction) compactionTrigger {
+	if compaction == nil {
+		return compactionTrigger{}
+	}
+	return compaction.OtherTrigger
+}
+
+func generationCompactionTriggerSource(compaction *generationCompaction) compactionTriggerSource {
+	if compaction == nil {
+		return compactionTriggerSourceChat
+	}
+	return compaction.TriggerSource
 }
 
 func unresolvedToolCallsFromHistory(
@@ -493,7 +550,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if !deletedToolCallsChecked {
 			deletedToolCallsChecked = true
 			if currentTurnStepCount(messages) == 0 {
-				s.cancelDeletedToolCalls(ctx, machine, input, chat, messages)
+				if err := s.cancelDeletedToolCalls(ctx, machine, input, chat, messages); err != nil {
+					return err
+				}
 			}
 		}
 		var turnCtx context.Context
@@ -512,21 +571,21 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 // cancelDeletedToolCalls sends the chat's agent a cancel request for each
 // unresolved call in the last deleted assistant message between the turn's
 // user message and the previous user message, if chattool.CanCancelToolCall
-// accepts the call. Their results can no longer be committed. Failures are
-// logged and do not affect the turn.
+// accepts the call. Their results can no longer be committed. Agent request
+// failures are logged and do not affect the turn.
 func (s *taskStarter) cancelDeletedToolCalls(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	chat database.Chat,
 	messages []database.ChatMessage,
-) {
+) error {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
-		return
+		return nil
 	}
 	userMessageIndex := lastUserPromptIndex(messages)
 	if userMessageIndex == -1 {
-		return
+		return nil
 	}
 	// EditMessage marks the edited user message and every later message as
 	// deleted, so they lie between the previous user message and this one.
@@ -547,8 +606,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 		return err
 	})
 	if err != nil {
-		s.opts.Logger.Warn(ctx, "load deleted messages to cancel tool calls on agent", slog.F("chat_id", chat.ID), slog.Error(err))
-		return
+		return normalizeTaskInfrastructureError(err, "load deleted messages to cancel tool calls on agent")
 	}
 	// The shared filter skips deleted rows, and all of these are deleted.
 	for i := range deleted {
@@ -556,6 +614,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 	}
 	calls, ids := s.cancelableToolCallsFromHistory(ctx, chat, deleted)
 	s.cancelUnresolvedToolCalls(ctx, chat, calls, ids)
+	return nil
 }
 
 // runGenerationStep runs one step of a turn. again means reload state
@@ -629,6 +688,8 @@ func (s *taskStarter) runGenerationStep(
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
+				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
 			})
 		})
 	}
@@ -921,6 +982,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
+		reasoningProvenance:    prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1150,11 +1212,12 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		step:               step,
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:       prepared.ModelConfigID,
+		step:                step,
+		toolNameToConfigID:  prepared.ToolNameToConfigID,
+		logger:              s.opts.Logger,
+		contentVersion:      chatprompt.CurrentContentVersion,
+		reasoningProvenance: prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1234,6 +1297,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
+		compactionOpts.SummaryContextLimit = override.Config.ContextLimit
 		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
 		// Prompt caches are model-scoped and provider-native tools are
 		// model-specific, so unless the override resolves to the chat model
@@ -1251,6 +1315,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
+			prepared.ReasoningProvenance.Model,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
