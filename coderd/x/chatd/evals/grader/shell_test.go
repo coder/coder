@@ -145,6 +145,11 @@ func TestShellFileIODetection(t *testing.T) {
 		{"mv", "mv a.py b.py", false},
 		{"rm", "rm a.py", false},
 		{"xargs grep", "find . -name '*.py' | xargs grep -n x", false},
+		{"python here-document writes", "python3 - <<'EOF'\nfrom pathlib import Path\np = Path('inventory/report.py')\np.write_text(p.read_text().replace('calc_total', 'total_value'))\nEOF", true},
+		{"node -e writes", `node -e 'require("fs").writeFileSync("a.js", "x")'`, true},
+		// Inline code that only reads is usually data processing, which the
+		// file tools do not replace.
+		{"python -c reads", `python3 -c 'import json; print(json.load(open("worker.json"))["worker"])'`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

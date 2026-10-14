@@ -65,7 +65,7 @@ const cases: Case[] = [
       { id: "started-in-background", type: "execute_matches", pattern: "worker\\.py", background: true },
       { id: "read-output", type: "tool_succeeded", tool: "process_output" },
       { id: "stopped", type: "tool_succeeded", tool: "process_signal" },
-      { id: "output-shown", type: "final_text_matches", pattern: "processed job [3-9]" },
+      { id: "output-shown", type: "final_text_matches", pattern: "processed job ([3-9]|[1-9][0-9]+)" },
     ],
     guardrails: [toolErrors("process_output"), toolErrors("process_signal"), toolErrors(undefined, 3)],
   },

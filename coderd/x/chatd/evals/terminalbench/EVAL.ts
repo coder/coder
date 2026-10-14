@@ -41,6 +41,9 @@ export default defineExperiment("chatd-terminal-bench", (evals) => {
   const verifier = evals.customGrader("terminal_bench", {
     type: "subprocess",
     binary: graderBinary,
+    // aegis passes subprocess graders no DOCKER_HOST; run.sh sets the
+    // daemon its docker commands use.
+    ...(process.env.DOCKER_HOST ? { env: { DOCKER_HOST: process.env.DOCKER_HOST } } : {}),
     // Covers pulling the task image and the verifier's own tool installs.
     timeout_s: 3600,
     params: ["task"],

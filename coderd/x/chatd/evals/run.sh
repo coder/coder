@@ -244,6 +244,11 @@ fi
 for tool in docker git go jq mise; do
 	command -v "$tool" >/dev/null || die "$tool is required"
 done
+# The grader's docker commands read no docker config, and aegis passes
+# subprocess graders no DOCKER_HOST, so pin the daemon that the docker CLI
+# selects here (DOCKER_HOST, DOCKER_CONTEXT, or the current context).
+DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}') || die "cannot resolve the docker daemon; set DOCKER_HOST"
+export DOCKER_HOST
 
 mkdir -p "$CACHE"
 

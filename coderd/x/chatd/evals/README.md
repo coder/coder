@@ -16,7 +16,10 @@ people with read access to it.
 - A Linux host. run.sh builds aegis, the grader, and coder for Linux and
   runs aegis and the grader directly, so it stops at startup on any other
   operating system.
-- Docker, with permission to run containers as your user.
+- Docker, with permission to run containers as your user. run.sh uses
+  the daemon the docker CLI selects (`DOCKER_HOST`, `DOCKER_CONTEXT`, or
+  the current context) and exports it as `DOCKER_HOST`, so aegis and the
+  grader use the same daemon.
 - Go, git, jq, and [mise](https://mise.jdx.dev). mise installs the aegis
   toolchain, including Node 24, inside the aegis checkout.
 - Read access to coder/aegis over HTTPS (for example through
@@ -420,11 +423,15 @@ suite run: aegis stops scheduling trials when the cap is reached.
   `xargs -I{} cp {} /tmp/{}` is not an edit. Paths are
   compared after `.` and `..` are resolved, so `/tmp/../src/a.py` is
   outside `/tmp`. The same wrappers and paths apply to `no_shell_file_io`,
-  which counts the in-place editors, redirects, `tee`, and `cat`, `head`,
-  `tail`, `less`, or `more` with a file operand (one that needs expansion
-  or that `xargs` supplies counts; the count after `head -n` or `tail -n`
-  does not, so `git log | head -n 5` is not a read), but not `cp`, `mv`,
-  `rm`, or the other file commands above. Known misses: edits made by
+  which counts the in-place editors, redirects, `tee`, inline interpreter
+  code that writes files, and `cat`, `head`, `tail`, `less`, or `more`
+  with a file operand (one that needs expansion or that `xargs` supplies
+  counts; the count after `head -n` or `tail -n` does not, so
+  `git log | head -n 5` is not a read), but not `cp`, `mv`, `rm`, or the
+  other file commands above. Inline interpreter code that only reads
+  files, such as `python3 -c 'print(open("a.py").read())'`, is not
+  counted, because reads in inline code are mostly data processing that
+  the file tools do not replace. Known misses: edits made by
   running a script file (`python3 /tmp/fix.py`, `cat fix.py | python3`) or
   a module (`python3 -m json.tool in.json out.json`), edits through other
   tools such as `make`, and helpers whose names it does not know, such as

@@ -521,7 +521,8 @@ var readCommandValueFlags = map[string]struct {
 }
 
 // fileIOFindings reports file reads and writes done through the shell
-// that chatd's prompt routes to read_file, edit_files, and write_file.
+// that chatd's prompt routes to read_file, edit_files, and write_file,
+// including inline interpreter code that writes files.
 func fileIOFindings(s shellScript) []string {
 	var out []string
 	for _, r := range s.OutputFiles {
@@ -565,7 +566,7 @@ func fileIOFindings(s shellScript) []string {
 			}
 		}
 	}
-	return out
+	return append(out, interpreterEditFindings(s)...)
 }
 
 // fileCommandValueFlags lists, per shell file command, the short option
@@ -911,7 +912,7 @@ func executeEdits(command string) []fileEdit {
 		}
 		for _, c := range s.Commands {
 			one := shellScript{Commands: []shellCommand{c}}
-			writes := len(interpreterEditFindings(one)) > 0 || slices.ContainsFunc(fileIOFindings(one), func(f string) bool {
+			writes := slices.ContainsFunc(fileIOFindings(one), func(f string) bool {
 				return !strings.Contains(f, " reads ")
 			})
 			if !writes && len(fileChangeFindings(one)) == 0 {
