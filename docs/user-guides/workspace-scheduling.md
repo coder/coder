@@ -52,6 +52,13 @@ Workspaces automatically shut down after a period of inactivity. The **activity 
 duration can be configured at the template level and is visible in the autostop description
 for your workspace.
 
+> [!NOTE]
+> Coder detects activity by tracking open **connections** to your workspace,
+> not by watching for keystrokes, mouse movement, or CPU usage inside the
+> workspace. An idle IDE window with an open connection counts as active; a
+> closed connection counts as inactive, even if a background process is still
+> running.
+
 ### What counts as workspace activity?
 
 A workspace is considered "active" when Coder detects one or more active sessions with your workspace. Coder specifically tracks these session types:
@@ -63,7 +70,83 @@ A workspace is considered "active" when Coder detects one or more active session
 - **AI agent task status**: When a coding agent reports "working" status, the
   workspace deadline is extended
 
-Activity is only detected when there is at least one active session. An open session will keep your workspace marked as active and prevent automatic shutdown.
+Activity is only detected when there is at least one active session. Each of
+these session types is tracked as a simple connection counter: the counter
+increments when the connection opens and decrements when it closes. Coder
+does not look at what you're doing inside the session, so an **idle IDE,
+terminal, or SSH session with an open connection still counts as active**,
+and a workspace will not autostop while any of these connections remain open.
+
+#### Idle connections still count as active
+
+Because activity is connection-based rather than keystroke-based, the
+following scenario is expected behavior:
+
+1. You open VS Code, JetBrains, a terminal, or an SSH session against your
+   workspace.
+1. You stop typing and walk away for the night, but leave the window or
+   terminal open.
+1. The connection stays open, so the workspace keeps being marked active and
+   the activity bump keeps extending the autostop deadline.
+1. The workspace only becomes idle once that connection actually closes (you
+   close the window/session, or the connection drops).
+
+#### JetBrains Gateway and Toolbox
+
+JetBrains Gateway and the JetBrains Toolbox app open many short-lived SSH
+sessions in addition to a single persistent forwarded connection used for the
+remote IDE backend. Coder ignores the short-lived sessions and instead tracks
+that one persistent forwarded connection. In practice, this means:
+
+- What keeps the workspace active is the persistent Gateway/Toolbox
+  forwarding connection, not whether the JetBrains IDE window itself is open
+  or focused.
+- If that forwarding connection is still established (for example, Toolbox is
+  running in the background with the connection maintained), the workspace is
+  considered active even if you've closed the IDE window.
+- If the forwarding connection drops (Toolbox is closed, the network drops,
+  or your laptop sleeps), the workspace becomes idle and the autostop
+  countdown begins, even if Toolbox or the IDE appear to still be "connected"
+  from the client side.
+
+#### Connections can drop without you closing them
+
+A session only keeps a workspace active while its underlying connection is
+open. Common situations that unexpectedly drop a connection, and therefore
+mark the workspace idle earlier than a user might expect, include:
+
+- Your laptop going to sleep, which can suspend or kill the network socket
+  used by your IDE, terminal, or SSH client.
+- Network interruptions, VPN drops, or Wi-Fi changes that break the
+  underlying TCP connection.
+- Client- or server-side connection timeouts when no traffic has been sent
+  for a while.
+
+If you want your end users to avoid unexpected autostops, document that they
+should keep their laptop awake and their network connection stable while
+using a workspace, and that closing an IDE window/SSH session is what starts
+the idle countdown, not stepping away from the keyboard.
+
+#### Background jobs and workspace apps
+
+- **Long-running background processes** (build jobs, cron jobs, watchers,
+  etc.) running _inside_ the workspace do not, by themselves, count as
+  activity. Activity tracking only looks at connections into the workspace,
+  not at what's running on it, so a long build with no open IDE/SSH/terminal
+  connection will not prevent autostop.
+- **Workspace apps opened through a URL** (for example a Jupyter notebook, or
+  any other `coder_app`/port accessed via its web URL) are tracked
+  separately from the session types above. Using a workspace app updates the
+  workspace's last-used time, but it does **not** extend the autostop
+  deadline the way an active IDE, terminal, or SSH connection does. This
+  means a workspace can still autostop while a browser tab to an app like
+  Jupyter is open, unless you also have an active IDE, terminal, or SSH
+  session keeping it awake.
+- **Accessing a port through a direct URL without an active session** (for
+  example, hitting a forwarded port without going through an open app
+  session) is not counted as activity at all.
+
+### What does not count as workspace activity
 
 The following actions do **not** count as workspace activity:
 
@@ -73,8 +156,21 @@ The following actions do **not** count as workspace activity:
 - Accessing ports through direct URLs without an active session
 - Background agent statistics reporting (note: AI agent _task status_
   reporting is different and does count as activity, see above)
+- Long-running background processes, cron jobs, or builds running inside the
+  workspace with no open IDE/SSH/terminal connection
+- Opening a workspace app (such as Jupyter) in a browser tab, unless paired
+  with one of the tracked session types above
 
 To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
+
+### When does autostop actually trigger?
+
+Autostop triggers once the workspace's autostop deadline passes. The
+deadline is extended ("bumped") by the activity bump duration every time
+Coder detects an active session from the list above, or an AI agent reports
+a "working" status. Once **all** tracked connections close and no new one is
+established before the deadline, the deadline stops being extended and the
+workspace is stopped when it passes.
 
 ## Autostop requirement
 
