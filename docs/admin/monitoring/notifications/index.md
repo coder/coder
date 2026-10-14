@@ -223,10 +223,10 @@ Here is an example payload for Coder's webhook notification:
 
 The top-level object has these keys:
 
-- `_version`: describes the version of this schema; follows semantic versioning
+- `_version`: describes the version of this schema and follows semantic versioning
 - `msg_id`: the UUID of the notification (matches the ID in the
   `notification_messages` table)
-- `payload`: contains the specific details of the notification; described below
+- `payload`: contains the specific details of the notification (described below)
 - `title`: the title of the notification message (equivalent to a subject in
   SMTP delivery)
 - `body`: the body of the notification message (equivalent to the message body
@@ -234,16 +234,16 @@ The top-level object has these keys:
 
 The `payload` object has these keys:
 
-- `_version`: describes the version of this inner schema; follows semantic
+- `_version`: describes the version of this inner schema and follows semantic
   versioning
 - `notification_name`: name of the event which triggered the notification
 - `user_id`: Coder internal user identifier of the target user (UUID)
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
 - `user_username`: username of the target user
-- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP
+- `actions`: a list of CTAs (Call-To-Action). These are mainly relevant for SMTP
   delivery in which they're shown as buttons
-- `labels`: dynamic map of zero or more string key-value pairs; these vary from
+- `labels`: dynamic map of zero or more string key-value pairs. These vary from
   event to event
 
 ## User Preferences

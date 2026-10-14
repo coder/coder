@@ -81,8 +81,8 @@ its base URL. They have no provider-specific integration beyond that.
 ### OpenAI
 
 Set the base URL to the upstream endpoint and provide an API key. The
-default `https://api.openai.com/v1/` targets the native OpenAI service;
-point it at any OpenAI-compatible endpoint (for example, a hosted proxy
+default `https://api.openai.com/v1/` targets the native OpenAI service.
+Point it at any OpenAI-compatible endpoint (for example, a hosted proxy
 or LiteLLM deployment) when needed.
 
 If you create an [OpenAI key](https://platform.openai.com/api-keys)
@@ -93,7 +93,7 @@ with minimal privileges, this is the minimum required set:
 ### Anthropic
 
 Set the base URL and provide an API key. The default
-`https://api.anthropic.com/` targets Anthropic's public API; override it
+`https://api.anthropic.com/` targets Anthropic's public API. Override it
 for Anthropic-compatible brokers.
 
 Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
@@ -128,7 +128,7 @@ AI Gateway chooses authentication from the credentials available for each reques
 
 Configure the AWS identity on the gateway process through the default AWS credential chain, such as an instance profile, container identity, or `AWS_PROFILE`.
 Individual Claude Platform provider settings do not select an AWS identity or authentication mode.
-Adding a stored key selects API-key authentication; removing the last stored key allows requests without a client key to use IAM.
+Adding a stored key selects API-key authentication. Removing the last stored key allows requests without a client key to use IAM.
 
 A supplied key that fails authentication does not trigger a fallback to IAM.
 A client sending an ordinary Anthropic key to a Claude Platform provider receives an upstream authentication error.
@@ -146,7 +146,7 @@ with AWS credentials rather than a registered API key. Configure:
   `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
   region is read from the endpoint host.
 - The **model** and **small fast model** identifiers, for InvokeModel
-  only. Mantle providers do not set them; the client chooses the model on
+  only. Mantle providers do not set them. The client chooses the model on
   each request and AI Gateway forwards it upstream.
 
 #### InvokeModel
@@ -254,7 +254,7 @@ To use role assumption:
 1. **Create the IAM role** in the target account and grant it
    `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for
    the configured models. The base identity does not need Bedrock
-   permissions itself; the assumed role does.
+   permissions itself. The assumed role does.
 
 2. **Configure the role's trust policy** to allow the gateway's base
    identity to assume it.

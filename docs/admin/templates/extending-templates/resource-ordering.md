@@ -61,7 +61,7 @@ The agent with the lowest order is presented at the top in the workspace view.
 
 The `coder_agent` exposes metadata to present operational metrics in the UI.
 Metrics defined with Terraform `metadata` blocks can be ordered using additional
-`order` property; otherwise, they are sorted by `key`.
+`order` property. Otherwise, they are sorted by `key`.
 
 ```tf
 resource "coder_agent" "main" {

@@ -276,7 +276,7 @@ The state is displayed in navigation metadata.
 ### Evidence versus claim
 
 This is the canonical rule
-[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+[Evidence justifies a claim and does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim)
 in the content guidelines; the content guidelines govern, so read the rule
 there. On a page **this change adds or edits**, flag an implementation
 identifier the reader neither types nor receives in that page's task, whether

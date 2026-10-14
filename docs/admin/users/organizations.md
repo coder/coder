@@ -167,7 +167,7 @@ You can also set `default_org_member_roles` via
 ### Limitations
 
 - `default_org_member_roles` accepts built-in role names only. Custom
-  organization roles are rejected; assign them directly to members instead.
+  organization roles are rejected. Assign them directly to members instead.
 - Removing a role from the list removes it from every member that does not
   hold the role through a direct assignment, including existing members.
   Review the per-organization [audit log](../security/audit-logs.md) if you

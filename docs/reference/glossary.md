@@ -30,7 +30,7 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
-The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+The provider's orchestration and AI inference stay cloud-hosted. A worker process inside the workspace executes the agent's tool calls.
 In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 

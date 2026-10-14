@@ -125,7 +125,7 @@ Key differences:
 - Optionally pass `model_config_id` to override the default model, or
   `mcp_server_ids` to attach MCP servers.
 - Optionally pass `title` to set the chat's title.
-  A title you set is kept; automatic title generation runs only when `title` is omitted.
+  A title you set is kept. Automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
@@ -264,7 +264,7 @@ curl -X POST \
 ```
 
 In the Tasks API, pausing stops the workspace and frees compute. In the
-Chats API, interrupt stops the agent loop in the control plane; the
+Chats API, interrupt stops the agent loop in the control plane. The
 workspace may remain running. The workspace lifecycle is managed
 independently.
 
@@ -323,7 +323,7 @@ jobs:
 Key differences from the Tasks GHA:
 
 - No `coder-template-name` or `coder-task-name-prefix`. The agent
-  auto-provisions a workspace; pass `workspace-id` if you want to pin to
+  auto-provisions a workspace. Pass `workspace-id` if you want to pin to
   an existing workspace instead.
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template. They are

@@ -83,4 +83,4 @@ If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER
 
 - **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
 
-- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth.md) app; when this is the case, no attempt is made to connect to the MCP server.
+- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth.md) app. When this is the case, no attempt is made to connect to the MCP server.
