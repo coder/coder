@@ -238,11 +238,10 @@ describe("GitPanel per-ref views", () => {
 			mockDiffContents,
 		);
 
-		// Rows older than the pr_number column carry only the PR URL.
 		const mockLegacyRef = {
 			...MockChatDiffStatus,
 			pr_number: undefined,
-			url: "https://github.com/coder/coder/pull/23020",
+			url: "https://github.example.com/coder/coder/pull/23020",
 		};
 
 		renderPanel({

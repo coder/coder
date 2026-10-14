@@ -575,7 +575,11 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	);
 };
 
-const ViewPrButton: React.FC<{ href: string }> = ({ href }) => (
+type ViewPrButtonProps = {
+	href: string;
+};
+
+const ViewPrButton: React.FC<ViewPrButtonProps> = ({ href }) => (
 	<Button asChild variant="outline" size="sm" className="h-6">
 		<a href={href} target="_blank" rel="noreferrer">
 			View PR
