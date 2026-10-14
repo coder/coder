@@ -60,7 +60,7 @@ A provider is deployment-wide, whilst the models that reference it are organizat
 After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
 Select the organization that should own the new model before you add it.
 For provider-specific setup, including AWS Bedrock, refer to [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
-AWS Bedrock providers that use the InvokeModel protocol replace the model identifier with the model configured on the provider; refer to [InvokeModel](../ai-gateway/providers.md#invokemodel).
+AWS Bedrock providers that use the InvokeModel protocol replace the model identifier with the model configured on the provider; refer to [How InvokeModel selects the model](../ai-gateway/providers.md#how-invokemodel-selects-the-model).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
