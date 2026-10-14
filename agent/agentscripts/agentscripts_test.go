@@ -341,6 +341,133 @@ func (*executeOptionTestLogger) Flush(context.Context) error {
 	return nil
 }
 
+// E1, E22: scripts with addresses but no dependencies run as before, and a
+// dependency on a stop-only script orders the stop execution without
+// touching the start execution.
+func TestExecuteFastPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AddressesWithoutDependencies", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logs := newRecordingScriptLogs()
+		runner := setup(t, logs.logger)
+		defer runner.Close()
+		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+		scripts := []codersdk.WorkspaceAgentScript{
+			{ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.a", Script: "echo a", RunOnStart: true},
+			{ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.b", Script: "echo b", RunOnStart: true},
+		}
+		require.NoError(t, runner.Init(scripts, aAPI.ScriptCompleted))
+		require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts))
+		require.Equal(t, []string{"a"}, logs.outputs(scripts[0].LogSourceID))
+		require.Equal(t, []string{"b"}, logs.outputs(scripts[1].LogSourceID))
+	})
+
+	t.Run("DependencyOnlyAtStop", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logs := newRecordingScriptLogs()
+		runner := setup(t, logs.logger)
+		defer runner.Close()
+		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+		save := codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Save state",
+			ResourceAddress: "coder_script.save_state", Script: "echo saving && exit 1",
+			RunOnStart: true, RunOnStop: true,
+		}
+		stopDB := codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Stop database",
+			ResourceAddress: "coder_script.stop_db", Script: "echo stopping", RunOnStop: true,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.save_state",
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+			}},
+		}
+		require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{save, stopDB}, aAPI.ScriptCompleted))
+
+		require.Error(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts))
+		require.Equal(t, []string{"saving"}, logs.outputs(save.LogSourceID))
+		require.Empty(t, logs.outputs(stopDB.LogSourceID))
+
+		require.Error(t, runner.Execute(ctx, agentscripts.ExecuteStopScripts))
+		require.Equal(t, []string{"saving", "saving"}, logs.outputs(save.LogSourceID))
+		require.Equal(t, []string{`Skipping script: dependency "Save state" failed.`}, logs.outputs(stopDB.LogSourceID))
+	})
+}
+
+// E10: through the real runner, a dependent whose timeout is shorter than
+// its prerequisite's run time still succeeds, because its timeout starts
+// when it starts.
+func TestExecuteOrderedTimeoutStartsAfterWaiting(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep")
+	}
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logs := newRecordingScriptLogs()
+	runner := setup(t, logs.logger)
+	defer runner.Close()
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+	clone := codersdk.WorkspaceAgentScript{
+		ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.clone",
+		Script: "sleep 0.3", RunOnStart: true,
+	}
+	install := codersdk.WorkspaceAgentScript{
+		ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.install",
+		Script: "echo installed", RunOnStart: true, Timeout: 100 * time.Millisecond,
+		Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+			PrerequisiteResourceAddress: "coder_script.clone",
+			Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+		}},
+	}
+	require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{clone, install}, aAPI.ScriptCompleted))
+	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts))
+	require.Equal(t, []string{"installed"}, logs.outputs(install.LogSourceID))
+}
+
+// recordingScriptLogs keeps every line per log source so a test can read a
+// script's output and its dependency lines together.
+type recordingScriptLogs struct {
+	mu   sync.Mutex
+	byID map[uuid.UUID][]string
+}
+
+func newRecordingScriptLogs() *recordingScriptLogs {
+	return &recordingScriptLogs{byID: make(map[uuid.UUID][]string)}
+}
+
+func (l *recordingScriptLogs) logger(logSourceID uuid.UUID) agentscripts.ScriptLogger {
+	return recordingScriptLogger{logs: l, logSourceID: logSourceID}
+}
+
+func (l *recordingScriptLogs) outputs(logSourceID uuid.UUID) []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.byID[logSourceID]...)
+}
+
+type recordingScriptLogger struct {
+	logs        *recordingScriptLogs
+	logSourceID uuid.UUID
+}
+
+func (l recordingScriptLogger) Send(_ context.Context, logs ...agentsdk.Log) error {
+	l.logs.mu.Lock()
+	defer l.logs.mu.Unlock()
+	for _, log := range logs {
+		l.logs.byID[l.logSourceID] = append(l.logs.byID[l.logSourceID], log.Output)
+	}
+	return nil
+}
+
+func (recordingScriptLogger) Flush(context.Context) error {
+	return nil
+}
+
 func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger) *agentscripts.Runner {
 	t.Helper()
 	if getScriptLogger == nil {
