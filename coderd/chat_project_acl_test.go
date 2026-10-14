@@ -416,6 +416,54 @@ func TestPostChatsProjectDeletedBeforeInsert(t *testing.T) {
 	require.Equal(t, "Chat project not found.", sdkErr.Message)
 }
 
+func TestChatProjectACLMemberRemovalBeforeGrant(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
+		opts.Database = db
+		opts.Pubsub = ps
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+	project := createChatProject(t, client, orgID, "Removal Race Project")
+	sharee, shareeUser := newChatProjectMember(t, client, orgID)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(ctx, `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, orgID, shareeUser.ID)
+	require.NoError(t, err)
+
+	patchErr := make(chan error, 1)
+	go func() {
+		patchErr <- client.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{shareeUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+	}()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		if len(patchErr) > 0 {
+			return true
+		}
+		var waits int
+		err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+		return err == nil && waits > 0
+	}, testutil.IntervalFast, "PATCH returns or waits for the membership lock")
+	require.NoError(t, tx.Commit())
+
+	err = testutil.RequireReceive(ctx, t, patchErr)
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	var granted bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT user_acl ? $2 FROM chat_projects WHERE id = $1`, project.ID, shareeUser.ID.String()).Scan(&granted))
+	require.False(t, granted)
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: shareeUser.ID})
+	_, err = sharee.GetChatProject(ctx, orgID, project.ID)
+	requireSDKError(t, err, http.StatusNotFound)
+}
+
 func newChatProjectMember(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID) (*codersdk.ExperimentalClient, codersdk.User) {
 	t.Helper()
 	raw, user := coderdtest.CreateAnotherUser(t, client.Client, organizationID)

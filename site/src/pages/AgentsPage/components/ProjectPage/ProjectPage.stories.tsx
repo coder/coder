@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
 import { userKey } from "#/api/queries/users";
@@ -116,6 +117,13 @@ export const WithoutUpdateOrDeletePermission: Story = {
 			...MockChatProject,
 			permissions: { update: false, delete: false, share: false },
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/Use TypeScript for new code/);
+		expect(
+			canvas.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -25,12 +25,15 @@ func TestMigration000624DropsOutOfOrgChatProjectGrants(t *testing.T) {
 
 	db := database.New(sqlDB)
 	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
 	member := dbgen.User(t, db, database.User{})
 	departed := dbgen.User(t, db, database.User{})
 	for _, user := range []database.User{owner, member} {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	}
+	// Membership elsewhere must not keep a grant here.
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: departed.ID, OrganizationID: otherOrg.ID})
 	projectID := uuid.New()
 	grant := `{"permissions":["read"]}`
 	userACL := `{"` + member.ID.String() + `":` + grant + `,"` + departed.ID.String() + `":` + grant + `}`

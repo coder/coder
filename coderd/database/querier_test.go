@@ -2072,8 +2072,11 @@ func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
 		GroupACL: database.ChatACL{},
 	}))
 
-	// Leaving another organization keeps this one's grants.
+	// The trigger only drops grants in the organization the user left.
 	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: otherOrg.ID, UserID: sharee.ID}))
+	gotOther, err := db.GetChatProjectByID(ctx, otherProject.ID)
+	require.NoError(t, err)
+	require.NotContains(t, gotOther.UserACL, sharee.ID.String())
 	got, err := db.GetChatProjectByID(ctx, project.ID)
 	require.NoError(t, err)
 	require.Contains(t, got.UserACL, sharee.ID.String())

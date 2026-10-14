@@ -141,10 +141,10 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		// Lock granted users' memberships before the project row, as the skill
-		// ACL does: a membership delete locks its row and then, through its
-		// trigger, the project, so holding it keeps the delete from missing
-		// the grant written below.
+		// Lock granted users' memberships before the project row. A membership
+		// delete locks its row and then, through the 000624 trigger, the project
+		// row, so the reverse order could deadlock. Holding the membership lock
+		// also keeps a delete from missing the grant written below.
 		if userIDs := grantedChatProjectIDs(userRoles); len(userIDs) > 0 {
 			//nolint:gocritic // Validation below reports users that are not members.
 			_, err := tx.LockOrganizationMembersByUserIDsForShare(dbauthz.AsSystemRestricted(ctx), database.LockOrganizationMembersByUserIDsForShareParams{
@@ -159,6 +159,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
+		aReq.Old = current
 		validErrs, err := validateChatProjectACLOrganization(ctx, tx, project, userRoles, groupRoles)
 		if err != nil {
 			return err
@@ -183,8 +184,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		var validationErr *chatProjectACLValidationError
-		if errors.As(err, &validationErr) {
+		if validationErr, ok := errors.AsType[*chatProjectACLValidationError](err); ok {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid request to update chat project ACL.",
 				Validations: validationErr.validations,
@@ -327,8 +327,9 @@ func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatPr
 
 	//nolint:gocritic // Project readers see who it is shared with without user read permission.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	// Leaving the organization removes a user's entries, and grants lock
-	// memberships, so out-of-org entries grant nothing; hide them.
+	// Entries for users outside the organization grant nothing, because access
+	// requires membership, so hide them. The 000624 trigger and the membership
+	// lock in patchChatProjectACL keep such entries from being written.
 	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get organization memberships: %w", err)
