@@ -657,8 +657,8 @@ func checkNoDestructiveGit(in *gradeInput, s checkSpec) (bool, string, map[strin
 // them (parseGitArgs), so -qb fix and -qbfix create a branch.
 func runsGitCheckout(s shellScript) bool {
 	return slices.ContainsFunc(s.Commands, func(c shellCommand) bool {
-		sub, args := gitSubcommand(c)
-		return sub == "checkout" && !parseGitArgs(sub, args).has("bB", "--orphan")
+		sub, _, g := gitCommandArgs(c)
+		return sub == "checkout" && !g.has("bB", "--orphan")
 	})
 }
 

@@ -712,6 +712,16 @@ func literalWord(w *syntax.Word) string {
 	if w == nil {
 		return ""
 	}
+	text, literal := literalText(w)
+	if !literal {
+		return ""
+	}
+	return text
+}
+
+// literalText returns the text of w up to its first part that needs
+// expansion, and whether w has no such part.
+func literalText(w *syntax.Word) (string, bool) {
 	var sb strings.Builder
 	for _, part := range w.Parts {
 		switch p := part.(type) {
@@ -723,15 +733,31 @@ func literalWord(w *syntax.Word) string {
 			for _, inner := range p.Parts {
 				lit, ok := inner.(*syntax.Lit)
 				if !ok {
-					return ""
+					return sb.String(), false
 				}
 				_, _ = sb.WriteString(dblQuoteEscape.Replace(lit.Value))
 			}
 		default:
-			return ""
+			return sb.String(), false
 		}
 	}
-	return sb.String()
+	return sb.String(), true
+}
+
+// literalPrefix returns the text that the shell word with source text
+// src starts with before its first part that needs expansion, or "" when
+// src is not one word.
+func literalPrefix(src string) string {
+	var words []*syntax.Word
+	err := syntax.NewParser().Words(strings.NewReader(src), func(w *syntax.Word) bool {
+		words = append(words, w)
+		return len(words) < 2
+	})
+	if err != nil || len(words) != 1 {
+		return ""
+	}
+	text, _ := literalText(words[0])
+	return text
 }
 
 // unescapeLit resolves backslashes in an unquoted word the way bash does:
@@ -1089,7 +1115,7 @@ func commandOperands(args []string, short string, long []string) ([]string, map[
 }
 
 func expandedOperand(a string) string {
-	if a == "" {
+	if a == "" || strings.Contains(a, expandedSuffix) {
 		return "<expanded>"
 	}
 	return a
@@ -1488,6 +1514,42 @@ func gitSubcommand(c shellCommand) (string, []string) {
 	return "", nil
 }
 
+// expandedSuffix stands for the part of a word that needs expansion in
+// the words that gitCommandArgs passes to parseGitArgs. A shell word
+// cannot hold a NUL byte.
+const expandedSuffix = "\x00"
+
+// gitCommandArgs returns git command c's subcommand, the arguments after
+// it (see gitSubcommand), and those arguments as git reads them
+// (parseGitArgs). A word that needs expansion but starts with a literal
+// -, such as -b"$b" or --orphan="$b", reaches parseGitArgs as that text
+// followed by expandedSuffix, since the shell keeps the leading - and git
+// reads the word as an option.
+func gitCommandArgs(c shellCommand) (string, []string, gitArgs) {
+	sub, args := gitSubcommand(c)
+	var words []string
+	// args is a tail of c.Args, and c.Source holds the source text of
+	// the same words.
+	if len(c.Source) == len(c.Args) {
+		src := c.Source[len(c.Source)-len(args):]
+		for i, a := range args {
+			if a != "" {
+				continue
+			}
+			if p := literalPrefix(src[i]); strings.HasPrefix(p, "-") {
+				if words == nil {
+					words = slices.Clone(args)
+				}
+				words[i] = p + expandedSuffix
+			}
+		}
+	}
+	if words == nil {
+		words = args
+	}
+	return sub, args, parseGitArgs(sub, words)
+}
+
 // gitValueOptions lists, per git subcommand, the options that take a
 // value: short letters whose value is the rest of the word or, at its
 // end, the next word; short letters whose optional value git reads only
@@ -1520,6 +1582,12 @@ type gitArgs struct {
 	EndOfOptions bool
 }
 
+// parseGitArgs reads args, the arguments of git subcommand sub. A word
+// that ends in expandedSuffix reads as an option only when the expansion
+// is (part of) the value of an option before it, as in -b"$b" or
+// --orphan="$b", whose value then needs expansion; otherwise the
+// expansion may supply option letters or names, as in -q"$x", and the
+// word is an operand that needs expansion.
 func parseGitArgs(sub string, args []string) gitArgs {
 	opts := gitValueOptions[sub]
 	out := gitArgs{Short: map[byte]string{}, Long: map[string]string{}}
@@ -1534,12 +1602,20 @@ func parseGitArgs(sub string, args []string) gitArgs {
 			return out
 		case strings.HasPrefix(a, "--"):
 			name, value, attached := strings.Cut(a, "=")
+			if strings.Contains(name, expandedSuffix) {
+				out.Operands = append(out.Operands, "<expanded>")
+				continue
+			}
 			if !attached && slices.Contains(opts.long, name) && i+1 < len(args) {
 				i++
 				value = args[i]
 			}
-			out.Long[name] = value
+			out.Long[name] = expandedValue(value)
 		case len(a) > 1 && a[0] == '-':
+			if strings.Contains(a, expandedSuffix) && !valueBeforeExpansion(a, opts.short+opts.optional) {
+				out.Operands = append(out.Operands, "<expanded>")
+				continue
+			}
 		letters:
 			for j := 1; j < len(a); j++ {
 				letter, rest := a[j], a[j+1:]
@@ -1554,7 +1630,7 @@ func parseGitArgs(sub string, args []string) gitArgs {
 					out.Short[letter] = ""
 					continue
 				}
-				out.Short[letter] = rest
+				out.Short[letter] = expandedValue(rest)
 				break letters
 			}
 		default:
@@ -1562,6 +1638,22 @@ func parseGitArgs(sub string, args []string) gitArgs {
 		}
 	}
 	return out
+}
+
+// valueBeforeExpansion reports whether the short option word a, which
+// ends in expandedSuffix, has a letter in valueLetters, one whose value
+// is the rest of the word, before the part that needs expansion.
+func valueBeforeExpansion(a string, valueLetters string) bool {
+	letters, _, _ := strings.Cut(a[1:], expandedSuffix)
+	return strings.ContainsAny(letters, valueLetters)
+}
+
+// expandedValue returns an option's value, or "" when it needs expansion.
+func expandedValue(v string) string {
+	if strings.Contains(v, expandedSuffix) {
+		return ""
+	}
+	return v
 }
 
 // has reports whether any of the short option letters or long options
@@ -1600,8 +1692,7 @@ func (g gitArgs) value(short string, long ...string) (string, bool) {
 func destructiveGitFindings(s shellScript, keep []string) []string {
 	var out []string
 	for _, c := range s.Commands {
-		sub, args := gitSubcommand(c)
-		g := parseGitArgs(sub, args)
+		sub, args, g := gitCommandArgs(c)
 		switch sub {
 		case "reset":
 			if hasFlag(args, "--hard", "--merge", "--keep") {
@@ -1731,19 +1822,18 @@ var (
 // branchSwitch reports how a command changes the checked-out branch:
 // the new branch name (detachedHead for -d, --detach, or a commit
 // operand, previousBranch for - or @{-1}, unknownBranch for an operand
-// that needs expansion or that git may read as a commit or as a
-// pathspec), and whether the command switched at all: HEAD and @ name
-// the current branch, which git checkout keeps and git switch refuses.
-// Options are read as git reads them (parseGitArgs), so -qbfix creates
-// fix.
+// or a created branch name that needs expansion, or an operand that git
+// may read as a commit or as a pathspec), and whether the command
+// switched at all: HEAD and @ name the current branch, which git
+// checkout keeps and git switch refuses. Options are read as git reads
+// them (parseGitArgs), so -qbfix creates fix.
 func branchSwitch(c shellCommand) (string, bool) {
-	sub, args := gitSubcommand(c)
+	sub, _, g := gitCommandArgs(c)
 	switch sub {
 	case "checkout", "switch":
 	default:
 		return "", false
 	}
-	g := parseGitArgs(sub, args)
 	if g.has("d", "--detach") {
 		return detachedHead, true
 	}
@@ -1752,7 +1842,12 @@ func branchSwitch(c shellCommand) (string, bool) {
 		create = "cC"
 	}
 	if b, ok := g.value(create, "--create", "--force-create", "--orphan"); ok {
-		return b, b != ""
+		if b == "" {
+			// A name that needs expansion may be a default branch, which
+			// -B and -C reset and switch to.
+			return unknownBranch, true
+		}
+		return b, true
 	}
 	if g.EndOfOptions || g.has("", "--pathspec-from-file") {
 		return "", false
@@ -1793,8 +1888,8 @@ func branchSwitch(c shellCommand) (string, bool) {
 // quietSwitch reports whether git checkout or git switch runs with -q or
 // --quiet, which print no report of the switch.
 func quietSwitch(c shellCommand) bool {
-	sub, args := gitSubcommand(c)
-	return parseGitArgs(sub, args).has("q", "--quiet")
+	_, _, g := gitCommandArgs(c)
+	return g.has("q", "--quiet")
 }
 
 // isGitCommit reports whether c is a git commit that makes a commit: not

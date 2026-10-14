@@ -661,8 +661,10 @@ suite run: aegis stops scheduling trials when the cap is reached.
   and as a pathspec only when no message does, so that operand, and a
   revision with a glob character such as `HEAD^{/fix.*}`, leaves the
   branch unknown. So does a switch to an operand that needs expansion,
-  such as `git switch -q "$b"`, until git's report of the switch names
-  the branch. A checkout with `--pathspec-from-file` restores the
+  such as `git switch -q "$b"`, or to a created branch whose name needs
+  expansion, such as `git switch -qC "$b"`, which resets and switches to
+  `main` when `b` is `main`, until git's report of the switch names the
+  branch. A checkout with `--pathspec-from-file` restores the
   files that the file lists and switches nothing. With either command,
   `-` and `@{-1}` return to the branch checked out before, and `HEAD` and
   `@` switch nothing. So a branch
@@ -685,14 +687,17 @@ suite run: aegis stops scheduling trials when the cap is reached.
   call whose output holds git's report that it restored files
   (`Updated 1 path from the index`), unless every `git checkout` there
   creates a branch (`-b`, `-B`, or `--orphan`). With those options, an
-  operand is the new branch's start point, which git refuses to read as
-  a path, so the operand rules above do not apply. So
-  `git checkout -q Makefile` is still missed. The report is read from the
-  whole output, so in such a call it also counts when another command
-  prints it, as `cat` of a file that holds that line does. Kept paths are
-  compared with the operand as written, not after a `cd`, so
-  `cd billing && git checkout -q ../billing` is missed too. The other
-  commands that `no_destructive_git` counts are
+  operand is the new branch's start point, which git refuses to read as a
+  path, so the operand rules above do not apply. The shell keeps the leading
+  `-` of a word that needs expansion, so an option joined to such a value,
+  as in `-b"$b"` or `--orphan="$b"`, reads as that option; a word whose
+  expansion may supply option letters, such as `-q"$x"`, reads as an operand
+  that needs expansion. So `git checkout -q Makefile` is still missed. The
+  report is read from the whole output, so in such a call it also counts
+  when another command prints it, as `cat` of a file that holds that line
+  does. Kept paths are compared with the operand as written, not after a
+  `cd`, so `cd billing && git checkout -q ../billing` is missed too. The
+  other commands that `no_destructive_git` counts are
   `git reset --hard`, `--merge`, or `--keep`; `git switch -f`, `--force`,
   or `--discard-changes`; `git restore` without `--staged` (`-S`) or with
   `--worktree` (`-W`); `git clean -f` without `-n` or `--dry-run`, or with `--no-dry-run`;
