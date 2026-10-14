@@ -129,13 +129,14 @@ export const MockBedrockInvokeModelProviderState: ProviderState = {
 	},
 };
 
-export const MockBedrockInvokeModelWithoutModelsProviderState: ProviderState = {
-	...MockBedrockProviderState,
-	providerDescriptor: {
-		...MockBedrockProviderDescriptor,
-		bedrock_invoke_model: { model: "", small_fast_model: "" },
-	},
-};
+export const MockBedrockInvokeModelUnsetUpstreamModelsProviderState: ProviderState =
+	{
+		...MockBedrockProviderState,
+		providerDescriptor: {
+			...MockBedrockProviderDescriptor,
+			bedrock_invoke_model: { model: "", small_fast_model: "" },
+		},
+	};
 
 export const MockAzureProviderState: ProviderState = {
 	...MockOpenAIProviderState,

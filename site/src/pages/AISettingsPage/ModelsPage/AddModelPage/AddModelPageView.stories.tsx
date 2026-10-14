@@ -13,7 +13,7 @@ import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockBedrockInvokeModelProviderState,
-	MockBedrockInvokeModelWithoutModelsProviderState,
+	MockBedrockInvokeModelUnsetUpstreamModelsProviderState,
 	MockCopilotProviderState,
 	MockOpenAIProviderState,
 } from "../testFixtures";
@@ -149,10 +149,11 @@ export const BedrockInvokeModelProvider: Story = {
 	},
 };
 
-export const BedrockInvokeModelProviderWithoutModels: Story = {
+export const BedrockInvokeModelProviderWithoutUpstreamModels: Story = {
 	args: {
-		providerStates: [MockBedrockInvokeModelWithoutModelsProviderState],
-		selectedProviderState: MockBedrockInvokeModelWithoutModelsProviderState,
+		providerStates: [MockBedrockInvokeModelUnsetUpstreamModelsProviderState],
+		selectedProviderState:
+			MockBedrockInvokeModelUnsetUpstreamModelsProviderState,
 	},
 };
 
