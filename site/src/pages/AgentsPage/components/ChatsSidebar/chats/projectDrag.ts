@@ -7,7 +7,6 @@ import {
 	type KeyboardCoordinateGetter,
 	pointerWithin,
 	rectIntersection,
-	useDroppable,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { Chat } from "#/api/typesGenerated";
@@ -18,7 +17,7 @@ import {
 import { getParentChatID } from "../tree/chatTree";
 
 /** A drop target of a chat drag: a project folder, or Chats. */
-type DropTarget =
+export type DropTarget =
 	| {
 			readonly kind: "project";
 			readonly projectId: string;
@@ -26,14 +25,30 @@ type DropTarget =
 	  }
 	| { readonly kind: "unfiled" };
 
+/** The dnd-kit data of a chat row drag. */
+export type ChatDragData = { readonly chat: Chat };
+
+/** The dnd-kit data of a chat drop target. */
+export type DropTargetData = { readonly dropTarget: DropTarget };
+
+const isChatDragData = (data: unknown): data is ChatDragData =>
+	typeof data === "object" && data !== null && "chat" in data;
+
+const isDropTargetData = (data: unknown): data is DropTargetData =>
+	typeof data === "object" && data !== null && "dropTarget" in data;
+
 /** The chat of a row drag, or undefined for a pin drag. */
-export const draggedChatOf = (active: Active | null): Chat | undefined =>
-	active?.data.current?.chat as Chat | undefined;
+export const draggedChatOf = (active: Active | null): Chat | undefined => {
+	const data = active?.data.current;
+	return isChatDragData(data) ? data.chat : undefined;
+};
 
 const dropTargetOf = (
 	target: { readonly data: DataRef } | null,
-): DropTarget | undefined =>
-	target?.data.current?.dropTarget as DropTarget | undefined;
+): DropTarget | undefined => {
+	const data = target?.data.current;
+	return isDropTargetData(data) ? data.dropTarget : undefined;
+};
 
 /**
  * A row can start a drag only where its menu turns "Move to project" on. A
@@ -49,7 +64,11 @@ export const canDragChatToProject = (
 	chatFamilyAllowsArchive(chat.status, chat.children) &&
 	chat.pin_order === 0;
 
-const projectIdForTarget = (
+/**
+ * The project_id that a drop on target sets: a project ID, null to remove the
+ * chat from its project, or undefined when the drop changes nothing.
+ */
+export const projectIdForTarget = (
 	chat: Chat,
 	target: DropTarget | undefined,
 ): string | null | undefined => {
@@ -62,29 +81,11 @@ const projectIdForTarget = (
 	return target?.kind === "unfiled" && chat.project_id ? null : undefined;
 };
 
-/**
- * The project_id that a drop sets: a project ID, null to remove the chat from
- * its project, or undefined when the drop changes nothing.
- */
+/** The project_id that a drop on over sets, as projectIdForTarget returns it. */
 export const projectIdForDrop = (
 	chat: Chat,
 	over: { readonly data: DataRef } | null,
 ): string | null | undefined => projectIdForTarget(chat, dropTargetOf(over));
-
-/**
- * A drop target that turns on only for a chat it would move. dnd-kit leaves
- * disabled targets out of the collision and of the keyboard stops.
- */
-export const useChatDropTarget = (
-	target: DropTarget,
-	draggedChat: Chat | undefined,
-) =>
-	useDroppable({
-		id: target.kind === "project" ? `project:${target.projectId}` : "unfiled",
-		data: { dropTarget: target },
-		disabled:
-			!draggedChat || projectIdForTarget(draggedChat, target) === undefined,
-	});
 
 /** A pin drag sorts among the pins. A chat drag sees only the drop targets. */
 export const collideByDragKind: CollisionDetection = (args) => {
@@ -110,12 +111,14 @@ export const dragKeyboardCoordinates: KeyboardCoordinateGetter = (
 	if (!draggedChatOf(active)) {
 		return sortableKeyboardCoordinates(event, args);
 	}
-	const step =
-		event.code === "ArrowDown" ? 1 : event.code === "ArrowUp" ? -1 : 0;
-	if (step === 0 || !collisionRect) {
+	if (
+		(event.code !== "ArrowDown" && event.code !== "ArrowUp") ||
+		!collisionRect
+	) {
 		return undefined;
 	}
 	event.preventDefault();
+	const step = event.code === "ArrowDown" ? 1 : -1;
 	const next = droppableContainers
 		.getEnabled()
 		.filter((target) => dropTargetOf(target) !== undefined)

@@ -2905,6 +2905,31 @@ export const ProjectFolderCollapsed: Story = {
 	},
 };
 
+export const ChatDraggedOverProjectFolder: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "loose-chat",
+				title: "Loose chat",
+				organization_id: MockChatProject.organization_id,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		const row = await within(canvasElement).findByRole("button", {
+			name: /Loose chat/,
+			description: /pick up a draggable item/i,
+		});
+		row.focus();
+		await userEvent.keyboard("[Space]");
+		await userEvent.keyboard("[ArrowUp]");
+	},
+};
+
 export const ProjectFolderExpanded: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {

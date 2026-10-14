@@ -39,7 +39,7 @@ export const useMoveChatToProject = () => {
 
 type MoveToProjectMenuItemsProps = {
 	readonly chat: Chat;
-	/** Turns the submenu off while the chat or one of its subagents runs. */
+	/** Turns the submenu off unless the chat and its subagents are idle. */
 	readonly blocked: boolean;
 	/** The ID of the hint that explains why the submenu is off. */
 	readonly describedBy?: string;
@@ -68,7 +68,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const projectsQuery = useQuery(chatProjectsByOrganization());
-	const projects = projectsQuery.data?.get(chat.organization_id) ?? [];
+	const projects = projectsQuery.data?.[chat.organization_id] ?? [];
 	const mutation = useMoveChatToProject();
 	const move = (projectId: string | null) =>
 		mutation.mutate({ chatId: chat.id, projectId });
@@ -76,7 +76,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 	return (
 		<Sub>
 			<SubTrigger disabled={blocked} aria-describedby={describedBy}>
-				<FolderInputIcon className="size-3.5" />
+				<FolderInputIcon />
 				Move to project
 			</SubTrigger>
 			<SubContent className="max-h-80 max-w-72 overflow-y-auto">
@@ -97,9 +97,9 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 							disabled={isCurrent}
 							onSelect={() => move(project.id)}
 						>
-							<ChatProjectIcon project={project} className="size-3.5" />
+							<ChatProjectIcon project={project} />
 							<span className="truncate">{project.name}</span>
-							{isCurrent && <CheckIcon className="ml-auto size-3.5 shrink-0" />}
+							{isCurrent && <CheckIcon className="ml-auto shrink-0" />}
 						</Item>
 					);
 				})}
@@ -107,7 +107,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 					<>
 						<Separator />
 						<Item onSelect={() => move(null)}>
-							<FolderMinusIcon className="size-3.5" />
+							<FolderMinusIcon />
 							Remove from project
 						</Item>
 					</>

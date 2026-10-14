@@ -1,43 +1,47 @@
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "cn";
 import type { Chat } from "#/api/typesGenerated";
-import { canDragChatToProject } from "../chats/projectDrag";
+import { type ChatDragData, canDragChatToProject } from "../chats/projectDrag";
 import { useChatTree } from "./ChatTreeContext";
 import { ChatTreeNode } from "./ChatTreeNode";
 
-/** A root row in a folder or in Chats. Its owner can drag it to move the chat. */
-export const DraggableChatTreeNode: React.FC<{ readonly chat: Chat }> = ({
+type DraggableChatTreeNodeProps = {
+	readonly chat: Chat;
+};
+
+/**
+ * A row that its owner can drag to move the chat. The wrapper stays mounted
+ * when the chat stops being movable, so a status change does not remount the
+ * row and close its open menu.
+ */
+export const DraggableChatTreeNode: React.FC<DraggableChatTreeNodeProps> = ({
 	chat,
 }) => {
 	const { currentUserId } = useChatTree();
-	// Rows that cannot move stay plain rows, with no drag role for screen readers.
-	if (!canDragChatToProject(chat, currentUserId)) {
-		return <ChatTreeNode chat={chat} />;
-	}
-	return <DraggableRow chat={chat} />;
-};
-
-const DraggableRow: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
+	const canDrag = canDragChatToProject(chat, currentUserId);
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id: `move:${chat.id}`,
-		data: { chat },
+		data: { chat } satisfies ChatDragData,
+		disabled: !canDrag,
 	});
 	return (
 		<div
 			ref={setNodeRef}
 			className={cn(isDragging && "opacity-50")}
-			{...attributes}
-			{...listeners}
+			// Rows that cannot move get no drag role for screen readers.
+			{...(canDrag ? { ...attributes, ...listeners } : {})}
 		>
 			<ChatTreeNode chat={chat} />
 		</div>
 	);
 };
 
+type ChatDragPreviewProps = {
+	readonly chat: Chat;
+};
+
 /** The copy of a dragged row that follows the pointer. */
-export const ChatDragPreview: React.FC<{ readonly chat: Chat }> = ({
-	chat,
-}) => (
+export const ChatDragPreview: React.FC<ChatDragPreviewProps> = ({ chat }) => (
 	<div className="max-w-60 truncate rounded-md border border-solid border-border bg-surface-secondary px-2.5 py-1 text-sm text-content-primary shadow-md">
 		{chat.title}
 	</div>

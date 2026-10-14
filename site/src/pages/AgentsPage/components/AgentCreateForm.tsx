@@ -439,7 +439,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	}
 	// The project picker only exists on the general composer; a `project` prop
 	// already fixes the project. The selection is not saved, so a remembered
-	// choice cannot misfile chats.
+	// choice cannot silently file later chats into a project.
 	const isProjectPickerEnabled =
 		!project && experiments.includes("chat-projects");
 	const projectsQuery = useQuery({

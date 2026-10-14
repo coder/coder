@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -826,10 +827,12 @@ describe("ChatsSidebar pin actions", () => {
 	);
 });
 
+const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
+
 describe("ChatsSidebar move to project", () => {
-	const billing = {
+	const mockBillingProject = {
 		...MockChatProject,
-		id: "billing-project",
+		id: "mockBillingProject-project",
 		name: "Billing",
 	};
 
@@ -850,7 +853,7 @@ describe("ChatsSidebar move to project", () => {
 	beforeEach(() => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, billing]),
+				HttpResponse.json([MockChatProject, mockBillingProject]),
 			),
 		);
 	});
@@ -858,7 +861,7 @@ describe("ChatsSidebar move to project", () => {
 	afterEach(() => vi.restoreAllMocks());
 
 	it.each([
-		{ target: "Billing", projectId: billing.id },
+		{ target: "Billing", projectId: mockBillingProject.id },
 		{ target: "Remove from project", projectId: NIL_UUID },
 	])("moves a chat with $target", async ({ target, projectId }) => {
 		const user = userEvent.setup();
@@ -869,7 +872,7 @@ describe("ChatsSidebar move to project", () => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
 				projectRequests += 1;
-				return HttpResponse.json([MockChatProject, billing]);
+				return HttpResponse.json([MockChatProject, mockBillingProject]);
 			}),
 		);
 		renderSidebar([
@@ -982,11 +985,14 @@ describe("ChatsSidebar move to project", () => {
 });
 
 describe("ChatsSidebar project drops", () => {
-	const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
-	const billing = { ...MockChatProject, id: "billing", name: "Billing" };
-	const ops = {
-		...billing,
-		id: "ops",
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "mockBillingProject",
+		name: "Billing",
+	};
+	const mockOpsProject = {
+		...mockBillingProject,
+		id: "mockOpsProject",
 		name: "Ops",
 		organization_id: "other-org",
 	};
@@ -1007,9 +1013,9 @@ describe("ChatsSidebar project drops", () => {
 		);
 	};
 
-	// jsdom has no layout, so dnd-kit measures zero rects. A node gets the box
-	// of the one landmark it holds: the dragged row, Billing, Ops or Chats. An
-	// ancestor of several gets no box. The DragOverlay copy gets the row box.
+	// jsdom has no layout, so dnd-kit measures zero rects. Only a node that
+	// holds exactly one landmark gets a box, and the DragOverlay copy, which
+	// holds none, gets the row box.
 	const layoutDropTargets = (rowTop: number) => {
 		const box = (y: number, height: number) =>
 			DOMRect.fromRect({ x: 0, y, width: 300, height });
@@ -1062,28 +1068,67 @@ describe("ChatsSidebar project drops", () => {
 			// A waiting root with a running subagent.
 			buildChat({ id: "c5", title: "Parent chat", children: [child] }),
 		]);
-		const dragRole = async (title: string) =>
-			(await screen.findByText(title))
-				.closest("[aria-roledescription]")
-				?.getAttribute("aria-roledescription");
+		await screen.findByText("Free chat");
+		const dragHandles = (title: string) =>
+			screen.queryAllByRole("button", {
+				name: new RegExp(title),
+				description: DRAG_INSTRUCTIONS,
+			});
 
-		expect(await dragRole("Free chat")).toBe("draggable");
-		expect(await dragRole("Pinned chat")).toBe("sortable");
+		// The pinned row keeps only its sortable drag.
+		expect(dragHandles("Free chat")).toHaveLength(1);
+		expect(dragHandles("Pinned chat")).toHaveLength(1);
 		for (const title of [
 			"Shared chat",
 			"Busy chat",
 			"Archived chat",
 			"Parent chat",
 		]) {
-			expect(await dragRole(title)).toBeUndefined();
+			expect(dragHandles(title)).toHaveLength(0);
 		}
+	});
+
+	it("keeps a row mounted when its chat starts running", async () => {
+		const user = userEvent.setup();
+		const chat = buildChat({ id: "c1", title: "Fix invoice dates" });
+		const StatusChange: React.FC = () => {
+			const [status, setStatus] = useState<TypesGen.ChatStatus>("waiting");
+			return (
+				<>
+					<button type="button" onClick={() => setStatus("running")}>
+						Start
+					</button>
+					<ChatsSidebar {...defaultProps} chats={[{ ...chat, status }]} />
+				</>
+			);
+		};
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<StatusChange />
+			</Wrapper>,
+		);
+		const link = await screen.findByRole("link", { name: /Fix invoice dates/ });
+
+		await user.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(screen.getByRole("link", { name: /Fix invoice dates/ })).toBe(link);
 	});
 
 	// Ops sits between Billing and Chats but belongs to another organization,
 	// so each key must skip it.
 	it.each([
-		{ rowTop: 240, key: "[ArrowUp]", projectId: undefined, body: billing.id },
-		{ rowTop: 40, key: "[ArrowDown]", projectId: billing.id, body: NIL_UUID },
+		{
+			rowTop: 240,
+			key: "[ArrowUp]",
+			projectId: undefined,
+			body: mockBillingProject.id,
+		},
+		{
+			rowTop: 40,
+			key: "[ArrowDown]",
+			projectId: mockBillingProject.id,
+			body: NIL_UUID,
+		},
 	])("drops a chat with $key", async ({ rowTop, key, projectId, body }) => {
 		const user = userEvent.setup();
 		const update = vi
@@ -1094,11 +1139,11 @@ describe("ChatsSidebar project drops", () => {
 				buildChat({
 					id: "c1",
 					title: "Fix invoice dates",
-					organization_id: billing.organization_id,
+					organization_id: mockBillingProject.organization_id,
 					project_id: projectId,
 				}),
 			],
-			[billing, ops],
+			[mockBillingProject, mockOpsProject],
 		);
 		await user.click(
 			await screen.findByRole("button", { name: "Expand Billing" }),
@@ -1118,7 +1163,6 @@ describe("ChatsSidebar project drops", () => {
 });
 
 describe("ChatsSidebar pinned reordering", () => {
-	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;
 
 	// dnd-kit's keyboard sensor picks the drop target from measured
@@ -1126,7 +1170,7 @@ describe("ChatsSidebar pinned reordering", () => {
 	// vertically in document order so ArrowDown resolves to the next row.
 	const layoutSortableRows = () => {
 		const rows = screen.getAllByRole("button", {
-			description: SORTABLE_INSTRUCTIONS,
+			description: DRAG_INSTRUCTIONS,
 		});
 		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
 			function (this: Element) {

@@ -19,37 +19,13 @@ export const chatProjects = () =>
 		queryFn: () => API.experimental.getChatProjects(),
 	});
 
-// Each menu mounts its own observer, and select memoizes per observer, so
-// this keeps one grouping for each fetched list.
-const projectsByOrganization = new WeakMap<
-	readonly TypesGen.ChatProject[],
-	ReadonlyMap<string, readonly TypesGen.ChatProject[]>
->();
-
-const groupByOrganization = (
-	projects: readonly TypesGen.ChatProject[],
-): ReadonlyMap<string, readonly TypesGen.ChatProject[]> => {
-	const cached = projectsByOrganization.get(projects);
-	if (cached) {
-		return cached;
-	}
-	const grouped = new Map<string, TypesGen.ChatProject[]>();
-	for (const project of projects) {
-		const group = grouped.get(project.organization_id);
-		if (group) {
-			group.push(project);
-		} else {
-			grouped.set(project.organization_id, [project]);
-		}
-	}
-	projectsByOrganization.set(projects, grouped);
-	return grouped;
-};
+const groupByOrganization = (projects: readonly TypesGen.ChatProject[]) =>
+	Object.groupBy(projects, (project) => project.organization_id);
 
 /**
- * Groups the chatProjects() list by organization ID in server order, for
- * menus that mount when they open. The sidebar keeps the list current and
- * the project mutations invalidate it, so opening a menu sends no request.
+ * Groups the chatProjects() list by organization ID in server order. The
+ * sidebar keeps the list current and the project mutations invalidate it, so
+ * a reader that mounts later sends no request.
  */
 export const chatProjectsByOrganization = () =>
 	queryOptions({

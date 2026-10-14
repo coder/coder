@@ -51,7 +51,7 @@ class MockIntersectionObserver {
 	}
 }
 
-const projectChat: Chat = {
+const mockProjectChat: Chat = {
 	...MockChat,
 	organization_id: MockChatProject.organization_id,
 	project_id: MockChatProject.id,
@@ -59,7 +59,7 @@ const projectChat: Chat = {
 
 const buildChats = (count: number, offset = 0): Chat[] =>
 	Array.from({ length: count }, (_, index) => ({
-		...projectChat,
+		...mockProjectChat,
 		id: `chat-${offset + index}`,
 		title: `Chat ${offset + index}`,
 	}));
@@ -223,7 +223,7 @@ describe("ProjectChatsList", () => {
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...projectChat, owner_id: owner.id },
+				{ ...mockProjectChat, owner_id: owner.id },
 			]);
 			renderList();
 
@@ -252,7 +252,7 @@ describe("ProjectChatsList", () => {
 			.mockResolvedValue();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 			{
-				...projectChat,
+				...mockProjectChat,
 				diff_status: {
 					chat_id: MockChat.id,
 					pull_request_title: "",
@@ -284,7 +284,7 @@ describe("ProjectChatsList", () => {
 		"archives and deletes a project chat workspace (confirmation: %s)",
 		async (requiresConfirmation) => {
 			const user = userEvent.setup();
-			const chat = { ...projectChat, workspace_id: MockWorkspace.id };
+			const chat = { ...mockProjectChat, workspace_id: MockWorkspace.id };
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
 			vi.spyOn(API, "getWorkspace").mockResolvedValue({
 				...MockWorkspace,
@@ -338,7 +338,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder, expectedOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...projectChat, pin_order: pinOrder },
+				{ ...mockProjectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 			renderList();
@@ -364,7 +364,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...projectChat, pin_order: pinOrder },
+				{ ...mockProjectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
 				new Error("Pin update rejected"),
@@ -454,11 +454,15 @@ describe("ProjectChatsList", () => {
 
 	it("drops a row as soon as its chat moves to another project", async () => {
 		const user = userEvent.setup();
-		const billing = { ...MockChatProject, id: "billing", name: "Billing" };
+		const mockBillingProject = {
+			...MockChatProject,
+			id: "mockBillingProject",
+			name: "Billing",
+		};
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
 		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
 			MockChatProject,
-			billing,
+			mockBillingProject,
 		]);
 		// The move stays pending, so no refetch can remove the row.
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
@@ -481,7 +485,7 @@ describe("ProjectChatsList", () => {
 		await user.keyboard("{Enter}");
 
 		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
-			project_id: billing.id,
+			project_id: mockBillingProject.id,
 		});
 		await waitFor(() =>
 			expect(

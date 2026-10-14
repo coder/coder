@@ -23,8 +23,8 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
+import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
-import { useChatDropTarget } from "./projectDrag";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -157,14 +157,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	emptyMessage,
 	draggedChat,
 }) => {
-	const { setNodeRef, isOver } = useChatDropTarget(
-		{
-			kind: "project",
-			projectId: project.id,
-			organizationId: project.organization_id,
-		},
-		draggedChat,
-	);
 	const projectPath: To = {
 		pathname: buildAgentProjectPath({ projectId: project.id }),
 		search: locationSearch,
@@ -173,12 +165,13 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	return (
-		<div
-			ref={setNodeRef}
-			className={cn(
-				"rounded-md",
-				isOver && "ring-1 ring-inset ring-content-link",
-			)}
+		<ChatDropArea
+			target={{
+				kind: "project",
+				projectId: project.id,
+				organizationId: project.organization_id,
+			}}
+			draggedChat={draggedChat}
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
@@ -287,6 +280,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 					)}
 				</div>
 			)}
-		</div>
+		</ChatDropArea>
 	);
 };

@@ -74,6 +74,7 @@ import {
 } from "../tree/DraggableChatTreeNode";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
 import { getChatStatusDisplay } from "../tree/statusConfig";
+import { ChatDropArea } from "./ChatDropArea";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
@@ -90,7 +91,6 @@ import {
 	draggedChatOf,
 	dragKeyboardCoordinates,
 	projectIdForDrop,
-	useChatDropTarget,
 } from "./projectDrag";
 import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
@@ -291,13 +291,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		const chat = draggedChatOf(active);
 		if (chat) {
 			const projectId = projectIdForDrop(chat, over);
-			if (projectId !== undefined) {
-				if (projectId) {
-					// Open the folder so the user sees the chat arrive.
-					setProjectFolderOverrides((prev) => ({ ...prev, [projectId]: true }));
-				}
-				moveMutation.mutate({ chatId: chat.id, projectId });
+			if (projectId === undefined) {
+				return;
 			}
+			if (projectId) {
+				// Open the folder so the user sees the chat arrive.
+				setProjectFolderOverrides((prev) => ({ ...prev, [projectId]: true }));
+			}
+			moveMutation.mutate({ chatId: chat.id, projectId });
 			return;
 		}
 
@@ -637,7 +638,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									/>
 								</ChatTreeContext>
 							)}
-							<UnfiledDropArea draggedChat={draggedChat}>
+							<ChatDropArea
+								target={{ kind: "unfiled" }}
+								draggedChat={draggedChat}
+							>
 								{chatProjectsEnabled && chatsHeader}
 								<div className="flex flex-col gap-2 px-2 pb-3">
 									{loadError ? (
@@ -809,7 +813,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 										</ChatTreeContext>
 									)}
 								</div>
-							</UnfiledDropArea>
+							</ChatDropArea>
 						</div>
 						{draggedChat &&
 							// ScrollArea clips its content, so the copy renders outside it.
@@ -823,27 +827,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				</ScrollArea>
 			</div>
 			<UserSidebarFooter />
-		</div>
-	);
-};
-
-/** Chats takes a drop that removes the chat from its project. */
-const UnfiledDropArea: React.FC<
-	React.PropsWithChildren<{ readonly draggedChat: Chat | undefined }>
-> = ({ draggedChat, children }) => {
-	const { setNodeRef, isOver } = useChatDropTarget(
-		{ kind: "unfiled" },
-		draggedChat,
-	);
-	return (
-		<div
-			ref={setNodeRef}
-			className={cn(
-				"rounded-md",
-				isOver && "ring-1 ring-inset ring-content-link",
-			)}
-		>
-			{children}
 		</div>
 	);
 };
