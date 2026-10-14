@@ -168,7 +168,11 @@ runs:
         GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
         EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
         # This limit assumes make's -tags=testsmallbatch. See testutil.MemoryLimitEnv.
-        CODER_TEST_MEMORY_LIMIT_MIB: "6144"
+        # macOS gets a lower limit: the runner has 17 GiB and cli.test peaks
+        # at about 3.5 GiB there, so 5120 MiB keeps a 1.4x margin while
+        # tripping before a runaway allocation reaches the compressor and
+        # swap. See coder/internal#1365.
+        CODER_TEST_MEMORY_LIMIT_MIB: ${{ runner.os == 'macOS' && '5120' || '6144' }}
         TS_DEBUG_DISCO: "true"
         TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
