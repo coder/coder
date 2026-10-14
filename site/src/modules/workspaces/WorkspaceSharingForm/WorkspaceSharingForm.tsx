@@ -41,14 +41,14 @@ import { getGroupSubtitle } from "#/modules/groups";
 
 type RoleSelectProps = {
 	value: WorkspaceRole;
-	memberName: string;
+	memberOrGroupName: string;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
 };
 
 const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
-	memberName,
+	memberOrGroupName,
 	disabled,
 	onValueChange,
 }) => {
@@ -62,7 +62,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
 			<SelectTrigger
 				className="w-40 h-auto"
-				aria-label={`Role for ${memberName}`}
+				aria-label={`Role for ${memberOrGroupName}`}
 			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
@@ -264,7 +264,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
-										memberName={group.display_name || group.name}
+										memberOrGroupName={group.display_name || group.name}
 										disabled={updatingGroupId === group.id}
 										onValueChange={(value) => onUpdateGroup(group, value)}
 									/>
@@ -313,7 +313,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
-										memberName={user.username}
+										memberOrGroupName={user.username}
 										disabled={updatingUserId === user.id}
 										onValueChange={(value) => onUpdateUser(user, value)}
 									/>
