@@ -724,8 +724,8 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 
 // bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
 // ID only supports the "adaptive" thinking type and rejects the legacy
-// "enabled" + budget_tokens shape with a 400. The Opus 5 and Sonnet 5
-// prefixes also match their 5.5 releases.
+// "enabled" + budget_tokens shape with a 400. The Opus 5, Sonnet 5, and
+// Fable 5 prefixes also match their point releases.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 // and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
@@ -734,7 +734,8 @@ func bedrockModelRequiresAdaptiveThinking(model string) bool {
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
 		strings.Contains(model, "anthropic.claude-opus-5") ||
 		strings.Contains(model, "anthropic.claude-sonnet-5") ||
-		strings.Contains(model, "anthropic.claude-haiku-5-5")
+		strings.Contains(model, "anthropic.claude-haiku-5-5") ||
+		strings.Contains(model, "anthropic.claude-fable-5")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta
