@@ -262,11 +262,10 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		return CompactionResult{}, nil
 	}
 
-	// contextTokens covers only the trigger step's prompt, so the summary
-	// request's input also includes that step's output, the messages
-	// after it, and the summary prompt appended by
+	// The summary request's input is the trigger step's prompt and output,
+	// the messages after it, and the summary prompt appended by
 	// generateCompactionSummary.
-	config.estimatedInputTokens = contextTokens + opts.StepUsage.OutputTokens +
+	config.estimatedInputTokens = stepTokensFromUsage(opts.StepUsage) +
 		EstimateTrailingTokens(opts.Messages, opts.UnmeasuredAssistants) +
 		estimateTokens(len(config.SummaryPrompt)+len(config.SummaryHint))
 	config.summaryWindow = contextLimit
@@ -618,6 +617,16 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	}
 
 	return total
+}
+
+// stepTokensFromUsage returns the tokens of a step's prompt and output,
+// which are both input to the request after it. The TotalTokens fallback
+// of contextTokensFromUsage already counts the output.
+func stepTokensFromUsage(usage fantasy.Usage) int64 {
+	if usage.InputTokens <= 0 && usage.CacheReadTokens <= 0 && usage.CacheCreationTokens <= 0 && usage.TotalTokens > 0 {
+		return usage.TotalTokens
+	}
+	return contextTokensFromUsage(usage) + usage.OutputTokens
 }
 
 // resolveContextLimit returns the configured limit when positive, then

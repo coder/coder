@@ -1,6 +1,7 @@
 package chatloop
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1500,9 +1501,11 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 	// About 10,000 tokens of definitions that the step's usage counts.
 	largeTools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 30_000)}}
 	cases := []struct {
-		name       string
-		window     int64
-		maxOutput  int64
+		name      string
+		window    int64
+		maxOutput int64
+		// usage defaults to the step's 50,000 input tokens.
+		usage      fantasy.Usage
 		tools      []fantasy.Tool
 		omitTools  bool
 		wantElided bool
@@ -1512,6 +1515,8 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 		{name: "a smaller output cap lowers the floor", window: fullInput + 10_000, maxOutput: 4_000, tools: readFile},
 		{name: "unknown window", maxOutput: 20_000, tools: readFile},
 		{name: "omitted tool definitions leave room", window: fullInput + 10_000, maxOutput: 20_000, tools: largeTools, omitTools: true},
+		// The total already counts the step's output.
+		{name: "a total-only usage counts the output once", window: fullInput + 16_000, maxOutput: 20_000, usage: fantasy.Usage{TotalTokens: 50_000, OutputTokens: 4_000}, tools: readFile},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1532,7 +1537,7 @@ func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
 				Clock:               quartz.NewMock(t),
 				ContextLimit:        tc.window,
 				SummaryPrompt:       "summarize",
-				StepUsage:           fantasy.Usage{InputTokens: 50_000},
+				StepUsage:           cmp.Or(tc.usage, fantasy.Usage{InputTokens: 50_000}),
 				SummaryCall:         fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
 				ToolDefinitions:     tc.tools,
 				OmitToolDefinitions: tc.omitTools,

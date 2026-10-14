@@ -889,7 +889,10 @@ func (server *Server) prepareGeneration(
 			otherTrigger = chatTrigger
 		}
 	}
-	compactionStepUsage, unmeasuredAssistants := latestPromptUsage(promptRows)
+	compactionStepUsage, unmeasuredAssistants, err := latestPromptUsage(ctx, logger, promptRows)
+	if err != nil {
+		return generationPrepared{}, xerrors.Errorf("read latest prompt usage: %w", err)
+	}
 	// The full prompt includes the pending user messages, which the next
 	// model call sends after the compacted history.
 	compactionTrailingTokens := chatloop.EstimateTrailingTokens(prompt, unmeasuredAssistants)
@@ -984,20 +987,34 @@ func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed 
 }
 
 // latestPromptUsage returns the latest usage in messages and the number of
-// assistant messages after the one that reported it. Those persist without
-// usage, like the partial response of an interrupted step.
-func latestPromptUsage(messages []database.ChatMessage) (fantasy.Usage, int) {
-	unmeasuredAssistants := 0
+// assistant messages that the prompt replays after the one that reported
+// it. Those persist without usage, like the partial response of an
+// interrupted step. Assistant messages that the prompt omits, such as one
+// that holds a tool's attachments, do not count.
+func latestPromptUsage(ctx context.Context, logger slog.Logger, messages []database.ChatMessage) (fantasy.Usage, int, error) {
+	var unmeasured []database.ChatMessage
 	for i := len(messages) - 1; i >= 0; i-- {
 		usage := usageFromMessage(messages[i])
-		if usage != (fantasy.Usage{}) {
-			return usage, unmeasuredAssistants
+		if usage == (fantasy.Usage{}) {
+			if messages[i].Role == database.ChatMessageRoleAssistant {
+				unmeasured = append(unmeasured, messages[i])
+			}
+			continue
 		}
-		if messages[i].Role == database.ChatMessageRoleAssistant {
-			unmeasuredAssistants++
+		replayed := 0
+		for _, msg := range unmeasured {
+			prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, []database.ChatMessage{msg}, nil, logger, nil, uuid.NullUUID{})
+			if err != nil {
+				return fantasy.Usage{}, 0, xerrors.Errorf("convert assistant message %d: %w", msg.ID, err)
+			}
+			if len(prompt) > 0 {
+				replayed++
+			}
 		}
+		return usage, replayed, nil
 	}
-	return fantasy.Usage{}, unmeasuredAssistants
+	// With no measured step, the whole prompt is trailing.
+	return fantasy.Usage{}, len(unmeasured), nil
 }
 
 // compactionOverrideWindowPercent leaves the rest of the override's window as

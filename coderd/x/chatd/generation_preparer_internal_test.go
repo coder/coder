@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"strings"
@@ -226,6 +227,11 @@ func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
 
 	cases := []struct {
 		name string
+		// asked is the message the measured step answered.
+		asked string
+		// attachment adds the assistant message that holds a tool's
+		// attachments, which the prompt omits.
+		attachment bool
 		// interrupted is a response that a stop cut short after the
 		// measured step.
 		interrupted  string
@@ -236,6 +242,8 @@ func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
 		// About 6,800 tokens on top of the 85,000 the last step measured.
 		{name: "large pending message", pending: strings.Repeat("a", 20<<10), wantRequired: true},
 		{name: "large interrupted response", interrupted: strings.Repeat("a", 20<<10), pending: "continue", wantRequired: true},
+		// The measured step already counts the large message it answered.
+		{name: "attachment after the measured step", asked: strings.Repeat("a", 20<<10), attachment: true, pending: "continue"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -257,7 +265,16 @@ func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
 			}
 			answer := message(database.ChatMessageRoleAssistant, "hi")
 			answer.InputTokens = sql.NullInt64{Int64: 85_000, Valid: true}
-			initial := []chatstate.Message{message(database.ChatMessageRoleUser, "hello"), answer}
+			initial := []chatstate.Message{message(database.ChatMessageRoleUser, cmp.Or(tc.asked, "hello")), answer}
+			if tc.attachment {
+				attachment := message(database.ChatMessageRoleAssistant, "")
+				content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+					codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png"),
+				})
+				require.NoError(t, err)
+				attachment.Content = content
+				initial = append(initial, attachment)
+			}
 			if tc.interrupted != "" {
 				initial = append(initial,
 					message(database.ChatMessageRoleUser, "go on"),
@@ -927,7 +944,8 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 5, database.ChatMessageRoleTool, false, codersdk.ChatMessageText("result")),
 			withUsage(dbMessage(t, 6, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step3")), 5400, 0),
 		}
-		usage, _ := latestPromptUsage(messages)
+		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), messages)
+		require.NoError(t, err)
 		assert.Equal(t, int64(5400), usage.InputTokens,
 			"must return the last step's usage, not the sum across steps")
 	})
@@ -938,13 +956,15 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("hi")),
 		}
-		usage, _ := latestPromptUsage(messages)
+		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), messages)
+		require.NoError(t, err)
 		assert.Equal(t, fantasy.Usage{}, usage)
 	})
 
 	t.Run("returns zero for empty message list", func(t *testing.T) {
 		t.Parallel()
-		usage, _ := latestPromptUsage(nil)
+		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), nil)
+		require.NoError(t, err)
 		assert.Equal(t, fantasy.Usage{}, usage)
 	})
 }
