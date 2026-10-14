@@ -283,11 +283,13 @@ cleanup() {
 trap cleanup EXIT
 
 # Commands run inside the aegis checkout must see its mise toolchain rather
-# than a host GOROOT or GOBIN.
+# than a host GOROOT or GOBIN, and build the aegis module alone: a go.work
+# from GOWORK or a parent directory, meant for the coder build, does not
+# list it.
 aegis_env() {
 	local dir=$1
 	shift
-	(cd "$dir" && env -u GOROOT -u GOBIN MISE_TRUSTED_CONFIG_PATHS="$dir" MISE_YES=1 \
+	(cd "$dir" && env -u GOROOT -u GOBIN GOWORK=off MISE_TRUSTED_CONFIG_PATHS="$dir" MISE_YES=1 \
 		MISE_TASK_RUN_AUTO_INSTALL=false MISE_EXEC_AUTO_INSTALL=false "$@")
 }
 

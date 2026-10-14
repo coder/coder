@@ -39,6 +39,12 @@ func TestSummarizeRun(t *testing.T) {
 	require.NoError(t, os.MkdirAll(measured, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(measured, "measurements.json"), []byte(
 		`{"graders":{"checks":{"passed":true},"hidden_tests":{"passed":true},"guardrails":{"passed":false,"guardrail":true}}}`), 0o600))
+	// A trial that did not finish fails the task even when its workspace
+	// passes every grader.
+	measured = filepath.Join(derived, "case-a__control__r2")
+	require.NoError(t, os.MkdirAll(measured, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(measured, "measurements.json"), []byte(
+		`{"graders":{"hidden_tests":{"passed":true}}}`), 0o600))
 	// A trial that never landed a bundle is only in the journal; it must
 	// still count as a failed trial with its reason. So must a trial the
 	// journal lists as completed (or skipped on resume) whose bundle is
@@ -60,14 +66,18 @@ func TestSummarizeRun(t *testing.T) {
 		"case-a__control__r6": "completed, but its bundle is missing",
 		"case-a__control__r7": "skipped, but its bundle is missing",
 	}, s.JournalOnly)
-	require.Equal(t, 3, s.Ungraded)
+	require.Equal(t, 2, s.Ungraded)
 	require.Len(t, s.Failures, 3)
 	require.Equal(t, "error: model returned 529", s.Failures[0].FailReason)
+	require.False(t, s.Failures[0].TaskSuccess)
 	require.Equal(t, "sidecar coderagents: get workspace: context deadline exceeded", s.Failures[1].FailReason)
 	require.Equal(t, "coderagents: coder server exited during startup (exit status 1)", s.Failures[2].FailReason)
-	require.Equal(t, rate{Passed: 1, Total: 1, Rate: 1, Low: s.Overall.Low, High: 1}, s.Overall)
+	low, high := wilson(1, 2)
+	require.Equal(t, rate{Passed: 1, Total: 2, Rate: 0.5, Low: low, High: high}, s.Overall)
 	require.Equal(t, 1, s.ByCase["case-a"].Passed)
+	require.Equal(t, 2, s.ByCase["case-a"].Total)
 	require.Equal(t, 0, s.Graders["guardrails"].Passed)
+	require.Equal(t, 2, s.Graders["hidden_tests"].Passed, "grader rates still report what each grader saw")
 	require.InDelta(t, 1.0, s.CostUSD, 1e-9)
 
 	var create toolRow

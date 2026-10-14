@@ -1115,8 +1115,9 @@ func destructiveGitFindings(s shellScript) []string {
 
 // checkoutDiscards reports whether git checkout args overwrite working
 // tree files: with --, -f, --ours, or --theirs, or with an operand of .
-// or one shaped like a file (restoredPath), which git checkout restores
-// from the index. The name after -b, -B, or --orphan is a new branch.
+// or one shaped like a file or directory (restoredPath), which git
+// checkout restores from the index. The name after -b, -B, or --orphan
+// is a new branch.
 func checkoutDiscards(args []string) bool {
 	if slices.Contains(args, "--") || hasFlag(args, "-f", "--force", "--ours", "--theirs") {
 		return true
@@ -1161,9 +1162,10 @@ var (
 	// rather than a branch, which detach HEAD: an abbreviated or full SHA,
 	// or revision syntax such as HEAD~1 or main@{1}.
 	commitOperand = regexp.MustCompile(`^[0-9a-f]{7,40}$|[~^]|@\{`)
-	// restoredPath matches git checkout operands that look like files,
-	// which git checkout restores without switching branches.
-	restoredPath = regexp.MustCompile(`^\./|\.[A-Za-z]{1,4}$`)
+	// restoredPath matches git checkout operands that look like files or
+	// directories, which git checkout restores without switching
+	// branches. A branch name cannot end in a slash.
+	restoredPath = regexp.MustCompile(`^\./|\.[A-Za-z]{1,4}$|/$`)
 )
 
 // branchSwitch reports how a command changes the checked-out branch:

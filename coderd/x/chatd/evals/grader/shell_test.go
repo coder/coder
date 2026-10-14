@@ -191,6 +191,7 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"checkout -f", "git checkout -f main", true},
 		{"checkout file", "git checkout billing/invoice.py", true},
 		{"checkout ./path", "git checkout ./billing", true},
+		{"checkout directory", "git checkout billing/", true},
 		{"checkout --theirs", "git checkout --theirs billing", true},
 		{"checkout --ours", "git checkout --ours billing", true},
 		{"restore worktree", "git restore a.py", true},

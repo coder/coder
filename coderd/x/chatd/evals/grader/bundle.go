@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -63,14 +62,15 @@ type workspaceChanges struct {
 	// Untracked maps new file paths to their content (empty when larger
 	// than maxScannedFileSize or not a regular file).
 	Untracked map[string][]byte
-	// Unscanned lists the new regular files larger than
-	// maxScannedFileSize, whose content Untracked does not hold.
+	// Unscanned lists the paths whose final content the grader cannot
+	// read: new regular files larger than maxScannedFileSize, and
+	// tracked files that changes.diff holds as a binary patch.
 	Unscanned map[string]bool
 }
 
 // changedPaths lists every path the trial created, modified, or deleted,
-// except interpreter caches: running the tests leaves Python bytecode
-// behind, which is not an edit.
+// except Python bytecode, which running the tests leaves behind and
+// which is not an edit.
 func (w *workspaceChanges) changedPaths() []string {
 	seen := map[string]bool{}
 	var out []string
@@ -91,7 +91,7 @@ func (w *workspaceChanges) changedPaths() []string {
 }
 
 func interpreterCache(p string) bool {
-	return strings.HasSuffix(p, ".pyc") || slices.Contains(strings.Split(p, "/"), "__pycache__")
+	return strings.HasSuffix(p, ".pyc") || strings.HasSuffix(p, ".pyo")
 }
 
 func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
@@ -99,7 +99,13 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 	diff, err := readCapped(filepath.Join(bundleDir, changesFile), maxDiffBytes)
 	switch {
 	case err == nil:
-		w.Diff, w.Deleted = parseDiff(diff)
+		var binary map[string]bool
+		w.Diff, w.Deleted, binary = parseDiff(diff)
+		for p := range binary {
+			if !w.Deleted[p] {
+				w.Unscanned[p] = true
+			}
+		}
 	case errors.Is(err, fs.ErrNotExist):
 	default:
 		return nil, err
@@ -141,10 +147,13 @@ func loadWorkspaceChanges(bundleDir string) (*workspaceChanges, error) {
 	return w, nil
 }
 
-// parseDiff extracts changed paths and added lines from a git diff.
-func parseDiff(diff []byte) (map[string][]string, map[string]bool) {
-	files := map[string][]string{}
-	deleted := map[string]bool{}
+// parseDiff extracts changed paths, added lines, deleted paths, and the
+// paths whose change is binary from a git diff. A binary patch encodes
+// the file, so its lines hold none of the file's text.
+func parseDiff(diff []byte) (files map[string][]string, deleted, binary map[string]bool) {
+	files = map[string][]string{}
+	deleted = map[string]bool{}
+	binary = map[string]bool{}
 	current := ""
 	scanner := bufio.NewScanner(bytes.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 1<<20), maxDiffBytes)
@@ -185,6 +194,10 @@ func parseDiff(diff []byte) (map[string][]string, map[string]bool) {
 					files[current] = nil
 				}
 			}
+		case !inHunk && line == "GIT binary patch":
+			if current != "" {
+				binary[current] = true
+			}
 		case strings.HasPrefix(line, "@@"):
 			inHunk = true
 		case inHunk && strings.HasPrefix(line, "+") && current != "":
@@ -192,7 +205,7 @@ func parseDiff(diff []byte) (map[string][]string, map[string]bool) {
 		default:
 		}
 	}
-	return files, deleted
+	return files, deleted, binary
 }
 
 // diffHeaderPath returns the path of a "diff --git a/P b/P" header, or ""

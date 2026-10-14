@@ -388,8 +388,11 @@ func summarizeTrial(bundlePath, derived string) (trialSummary, error) {
 	return t, nil
 }
 
-// applyMeasurements reads a collect output. Task success follows aegis:
-// every grader that is neither a guardrail nor a metric must pass.
+// applyMeasurements reads a collect output. Task success follows aegis,
+// where every grader that is neither a guardrail nor a metric must pass,
+// and also needs a DONE trial: aegis grades a trial that ended
+// AGENT_FAILED or DEADLINE too, but a chat that errored or ran out of
+// time did not finish the task, whatever its workspace holds.
 func applyMeasurements(t *trialSummary, path string) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -419,7 +422,7 @@ func applyMeasurements(t *trialSummary, path string) error {
 		primary++
 		success = success && g.Passed
 	}
-	t.TaskSuccess = success && primary > 0
+	t.TaskSuccess = success && primary > 0 && t.Completion == completionDone
 	return nil
 }
 
