@@ -39,8 +39,10 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat and chat project sharing. Existing shares are ignored and
-          new shares are rejected; creators and administrators keep access.
+          Disable chat and chat project sharing. Existing shares stop granting
+          access and new shares are rejected. Owners keep access to their own
+          chats and projects, and administrators keep only the access their
+          roles grant.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution

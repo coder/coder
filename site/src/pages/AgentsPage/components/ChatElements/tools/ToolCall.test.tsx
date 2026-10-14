@@ -449,3 +449,74 @@ describe("ToolCall in a MessageScroller", () => {
 		expect(visibleRows).toEqual(before);
 	});
 });
+
+describe("ToolCall.Scrollable", () => {
+	// A 100px box over content that starts 300px tall.
+	let scrollHeight = 300;
+	const CLIENT_HEIGHT = 100;
+
+	const renderLog = () =>
+		render(
+			<ToolCall.Scrollable ariaLabel="Build log" followEnd>
+				<div>Log lines</div>
+			</ToolCall.Scrollable>,
+		);
+	const log = () => screen.getByRole("region", { name: "Build log" });
+	const growContent = (height: number) => {
+		scrollHeight = height;
+		for (const observer of MockResizeObserver.instances) {
+			observer.simulateResize(0, height);
+		}
+	};
+
+	beforeEach(() => {
+		scrollHeight = 300;
+		const scrollTops = new WeakMap<Element, number>();
+		MockResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
+		vi.spyOn(Element.prototype, "clientHeight", "get").mockImplementation(
+			function (this: Element) {
+				return isViewport(this) ? CLIENT_HEIGHT : 0;
+			},
+		);
+		vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(
+			function (this: Element) {
+				return isViewport(this) ? scrollHeight : 0;
+			},
+		);
+		vi.spyOn(Element.prototype, "scrollTop", "get").mockImplementation(
+			function (this: Element) {
+				return scrollTops.get(this) ?? 0;
+			},
+		);
+		vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation(
+			function (this: Element, top: number) {
+				const max = Math.max(0, scrollHeight - CLIENT_HEIGHT);
+				scrollTops.set(this, Math.max(0, Math.min(top, max)));
+			},
+		);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("follows new content while the reader is at the end", () => {
+		renderLog();
+		expect(log().scrollTop).toBe(200);
+
+		growContent(400);
+
+		expect(log().scrollTop).toBe(300);
+	});
+
+	it("keeps the reader's place after they scroll up", () => {
+		renderLog();
+		log().scrollTop = 40;
+
+		growContent(400);
+
+		expect(log().scrollTop).toBe(40);
+	});
+});
