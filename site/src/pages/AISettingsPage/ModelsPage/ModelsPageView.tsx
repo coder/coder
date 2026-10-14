@@ -112,8 +112,6 @@ type ModelsPageViewProps = {
 	refetchError: unknown;
 	models: readonly ChatModel[];
 	providerStates: readonly ProviderState[];
-	providerTypeByID: ReadonlyMap<string, string>;
-	providerIconByID: ReadonlyMap<string, string>;
 	canCreateModel: boolean;
 };
 
@@ -123,8 +121,6 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	refetchError,
 	models,
 	providerStates,
-	providerTypeByID,
-	providerIconByID,
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
@@ -149,74 +145,30 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 		);
 	};
 
-	const providerKeyByModelId = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const providerState of providerStates) {
-			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, providerState.key);
-			}
-		}
-		return map;
-	}, [providerStates]);
-
-	const providerLabelByModelId = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const providerState of providerStates) {
-			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, providerState.label);
-			}
-		}
-		return map;
-	}, [providerStates]);
-
-	const hasProviderByModelId = useMemo(() => {
-		const map = new Map<string, boolean>();
-		for (const providerState of providerStates) {
-			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, true);
-			}
-		}
-		return map;
-	}, [providerStates]);
-
-	const providerEnabledByModelId = useMemo(() => {
-		const map = new Map<string, boolean>();
-		for (const providerState of providerStates) {
-			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, providerState.providerDescriptor.enabled);
-			}
-		}
-		return map;
-	}, [providerStates]);
+	const providerByID = useMemo(
+		() => new Map(providerStates.map((provider) => [provider.key, provider])),
+		[providerStates],
+	);
 
 	const filteredModels = useMemo(() => {
 		const normalizedQuery = searchQuery.trim().toLowerCase();
 		return models.filter((model) => {
+			const provider = providerByID.get(model.ai_provider_id);
 			if (
 				providerFilter !== ALL_PROVIDERS_VALUE &&
-				providerKeyByModelId.get(model.id) !== providerFilter
+				provider?.key !== providerFilter
 			) {
 				return false;
 			}
 			if (normalizedQuery.length === 0) {
 				return true;
 			}
-			const haystack = [
-				model.display_name,
-				model.model,
-				providerLabelByModelId.get(model.id) ?? "",
-			]
+			const haystack = [model.display_name, model.model, provider?.label ?? ""]
 				.join(" ")
 				.toLowerCase();
 			return haystack.includes(normalizedQuery);
 		});
-	}, [
-		models,
-		providerFilter,
-		providerKeyByModelId,
-		providerLabelByModelId,
-		searchQuery,
-	]);
+	}, [models, providerFilter, providerByID, searchQuery]);
 
 	const { pagedItems, clampedPage, hasPreviousPage, hasNextPage } =
 		paginateItems(filteredModels, MODELS_PAGE_SIZE, page);
@@ -372,13 +324,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 							<ModelRow
 								key={model.id}
 								model={model}
-								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
-								providerTypeByID={providerTypeByID}
-								providerIconByID={providerIconByID}
-								hasProvider={hasProviderByModelId.get(model.id) ?? false}
-								providerEnabled={
-									providerEnabledByModelId.get(model.id) ?? false
-								}
+								provider={providerByID.get(model.ai_provider_id)}
 								onClick={() =>
 									void navigate(
 										organizationModelPath(organization, model.id, searchParams),

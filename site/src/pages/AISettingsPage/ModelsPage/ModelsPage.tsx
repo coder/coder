@@ -15,9 +15,6 @@ const ModelsPage: React.FC = () => {
 	const providerTypeByID = new Map(
 		providers.map((provider) => [provider.id, provider.type]),
 	);
-	const providerIconByID = new Map(
-		providers.map((provider) => [provider.id, provider.icon]),
-	);
 	const models = (organizationModelsQuery.data?.models ?? []).toSorted(
 		(a, b) => {
 			const aProvider = providerTypeByID.get(a.ai_provider_id) ?? "";
@@ -42,8 +39,6 @@ const ModelsPage: React.FC = () => {
 				refetchError={refetchError}
 				models={models}
 				providerStates={providerStates}
-				providerTypeByID={providerTypeByID}
-				providerIconByID={providerIconByID}
 				canCreateModel={permissions?.createChatModelConfigs ?? false}
 			/>
 		</>

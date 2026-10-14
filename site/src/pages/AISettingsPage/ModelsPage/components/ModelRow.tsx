@@ -11,14 +11,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 
 type ModelRowProps = {
 	model: ChatModel;
-	providerLabel: string;
-	providerTypeByID: ReadonlyMap<string, string>;
-	providerIconByID: ReadonlyMap<string, string>;
-	hasProvider: boolean;
-	providerEnabled: boolean;
+	provider: ProviderState | undefined;
 	onClick: () => void;
 };
 
@@ -31,22 +28,18 @@ const formatContextLimit = (contextLimit: number): string => {
 
 export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
-	providerLabel,
-	providerTypeByID,
-	providerIconByID,
-	hasProvider,
-	providerEnabled,
+	provider,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
-	const providerType = providerTypeByID.get(model.ai_provider_id) ?? "";
-	const providerIcon = providerIconByID.get(model.ai_provider_id);
+	const providerType = provider?.providerDescriptor.type ?? "";
+	const providerIcon = provider?.providerDescriptor.icon;
 	// Models whose provider is missing or disabled cannot be used, so the
 	// status cell surfaces that regardless of the persisted enabled flag.
-	const providerNotice = !hasProvider
+	const providerNotice = !provider
 		? "The provider connected to this model has been deleted."
-		: !providerEnabled
+		: !provider.providerDescriptor.enabled
 			? "The provider connected to this model is disabled."
 			: null;
 
@@ -129,7 +122,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell className="min-w-0">
-				{hasProvider ? (
+				{provider ? (
 					<span
 						className={cn(
 							"block truncate text-sm font-medium leading-6",
@@ -137,9 +130,9 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 								? "text-content-secondary"
 								: "text-content-disabled",
 						)}
-						title={providerLabel}
+						title={provider.label}
 					>
-						{providerLabel}
+						{provider.label}
 					</span>
 				) : (
 					<span className="truncate text-sm font-medium leading-6 text-content-secondary">

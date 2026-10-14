@@ -39,14 +39,6 @@ const renderModelsPageView = () => {
 					MockAnthropicProviderState,
 					MockBedrockProviderState,
 				]}
-				providerTypeByID={
-					new Map([
-						["prov-openai", "openai"],
-						["prov-anthropic", "anthropic"],
-						["prov-bedrock", "bedrock"],
-					])
-				}
-				providerIconByID={new Map()}
 				canCreateModel
 			/>
 		</OrganizationModelsContext.Provider>

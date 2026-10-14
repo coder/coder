@@ -1,24 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
-import { mockClaude, mockGPT5 } from "../testFixtures";
+import {
+	MockAnthropicProviderState,
+	MockOpenAICompatProviderState,
+	MockOpenAIProviderState,
+	mockClaude,
+	mockGPT5,
+	mockOpenAICompatModel,
+	mockOrphanedModel,
+} from "../testFixtures";
 import { ModelRow } from "./ModelRow";
-
-const providerTypeByID = new Map<string, string>([
-	["prov-openai", "openai"],
-	["prov-anthropic", "anthropic"],
-]);
 
 const meta: Meta<typeof ModelRow> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelRow",
 	component: ModelRow,
 	args: {
 		model: mockGPT5,
-		providerLabel: "OpenAI",
-		providerTypeByID,
-		providerIconByID: new Map(),
-		hasProvider: true,
-		providerEnabled: true,
+		provider: MockOpenAIProviderState,
 		onClick: () => {},
 	},
 	render: (args) => (
@@ -45,11 +44,18 @@ export const WithProvider: Story = {
 	},
 };
 
+const MockOpenAICompatProviderWithCustomIcon = {
+	...MockOpenAICompatProviderState,
+	providerDescriptor: {
+		...MockOpenAICompatProviderState.providerDescriptor,
+		icon: "/icon/coder.svg",
+	},
+};
+
 export const CustomIconWithUnmappedProviderType: Story = {
 	args: {
-		providerLabel: "Internal Gateway",
-		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
-		providerIconByID: new Map([["prov-openai", "/icon/coder.svg"]]),
+		model: mockOpenAICompatModel,
+		provider: MockOpenAICompatProviderWithCustomIcon,
 	},
 };
 
@@ -57,8 +63,8 @@ export const CustomIconWithUnmappedProviderType: Story = {
 // tooltip is what tells it apart from other providers.
 export const UnmappedProviderType: Story = {
 	args: {
-		providerLabel: "Internal Gateway",
-		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
+		model: mockOpenAICompatModel,
+		provider: MockOpenAICompatProviderState,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -73,10 +79,8 @@ export const UnmappedProviderType: Story = {
 // notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {
 	args: {
-		model: { ...mockClaude, enabled: true },
-		providerLabel: "",
-		hasProvider: false,
-		providerEnabled: false,
+		model: mockOrphanedModel,
+		provider: undefined,
 		onClick: fn(),
 	},
 	play: async ({ args, canvasElement }) => {
@@ -97,14 +101,20 @@ export const WithoutProviderForcesDisabled: Story = {
 	},
 };
 
+const MockDisabledAnthropicProvider = {
+	...MockAnthropicProviderState,
+	providerDescriptor: {
+		...MockAnthropicProviderState.providerDescriptor,
+		enabled: false,
+	},
+};
+
 // A disabled provider keeps its label but the model shows the "Unavailable"
 // notice because it is not usable.
 export const DisabledProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true, is_default: false },
-		providerLabel: "Anthropic",
-		hasProvider: true,
-		providerEnabled: false,
+		provider: MockDisabledAnthropicProvider,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -127,9 +137,7 @@ export const DisabledProviderForcesDisabled: Story = {
 export const DisabledModelWithProvider: Story = {
 	args: {
 		model: { ...mockClaude, enabled: false, is_default: false },
-		providerLabel: "Anthropic",
-		hasProvider: true,
-		providerEnabled: true,
+		provider: MockAnthropicProviderState,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
