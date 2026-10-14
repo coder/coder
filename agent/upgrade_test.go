@@ -169,7 +169,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
-					Type:            proto.Connection_SSH,
+					Method:          proto.Connection_METHOD_SSH,
 					ClientSessionID: tc.expect,
 				},
 				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
@@ -233,7 +233,7 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
-					Type:            proto.Connection_RECONNECTING_PTY,
+					Method:          proto.Connection_METHOD_RECONNECTING_PTY,
 					ClientSessionID: tc.expect,
 				},
 				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},

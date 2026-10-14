@@ -115,7 +115,7 @@ coder update -y <workspace-name>
 ```
 
 By default, `coder update` stops the workspace with its current template version and starts it on the active version.
-To start on a specific named version instead, use `--template-version`.
+To start on a specific version instead, use `--template-version` with the version name or ID.
 To stop with a different version than the workspace's current one, use `--stop-template-version`:
 
 ```sh

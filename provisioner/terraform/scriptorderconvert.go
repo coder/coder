@@ -80,9 +80,41 @@ func convertStateWithScriptOrder(
 		if err != nil {
 			return nil, xerrors.Errorf("finalize script order: %w", err)
 		}
+		if err := attachScriptOrderDependencies(order, state.scriptsByAddress); err != nil {
+			return nil, xerrors.Errorf("attach script order dependencies: %w", err)
+		}
 		if len(order.Graphs) > 0 {
 			result.order = &order
 		}
 	}
 	return result, nil
+}
+
+func hasScriptOrderDataSource(modules []*tfjson.StateModule) bool {
+	for _, module := range modules {
+		if module != nil && moduleHasScriptOrderDataSource(module) {
+			return true
+		}
+	}
+	return false
+}
+
+func moduleHasScriptOrderDataSource(module *tfjson.StateModule) bool {
+	for _, resource := range module.Resources {
+		if isScriptOrderDataSource(resource) {
+			return true
+		}
+	}
+	for _, child := range module.ChildModules {
+		if child != nil && moduleHasScriptOrderDataSource(child) {
+			return true
+		}
+	}
+	return false
+}
+
+func isScriptOrderDataSource(resource *tfjson.StateResource) bool {
+	return resource != nil &&
+		resource.Mode == tfjson.DataResourceMode &&
+		resource.Type == "coder_script_order"
 }
