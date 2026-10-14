@@ -1128,10 +1128,6 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) into W/E0 appends exactly the new user message")
 
 			case chatstate.StateE1:
-				// E1 with interrupt-mode inserts the new user message
-				// directly into history ahead of the queue. The queue
-				// is left untouched, last_error is cleared, and the
-				// chat lands in R1.
 				require.Nil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(interrupt) from E1 does not return a queued message")
 				require.Len(t, result.sendMessage.InsertedMessages, 1,
@@ -1173,8 +1169,6 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from I* advances queue_version")
 
 			case chatstate.StateR0, chatstate.StateR1:
-				// R*: the message starts the interruption, so it goes
-				// to the queue head ahead of earlier queued messages.
 				require.Equal(t, base.queueCount+1, afterQueue,
 					"SendMessage(interrupt) from R* adds one queued message")
 				require.NotNil(t, result.sendMessage.QueuedMessage,
@@ -1192,9 +1186,6 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from R* must not touch history")
 
 			case chatstate.StateA0, chatstate.StateA1:
-				// A*: the pending tool calls are canceled and the new
-				// user message goes directly into history ahead of the
-				// queue. The queue is left untouched.
 				require.Nil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(interrupt) from A* does not return a queued message")
 				require.Equal(t, base.queueIDs, afterQueueIDs,
@@ -1209,6 +1200,7 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from A* inserts one tool-result cancellation and the user message")
 				cancel := requireChatMessageByID(ctx, t, f, result.sendMessage.InsertedMessages[0].ID)
 				assertToolResultForCall(t, cancel, seeded.pendingToolCallID)
+				require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[1])
 				assertChatMessageText(t, inserted, "sm-interrupt")
 				require.False(t, inserted.QueuedMessageID.Valid,

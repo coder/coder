@@ -460,7 +460,7 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 		tail := sendQueuedMessage(t, f, m, tailBody)
 		require.NotNil(t, tail.QueuedMessage)
 		// R1 -> I1 via interrupt-mode SendMessage queues a second
-		// message at the queue head and flips status to interrupting.
+		// message and flips status to interrupting.
 		headBody := "queued-i1-a"
 		head := sendInterruptMessage(t, f, m, created.Chat.ID, headBody)
 		require.NotNil(t, head.QueuedMessage)

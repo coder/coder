@@ -504,9 +504,8 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateW, StateE0:
 		return tx.sendMessageDirect(chat, input)
 
-	// Error-with-queue: queue appends to the tail, promotes the
-	// previous head into history, and clears last_error. Interrupt
-	// inserts the message into history ahead of the queue.
+	// Error-with-queue: queue appends to the tail, promotes the previous
+	// head into history, and clears last_error. Interrupt inserts directly.
 	case StateE1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageDirect(chat, input)
@@ -521,9 +520,8 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Requires-action: queue keeps A*. Interrupt cancels the pending
-	// tool calls and inserts the message into history ahead of the
-	// queue, so the chat resumes in running with the message.
+	// Requires-action: queue keeps A*; interrupt cancels pending calls and
+	// inserts directly.
 	case StateA0, StateA1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageDirect(chat, input)
@@ -628,13 +626,10 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-// sendMessageInterrupt queues the message and lands the chat in I1.
-// From R* the message starts the interruption, so it goes to the queue
-// head and the interruption promotes it ahead of earlier queued
-// messages. From I* an interruption is already pending, so the message
-// goes to the tail and a burst of interrupt sends keeps its arrival
-// order. An owned chat stays in I1 until its runner finishes the
-// interruption. An unowned chat finishes it in the same transaction.
+// sendMessageInterrupt queues the message and lands the chat in I1. A send
+// that starts an interruption goes ahead of queued messages; sends during an
+// interruption join the tail to keep arrival order. An unowned chat has no
+// runner to finish the interruption, so this transaction finishes it.
 func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
 	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 	if err != nil {
@@ -660,8 +655,7 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 	result.PromotedQueuedAt = finished.PromotedQueuedAt
 	result.FinishedInterruption = true
 	if startsInterruption || from == StateI0 {
-		// The message was the queue head, so it was promoted into
-		// history instead of staying queued.
+		// The interruption promoted this message, so it is no longer queued.
 		result.QueuedMessage = nil
 	}
 	return result, nil
