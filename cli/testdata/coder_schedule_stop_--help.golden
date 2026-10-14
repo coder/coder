@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder schedule stop <workspace-name> { <duration> | manual }
+  coder schedule stop [flags] <workspace-name> { <duration> | manual }
 
   Edit workspace stop schedule
 
@@ -23,6 +23,13 @@ USAGE:
     * 2    (2 minutes)
   
    $ coder schedule stop my-workspace 2h30m
+
+OPTIONS:
+  -c, --column [workspace|starts at|starts next|stops after|stops next] (default: workspace,starts at,starts next,stops after,stops next)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

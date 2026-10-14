@@ -81,6 +81,7 @@ type ResourceSharingDialogProps<Role extends string, Option> = {
 	) => React.ReactNode;
 	getPrincipal: (option: Option) => SharingPrincipalSelection;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 	onSave: (update: SharingACLUpdate<Role>) => void;
 };
 
@@ -398,6 +399,7 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 	renderAutocomplete,
 	getPrincipal,
 	onClose,
+	onCloseAutoFocus,
 	onSave,
 }: ResourceSharingDialogProps<Role, Option>) => (
 	<Dialog
@@ -408,7 +410,7 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 			}
 		}}
 	>
-		<DialogContent className="max-w-2xl">
+		<DialogContent className="max-w-2xl" onCloseAutoFocus={onCloseAutoFocus}>
 			<DialogHeader>
 				<DialogTitle>{title}</DialogTitle>
 				<DialogDescription>{description}</DialogDescription>

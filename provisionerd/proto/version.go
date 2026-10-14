@@ -101,9 +101,18 @@ import "github.com/coder/coder/v2/apiversion"
 //     (field 6), `task_id` (field 22), `task_prompt` (field 23), and the
 //     `AITask` / `AITaskSidebarApp` messages from provisioner.proto. Coder
 //     Tasks is being removed.
+//
+// API v1.20:
+//   - Added `resource_address` (field 10) and `dependencies` (field 11) to
+//     `provisioner.Script`, with the `ScriptDependency` message and the
+//     `ScriptDependencyRequirement` enum. They carry each script's full
+//     Terraform address and its resolved `coder_script_order` prerequisites
+//     from the provisioner to coderd. `dependencies` is empty when the script
+//     has no prerequisites. `resource_address` is empty only for the legacy
+//     agent startup and shutdown scripts.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 19
+	CurrentMinor = 20
 )
 
 // CurrentVersion is the current provisionerd API version.

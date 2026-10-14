@@ -39,7 +39,7 @@ export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div className="flex flex-row items-center justify-center px-5 gap-x-1.5">
+		<div className="@container flex flex-row items-center justify-center px-5 gap-x-1.5">
 			<PaginationNavButton
 				disabled={isPrevDisabled}
 				aria-label="Previous page"
@@ -52,14 +52,16 @@ export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 				<ChevronLeftIcon />
 			</PaginationNavButton>
 
-			<div className="contents md:hidden">
+			{/* Show only the current page when the widget is too narrow for the
+			    full row of page blocks and both arrows. */}
+			<div className="contents @sm:hidden">
 				<NumberedPageButton
 					highlighted
 					pageNumber={currentPage}
 					totalPages={totalPages}
 				/>
 			</div>
-			<div className="hidden md:contents">
+			<div className="hidden @sm:contents">
 				<PaginationRow
 					currentPage={currentPage}
 					totalPages={totalPages}

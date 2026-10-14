@@ -6,7 +6,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -47,7 +46,6 @@ func (r *RootCmd) autoupdate() *serpent.Command {
 		},
 	}
 
-	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
 	return cmd
 }
 

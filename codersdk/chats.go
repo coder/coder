@@ -50,9 +50,6 @@ const (
 	// number of virtual desktop recordings that each Coder server stores
 	// at the same time.
 	DefaultChatMaxConcurrentRecordingUploads = 25
-	// DefaultChatMaxAutomationsPerOwner is the default maximum number of
-	// chat automations one user can own across all organizations.
-	DefaultChatMaxAutomationsPerOwner = 50
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
@@ -216,9 +213,6 @@ type Chat struct {
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
 	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
-	// ManageAutomationsEnabled offers the manage_automations tool to this
-	// chat's agent. Experimental.
-	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -255,6 +249,25 @@ type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
+}
+
+// ChatProjectInstructions are instructions added to the system prompt of
+// every chat in a project, for every user who chats there. A project without
+// instructions has an empty Instructions string and nil UpdatedBy and
+// UpdatedAt.
+type ChatProjectInstructions struct {
+	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
+	Instructions string    `json:"instructions"`
+	// UpdatedBy is the user who last changed the instructions. It is nil
+	// when the instructions are unset or the user was deleted.
+	UpdatedBy *MinimalUser `json:"updated_by"`
+	UpdatedAt *time.Time   `json:"updated_at" format:"date-time"`
+}
+
+// UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+// DeleteChatProjectInstructions to clear them.
+type UpdateChatProjectInstructionsRequest struct {
+	Instructions string `json:"instructions"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
@@ -383,20 +396,15 @@ type ChatMessage struct {
 	// the queue (edits create a new message without it) or when a server
 	// version that did not record the link created it.
 	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
-	// AutomationID is the chat automation that delivered this message,
-	// if any. The automation may since have been deleted.
-	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
-	// InputID identifies the automation input that produced this
-	// message: a webhook delivery or a schedule occurrence. It is set
-	// only when AutomationID is set.
-	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
 type ChatMessageUsage struct {
-	InputTokens         *int64 `json:"input_tokens,omitempty"`
-	OutputTokens        *int64 `json:"output_tokens,omitempty"`
-	TotalTokens         *int64 `json:"total_tokens,omitempty"`
+	InputTokens  *int64 `json:"input_tokens,omitempty"`
+	OutputTokens *int64 `json:"output_tokens,omitempty"`
+	TotalTokens  *int64 `json:"total_tokens,omitempty"`
+	// ReasoningTokens counts reasoning, which output_tokens already
+	// includes, so do not add the two.
 	ReasoningTokens     *int64 `json:"reasoning_tokens,omitempty"`
 	CacheCreationTokens *int64 `json:"cache_creation_tokens,omitempty"`
 	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
@@ -517,11 +525,35 @@ type ChatMessagePart struct {
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderIdentity records the provider that produced a reasoning
+	// part, because a model config's provider can change after the
+	// message was written. Internal only: stripped before API responses.
+	ProviderIdentity string `json:"provider_identity,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderModel records the model that produced a reasoning part,
+	// because a model config's model can change after the message was
+	// written. Internal only: stripped before API responses.
+	ProviderModel string `json:"provider_model,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderCredential records whether a reasoning part was produced
+	// with the deployment's credential or the user's personal API key,
+	// because encrypted reasoning only decrypts for the organization
+	// behind that credential. Internal only: stripped before API responses.
+	ProviderCredential string `json:"provider_credential,omitempty" typescript:"-" swaggerignore:"true"`
+	// ReasoningEpoch records how many times the provider had rejected the
+	// chat's encrypted reasoning from this provider, model, and credential
+	// before this reasoning part was produced. A step that produced no
+	// reasoning after a rejection records its epoch, provider, model, and
+	// credential on its first part instead. Internal only: stripped before
+	// API responses.
+	ReasoningEpoch int `json:"reasoning_epoch,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// Narration marks assistant text that the model labeled as commentary
+	// on its work rather than its answer. Only providers that label their
+	// output set it.
+	Narration bool `json:"narration,omitempty" variants:"text?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was
@@ -603,6 +635,10 @@ type ChatMessagePart struct {
 // the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
+	p.ProviderIdentity = ""
+	p.ProviderModel = ""
+	p.ProviderCredential = ""
+	p.ReasoningEpoch = 0
 	if p.FileID.Valid {
 		p.Data = nil
 	}
@@ -777,10 +813,6 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
-	// ManageAutomationsEnabled offers the manage_automations tool to the
-	// chat's agent. Enabling it requires the chat-automations experiment
-	// for the chat owner. Experimental.
-	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -842,11 +874,6 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
-	// ManageAutomationsEnabled turns the manage_automations tool on or
-	// off for a root chat. Only the chat owner may set it. Enabling it
-	// requires the chat-automations experiment for the owner; disabling
-	// is always accepted. Experimental.
-	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
@@ -963,6 +990,10 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+	// TurnStartID is the ID of the user prompt that starts the turn
+	// containing the page's oldest message. Omitted for after_id-only polls
+	// and when no prompt is at or before that message.
+	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -1957,13 +1988,6 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	// AutomationID is the chat automation that queued this message, if
-	// any. The automation may since have been deleted.
-	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
-	// InputID identifies the automation input that produced this
-	// message: a webhook delivery or a schedule occurrence. It is set
-	// only when AutomationID is set.
-	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -2267,10 +2291,6 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
-	// AutomationID filters to chats the automation created or sent
-	// messages to. The server ignores it unless the chat-automations
-	// experiment is enabled for the caller.
-	AutomationID uuid.UUID
 	Pagination
 }
 
@@ -2306,13 +2326,6 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
 				}
-				r.URL.RawQuery = q.Encode()
-			})
-		}
-		if opts.AutomationID != uuid.Nil {
-			reqOpts = append(reqOpts, func(r *http.Request) {
-				q := r.URL.Query()
-				q.Set("automation_id", opts.AutomationID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2397,6 +2410,49 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 // DeleteChatProject deletes a chat project and detaches its chats.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectInstructions gets a chat project's instructions.
+func (c *ExperimentalClient) ChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/instructions", nil)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// UpdateChatProjectInstructions creates or replaces a chat project's
+// instructions.
+func (c *ExperimentalClient) UpdateChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectInstructionsRequest) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", req)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// DeleteChatProjectInstructions clears a chat project's instructions. It
+// succeeds when the project has no instructions.
+func (c *ExperimentalClient) DeleteChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
 	if err != nil {
 		return err
 	}

@@ -78,13 +78,6 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
-var chatAutomationActions = map[Action]ActionDefinition{
-	ActionCreate: "create a new chat automation",
-	ActionRead:   "read chat automations",
-	ActionUpdate: "update a chat automation",
-	ActionDelete: "delete a chat automation",
-}
-
 var chatProjectActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new chat project",
 	ActionRead:   "read chat projects",
@@ -112,6 +105,14 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionUpdate: "update a chat model config",
 	ActionDelete: "delete a chat model config",
 	ActionShare:  "share a chat model config with other users or groups",
+}
+
+var organizationSkillActions = map[Action]ActionDefinition{
+	ActionCreate: "create an organization skill",
+	ActionRead:   "read organization skill metadata and content",
+	ActionUpdate: "update an organization skill",
+	ActionDelete: "delete an organization skill",
+	ActionShare:  "share an organization skill with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -148,9 +149,6 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
-	},
-	"chat_automation": {
-		Actions: chatAutomationActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
@@ -282,6 +280,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update an organization member",
 			ActionDelete: "delete member",
 		},
+	},
+	"organization_skill": {
+		Actions: organizationSkillActions,
 	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{
