@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 func gradeRequest(t *testing.T, apiVersion, bundle, checks string) string {
@@ -37,8 +39,9 @@ func TestGradeProtocol(t *testing.T) {
 
 	t.Run("verdict", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var stdout, stderr bytes.Buffer
-		code := run(nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, checks)), &stdout, &stderr)
+		code := run(ctx, nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, checks)), &stdout, &stderr)
 		require.Equal(t, 0, code, stderr.String())
 		var v graderVerdict
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &v))
@@ -52,9 +55,10 @@ func TestGradeProtocol(t *testing.T) {
 	})
 	t.Run("observe-only checks do not fail the verdict", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var stdout, stderr bytes.Buffer
 		only := `[{"id":"created","type":"tool_succeeded","tool":"create_workspace"},{"id":"clean","type":"max_tool_errors","max":0,"observe":true}]`
-		require.Equal(t, 0, run(nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, only)), &stdout, &stderr), stderr.String())
+		require.Equal(t, 0, run(ctx, nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, only)), &stdout, &stderr), stderr.String())
 		var v graderVerdict
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &v))
 		require.True(t, v.Passed)
@@ -62,20 +66,23 @@ func TestGradeProtocol(t *testing.T) {
 	})
 	t.Run("other api versions are rejected", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var stdout, stderr bytes.Buffer
-		require.Equal(t, 2, run(nil, strings.NewReader(gradeRequest(t, "aegis.grader.v2", bundle, checks)), &stdout, &stderr))
+		require.Equal(t, 2, run(ctx, nil, strings.NewReader(gradeRequest(t, "aegis.grader.v2", bundle, checks)), &stdout, &stderr))
 		require.Empty(t, stdout.String())
 	})
 	t.Run("invalid checks are a protocol error", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var stdout, stderr bytes.Buffer
-		require.Equal(t, 2, run(nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, `[{"id":"x","type":"nope"}]`)), &stdout, &stderr))
+		require.Equal(t, 2, run(ctx, nil, strings.NewReader(gradeRequest(t, graderAPIVersion, bundle, `[{"id":"x","type":"nope"}]`)), &stdout, &stderr))
 		require.Empty(t, stdout.String())
 	})
 	t.Run("missing evidence fails the trial", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		var stdout, stderr bytes.Buffer
-		require.Equal(t, 0, run(nil, strings.NewReader(gradeRequest(t, graderAPIVersion, t.TempDir(), checks)), &stdout, &stderr), stderr.String())
+		require.Equal(t, 0, run(ctx, nil, strings.NewReader(gradeRequest(t, graderAPIVersion, t.TempDir(), checks)), &stdout, &stderr), stderr.String())
 		var v graderVerdict
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &v))
 		require.False(t, v.Passed)

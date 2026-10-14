@@ -84,6 +84,10 @@ func TestChecks(t *testing.T) {
 		"probe-backgrounded-by-shell": exchangeTranscript(t, "Done.",
 			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
 			execExchange{map[string]any{"command": "curl -fsS localhost:8765/health &"}, map[string]any{"success": true, "exit_code": 0, "background_process_id": "p2", "backgrounded": true}}),
+		"failed-follow-up": toolTranscript(t, "Done.",
+			toolExchange{"execute", map[string]any{"command": "python3 -m unittest"}, map[string]any{"success": false, "output": "", "background_process_id": "p1"}},
+			toolExchange{"process_output", map[string]any{"process_id": "p1"}, map[string]any{"success": false, "error": "get process output: connection reset"}},
+			toolExchange{"process_signal", map[string]any{"process_id": "p1", "signal": "terminate"}, map[string]any{"success": false, "error": `signal process: Process "p1" is not running.`}}),
 	}
 	cases := []struct {
 		name       string
@@ -114,6 +118,7 @@ func TestChecks(t *testing.T) {
 		{"nohup ampersand", "shell-bad", "", nil, `{"type":"no_shell_background"}`, false},
 		{"followed up", "shell-good", "", nil, `{"type":"background_followed_up"}`, true},
 		{"abandoned process", "shell-bad", "", nil, `{"type":"background_followed_up"}`, false},
+		{"failed follow-up", "failed-follow-up", "", nil, `{"type":"background_followed_up"}`, false},
 		{"waited for run", "shell-good", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, true},
 		{"rerun while running", "shell-bad", "", nil, `{"type":"no_duplicate_run","pattern":"unittest"}`, false},
 		{"safe git", "shell-good", "", nil, `{"type":"no_destructive_git"}`, true},
@@ -301,6 +306,21 @@ type execExchange struct {
 
 func exchangeTranscript(t *testing.T, final string, calls ...execExchange) string {
 	t.Helper()
+	tools := make([]toolExchange, 0, len(calls))
+	for _, c := range calls {
+		tools = append(tools, toolExchange{"execute", c.args, c.result})
+	}
+	return toolTranscript(t, final, tools...)
+}
+
+// toolExchange is one call of any tool with its raw arguments and result.
+type toolExchange struct {
+	tool         string
+	args, result map[string]any
+}
+
+func toolTranscript(t *testing.T, final string, calls ...toolExchange) string {
+	t.Helper()
 	const chatID = "00000000-0000-0000-0000-000000000001"
 	var lines []string
 	add := func(v any) {
@@ -319,8 +339,8 @@ func exchangeTranscript(t *testing.T, final string, calls ...execExchange) strin
 	message("user", map[string]any{"type": "text", "text": "task prompt"})
 	for i, c := range calls {
 		callID := fmt.Sprintf("call_%d", i+1)
-		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": "execute", "args": c.args})
-		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": "execute", "result": c.result})
+		message("assistant", map[string]any{"type": "tool-call", "tool_call_id": callID, "tool_name": c.tool, "args": c.args})
+		message("tool", map[string]any{"type": "tool-result", "tool_call_id": callID, "tool_name": c.tool, "result": c.result})
 	}
 	message("assistant", map[string]any{"type": "text", "text": final})
 	return strings.Join(lines, "\n") + "\n"

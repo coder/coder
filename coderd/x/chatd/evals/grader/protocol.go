@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,7 +51,7 @@ type graderVerdict struct {
 // grade answers one aegis.grader.v1 request. Malformed requests and
 // unsupported protocol versions exit non-zero without a verdict so aegis
 // records a protocol error instead of an ordinary failed assertion.
-func grade(stdin io.Reader, stdout, stderr io.Writer) int {
+func grade(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) int {
 	req, err := decodeRequest(stdin)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "chatd-eval-grader: %v\n", err)
@@ -66,7 +67,7 @@ func grade(stdin io.Reader, stdout, stderr io.Writer) int {
 	case "", "checks":
 		v, err = gradeChecks(req)
 	case "terminal_bench":
-		v, err = gradeTerminalBench(req, stderr)
+		v, err = gradeTerminalBench(ctx, req, stderr)
 	default:
 		err = xerrors.Errorf("unknown grader mode %q", mode)
 	}

@@ -32,6 +32,7 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"php heredoc", "php <<'EOF'\n<?php file_put_contents('a.php', 'x');\nEOF", true},
 		{"bash -c nested python", `bash -c "python3 -c \"open('a.py', 'w').write('x')\""`, true},
 		{"bash -lc nested sed", `bash -lc 'sed -i s/a/b/ a.py'`, true},
+		{"sed -i after other short flags", `sed -Ei 's/a/b/' a.py`, true},
 		{"redirect", "echo x > a.py", true},
 		{"env python", `env python3 -c "open('a.py', 'w').write('x')"`, true},
 		{"env with options and assignments", `env -i -u HOME PATH=/usr/bin python3 -c "open('a.py', 'w').write('x')"`, true},
@@ -102,6 +103,7 @@ func TestExecuteEditDetection(t *testing.T) {
 		{"python prints the word write", `python3 -c "print('write the file')"`, false},
 		{"ruby puts", `ruby -e "puts File.read('a.rb')"`, false},
 		{"bash -c read only", `bash -c 'grep -n x a.py'`, false},
+		{"sed -n read", `sed -n '1,80p' a.py`, false},
 		{"xargs -I sh -c read only", `ls | xargs -I{} sh -c 'grep -n x {}'`, false},
 	}
 	for _, tc := range cases {
@@ -135,11 +137,16 @@ func TestShellFileIODetection(t *testing.T) {
 		{"redirect through /tmp/..", "echo x > /tmp/../work/a.py", true},
 		{"env -S sed", `env -S "sed -i s/a/b/" a.py`, true},
 		{"env - cat", "env - cat a.py", true},
+		{"sed -n file", `sed -n '1,80p' inventory/store.py`, true},
+		{"sed -e file", `sed -e 's/a/b/' a.py`, true},
+		{"sed --expression= file", `sed --expression='s/a/b/' a.py`, true},
 		{"piped head -n", "git log | head -n 5", false},
 		{"piped tail -n", "rg x | tail -n 20", false},
 		{"piped tail --lines", "rg x | tail --lines 20", false},
 		{"timeout piped head -n", "timeout 30 go test ./... 2>&1 | head -n 3", false},
 		{"cat stdin", "echo x | cat -", false},
+		{"piped sed -n", "git log | sed -n 1,5p", false},
+		{"piped sed -e", "git log | sed -e 's/a/b/' -", false},
 		{"redirect to /tmp", "echo x > /tmp/out.txt", false},
 		{"cp", "cp a.py b.py", false},
 		{"mv", "mv a.py b.py", false},
@@ -188,6 +195,9 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"push plus refspec", "git push origin +fix", true},
 		{"branch -D", "git branch -D old", true},
 		{"branch -d --force", "git branch -d --force old", true},
+		{"switch -f", "git switch -f main", true},
+		{"switch --force", "git switch --force main", true},
+		{"switch --discard-changes", "git switch --discard-changes main", true},
 		{"reset --soft", "git reset --soft HEAD~1", false},
 		{"reset path", "git reset a.py", false},
 		{"checkout -b", "git checkout -b fix", false},
@@ -198,6 +208,8 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"stash pop", "git stash pop", false},
 		{"push", "git push -u origin fix", false},
 		{"branch -d", "git branch -d old", false},
+		{"switch", "git switch main", false},
+		{"switch -c", "git switch -c fix", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -551,8 +551,16 @@ func fileIOFindings(s shellScript) []string {
 				}
 			}
 		case "sed":
-			if hasFlag(c.Args[1:], "-i", "--in-place") {
+			if sedInPlace(c.Args[1:]) {
 				out = append(out, "sed -i edits files")
+				break
+			}
+			for _, op := range sedInputFiles(c.Args[1:]) {
+				// - is standard input.
+				if op != "-" {
+					out = append(out, "sed reads "+op)
+					break
+				}
 			}
 		case "perl":
 			if hasFlag(c.Args[1:], "-i", "-pi", "-ni") {
@@ -567,6 +575,54 @@ func fileIOFindings(s shellScript) []string {
 		}
 	}
 	return append(out, interpreterEditFindings(s)...)
+}
+
+// sedInPlace reports whether sed args edit files in place: --in-place, or
+// -i alone, with an attached suffix (-i.bak), or after other short flags
+// (-Ei).
+func sedInPlace(args []string) bool {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			return false
+		case a == "--in-place" || strings.HasPrefix(a, "--in-place="):
+			return true
+		case a == "--expression" || a == "--file" || a == "--line-length":
+			i++
+		case len(a) > 1 && a[0] == '-' && a[1] != '-':
+			for j := 1; j < len(a); j++ {
+				if a[j] == 'i' {
+					return true
+				}
+				// The rest of the word, or else the next one, is the
+				// option's value.
+				if strings.IndexByte("efl", a[j]) >= 0 {
+					if j == len(a)-1 {
+						i++
+					}
+					break
+				}
+			}
+		}
+	}
+	return false
+}
+
+// sedInputFiles returns the operands sed reads as input files: all of
+// them when -e or -f supplies the script, else all but the first, which
+// is the script.
+func sedInputFiles(args []string) []string {
+	ops, values := commandOperands(args, "efl", []string{"--expression", "--file", "--line-length"})
+	for _, script := range []string{"e", "f", "--expression", "--file"} {
+		if _, ok := values[script]; ok {
+			return ops
+		}
+	}
+	if len(ops) == 0 {
+		return nil
+	}
+	return ops[1:]
 }
 
 // fileCommandValueFlags lists, per shell file command, the short option
@@ -1010,6 +1066,10 @@ func destructiveGitFindings(s shellScript) []string {
 		case "checkout":
 			if slices.Contains(args, "--") || slices.Contains(args, ".") || hasFlag(args, "-f", "--force") {
 				out = append(out, "git checkout discarding changes")
+			}
+		case "switch":
+			if hasFlag(args, "-f", "--force", "--discard-changes") {
+				out = append(out, "git switch discarding changes")
 			}
 		case "restore":
 			if !hasFlag(args, "--staged", "-S") || hasFlag(args, "--worktree", "-W") {

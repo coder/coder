@@ -5,27 +5,37 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+	// aegis stops a subprocess grader with SIGTERM to its process group,
+	// and Ctrl-C sends tb-import and tb-selfcheck SIGINT. Either cancels
+	// ctx, so the deferred removal of Terminal-Bench containers runs
+	// before the grader exits.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	code := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+	stop()
+	os.Exit(code)
 }
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "grade" {
-		return grade(stdin, stdout, stderr)
+		return grade(ctx, stdin, stdout, stderr)
 	}
 	var err error
 	switch args[0] {
 	case "summarize":
 		err = summarizeCommand(args[1:], stdout)
 	case "tb-import":
-		err = tbImportCommand(args[1:], stdout)
+		err = tbImportCommand(ctx, args[1:], stdout)
 	case "tb-selfcheck":
-		err = tbSelfCheckCommand(args[1:], stdout)
+		err = tbSelfCheckCommand(ctx, args[1:], stdout)
 	case "help", "-h", "--help":
 		_, _ = fmt.Fprint(stdout, usage)
 		return 0

@@ -93,7 +93,7 @@ func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
 // tbImportCommand pulls each task image, copies its /app into a seed git
 // repository with a deterministic commit, and writes seeds.json.
-func tbImportCommand(args []string, stdout io.Writer) error {
+func tbImportCommand(ctx context.Context, args []string, stdout io.Writer) error {
 	fsFlags := flag.NewFlagSet("tb-import", flag.ContinueOnError)
 	tasksFile := fsFlags.String("tasks", "", "terminalbench/tasks.json")
 	repo := fsFlags.String("repo", "", "Terminal-Bench checkout at the pinned commit")
@@ -121,7 +121,6 @@ func tbImportCommand(args []string, stdout io.Writer) error {
 	if seeds.Tasks == nil || seeds.SourceCommit != list.Source.Commit {
 		seeds = tbSeeds{SourceCommit: list.Source.Commit, Tasks: map[string]tbSeed{}}
 	}
-	ctx := context.Background()
 	for _, id := range ids {
 		seed, err := importTask(ctx, *repo, outDir, id)
 		if err != nil {
@@ -541,7 +540,7 @@ func dockerPath() string {
 
 // gradeTerminalBench rehydrates the trial's final /app and runs the task's
 // verifier on it. Task success is reward 1.
-func gradeTerminalBench(req graderRequest, stderr io.Writer) (graderVerdict, error) {
+func gradeTerminalBench(ctx context.Context, req graderRequest, stderr io.Writer) (graderVerdict, error) {
 	tbDir, err := stringArg(req.Grader.Args, "tb_dir")
 	if err != nil {
 		return graderVerdict{}, err
@@ -561,7 +560,6 @@ func gradeTerminalBench(req graderRequest, stderr io.Writer) (graderVerdict, err
 	if !ok {
 		return graderVerdict{Passed: false, Reason: "task " + task + " was not imported"}, nil
 	}
-	ctx := context.Background()
 	tmp, err := os.MkdirTemp("", "chatd-evals-tb-verify-")
 	if err != nil {
 		return graderVerdict{}, err
@@ -623,7 +621,7 @@ func sanitizePathPart(s string) string {
 
 // tbSelfCheckCommand verifies imported tasks without a model: the reference
 // solution must earn reward 1 and the untouched seed reward 0.
-func tbSelfCheckCommand(args []string, stdout io.Writer) error {
+func tbSelfCheckCommand(ctx context.Context, args []string, stdout io.Writer) error {
 	fsFlags := flag.NewFlagSet("tb-selfcheck", flag.ContinueOnError)
 	tbDir := fsFlags.String("tb-dir", "", "directory written by tb-import")
 	var only stringList
@@ -642,7 +640,6 @@ func tbSelfCheckCommand(args []string, stdout io.Writer) error {
 		}
 		sort.Strings(ids)
 	}
-	ctx := context.Background()
 	var failures []string
 	for _, id := range ids {
 		seed, ok := seeds.Tasks[id]

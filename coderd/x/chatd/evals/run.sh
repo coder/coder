@@ -335,6 +335,9 @@ bootstrap_aegis() {
 runner_image() {
 	local arch go_path
 	arch=$(docker version --format '{{.Server.Arch}}')
+	# Trials and grading bind-mount files from this host and run the grader
+	# and coder binaries built here.
+	[[ $arch == "$(go env GOARCH)" ]] || die "the docker daemon runs $arch but go builds $(go env GOARCH); use a local docker daemon"
 	go_path=$(aegis_tool_path "$AEGIS_DIR")
 	RUNNER_TAG=$(aegis_env "$AEGIS_DIR" env PATH="$go_path" bash images/runner/content-tag.sh "$arch")
 	RUNNER_IMAGE=aegis-runner:$RUNNER_TAG
@@ -377,11 +380,15 @@ build_subject() {
 				{
 					git diff HEAD --binary -- . ":(exclude)$EVALS_PATHSPEC"
 					# git records an untracked symlink as its target path,
-					# which may be a directory or missing.
+					# which may be a directory or missing, and lists an
+					# untracked nested repository as its directory, which is
+					# hashed by name only.
 					git ls-files --others --exclude-standard -z -- . ":(exclude)$EVALS_PATHSPEC" |
 						while IFS= read -r -d '' f; do
 							if [[ -L $f ]]; then
 								printf 'symlink %s -> %s\n' "$f" "$(readlink -- "$f")"
+							elif [[ -d $f ]]; then
+								printf 'directory %s\n' "$f"
 							else
 								sha256sum -- "$f"
 							fi

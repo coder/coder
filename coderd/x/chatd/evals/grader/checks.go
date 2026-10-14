@@ -388,7 +388,7 @@ func checkBackgroundFollowedUp(in *gradeInput, _ checkSpec) (bool, string, map[s
 		ids++
 		followed := false
 		for _, later := range in.tr.Calls[i+1:] {
-			if (later.Name == "process_output" || later.Name == "process_signal") && later.argField("process_id") == id {
+			if (later.Name == "process_output" || later.Name == "process_signal") && later.argField("process_id") == id && later.succeeded() {
 				followed = true
 				break
 			}
@@ -399,7 +399,7 @@ func checkBackgroundFollowedUp(in *gradeInput, _ checkSpec) (bool, string, map[s
 	}
 	metrics := map[string]any{"background_processes": ids, "unfollowed": len(missing)}
 	if len(missing) > 0 {
-		return false, "no process_output or process_signal for " + strings.Join(missing, ", "), metrics
+		return false, "no successful process_output or process_signal for " + strings.Join(missing, ", "), metrics
 	}
 	return true, fmt.Sprintf("%d background process(es) followed up", ids), metrics
 }
