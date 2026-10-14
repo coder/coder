@@ -325,8 +325,7 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
  * message along with the tool result.
  */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
-	MockWorkingMessages[0],
-	...workingStepMessages(2, "first", 1, 4),
+	...MockWorkingMessages.slice(0, 3),
 	{
 		...MockChatMessage,
 		id: 4,

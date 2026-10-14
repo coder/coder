@@ -62,19 +62,19 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
-		store: createChatStore(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(),
 	},
+	render: (args) => <ChatSummaryPanel {...args} store={createChatStore()} />,
 };
 
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
-const mockArtifactMessages: TypesGen.ChatMessage[] = [
+const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 	{
 		...MockChatMessage,
 		id: 1,
@@ -142,12 +142,6 @@ const mockArtifactMessages: TypesGen.ChatMessage[] = [
 		],
 	},
 ];
-
-const createArtifactStore = () => {
-	const store = createChatStore();
-	store.replaceMessages(mockArtifactMessages);
-	return store;
-};
 
 export const WithSummary: Story = {
 	beforeEach: () =>
@@ -221,8 +215,12 @@ export const GatewayUnavailable: Story = {
 	},
 };
 
-export const WithArtifacts: Story = {
-	args: { store: createArtifactStore() },
+export const WithAttachments: Story = {
+	render: (args) => {
+		const store = createChatStore();
+		store.replaceMessages(mockAttachmentMessages);
+		return <ChatSummaryPanel {...args} store={store} />;
+	},
 	beforeEach: () =>
 		mockRequests({
 			summary:

@@ -2,12 +2,12 @@ import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { ChatArtifacts } from "./ChatArtifacts";
+import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getChatArtifacts,
+	getAgentAttachments,
 } from "./ChatConversation/messageHelpers";
 import { ChatSummary } from "./ChatSummary";
 
@@ -16,24 +16,16 @@ type ChatSummaryPanelProps = {
 	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
 	isVisible: boolean;
 	store: ChatStore;
-} & Pick<
-	React.ComponentProps<typeof ChatArtifacts>,
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages"
+} & Omit<
+	React.ComponentProps<typeof ChatAttachments>,
+	"attachments" | "evictedFileIds"
 >;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 	store,
-	hasMoreMessages,
-	isFetchingMoreMessages,
-	isHydratingMessages,
-	hasFetchMoreError,
-	onFetchMoreMessages,
+	...historyPaging
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
@@ -46,7 +38,6 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	});
 
 	const messages = useChatMessages(store);
-	const artifacts = getChatArtifacts(messages);
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
 		chatData?.files,
@@ -74,14 +65,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
-			<ChatArtifacts
-				artifacts={artifacts}
+			<ChatAttachments
+				attachments={getAgentAttachments(messages)}
 				evictedFileIds={evictedFileIds}
-				hasMoreMessages={hasMoreMessages}
-				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
-				hasFetchMoreError={hasFetchMoreError}
-				onFetchMoreMessages={onFetchMoreMessages}
+				{...historyPaging}
 			/>
 		</div>
 	);

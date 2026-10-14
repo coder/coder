@@ -1,14 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ChatArtifacts } from "./ChatArtifacts";
+import { ChatAttachments } from "./ChatAttachments";
 
-describe("ChatArtifacts", () => {
+describe("ChatAttachments", () => {
 	it("loads earlier messages when asked", async () => {
 		const user = userEvent.setup();
 		const onFetchMoreMessages = vi.fn().mockResolvedValue(undefined);
 		render(
-			<ChatArtifacts
-				artifacts={[]}
+			<ChatAttachments
+				attachments={[]}
 				evictedFileIds={new Set()}
 				hasMoreMessages
 				isFetchingMoreMessages={false}

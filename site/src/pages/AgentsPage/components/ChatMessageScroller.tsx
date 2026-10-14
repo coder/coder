@@ -9,7 +9,8 @@ import {
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-type EarlierMessagesProps = {
+/** History paging over a chat's loaded messages. */
+export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	// True while fetched pages have not reached the store yet. Blocks paging

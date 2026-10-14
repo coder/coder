@@ -356,7 +356,8 @@ export const deriveEvictedFileIds = (
 	);
 };
 
-export type ChatArtifact = {
+/** A downloadable file the agent attached, keyed by message and part. */
+export type AgentAttachment = {
 	key: string;
 	file: TypesGen.ChatFilePart;
 	href: string;
@@ -364,11 +365,11 @@ export type ChatArtifact = {
 
 /**
  * Downloadable files the agent attached to its messages, newest first. Files
- * the user uploaded are not artifacts.
+ * the user uploaded are left out.
  */
-export const getChatArtifacts = (
+export const getAgentAttachments = (
 	messages: readonly TypesGen.ChatMessage[],
-): ChatArtifact[] =>
+): AgentAttachment[] =>
 	messages
 		.filter((message) => message.role === "assistant")
 		.flatMap((message) =>

@@ -533,7 +533,7 @@ const RemoteImageBlock: React.FC<{
 	);
 };
 
-/** Download card for an attachment without a preview, or its expired tile. */
+/** Download card for an attachment, or its expired tile. */
 export const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;

@@ -8,7 +8,7 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
-	getChatArtifacts,
+	getAgentAttachments,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -692,7 +692,7 @@ describe("deriveEvictedFileIds", () => {
 	});
 });
 
-describe("getChatArtifacts", () => {
+describe("getAgentAttachments", () => {
 	it("lists assistant file parts newest first, skipping uploads and empty parts", () => {
 		const mockPlanFile: TypesGen.ChatFilePart = {
 			type: "file",
@@ -732,7 +732,7 @@ describe("getChatArtifacts", () => {
 			},
 		];
 
-		expect(getChatArtifacts(messages)).toEqual([
+		expect(getAgentAttachments(messages)).toEqual([
 			{
 				key: "3:3",
 				file: mockReportFile,

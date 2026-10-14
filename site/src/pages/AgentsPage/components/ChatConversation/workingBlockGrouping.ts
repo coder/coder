@@ -109,8 +109,7 @@ export const splitRowBlocks = (
 
 /**
  * A row that shows nothing but attachments, so it renders empty once they are
- * hidden. chatd commits a local tool's attachments with its result, as an
- * assistant message of their own after the call.
+ * hidden.
  */
 export const isAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	if (row.type !== "message") {

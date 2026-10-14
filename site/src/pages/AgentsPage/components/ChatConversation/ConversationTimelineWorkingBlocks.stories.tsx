@@ -252,7 +252,7 @@ export const PlanAttachmentHidden: Story = {
 			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
 			{
 				key: chatFileTextKey("plan-file"),
-				data: "# Plan\n\nShip the artifacts panel.",
+				data: "# Plan\n\nShip the attachments panel.",
 			},
 		],
 	},
