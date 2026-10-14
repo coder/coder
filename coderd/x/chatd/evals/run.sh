@@ -251,9 +251,10 @@ docker_endpoint=$(docker context inspect --format '{{len .TLSMaterial}} {{.Endpo
 	die "cannot resolve the docker daemon; set DOCKER_HOST"
 read -r docker_tls docker_tls_skip DOCKER_HOST <<<"$docker_endpoint"
 # Those commands get DOCKER_HOST alone, so they cannot use TLS or ssh
-# settings. A tcp:// daemon without TLS can be reachable from the trial and
-# Terminal-Bench containers, which run agent code with network access, and
-# its API controls the host, so only a unix socket is accepted.
+# settings. A tcp:// daemon without TLS can be reachable from the containers
+# that run agent code, such as the Terminal-Bench verifier, which has
+# network access, and its API controls the host, so only a unix socket is
+# accepted.
 if [[ $DOCKER_HOST != unix://* ]]; then
 	die "the docker daemon must be a local unix socket, not $DOCKER_HOST: the grader's docker commands get only DOCKER_HOST, and a tcp:// daemon without TLS can be reachable from the containers that run agent code"
 fi
@@ -598,7 +599,7 @@ terminal_bench_import() {
 	# directory.
 	command -v flock >/dev/null || die "flock (util-linux) is required for the terminal-bench suite"
 	exec {tb_lock}>"$TB_DIR.lock"
-	flock -n "$tb_lock" || die "$TB_DIR is in use by another terminal-bench run or --self-check, or by processes a killed one left running; run one at a time per cache"
+	flock -n "$tb_lock" || die "$TB_DIR is in use by another terminal-bench run or --self-check, or by processes a killed one left running, which hold $TB_DIR.lock open; run one at a time per cache"
 	for c in "${cases[@]}"; do
 		if suite_has_case terminal-bench "$c"; then
 			args+=(--task "$c")

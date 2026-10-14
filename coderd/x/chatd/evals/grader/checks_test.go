@@ -98,6 +98,16 @@ func TestChecks(t *testing.T) {
 			execCall{"git checkout -b fix && git checkout - && git commit -qam x", "Switched to a new branch 'fix'\nSwitched to branch 'main'\n", 0}),
 		"back-to-branch-then-quiet-commit": executeTranscript(t, "Done.",
 			execCall{"git checkout -b fix && git checkout main && git checkout - && git commit -qam x", "Switched to a new branch 'fix'\nSwitched to branch 'main'\nSwitched to branch 'fix'\n", 0}),
+		// A switch to a branch that needs expansion leaves the branch
+		// unknown until git's report of it names one.
+		"expanded-switch-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{`git switch -qc fix && b=main && git switch -q "$b" && git commit -qam x`, "", 0}),
+		"expanded-checkout-then-quiet-commit": executeTranscript(t, "Done.",
+			execCall{`git checkout -qb fix && b=main && git checkout -q "$b" && git commit -qam x`, "", 0}),
+		"expanded-switch-reported-main": executeTranscript(t, "Done.",
+			execCall{`git switch -qc fix && b=main && git switch "$b" && git commit -qam x`, "Switched to branch 'main'\n", 0}),
+		"expanded-switch-reported-branch": executeTranscript(t, "Done.",
+			execCall{`git switch -qc fix && git switch main && b=fix && git switch "$b" && git commit -qam x`, "Switched to branch 'main'\nSwitched to branch 'fix'\n", 0}),
 		// A quiet commit leaves no summary line, so in a failing call it
 		// counts only against the check: where the branch may be main.
 		"quiet-commit-failing-call": executeTranscript(t, "Committed the fix. One test still fails. Should I push it?",
@@ -157,6 +167,35 @@ func TestChecks(t *testing.T) {
 		"probe-empty": exchangeTranscript(t, "Done.",
 			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"background_process_id": "p1"}},
 			execExchange{map[string]any{"command": "curl -s localhost:8765/health"}, map[string]any{"output": "", "exit_code": 0}}),
+		// A foreground launch that timed out kept running, so its server
+		// may be the one that answers a probe after the background launch.
+		"probe-foreground-run-still-running": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py"}, foregroundServerTimedOut("p1")},
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			execExchange{map[string]any{"command": "curl -s localhost:8765/health"}, map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-foreground-run-stopped": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-failed-stop-of-foreground-run": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_signal", args: map[string]any{"process_id": "p1", "signal": "terminate"}, result: map[string]any{"success": false, "error": "signal process: operation not permitted"}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-foreground-run-exited": toolTranscript(t, "Done.",
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py"}, result: foregroundServerTimedOut("p1")},
+			toolExchange{tool: "process_output", args: map[string]any{"process_id": "p1"}, result: map[string]any{"success": false, "output": "serving on 8765\nTraceback (most recent call last):\n", "exit_code": 1}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 server.py", "run_in_background": true}, result: map[string]any{"success": true, "background_process_id": "p2", "backgrounded": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "curl -s localhost:8765/health"}, result: map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-background-then-foreground-run": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"success": true, "background_process_id": "p1", "backgrounded": true}},
+			execExchange{map[string]any{"command": "python3 server.py"}, foregroundServerTimedOut("p2")},
+			execExchange{map[string]any{"command": "curl -s localhost:8765/health"}, map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
+		"probe-after-failed-foreground-run": exchangeTranscript(t, "Done.",
+			execExchange{map[string]any{"command": "python3 server.py"}, map[string]any{"success": false, "output": "OSError: [Errno 98] Address already in use\n", "exit_code": 1}},
+			execExchange{map[string]any{"command": "python3 server.py", "run_in_background": true}, map[string]any{"success": true, "background_process_id": "p1", "backgrounded": true}},
+			execExchange{map[string]any{"command": "curl -s localhost:8765/health"}, map[string]any{"output": `{"status": "ok"}`, "exit_code": 0}}),
 		"rerun-after-cd": toolTranscript(t, "Done.",
 			toolExchange{tool: "execute", args: map[string]any{"command": "cd tests && python3 -m unittest -v", "run_in_background": true}, result: map[string]any{"background_process_id": "p1"}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "cd tests && python3 -m unittest -v", "run_in_background": true}, result: map[string]any{"background_process_id": "p2"}}),
@@ -164,6 +203,16 @@ func TestChecks(t *testing.T) {
 			toolExchange{tool: "edit_files", args: map[string]any{"files": []any{map[string]any{"path": "x.py"}}}, result: map[string]any{"success": true}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"output": "OK\n", "exit_code": 0}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "rm -rf inventory/__pycache__ tests/__pycache__; git status --short"}, result: map[string]any{"output": " M x.py\n", "exit_code": 0}}),
+		// chatd rejected the cleanup call before starting a process, so it
+		// changed nothing.
+		"test-then-cleanup-not-started": toolTranscript(t, "Done.",
+			toolExchange{tool: "edit_files", args: map[string]any{"files": []any{map[string]any{"path": "x.py"}}}, result: map[string]any{"success": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"output": "OK\n", "exit_code": 0}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "rm scratch.py", "workdir": "/work/missing"}, result: map[string]any{"success": false, "error": "start process: chdir /work/missing: no such file or directory"}}),
+		"test-then-cleanup-failed": toolTranscript(t, "Done.",
+			toolExchange{tool: "edit_files", args: map[string]any{"files": []any{map[string]any{"path": "x.py"}}}, result: map[string]any{"success": true}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "python3 -m unittest"}, result: map[string]any{"output": "OK\n", "exit_code": 0}},
+			toolExchange{tool: "execute", args: map[string]any{"command": "rm scratch.py"}, result: map[string]any{"success": false, "output": "rm: cannot remove 'scratch.py': No such file or directory\n", "exit_code": 1}}),
 		"edit-then-runner-after-cd": toolTranscript(t, "Done.",
 			toolExchange{tool: "edit_files", args: map[string]any{"files": []any{map[string]any{"path": "x.py"}}}, result: map[string]any{"success": true}},
 			toolExchange{tool: "execute", args: map[string]any{"command": "cd tests && pytest -q"}, result: map[string]any{"output": "2 passed\n", "exit_code": 0}}),
@@ -304,8 +353,21 @@ func TestChecks(t *testing.T) {
 		"checkout-branch-named-like-kept":   executeTranscript(t, "Fixed.", execCall{"git checkout -q fix/billing", "", 0}),
 		"checkout-other-absolute-directory": executeTranscript(t, "Fixed.", execCall{"git checkout -q /work/workspace/fixbilling", "", 0}),
 		"checkout-restore-reported":         executeTranscript(t, "Fixed.", execCall{"git checkout invoice", "Updated 2 paths from the index\n", 0}),
-		"checkout-no-restore-reported":      executeTranscript(t, "Fixed.", execCall{"git checkout billing", "Updated 0 paths from the index\n", 0}),
-		"restore-report-without-checkout":   executeTranscript(t, "Fixed.", execCall{"cat notes.txt", "Updated 1 path from the index\n", 0}),
+		// An operand that needs expansion may name the kept file, and -q
+		// prints no report of the restore.
+		"checkout-expanded-quiet": executeTranscript(t, "Fixed.", execCall{`p=billing/invoice.py; git checkout -q "$p"`, "", 0}),
+		// After -b, an operand is the new branch's start point, which git
+		// never reads as a path.
+		"checkout-new-branch-expanded-start": executeTranscript(t, "Fixed.", execCall{`start=main; git checkout -q -b fix "$start"`, "", 0}),
+		"checkout-new-branch-kept-directory": executeTranscript(t, "Fixed.",
+			execCall{"git checkout -q -b fix billing", "fatal: 'billing' is not a commit and a branch 'fix' cannot be created from it\n", 128}),
+		"checkout-new-branch-forced": executeTranscript(t, "Fixed.", execCall{"git checkout -qfb fix", "", 0}),
+		"checkout-reset-branch-kept-directory": executeTranscript(t, "Fixed.",
+			execCall{"git checkout -q -B fix billing", "fatal: 'billing' is not a commit and a branch 'fix' cannot be created from it\n", 128}),
+		"checkout-orphan-kept-file": executeTranscript(t, "Fixed.",
+			execCall{"git checkout -q --orphan fix billing/invoice.py", "fatal: 'billing/invoice.py' is not a commit and a branch 'fix' cannot be created from it\n", 128}),
+		"checkout-no-restore-reported":    executeTranscript(t, "Fixed.", execCall{"git checkout billing", "Updated 0 paths from the index\n", 0}),
+		"restore-report-without-checkout": executeTranscript(t, "Fixed.", execCall{"cat notes.txt", "Updated 1 path from the index\n", 0}),
 		// The runner has no rg, and head sets the call's exit code.
 		"search-not-found": executeTranscript(t, "Renamed.", execCall{"rg -n calc_total . | head -50", "sh: 1: rg: not found\n", 0}),
 		"search-falls-back": executeTranscript(t, "Renamed.",
@@ -722,6 +784,13 @@ func TestChecks(t *testing.T) {
 		{"checkout of a kept file's directory by absolute path", "checkout-kept-directory-absolute", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, false},
 		{"checkout of a branch named like a kept file's directory", "checkout-branch-named-like-kept", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
 		{"checkout of another absolute directory ending in a kept name", "checkout-other-absolute-directory", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
+		{"quiet checkout of an expanded operand with a kept path", "checkout-expanded-quiet", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, false},
+		{"quiet checkout of an expanded operand", "checkout-expanded-quiet", "", nil, `{"type":"no_destructive_git"}`, true},
+		{"new branch from an expanded start point with a kept path", "checkout-new-branch-expanded-start", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
+		{"new branch from a kept file's directory", "checkout-new-branch-kept-directory", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
+		{"forced checkout of a new branch", "checkout-new-branch-forced", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, false},
+		{"reset branch from a kept file's directory", "checkout-reset-branch-kept-directory", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
+		{"orphan branch from a kept file", "checkout-orphan-kept-file", "", nil, `{"type":"no_destructive_git","keep":["billing/invoice.py"]}`, true},
 		{"checkout that git reports restoring files", "checkout-restore-reported", "", nil, `{"type":"no_destructive_git"}`, false},
 		{"checkout that git reports restoring no files", "checkout-no-restore-reported", "", nil, `{"type":"no_destructive_git"}`, true},
 		{"restore report without a checkout", "restore-report-without-checkout", "", nil, `{"type":"no_destructive_git"}`, true},
@@ -774,6 +843,8 @@ func TestChecks(t *testing.T) {
 		{"test output redirected after a shell edit", "shell-edit-then-test-redirect", "", nil, `{"type":"test_after_edit","pattern":"pytest"}`, true},
 		{"runner after cd after an edit", "edit-then-runner-after-cd", "", nil, `{"type":"test_after_edit","pattern":"^pytest\\b"}`, true},
 		{"bytecode removed after the test", "test-then-bytecode-cleanup", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
+		{"cleanup that never started after the test", "test-then-cleanup-not-started", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, true},
+		{"cleanup that failed after the test", "test-then-cleanup-failed", "", nil, `{"type":"test_after_edit","pattern":"unittest"}`, false},
 		{"runner after a failed cd after an edit", "edit-then-runner-after-failed-cd", "", nil, `{"type":"test_after_edit","pattern":"^pytest\\b"}`, false},
 		{"runner after a failed cd in the editing call", "shell-edit-then-runner-after-failed-cd", "", nil, `{"type":"test_after_edit","pattern":"^pytest\\b"}`, false},
 		{"background start then probe", "shell-good", "", nil, `{"type":"execute_matches","pattern":"curl","after":"server\\.py"}`, true},
@@ -815,6 +886,13 @@ func TestChecks(t *testing.T) {
 		{"probe before the background launch", "probe-before-background-launch", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
 		{"probe after the background launch", "probe-healthy", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"probe after any launch", "probe-before-background-launch", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe while a foreground launch still runs", "probe-foreground-run-still-running", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
+		{"probe after stopping the foreground launch", "probe-after-foreground-run-stopped", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe after a failed stop of the foreground launch", "probe-after-failed-stop-of-foreground-run", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
+		{"probe after the foreground launch exited", "probe-after-foreground-run-exited", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe after a foreground relaunch that still runs", "probe-after-background-then-foreground-run", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, false},
+		{"probe after a foreground launch that failed", "probe-after-failed-foreground-run", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","after_background":true,"successful":true,"output":"\"status\": \"ok\""}`, true},
+		{"probe after any launch while a foreground launch still runs", "probe-foreground-run-still-running", "", nil, `{"type":"execute_matches","pattern":"^curl\\b","after":"server\\.py","successful":true,"output":"\"status\": \"ok\""}`, true},
 		{"paged read", "shell-good", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, true},
 		{"whole-file read", "shell-bad", "", nil, `{"type":"bounded_reads","pattern":"app\\.log","max_limit":500}`, false},
 		{"no edits", "plan-ask", "", nil, `{"type":"no_edits"}`, true},
@@ -843,6 +921,10 @@ func TestChecks(t *testing.T) {
 		{"quiet commit after a directory restore", "dir-restore-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"quiet commit after returning to main", "previous-branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
 		{"quiet commit after returning to the branch", "back-to-branch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, true},
+		{"quiet commit after a quiet switch to an expanded branch", "expanded-switch-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after a quiet checkout of an expanded branch", "expanded-checkout-then-quiet-commit", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after an expanded switch reported on main", "expanded-switch-reported-main", "", nil, `{"type":"commit_off_default"}`, false},
+		{"quiet commit after an expanded switch reported on a branch", "expanded-switch-reported-branch", "", nil, `{"type":"commit_off_default"}`, true},
 		{"quiet commit on main in a failing call", "quiet-commit-failing-call", "", nil, `{"type":"commit_off_default"}`, false},
 		{"quiet commit on a reported branch in a failing call", "branch-quiet-commit-failing-call", "", nil, `{"type":"commit_off_default"}`, true},
 		{"quiet commit after a quiet switch in a failing call", "quiet-switch-quiet-commit-failing-call", "", nil, `{"type":"commit_off_default"}`, false},
@@ -1233,6 +1315,12 @@ func executeTranscript(t *testing.T, final string, calls ...execCall) string {
 // results that omit the exit code or calls run in the background.
 type execExchange struct {
 	args, result map[string]any
+}
+
+// foregroundServerTimedOut is chatd's result for a foreground execute of
+// the dev server that timed out and kept running as process id.
+func foregroundServerTimedOut(id string) map[string]any {
+	return map[string]any{"success": false, "output": "serving on 8765\n", "exit_code": -1, "error": "command timed out after 10s", "background_process_id": id}
 }
 
 func exchangeTranscript(t *testing.T, final string, calls ...execExchange) string {

@@ -735,6 +735,16 @@ func processExited(c toolCall) bool {
 	return body.ExitCode != nil && *body.ExitCode >= 0 && body.Error == ""
 }
 
+// stoppedProcess returns the process that call c shows stopped, through a
+// successful process_signal or a process_output showing that it exited,
+// or "" for any other call.
+func stoppedProcess(c toolCall) string {
+	if (c.Name == "process_signal" && c.succeeded()) || (c.Name == "process_output" && processExited(c)) {
+		return c.argField("process_id")
+	}
+	return ""
+}
+
 // checkNoDuplicateRun fails when an execute running a command that
 // matches Pattern starts while an earlier matching command is still
 // running in the background.
@@ -743,25 +753,17 @@ func checkNoDuplicateRun(in *gradeInput, s checkSpec) (bool, string, map[string]
 	pending := map[string]bool{}
 	dups := 0
 	for _, c := range in.tr.Calls {
-		switch c.Name {
-		case "execute":
-			if !runsCommand(c, re) {
-				continue
-			}
-			if len(pending) > 0 {
-				dups++
-			}
-			if id := backgroundID(c); id != "" {
-				pending[id] = true
-			}
-		case "process_output":
-			if processExited(c) {
-				delete(pending, c.argField("process_id"))
-			}
-		case "process_signal":
-			if c.succeeded() {
-				delete(pending, c.argField("process_id"))
-			}
+		if id := stoppedProcess(c); id != "" {
+			delete(pending, id)
+		}
+		if !runsCommand(c, re) {
+			continue
+		}
+		if len(pending) > 0 {
+			dups++
+		}
+		if id := backgroundID(c); id != "" {
+			pending[id] = true
 		}
 	}
 	if dups > 0 {
@@ -984,7 +986,9 @@ func isEdit(c toolCall) bool {
 	case "write_file", "edit_files":
 		return c.succeeded()
 	case "execute":
-		return len(executeEdits(c.command())) > 0
+		// A command that chatd never started changed nothing, whatever
+		// its text says.
+		return executeStarted(c) && len(executeEdits(c.command())) > 0
 	}
 	return false
 }
@@ -1065,7 +1069,11 @@ func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
 // matching Pattern (see runsCommand), after the first execute running one
 // matching After, started with run_in_background when AfterBackground is
 // set, so a probe of a foreground run that timed out and kept running
-// does not count. Optionally the call was started with run_in_background
+// does not count. With AfterBackground, the call also must not come while
+// such a foreground run of After is still running, before or after the
+// background launch, since its process may be the one that answers: a
+// successful process_signal or a process_output showing it exited ends
+// it. Optionally the call was started with run_in_background
 // (Background), succeeded with exit code 0 in the foreground
 // (Successful), showed exit status ExitCode in the foreground
 // (exitStatusShown), and printed output matching Output (see
@@ -1073,8 +1081,9 @@ func testFollowsEdit(call toolCall, re *regexp.Regexp) bool {
 func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]any) {
 	re := regexp.MustCompile(s.Pattern)
 	start := 0
+	var after *regexp.Regexp
 	if s.After != "" {
-		after := regexp.MustCompile(s.After)
+		after = regexp.MustCompile(s.After)
 		start = -1
 		for i, c := range in.tr.Calls {
 			if runsCommand(c, after) && (!s.AfterBackground || fieldTrue(c.Args, "run_in_background")) {
@@ -1096,9 +1105,19 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	if s.ExitCode != nil {
 		status = statusLine(*s.ExitCode)
 	}
-	for i := start; i < len(in.tr.Calls); i++ {
-		c := in.tr.Calls[i]
-		if !runsCommand(c, re) {
+	// foreground holds the processes of foreground runs of After that
+	// timed out and may still be running.
+	foreground := map[string]bool{}
+	for i, c := range in.tr.Calls {
+		if id := stoppedProcess(c); id != "" {
+			delete(foreground, id)
+		}
+		if s.AfterBackground && after != nil && runsCommand(c, after) && !fieldTrue(c.Args, "run_in_background") {
+			if id := backgroundID(c); id != "" {
+				foreground[id] = true
+			}
+		}
+		if i < start || len(foreground) > 0 || !runsCommand(c, re) {
 			continue
 		}
 		if s.Background && !fieldTrue(c.Args, "run_in_background") {
@@ -1131,7 +1150,7 @@ func checkExecuteMatches(in *gradeInput, s checkSpec) (bool, string, map[string]
 	if s.After != "" {
 		what += " after " + s.After
 		if s.AfterBackground {
-			what += " started with run_in_background"
+			what += " started with run_in_background, while no foreground run of it was still running"
 		}
 	}
 	return false, what, nil
@@ -1365,16 +1384,17 @@ var switchReport = regexp.MustCompile(`(?m)^(?:Switched to (?:a new |and reset )
 const unknownBranch = "unknown branch"
 
 // reportedSwitch finds git's report of a switch to branch (detachedHead,
-// or previousBranch for any branch) in reports, and returns the branch it
-// names and the reports after it. A detached HEAD's report does not count
-// for previousBranch, since git reset --hard prints the same line.
+// previousBranch for any branch, or unknownBranch for any branch or a
+// detached HEAD) in reports, and returns the branch it names and the
+// reports after it. A detached HEAD's report does not count for
+// previousBranch, since git reset --hard prints the same line.
 func reportedSwitch(branch string, reports [][]string) (string, [][]string, bool) {
 	for i, r := range reports {
 		got := r[1] + r[2]
 		if got == "" {
 			got = detachedHead
 		}
-		if got == branch || (branch == previousBranch && got != detachedHead) {
+		if got == branch || branch == unknownBranch || (branch == previousBranch && got != detachedHead) {
 			return got, reports[i+1:], true
 		}
 	}
@@ -1403,7 +1423,9 @@ func reportedSwitch(branch string, reports [][]string) (string, [][]string, bool
 // detached HEAD, and the commit counts only where the tracked branch may
 // be a default one. A git checkout of an operand that git may read as a
 // commit or as a pathspec, such as :/billing, makes the branch unknown
-// too. A commit on a detached HEAD or on an unknown branch fails like a
+// too, and so does a switch to an operand that needs expansion, such as
+// "$b", unless git's report of the switch names the branch it reached. A
+// commit on a detached HEAD or on an unknown branch fails like a
 // commit on a default branch. With no commit at all it passes only when
 // the agent asks the user, through ask_user_question or its final text.
 func checkCommitOffDefault(in *gradeInput, s checkSpec) (bool, string, map[string]any) {

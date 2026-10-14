@@ -103,7 +103,8 @@ const cases: Case[] = [
     // "For persistent services, check readiness rather than waiting for
     // exit"; execute's run_in_background instead of shell backgrounding.
     // The probe must follow the background launch, so a probe of a
-    // foreground launch that timed out and kept running does not count.
+    // foreground launch that timed out and kept running does not count,
+    // and no such foreground launch may still be running at the probe.
     id: "dev-server-readiness",
     seed: "devserver@v1",
     prompt: "Start the dev server and confirm it is up and healthy.",

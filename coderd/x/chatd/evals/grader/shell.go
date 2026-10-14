@@ -1648,14 +1648,19 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 // or directory (restoredPath), or one that names a path in keep or a
 // directory above one, which git checkout restores from the index. A
 // bare directory name such as billing reads as a branch by its shape, so
-// only keep tells it apart. The name after -b, -B, or --orphan is a new
-// branch, not an operand.
+// only keep tells it apart, and with keep set an operand that needs
+// expansion counts too, since it may name a kept path. The name after
+// -b, -B, or --orphan is a new branch, and an operand after them is its
+// start point, which git refuses to read as a path.
 func checkoutDiscards(g gitArgs, keep []string) bool {
 	if g.EndOfOptions || g.has("f23", "--force", "--ours", "--theirs", "--pathspec-from-file") {
 		return true
 	}
+	if g.has("bB", "--orphan") {
+		return false
+	}
 	return slices.ContainsFunc(g.Operands, func(op string) bool {
-		return op == "." || restoredPath.MatchString(op) || slices.ContainsFunc(keep, func(k string) bool {
+		return op == "." || restoredPath.MatchString(op) || (len(keep) > 0 && op == "<expanded>") || slices.ContainsFunc(keep, func(k string) bool {
 			return pathWithin(k, op)
 		})
 	})
@@ -1726,10 +1731,11 @@ var (
 // branchSwitch reports how a command changes the checked-out branch:
 // the new branch name (detachedHead for -d, --detach, or a commit
 // operand, previousBranch for - or @{-1}, unknownBranch for an operand
-// that git may read as a commit or as a pathspec), and whether the
-// command switched at all: HEAD and @ name the current branch, which git
-// checkout keeps and git switch refuses. Options are read as git reads
-// them (parseGitArgs), so -qbfix creates fix.
+// that needs expansion or that git may read as a commit or as a
+// pathspec), and whether the command switched at all: HEAD and @ name
+// the current branch, which git checkout keeps and git switch refuses.
+// Options are read as git reads them (parseGitArgs), so -qbfix creates
+// fix.
 func branchSwitch(c shellCommand) (string, bool) {
 	sub, args := gitSubcommand(c)
 	switch sub {
@@ -1754,11 +1760,13 @@ func branchSwitch(c shellCommand) (string, bool) {
 	if slices.Contains(g.Operands, "-") {
 		return previousBranch, true
 	}
-	operands := slices.DeleteFunc(g.Operands, func(op string) bool { return op == "<expanded>" })
-	if len(operands) != 1 {
+	if slices.Contains(g.Operands, "<expanded>") {
+		return unknownBranch, true
+	}
+	if len(g.Operands) != 1 {
 		return "", false
 	}
-	op := operands[0]
+	op := g.Operands[0]
 	switch op {
 	case "@{-1}":
 		return previousBranch, true
