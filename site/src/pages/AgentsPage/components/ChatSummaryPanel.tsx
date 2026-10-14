@@ -31,7 +31,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	isVisible,
 	store,
 	isHydratingMessages,
-	...historyPaging
+	...earlierMessages
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
@@ -81,7 +81,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 						: getAgentAttachments(messages)
 				}
 				evictedFileIds={evictedFileIds}
-				{...historyPaging}
+				{...earlierMessages}
 			/>
 		</div>
 	);

@@ -70,7 +70,7 @@ export type RowSection = "work" | "answer";
  * citations between the deltas of one text part, and a file belongs to the
  * step that attached it.
  */
-export const splitRowBlocks = (
+const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ) => {
@@ -107,7 +107,11 @@ export const splitRowBlocks = (
 	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
 };
 
-/** A row's blocks for one section, or all of them when the row is not split. */
+/**
+ * A row's blocks, or one section of them, without file blocks when
+ * hideAttachments is set: the files of a row outside every working block show
+ * only in the Attachments section.
+ */
 export const getRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
@@ -123,10 +127,7 @@ export const getRowBlocks = (
 		: sectionBlocks;
 };
 
-/**
- * True for an agent message row that renders empty once its attachments are
- * hidden.
- */
+/** True for an agent message row left empty once its attachments are hidden. */
 export const isAgentAttachmentOnlyRow = (row: TimelineRow): boolean => {
 	if (row.type !== "message") {
 		return false;

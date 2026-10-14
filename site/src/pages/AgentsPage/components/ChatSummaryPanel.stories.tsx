@@ -2,7 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatFileMetadata,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { attachmentStepMessages } from "./ChatConversation/storyFixtures";
@@ -221,20 +225,14 @@ export const LiveMessageArriving: Story = {
 	beforeEach: () => mockRequests(),
 };
 
+const mockScreenshotFile: TypesGen.ChatFileMetadata = {
+	...MockChatFileMetadata,
+	id: "screenshot-file",
+	name: "ci-dashboard.png",
+	mime_type: "image/png",
+};
+
 export const ExpiredAttachment: Story = {
 	render: renderWithAttachments,
-	beforeEach: () =>
-		mockRequests({
-			files: [
-				{
-					id: "screenshot-file",
-					owner_id: MockChat.owner_id,
-					organization_id: MockChat.organization_id,
-					name: "ci-dashboard.png",
-					mime_type: "image/png",
-					size_bytes: 2048,
-					created_at: MockChat.created_at,
-				},
-			],
-		}),
+	beforeEach: () => mockRequests({ files: [mockScreenshotFile] }),
 };

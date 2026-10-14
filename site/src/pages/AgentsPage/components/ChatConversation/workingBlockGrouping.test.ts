@@ -10,9 +10,9 @@ import {
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
+	getRowBlocks,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
-	splitRowBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -1085,12 +1085,15 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("splitRowBlocks", () => {
+describe("getRowBlocks", () => {
 	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
 		const [{ parsed }] = parseMessagesWithMergedTools([
 			message("assistant", content),
 		]);
-		return splitRowBlocks(parsed.blocks, parsed.tools).answer;
+		return getRowBlocks(parsed.blocks, parsed.tools, {
+			section: "answer",
+			hideAttachments: false,
+		});
 	};
 
 	it("folds narration that precedes the answer's last reasoning", () => {
@@ -1188,9 +1191,12 @@ describe("splitRowBlocks", () => {
 			const expected = [{ type: "response", text: answer }];
 
 			expect(answerOf(persisted)).toEqual(expected);
-			expect(splitRowBlocks(streamState.blocks, streamTools).answer).toEqual(
-				expected,
-			);
+			expect(
+				getRowBlocks(streamState.blocks, streamTools, {
+					section: "answer",
+					hideAttachments: false,
+				}),
+			).toEqual(expected);
 		},
 	);
 
@@ -1224,6 +1230,20 @@ describe("splitRowBlocks", () => {
 			{ type: "response", text: "Checked the logs." },
 			{ type: "response", text: "The fix is in." },
 		]);
+	});
+
+	it("drops a row's files only when attachments are hidden", () => {
+		const [{ parsed }] = parseMessagesWithMergedTools([
+			message("assistant", [text("Report:"), mockAttachment]),
+		]);
+		const blockTypes = (hideAttachments: boolean) =>
+			getRowBlocks(parsed.blocks, parsed.tools, {
+				section: undefined,
+				hideAttachments,
+			}).map((block) => block.type);
+
+		expect(blockTypes(false)).toEqual(["response", "file"]);
+		expect(blockTypes(true)).toEqual(["response"]);
 	});
 });
 

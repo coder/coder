@@ -178,8 +178,8 @@ const workingStepMessages = (
 ];
 
 /**
- * A tool step that attaches a file. The attachment is its own assistant
- * message between the call and its result, as the server stores it.
+ * The attachment is its own assistant message between the call and its
+ * result, as the server stores it.
  */
 export const attachmentStepMessages = ({
 	id,
@@ -366,10 +366,7 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
-/**
- * MockWorkingMessages with an attach_file step from 5s to 6s. The second shell
- * step moves to start at 7s.
- */
+/** MockWorkingMessages with an attach_file step between its two shell steps. */
 export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 3),
 	...attachmentStepMessages({
