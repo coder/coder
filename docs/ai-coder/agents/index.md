@@ -178,7 +178,7 @@ entirely:
   and removes the need to keep agent software up to date across all workspaces.
 - **Network boundaries are simpler.** Because the workspace doesn't need access
   to LLM APIs, you can apply strict egress rules. An agent-only template might
-  permit access to only your git provider (e.g., `github.com`) and nothing
+  permit access to only your git provider (for example, `github.com`) and nothing
   else. The workspace never needs to reach the internet for AI functionality.
 - **Centralized, enforced control.** Platform teams configure models, system
   prompts, and tool permissions from the control plane. These settings are

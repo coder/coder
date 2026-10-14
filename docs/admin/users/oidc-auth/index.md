@@ -3,7 +3,7 @@ title: OpenID Connect
 ---
 
 The following steps through how to integrate any OpenID Connect provider (Okta,
-Active Directory, etc.) to Coder.
+Active Directory, and so on) to Coder.
 
 ## Step 1: Set Redirect URI with your OIDC provider
 
@@ -77,7 +77,7 @@ If your upstream identity provider uses a different claim, you can set
 
 > [!NOTE]
 > If this claim is empty, the email address will be stripped of the
-> domain, and become the username (e.g. `example@coder.com` becomes `example`).
+> domain, and become the username (for example, `example@coder.com` becomes `example`).
 > To avoid conflicts, Coder may also append a random word to the resulting
 > username.
 
@@ -145,7 +145,7 @@ CODER_DISABLE_PASSWORD_AUTH=true
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed
 > implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows
-> with the major identity providers (Okta, Microsoft Entra ID, etc.). Specific
+> with the major identity providers (Okta, Microsoft Entra ID, and so on). Specific
 > attributes, endpoints, or behaviors required by your IdP may not be
 > supported, and compatibility may change between releases. If you depend on
 > a specific SCIM behavior, [contact us](https://coder.com/contact) before

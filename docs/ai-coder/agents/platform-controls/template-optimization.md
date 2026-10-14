@@ -46,7 +46,7 @@ A good template description tells the agent:
 
 - What language, framework, or stack the template is for.
 - Which repository or service it targets, if applicable.
-- What type of work it supports (e.g., backend services, frontend apps, data
+- What type of work it supports (for example, backend services, frontend apps, data
   pipelines).
 
 ### Examples
@@ -186,7 +186,7 @@ required:
 
 - **Use separate tokens for agent templates.** Rather than sharing the same
   broad-scope token used by developer workspaces, create a dedicated token with
-  only the permissions the agent needs (e.g., read/write access to specific
+  only the permissions the agent needs (for example, read/write access to specific
   repositories, no admin access).
 - **Configure external auth at the template level.** Use Coder's
   [external authentication](../../../admin/external-auth.md) to provide scoped
@@ -261,7 +261,7 @@ time spent installing dependencies is time not spent on the task.
 
 ### What to pre-install
 
-- **Language runtimes and build tools** for the target stack (e.g., Go, Node,
+- **Language runtimes and build tools** for the target stack (for example, Go, Node,
   Python, Maven).
 - **Common CLI tools** the agent is likely to use: `git`, `curl`, `jq`, `make`,
   `docker` (if applicable).

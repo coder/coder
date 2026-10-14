@@ -40,7 +40,7 @@ Navigate to the Azure portal, and into the Microsoft Entra ID section. Select
 the App Registration blade, and register a new application. Fill in the
 following fields:
 
-- **Name**: this is a friendly identifier and can be anything (e.g. "Coder")
+- **Name**: this is a friendly identifier and can be anything (for example, "Coder")
 - **Supported Account Types**: - set to "Accounts in this organizational
   directory only (single-tenant)"
 

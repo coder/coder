@@ -19,7 +19,7 @@ target application is reachable. If both applications reside on the same
 network, then they can most likely connect directly to each other. In the
 context of a Coder workspace agent and client, this is generally not the case,
 as both agent and client will most likely be running in different _private_
-networks (e.g. `192.168.1.0/24`). In this case, at least one of the two will
+networks (for example, `192.168.1.0/24`). In this case, at least one of the two will
 need to know an IP address and port under which they can reach their
 counterpart.
 
@@ -146,7 +146,7 @@ If your workspaces are behind a "hard" NAT, you can:
 
 1. Ensure clients are not also behind a "hard" NAT. You may have limited ability
    to control this if end users connect from their homes.
-2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an
+2. Ensure firewalls on client devices (for example, Windows Defender Firewall) have an
    inbound policy allowing all UDP ports either to the `coder` or `coder.exe`
    CLI binary, or from the IP addresses of your workspace NATs.
 3. Reconfigure your workspace network's NAT connection to the public internet to

@@ -10,7 +10,7 @@ Codex CLI can be configured to use AI Gateway by setting up a custom model provi
 
 ## Centralized API Key
 
-To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
+To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"
@@ -32,7 +32,7 @@ Run Codex as usual. It will automatically use the `ai_gateway` model provider fr
 
 ## BYOK (Personal API Key)
 
-Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
+Add the following to your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"
@@ -62,7 +62,7 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 > the deployment. Without it, Codex requests fail with
 > `404 route not supported: POST /chatgpt/v1/responses`.
 
-Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
+Add the following to your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"

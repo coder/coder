@@ -405,7 +405,7 @@ constrain malicious activity that could be undertaken from a Coder workspace.
 Example constraints include:
 
 - Network policy or segmentation
-- Runtime protections on the workspace host (e.g. SELinux)
+- Runtime protections on the workspace host (for example, SELinux)
 - Limiting privileges of the account or role assigned to the workspace such as a
   service account on Kubernetes, or IAM role on public clouds
 - Monitoring and/or auditing for suspicious activity such as cryptomining or
@@ -441,7 +441,7 @@ A non-exclusive list of network assets to consider:
   - If end users will access the workspace over the corporate network, you must
     allow outbound access to establish the encrypted tunnels.
 - Access to staging or production systems
-- Access to confidential data (e.g. payment processing data, health records,
+- Access to confidential data (for example, payment processing data, health records,
   personally identifiable information)
 - Access to other clusters/clouds
 

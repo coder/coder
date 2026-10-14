@@ -14,7 +14,7 @@ a full list of the options, run `coder server --help` or see our
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the
-external URL that users and workspaces use to connect to Coder (e.g.
+external URL that users and workspaces use to connect to Coder (for example,
 <https://coder.example.com>). This should not be localhost.
 
 Access URL should be an external IP address or domain with DNS records pointing to Coder.
@@ -156,7 +156,7 @@ steps:
 
 To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase
-values (e.g. `http_proxy`) are also respected in this case.
+values (for example, `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 

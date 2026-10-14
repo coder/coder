@@ -49,7 +49,7 @@ In internal testing, we have seen significant improvements in agent performance 
   to open a browser, and check its work by viewing output and taking
   screenshots.
 - [desktop-commander](https://github.com/wonderwhy-er/DesktopCommanderMCP):
-  Instruct your agent to run long-running tasks (e.g. `npm run dev`) in the background instead of blocking the main thread.
+  Instruct your agent to run long-running tasks (for example, `npm run dev`) in the background instead of blocking the main thread.
 
 ## Security & Permissions
 

@@ -194,11 +194,11 @@ The collection response also includes provider descriptors and unsupported provi
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select **Add model** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
-   expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
+   expects (for example, `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
    selector.
 1. Set the **Context Limit**, the maximum number of tokens in the model's
-   context window (e.g., `200000` for Claude Sonnet).
+   context window (for example, `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
 1. Select **Save**.
 

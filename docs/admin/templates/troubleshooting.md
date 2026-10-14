@@ -24,7 +24,7 @@ practices:
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder
   [access URL](../../admin/setup/index.md#access-url)
-- Manually connect to the resource and check the agent logs (e.g.,
+- Manually connect to the resource and check the agent logs (for example,
   `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in
@@ -50,7 +50,7 @@ If you're trying to access your workspace and are unable to because the
 [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1)
 is still running, it means the
 [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior-1)
-option is set to blocking or you have enabled the `--wait=yes` option (for e.g.
+option is set to blocking or you have enabled the `--wait=yes` option (for example,
 `coder ssh` or `coder config-ssh`). In such an event, you can always access the
 workspace by using the web terminal, or via SSH using the `--wait=no` option. If
 the startup script is running longer than it should, or never completing, you
@@ -117,7 +117,7 @@ Common causes for startup script errors:
 
 - A missing command or file
 - A command that fails due to missing permissions
-- Network issues (e.g., unable to reach a server)
+- Network issues (for example, unable to reach a server)
 
 <a id="debugging-the-startup-script"></a>
 

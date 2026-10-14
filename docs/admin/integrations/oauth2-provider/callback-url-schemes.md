@@ -4,7 +4,7 @@ title: OAuth2 provider callback URL schemes
 
 This page covers which redirect URI schemes and hosts Coder accepts, for both admin-created and self-registered applications.
 
-Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications.
+Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, and so on) are fully supported for native and desktop applications.
 The OS routes the redirect back to the registered application without requiring a running HTTP server.
 A private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`.
 The bare form `com.example.app:callback` is rejected.

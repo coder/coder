@@ -16,7 +16,7 @@ wildcards and multiple values.
 
 Rules follow the format: `key=value [key=value ...]` with three supported keys:
 
-- **`method`**: HTTP method(s) - Any HTTP method (e.g., `GET`, `POST`, `PUT`,
+- **`method`**: HTTP method(s) - Any HTTP method (for example, `GET`, `POST`, `PUT`,
   `DELETE`), `*` (all methods), or comma-separated list
 - **`domain`**: Domain/hostname pattern - `github.com`, `*.example.com`, `*`
   (all domains)

@@ -33,11 +33,11 @@ the [CLI](./creating-templates.md#cli).
 It's often necessary to extend the template to make it generally useful to end
 users. Common modifications are:
 
-- Your image(s) (e.g. a Docker image with languages and tools installed). Docs:
+- Your image(s) (for example, a Docker image with languages and tools installed). Docs:
   [Image management](./managing-templates/image-management.md).
-- Additional parameters (e.g. disk size, instance type, or region). Docs:
+- Additional parameters (for example, disk size, instance type, or region). Docs:
   [Template parameters](./extending-templates/parameters.md).
-- Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP). Docs:
+- Additional IDEs (for example, JetBrains) or features (for example, dotfiles, RDP). Docs:
   [Adding IDEs and features](./extending-templates/index.md).
 
 Learn more about the various ways you can
@@ -57,7 +57,7 @@ needs of different teams.
   for environments without Docker access.
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing):
   Configure your template to prevent certain resources from being destroyed
-  (e.g. user disks).
+  (for example, user disks).
 - [Manage templates with Ci/Cd pipelines](./managing-templates/change-management.md):
   Learn how to source control your templates and use GitOps to ensure template
   changes are reviewed and tested.
