@@ -397,7 +397,7 @@ func (api *API) validateChatProjectTemplates(
 	}
 
 	fields.templateIDs = slice.Unique(req.TemplateIDs)
-	activeVersions := make(map[uuid.UUID]uuid.UUID, len(fields.templateIDs))
+	templatesByID := make(map[uuid.UUID]database.Template, len(fields.templateIDs))
 	if len(fields.templateIDs) > 0 {
 		templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 			OrganizationID: organizationID,
@@ -409,11 +409,11 @@ func (api *API) validateChatProjectTemplates(
 			return chatProjectTemplateFields{}, nil, xerrors.Errorf("get templates: %w", err)
 		}
 		for _, template := range templates {
-			activeVersions[template.ID] = template.ActiveVersionID
+			templatesByID[template.ID] = template
 		}
 	}
 	for _, id := range fields.templateIDs {
-		if _, ok := activeVersions[id]; !ok {
+		if _, ok := templatesByID[id]; !ok {
 			return invalid("template_ids", fmt.Sprintf("Template %s is not available to agents in this organization.", id))
 		}
 	}
@@ -424,11 +424,11 @@ func (api *API) validateChatProjectTemplates(
 		}
 		return fields, nil, nil
 	}
-	activeVersionID, ok := activeVersions[*req.DefaultTemplateID]
+	defaultTemplate, ok := templatesByID[*req.DefaultTemplateID]
 	if !ok {
 		return invalid("default_template_id", "The default template must be one of the project's templates.")
 	}
-	field, detail, err := api.validateChatProjectDefaults(ctx, activeVersionID, req)
+	field, detail, err := api.validateChatProjectDefaults(ctx, defaultTemplate, req)
 	if err != nil {
 		return chatProjectTemplateFields{}, nil, err
 	}
@@ -455,9 +455,10 @@ func (api *API) validateChatProjectTemplates(
 // field and its detail, or an empty field when the defaults are valid.
 func (api *API) validateChatProjectDefaults(
 	ctx context.Context,
-	activeVersionID uuid.UUID,
+	template database.Template,
 	req *codersdk.ChatProjectTemplates,
 ) (field string, detail string, err error) {
+	activeVersionID := template.ActiveVersionID
 	if req.DefaultPresetID != nil && len(req.DefaultParameters) > 0 {
 		return "default_preset_id", "Choose a default preset or default parameters, not both.", nil
 	}
@@ -479,6 +480,12 @@ func (api *API) validateChatProjectDefaults(
 			index := slices.IndexFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name })
 			if index < 0 {
 				return "default_parameters", fmt.Sprintf("Parameter %q does not exist on the default template's active version.", name), nil
+			}
+			// Dynamic parameters can depend on other values, so only the
+			// classic flow's stored rules can check a value on its own. The
+			// build validates dynamic values when a workspace is created.
+			if !template.UseClassicParameterFlow {
+				continue
 			}
 			parameter, err := db2sdk.TemplateVersionParameter(parameters[index])
 			if err != nil {
