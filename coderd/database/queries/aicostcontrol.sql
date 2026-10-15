@@ -56,9 +56,8 @@ LIMIT 1;
 
 -- name: GetAIModelPriceForProvider :one
 -- Returns the price in effect for the model served by the configured provider,
--- most specific first: the organization's price for the provider, the
--- organization's price for the provider type, a site-wide custom price, then
--- the price book. The requested model is preferred over the model reported
+-- most specific first: the organization's price for the provider, a
+-- site-wide custom price, then the price book. The requested model is preferred over the model reported
 -- by the provider, whatever the kind of price. A NULL organization_id matches
 -- no organization price, so only site-wide prices apply. Each branch is a
 -- primary key lookup.
@@ -79,21 +78,6 @@ WITH prices AS (
 	FROM ai_model_prices
 	WHERE ai_model_prices.provider = @provider_type::text
 		AND ai_model_prices.model IN (@model::text, @provider_model::text)
-	UNION ALL
-	SELECT
-		'organization_provider_type'::ai_model_price_kind,
-		organization_id,
-		NULL::uuid,
-		provider,
-		model,
-		input_price,
-		output_price,
-		cache_read_price,
-		cache_write_price
-	FROM ai_org_model_prices
-	WHERE ai_org_model_prices.organization_id = sqlc.narg('organization_id')::uuid
-		AND ai_org_model_prices.provider = @provider_type::text
-		AND ai_org_model_prices.model IN (@model::text, @provider_model::text)
 	UNION ALL
 	SELECT
 		'organization_provider'::ai_model_price_kind,
@@ -686,8 +670,6 @@ OFFSET @offset_opt::int;
 -- A model counts as priced when the site-wide catalog prices it for the
 -- provider type, or when any organization prices it for the configured
 -- provider. The latter is the only way to price an openai-compat provider.
--- Organization provider type prices apply to one organization only, so they
--- leave the model unpriced elsewhere and do not count.
 SELECT
 	providers.type::text AS provider_type,
 	interceptions.model AS model,
