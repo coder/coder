@@ -458,6 +458,26 @@ func TestProjectSkillQueries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, skill.ProjectID)
 
+	// Reads stay scoped to the requested project.
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner})
+	_, err = authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
+		ID: uuid.New(), ProjectID: otherProject.ID, Name: "other", Description: "desc", Content: "body",
+	})
+	require.NoError(t, err)
+	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(reader), project.ID)
+	require.NoError(t, err)
+	listedIDs := make([]uuid.UUID, 0, len(listed))
+	for _, row := range listed {
+		require.Equal(t, skill.ProjectID, row.ProjectID)
+		listedIDs = append(listedIDs, row.ID)
+	}
+	require.Contains(t, listedIDs, skill.ID)
+	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.NoError(t, err)
+	require.Equal(t, skill.Content, got.Content)
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
 	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
 	_, err = authzDB.GetProjectSkillByIDForUpdate(as(otherMember), skill.ID)
