@@ -67,9 +67,10 @@ func (p *projectTemplates) isDefault(templateID uuid.UUID) bool {
 }
 
 // applyProjectDefaults fills in the project's default preset and parameter
-// values that the model did not pass. The default preset is skipped when it
-// no longer belongs to the template's active version, or when it sets a
-// parameter the model passed, since preset values override build values.
+// values that the model did not pass. A preset the model chooses replaces
+// the defaults entirely. The default preset is skipped when it no longer
+// belongs to the template's active version, or when it sets a parameter the
+// model passed, since preset values override build values.
 func applyProjectDefaults(
 	ctx context.Context,
 	logger slog.Logger,
@@ -79,7 +80,10 @@ func applyProjectDefaults(
 	args createWorkspaceArgs,
 	req *codersdk.CreateWorkspaceRequest,
 ) {
-	if req.TemplateVersionPresetID == uuid.Nil && project.defaultPresetID.Valid {
+	if req.TemplateVersionPresetID != uuid.Nil {
+		return
+	}
+	if project.defaultPresetID.Valid {
 		presets, err := db.GetPresetsByTemplateVersionID(ctx, activeVersionID)
 		switch {
 		case err != nil:

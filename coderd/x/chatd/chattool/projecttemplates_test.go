@@ -132,6 +132,11 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		_, req := createWorkspace(t, withParameters, `{"template_id":"`+inProject.ID.String()+`","parameters":{"region":"us"}}`)
 		require.NotNil(t, req)
 		require.Equal(t, map[string]string{"region": "us", "size": "m"}, parameters(req))
+
+		// A preset the model chooses replaces the project's defaults.
+		_, req = createWorkspace(t, withParameters, `{"template_id":"`+inProject.ID.String()+`","preset_id":"`+preset.ID.String()+`"}`)
+		require.NotNil(t, req)
+		require.Empty(t, parameters(req))
 	})
 
 	t.Run("CreateWorkspaceDefaultPreset", func(t *testing.T) {
