@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func TestConnectionLog(t *testing.T) {
@@ -54,8 +55,8 @@ func TestConnectionLog(t *testing.T) {
 		status          int32
 		reason          string
 		clientSessionID string
-		rxBytes         int64
-		txBytes         int64
+		rxBytes         *int64
+		txBytes         *int64
 	}{
 		{
 			name:            "SSH Connect",
@@ -152,8 +153,18 @@ func TestConnectionLog(t *testing.T) {
 			typ:     agentproto.Connection_SSH.Enum(),
 			method:  database.ConnectionLogMethodSSH,
 			time:    dbtime.Now(),
-			rxBytes: 10,
-			txBytes: 50,
+			rxBytes: new(int64(10)),
+			txBytes: new(int64(50)),
+		},
+		{
+			name:    "Zero Bytes Transferred Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			method:  database.ConnectionLogMethodSSH,
+			time:    dbtime.Now(),
+			rxBytes: new(int64(0)),
+			txBytes: new(int64(0)),
 		},
 	}
 	for _, tt := range tests {
@@ -234,12 +245,12 @@ func TestConnectionLog(t *testing.T) {
 					Valid:  tt.clientSessionID != "",
 				},
 				RxBytes: sql.NullInt64{
-					Int64: tt.rxBytes,
-					Valid: *tt.action == agentproto.Connection_DISCONNECT,
+					Int64: ptr.NilToEmpty(tt.rxBytes),
+					Valid: tt.rxBytes != nil,
 				},
 				TxBytes: sql.NullInt64{
-					Int64: tt.txBytes,
-					Valid: *tt.action == agentproto.Connection_DISCONNECT,
+					Int64: ptr.NilToEmpty(tt.txBytes),
+					Valid: tt.txBytes != nil,
 				},
 			}, logs[0])
 		})

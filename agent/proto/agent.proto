@@ -429,8 +429,8 @@ message Connection {
 	string client_session_id = 8;
 	string app_name = 9;
 	Method connection_method = 10;
-	int64 rx_bytes = 11;
-	int64 tx_bytes = 12;
+	optional int64 rx_bytes = 11;
+	optional int64 tx_bytes = 12;
 }
 
 message ReportConnectionRequest {

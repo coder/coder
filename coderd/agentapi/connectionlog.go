@@ -59,11 +59,11 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 		rxBytes = sql.NullInt64{
 			Int64: req.GetConnection().GetRxBytes(),
-			Valid: true,
+			Valid: req.GetConnection().RxBytes != nil,
 		}
 		txBytes = sql.NullInt64{
 			Int64: req.GetConnection().GetTxBytes(),
-			Valid: true,
+			Valid: req.GetConnection().TxBytes != nil,
 		}
 	}
 
