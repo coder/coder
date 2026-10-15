@@ -6,15 +6,21 @@ import (
 	"encoding/json"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -376,4 +382,147 @@ func TestUpdateNonBlockingLockSkipsHeldRow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, after.Status)
 	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion, "the skipped attempt advanced nothing")
+}
+
+// chatReadCountingStore counts chat row reads that reach the database.
+type chatReadCountingStore struct {
+	database.Store
+	reads *atomic.Int32
+}
+
+func (s *chatReadCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&chatReadCountingStore{Store: tx, reads: s.reads})
+	}, opts)
+}
+
+func (s *chatReadCountingStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	s.reads.Add(1)
+	return s.Store.GetChatByID(ctx, id)
+}
+
+// TestChatMachine_Update_AuthorizesFromCachedChatRBAC covers that dbauthz
+// authorizes a transition's chat reads and writes from the RBAC object
+// Update caches from the locked row, and the lock itself from a
+// caller-cached object.
+func TestChatMachine_Update_AuthorizesFromCachedChatRBAC(t *testing.T) {
+	t.Parallel()
+
+	finishTurn := func(tx *chatstate.Tx, _ *testFixture) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}
+	for _, tc := range []struct {
+		name        string
+		callerCache bool
+		// setup runs on the raw store before the measured Update.
+		setup      func(t *testing.T, f *testFixture, m *chatstate.ChatMachine)
+		transition func(tx *chatstate.Tx, f *testFixture) error
+		wantStatus database.ChatStatus
+		// The two state loads (the transition's and Update's publication
+		// read) always read the chat; only the lock's authorization read
+		// depends on the caller's cache.
+		wantReads int32
+	}{
+		{name: "NoCallerCache", transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 3},
+		{name: "CallerCache", callerCache: true, transition: finishTurn, wantStatus: database.ChatStatusWaiting, wantReads: 2},
+		{
+			// Acquire upserts the heartbeat and the publication checks the
+			// fresh lease.
+			name:        "Acquire",
+			callerCache: true,
+			transition: func(tx *chatstate.Tx, _ *testFixture) error {
+				_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+				return err
+			},
+			wantStatus: database.ChatStatusRunning,
+			wantReads:  2,
+		},
+		{
+			// Sending from waiting cancels the pending tool call, which
+			// reads the chat's messages under the lock.
+			name:        "SendMessageCancelsToolCall",
+			callerCache: true,
+			setup: func(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
+				commitAssistantToolCall(t, f, m, nonDynamicAssistantToolCallMessage(t, f.Model.ID, "call_"+uuid.NewString()))
+				landInW(t, f, m)
+			},
+			transition: func(tx *chatstate.Tx, f *testFixture) error {
+				res, err := tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("after-cancel", f.User.ID, f.Model.ID),
+					BusyBehavior: chatstate.BusyBehaviorQueue,
+					MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+				})
+				if err == nil && len(res.InsertedMessages) != 2 {
+					return xerrors.Errorf("want synthetic cancel and user message, got %d", len(res.InsertedMessages))
+				}
+				return err
+			},
+			wantStatus: database.ChatStatusRunning,
+			wantReads:  2,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			created := createTestChat(t, f)
+			if tc.setup != nil {
+				tc.setup(t, f, chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID))
+			}
+			reads := &atomic.Int32{}
+			authzDB := dbauthz.New(
+				&chatReadCountingStore{Store: f.DB, reads: reads},
+				rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+				slogtest.Make(t, nil),
+				nil,
+			)
+			//nolint:gocritic // Transitions run as chatd.
+			ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitShort))
+			if tc.callerCache {
+				var err error
+				ctx, err = dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(created.Chat))
+				require.NoError(t, err)
+			}
+
+			m := chatstate.NewChatMachine(authzDB, f.Pub, created.Chat.ID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				cached, ok := dbauthz.ChatRBACFromContext(tx.Ctx())
+				require.True(t, ok)
+				require.Equal(t, created.Chat.ID.String(), cached.ID)
+				return tc.transition(tx, f)
+			}))
+			require.Equal(t, tc.wantReads, reads.Load())
+			require.Equal(t, tc.wantStatus, f.readChat(ctx, t, created.Chat.ID).Status)
+		})
+	}
+}
+
+// CreateChat authorizes its chat-scoped writes from the inserted row, so
+// only the post-insert reload reads the chat.
+func TestCreateChat_AuthorizesFromInsertedChat(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	reads := &atomic.Int32{}
+	authzDB := dbauthz.New(
+		&chatReadCountingStore{Store: f.DB, reads: reads},
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, nil),
+		nil,
+	)
+	//nolint:gocritic // Chat creation runs as chatd here.
+	ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitShort))
+	res, err := chatstate.CreateChat(ctx, authzDB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:    f.Org.ID,
+		OwnerID:           f.User.ID,
+		LastModelConfigID: f.Model.ID,
+		Title:             "test",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
+		InitialMessages: []chatstate.Message{
+			userTextMessage("hello", f.User.ID, f.Model.ID),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.InitialMessages, 1)
+	require.Equal(t, int32(1), reads.Load())
 }

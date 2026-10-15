@@ -4,13 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -479,4 +483,75 @@ func TestWorker_AcquisitionSkipsLockedChatWithoutWaiting(t *testing.T) {
 	worker.Wake()
 	call = starter.waitCall(t, taskKindGeneration, held.ID)
 	require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
+}
+
+// countingChatReadStore counts GetChatByID calls, including those inside
+// transactions.
+type countingChatReadStore struct {
+	database.Store
+	reads *atomic.Int64
+}
+
+func (s *countingChatReadStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&countingChatReadStore{Store: tx, reads: s.reads})
+	}, opts)
+}
+
+func (s *countingChatReadStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	s.reads.Add(1)
+	return s.Store.GetChatByID(ctx, id)
+}
+
+// Acquisition holds the chat row lock, so dbauthz must authorize it from
+// the candidate row rather than reading the chat.
+func TestWorker_AcquireCandidateAuthorizesWithoutChatReads(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		ownedLive    bool
+		wantAcquired bool
+		// Only the callback's load, the transition's load, and the
+		// publication read the chat; authorization never does.
+		wantReads int64
+	}{
+		{name: "LosesToLiveLease", ownedLive: true, wantAcquired: false, wantReads: 1},
+		{name: "Wins", wantAcquired: true, wantReads: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			if tc.ownedLive {
+				chat = acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
+			}
+
+			reads := &atomic.Int64{}
+			opts := testOptions(t, f, nil)
+			opts.Store = dbauthz.New(
+				&countingChatReadStore{Store: f.db, reads: reads},
+				rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+				testutil.Logger(t),
+				nil,
+			)
+			worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
+			require.NoError(t, err)
+			//nolint:gocritic // The worker acquires chats as chatd.
+			ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitShort))
+			manager := newRunnerManager(ctx, worker.server, worker.opts)
+
+			// A live lease hides the chat from the candidate query, so pass
+			// the row a worker would have fetched before losing the race.
+			acquired, err := worker.acquireCandidate(ctx, worker.opts.WorkerID, manager, database.GetChatWorkerAcquisitionCandidatesRow{
+				ID:             chat.ID,
+				Status:         chat.Status,
+				OwnerID:        chat.OwnerID,
+				OrganizationID: chat.OrganizationID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantAcquired, acquired)
+			require.Equal(t, tc.wantReads, reads.Load())
+		})
+	}
 }

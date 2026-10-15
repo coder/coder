@@ -174,22 +174,28 @@ func insertChat(
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
 		}
+		// Lets the chat-scoped writes below authorize without reading the
+		// chat back.
+		chatCtx := ctx
+		if rbacCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(chat)); err == nil {
+			chatCtx = rbacCtx
+		}
 		// Insert the initial history under the new chat row. The
 		// message revision trigger advances `history_version` to the
 		// current `snapshot_version` (which is 1 for a brand new chat).
-		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
+		inserted, err := store.InsertChatMessages(chatCtx, toInsertParams(chat.ID, input.InitialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
 		}
-		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs, input.MaxFileLinks); err != nil {
+		if err := LinkFiles(chatCtx, store, chat.ID, input.FileIDs, input.MaxFileLinks); err != nil {
 			return err
 		}
 		if len(input.InlineMCPServers) > 0 {
-			if err := ReplaceInlineMCPServers(ctx, store, chat.ID, input.InlineMCPServers); err != nil {
+			if err := ReplaceInlineMCPServers(chatCtx, store, chat.ID, input.InlineMCPServers); err != nil {
 				return err
 			}
 		}
-		refreshed, err := store.GetChatByID(ctx, chat.ID)
+		refreshed, err := store.GetChatByID(chatCtx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after initial messages: %w", err)
 		}

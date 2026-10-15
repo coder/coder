@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 )
@@ -212,7 +213,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		if (isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused) {
 			continue
 		}
-		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
+		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row)
 		if errors.Is(err, errCapacityRefused) {
 			if isSubagent {
 				subagentPoolRefused = true
@@ -243,34 +244,45 @@ func (w *chatWorker) acquireCandidateSafely(
 	ctx context.Context,
 	workerID uuid.UUID,
 	manager *runnerManager,
-	chatID uuid.UUID,
+	candidate database.GetChatWorkerAcquisitionCandidatesRow,
 ) (acquired bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = xerrors.Errorf("chatworker acquisition panic: %v", recovered)
 		}
 	}()
-	return w.acquireCandidate(ctx, workerID, manager, chatID)
+	return w.acquireCandidate(ctx, workerID, manager, candidate)
 }
 
 func (w *chatWorker) acquireCandidate(
 	ctx context.Context,
 	workerID uuid.UUID,
 	manager *runnerManager,
-	chatID uuid.UUID,
+	candidate database.GetChatWorkerAcquisitionCandidatesRow,
 ) (bool, error) {
+	chatID := candidate.ID
 	runnerID := uuid.New()
 	var takenOver bool
+	// Lets the lock authorize without reading the chat; owner and
+	// organization never change.
+	updateCtx := ctx
+	if rbacCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(database.Chat{
+		ID:             chatID,
+		OwnerID:        candidate.OwnerID,
+		OrganizationID: candidate.OrganizationID,
+	})); err == nil {
+		updateCtx = rbacCtx
+	}
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithNonBlockingLock()
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, chatID)
+	err := machine.Update(updateCtx, func(tx *chatstate.Tx, store database.Store) error {
+		chat, err := store.GetChatByID(tx.Ctx(), chatID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errSkipAcquire
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
+		queueCount, err := store.CountChatQueuedMessages(tx.Ctx(), chatID)
 		if err != nil {
 			return xerrors.Errorf("count queue: %w", err)
 		}
@@ -278,7 +290,7 @@ func (w *chatWorker) acquireCandidate(
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {
-			stale, err := store.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
+			stale, err := store.IsChatHeartbeatStale(tx.Ctx(), database.IsChatHeartbeatStaleParams{
 				ChatID:       chat.ID,
 				RunnerID:     chat.RunnerID.UUID,
 				StaleSeconds: w.opts.HeartbeatStaleSeconds,
@@ -291,7 +303,7 @@ func (w *chatWorker) acquireCandidate(
 			}
 			takenOver = true
 		}
-		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
+		admitted, err := w.opts.AgentCapacityLimiter.Admit(tx.Ctx(), store, chat)
 		if err != nil {
 			return xerrors.Errorf("agent admission: %w", err)
 		}
@@ -304,7 +316,7 @@ func (w *chatWorker) acquireCandidate(
 			// The lease was read before the admission lock, which heartbeat
 			// renewal also takes. A renewal that held the lock may have
 			// extended the lease since, so recheck it under the lock.
-			stillStale, err := w.leaseStaleUnderAdmissionLock(ctx, store, chat)
+			stillStale, err := w.leaseStaleUnderAdmissionLock(tx.Ctx(), store, chat)
 			if err != nil {
 				return err
 			}
@@ -361,7 +373,7 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(cleanupCtx, chatID)
+		chat, err := store.GetChatByID(tx.Ctx(), chatID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errSkipAcquire
 		}
