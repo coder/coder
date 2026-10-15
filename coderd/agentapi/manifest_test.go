@@ -467,10 +467,11 @@ func TestGetManifest(t *testing.T) {
 			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
 			AppHostname: "*--apps.example.com",
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		subagentScripts := []database.GetWorkspaceAgentScriptsByAgentIDsRow{
@@ -504,6 +505,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -541,10 +543,11 @@ func TestGetManifest(t *testing.T) {
 			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
 			AppHostname: "*--apps.example.com",
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		corruptScripts := []database.GetWorkspaceAgentScriptsByAgentIDsRow{{
@@ -564,6 +567,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
 
 		_, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.ErrorContains(t, err, "empty prerequisite resource address")
