@@ -81,12 +81,14 @@ func TestChatSkillInvocation(t *testing.T) {
 		codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePersonal, "notes"),
 	}, returned)
 
-	// A skill the owner cannot load rejects the send.
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content: []codersdk.ChatInputPart{
-			{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillName: "missing"},
-		},
-	})
+	// A skill the owner cannot load rejects the send and the edit.
+	missing := []codersdk.ChatInputPart{
+		{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillName: "missing"},
+	}
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{Content: missing})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
+	_, err = client.EditChatMessage(ctx, chat.ID, findUserMessage(t, messages).ID, codersdk.EditChatMessageRequest{Content: missing})
+	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)
 }
