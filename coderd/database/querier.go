@@ -237,7 +237,6 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
-	DeleteOrganizationAIModelPrice(ctx context.Context, arg DeleteOrganizationAIModelPriceParams) (int64, error)
 	DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg DeleteOrganizationAIProviderModelPriceParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
@@ -780,15 +779,14 @@ type sqlcQuerier interface {
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
 	// Returns every price that applies to the organization: its prices for
-	// configured providers, its prices for provider types, and the site-wide
-	// catalog. Prices for soft-deleted providers are left out.
-	// By default each price is collapsed into the one in effect: an organization
-	// provider type price hides the site-wide prices for that provider type and
-	// model, and a custom site-wide price hides the price book. A price for one
-	// configured provider hides nothing, since other providers of its type still
-	// use the broader price. Filtering by source narrows the rows considered
-	// first, and organization prices count as custom. The source 'all' reports
-	// every row instead.
+	// configured providers and the site-wide catalog. Prices for soft-deleted
+	// providers are left out.
+	// By default each price is collapsed into the one in effect: a custom
+	// site-wide price hides the price book. A price for one configured provider
+	// hides nothing, since other providers of its type still use the site-wide
+	// price. Filtering by source narrows the rows considered first, and
+	// organization prices count as custom. The source 'all' reports every row
+	// instead.
 	GetOrganizationAIModelPrices(ctx context.Context, arg GetOrganizationAIModelPricesParams) ([]GetOrganizationAIModelPricesRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
@@ -1830,11 +1828,6 @@ type sqlcQuerier interface {
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
-	// Upsert a batch of the organization's provider type prices from a JSON array.
-	// Each element must have provider, model, and the four price fields, and null
-	// prices are written as SQL NULL. A conflicting row is only rewritten when a
-	// price differs, so updated_at records when a price last changed.
-	UpsertOrganizationAIModelPrices(ctx context.Context, arg UpsertOrganizationAIModelPricesParams) error
 	// Upsert a batch of the organization's configured provider prices from a JSON
 	// array. Each element must have provider_id, model, and the four price fields,
 	// and null prices are written as SQL NULL. A conflicting row is only rewritten

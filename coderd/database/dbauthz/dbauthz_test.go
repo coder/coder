@@ -7384,15 +7384,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead)
 	}))
 
-	s.Run("UpsertOrganizationAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		orgID := uuid.New()
-		db.EXPECT().UpsertOrganizationAIModelPrices(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(database.UpsertOrganizationAIModelPricesParams{
-			OrganizationID: orgID,
-			Prices:         json.RawMessage(`[]`),
-		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
-	}))
-
 	s.Run("UpsertOrganizationAIProviderModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		db.EXPECT().UpsertOrganizationAIProviderModelPrices(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -7400,16 +7391,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 			OrganizationID: orgID,
 			Prices:         json.RawMessage(`[]`),
 		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
-	}))
-
-	s.Run("DeleteOrganizationAIModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		orgID := uuid.New()
-		db.EXPECT().DeleteOrganizationAIModelPrice(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
-		check.Args(database.DeleteOrganizationAIModelPriceParams{
-			OrganizationID: orgID,
-			Provider:       string(database.AIProviderTypeAnthropic),
-			Model:          "claude-sonnet-4-5",
-		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate).Returns(int64(1))
 	}))
 
 	s.Run("DeleteOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

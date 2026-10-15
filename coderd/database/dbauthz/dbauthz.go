@@ -2608,13 +2608,6 @@ func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg
 	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }
 
-func (q *querier) DeleteOrganizationAIModelPrice(ctx context.Context, arg database.DeleteOrganizationAIModelPriceParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
-		return 0, err
-	}
-	return q.db.DeleteOrganizationAIModelPrice(ctx, arg)
-}
-
 func (q *querier) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
 		return 0, err
@@ -9533,13 +9526,6 @@ func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligibl
 		return err
 	}
 	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
-}
-
-func (q *querier) UpsertOrganizationAIModelPrices(ctx context.Context, arg database.UpsertOrganizationAIModelPricesParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
-		return err
-	}
-	return q.db.UpsertOrganizationAIModelPrices(ctx, arg)
 }
 
 func (q *querier) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {

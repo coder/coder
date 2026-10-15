@@ -1485,21 +1485,6 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceBuildOrchestrations(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceBuildOrchestrations", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceBuildOrchestrations), ctx, arg)
 }
 
-// DeleteOrganizationAIModelPrice mocks base method.
-func (m *MockStore) DeleteOrganizationAIModelPrice(ctx context.Context, arg database.DeleteOrganizationAIModelPriceParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOrganizationAIModelPrice", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteOrganizationAIModelPrice indicates an expected call of DeleteOrganizationAIModelPrice.
-func (mr *MockStoreMockRecorder) DeleteOrganizationAIModelPrice(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationAIModelPrice", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationAIModelPrice), ctx, arg)
-}
-
 // DeleteOrganizationAIProviderModelPrice mocks base method.
 func (m *MockStore) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -12879,20 +12864,6 @@ func (m *MockStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligi
 func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
-}
-
-// UpsertOrganizationAIModelPrices mocks base method.
-func (m *MockStore) UpsertOrganizationAIModelPrices(ctx context.Context, arg database.UpsertOrganizationAIModelPricesParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertOrganizationAIModelPrices", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertOrganizationAIModelPrices indicates an expected call of UpsertOrganizationAIModelPrices.
-func (mr *MockStoreMockRecorder) UpsertOrganizationAIModelPrices(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationAIModelPrices), ctx, arg)
 }
 
 // UpsertOrganizationAIProviderModelPrices mocks base method.
