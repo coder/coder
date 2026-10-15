@@ -1,11 +1,5 @@
 import { isAxiosError } from "axios";
-import {
-	CheckIcon,
-	ChevronLeftIcon,
-	EllipsisVerticalIcon,
-	PlusIcon,
-	XIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -57,6 +51,23 @@ const NOUN = "project skill";
 
 type EditorView = { type: "create" } | { type: "edit"; name: string };
 
+const editorSubmitError = (
+	view: EditorView,
+	error: unknown,
+): SkillErrorDisplay | undefined => {
+	if (
+		view.type === "edit" &&
+		isAxiosError(error) &&
+		error.response?.status === 404
+	) {
+		return {
+			message: `This ${NOUN} was deleted. Go back to see the current list.`,
+		};
+	}
+	const action = view.type === "create" ? "create" : "save";
+	return skillError(error, `Failed to ${action} ${NOUN}.`, NOUN);
+};
+
 type ProjectSkillsDialogProps = {
 	readonly project: ChatProject;
 	readonly open: boolean;
@@ -84,7 +95,6 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	);
 	const { rememberTrigger, restoreFocus, setPrimaryFallback } =
 		useDialogFocusReturn();
-	// Escape presses Back, which asks before discarding unsaved edits.
 	const backButtonRef = useRef<HTMLButtonElement>(null);
 
 	const skillsQuery = useQuery(scope.list);
@@ -126,18 +136,6 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 
 	const editorMutation =
 		editor?.type === "create" ? createMutation : updateMutation;
-	const editorError =
-		editor?.type === "edit" &&
-		isAxiosError(updateMutation.error) &&
-		updateMutation.error.response?.status === 404
-			? {
-					message: `This ${NOUN} was deleted. Go back to see the current list.`,
-				}
-			: skillError(
-					editorMutation.error,
-					`Failed to ${editor?.type === "create" ? "create" : "save"} ${NOUN}.`,
-					NOUN,
-				);
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
@@ -145,6 +143,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
 				onEscapeKeyDown={(event) => {
+					// Back asks before it discards unsaved edits.
 					if (editor) {
 						event.preventDefault();
 						backButtonRef.current?.click();
@@ -164,7 +163,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						existingNames={skills.map((skill) =>
 							skill.name.toLocaleLowerCase("en-US"),
 						)}
-						submitError={editorError}
+						submitError={editorSubmitError(editor, editorMutation.error)}
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
@@ -357,32 +356,17 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 			: canEdit
 				? "Edit skill"
 				: "View skill";
-	const renderHeader = (isDirty: boolean) => (
-		<DialogHeader className="items-start px-6 pt-6">
-			<Button
-				ref={backButtonRef}
-				size="sm"
-				variant="subtle"
-				className="-ml-2"
-				disabled={isSubmitting}
-				autoFocus
-				onClick={() => (isDirty ? setIsDiscardOpen(true) : onBack())}
-			>
-				<ChevronLeftIcon />
-				Back
-			</Button>
-			<DialogTitle>{title}</DialogTitle>
-			<DialogDescription>
-				Every chat in this project can use this skill.
-			</DialogDescription>
-		</DialogHeader>
-	);
 
 	if (!loaded?.ok) {
 		const loadError = loaded ? new Error(loaded.error) : skillQuery.error;
 		return (
 			<>
-				{renderHeader(false)}
+				<ProjectSkillEditorHeader
+					title={title}
+					isSubmitting={isSubmitting}
+					backButtonRef={backButtonRef}
+					onBack={onBack}
+				/>
 				<div className="px-6 py-6">
 					{loadError ? (
 						<ErrorAlert
@@ -415,7 +399,14 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				isSubmitting={isSubmitting}
 				nameHint="Lowercase letters, numbers, and hyphens."
 				bodyPlaceholder="Describe when and how the agent should use this skill."
-				header={({ isDirty }) => renderHeader(isDirty)}
+				header={({ isDirty }) => (
+					<ProjectSkillEditorHeader
+						title={title}
+						isSubmitting={isSubmitting}
+						backButtonRef={backButtonRef}
+						onBack={isDirty ? () => setIsDiscardOpen(true) : onBack}
+					/>
+				)}
 				footer={({ canSubmit }) =>
 					canEdit && (
 						<DialogFooter className="border-t border-border px-6 py-4">
@@ -432,7 +423,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				open={isDiscardOpen}
 				type="delete"
 				title="Discard unsaved changes?"
-				description="Your edits to this skill will be lost."
+				description="Your unsaved changes will be lost."
 				cancelText="Keep editing"
 				confirmText="Discard"
 				onConfirm={onBack}
@@ -447,6 +438,39 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 		</>
 	);
 };
+
+type ProjectSkillEditorHeaderProps = {
+	readonly title: string;
+	readonly isSubmitting: boolean;
+	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
+	readonly onBack: () => void;
+};
+
+const ProjectSkillEditorHeader: React.FC<ProjectSkillEditorHeaderProps> = ({
+	title,
+	isSubmitting,
+	backButtonRef,
+	onBack,
+}) => (
+	<DialogHeader className="items-start px-6 pt-6">
+		<Button
+			ref={backButtonRef}
+			size="sm"
+			variant="subtle"
+			className="-ml-2"
+			disabled={isSubmitting}
+			autoFocus
+			onClick={onBack}
+		>
+			<ChevronLeftIcon />
+			Back
+		</Button>
+		<DialogTitle>{title}</DialogTitle>
+		<DialogDescription>
+			Every chat in this project can use this skill.
+		</DialogDescription>
+	</DialogHeader>
+);
 
 type ProjectSkillRowProps = {
 	readonly scope: SkillsScope;
@@ -486,21 +510,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 			</div>
 		</TableCell>
 		<TableCell>
-			{canEdit ? (
-				<SkillEnabledSwitch scope={scope} skill={skill} />
-			) : skill.enabled ? (
-				<CheckIcon
-					role="img"
-					aria-label="Enabled"
-					className="size-icon-sm text-content-success"
-				/>
-			) : (
-				<XIcon
-					role="img"
-					aria-label="Disabled"
-					className="size-icon-sm text-content-secondary"
-				/>
-			)}
+			<SkillEnabledSwitch scope={scope} skill={skill} readOnly={!canEdit} />
 		</TableCell>
 		<TableCell className="whitespace-nowrap text-content-secondary">
 			<time

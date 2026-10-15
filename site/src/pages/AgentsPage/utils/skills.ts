@@ -312,7 +312,8 @@ export type SkillsScope = {
 	detail: (name: string) => SkillsQuery<Skill>;
 	create: (queryClient: QueryClient) => {
 		mutationFn: (req: CreateSkillRequest) => Promise<Skill>;
-		onSuccess: (skill: Skill) => unknown;
+		onSuccess?: (skill: Skill) => unknown;
+		onSettled?: () => unknown;
 	};
 	update: (queryClient: QueryClient) => {
 		mutationFn: (args: {

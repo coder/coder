@@ -80,8 +80,8 @@ export const OneSkill: Story = {
 	args: { skillCount: 1 },
 };
 
-export const SomeSkillsOff: Story = {
-	args: { skillCount: 3, disabledSkillCount: 1 },
+export const SomeSkillsDisabled: Story = {
+	args: { disabledSkillCount: 1 },
 };
 
 export const NoSkills: Story = {

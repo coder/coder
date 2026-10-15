@@ -114,7 +114,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				organizationLabel={organizationLabel}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
-					skillsQuery.data?.filter((skill) => !skill.enabled).length ?? 0
+					skillsQuery.data?.filter((skill) => !skill.enabled).length
 				}
 				skillsError={skillsQuery.error}
 				onOpenSkills={(event) => {

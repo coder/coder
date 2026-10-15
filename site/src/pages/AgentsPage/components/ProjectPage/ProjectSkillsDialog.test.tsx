@@ -4,7 +4,7 @@ import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Skill } from "#/api/typesGenerated";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
@@ -14,14 +14,6 @@ const { organization_id: orgId, id: projectId } = MockChatProject;
 const mockReviewerSkill: Skill = {
 	...MockSkills[0],
 	content: "---\nname: reviewer\n---\nReview the diff.\n",
-};
-
-const mockConflict = {
-	isAxiosError: true,
-	response: {
-		status: 409,
-		data: { message: "A skill with that name already exists." },
-	},
 };
 
 const renderDialog = ({ canEdit = true } = {}) => {
@@ -80,9 +72,13 @@ describe("ProjectSkillsDialog", () => {
 	});
 
 	it("refreshes the skill list when the new name was just taken", async () => {
-		vi.spyOn(API.experimental, "createChatProjectSkill").mockRejectedValue(
-			mockConflict,
-		);
+		const conflict = mockApiError({
+			message: "A skill with that name already exists.",
+		});
+		vi.spyOn(API.experimental, "createChatProjectSkill").mockRejectedValue({
+			...conflict,
+			response: { ...conflict.response, status: 409 },
+		});
 		const { user, getSkills } = renderDialog();
 
 		await user.click(await screen.findByRole("button", { name: "New" }));

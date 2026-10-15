@@ -383,9 +383,11 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="review-database-query"
-						disabled={isBusy || !isCreate}
+						readOnly={readOnly}
+						disabled={isBusy || (!isCreate && !readOnly)}
 						aria-invalid={Boolean(nameError)}
 						aria-describedby={nameError ? nameErrorId : undefined}
+						className={cn(readOnly && "bg-surface-secondary")}
 					/>
 					{nameError ? (
 						<p
@@ -410,9 +412,11 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="When to use this skill"
-						disabled={isBusy || readOnly}
+						readOnly={readOnly}
+						disabled={isBusy}
 						aria-invalid={Boolean(descriptionError)}
 						aria-describedby={descriptionError ? descriptionErrorId : undefined}
+						className={cn(readOnly && "bg-surface-secondary")}
 					/>
 					{descriptionError && (
 						<p
@@ -433,13 +437,15 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder={bodyPlaceholder}
-						disabled={isBusy || readOnly}
+						readOnly={readOnly}
+						disabled={isBusy}
 						minRows={8}
 						aria-invalid={Boolean(bodyError)}
 						aria-describedby={bodyError ? bodyErrorId : undefined}
 						className={cn(
 							"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
 							bodyError && "border-border-destructive",
+							readOnly && "bg-surface-secondary",
 						)}
 					/>
 					{bodyError && (

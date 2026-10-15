@@ -94,6 +94,23 @@ export const Edit: Story = {
 	},
 };
 
+/** Back asks before it drops edits that were not saved. */
+export const DiscardChanges: Story = {
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Edit" }),
+		);
+		await userEvent.type(
+			await screen.findByRole("textbox", { name: "Body" }),
+			" Keep it short.",
+		);
+		await userEvent.click(screen.getByRole("button", { name: "Back" }));
+	},
+};
+
 export const EditLoading: Story = {
 	parameters: {
 		queries: [

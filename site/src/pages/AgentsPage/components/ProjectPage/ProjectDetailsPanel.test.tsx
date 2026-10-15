@@ -490,7 +490,9 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Skills: 2 skills, 1 off" }),
+			await screen.findByRole("button", {
+				name: "Skills: 2 skills, 1 disabled",
+			}),
 		);
 		await user.click(
 			await screen.findByRole("button", { name: "Open menu for reviewer" }),
