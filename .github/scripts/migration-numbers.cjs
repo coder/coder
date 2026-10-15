@@ -151,6 +151,11 @@ function referenceReason(result, texts) {
   return null;
 }
 
+/** Report whether text starts with a standard generated-code header. */
+function generated(text) {
+  return /Code generated\b.*\bDO NOT EDIT/.test(text.split("\n", 1)[0]);
+}
+
 /**
  * Status publication depends on revisions, not computed mergeability.
  */
@@ -170,7 +175,7 @@ function unchanged(pr, current, main, currentMain) {
 }
 
 module.exports = { MIGRATIONS, FIXTURES, LABEL, CONTEXT, migration, fixture, relevant, validate, plan,
-  skipReason, referenceReason, sameRevision, unchanged };
+  skipReason, referenceReason, generated, sameRevision, unchanged };
 
 if (require.main === module) {
   const { execFileSync } = require("node:child_process");

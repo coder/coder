@@ -21,12 +21,21 @@ async function run({ github, context, core, writer }) {
     }
     return cache.get(sha);
   };
-  const blob = async (entry) => {
-    if (entry.type !== "blob" || entry.mode !== "100644" || entry.size > 1024 * 1024) {
-      throw new Error("Unsupported file type or oversized file; manual fix required.");
+  // Copied files keep a strict cap; scanned-only files may be as large as the
+  // Git blobs API allows so regenerated code does not block repair.
+  const blob = async (path, entry, copied) => {
+    const limit = copied ? 1024 * 1024 : 100 * 1024 * 1024;
+    if (entry.type !== "blob" || !(entry.mode === "100644" || (!copied && entry.mode === "100755"))) {
+      throw new Error("Unsupported file type; manual fix required: " + path);
     }
-    const { data } = await github.rest.git.getBlob({ owner, repo, file_sha: entry.sha });
-    if (data.encoding !== "base64" || data.size > 1024 * 1024) throw new Error("Unsupported blob; manual fix required.");
+    if (entry.size > limit) throw new Error("Oversized file; manual fix required: " + path);
+    let data;
+    try {
+      ({ data } = await github.rest.git.getBlob({ owner, repo, file_sha: entry.sha }));
+    } catch (error) {
+      throw new Error("Cannot read " + path + ": " + error.message);
+    }
+    if (data.encoding !== "base64" || data.size > limit) throw new Error("Unsupported blob; manual fix required: " + path);
     return Buffer.from(data.content, "base64");
   };
   const allPRs = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
@@ -82,10 +91,16 @@ async function run({ github, context, core, writer }) {
         // Read all changed text, including SQL and test references. No PR blob
         // is ever executed. Deletions cannot contain a surviving reference.
         const texts = {};
+        const copied = new Set(result.renames.map((rename) => rename.from));
         for (const path of result.changes) {
           if (!head[path]) continue;
-          const data = await blob(head[path]);
-          contents.set(path, data);
+          const data = await blob(path, head[path], copied.has(path));
+          if (copied.has(path)) contents.set(path, data);
+          else if (rules.generated(data.subarray(0, 1024).toString("utf8"))) {
+            // Generated content is not scanned, but its filename still is.
+            texts[path] = "";
+            continue;
+          }
           if (data.includes(0)) {
             reason = "Binary PR changes require a manual migration fix.";
             break;
