@@ -1,6 +1,4 @@
 import type { SerpentOption } from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -8,6 +6,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
+import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -40,29 +39,7 @@ export const AIGovernanceSettingsPageView: React.FC<
 
 				{featureAIBridgeEntitled ? (
 					<>
-						{!featureAIBridgeEnabled && (
-							<Alert
-								className="mb-12"
-								severity="info"
-								actions={
-									<Link
-										href={docs("/ai-coder/ai-gateway")}
-										target="_blank"
-										rel="noreferrer"
-									>
-										Go to setup guide
-										<span className="sr-only"> (opens in new tab)</span>
-									</Link>
-								}
-							>
-								<AlertTitle>AI Gateway isn't set up yet</AlertTitle>
-								<AlertDescription>
-									Your license includes it, but it isn't turned on for this
-									deployment. Follow the setup guide to start monitoring and
-									managing AI requests.
-								</AlertDescription>
-							</Alert>
-						)}
+						{!featureAIBridgeEnabled && <AIBridgeSetupAlert />}
 						<OptionsTable
 							options={options
 								.filter((o) => deploymentGroupHasParent(o.group, "AI Gateway"))
