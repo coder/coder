@@ -903,6 +903,18 @@ export const CostEstimateWithCacheWrite1hAndTiers: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
 		);
+		await expect(canvas.getByLabelText(/cache write \(1h\)/i)).toHaveValue("6");
+		await expect(
+			canvas.getByText(
+				"Over 200,000 prompt tokens: input $6 · output $22.50 · cache read $0.60 · cache write $7.50 · cache write (1h) $12",
+			),
+		).toBeInTheDocument();
+		// The second tier lists the base cache read price and no 1h entry.
+		await expect(
+			canvas.getByText(
+				"Over 500,000 prompt tokens: input $9 · output $30 · cache read $0.30 · cache write $10",
+			),
+		).toBeInTheDocument();
 	},
 };
 
