@@ -1921,6 +1921,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "state": [
     0
   ],
