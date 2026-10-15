@@ -407,7 +407,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
-		{"Migration000624TemplateVersionScriptOrderUsage", 624, testMigration000624TemplateVersionScriptOrderUsage},
+		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -4480,8 +4480,8 @@ func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
 	assertRows()
 }
 
-func testMigration000624TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
-	const migrationVersion = 624
+func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 625
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db := database.New(sqlDB)
@@ -4552,7 +4552,9 @@ func testMigration000624TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 		"UPDATE template_versions SET script_order_rule_count = NULL WHERE id = $1",
 	} {
 		_, err := sqlDB.ExecContext(ctx, query, legacyVersion.ID)
-		require.True(t, database.IsNotNullViolation(err), "%s: %v", query, err)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr, "%s: %v", query, err)
+		require.Equal(t, "not_null_violation", pqErr.Code.Name(), "%s: %v", query, err)
 	}
 
 	err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
@@ -4568,7 +4570,7 @@ func testMigration000624TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 	require.Equal(t, int32(3), updated.ScriptOrderRuleCount)
 
 	// Roll back the migration to verify script-order locks are rejected.
-	down, err := os.ReadFile("000624_template_version_script_order_usage.down.sql")
+	down, err := os.ReadFile("000625_template_version_script_order_usage.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(down))
 	require.NoError(t, err)
@@ -4577,7 +4579,7 @@ func testMigration000624TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 
 	// Reapply the migration to verify script-order locks are accepted again
 	// and the pre-existing lock survives rollback and reapplication.
-	up, err := os.ReadFile("000624_template_version_script_order_usage.up.sql")
+	up, err := os.ReadFile("000625_template_version_script_order_usage.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(up))
 	require.NoError(t, err)

@@ -1803,9 +1803,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan:                       []byte("{}"),
-						ScriptOrderDataSourceCount: 2,
-						ScriptOrderRuleCount:       3,
+						Plan: []byte(`{"configuration":{"root_module":{"resources":[
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{},{}]}},
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{}]}}
+						]}}}`),
 					},
 				},
 			})

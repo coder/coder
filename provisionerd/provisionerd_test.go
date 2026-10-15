@@ -338,10 +338,6 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.UpdateJobResponse{}, nil
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
-					if imported := job.GetTemplateImport(); assert.NotNil(t, imported) {
-						assert.Equal(t, int32(2), imported.ScriptOrderDataSourceCount)
-						assert.Equal(t, int32(3), imported.ScriptOrderRuleCount)
-					}
 					didComplete.Store(true)
 					return &proto.Empty{}, nil
 				},
@@ -377,17 +373,8 @@ func TestProvisionerd(t *testing.T) {
 					return &sdkproto.ApplyComplete{}
 				},
 				graph: func(s *provisionersdk.Session, r *sdkproto.GraphRequest, canceledOrComplete <-chan struct{}) *sdkproto.GraphComplete {
-					if r.GetMetadata().GetWorkspaceTransition() == sdkproto.WorkspaceTransition_START {
-						return &sdkproto.GraphComplete{
-							ScriptOrderDataSourceCount: 2,
-							ScriptOrderRuleCount:       3,
-						}
-					}
-					// These STOP counts must not replace or be added
-					// to the START counts.
 					return &sdkproto.GraphComplete{
-						ScriptOrderDataSourceCount: 9,
-						ScriptOrderRuleCount:       9,
+						Resources: []*sdkproto.Resource{},
 					}
 				},
 			}),

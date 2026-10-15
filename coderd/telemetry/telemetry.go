@@ -1039,13 +1039,10 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 	}, nil
 }
 
-// collectScriptOrderSummary collects deployment-wide script-order
-// adoption counts from active, successfully imported versions of
-// non-deleted templates.
-//
-// It elects one replica per snapshot period to avoid duplicate
-// reports, which could overrepresent multi-replica deployments in
-// adoption metrics.
+// collectScriptOrderSummary collects deployment-wide adoption counts from active,
+// successfully imported versions of non-deleted templates. It elects one replica
+// per snapshot period to avoid overrepresenting multi-replica deployments and
+// returns (nil, nil) if the period's telemetry lock is already claimed.
 func (r *remoteReporter) collectScriptOrderSummary(ctx context.Context) (*ScriptOrderSummary, error) {
 	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
 	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{

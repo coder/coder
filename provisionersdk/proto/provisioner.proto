@@ -502,9 +502,6 @@ message GraphComplete {
   reserved 7, 8;
   reserved "has_ai_tasks", "ai_tasks";
   bool has_external_agents = 9;
-  // Configuration declaration counts, populated by successful START plan graphs.
-  int32 script_order_data_source_count = 10;
-  int32 script_order_rule_count = 11;
 }
 
 message Timing {

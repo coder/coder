@@ -282,7 +282,6 @@ func (s *server) Graph(
 
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
-	var orderUsage scriptOrderUsage
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
 		proto.WorkspaceTransition_START
 	convertScriptOrder := false
@@ -298,9 +297,6 @@ func (s *server) Graph(
 		}
 
 		modules = planModules(plan)
-		if isStartTransition {
-			orderUsage = countScriptOrderUsage(plan.Config)
-		}
 		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
 			planConfig = plan.Config
@@ -360,15 +356,13 @@ func (s *server) Graph(
 	}
 
 	response := &proto.GraphComplete{
-		Error:                      "",
-		Timings:                    e.timings.aggregate(),
-		Resources:                  state.Resources,
-		Parameters:                 state.Parameters,
-		ExternalAuthProviders:      state.ExternalAuthProviders,
-		Presets:                    state.Presets,
-		HasExternalAgents:          state.HasExternalAgents,
-		ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
-		ScriptOrderRuleCount:       orderUsage.ruleCount,
+		Error:                 "",
+		Timings:               e.timings.aggregate(),
+		Resources:             state.Resources,
+		Parameters:            state.Parameters,
+		ExternalAuthProviders: state.ExternalAuthProviders,
+		Presets:               state.Presets,
+		HasExternalAgents:     state.HasExternalAgents,
 	}
 	if err := checkGraphCompleteSize(response); err != nil {
 		if convertScriptOrder {

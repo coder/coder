@@ -174,7 +174,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			]}}
 		},
 		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["coder_script.dependent"]}}]}}
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
 		]}}
 	}`
 	// The optional script is declared with count = 0, so its selector is valid
@@ -193,7 +193,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			]}}
 		},
 		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.optional"]},"after":{"constant_value":["coder_script.prerequisite"]}}]}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0},
 			{"address":"coder_script.optional","mode":"managed","type":"coder_script","name":"optional","schema_version":0,"count_expression":{"constant_value":0}}
 		]}}
 	}`
@@ -202,15 +202,6 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{}},
 		"configuration":{"root_module":{}}
-	}`
-	// Usage counts declarations even when count = 0 produces no instances.
-	const zeroOrderInstancesPlanJSON = `{
-		"format_version":"1.2",
-		"terraform_version":"1.15.0",
-		"planned_values":{"root_module":{}},
-		"configuration":{"root_module":{"resources":[
-			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","count_expression":{"constant_value":0},"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["coder_script.prerequisite"]}}]}}
-		]}}
 	}`
 	// The run selector fixes the inferred phase to start. The module selector also
 	// contains a stop script, which is filtered and reported as a warning.
@@ -238,7 +229,7 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		},
 		"configuration":{"root_module":{
 			"resources":[
-				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"expressions":{"rule":[{"run":{"constant_value":["coder_script.dependent"]},"after":{"constant_value":["module.bootstrap"]}}]}}
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
 			],
 			"module_calls":{
 				"bootstrap":{"source":"./bootstrap","module":{"resources":[]}}
@@ -256,8 +247,6 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		planJSON        string
 		errorContains   string
 		warningContains string
-		dataSourceCount int32
-		ruleCount       int32
 	}{
 		{
 			name:          "StartRejectsSelfDependency",
@@ -276,18 +265,9 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			planJSON:   selfDependencyPlanJSON,
 		},
 		{
-			name:            "StartWithDeclaredEmptySelection",
-			transition:      proto.WorkspaceTransition_START,
-			planJSON:        declaredEmptySelectionPlanJSON,
-			dataSourceCount: 1,
-			ruleCount:       1,
-		},
-		{
-			name:            "StartWithZeroOrderInstances",
-			transition:      proto.WorkspaceTransition_START,
-			planJSON:        zeroOrderInstancesPlanJSON,
-			dataSourceCount: 1,
-			ruleCount:       1,
+			name:       "StartWithDeclaredEmptySelection",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   declaredEmptySelectionPlanJSON,
 		},
 		{
 			name:       "StartWithoutDeclaration",
@@ -299,8 +279,6 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 			transition:      proto.WorkspaceTransition_START,
 			planJSON:        phaseWarningPlanJSON,
 			warningContains: `inferred phase "start"`,
-			dataSourceCount: 1,
-			ruleCount:       1,
 		},
 	}
 	for _, test := range tests {
@@ -361,8 +339,6 @@ esac
 				require.Contains(t, logs, test.warningContains)
 				require.Contains(t, logs, "module.bootstrap")
 			}
-			require.Equal(t, test.dataSourceCount, graph.ScriptOrderDataSourceCount)
-			require.Equal(t, test.ruleCount, graph.ScriptOrderRuleCount)
 
 			graphArgs, err := os.ReadFile(graphArgsPath)
 			require.NoError(t, err)
@@ -515,8 +491,6 @@ esac
 			_, response := readProvisionLog(t, sess)
 			graph := response.GetGraph()
 			require.NotNil(t, graph)
-			require.Zero(t, graph.ScriptOrderDataSourceCount)
-			require.Zero(t, graph.ScriptOrderRuleCount)
 			if test.errorContains == "" {
 				require.Empty(t, graph.Error)
 			} else {

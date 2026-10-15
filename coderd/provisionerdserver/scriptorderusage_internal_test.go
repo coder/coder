@@ -1,8 +1,7 @@
-package terraform
+package provisionerdserver
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -12,12 +11,40 @@ import (
 func TestCountScriptOrderUsage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoConfiguration", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		plan    string
+		wantErr bool
+	}{
+		{name: "MissingPlan"},
+		{name: "NullPlan", plan: "null"},
+		{name: "MissingConfiguration", plan: "{}"},
+		{name: "EmptyConfiguration", plan: `{"configuration":{}}`},
+		{name: "InvalidJSON", plan: "{", wantErr: true},
+		{name: "InvalidConfiguration", plan: `{"configuration":[]}`, wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.Empty(t, countScriptOrderUsage(nil))
-		require.Empty(t, countScriptOrderUsage(&tfjson.Config{}))
-	})
+			usage, err := countScriptOrderUsage([]byte(tt.plan))
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Empty(t, usage)
+		})
+	}
+
+	checkUsage := func(t *testing.T, config *tfjson.Config, want scriptOrderUsage) {
+		t.Helper()
+		// The provisioner marshals a decoded plan before forwarding it to coderd.
+		planJSON, err := json.Marshal(&tfjson.Plan{Config: config})
+		require.NoError(t, err)
+		usage, err := countScriptOrderUsage(planJSON)
+		require.NoError(t, err)
+		require.Equal(t, want, usage)
+	}
 
 	declaration := func(ruleCount int) *tfjson.ConfigResource {
 		return &tfjson.ConfigResource{
@@ -74,7 +101,7 @@ func TestCountScriptOrderUsage(t *testing.T) {
 				"empty": {},
 			},
 		}}
-		require.Equal(t, scriptOrderUsage{dataSourceCount: 3, ruleCount: 6}, countScriptOrderUsage(config))
+		checkUsage(t, config, scriptOrderUsage{dataSourceCount: 3, ruleCount: 6})
 	})
 
 	t.Run("DeclarationWithZeroInstances", func(t *testing.T) {
@@ -85,16 +112,15 @@ func TestCountScriptOrderUsage(t *testing.T) {
 		config := &tfjson.Config{RootModule: &tfjson.ConfigModule{
 			Resources: []*tfjson.ConfigResource{order},
 		}}
-		require.Equal(t, scriptOrderUsage{dataSourceCount: 1, ruleCount: 2}, countScriptOrderUsage(config))
+		checkUsage(t, config, scriptOrderUsage{dataSourceCount: 1, ruleCount: 2})
 	})
 
-	t.Run("CapturedTerraformPlan", func(t *testing.T) {
+	t.Run("NoLiteralRules", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile("testdata/script-order-plan.json")
-		require.NoError(t, err)
-		var plan tfjson.Plan
-		require.NoError(t, json.Unmarshal(data, &plan))
-		require.Equal(t, scriptOrderUsage{dataSourceCount: 1, ruleCount: 1}, countScriptOrderUsage(plan.Config))
+		config := &tfjson.Config{RootModule: &tfjson.ConfigModule{
+			Resources: []*tfjson.ConfigResource{declaration(0)},
+		}}
+		checkUsage(t, config, scriptOrderUsage{dataSourceCount: 1})
 	})
 }

@@ -3,9 +3,11 @@ package provisionerdserver_test
 import (
 	"database/sql"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
+	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,7 +25,7 @@ func TestCompleteJobPersistsScriptOrderCounts(t *testing.T) {
 	srv, db, _, daemon := setup(t, false, nil)
 	user := dbgen.User(t, db, database.User{})
 
-	// Given a template version with an acquired import job.
+	// GIVEN: A template version with an acquired import job.
 	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		CreatedBy:      user.ID,
 		OrganizationID: daemon.OrganizationID,
@@ -55,29 +57,39 @@ func TestCompleteJobPersistsScriptOrderCounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// When the import completes with script-order counts.
+	// This test calls CompleteJob directly without running Terraform or the
+	// provisioner. Use a captured START plan and reproduce the provisioner's
+	// decode/re-encode step to verify literal rule blocks survive serialization
+	// and their counts are persisted.
+	planJSON, err := os.ReadFile("../../provisioner/terraform/testdata/script-order-plan.json")
+	require.NoError(t, err)
+	var plan tfjson.Plan
+	require.NoError(t, json.Unmarshal(planJSON, &plan))
+	planJSON, err = json.Marshal(&plan)
+	require.NoError(t, err)
+
+	// WHEN: The import completes with the serialized START plan.
 	_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 		JobId: job.ID.String(),
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
-				ScriptOrderDataSourceCount: 2,
-				ScriptOrderRuleCount:       3,
+				Plan: planJSON,
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then counts are persisted but excluded from the telemetry summary.
+	// THEN: Counts are persisted but excluded from the telemetry summary.
 	version, err = db.GetTemplateVersionByID(ctx, version.ID)
 	require.NoError(t, err)
-	require.Equal(t, int32(2), version.ScriptOrderDataSourceCount)
-	require.Equal(t, int32(3), version.ScriptOrderRuleCount)
+	require.Equal(t, int32(1), version.ScriptOrderDataSourceCount)
+	require.Equal(t, int32(1), version.ScriptOrderRuleCount)
 
 	usage, err := db.GetScriptOrderTelemetrySummary(ctx)
 	require.NoError(t, err)
 	require.Equal(t, database.GetScriptOrderTelemetrySummaryRow{}, usage)
 
-	// When the version becomes a template's active version.
+	// WHEN: The version becomes a template's active version.
 	template := dbgen.Template(t, db, database.Template{
 		OrganizationID:  daemon.OrganizationID,
 		CreatedBy:       user.ID,
@@ -92,40 +104,37 @@ func TestCompleteJobPersistsScriptOrderCounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Then its counts are included in the telemetry summary.
+	// THEN: Its counts are included in the telemetry summary.
 	usage, err = db.GetScriptOrderTelemetrySummary(ctx)
 	require.NoError(t, err)
 	require.Equal(t, database.GetScriptOrderTelemetrySummaryRow{
 		TemplatesWithScriptOrder: 1,
-		DataSourceCount:          2,
-		RuleCount:                3,
+		DataSourceCount:          1,
+		RuleCount:                1,
 	}, usage)
 }
 
-// Defensively ignore negative telemetry counts from provisioner bugs
-// so they do not fail an otherwise successful template import.
-func TestCompleteJobSkipsNegativeScriptOrderCounts(t *testing.T) {
+// Script-order telemetry is best effort: missing or malformed plan
+// configuration must not fail an otherwise successful template import.
+func TestCompleteJobWithoutScriptOrderConfiguration(t *testing.T) {
 	t.Parallel()
 
 	srv, db, _, daemon := setup(t, false, nil)
 	user := dbgen.User(t, db, database.User{})
 
 	for _, tt := range []struct {
-		name            string
-		dataSources     int32
-		rules           int32
-		wantDataSources int32
+		name string
+		plan string
 	}{
-		{name: "ZeroCounts"},
-		{name: "ZeroRules", dataSources: 2, wantDataSources: 2},
-		{name: "NegativeDataSourceCount", dataSources: -1, rules: 3},
-		{name: "NegativeRuleCount", dataSources: 2, rules: -1},
+		{name: "MissingPlan"},
+		{name: "MissingConfiguration", plan: "{}"},
+		{name: "InvalidConfiguration", plan: `{"configuration":[]}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			// Given a template version with an acquired import job.
+			// GIVEN: A template version with an acquired import job.
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				CreatedBy:      user.ID,
 				OrganizationID: daemon.OrganizationID,
@@ -146,19 +155,18 @@ func TestCompleteJobSkipsNegativeScriptOrderCounts(t *testing.T) {
 				WorkerID:       uuid.NullUUID{UUID: daemon.ID, Valid: true},
 			})
 
-			// When the import completes with the supplied script-order counts.
+			// WHEN: The import completes without usable plan configuration.
 			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 				JobId: job.ID.String(),
 				Type: &proto.CompletedJob_TemplateImport_{
 					TemplateImport: &proto.CompletedJob_TemplateImport{
-						ScriptOrderDataSourceCount: tt.dataSources,
-						ScriptOrderRuleCount:       tt.rules,
+						Plan: []byte(tt.plan),
 					},
 				},
 			})
 			require.NoError(t, err)
 
-			// Then the import succeeds, skipping both counts if either is negative.
+			// THEN: The import succeeds without script-order usage counts.
 			job, err = db.GetProvisionerJobByID(ctx, job.ID)
 			require.NoError(t, err)
 			require.True(t, job.CompletedAt.Valid)
@@ -166,7 +174,7 @@ func TestCompleteJobSkipsNegativeScriptOrderCounts(t *testing.T) {
 
 			version, err = db.GetTemplateVersionByID(ctx, version.ID)
 			require.NoError(t, err)
-			require.Equal(t, tt.wantDataSources, version.ScriptOrderDataSourceCount)
+			require.Zero(t, version.ScriptOrderDataSourceCount)
 			require.Zero(t, version.ScriptOrderRuleCount)
 		})
 	}

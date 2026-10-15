@@ -30769,8 +30769,6 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 const getScriptOrderTelemetrySummary = `-- name: GetScriptOrderTelemetrySummary :one
 SELECT
 	COUNT(*) AS templates_with_script_order,
-	-- Cast the sums so sqlc generates int64 fields matching the telemetry
-	-- summary, avoiding runtime type assertions.
 	COALESCE(SUM(tv.script_order_data_source_count), 0)::bigint AS data_source_count,
 	COALESCE(SUM(tv.script_order_rule_count), 0)::bigint AS rule_count
 FROM templates t

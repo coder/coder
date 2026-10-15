@@ -619,10 +619,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				Plan:                       startProvision.Plan,
 				ModuleFiles:                initResp.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
-				ModuleFilesHash:            []byte{},
-				HasExternalAgents:          startProvision.HasExternalAgents,
-				ScriptOrderDataSourceCount: startProvision.ScriptOrderDataSourceCount,
-				ScriptOrderRuleCount:       startProvision.ScriptOrderRuleCount,
+				ModuleFilesHash:   []byte{},
+				HasExternalAgents: startProvision.HasExternalAgents,
 			},
 		},
 	}, nil
@@ -679,14 +677,12 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 }
 
 type templateImportProvision struct {
-	Resources                  []*sdkproto.Resource
-	Parameters                 []*sdkproto.RichParameter
-	ExternalAuthProviders      []*sdkproto.ExternalAuthProviderResource
-	Presets                    []*sdkproto.Preset
-	Plan                       json.RawMessage
-	HasExternalAgents          bool
-	ScriptOrderDataSourceCount int32
-	ScriptOrderRuleCount       int32
+	Resources             []*sdkproto.Resource
+	Parameters            []*sdkproto.RichParameter
+	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
+	Presets               []*sdkproto.Preset
+	Plan                  json.RawMessage
+	HasExternalAgents     bool
 }
 
 // Performs a dry-run provision when importing a template.
@@ -748,14 +744,12 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	}
 
 	return &templateImportProvision{
-		Resources:                  graphComplete.Resources,
-		Parameters:                 graphComplete.Parameters,
-		ExternalAuthProviders:      graphComplete.ExternalAuthProviders,
-		Presets:                    graphComplete.Presets,
-		Plan:                       planComplete.Plan,
-		HasExternalAgents:          graphComplete.HasExternalAgents,
-		ScriptOrderDataSourceCount: graphComplete.ScriptOrderDataSourceCount,
-		ScriptOrderRuleCount:       graphComplete.ScriptOrderRuleCount,
+		Resources:             graphComplete.Resources,
+		Parameters:            graphComplete.Parameters,
+		ExternalAuthProviders: graphComplete.ExternalAuthProviders,
+		Presets:               graphComplete.Presets,
+		Plan:                  planComplete.Plan,
+		HasExternalAgents:     graphComplete.HasExternalAgents,
 	}, nil
 }
 

@@ -1874,6 +1874,15 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("template version ID is expected: %w", err)
 	}
 
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
 	// Execute all database operations in a transaction
 	return s.Database.InTx(func(db database.Store) error {
 		now := s.timeNow()
@@ -2049,20 +2058,11 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
 		}
-		// Skip invalid telemetry before SQL so a check violation cannot
-		// abort the import's completion transaction.
-		dataSourceCount := jobType.TemplateImport.ScriptOrderDataSourceCount
-		ruleCount := jobType.TemplateImport.ScriptOrderRuleCount
-		if dataSourceCount < 0 || ruleCount < 0 {
-			s.Logger.Warn(ctx, "negative script order usage counts, skipping",
-				slog.F("job_id", jobID),
-				slog.F("data_source_count", dataSourceCount),
-				slog.F("rule_count", ruleCount))
-		} else {
+		if orderUsageErr == nil {
 			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
 				JobID:                      jobID,
-				ScriptOrderDataSourceCount: dataSourceCount,
-				ScriptOrderRuleCount:       ruleCount,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
 				UpdatedAt:                  now,
 			})
 			if err != nil {

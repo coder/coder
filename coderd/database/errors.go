@@ -59,15 +59,6 @@ func IsForeignKeyViolation(err error, foreignKeyConstraints ...ForeignKeyConstra
 	return false
 }
 
-// IsNotNullViolation checks if the error is due to a NOT NULL violation.
-func IsNotNullViolation(err error) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		return pqErr.Code.Name() == "not_null_violation"
-	}
-	return false
-}
-
 // IsCheckViolation checks if the error is due to a check violation. If one or
 // more specific check constraints are given as arguments, the error must be
 // caused by one of them. If no constraints are given, this function returns
