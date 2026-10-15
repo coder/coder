@@ -1910,6 +1910,17 @@ export const LunarLander: React.FC = () => {
 		}
 
 		// ---- input ----
+		// WASD aliases for players who prefer them over the arrow keys:
+		// A/D rotate like ArrowLeft/ArrowRight, S thrusts like ArrowDown.
+		// There is no alias for ArrowUp; it is unused by this game.
+		const wasdAliases: Record<string, string> = {
+			a: "ArrowLeft",
+			A: "ArrowLeft",
+			d: "ArrowRight",
+			D: "ArrowRight",
+			s: "ArrowDown",
+			S: "ArrowDown",
+		};
 		function onKeyDown(e: KeyboardEvent) {
 			if (
 				e.key === "ArrowLeft" ||
@@ -1920,9 +1931,16 @@ export const LunarLander: React.FC = () => {
 				e.preventDefault();
 			}
 			keys.add(e.key);
+			const alias = wasdAliases[e.key];
+			if (alias) {
+				e.preventDefault();
+				keys.add(alias);
+			}
 		}
 		function onKeyUp(e: KeyboardEvent) {
 			keys.delete(e.key);
+			const alias = wasdAliases[e.key];
+			if (alias) keys.delete(alias);
 		}
 		function onMouseMove(e: MouseEvent) {
 			const rect = cvs.getBoundingClientRect();
@@ -2052,11 +2070,15 @@ export const LunarLander: React.FC = () => {
 				cx.font = "bold 14px monospace";
 				cx.textAlign = "center";
 				cx.fillText(
-					"press \u2190 to rotate left, press \u2192 to rotate right",
+					"press \u2190 or A to rotate left, \u2192 or D to rotate right",
 					dashW / 2,
 					playH * 0.59,
 				);
-				cx.fillText("press \u2193 for main thruster", dashW / 2, playH * 0.65);
+				cx.fillText(
+					"press \u2193 or S for main thruster",
+					dashW / 2,
+					playH * 0.65,
+				);
 				if (Math.floor(introTimer * 2.5) % 2 === 0) {
 					cx.fillStyle = "#888";
 					cx.font = "12px monospace";
