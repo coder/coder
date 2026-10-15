@@ -11,6 +11,11 @@ async function run({ github, context, core, writer,
   const { owner, repo } = context.repo;
   const repository = owner + "/" + repo;
   const cache = new Map();
+  // PR filenames and errors are untrusted. Keep them on one line and break
+  // workflow-command markers so the runner never interprets them.
+  const logSafe = (text) => String(text).replace(/[\r\n]+/g, " ").replace(/:(?=:)/g, ": ").replace(/##\[/g, "# #[");
+  const info = (text) => core.info(logSafe(text));
+  const warn = (text) => core.warning(logSafe(text));
   const mainSha = async () => (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data.commit.sha;
   const getPR = async (number) => (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
   // GitHub reports mergeable: null while it computes mergeability after a push.
@@ -56,18 +61,22 @@ async function run({ github, context, core, writer,
     targets = [context.payload.pull_request.number];
   }
 
+  // Statuses lead with the first numbering error so a skip reason never hides it.
   async function publish(pr, main, result, detail) {
+    const summary = [result.errors[0], detail].filter(Boolean).join(" ") || "Migration numbers are current.";
+    info("PR #" + pr.number + ": " + summary);
+    for (const error of result.errors) info("Error: " + error);
+    for (const path of result.unsafe || []) info("Unsafe for autofix: " + path);
+    for (const rename of result.renames) info("Proposed rename " + rename.from + " to " + rename.to);
     const current = await getPR(pr.number);
     if (!rules.sameRevision(pr, current, main, await mainSha())) {
-      core.info("Discarding stale result for PR #" + pr.number + ".");
+      info("Discarding stale result for PR #" + pr.number + ".");
       return;
     }
     await github.rest.repos.createCommitStatus({ owner, repo, sha: pr.head.sha, context: rules.CONTEXT,
       state: result.errors.length ? "failure" : "success",
-      description: (detail || result.errors[0] || "Migration numbers are current.").replace(/[\r\n]/g, " ").slice(0, 140),
+      description: summary.replace(/[\r\n]/g, " ").slice(0, 140),
       target_url: context.serverUrl + "/" + repository + "/actions/runs/" + context.runId });
-    core.info("PR #" + pr.number + ": " + (detail || result.errors.join("; ") || "Migration numbers are current."));
-    for (const rename of result.renames) core.info("Rename " + rename.from + " to " + rename.to);
   }
 
   for (const number of targets) {
@@ -75,12 +84,13 @@ async function run({ github, context, core, writer,
     if (pr.state !== "open" || pr.base.ref !== "main") continue;
 
     const main = await mainSha();
+    let result;
     try {
       const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
         owner, repo, basehead: main + "..." + pr.head.sha });
       const base = await snapshot(comparison.merge_base_commit.sha);
       const head = await snapshot(pr.head.sha);
-      const result = rules.plan(base, await snapshot(main), head);
+      result = rules.plan(base, await snapshot(main), head);
       if (!result.affected || !result.errors.length) {
         await publish(pr, main, result);
         continue;
@@ -135,7 +145,7 @@ async function run({ github, context, core, writer,
       const current = await settledPR(number);
       const currentPRs = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
       if (!rules.unchanged(pr, current, main, await mainSha()) || rules.skipReason(current, repository, isStacked(currentPRs))) {
-        core.info("Discarding stale autofix for PR #" + number + ".");
+        info("Discarding stale autofix for PR #" + number + ".");
         continue;
       }
       const destinations = new Set(result.renames.map((rename) => rename.to));
@@ -153,12 +163,15 @@ async function run({ github, context, core, writer,
       const response = await writer.graphql(
         "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
         { input });
-      core.info("Renumbered migrations for PR #" + number + " in " + response.createCommitOnBranch.commit.oid + ".");
+      info("Renumbered migrations for PR #" + number + " in " + response.createCommitOnBranch.commit.oid + ".");
+      for (const rename of result.renames) info("Renamed " + rename.from + " to " + rename.to);
       // Do not mark the old head green. The App commit starts normal CI and a
       // synchronize event evaluates the new head against current main.
     } catch (error) {
-      core.warning("PR #" + number + ": " + error.message);
-      await publish(pr, main, { errors: [error.message], renames: [] }, "No automatic edit: " + error.message);
+      warn("PR #" + number + ": " + error.message);
+      const errors = result?.errors || [];
+      await publish(pr, main, { errors: [...errors, error.message], renames: result?.renames || [], unsafe: result?.unsafe },
+        errors.length ? "No automatic edit: " + error.message : undefined);
     }
   }
 }

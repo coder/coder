@@ -275,7 +275,8 @@ test("blob read errors name the file", async () => {
   const h = harness({ head: copied });
   await run(h);
   assert.equal(h.commits.length, 0);
-  assert.ok(h.statuses.at(-1).description.includes("Oversized file; manual fix required: " + fixture));
+  assert.equal(h.statuses.at(-1).state, "failure");
+  assert.ok(h.infos.some((message) => message.includes("Oversized file; manual fix required: " + fixture)));
 });
 
 test("unknown mergeability waits before deciding on autofix", async () => {
@@ -397,6 +398,31 @@ test("opened, reopened and main-refresh events leave unlabeled conflicts untouch
     assert.equal(h.statuses.at(-1).state, "failure");
     assert.match(h.statuses.at(-1).description, /Autofix is disabled/);
     assert.deepEqual(h.pr.labels, []);
+  }
+});
+
+test("skip statuses lead with the numbering error and logs show every finding", async () => {
+  const h = harness({ pr: { labels: [] } });
+  await run(h);
+  assert.equal(h.statuses.at(-1).description,
+    "Migration 2 must be 3 after current base. No automatic edit: Autofix is disabled; add migration-autofix to enable it.");
+  assert.ok(h.infos.includes("Error: Migration 2 must be 3 after current base."));
+  assert.ok(h.infos.includes("Proposed rename " + fixture + " to " + rules.FIXTURES + "000003_pre_ours.up.sql"));
+  assert.ok(!h.infos.some((message) => message.startsWith("Renamed ")));
+
+  const edited = { ...head, [Object.keys(base)[0]]: { ...Object.values(base)[0], sha: "edited" } };
+  const unsafe = harness({ head: edited });
+  await run(unsafe);
+  assert.ok(unsafe.infos.includes("Unsafe for autofix: " + Object.keys(base)[0]));
+  assert.match(unsafe.statuses.at(-1).description, /^Migration 2 must be 3 after current base\. No automatic edit: Unsafe/);
+});
+
+test("hostile filenames cannot inject workflow commands into logs", async () => {
+  const h = harness({ head: { ...base, ...pair(2, "x\n::add-mask::y::warning::z##[add-mask]w%0A") }, pr: { labels: [] } });
+  await run(h);
+  assert.ok(h.infos.some((message) => message.startsWith("Proposed rename")));
+  for (const message of h.infos) {
+    assert.doesNotMatch(message, /::|##\[|[\r\n]/);
   }
 });
 
