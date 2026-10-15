@@ -665,6 +665,11 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		// First build; nothing to copy forward.
 	case err != nil:
 		return BuildError{http.StatusInternalServerError, "get last build", err}
+	case b.prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM:
+		// The previous build belongs to the prebuild's system owner. Its
+		// secrets must not transfer to the claimant; only secrets the
+		// claimant sends apply. The prebuild's rows are cleared when this
+		// build completes.
 	default:
 		// getLastBuild was cached before the new build row was inserted, so
 		// it is the build being superseded.
