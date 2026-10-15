@@ -82,8 +82,14 @@ func TestMigration000617ConnectionLogsMethod(t *testing.T) {
 	db := database.New(sqlDB)
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
-	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: tpl.ID})
+	// dbgen.Template inserts columns that later migrations add to templates.
+	templateID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, created_by)
+		VALUES ($1, now(), now(), $2, 'migration-template', 'echo', $3, $4);
+	`, templateID, org.ID, uuid.New(), owner.ID)
+	require.NoError(t, err)
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: templateID})
 
 	// row is (type, slug_or_port) before 000617 and
 	// (connection_method, app_name_or_port) after it.
