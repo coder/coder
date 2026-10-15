@@ -168,7 +168,7 @@ Prices come from a curated [models.dev](https://models.dev) snapshot that ships 
 
 Two rules change the price of some tokens:
 
-- A cache write with a 1-hour TTL costs twice the input price on Anthropic and Amazon Bedrock Claude models.
+- A cache write with a 1-hour TTL costs twice the input price on Claude models served through Anthropic, Amazon Bedrock, or GitHub Copilot.
 - When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
 
 Coder prices a request by the model the client requested.
