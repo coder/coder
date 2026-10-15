@@ -708,7 +708,7 @@ func TestWatchAndCloseShutdownReason(t *testing.T) {
 			queued.LatestBuild.ID = uuid.New()
 			send(queued)
 			shutdownLogs := func() []slog.SinkEntry {
-				return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "workspace shutdown requested" })
+				return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "workspace is shutting down" })
 			}
 			shutdown.LatestBuild.Job.Status = codersdk.ProvisionerJobRunning
 			send(shutdown)

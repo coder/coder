@@ -83,8 +83,12 @@ func TestSSHShutdownReason(t *testing.T) {
 			}
 			if tc.remoteClose {
 				require.NoError(t, client.Close())
-				// The known intent must not override a connection that closed first.
-				require.Eventually(t, func() bool { return len(connectionLogs()) == 1 }, testutil.WaitLong, testutil.IntervalFast)
+				// The shutdown must not override a connection and session that
+				// finished closing first.
+				require.Eventually(t, func() bool {
+					sessionLogs := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "ssh session closed" })
+					return len(connectionLogs()) == 1 && len(sessionLogs) == 1
+				}, testutil.WaitLong, testutil.IntervalFast)
 			}
 			require.NoError(t, s.Close())
 			require.Error(t, testutil.RequireReceive(ctx, t, serveDone))

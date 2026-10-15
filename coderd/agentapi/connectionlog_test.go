@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/connectionlog"
@@ -22,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/testutil"
 )
 
 func TestConnectionLog(t *testing.T) {
@@ -250,14 +248,12 @@ func TestConnectionLog(t *testing.T) {
 				}
 			}
 
-			sink := testutil.NewFakeSink(t)
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
 				Database:         mDB,
 				AgentID:          agent.ID,
 				AgentName:        agent.Name,
 				Workspace:        &agentapi.CachedWorkspaceFields{},
-				Log:              sink.Logger(),
 			}
 			_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
@@ -276,17 +272,6 @@ func TestConnectionLog(t *testing.T) {
 			require.NoError(t, err)
 			if tt.wantReason == "" {
 				tt.wantReason = tt.reason
-			}
-
-			if tt.wantReason == string(codersdk.DisconnectReasonWorkspaceStopped) {
-				entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "connection closed for workspace shutdown" })
-				require.Len(t, entries, 1)
-				for _, field := range []slog.Field{
-					slog.F("connection_id", tt.id), slog.F("client_session_id", tt.clientSessionID),
-					slog.F("build_id", tt.build.ID), slog.F("build_reason", tt.build.Reason), slog.F("transition", tt.build.Transition),
-				} {
-					require.Contains(t, entries[0].Fields, field)
-				}
 			}
 
 			expectedIPRaw := tt.ip

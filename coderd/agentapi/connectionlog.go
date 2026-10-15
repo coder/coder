@@ -167,12 +167,5 @@ func (a *ConnLogAPI) workspaceShutdownReason(ctx context.Context, workspaceID uu
 	if !active {
 		return reason
 	}
-
-	logger.Info(ctx, "connection closed for workspace shutdown",
-		codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
-		slog.F("build_id", build.ID),
-		slog.F("build_reason", build.Reason),
-		slog.F("transition", build.Transition),
-	)
 	return string(codersdk.DisconnectReasonWorkspaceStopped)
 }

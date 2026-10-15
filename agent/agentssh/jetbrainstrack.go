@@ -36,12 +36,14 @@ type JetbrainsChannelWatcher struct {
 	originAddr         string
 	clientSessionID    string
 	connectionReporter proto.ConnectionReporter
-	ctx                context.Context
+	isClosing          func() bool
+	trackChannel       func(add bool) bool
 }
 
 func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 	connectionReporter proto.ConnectionReporter,
 	newChannel gossh.NewChannel, startSession startSessionFunc,
+	isClosing func() bool, trackChannel func(add bool) bool,
 	clientSessionID string,
 ) gossh.NewChannel {
 	logger = logger.With(slog.F("client_session_id", clientSessionID))
@@ -79,7 +81,8 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 		originAddr:         d.OriginAddr,
 		connectionReporter: connectionReporter,
 		clientSessionID:    clientSessionID,
-		ctx:                ctx,
+		isClosing:          isClosing,
+		trackChannel:       trackChannel,
 	}
 }
 
@@ -101,16 +104,22 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		return c, r, err
 	}
 	endSession := w.startSession(string(codersdk.AppFamilyJetBrains))
+	// Channel handlers outlive their connection's tracking, so register the
+	// channel until its close is reported with the server's shutdown state.
+	tracked := w.trackChannel(true)
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
 	return &ChannelOnClose{
 		Channel: c,
 		done: func() {
+			if tracked {
+				defer w.trackChannel(false)
+			}
 			endSession()
 			detail := "normal close"
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
-			if closedByShutdown(w.ctx) {
+			if w.isClosing() {
 				detail = string(codersdk.DisconnectReasonServerShutdown)
 				fields = append(fields, serverShutdownFields()...)
 			} else {

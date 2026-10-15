@@ -1,10 +1,6 @@
 package agentssh
 
 import (
-	"context"
-	"net"
-	"sync/atomic"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -18,25 +14,29 @@ func serverShutdownFields() []slog.Field {
 	}
 }
 
-type shutdownContextKey struct{}
-
-// trackedSSHConn records whether Server.Close closed the connection. Handlers
-// can finish after Close returns, so the flag lives on the connection rather
-// than on the server.
-type trackedSSHConn struct {
-	net.Conn
-	clientSessionID string
-	shutdown        atomic.Bool
+// isClosing reports whether Close is in progress. Close keeps it set until
+// every tracked connection, session, and channel has reported its close.
+func (s *Server) isClosing() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.closing != nil
 }
 
-func (c *trackedSSHConn) ClientSessionID() string { return c.clientSessionID }
-
-// closedByShutdown reports whether Server.Close closed the SSH connection that
-// ctx belongs to.
-func closedByShutdown(ctx context.Context) bool {
-	if ctx == nil {
-		return false
+// trackChannel makes Close wait for a channel whose handler runs outside the
+// connection and session tracking. If the server is closing, the channel is
+// not registered.
+//
+//nolint:revive
+func (s *Server) trackChannel(add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			return false
+		}
+		s.wg.Add(1)
+		return true
 	}
-	conn, ok := ctx.Value(shutdownContextKey{}).(*trackedSSHConn)
-	return ok && conn.shutdown.Load()
+	s.wg.Done()
+	return true
 }

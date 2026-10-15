@@ -392,9 +392,9 @@ func TestConnectionLogsWorkspaceShutdown(t *testing.T) {
 					OrganizationID: user.OrganizationID, OwnerID: user.UserID,
 				}).WithAgent().Do()
 				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
-				// Isolate report persistence from connection retirement. This role
-				// uses the same authenticated API without the agent monitor.
-				rpc, _, err := agentClient.ConnectRPC212WithRole(ctx, "logstream-kube")
+				// The agent role runs the connection monitor, which must keep the
+				// RPC open while the shutdown build runs.
+				rpc, _, err := agentClient.ConnectRPC212WithRole(ctx, "agent")
 				require.NoError(t, err)
 				defer rpc.DRPCConn().Close()
 				connectionID := uuid.New()
@@ -408,6 +408,22 @@ func TestConnectionLogsWorkspaceShutdown(t *testing.T) {
 				dbfake.WorkspaceBuild(t, db, workspace.Workspace).Seed(database.WorkspaceBuild{
 					BuildNumber: workspace.Build.BuildNumber + 1, Transition: transition, Reason: database.BuildReasonAutostop,
 				}).Starting().Do()
+				// Two connection time updates after the shutdown build exists
+				// guarantee that the monitor has checked the build at least once.
+				shutdownCreated := dbtime.Now()
+				var updates int
+				var lastConnectedAt time.Time
+				require.Eventually(t, func() bool {
+					agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), workspace.Agents[0].ID)
+					if err != nil || !agent.LastConnectedAt.Valid {
+						return false
+					}
+					if at := agent.LastConnectedAt.Time; at.After(shutdownCreated) && !at.Equal(lastConnectedAt) {
+						lastConnectedAt = at
+						updates++
+					}
+					return updates >= 2
+				}, testutil.WaitLong, testutil.IntervalFast)
 				reason := string(codersdk.DisconnectReasonServerShutdown)
 				_, err = rpc.ReportConnection(ctx, &agentproto.ReportConnectionRequest{Connection: &agentproto.Connection{
 					Id: connectionID[:], Action: agentproto.Connection_DISCONNECT, Type: agentproto.Connection_SSH,

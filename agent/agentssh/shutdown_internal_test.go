@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -28,24 +29,33 @@ func TestJetbrainsShutdownReason(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			conn := &trackedSSHConn{}
-			ctx := context.WithValue(testutil.Context(t, testutil.WaitLong), shutdownContextKey{}, conn)
+			var closing atomic.Bool
+			var tracked atomic.Int64
 			sink := testutil.NewFakeSink(t)
 			clientSessionID := uuid.NewString()
 			reporter := &shutdownReporter{}
 			watcher := &JetbrainsChannelWatcher{
-				NewChannel: shutdownNewChannel{}, ctx: ctx,
+				NewChannel:      shutdownNewChannel{},
 				logger:          sink.Logger().With(slog.F("client_session_id", clientSessionID)),
 				clientSessionID: clientSessionID, connectionReporter: reporter,
 				startSession: func(string) func() { return func() {} },
+				isClosing:    closing.Load,
+				trackChannel: func(add bool) bool {
+					if add {
+						tracked.Add(1)
+					} else {
+						tracked.Add(-1)
+					}
+					return true
+				},
 			}
 			channel, _, err := watcher.Accept()
 			require.NoError(t, err)
-			if shutdown {
-				conn.shutdown.Store(true)
-			}
+			require.EqualValues(t, 1, tracked.Load(), "Close must wait for the channel's close report")
+			closing.Store(shutdown)
 			require.NoError(t, channel.Close())
 			require.NoError(t, channel.Close())
+			require.Zero(t, tracked.Load())
 			require.Equal(t, clientSessionID, reporter.connect.ClientSessionID)
 			require.Len(t, reporter.disconnects, 1)
 			wantReason := "normal close"

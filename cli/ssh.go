@@ -1022,7 +1022,7 @@ startWatchLoop:
 					build.Job.Status == codersdk.ProvisionerJobSucceeded
 				if stopping && active && build.ID != shutdownBuildID {
 					shutdownBuildID = build.ID
-					logger.Info(ctx, "workspace shutdown requested",
+					logger.Info(ctx, "workspace is shutting down",
 						codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
 						slog.F("workspace_id", w.ID),
 						slog.F("build_id", build.ID),

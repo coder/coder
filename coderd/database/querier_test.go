@@ -11738,61 +11738,66 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		CreatedBy:      owner.ID,
 	})
 
-	t.Run("DuringStopBuild", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        owner.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
+	for name, transition := range map[string]database.WorkspaceTransition{
+		"Stop":   database.WorkspaceTransitionStop,
+		"Delete": database.WorkspaceTransitionDelete,
+	} {
+		t.Run("During"+name+"Build", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        owner.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tpl.ID,
+			})
 
-		// Create start build with succeeded job (already completed).
-		startJob := database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-		}
-		setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
-		startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
-		startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID:      startJob.ID,
-			Transition: database.WorkspaceTransitionStart,
-		})
-		startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       owner.ID,
-			JobID:             startJob.ID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: startResource.ID,
-		})
+			// Create start build with succeeded job (already completed).
+			startJob := database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+			}
+			setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
+			startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
+			startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID:      startJob.ID,
+				Transition: database.WorkspaceTransitionStart,
+			})
+			startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       owner.ID,
+				JobID:             startJob.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: startResource.ID,
+			})
 
-		// Create stop build (becomes latest).
-		stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-			JobStatus:      database.ProvisionerJobStatusRunning,
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       2,
-			Transition:        database.WorkspaceTransitionStop,
-			InitiatorID:       owner.ID,
-			JobID:             stopJob.ID,
-		})
+			// Create the stop or delete build (becomes latest).
+			stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+				JobStatus:      database.ProvisionerJobStatusRunning,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       2,
+				Transition:        transition,
+				InitiatorID:       owner.ID,
+				JobID:             stopJob.ID,
+			})
 
-		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
-		require.NoError(t, err, "agent should authenticate during stop build execution")
-		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
-		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
-	})
+			// Agent should still authenticate during stop build execution.
+			row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+			require.NoError(t, err, "agent should authenticate during %s build execution", transition)
+			require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
+			require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not %s build", transition)
+		})
+	}
 
 	t.Run("AfterStopJobCompletes", func(t *testing.T) {
 		t.Parallel()
