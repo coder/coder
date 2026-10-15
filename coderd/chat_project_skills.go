@@ -20,7 +20,8 @@ import (
 )
 
 // chatProjectSkillCreateErrors maps the cap trigger's constraint, which dbgen
-// does not emit, and the name index to conflicts.
+// does not emit, and the name index to conflicts. The trigger applies the
+// personal skill limit to every owner kind.
 var chatProjectSkillCreateErrors = skillWriteErrors{
 	limit: "skills_per_project_limit",
 	limitReached: codersdk.Response{
