@@ -6,26 +6,23 @@ import { API } from "#/api/api";
 import type { Skill } from "#/api/typesGenerated";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import { MockSkills } from "#/testHelpers/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 
 const { organization_id: orgId, id: projectId } = MockChatProject;
 
-const reviewer: Skill = {
-	...MockSkill,
-	name: "reviewer",
-	description: "Review changes.",
-	content:
-		'---\nname: reviewer\ndescription: "Review changes."\n---\nReview the diff.\n',
+const mockReviewerSkill: Skill = {
+	...MockSkills[0],
+	content: "---\nname: reviewer\n---\nReview the diff.\n",
 };
 
 const renderDialog = ({ canEdit = true } = {}) => {
 	const getSkills = vi
 		.spyOn(API.experimental, "getChatProjectSkills")
-		.mockResolvedValue([reviewer]);
+		.mockResolvedValue([mockReviewerSkill]);
 	const getSkill = vi
 		.spyOn(API.experimental, "getChatProjectSkill")
-		.mockResolvedValue(reviewer);
+		.mockResolvedValue(mockReviewerSkill);
 	render(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<ProjectSkillsDialog
@@ -53,7 +50,7 @@ describe("ProjectSkillsDialog", () => {
 	it("creates a skill and refreshes the project's skill list", async () => {
 		const createSkill = vi
 			.spyOn(API.experimental, "createChatProjectSkill")
-			.mockResolvedValue({ ...reviewer, name: "planner" });
+			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
 		const { user, getSkills } = renderDialog();
 
 		await user.click(await screen.findByRole("button", { name: "New" }));
@@ -69,14 +66,13 @@ describe("ProjectSkillsDialog", () => {
 				content: "---\nname: planner\n---\nPlan the work.\n",
 			}),
 		);
-		// The list key also feeds the chat composer's slash menu.
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 	});
 
 	it("fills a new skill from pasted SKILL.md content", async () => {
 		const createSkill = vi
 			.spyOn(API.experimental, "createChatProjectSkill")
-			.mockResolvedValue({ ...reviewer, name: "planner" });
+			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
 		const { user } = renderDialog();
 
 		await user.click(await screen.findByRole("button", { name: "New" }));
@@ -99,7 +95,7 @@ describe("ProjectSkillsDialog", () => {
 	it("edits a skill's body and keeps its name", async () => {
 		const updateSkill = vi
 			.spyOn(API.experimental, "updateChatProjectSkill")
-			.mockResolvedValue(reviewer);
+			.mockResolvedValue(mockReviewerSkill);
 		const { user } = renderDialog();
 
 		await openSkillMenu(user);
@@ -112,7 +108,7 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() =>
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content:
-					'---\nname: reviewer\ndescription: "Review changes."\n---\nReview carefully.\n',
+					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
 			}),
 		);
 	});

@@ -7,12 +7,12 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
-	parseSkillMarkdown,
+	emptySkillFormValues,
 	SKILLS_MAX_PER_OWNER,
 	type SkillAccess,
-	type SkillFormValues,
 	type SkillsCopy,
 	type SkillsScope,
+	skillFormValuesFromSkill,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
@@ -23,12 +23,6 @@ import {
 	type SkillsTableViewProps,
 } from "./SkillsTableView";
 
-const emptySkillFormValues: SkillFormValues = {
-	name: "",
-	description: "",
-	body: "",
-};
-
 type DialogState =
 	| { type: "create"; submittedContent?: string }
 	| { type: "edit"; name: string; submittedContent?: string }
@@ -36,6 +30,7 @@ type DialogState =
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
+/** Builds the alert for a failed skill request, labelled by HTTP status. */
 export const skillError = (
 	error: unknown,
 	fallback: string,
@@ -63,6 +58,7 @@ export const skillError = (
 	};
 };
 
+/** Downloads one skill's SKILL.md content as `<name>.md`. */
 export const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
@@ -229,20 +225,14 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		? downloadMutation.variables
 		: undefined;
 
-	let editInitialValues: SkillFormValues | undefined;
-	let editLoadError: unknown = editSkillQuery.error;
-	if (editSkillQuery.data) {
-		try {
-			const parsed = parseSkillMarkdown(editSkillQuery.data.content);
-			editInitialValues = {
-				name: editSkillQuery.data.name,
-				description: editSkillQuery.data.description,
-				body: parsed.body,
-			};
-		} catch (error) {
-			editLoadError = error;
-		}
-	}
+	const editLoaded = editSkillQuery.data
+		? skillFormValuesFromSkill(editSkillQuery.data)
+		: undefined;
+	const editInitialValues = editLoaded?.ok ? editLoaded.values : undefined;
+	const editLoadError =
+		editLoaded && !editLoaded.ok
+			? new Error(editLoaded.error)
+			: editSkillQuery.error;
 
 	let editorState: SkillEditorState | undefined;
 	if (dialogState?.type === "create") {

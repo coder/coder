@@ -44,7 +44,7 @@ type SkillEditorFormProps = {
 	nameHint?: string;
 	bodyPlaceholder?: string;
 	/** Rendered inside the form, above the scrollable fields. */
-	header?: React.ReactNode;
+	header: React.ReactNode;
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
 	footer: (state: { isBusy: boolean; canSubmit: boolean }) => React.ReactNode;
 	onSubmit: (values: SkillFormValues, content: string) => void;
@@ -459,6 +459,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 	);
 };
 
+/** Creates, edits, or views a skill in a dialog. */
 export const SkillEditor: React.FC<SkillEditorProps> = ({
 	open,
 	noun,

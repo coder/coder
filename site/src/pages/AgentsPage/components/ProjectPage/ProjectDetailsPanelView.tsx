@@ -56,13 +56,14 @@ export const ProjectDetailsPanelView: React.FC<
 			}
 		/>
 	);
-	let skillsLabel = "Unknown";
-	if (skillCount !== undefined) {
-		skillsLabel =
-			skillCount === 0
+	const skillsLabel =
+		skillCount === undefined
+			? "Unknown"
+			: skillCount === 0
 				? "None"
-				: `${skillCount} ${skillCount === 1 ? "skill" : "skills"}`;
-	}
+				: skillCount === 1
+					? "1 skill"
+					: `${skillCount} skills`;
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
@@ -110,7 +111,8 @@ export const ProjectDetailsPanelView: React.FC<
 						) : (
 							<button
 								type="button"
-								className="cursor-pointer rounded-sm border-0 bg-transparent p-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								aria-label={`Skills: ${skillsLabel}`}
+								className="rounded-sm hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 								onClick={onOpenSkills}
 							>
 								{skillsLabel}

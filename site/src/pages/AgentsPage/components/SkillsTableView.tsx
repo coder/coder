@@ -211,6 +211,7 @@ const EditSkillDialog: React.FC<
 	);
 };
 
+/** Confirms deleting a skill and shows the failure of the last attempt. */
 export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	state,
 	onCloseAutoFocus,

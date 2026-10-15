@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
 import { userKey } from "#/api/queries/users";
@@ -67,10 +67,7 @@ const meta: Meta<typeof ProjectPage> = {
 				data: MockChatProjectInstructions,
 			},
 			{
-				key: chatProjectSkills(
-					MockChatProject.organization_id,
-					MockChatProject.id,
-				).queryKey,
+				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
 		],
@@ -100,10 +97,7 @@ export const Mobile: Story = {
 				data: MockChatProjectInstructions,
 			},
 			{
-				key: chatProjectSkills(
-					MockChatProject.organization_id,
-					MockChatProject.id,
-				).queryKey,
+				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
 		],
@@ -122,10 +116,7 @@ export const OwnedByAnotherUser: Story = {
 				data: MockChatProjectInstructions,
 			},
 			{
-				key: chatProjectSkills(
-					MockChatProject.organization_id,
-					MockChatProject.id,
-				).queryKey,
+				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
 			{ key: userKey(MockUserMember.id), data: MockUserMember },

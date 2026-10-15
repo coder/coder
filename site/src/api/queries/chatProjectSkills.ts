@@ -2,10 +2,10 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const chatProjectSkillsKey = (projectId: string) =>
+export const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
-const chatProjectSkillKey = (projectId: string, name: string) =>
+export const chatProjectSkillKey = (projectId: string, name: string) =>
 	[...chatProjectSkillsKey(projectId), name] as const;
 
 /** Lists the skills of a chat project, including disabled ones. */
@@ -18,6 +18,7 @@ export const chatProjectSkills = (
 		API.experimental.getChatProjectSkills(organizationId, projectId),
 });
 
+/** Reads one project skill with its SKILL.md content. */
 export const chatProjectSkill = (
 	organizationId: string,
 	projectId: string,
@@ -39,6 +40,7 @@ const invalidateChatProjectSkills = (
 		exact: true,
 	});
 
+/** Creates a project skill from SKILL.md content. */
 export const createChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -54,6 +56,7 @@ type UpdateChatProjectSkillArgs = {
 	req: TypesGen.UpdateSkillRequest;
 };
 
+/** Replaces a project skill's content or turns it on or off. */
 export const updateChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -74,6 +77,7 @@ export const updateChatProjectSkill = (
 	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
 });
 
+/** Deletes a project skill by name. */
 export const deleteChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -87,6 +91,7 @@ export const deleteChatProjectSkill = (
 			queryKey: chatProjectSkillKey(projectId, name),
 			exact: true,
 		});
-		return invalidateChatProjectSkills(queryClient, projectId);
 	},
+	// A 404 means someone else deleted it, so refresh the list then too.
+	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
 });

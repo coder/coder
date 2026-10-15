@@ -1,4 +1,5 @@
-import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { isAxiosError } from "axios";
+import { ChevronLeftIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -33,23 +34,18 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
+	emptySkillFormValues,
 	projectSkillsScope,
-	type SkillFormValues,
-	tryParseSkillMarkdown,
+	type SkillsScope,
+	skillFormValuesFromSkill,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
-import { SkillEditorForm } from "../SkillEditor";
+import { SkillEditorForm, type SkillErrorDisplay } from "../SkillEditor";
 import { downloadSkillFile, skillError } from "../SkillsTable";
 import { DeleteSkillDialog } from "../SkillsTableView";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
 
 const NOUN = "project skill";
-
-const emptySkillFormValues: SkillFormValues = {
-	name: "",
-	description: "",
-	body: "",
-};
 
 type EditorView = { type: "create" } | { type: "edit"; name: string };
 
@@ -57,7 +53,6 @@ type ProjectSkillsDialogProps = {
 	readonly project: ChatProject;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
-	/** Without update access on the project, skills can only be viewed. */
 	readonly canEdit: boolean;
 };
 
@@ -71,6 +66,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	const queryClient = useQueryClient();
 	const scope = projectSkillsScope(project.organization_id, project.id);
 	const [editor, setEditor] = useState<EditorView | null>(null);
+	// The list remounts after the editor closes, so it autofocuses the
+	// control that opened the editor.
+	const [lastEditor, setLastEditor] = useState<EditorView | null>(null);
 	const [skillToDelete, setSkillToDelete] = useState<SkillMetadata | null>(
 		null,
 	);
@@ -79,11 +77,6 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 
 	const skillsQuery = useQuery(scope.list);
 	const skills = skillsQuery.data ?? [];
-	const editName = editor?.type === "edit" ? editor.name : "";
-	const skillQuery = useQuery({
-		...scope.detail(editName),
-		enabled: Boolean(editName),
-	});
 	const createMutation = useMutation(scope.create(queryClient));
 	const updateMutation = useMutation(scope.update(queryClient));
 	const deleteMutation = useMutation(scope.remove(queryClient));
@@ -102,137 +95,61 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	});
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (nextOpen || isSubmitting) {
-			return;
-		}
+	const openEditor = (view: EditorView) => {
+		createMutation.reset();
+		updateMutation.reset();
+		setEditor(view);
+	};
+	const closeEditor = () => {
+		setLastEditor(editor);
 		setEditor(null);
-		onOpenChange(false);
+	};
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen && !isSubmitting) {
+			setEditor(null);
+			setLastEditor(null);
+			onOpenChange(false);
+		}
 	};
 
-	const renderEditor = (view: EditorView) => {
-		const isCreate = view.type === "create";
-		let initialValues: SkillFormValues | undefined = emptySkillFormValues;
-		let loadError: unknown;
-		if (view.type === "edit") {
-			initialValues = undefined;
-			loadError = skillQuery.error;
-			if (skillQuery.data) {
-				const parsed = tryParseSkillMarkdown(skillQuery.data.content);
-				if (parsed.ok) {
-					initialValues = {
-						name: skillQuery.data.name,
-						description: skillQuery.data.description,
-						body: parsed.values.body,
-					};
-				} else {
-					loadError = new Error(parsed.error);
-				}
-			}
-		}
-		const title = isCreate
-			? "New skill"
-			: canEdit
-				? "Edit skill"
-				: "View skill";
-		const header = (
-			<DialogHeader className="px-6 pt-6">
-				<DialogTitle>{title}</DialogTitle>
-				<DialogDescription>
-					Every chat in this project can use this skill.
-				</DialogDescription>
-			</DialogHeader>
-		);
-		const backButton = (disabled: boolean) => (
-			<Button
-				variant="outline"
-				disabled={disabled}
-				onClick={() => setEditor(null)}
-			>
-				Back
-			</Button>
-		);
-
-		if (!initialValues) {
-			return (
-				<>
-					{header}
-					<div className="flex flex-col gap-4 px-6 py-4">
-						{loadError ? (
-							<ErrorAlert
-								error={loadError}
-								actions={
-									<RetryButton
-										size="sm"
-										variant="outline"
-										isRetrying={skillQuery.isFetching}
-										onRetry={() => void skillQuery.refetch()}
-									/>
-								}
-							/>
-						) : (
-							<Loader />
-						)}
-					</div>
-					<DialogFooter className="border-t border-border px-6 py-4">
-						{backButton(false)}
-					</DialogFooter>
-				</>
-			);
-		}
-
-		const mutation = isCreate ? createMutation : updateMutation;
-		return (
-			<SkillEditorForm
-				mode={view.type}
-				readOnly={!canEdit}
-				initialValues={initialValues}
-				existingNames={skills.map((skill) =>
-					skill.name.toLocaleLowerCase("en-US"),
-				)}
-				submitError={skillError(
-					mutation.error,
-					`Failed to ${isCreate ? "create" : "save"} ${NOUN}.`,
-					NOUN,
-				)}
-				isSubmitting={mutation.isPending}
-				nameHint="Lowercase letters, numbers, and hyphens."
-				bodyPlaceholder="Describe when and how the agent should use this skill."
-				header={header}
-				footer={({ isBusy, canSubmit }) => (
-					<DialogFooter className="border-t border-border px-6 py-4">
-						{backButton(isBusy)}
-						{canEdit && (
-							<Button type="submit" disabled={!canSubmit}>
-								<Spinner loading={mutation.isPending} />
-								Save
-							</Button>
-						)}
-					</DialogFooter>
-				)}
-				onSubmit={(_values, content) => {
-					const onSuccess = () => {
-						setEditor(null);
-						toast.success(`Project skill ${isCreate ? "created" : "saved"}.`);
-					};
-					if (view.type === "create") {
-						createMutation.mutate({ content }, { onSuccess });
-					} else {
-						updateMutation.mutate(
-							{ name: view.name, req: { content } },
-							{ onSuccess },
-						);
-					}
-				}}
-			/>
-		);
-	};
+	const editorMutation =
+		editor?.type === "create" ? createMutation : updateMutation;
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+			<DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0">
 				{editor ? (
-					renderEditor(editor)
+					<ProjectSkillEditorView
+						scope={scope}
+						view={editor}
+						canEdit={canEdit}
+						existingNames={skills.map((skill) =>
+							skill.name.toLocaleLowerCase("en-US"),
+						)}
+						submitError={skillError(
+							editorMutation.error,
+							`Failed to ${editor.type === "create" ? "create" : "save"} ${NOUN}.`,
+							NOUN,
+						)}
+						isSubmitting={isSubmitting}
+						onBack={closeEditor}
+						onSubmit={(content) => {
+							const onSuccess = () => {
+								closeEditor();
+								toast.success(
+									`Project skill ${editor.type === "create" ? "created" : "saved"}.`,
+								);
+							};
+							if (editor.type === "create") {
+								createMutation.mutate({ content }, { onSuccess });
+							} else {
+								updateMutation.mutate(
+									{ name: editor.name, req: { content } },
+									{ onSuccess },
+								);
+							}
+						}}
+					/>
 				) : (
 					<>
 						<div className="flex items-start justify-between gap-4 px-6 pt-6">
@@ -247,10 +164,8 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									ref={setPrimaryFallback}
 									size="sm"
 									variant="outline"
-									onClick={() => {
-										createMutation.reset();
-										setEditor({ type: "create" });
-									}}
+									autoFocus={lastEditor?.type === "create"}
+									onClick={() => openEditor({ type: "create" })}
 								>
 									<PlusIcon />
 									New
@@ -271,15 +186,13 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									}
 								/>
 							) : null}
-							{skillsQuery.isLoading ? (
-								<Loader />
-							) : skills.length === 0 ? (
-								!skillsQuery.error && (
-									<div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
-										No skills added yet
-									</div>
-								)
-							) : (
+							{skillsQuery.isLoading && <Loader />}
+							{skillsQuery.isSuccess && skills.length === 0 && (
+								<div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
+									No skills added yet
+								</div>
+							)}
+							{skills.length > 0 && (
 								<Table aria-label="Project skills">
 									<TableHeader>
 										<TableRow>
@@ -294,81 +207,28 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									</TableHeader>
 									<TableBody>
 										{skills.map((skill) => (
-											<TableRow key={skill.id}>
-												<TableCell className="w-full max-w-0">
-													<div className="truncate font-medium text-content-primary">
-														{skill.name}
-													</div>
-													<div
-														className="truncate text-xs text-content-secondary"
-														title={skill.description || undefined}
-													>
-														{skill.description || "No description"}
-													</div>
-												</TableCell>
-												<TableCell className="whitespace-nowrap text-content-secondary">
-													<time
-														dateTime={skill.updated_at}
-														title={formatDateTime(
-															skill.updated_at,
-															DATE_FORMAT.FULL_DATETIME,
-														)}
-													>
-														{relativeTime(skill.updated_at)}
-													</time>
-												</TableCell>
-												<TableCell className="text-right">
-													<DropdownMenu>
-														<DropdownMenuTrigger asChild>
-															<Button
-																size="icon"
-																variant="subtle"
-																aria-label={`Open menu for ${skill.name}`}
-																onPointerDown={rememberTrigger}
-																onKeyDown={rememberTrigger}
-															>
-																{downloadMutation.isPending &&
-																downloadMutation.variables === skill.name ? (
-																	<Spinner className="size-4" loading />
-																) : (
-																	<EllipsisVerticalIcon aria-hidden="true" />
-																)}
-															</Button>
-														</DropdownMenuTrigger>
-														<DropdownMenuContent align="end">
-															<DropdownMenuItem
-																onClick={() => {
-																	updateMutation.reset();
-																	setEditor({ type: "edit", name: skill.name });
-																}}
-															>
-																{canEdit ? "Edit" : "View"}
-															</DropdownMenuItem>
-															<DropdownMenuItem
-																onClick={() =>
-																	downloadMutation.mutate(skill.name)
-																}
-															>
-																Download
-															</DropdownMenuItem>
-															{canEdit && (
-																<>
-																	<DropdownMenuSeparator />
-																	<DropdownMenuItem
-																		className="text-content-destructive focus:text-content-destructive"
-																		onClick={() => {
-																			deleteMutation.reset();
-																			setSkillToDelete(skill);
-																		}}
-																	>
-																		Delete&hellip;
-																	</DropdownMenuItem>
-																</>
-															)}
-														</DropdownMenuContent>
-													</DropdownMenu>
-												</TableCell>
-											</TableRow>
+											<ProjectSkillRow
+												key={skill.id}
+												skill={skill}
+												canEdit={canEdit}
+												autoFocus={
+													lastEditor?.type === "edit" &&
+													lastEditor.name === skill.name
+												}
+												isDownloading={
+													downloadMutation.isPending &&
+													downloadMutation.variables === skill.name
+												}
+												onTriggerInteraction={rememberTrigger}
+												onEdit={() =>
+													openEditor({ type: "edit", name: skill.name })
+												}
+												onDownload={() => downloadMutation.mutate(skill.name)}
+												onDelete={() => {
+													deleteMutation.reset();
+													setSkillToDelete(skill);
+												}}
+											/>
 										))}
 									</TableBody>
 								</Table>
@@ -397,6 +257,12 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 										setSkillToDelete(null);
 										toast.success("Project skill deleted.");
 									},
+									onError: (error) => {
+										// Someone else deleted it, and the list refetch drops it.
+										if (isAxiosError(error) && error.response?.status === 404) {
+											setSkillToDelete(null);
+										}
+									},
 								}),
 							onClose: () => {
 								if (!deleteMutation.isPending) {
@@ -411,3 +277,197 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 		</Dialog>
 	);
 };
+
+type ProjectSkillEditorViewProps = {
+	readonly scope: SkillsScope;
+	readonly view: EditorView;
+	readonly canEdit: boolean;
+	readonly existingNames: readonly string[];
+	readonly submitError: SkillErrorDisplay | undefined;
+	readonly isSubmitting: boolean;
+	readonly onBack: () => void;
+	readonly onSubmit: (content: string) => void;
+};
+
+const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
+	scope,
+	view,
+	canEdit,
+	existingNames,
+	submitError,
+	isSubmitting,
+	onBack,
+	onSubmit,
+}) => {
+	const skillQuery = useQuery({
+		...scope.detail(view.type === "edit" ? view.name : ""),
+		enabled: view.type === "edit",
+	});
+	let loaded: ReturnType<typeof skillFormValuesFromSkill> | undefined;
+	if (view.type === "create") {
+		loaded = { ok: true, values: emptySkillFormValues };
+	} else if (skillQuery.data) {
+		loaded = skillFormValuesFromSkill(skillQuery.data);
+	}
+	const title =
+		view.type === "create"
+			? "New skill"
+			: canEdit
+				? "Edit skill"
+				: "View skill";
+	const header = (
+		<DialogHeader className="items-start px-6 pt-6">
+			<Button
+				size="sm"
+				variant="subtle"
+				className="-ml-2"
+				disabled={isSubmitting}
+				autoFocus
+				onClick={onBack}
+			>
+				<ChevronLeftIcon />
+				Back
+			</Button>
+			<DialogTitle>{title}</DialogTitle>
+			<DialogDescription>
+				Every chat in this project can use this skill.
+			</DialogDescription>
+		</DialogHeader>
+	);
+
+	if (!loaded?.ok) {
+		const loadError = loaded ? new Error(loaded.error) : skillQuery.error;
+		return (
+			<>
+				{header}
+				<div className="px-6 py-6">
+					{loadError ? (
+						<ErrorAlert
+							error={loadError}
+							actions={
+								<RetryButton
+									size="sm"
+									variant="outline"
+									isRetrying={skillQuery.isFetching}
+									onRetry={() => void skillQuery.refetch()}
+								/>
+							}
+						/>
+					) : (
+						<Loader />
+					)}
+				</div>
+			</>
+		);
+	}
+
+	return (
+		<SkillEditorForm
+			mode={view.type}
+			readOnly={!canEdit}
+			initialValues={loaded.values}
+			existingNames={existingNames}
+			submitError={submitError}
+			isSubmitting={isSubmitting}
+			nameHint="Lowercase letters, numbers, and hyphens."
+			bodyPlaceholder="Describe when and how the agent should use this skill."
+			header={header}
+			footer={({ canSubmit }) =>
+				canEdit && (
+					<DialogFooter className="border-t border-border px-6 py-4">
+						<Button type="submit" disabled={!canSubmit}>
+							<Spinner loading={isSubmitting} />
+							Save
+						</Button>
+					</DialogFooter>
+				)
+			}
+			onSubmit={(_values, content) => onSubmit(content)}
+		/>
+	);
+};
+
+type ProjectSkillRowProps = {
+	readonly skill: SkillMetadata;
+	readonly canEdit: boolean;
+	readonly autoFocus: boolean;
+	readonly isDownloading: boolean;
+	readonly onTriggerInteraction: (
+		event: React.SyntheticEvent<HTMLButtonElement>,
+	) => void;
+	readonly onEdit: () => void;
+	readonly onDownload: () => void;
+	readonly onDelete: () => void;
+};
+
+const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
+	skill,
+	canEdit,
+	autoFocus,
+	isDownloading,
+	onTriggerInteraction,
+	onEdit,
+	onDownload,
+	onDelete,
+}) => (
+	<TableRow>
+		<TableCell className="w-full max-w-0">
+			<div className="truncate font-medium text-content-primary">
+				{skill.name}
+			</div>
+			<div
+				className="truncate text-xs text-content-secondary"
+				title={skill.description || undefined}
+			>
+				{skill.description || "No description"}
+			</div>
+		</TableCell>
+		<TableCell className="whitespace-nowrap text-content-secondary">
+			<time
+				dateTime={skill.updated_at}
+				title={formatDateTime(skill.updated_at, DATE_FORMAT.FULL_DATETIME)}
+			>
+				{relativeTime(skill.updated_at)}
+			</time>
+		</TableCell>
+		<TableCell className="text-right">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
+						aria-label={`Open menu for ${skill.name}`}
+						autoFocus={autoFocus}
+						onPointerDown={onTriggerInteraction}
+						onKeyDown={onTriggerInteraction}
+					>
+						{isDownloading ? (
+							<Spinner loading />
+						) : (
+							<EllipsisVerticalIcon aria-hidden="true" />
+						)}
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem onClick={onEdit}>
+						{canEdit ? "Edit" : "View"}
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={onDownload} disabled={isDownloading}>
+						Download
+					</DropdownMenuItem>
+					{canEdit && (
+						<>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={onDelete}
+							>
+								Delete&hellip;
+							</DropdownMenuItem>
+						</>
+					)}
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</TableCell>
+	</TableRow>
+);
