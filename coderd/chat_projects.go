@@ -476,8 +476,21 @@ func (api *API) validateChatProjectDefaults(
 			return "", "", xerrors.Errorf("get template version parameters: %w", err)
 		}
 		for _, name := range slices.Sorted(maps.Keys(req.DefaultParameters)) {
-			if !slices.ContainsFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name }) {
+			index := slices.IndexFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name })
+			if index < 0 {
 				return "default_parameters", fmt.Sprintf("Parameter %q does not exist on the default template's active version.", name), nil
+			}
+			parameter, err := db2sdk.TemplateVersionParameter(parameters[index])
+			if err != nil {
+				return "", "", xerrors.Errorf("convert template version parameter: %w", err)
+			}
+			value := codersdk.WorkspaceBuildParameter{Name: name, Value: req.DefaultParameters[name]}
+			if err := codersdk.ValidateWorkspaceBuildParameter(parameter, &value, nil); err != nil {
+				reason := err
+				if inner := errors.Unwrap(err); inner != nil {
+					reason = inner
+				}
+				return "default_parameters", fmt.Sprintf("Parameter %q has an invalid value: %s", name, reason), nil
 			}
 		}
 	}
