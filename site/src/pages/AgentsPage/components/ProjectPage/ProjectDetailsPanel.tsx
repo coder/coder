@@ -97,9 +97,12 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	};
 
 	const openSkills = async () => {
-		// Opening after a failed check would show owners a read-only dialog.
-		if (permissionsQuery.isError) {
-			const { error } = await permissionsQuery.refetch();
+		// Opening before a successful check would show owners a read-only
+		// dialog. A check still in flight is awaited rather than restarted.
+		if (!permissionsQuery.isSuccess) {
+			const { error } = await permissionsQuery.refetch({
+				cancelRefetch: false,
+			});
 			if (error) {
 				toast.error("Could not check your access to project skills.", {
 					description: getErrorDetail(error),
