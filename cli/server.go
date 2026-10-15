@@ -767,6 +767,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
+				MCPToolUsage:                telemetry.NewMCPToolUsage(nil),
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   vals.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            vals,
@@ -1059,6 +1060,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
 				DeploymentConfig: deploymentConfigWithoutSecrets,
+				MCPToolUsage:     options.MCPToolUsage,
 				// SCIMAPIKey is a secret and is scrubbed by WithoutSecrets above,
 				// so we derive SCIMEnabled from vals (pre-scrub) instead.
 				SCIMEnabled:   vals.SCIMAPIKey != "",

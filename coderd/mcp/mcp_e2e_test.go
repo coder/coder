@@ -34,6 +34,7 @@ import (
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
@@ -1861,4 +1862,64 @@ func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
 		require.Equal(t, int64(0), sentinel.hits.Load(),
 			"isolated client must NOT route requests through http.DefaultTransport")
 	})
+}
+
+func TestMCPHTTP_E2E_ToolUsageTelemetry(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	defer closer.Close()
+	_ = coderdtest.CreateFirstUser(t, coderClient)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	mcpClient, err := newIsolatedMCPClient(ctx, api.AccessURL.String()+mcpserver.MCPEndpoint, "claude-code", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
+	require.NoError(t, err)
+	defer func() {
+		_ = mcpClient.Close()
+	}()
+
+	// Drop anything recorded while setting up.
+	_ = api.MCPToolUsage.Collect()
+
+	userResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      toolsdk.ToolNameGetAuthenticatedUser,
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, userResult.IsError)
+
+	const secretArgument = "secret-workspace-argument-6f1c"
+	workspaceResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      toolsdk.ToolNameGetWorkspace,
+		Arguments: map[string]any{"workspace_id": secretArgument},
+	})
+	require.NoError(t, err)
+	require.True(t, workspaceResult.IsError)
+
+	summaries := api.MCPToolUsage.Collect()
+	require.Len(t, summaries, 2)
+	byTool := make(map[string]telemetry.MCPToolUsageSummary, len(summaries))
+	for _, summary := range summaries {
+		assert.Equal(t, telemetry.MCPTransportRemote, summary.Transport)
+		assert.Equal(t, mcpserver.ClientClaudeCode, summary.Client)
+		byTool[summary.Tool] = summary
+	}
+	assert.EqualValues(t, 1, byTool[toolsdk.ToolNameGetAuthenticatedUser].Calls)
+	assert.EqualValues(t, 0, byTool[toolsdk.ToolNameGetAuthenticatedUser].ToolErrors)
+	assert.EqualValues(t, 1, byTool[toolsdk.ToolNameGetWorkspace].Calls)
+	assert.EqualValues(t, 1, byTool[toolsdk.ToolNameGetWorkspace].ToolErrors)
+
+	// Neither tool arguments nor tool results may reach telemetry.
+	data, err := json.Marshal(summaries)
+	require.NoError(t, err)
+	me, err := coderClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	for _, forbidden := range []string{secretArgument, me.Username, me.Email, me.ID.String()} {
+		assert.NotContains(t, string(data), forbidden)
+	}
 }

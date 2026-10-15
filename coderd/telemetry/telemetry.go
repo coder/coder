@@ -73,6 +73,9 @@ type Options struct {
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
+
+	// MCPToolUsage, when set, is drained into every snapshot.
+	MCPToolUsage *MCPToolUsage
 }
 
 // New constructs a reporter for telemetry data.
@@ -859,6 +862,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Drain in-memory aggregates only after the rest of the snapshot
+	// succeeded so a failed collection does not discard them.
+	if r.options.MCPToolUsage != nil {
+		snapshot.MCPToolUsageSummaries = r.options.MCPToolUsage.Collect()
+	}
 	return snapshot, nil
 }
 
@@ -1509,6 +1517,7 @@ type Snapshot struct {
 	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
 	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
 	WorkspaceBuildDebugEvents            []WorkspaceBuildDebugEvent            `json:"workspace_build_debug_events"`
+	MCPToolUsageSummaries                []MCPToolUsageSummary                 `json:"mcp_tool_usage_summaries"`
 }
 
 // Deployment contains information about the host running Coder.

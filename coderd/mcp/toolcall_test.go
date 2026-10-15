@@ -147,7 +147,7 @@ func TestRegisterSDKTool_RecordsResultClasses(t *testing.T) {
 	metrics, err := mcpserver.NewMetrics(reg)
 	require.NoError(t, err)
 	recorder := &fakeRecorder{}
-	multi := multiRecorder{metrics, recorder}
+	multi := mcpserver.ToolCallRecorders{metrics, recorder}
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
 	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{}, multi)
@@ -253,12 +253,4 @@ func TestMCPHTTP_ToolCallMetrics(t *testing.T) {
 	assert.True(t, testutil.PromCounterHasValue(t, families, 1, "coderd_mcp_tool_calls_total",
 		mcpserver.ClientClaudeCode, string(mcpserver.ToolCallResultAuthzError), toolsdk.ToolNameGetAuthenticatedUser))
 	assert.Equal(t, uint64(1), testutil.PromHistogramSampleCount(t, families, "coderd_mcp_tool_call_duration_seconds", toolsdk.ToolNameGetAuthenticatedUser))
-}
-
-type multiRecorder []mcpserver.ToolCallRecorder
-
-func (m multiRecorder) RecordToolCall(call mcpserver.ToolCall) {
-	for _, r := range m {
-		r.RecordToolCall(call)
-	}
 }

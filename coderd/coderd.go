@@ -199,6 +199,10 @@ type Options struct {
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
+	// MCPToolUsage aggregates MCP tool calls for telemetry snapshots. It
+	// must be the instance passed to the telemetry reporter for the counts
+	// to be reported. A private aggregator is used when nil.
+	MCPToolUsage *telemetry.MCPToolUsage
 	// Entitlements can come from the enterprise caller if enterprise code is
 	// included.
 	Entitlements *entitlements.Set
@@ -744,7 +748,13 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("create MCP tool metrics: %w", err))
 	}
-	api.mcpToolCallRecorder = mcpToolMetrics
+	if options.MCPToolUsage == nil {
+		options.MCPToolUsage = telemetry.NewMCPToolUsage(nil)
+	}
+	api.mcpToolCallRecorder = mcp.ToolCallRecorders{
+		mcpToolMetrics,
+		mcp.TelemetryRecorder{Usage: options.MCPToolUsage, Transport: telemetry.MCPTransportRemote},
+	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -2247,7 +2257,8 @@ type API struct {
 
 	*Options
 	mcpHTTPClient *http.Client
-	// mcpToolCallRecorder records remote MCP tool calls.
+	// mcpToolCallRecorder records remote MCP tool calls to Prometheus and
+	// telemetry.
 	mcpToolCallRecorder mcp.ToolCallRecorder
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific

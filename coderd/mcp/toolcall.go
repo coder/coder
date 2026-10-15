@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
@@ -162,4 +163,46 @@ func recordToolCall(recorder ToolCallRecorder, req *mcp.CallToolRequest, tool st
 		Result:   ClassifyToolError(err),
 		Duration: time.Since(start),
 	})
+}
+
+// ToolCallRecorders fans each tool call out to every recorder.
+type ToolCallRecorders []ToolCallRecorder
+
+// RecordToolCall implements ToolCallRecorder.
+func (rs ToolCallRecorders) RecordToolCall(call ToolCall) {
+	for _, r := range rs {
+		r.RecordToolCall(call)
+	}
+}
+
+// TelemetryRecorder aggregates tool calls into deployment telemetry.
+type TelemetryRecorder struct {
+	Usage *telemetry.MCPToolUsage
+	// Transport is telemetry.MCPTransportRemote or
+	// telemetry.MCPTransportStdio.
+	Transport string
+}
+
+// RecordToolCall implements ToolCallRecorder.
+func (r TelemetryRecorder) RecordToolCall(call ToolCall) {
+	r.Usage.Add(telemetry.MCPToolUsageKey{
+		Transport: r.Transport,
+		Tool:      call.Tool,
+		Client:    call.Client,
+	}, ToolCallCounts(call.Result))
+}
+
+// ToolCallCounts returns the telemetry counts for a single call with the
+// given result.
+func ToolCallCounts(result ToolCallResult) telemetry.MCPToolUsageCounts {
+	counts := telemetry.MCPToolUsageCounts{Calls: 1}
+	switch result {
+	case ToolCallResultToolError:
+		counts.ToolErrors = 1
+	case ToolCallResultValidationError:
+		counts.ValidationErrors = 1
+	case ToolCallResultAuthzError:
+		counts.AuthzErrors = 1
+	}
+	return counts
 }
