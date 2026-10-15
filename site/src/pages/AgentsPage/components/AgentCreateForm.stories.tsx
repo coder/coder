@@ -2088,6 +2088,10 @@ export const WithOrganizationAndProjectPickers: Story = {
 	},
 };
 
+const mockProjectActionSkills: TypesGen.SkillMetadata[] = MockSkills.map(
+	(skill) => ({ ...skill, action: true }),
+);
+
 export const ProjectComposerWithActions: Story = {
 	parameters: {
 		experiments: ["chat-projects"],
@@ -2095,7 +2099,7 @@ export const ProjectComposerWithActions: Story = {
 			...defaultQueries,
 			{
 				key: chatProjectSkillsKey(MockChatProject.id),
-				data: MockSkills.map((skill) => ({ ...skill, action: true })),
+				data: mockProjectActionSkills,
 			},
 		],
 	},

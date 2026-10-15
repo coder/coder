@@ -12,7 +12,10 @@ const mockActionSkills: SkillMetadata[] = [
 		description: "Deploy the current branch to the staging cluster.",
 	},
 	{ name: "lint", description: "Run the linters and fix what they report." },
-	{ name: "release", description: "Draft release notes for the next version." },
+	{
+		name: "release-notes-for-the-next-version-with-every-merged-change",
+		description: "Draft release notes for the next version.",
+	},
 	{ name: "review", description: "Review changed files and suggest fixes." },
 	{ name: "triage", description: "" },
 ].map((skill) => ({

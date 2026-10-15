@@ -28,8 +28,10 @@ const mockSkills: SkillMetadata[] = [
 	{ ...MockSkill, id: "skill-deploy", name: "deploy", action: true },
 ];
 
-const renderActions = (skills: SkillMetadata[]) => {
-	vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(skills);
+const renderActions = () => {
+	vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
+		mockSkills,
+	);
 	const onInvoke = vi.fn();
 	render(
 		<QueryClientProvider client={createTestQueryClient()}>
@@ -51,7 +53,7 @@ describe("ProjectSkillActions", () => {
 	});
 
 	it("offers the first three actions by name and the rest under More", async () => {
-		const { user, onInvoke } = renderActions(mockSkills);
+		const { user, onInvoke } = renderActions();
 
 		await user.click(await screen.findByRole("button", { name: "deploy" }));
 		await user.click(screen.getByRole("button", { name: "lint" }));

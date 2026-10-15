@@ -188,7 +188,8 @@ type AgentChatInputProps = {
 	chatProjectId?: string;
 	isChatProjectPending?: boolean;
 	isWorkspaceLoading?: boolean;
-	// Offers the chat project's action skills above the composer.
+	// Opts in to project action skills above the composer, which also need
+	// the chat-projects experiment and a composer the user can send from.
 	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -1318,6 +1319,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
 	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const canShowProjectActions =
+		showProjectActions &&
+		experiments.includes("chat-projects") &&
+		!isReadOnly &&
+		!isReadOnlyView &&
+		hasModelOptions &&
+		!aiGatewayDisabled;
 	const showStopButton =
 		!isReadOnlyView &&
 		isStreaming &&
@@ -1351,22 +1359,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
-			{showProjectActions &&
-				experiments.includes("chat-projects") &&
-				chatOrganizationId &&
-				chatProjectId &&
-				!isReadOnly &&
-				!isReadOnlyView &&
-				hasModelOptions &&
-				!aiGatewayDisabled && (
-					<ProjectSkillActions
-						organizationId={chatOrganizationId}
-						projectId={chatProjectId}
-						onInvoke={(name) =>
-							internalRef.current?.insertSkill("project", name)
-						}
-					/>
-				)}
+			{canShowProjectActions && chatOrganizationId && chatProjectId && (
+				<ProjectSkillActions
+					organizationId={chatOrganizationId}
+					projectId={chatProjectId}
+					onInvoke={(name) => internalRef.current?.insertSkill("project", name)}
+				/>
+			)}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}

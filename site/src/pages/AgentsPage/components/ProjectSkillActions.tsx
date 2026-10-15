@@ -88,7 +88,9 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 									menuSelectionRef.current = skill.name;
 								}}
 							>
-								<span className="text-content-primary">{skill.name}</span>
+								<span className="max-w-full truncate text-content-primary">
+									{skill.name}
+								</span>
 								{skill.description && (
 									<span className="line-clamp-2 text-xs font-normal">
 										{skill.description}

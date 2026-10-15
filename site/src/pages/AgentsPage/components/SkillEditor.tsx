@@ -225,7 +225,9 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 			kind: "success",
 			title: "Imported SKILL.md",
 			detail: isCreate
-				? "Updated name, description, and body fields."
+				? showProjectSettings
+					? "Updated name, description, body, and automatic use."
+					: "Updated name, description, and body fields."
 				: "Updated description and body fields. Kept the existing name.",
 		});
 	};
