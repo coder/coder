@@ -1,15 +1,17 @@
 ---
-title: "Reference architecture: up to 10,000 users"
+title: "Reference architecture: up to 6,000 concurrent workspaces"
 ---
 
-The 10,000 users architecture targets enterprises with an extremely large global workforce of technical professionals or applications requiring lots of simultaneous workspaces (for example, Agentic AI).
+This architecture supports up to 6,000 concurrent running workspaces, which is about 10,000 users.
+It targets enterprises with a very large global workforce of technical professionals, or applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources.
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./10000-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 10000 | 6000                          | 600               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                         6,000 |                         600 |          10,000 |
 
 **Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.

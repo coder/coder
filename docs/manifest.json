@@ -81,28 +81,38 @@
 						},
 						{
 							"title": "Coder Validated Architecture",
-							"description": "Reference designs and best practices for sizing a Coder deployment, from 1,000 to 10,000 users.",
+							"description": "Reference designs and best practices for sizing a Coder deployment, from 600 to 20,000 concurrent running workspaces.",
 							"path": "./install/plan/sizing/index.md",
 							"children": [
 								{
-									"title": "Up to 1,000 users",
-									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
-									"path": "./install/plan/sizing/1k-users.md"
+									"title": "Up to 600 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 600 concurrent workspaces, about 1,000 users.",
+									"path": "./install/plan/sizing/600-workspaces.md"
 								},
 								{
-									"title": "Up to 2,000 users",
-									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
-									"path": "./install/plan/sizing/2k-users.md"
+									"title": "Up to 1,200 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 1,200 concurrent workspaces, about 2,000 users.",
+									"path": "./install/plan/sizing/1200-workspaces.md"
 								},
 								{
-									"title": "Up to 3,000 users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
-									"path": "./install/plan/sizing/3k-users.md"
+									"title": "Up to 1,800 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 1,800 concurrent workspaces, about 3,000 users.",
+									"path": "./install/plan/sizing/1800-workspaces.md"
 								},
 								{
-									"title": "Up to 10,000 users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
-									"path": "./install/plan/sizing/10k-users.md"
+									"title": "Up to 6,000 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 6,000 concurrent workspaces, about 10,000 users.",
+									"path": "./install/plan/sizing/6000-workspaces.md"
+								},
+								{
+									"title": "Up to 10,000 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 10,000 concurrent workspaces, about 16,000 users.",
+									"path": "./install/plan/sizing/10000-workspaces.md"
+								},
+								{
+									"title": "Up to 20,000 workspaces",
+									"description": "Hardware specifications for Coder deployments that run up to 20,000 concurrent workspaces, about 33,000 users.",
+									"path": "./install/plan/sizing/20000-workspaces.md"
 								}
 							]
 						}

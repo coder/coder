@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "source": "/docs/install/plan/sizing/1k-users",
+    "destination": "/docs/install/plan/sizing/600-workspaces"
+  },
+  {
+    "source": "/docs/install/plan/sizing/2k-users",
+    "destination": "/docs/install/plan/sizing/1200-workspaces"
+  },
+  {
+    "source": "/docs/install/plan/sizing/3k-users",
+    "destination": "/docs/install/plan/sizing/1800-workspaces"
+  },
+  {
+    "source": "/docs/install/plan/sizing/10k-users",
+    "destination": "/docs/install/plan/sizing/6000-workspaces"
+  }
+]

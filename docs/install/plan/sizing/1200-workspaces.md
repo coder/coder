@@ -1,16 +1,17 @@
 ---
-title: "Reference architecture: up to 2,000 users"
+title: "Reference architecture: up to 1,200 concurrent workspaces"
 ---
 
-In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.
-This setup is well-suited for mid-sized companies experiencing growth or for universities seeking to accommodate their expanding user populations.
+This architecture supports up to 1,200 concurrent running workspaces, which is about 2,000 users.
+It suits mid-sized companies with a growing user base, or universities expanding access to more students.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./3k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./1800-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 2000  | 1200                          | 120               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                         1,200 |                         120 |           2,000 |
 
 **Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.

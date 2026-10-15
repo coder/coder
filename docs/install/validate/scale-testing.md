@@ -80,13 +80,12 @@ Database:
 
 ## Available reference architectures
 
-- [Up to 1,000 users](../plan/sizing/1k-users.md)
-
-- [Up to 2,000 users](../plan/sizing/2k-users.md)
-
-- [Up to 3,000 users](../plan/sizing/3k-users.md)
--
-- [Up to 10,000 users](../plan/sizing/10k-users.md)
+- [Up to 600 concurrent workspaces](../plan/sizing/600-workspaces.md)
+- [Up to 1,200 concurrent workspaces](../plan/sizing/1200-workspaces.md)
+- [Up to 1,800 concurrent workspaces](../plan/sizing/1800-workspaces.md)
+- [Up to 6,000 concurrent workspaces](../plan/sizing/6000-workspaces.md)
+- [Up to 10,000 concurrent workspaces](../plan/sizing/10000-workspaces.md)
+- [Up to 20,000 concurrent workspaces](../plan/sizing/20000-workspaces.md)
 
 ## Hardware recommendation
 
