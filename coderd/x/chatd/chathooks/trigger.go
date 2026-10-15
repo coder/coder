@@ -193,11 +193,26 @@ func (t *Trigger) Trigger(
 	return result, nil
 }
 
+// textFromParts joins the text parts of a prompt. A skill invocation
+// appears as its slash alias, such as "/project/triage", separated from
+// the surrounding text by spaces.
 func textFromParts(parts []codersdk.ChatMessagePart) string {
 	var builder strings.Builder
+	afterSkill := false
 	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeText {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText:
+			if afterSkill && part.Text != "" {
+				_, _ = builder.WriteString(" ")
+				afterSkill = false
+			}
 			_, _ = builder.WriteString(part.Text)
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			if builder.Len() > 0 {
+				_, _ = builder.WriteString(" ")
+			}
+			_, _ = builder.WriteString("/" + chatprompt.SkillInvocationAlias(part))
+			afterSkill = true
 		}
 	}
 	return builder.String()

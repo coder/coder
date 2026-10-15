@@ -353,6 +353,10 @@ export const parseMessageContent = (
 				parsed.blocks.push(part);
 				break;
 			}
+			case "skill-invocation": {
+				// Not rendered yet; the skill chip UI renders these.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

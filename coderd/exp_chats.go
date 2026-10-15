@@ -67,6 +67,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -1561,6 +1562,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if api.writeChatFileError(ctx, rw, err) {
 			return
 		}
+		if writeChatSkillInvocationError(ctx, rw, err) {
+			return
+		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
@@ -3001,6 +3005,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if api.writeChatFileError(ctx, rw, sendErr) {
 			return
 		}
+		if writeChatSkillInvocationError(ctx, rw, sendErr) {
+			return
+		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot send messages to an archived chat.",
@@ -3182,6 +3189,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if api.writeChatFileError(ctx, rw, editErr) {
+			return
+		}
+		if writeChatSkillInvocationError(ctx, rw, editErr) {
 			return
 		}
 
@@ -7610,6 +7620,25 @@ func createChatInputFromParts(
 				part.WorkspaceFileSize,
 				chatfiles.BaseMediaType(part.WorkspaceFileMediaType),
 			))
+		// chatd loads the skill body as the chat owner when the message
+		// is sent; only the shape is checked here.
+		case string(codersdk.ChatInputPartTypeSkillInvocation):
+			switch part.SkillSource {
+			case codersdk.ChatSkillSourcePersonal, codersdk.ChatSkillSourceOrganization,
+				codersdk.ChatSkillSourceProject, codersdk.ChatSkillSourceWorkspace:
+			default:
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].skill_source %q is not supported.", fieldName, i, part.SkillSource),
+				}
+			}
+			if !workspacesdk.SkillNamePattern.MatchString(part.SkillName) || len(part.SkillName) > skills.MaxPersonalSkillNameBytes {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].skill_name must be a kebab-case skill name.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageSkillInvocation(part.SkillSource, part.SkillName))
 		default:
 			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -7654,6 +7683,20 @@ func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, 
 	default:
 		return false
 	}
+	return true
+}
+
+// writeChatSkillInvocationError writes a 400 for a message that invokes a
+// skill the chat owner cannot use and reports whether it wrote a response.
+func writeChatSkillInvocationError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var unavailable *chatd.SkillInvocationUnavailableError
+	if !errors.As(err, &unavailable) {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: unavailable.Error(),
+		Detail:  "The skill is missing, disabled, or not shared with the chat owner.",
+	})
 	return true
 }
 
