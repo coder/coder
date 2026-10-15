@@ -153,7 +153,7 @@ export function $insertSkillInvocation(
  * Serializes the text and skill-invocation parts of a sent message as a
  * composer draft, so editing the message keeps its skill chips in place.
  */
-export const serializeSkillDraft = (
+export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],
 ): string => {
 	const editor = createEditor({

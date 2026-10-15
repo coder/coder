@@ -25,8 +25,7 @@ const getInlineParts = (
 		if (block.type === "response") {
 			return { type: "text", text: block.text };
 		}
-		// Skill chips space against text the same way file chips do.
-		return { type: "file-reference" };
+		return { type: "chip" };
 	});
 };
 

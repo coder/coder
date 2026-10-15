@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
@@ -11,6 +11,7 @@ import type {
 	ChatMessagePart,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -437,6 +438,27 @@ describe("ChatMessageInput", () => {
 			expect(textbox).toHaveFocus();
 		});
 
+		it("removes a chip with its remove button", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("project", "triage"));
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Remove skill /project/triage",
+				}),
+			);
+			expect(getRequestContent(inputRef)).toEqual([]);
+		});
+
 		it("restores chips from a saved draft", async () => {
 			const onChange = vi.fn();
 			const inputRef = createRef<ChatMessageInputRef>();
@@ -493,10 +515,7 @@ describe("ChatMessageInput", () => {
 				{ type: "text", text: " on\nthe diff" },
 			];
 			const { text, editorState } = getEditableUserMessagePayload({
-				id: 1,
-				chat_id: "chat-1",
-				created_at: "2026-04-21T00:00:00.000Z",
-				role: "user",
+				...MockChatMessage,
 				content,
 			});
 			const inputRef = createRef<ChatMessageInputRef>();

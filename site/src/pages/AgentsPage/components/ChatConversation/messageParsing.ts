@@ -8,7 +8,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
-import { serializeSkillDraft } from "../ChatMessageInput/SkillInvocationNode";
+import { serializeMessageDraft } from "../ChatMessageInput/SkillInvocationNode";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -395,14 +395,13 @@ export const getEditableUserMessagePayload = (
 		.join("");
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
-	const hasSkillInvocations = parsed.blocks.some(
-		(block) => block.type === "skill-invocation",
-	);
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
-		editorState: hasSkillInvocations
-			? serializeSkillDraft(message.content ?? [])
+		editorState: parsed.blocks.some(
+			(block) => block.type === "skill-invocation",
+		)
+			? serializeMessageDraft(message.content ?? [])
 			: undefined,
 	};
 };
