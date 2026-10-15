@@ -30,7 +30,6 @@ type DialogState =
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
-/** Builds the alert for a failed skill request, labelled by HTTP status. */
 export const skillError = (
 	error: unknown,
 	fallback: string,
@@ -58,7 +57,6 @@ export const skillError = (
 	};
 };
 
-/** Downloads one skill's SKILL.md content as `<name>.md`. */
 export const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,

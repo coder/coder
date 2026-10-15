@@ -37,6 +37,7 @@ import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
 	emptySkillFormValues,
 	projectSkillsScope,
+	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
@@ -88,8 +89,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	const queryClient = useQueryClient();
 	const scope = projectSkillsScope(project.organization_id, project.id);
 	const [editor, setEditor] = useState<EditorView | null>(null);
-	// The list remounts after the editor closes, so it autofocuses the
-	// control that opened the editor.
+	// The list remounts after the editor closes and autofocuses its opener.
 	const [lastEditor, setLastEditor] = useState<EditorView | null>(null);
 	const [skillToDelete, setSkillToDelete] = useState<SkillMetadata | null>(
 		null,
@@ -100,6 +100,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 
 	const skillsQuery = useQuery(scope.list);
 	const skills = skillsQuery.data ?? [];
+	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
 	const createMutation = useMutation(scope.create(queryClient));
 	const updateMutation = useMutation(scope.update(queryClient));
 	const deleteMutation = useMutation(scope.remove(queryClient));
@@ -195,7 +196,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 							<DialogHeader>
 								<DialogTitle>Project skills</DialogTitle>
 								<DialogDescription>
-									Every chat in this project can use these.
+									{isAtLimit
+										? `You have reached the limit of ${SKILLS_MAX_PER_OWNER} ${NOUN}s. Delete a skill before creating another one.`
+										: "Every chat in this project can use these."}
 								</DialogDescription>
 							</DialogHeader>
 							{canEdit && (
@@ -204,6 +207,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									size="sm"
 									variant="outline"
 									autoFocus={lastEditor?.type === "create"}
+									disabled={isAtLimit}
 									onClick={() => openEditor({ type: "create" })}
 								>
 									<PlusIcon />
@@ -360,14 +364,12 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
 	}
-	// The form opens with the first loaded values. A background refetch must
-	// not reinitialize it and discard unsaved edits.
+	// Keep the first loaded values so a refetch cannot reset unsaved edits.
 	const [openedValues, setOpenedValues] = useState<SkillFormValues>();
 	if (loaded?.ok && !openedValues) {
 		setOpenedValues(loaded.values);
 	}
-	// Only the detail query learns that someone else deleted the skill, so
-	// leave the stale editor and refresh the list when it reports that.
+	// Only the detail query learns that someone else deleted the skill.
 	useEffect(() => {
 		if (!isSkillDeleted) {
 			return;
