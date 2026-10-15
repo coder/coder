@@ -155,6 +155,33 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
+	it("resets automatic use when a later SKILL.md import omits it", async () => {
+		const createSkill = vi
+			.spyOn(API.experimental, "createChatProjectSkill")
+			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
+		const { user } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		const importField = screen.getByRole("textbox", {
+			name: "Import from SKILL.md",
+		});
+		await user.click(importField);
+		await user.paste(
+			"---\nname: drafter\ndisable-model-invocation: true\n---\nDraft it.",
+		);
+		await user.click(importField);
+		await user.paste("---\nname: planner\n---\nPlan the work.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(createSkill).toHaveBeenCalledWith(
+				orgId,
+				projectId,
+				expect.objectContaining({ model_invocable: true }),
+			),
+		);
+	});
+
 	it("edits a skill's body and keeps its name", async () => {
 		const updateSkill = vi
 			.spyOn(API.experimental, "updateChatProjectSkill")

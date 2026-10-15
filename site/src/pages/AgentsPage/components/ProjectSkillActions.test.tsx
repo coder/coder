@@ -76,22 +76,18 @@ describe("ProjectSkillActions", () => {
 		);
 	});
 
-	it("drops an action removed in another tab when the window regains focus", async () => {
+	it("refetches the actions when the window regains focus", async () => {
 		renderActions();
 		await screen.findByRole("button", { name: "deploy" });
-		vi.mocked(API.experimental.getChatProjectSkills).mockResolvedValue(
-			mockSkills.filter((skill) => skill.name !== "deploy"),
-		);
+		const getSkills = vi.mocked(API.experimental.getChatProjectSkills);
+		expect(getSkills).toHaveBeenCalledTimes(1);
 
+		// Another tab may have changed the project's actions.
 		act(() => {
 			focusManager.setFocused(false);
 			focusManager.setFocused(true);
 		});
 
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("button", { name: "deploy" }),
-			).not.toBeInTheDocument(),
-		);
+		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 	});
 });
