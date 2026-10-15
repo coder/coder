@@ -3304,7 +3304,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text])))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text, 'script_order_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3491,12 +3491,20 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_external_agent boolean
+    has_external_agent boolean,
+    script_order_data_source_count integer DEFAULT 0 NOT NULL,
+    script_order_rule_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT template_versions_script_order_data_source_count_check CHECK ((script_order_data_source_count >= 0)),
+    CONSTRAINT template_versions_script_order_rule_count_check CHECK ((script_order_rule_count >= 0))
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
+
+COMMENT ON COLUMN template_versions.script_order_data_source_count IS 'Number of coder_script_order data source declarations in the template configuration.';
+
+COMMENT ON COLUMN template_versions.script_order_rule_count IS 'Number of rule blocks across coder_script_order declarations in the template configuration.';
 
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
@@ -3513,6 +3521,8 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     template_versions.has_external_agent,
+    template_versions.script_order_data_source_count,
+    template_versions.script_order_rule_count,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name

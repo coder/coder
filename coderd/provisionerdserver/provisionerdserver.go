@@ -1874,6 +1874,15 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("template version ID is expected: %w", err)
 	}
 
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
 	// Execute all database operations in a transaction
 	return s.Database.InTx(func(db database.Store) error {
 		now := s.timeNow()
@@ -2048,6 +2057,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
+		}
+		if orderUsageErr == nil {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
 		}
 
 		// Process terraform values

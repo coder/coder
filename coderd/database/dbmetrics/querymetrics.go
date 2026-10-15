@@ -3168,6 +3168,14 @@ func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (st
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetScriptOrderTelemetrySummary(ctx)
+	m.queryLatencies.WithLabelValues("GetScriptOrderTelemetrySummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetScriptOrderTelemetrySummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
@@ -6118,6 +6126,14 @@ func (m queryMetricsStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context
 	r0 := m.s.UpdateTemplateVersionFlagsByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionFlagsByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionFlagsByJobID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionScriptOrderUsageByJobID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionScriptOrderUsageByJobID").Inc()
 	return r0
 }
 
