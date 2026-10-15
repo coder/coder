@@ -1,16 +1,17 @@
 ---
-title: "Reference architecture: up to 2,000 users"
+title: "Reference architecture: up to 6,000 concurrent workspaces"
 ---
 
-In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.
-This setup is well-suited for mid-sized companies experiencing growth or for universities seeking to accommodate their expanding user populations.
+This architecture supports up to 6,000 concurrent running workspaces, which is about 10,000 users.
+It targets enterprises with a very large global workforce of technical professionals, or applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./3k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./10000-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 2000  | 1200                          | 120               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                         6,000 |                         600 |          10,000 |
 
 **Observability**:
 Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
@@ -22,7 +23,7 @@ This allows operators to respond quickly to incidents and continuously improve t
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 4    | 12&nbsp;GB | 10       |
 
 **Notes**:
 
@@ -39,7 +40,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 4    | 12&nbsp;GB | 10       |
 
 **Notes**:
 
@@ -53,7 +54,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 120      |
+| 1    | 1&nbsp;GB | 600      |
 
 **Notes**:
 
@@ -68,9 +69,9 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 ### Database
 
-| vCPU | Memory     | Replicas |
-|------|------------|----------|
-| 16   | 60&nbsp;GB | 1        |
+| vCPU | Memory      | Replicas |
+|------|-------------|----------|
+| 64   | 240&nbsp;GB | 1        |
 
 **Notes**:
 

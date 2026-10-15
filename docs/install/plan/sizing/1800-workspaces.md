@@ -1,15 +1,17 @@
 ---
-title: "Reference architecture: up to 10,000 users"
+title: "Reference architecture: up to 1,800 concurrent workspaces"
 ---
 
-The 10,000 users architecture targets enterprises with an extremely large global workforce of technical professionals or applications requiring lots of simultaneous workspaces (for example, Agentic AI).
+This architecture supports up to 1,800 concurrent running workspaces, which is about 3,000 users.
+It targets large enterprises, possibly with both on-premises and cloud deployments.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources.
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./6000-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 10000 | 6000                          | 600               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                         1,800 |                         180 |           3,000 |
 
 **Observability**:
 Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
@@ -21,7 +23,7 @@ This allows operators to respond quickly to incidents and continuously improve t
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 10       |
+| 4    | 12&nbsp;GB | 4        |
 
 **Notes**:
 
@@ -38,7 +40,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 10       |
+| 4    | 12&nbsp;GB | 4        |
 
 **Notes**:
 
@@ -52,7 +54,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 600      |
+| 1    | 1&nbsp;GB | 180      |
 
 **Notes**:
 
@@ -69,7 +71,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory      | Replicas |
 |------|-------------|----------|
-| 64   | 240&nbsp;GB | 1        |
+| 32   | 120&nbsp;GB | 1        |
 
 **Notes**:
 

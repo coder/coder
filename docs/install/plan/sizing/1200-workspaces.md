@@ -1,41 +1,60 @@
 ---
-title: "Reference architecture: up to 1,000 users"
+title: "Reference architecture: up to 1,200 concurrent workspaces"
 ---
 
-The 1,000 users architecture is designed to cover a wide range of workflows.
-Examples of subjects that might utilize this architecture include medium-sized tech startups, educational units, or small to mid-sized enterprises.
+This architecture supports up to 1,200 concurrent running workspaces, which is about 2,000 users.
+It suits mid-sized companies with a growing user base, or universities expanding access to more students.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./2k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./1800-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 1000  | 600                           | 60                |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                         1,200 |                         120 |           2,000 |
+
+**Observability**:
+Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations
 
 ### Coderd
 
-| vCPU | Memory    | Replicas |
-|------|-----------|----------|
-| 2    | 8&nbsp;GB | 3        |
+| vCPU | Memory     | Replicas |
+|------|------------|----------|
+| 4    | 12&nbsp;GB | 3        |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `2000m`
-  - Set Memory request and limit to `8Gi`
+  - Set CPU request and limit to `4000m`
+  - Set Memory request and limit to `12Gi`
 - `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
-- For small deployments (ca.
-  100 users, 10 concurrent workspace builds), it is acceptable to deploy provisioners on `coderd` replicas.
 - `coderd` instances should be deployed in the same region as the database.
+
+### Workspace Proxies
+
+If you choose to deploy workspaces in multiple geographic regions, provision [Workspace Proxies](../../../admin/networking/workspace-proxies.md) in each region.
+
+| vCPU | Memory     | Replicas |
+|------|------------|----------|
+| 4    | 12&nbsp;GB | 3        |
+
+**Notes**:
+
+- "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
+- If deploying on Kubernetes:
+  - Set CPU request and limit to `4000m`
+  - Set Memory request and limit to `12Gi`
+- Workspace Proxies do not typically benefit from high performance disks like SSDs.
 
 ### Provisioners
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 60       |
+| 1    | 1&nbsp;GB | 120      |
 
 **Notes**:
 
@@ -45,15 +64,14 @@ If your needs exceed any of these limits, consider increasing deployment resourc
   - Set Memory request and limit to `1Gi`
 - If deploying on virtual machines, stack up to 30 provisioners per machine with a commensurate amount of memory and CPU.
 - Provisioners benefit from high performance disks like SSDs.
-- For small deployments (ca.
-  100 users, 10 concurrent workspace builds), it is acceptable to deploy provisioners on `coderd` nodes.
+- [Do not run provisioners on `coderd` nodes](../../operate/provisioners/index.md#disable-built-in-provisioners) at this scale.
 - If deploying workspaces to multiple clouds or multiple Kubernetes clusters, divide the provisioner replicas among the clouds or clusters according to expected usage.
 
 ### Database
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 8    | 30&nbsp;GB | 1        |
+| 16   | 60&nbsp;GB | 1        |
 
 **Notes**:
 

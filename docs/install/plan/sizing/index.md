@@ -26,11 +26,11 @@ It assumes a basic understanding of cloud/on-premise computing, containerization
 
 ## CVA Guidance
 
-| CVA provides:                                  | CVA does not provide:                                                                    |
-|------------------------------------------------|------------------------------------------------------------------------------------------|
-| Single and multi-region K8s deployment options | Prescribing OS, or cloud vs. on-premise                                                  |
-| Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
-| Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
+| CVA provides:                                                  | CVA does not provide:                                                                    |
+|----------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Single and multi-region K8s deployment options                 | Prescribing OS, or cloud vs. on-premise                                                  |
+| Reference architectures for up to 20,000 concurrent workspaces | An approval of your architecture; the CVA solely provides recommendations and guidelines |
+| Best practices for building a Coder deployment                 | Recommendations for every possible deployment scenario                                   |
 
 For higher level design principles and architectural best practices, see Coder's [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
 
@@ -177,15 +177,28 @@ resource "kubernetes_deployment" "coder" {
 
 #### Node sizing
 
-For sizing recommendations, see the below reference architectures:
+Each reference architecture states 3 limits.
+Choose the smallest architecture where your deployment stays within all 3:
 
-- [Up to 1,000 users](./1k-users.md)
+- **Concurrent running workspaces**: the number of workspaces running at the same time.
+  Coder sizes each architecture by this limit.
+- **Concurrent workspace builds**: the number of workspace builds that can run at the same time.
+  Each external provisioner runs one build at a time, so this limit matches the number of provisioners in the architecture.
+- **Estimated users**: a rough user count, which assumes about 60% of users have a running workspace at the same time.
+  If you know your number of concurrent running workspaces, size by that limit instead.
 
-- [Up to 2,000 users](./2k-users.md)
+Coder derives these architectures from [scale tests](../../validate/scale-testing.md) that run each load scenario with a safety margin.
+Your actual load depends on how your users work, for example whether they rely on prebuilds or create workspaces from automated systems.
+Monitor CPU and memory usage of the control plane and the database, and adjust resources to match.
 
-- [Up to 3,000 users](./3k-users.md)
+For sizing recommendations, refer to the following reference architectures:
 
-- [Up to 10,000 users](./10k-users.md)
+- [Up to 600 concurrent workspaces](./600-workspaces.md)
+- [Up to 1,200 concurrent workspaces](./1200-workspaces.md)
+- [Up to 1,800 concurrent workspaces](./1800-workspaces.md)
+- [Up to 6,000 concurrent workspaces](./6000-workspaces.md)
+- [Up to 10,000 concurrent workspaces](./10000-workspaces.md)
+- [Up to 20,000 concurrent workspaces](./20000-workspaces.md)
 
 ### AWS Instance Types
 
