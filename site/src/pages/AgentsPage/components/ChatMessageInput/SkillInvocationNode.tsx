@@ -105,6 +105,7 @@ const SkillChipWrapper: React.FC<{
 		editor.update(() => {
 			$getNodeByKey(nodeKey)?.remove();
 		});
+		editor.getRootElement()?.focus({ preventScroll: true });
 	};
 	return (
 		<EditableSkillChip

@@ -444,25 +444,32 @@ describe("ChatMessageInput", () => {
 			});
 		});
 
-		it("removes a chip with its remove button", async () => {
+		it("removes a chip from the keyboard without sending the message", async () => {
 			const user = userEvent.setup();
 			const inputRef = createRef<ChatMessageInputRef>();
+			const props = requiredProps();
 			renderWithQueryClient(
 				<ChatMessageInput
-					{...requiredProps()}
+					{...props}
 					ref={inputRef}
 					aria-label="Chat message input"
 				/>,
 			);
 			await waitFor(() => expect(inputRef.current).not.toBeNull());
 			act(() => inputRef.current?.insertSkill("project", "triage"));
+			await screen.findByRole("button", {
+				name: "Remove skill /project/triage",
+			});
 
-			await user.click(
-				await screen.findByRole("button", {
-					name: "Remove skill /project/triage",
-				}),
-			);
+			await user.tab();
+			await user.keyboard("{Enter}");
 			expect(getRequestContent(inputRef)).toEqual([]);
+			expect(props.onEnter).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(
+					screen.getByRole("textbox", { name: "Chat message input" }),
+				).toHaveFocus(),
+			);
 		});
 
 		it("copies skill chips as aliases and pastes each available skill once", async () => {
