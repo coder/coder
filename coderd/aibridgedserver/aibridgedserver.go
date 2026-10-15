@@ -442,10 +442,6 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CostMicros:            cost.costMicros,
 			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
 			PricedModel:           cost.pricedModel,
-			PriceKind:             cost.priceKind,
-			PriceOrganizationID:   cost.priceOrganizationID,
-			PriceProviderID:       cost.priceProviderID,
-			PriceProvider:         cost.priceProvider,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
