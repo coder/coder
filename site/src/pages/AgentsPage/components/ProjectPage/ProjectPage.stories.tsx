@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
 import { userKey } from "#/api/queries/users";
@@ -10,6 +11,7 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { MockSkills } from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -64,6 +66,13 @@ const meta: Meta<typeof ProjectPage> = {
 				key: chatProjectInstructionsKey(MockChatProject.id),
 				data: MockChatProjectInstructions,
 			},
+			{
+				key: chatProjectSkills(
+					MockChatProject.organization_id,
+					MockChatProject.id,
+				).queryKey,
+				data: MockSkills,
+			},
 		],
 	},
 };
@@ -90,6 +99,13 @@ export const Mobile: Story = {
 				key: chatProjectInstructionsKey(MockChatProject.id),
 				data: MockChatProjectInstructions,
 			},
+			{
+				key: chatProjectSkills(
+					MockChatProject.organization_id,
+					MockChatProject.id,
+				).queryKey,
+				data: MockSkills,
+			},
 		],
 	},
 };
@@ -104,6 +120,13 @@ export const OwnedByAnotherUser: Story = {
 			{
 				key: chatProjectInstructionsKey(MockChatProject.id),
 				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkills(
+					MockChatProject.organization_id,
+					MockChatProject.id,
+				).queryKey,
+				data: MockSkills,
 			},
 			{ key: userKey(MockUserMember.id), data: MockUserMember },
 		],

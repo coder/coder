@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
@@ -11,12 +13,13 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
+import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and edits its instructions. */
+/** Loads a project's details and edits its instructions and skills. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -50,6 +53,24 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 			: "Unknown"
 		: undefined;
 	const instructionsQuery = useQuery(chatProjectInstructions(project));
+	const skillsQuery = useQuery(
+		chatProjectSkills(project.organization_id, project.id),
+	);
+	const permissionsQuery = useQuery(
+		checkAuthorization({
+			checks: {
+				updateProject: {
+					object: {
+						resource_type: "chat_project",
+						owner_id: project.owner_id,
+						organization_id: project.organization_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+	);
+	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -89,6 +110,9 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				ownerLabel={ownerLabel}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
+				skillCount={skillsQuery.data?.length}
+				skillsError={skillsQuery.error}
+				onOpenSkills={() => setIsSkillsDialogOpen(true)}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
@@ -128,6 +152,12 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 						}),
 					)
 				}
+			/>
+			<ProjectSkillsDialog
+				project={project}
+				open={isSkillsDialogOpen}
+				onOpenChange={setIsSkillsDialogOpen}
+				canEdit={permissionsQuery.data?.updateProject ?? false}
 			/>
 		</>
 	);

@@ -36,7 +36,7 @@ type DialogState =
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
-const skillError = (
+export const skillError = (
 	error: unknown,
 	fallback: string,
 	lowerNoun: string,
@@ -63,7 +63,7 @@ const skillError = (
 	};
 };
 
-const downloadSkillFile = async (
+export const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {

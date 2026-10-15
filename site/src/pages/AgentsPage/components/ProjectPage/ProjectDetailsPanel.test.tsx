@@ -21,6 +21,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkills } from "#/testHelpers/skills";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 
@@ -469,5 +470,48 @@ describe("ProjectDetailsPanel", () => {
 
 		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
 		await screen.findByRole("button", { name: "Edit instructions" });
+	});
+
+	it("opens the project skills from the Skills row with the user's access", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
+			MockSkills.slice(0, 2),
+		);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ updateProject: true });
+		const getSkill = vi
+			.spyOn(API.experimental, "getChatProjectSkill")
+			.mockResolvedValue({
+				...MockSkills[0],
+				content: "---\nname: reviewer\n---\nReview the diff.\n",
+			});
+		const { user } = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "2 skills" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+
+		expect(checkAuthorization).toHaveBeenCalledWith({
+			checks: {
+				updateProject: {
+					object: {
+						resource_type: "chat_project",
+						owner_id: MockChatProject.owner_id,
+						organization_id: MockChatProject.organization_id,
+					},
+					action: "update",
+				},
+			},
+		});
+		await waitFor(() =>
+			expect(getSkill).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				"reviewer",
+			),
+		);
 	});
 });

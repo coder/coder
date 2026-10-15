@@ -22,6 +22,9 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	args: {
 		ownerLabel: "You",
 		createdAt: MockChatProject.created_at,
+		skillCount: 3,
+		skillsError: undefined,
+		onOpenSkills: fn(),
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),
@@ -72,6 +75,14 @@ export const CreatedDateFocused: Story = {
 	},
 };
 
+export const OneSkill: Story = {
+	args: { skillCount: 1 },
+};
+
+export const NoSkills: Story = {
+	args: { skillCount: 0 },
+};
+
 export const Unset: Story = {
 	args: { instructions: MockUnsetChatProjectInstructions },
 };
@@ -91,12 +102,14 @@ export const LongInstructions: Story = {
 };
 
 export const Loading: Story = {
-	args: { instructions: undefined },
+	args: { instructions: undefined, skillCount: undefined },
 };
 
 export const LoadError: Story = {
 	args: {
 		instructions: undefined,
+		skillCount: undefined,
+		skillsError: mockApiError({ message: "Failed to list project skills." }),
 		error: mockApiError({
 			message: "Failed to get chat project instructions.",
 		}),

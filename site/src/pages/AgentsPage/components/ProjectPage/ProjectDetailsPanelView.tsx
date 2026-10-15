@@ -17,6 +17,10 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/** `undefined` until the project's skills load. */
+	readonly skillCount: number | undefined;
+	readonly skillsError: unknown;
+	readonly onOpenSkills: () => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -32,6 +36,9 @@ export const ProjectDetailsPanelView: React.FC<
 	ownerLabel,
 	createdAt,
 	organizationLabel,
+	skillCount,
+	skillsError,
+	onOpenSkills,
 	instructions,
 	error,
 	onRetry,
@@ -49,6 +56,13 @@ export const ProjectDetailsPanelView: React.FC<
 			}
 		/>
 	);
+	let skillsLabel = "Unknown";
+	if (skillCount !== undefined) {
+		skillsLabel =
+			skillCount === 0
+				? "None"
+				: `${skillCount} ${skillCount === 1 ? "skill" : "skills"}`;
+	}
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
@@ -87,6 +101,22 @@ export const ProjectDetailsPanelView: React.FC<
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">{organizationLabel}</DetailRow>
 					)}
+					<DetailRow label="Skills">
+						{skillCount === undefined && !skillsError ? (
+							<>
+								<Skeleton className="my-1 ml-auto h-3 w-12" />
+								<span className="sr-only">Loading</span>
+							</>
+						) : (
+							<button
+								type="button"
+								className="cursor-pointer rounded-sm border-0 bg-transparent p-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								onClick={onOpenSkills}
+							>
+								{skillsLabel}
+							</button>
+						)}
+					</DetailRow>
 				</dl>
 				<section
 					aria-labelledby={instructionsHeadingId}

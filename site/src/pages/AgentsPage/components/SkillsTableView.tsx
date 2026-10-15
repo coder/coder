@@ -211,7 +211,7 @@ const EditSkillDialog: React.FC<
 	);
 };
 
-const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
+export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	state,
 	onCloseAutoFocus,
 }) => {
