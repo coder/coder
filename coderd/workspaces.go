@@ -604,7 +604,7 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
+	template, err := api.preflightWorkspaceCreate(ctx, initiatorID, owner, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
@@ -987,7 +987,7 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 // the audit request, so callers retain control over audit-organization
 // assignment and external-auth ordering. Both createWorkspace and tasksCreate
 // call it so these authorization gates cannot diverge.
-func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+func (api *API) preflightWorkspaceCreate(ctx context.Context, initiatorID uuid.UUID, owner workspaceOwner, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
 	template, err := requestTemplate(ctx, req, api.Database)
 	if err != nil {
 		return database.Template{}, err
@@ -996,9 +996,17 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 	// This is a premature auth check to avoid doing unnecessary work if the
 	// user doesn't have permission to create a workspace.
 	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())) {
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
 		// If this check fails, return a proper unauthorized error to the user
 		// to indicate what is going on.
+		if initiatorID != owner.ID {
+			return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "You can't create workspaces for other users in this organization.",
+				Detail: fmt.Sprintf("Creating a workspace for %q needs permission to create workspaces owned by other users in organization %q, "+
+					"which your account doesn't have. Use an account with that permission (for example an organization admin), "+
+					"or create the workspace as %q.", owner.Username, template.OrganizationName, owner.Username),
+			})
+		}
 		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: "Unauthorized to create workspace.",
 			Detail: "You are unable to create a workspace in this organization. " +
@@ -1012,6 +1020,14 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 	// `db.InsertWorkspace`. Doing this up front can save some work below if the
 	// user doesn't have permission.
 	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
+		if initiatorID != owner.ID {
+			return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("You can't use the template %q to create workspaces for other users.", template.Name),
+				Detail: fmt.Sprintf("Creating a workspace for %q from this template needs \"use\" access to template %q, "+
+					"which your account doesn't have. Ask a template admin to grant it, or use an account that has it.",
+					owner.Username, template.Name),
+			})
+		}
 		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
 			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
