@@ -102,10 +102,11 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 					codersdk.ConnectionDirectionAgentToClient.SlogField(),
 					codersdk.DisconnectReasonServerShutdown.SlogField(),
 					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+					codersdk.DisconnectInitiatorAgent.SlogField(),
 				)
 				connReporter.Disconnect(proto.DisconnectEvent{
 					Code:   1,
-					Reason: "server shut down",
+					Reason: string(codersdk.DisconnectReasonServerShutdown),
 				})
 				_ = conn.Close()
 			}
@@ -118,10 +119,14 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			var reason codersdk.DisconnectReason
 			var code int
 			var detail string
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			switch {
-			case err != nil && ctx.Err() != nil:
+			case ctx.Err() != nil:
+				// Shutdown closes the PTY and its attached connections, so
+				// the handler can return without an error.
 				reason = codersdk.DisconnectReasonServerShutdown
 				code = 1
+				fields = append(fields, codersdk.DisconnectInitiatorAgent.SlogField())
 			case err != nil:
 				reason = codersdk.DisconnectReasonNetworkError
 				detail = err.Error()
@@ -129,13 +134,12 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			default:
 				reason = codersdk.DisconnectReasonGraceful
 			}
-			clog.Info(ctx, "reconnecting pty closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
+			clog.Info(ctx, "reconnecting pty closed", append(fields,
 				reason.SlogField(),
 				reason.SlogExpectedField(),
 				codersdk.SlogDisconnectDetail(detail),
 				slog.F("exit_code", code),
-			)
+			)...)
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:   code,
 				Reason: string(reason),

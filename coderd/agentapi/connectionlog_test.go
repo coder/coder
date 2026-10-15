@@ -219,6 +219,14 @@ func TestConnectionLog(t *testing.T) {
 			build: &database.WorkspaceBuild{ID: uuid.New(), JobID: uuid.New(), Transition: database.WorkspaceTransitionStop}, jobStatus: database.ProvisionerJobStatusRunning,
 			wantReason: string(codersdk.DisconnectReasonWorkspaceStopped),
 		},
+		testCase{
+			name: "ReconnectingPTYShutdown", id: uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(), typ: agentproto.Connection_RECONNECTING_PTY.Enum(), method: database.ConnectionLogMethodReconnectingPTY,
+			time: dbtime.Now(), reason: string(codersdk.DisconnectReasonServerShutdown),
+			clientSessionID: "0123456789abcdef0123456789abcdef",
+			build:           &database.WorkspaceBuild{ID: uuid.New(), JobID: uuid.New(), Transition: database.WorkspaceTransitionDelete}, jobStatus: database.ProvisionerJobStatusSucceeded,
+			wantReason: string(codersdk.DisconnectReasonWorkspaceStopped),
+		},
 	)
 
 	for _, tt := range tests {
