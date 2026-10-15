@@ -49,6 +49,38 @@ test("correct numbering and unrelated PRs explicitly succeed", () => {
   assert.deepEqual(rules.plan(base, main, { ...base, "README.md": { sha: "new" } }).errors, []);
 });
 
+test("a PR that repairs a broken main passes, while other migration PRs still fail", () => {
+  const broken = { ...base, ...pair(2, "b"), ...pair(2, "c") };
+  const fixed = { ...base, ...pair(2, "b"), ...pair(3, "c") };
+  assert.deepEqual(rules.plan(broken, broken, fixed).errors, []);
+  const unrelated = rules.plan(broken, broken, { ...broken, ...pair(3, "d") });
+  assert.match(unrelated.errors.join("\n"), /Duplicate migration number: 2/);
+  assert.equal(unrelated.repairable, false);
+});
+
+test("migration files changed on both main and the branch require an update", () => {
+  const [up, down] = Object.keys(base);
+  const conflict = (path) => "Migration file changed on both main and this branch; update the branch: " + path;
+  const modeOnMain = { ...base, [up]: { ...base[up], mode: "100755" } };
+  const edited = { ...base, [up]: { ...base[up], sha: "edited" } };
+  const result = rules.plan(base, modeOnMain, edited);
+  assert.ok(result.errors.includes(conflict(up)));
+  assert.equal(result.repairable, false);
+
+  const renamedOnMain = { ...pair(1, "renamed") };
+  const editedOld = rules.plan(base, renamedOnMain, { ...edited, ...added });
+  assert.ok(editedOld.errors.includes(conflict(up)));
+  assert.ok(!editedOld.errors.some((error) => error.includes("Duplicate")));
+  assert.equal(editedOld.repairable, false);
+  assert.ok(!editedOld.errors.includes(conflict(down)));
+
+  // Head renames pair 1 while main edits its old source.
+  const renamedOnHead = rules.plan(base, edited, pair(1, "renamed"));
+  assert.ok(renamedOnHead.errors.includes(conflict(up)));
+  assert.ok(!renamedOnHead.errors.some((error) => error.includes("Duplicate migration number")));
+  assert.equal(renamedOnHead.repairable, false);
+});
+
 test("missing partners, mismatched stems and duplicate newly added pairs refuse repair", () => {
   for (const broken of [
     { ...base, [Object.keys(added)[0]]: Object.values(added)[0] },

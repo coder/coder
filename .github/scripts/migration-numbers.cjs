@@ -70,7 +70,18 @@ function plan(base, main, head) {
   const changes = Object.keys({ ...base, ...head }).filter((path) =>
     base[path]?.sha !== head[path]?.sha || base[path]?.mode !== head[path]?.mode);
   if (!changes.some(relevant)) return { errors: [], renames: [], changes, affected: false };
-  const errors = [...validate(main).errors, ...validate(head).errors];
+  // Check the merge result so a PR that repairs a broken main can pass. A
+  // migration file changed on both sides is not merged by guessing.
+  const same = (a, b) => a?.sha === b?.sha && a?.mode === b?.mode;
+  const merged = { ...main };
+  const conflicts = [];
+  for (const path of changes) {
+    if (relevant(path) && !same(main[path], base[path]) && !same(main[path], head[path])) {
+      conflicts.push("Migration file changed on both main and this branch; update the branch: " + path);
+    } else if (head[path]) merged[path] = head[path];
+    else delete merged[path];
+  }
+  const errors = [];
   const unsafe = changes.filter((path) => relevant(path) && base[path]);
   // Historical edits can be legitimate; only automatic repair refuses them.
   const added = changes.filter((path) => !base[path] && migration(path)).map(migration);
@@ -82,6 +93,7 @@ function plan(base, main, head) {
     errors.push(error);
     safetyErrors.push(error);
   };
+  conflicts.forEach(refuseRepair);
   pairs.forEach((version, index) => {
     const expected = latest + index + 1;
     if (expected > 999999) {
@@ -117,7 +129,9 @@ function plan(base, main, head) {
   const newMigrations = Object.fromEntries(added.map((file) => [file.path, head[file.path]]));
   const structural = [...safetyErrors, ...validate(main).errors, ...validate(newMigrations).errors, ...validate(repaired).errors];
   if (added.some((file) => main[file.path]?.sha === head[file.path]?.sha)) unsafe.push("New migration already published on main.");
-  return { errors, renames, changes, affected: true, unsafe,
+  // Ordering errors come first because they name the expected number.
+  // With conflicts the merged tree is a guess, so its errors could be fabricated.
+  return { errors: conflicts.length ? errors : [...errors, ...validate(merged).errors], renames, changes, affected: true, unsafe,
     repairable: structural.length === 0 && unsafe.length === 0 && renames.length > 0 };
 }
 
