@@ -7160,15 +7160,18 @@ func TestWorkspaceSecretsAudit(t *testing.T) {
 		req.Secrets = []codersdk.WorkspaceSecretInput{
 			{Name: "api-key", Value: new("secret-value"), EnvName: "API_KEY"},
 			{Name: "cert", Value: new("secret-value"), FilePath: "/home/coder/.cert"},
+			{Name: "one-shot", Value: new("secret-value"), EnvName: "ONE_SHOT", Ephemeral: true},
 		}
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	require.ElementsMatch(t, []audit.WorkspaceBuildSecret{
 		{Name: "api-key", EnvName: "API_KEY", Source: database.WorkspaceSecretSourceRequest},
 		{Name: "cert", FilePath: "/home/coder/.cert", Source: database.WorkspaceSecretSourceRequest},
+		{Name: "one-shot", EnvName: "ONE_SHOT", Ephemeral: true, Source: database.WorkspaceSecretSourceRequest},
 	}, buildSecrets(t, workspace.LatestBuild.ID))
 
-	// The entry lists the build's full set. Removed secrets are absent.
+	// The entry lists the build's full set. Removed secrets are absent, and so
+	// is the ephemeral secret, which the previous entry marked as such.
 	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionStop,
 		Secrets: []codersdk.WorkspaceSecretInput{

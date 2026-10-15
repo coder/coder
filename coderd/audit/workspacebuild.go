@@ -11,12 +11,15 @@ import (
 )
 
 // WorkspaceBuildSecret is the metadata of a secret linked to a workspace
-// build. Secret values are never audited.
+// build. Secret values are never audited. Ephemeral is recorded so an
+// ephemeral secret missing from the next build's entry can be told apart
+// from one the request removed.
 type WorkspaceBuildSecret struct {
-	Name     string                         `json:"name"`
-	EnvName  string                         `json:"env_name"`
-	FilePath string                         `json:"file_path"`
-	Source   database.WorkspaceSecretSource `json:"source"`
+	Name      string                         `json:"name"`
+	EnvName   string                         `json:"env_name"`
+	FilePath  string                         `json:"file_path"`
+	Ephemeral bool                           `json:"ephemeral"`
+	Source    database.WorkspaceSecretSource `json:"source"`
 }
 
 // WorkspaceBuildFields returns the additional fields for a workspace build
@@ -42,10 +45,11 @@ func WorkspaceBuildFields(ctx context.Context, db database.Store, workspace data
 	}
 	for _, row := range rows {
 		fields.WorkspaceSecrets = append(fields.WorkspaceSecrets, WorkspaceBuildSecret{
-			Name:     row.Name,
-			EnvName:  row.EnvName,
-			FilePath: row.FilePath,
-			Source:   row.Source,
+			Name:      row.Name,
+			EnvName:   row.EnvName,
+			FilePath:  row.FilePath,
+			Ephemeral: row.Ephemeral,
+			Source:    row.Source,
 		})
 	}
 	return fields, nil
