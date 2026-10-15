@@ -6,6 +6,7 @@ import {
 	readOnlySkillAccess,
 	userSkillsScope,
 } from "../utils/skills";
+import type { SkillSubmitHandler } from "./SkillEditor";
 import {
 	type SkillEditorState,
 	SkillsTableView,
@@ -566,7 +567,9 @@ export const SubmitsCreateDialog: Story = {
 			initialValues: { name: "", description: "", body: "" },
 			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
-			onSubmit: fn(),
+			onSubmit: fn<SkillSubmitHandler>((_values, _content, onSettled) =>
+				onSettled(),
+			),
 			onClose: fn(),
 		},
 	},

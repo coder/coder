@@ -45,7 +45,7 @@ import {
 } from "../utils/skills";
 import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
-import type { SkillErrorDisplay } from "./SkillEditor";
+import type { SkillErrorDisplay, SkillSubmitHandler } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
 import { useDialogFocusReturn } from "./useDialogFocusReturn";
@@ -57,11 +57,7 @@ export type SkillEditorState =
 			existingNames: readonly string[];
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
-			onSubmit: (
-				values: SkillFormValues,
-				content: string,
-				onSettled: () => void,
-			) => void;
+			onSubmit: SkillSubmitHandler;
 			onClose: () => void;
 	  }
 	| {
@@ -75,11 +71,7 @@ export type SkillEditorState =
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
 			onRetry: () => void;
-			onSubmit: (
-				values: SkillFormValues,
-				content: string,
-				onSettled: () => void,
-			) => void;
+			onSubmit: SkillSubmitHandler;
 			onClose: () => void;
 	  };
 

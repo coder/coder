@@ -34,6 +34,16 @@ export type SkillErrorDisplay = {
 	detail?: string;
 };
 
+/**
+ * Starts a skill save. Call onSettled when the request finishes so the form
+ * accepts another submit, and report failures through submitError.
+ */
+export type SkillSubmitHandler = (
+	values: SkillFormValues,
+	content: string,
+	onSettled: () => void,
+) => void;
+
 type SkillEditorFormState = {
 	isBusy: boolean;
 	canSubmit: boolean;
@@ -53,15 +63,7 @@ type SkillEditorFormProps = {
 	header: (state: SkillEditorFormState) => React.ReactNode;
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
 	footer: (state: SkillEditorFormState) => React.ReactNode;
-	/**
-	 * Starts the save. Call onSettled when the request finishes so the form
-	 * accepts another submit, and report failures through submitError.
-	 */
-	onSubmit: (
-		values: SkillFormValues,
-		content: string,
-		onSettled: () => void,
-	) => void;
+	onSubmit: SkillSubmitHandler;
 };
 
 type SkillEditorProps = Omit<
