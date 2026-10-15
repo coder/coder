@@ -71,6 +71,24 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 	});
 
+	it("sends one create request when Save is double-clicked", async () => {
+		const createSkill = vi
+			.spyOn(API.experimental, "createChatProjectSkill")
+			.mockReturnValue(new Promise(() => {}));
+		const { user } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		await user.type(screen.getByRole("textbox", { name: "Name" }), "planner");
+		await user.type(
+			screen.getByRole("textbox", { name: "Body" }),
+			"Plan the work.",
+		);
+		await user.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(createSkill).toHaveBeenCalled());
+		expect(createSkill).toHaveBeenCalledTimes(1);
+	});
+
 	it("refreshes the skill list when the new name was just taken", async () => {
 		const conflict = mockApiError({
 			message: "A skill with that name already exists.",
@@ -198,7 +216,7 @@ describe("ProjectSkillsDialog", () => {
 	});
 
 	it("opens skills for viewing without update access", async () => {
-		const { user, getSkill } = renderDialog({ canEdit: false });
+		const { user, getSkill, onOpenChange } = renderDialog({ canEdit: false });
 
 		await openSkillMenu(user);
 		await user.click(screen.getByRole("menuitem", { name: "View" }));
@@ -206,5 +224,8 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() =>
 			expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer"),
 		);
+		await screen.findByRole("textbox", { name: "Body" });
+		await user.keyboard("{Escape}");
+		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 });

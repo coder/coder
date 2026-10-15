@@ -283,7 +283,7 @@ For site owners, organization admins, and auditors, the group lists every organi
 
 ### Turn a skill on or off
 
-Personal and organization skills each have an **Enabled** column in their skills table.
+Personal, organization, and project skills each have an **Enabled** column in their skills table.
 If you can edit the skill, the column shows a switch that turns the skill on or off.
 Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
 For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.

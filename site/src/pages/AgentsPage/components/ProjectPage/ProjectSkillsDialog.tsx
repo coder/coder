@@ -61,7 +61,7 @@ const editorSubmitError = (
 		error.response?.status === 404
 	) {
 		return {
-			message: `This ${NOUN} was deleted. Go back to see the current list.`,
+			message: "This skill was deleted. Go back to see the current list.",
 		};
 	}
 	const action = view.type === "create" ? "create" : "save";
@@ -143,8 +143,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
 				onEscapeKeyDown={(event) => {
-					// Back asks before it discards unsaved edits.
-					if (editor) {
+					// Back asks before it discards unsaved edits. Escape closes a
+					// read-only view, as clicking outside does.
+					if (editor && canEdit) {
 						event.preventDefault();
 						backButtonRef.current?.click();
 					}
@@ -174,14 +175,18 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									`Project skill ${editor.type === "create" ? "created" : "saved"}.`,
 								);
 							};
+							// The editor shows the failure through submitError.
 							if (editor.type === "create") {
-								createMutation.mutate({ content }, { onSuccess });
-							} else {
-								updateMutation.mutate(
+								return createMutation
+									.mutateAsync({ content }, { onSuccess })
+									.catch(() => {});
+							}
+							return updateMutation
+								.mutateAsync(
 									{ name: editor.name, req: { content } },
 									{ onSuccess },
-								);
-							}
+								)
+								.catch(() => {});
 						}}
 					/>
 				) : (
@@ -325,7 +330,7 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: (content: string) => void;
+	readonly onSubmit: (content: string) => Promise<unknown>;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
