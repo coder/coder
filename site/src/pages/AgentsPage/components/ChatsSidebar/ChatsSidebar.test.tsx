@@ -854,6 +854,15 @@ describe("ChatsSidebar move to project", () => {
 
 	afterEach(() => vi.restoreAllMocks());
 
+	const selectMoveTarget = async (user: MenuUser, target: string) => {
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await selectSubmenuItem(user, "Move to project", "menuitem", target);
+	};
+
 	it.each([
 		{ target: "Billing", projectId: mockBillingProject.id },
 		{ target: "Remove from project", projectId: NIL_UUID },
@@ -882,15 +891,7 @@ describe("ChatsSidebar move to project", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Expand Launch" }),
 		);
-		await user.click(
-			screen.getByRole("button", {
-				name: "Open actions for Fix invoice dates",
-			}),
-		);
-		await focusMenuItem(user, "menuitem", "Move to project");
-		await user.keyboard("{ArrowRight}");
-		await focusMenuItem(user, "menuitem", target);
-		await user.keyboard("{Enter}");
+		await selectMoveTarget(user, target);
 
 		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
@@ -915,15 +916,7 @@ describe("ChatsSidebar move to project", () => {
 			}),
 		]);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open actions for Fix invoice dates",
-			}),
-		);
-		await focusMenuItem(user, "menuitem", "Move to project");
-		await user.keyboard("{ArrowRight}");
-		await focusMenuItem(user, "menuitem", "Billing");
-		await user.keyboard("{Enter}");
+		await selectMoveTarget(user, "Billing");
 		// The menu closed on select, so the toast must outlive it.
 		refuseMove(mockApiError({ message: "Cannot move an active chat." }));
 
@@ -932,29 +925,31 @@ describe("ChatsSidebar move to project", () => {
 		);
 	});
 
-	it("turns the move off while a subagent runs", async () => {
+	it("sends no request for the current project", async () => {
 		const user = userEvent.setup();
-		const child = buildChat({
-			id: "c2",
-			parent_chat_id: "c1",
-			status: "running",
-		});
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
 		renderSidebar([
-			buildChat({ id: "c1", title: "Fix invoice dates", children: [child] }),
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
 		]);
 
 		await user.click(
-			await screen.findByRole("button", {
-				name: "Open actions for Fix invoice dates",
-			}),
+			await screen.findByRole("button", { name: "Expand Launch" }),
 		);
-		const trigger = await screen.findByRole("menuitem", {
-			name: "Move to project",
-		});
-		expect(trigger).toHaveAttribute("aria-disabled", "true");
-		expect(trigger).toHaveAccessibleDescription(
-			"Interrupt or wait for the agent to finish first.",
-		);
+		await selectMoveTarget(user, "Launch");
+		await selectMoveTarget(user, "Billing");
+
+		// A request from Launch would come first and fail the exact call list.
+		await waitFor(() => expect(update).toHaveBeenCalled());
+		expect(update.mock.calls).toEqual([
+			["c1", { project_id: mockBillingProject.id }],
+		]);
 	});
 });
 
@@ -1328,16 +1323,25 @@ const focusMenuItem = async (
 	expect(item).toHaveFocus();
 };
 
+const selectSubmenuItem = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	role: "menuitem" | "menuitemcheckbox",
+	name: string,
+) => {
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, role, name);
+	await user.keyboard("{Enter}");
+};
+
 const toggleSubmenuOption = async (
 	user: MenuUser,
 	submenu: string | RegExp,
 	name: string,
 ) => {
 	await openFilterMenu(user);
-	await focusMenuItem(user, "menuitem", submenu);
-	await user.keyboard("{ArrowRight}");
-	await focusMenuItem(user, "menuitemcheckbox", name);
-	await user.keyboard("{Enter}");
+	await selectSubmenuItem(user, submenu, "menuitemcheckbox", name);
 	await user.keyboard("{Escape}{Escape}");
 };
 

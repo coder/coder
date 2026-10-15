@@ -94,11 +94,14 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 				)}
 				{projects.map((project) => {
 					const isCurrent = project.id === chat.project_id;
+					// The current project stays enabled because Radix keeps disabled
+					// items out of keyboard focus, so keyboard and screen reader users
+					// could not reach it.
 					return (
 						<Item
 							key={project.id}
-							disabled={isCurrent}
-							onSelect={() => move(project.id)}
+							aria-current={isCurrent ? "true" : undefined}
+							onSelect={isCurrent ? undefined : () => move(project.id)}
 						>
 							<ChatProjectIcon project={project} />
 							<span className="truncate">{project.name}</span>

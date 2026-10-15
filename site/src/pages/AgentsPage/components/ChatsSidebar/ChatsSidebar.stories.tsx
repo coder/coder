@@ -3234,3 +3234,18 @@ export const ChildChatMenuHasNoMoveToProject: Story = {
 		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
+
+export const MoveToProjectOffWhileSubagentRuns: Story = {
+	args: IdleParentWithRunningChild.args,
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Idle parent agent",
+			}),
+		);
+	},
+};

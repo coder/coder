@@ -483,8 +483,12 @@ describe("ProjectChatsList", () => {
 		});
 		trigger.focus();
 		await user.keyboard("{ArrowRight}");
-		const target = await screen.findByRole("menuitem", { name: "Billing" });
-		await waitFor(() => expect(target).toHaveFocus());
+		const current = await screen.findByRole("menuitem", {
+			name: MockChatProject.name,
+		});
+		await waitFor(() => expect(current).toHaveFocus());
+		await user.keyboard("{ArrowDown}");
+		expect(screen.getByRole("menuitem", { name: "Billing" })).toHaveFocus();
 		await user.keyboard("{Enter}");
 
 		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
