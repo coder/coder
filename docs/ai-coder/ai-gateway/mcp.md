@@ -3,16 +3,14 @@ title: MCP
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
 <!-- -->
 
 > [!WARNING]
 > Injected MCP in AI Gateway is deprecated.
-> It remains functional and will not be removed until
-> the new implementation is released. Only critical
-> security-related patches will be made.
+> It remains functional and will not be removed until the new implementation is released.
+> Only critical security-related patches will be made.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
@@ -21,9 +19,11 @@ AI Gateway can connect to MCP servers and inject tools automatically, enabling y
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently.
 >
-> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
+> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) is the only supported transport currently.
+> In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
-AI Gateway makes use of [External Auth](../../admin/external-auth.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
+AI Gateway makes use of [External Auth](../../admin/external-auth.md) applications, as they define OAuth2 connections to upstream services.
+If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
@@ -54,14 +54,16 @@ The logic works as follows:
 
 In the above example, if you prompted your AI model with "list your available github tools by name", it would reply something like:
 
-> Certainly! Here are the GitHub-related tools that I have available:
+> Certainly!
+> Here are the GitHub-related tools that I have available:
 >
 > ```text
 > 1. bmcp_github_update_gist
 > 2. bmcp_github_list_gists
 > ```
 
-AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
+AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MCP").
+It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
 
 ## Tool Injection
 
@@ -79,8 +81,12 @@ If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER
 
 ### Troubleshooting
 
-- **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in this page.
+- **Too many tools**:
+  should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in this page.
 
-- **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
+- **Coder MCP tools not being injected**:
+  in order for Coder MCP tools to be injected, the internal MCP server needs to be active.
+  Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
 
-- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth.md) app; when this is the case, no attempt is made to connect to the MCP server.
+- **External Auth tools not being injected**:
+  this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth.md) app; when this is the case, no attempt is made to connect to the MCP server.

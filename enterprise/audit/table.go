@@ -517,6 +517,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"default_template_id":                ActionTrack,
 		"default_template_version_preset_id": ActionTrack,
 		"default_parameters":                 ActionTrack,
+		"user_acl":                           ActionTrack,
+		"group_acl":                          ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,

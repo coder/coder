@@ -545,6 +545,7 @@ const (
 	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
 	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
 	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -841,7 +842,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeOrganizationSkillRead,
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
-		ApiKeyScopeOrganizationSkillShare:
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare:
 		return true
 	}
 	return false
@@ -1107,6 +1109,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
 		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
 	}
 }
 
@@ -5411,6 +5414,10 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 	// Templates the project's chats may use. Empty means the chats cannot create or attach workspaces.
 	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	// Template recommended to the project's chats. Must be one of template_ids.

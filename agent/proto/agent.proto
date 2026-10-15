@@ -58,6 +58,30 @@ message WorkspaceAgentScript {
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
 	bytes id = 10;
+	// resource_address is the full Terraform address of the coder_script
+	// resource, for example "coder_script.install_tools". Empty for scripts
+	// that are not coder_script resources.
+	string resource_address = 11;
+	// dependencies lists the scripts this one waits for, in the order the
+	// provisioner resolved them. Empty when no rule orders this script.
+	repeated WorkspaceAgentScriptDependency dependencies = 12;
+}
+
+// WorkspaceAgentScriptDependency names a prerequisite script and the
+// outcome it must reach before the dependent script may run.
+message WorkspaceAgentScriptDependency {
+	// The agent rejects a Requirement value it does not know and fails its
+	// whole manifest, which keeps networking, SSH and apps down until the
+	// agent binary is replaced. So coderd must send a value only to agents
+	// whose reported API version is at or above the version that added it.
+	enum Requirement {
+		REQUIREMENT_UNSPECIFIED = 0;
+		REQUIREMENT_SUCCESS = 1;
+		REQUIREMENT_COMPLETION = 2;
+	}
+
+	string prerequisite_resource_address = 1;
+	Requirement requirement = 2;
 }
 
 message WorkspaceAgentMetadata {
