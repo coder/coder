@@ -3,11 +3,9 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-/** Keys the skill list of a chat project. */
 const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
-/** Keys one project skill, under its project's list key. */
 const chatProjectSkillKey = (projectId: string, name: string) =>
 	[...chatProjectSkillsKey(projectId), name] as const;
 
@@ -72,14 +70,22 @@ export const updateChatProjectSkill = (
 			req,
 		),
 	// Invalidation refetches only active queries, so write the PATCH response
-	// to keep a cached detail no editor observes from showing old content.
-	onSuccess: (skill: TypesGen.Skill, { name }: UpdateChatProjectSkillArgs) => {
-		queryClient.setQueryData(chatProjectSkillKey(projectId, name), skill);
+	// for a detail no editor observes, after cancelling an older GET.
+	onSuccess: async (
+		skill: TypesGen.Skill,
+		{ name }: UpdateChatProjectSkillArgs,
+	) => {
+		const queryKey = chatProjectSkillKey(projectId, name);
+		await queryClient.cancelQueries({ queryKey, exact: true });
+		queryClient.setQueryData(queryKey, skill);
 	},
 	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
 });
 
-/** Deletes a project skill by name. */
+/**
+ * Deletes a project skill. Success, or a 404 for an already deleted skill,
+ * evicts its cached details, and every outcome refreshes the list.
+ */
 export const deleteChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -88,14 +94,11 @@ export const deleteChatProjectSkill = (
 	mutationFn: (name: string) =>
 		API.experimental.deleteChatProjectSkill(organizationId, projectId, name),
 	onSuccess: (_data: unknown, name: string) => {
-		// A skill recreated with the same name must not show this content.
 		queryClient.removeQueries({
 			queryKey: chatProjectSkillKey(projectId, name),
 			exact: true,
 		});
 	},
-	// A 404 means someone else deleted it, so drop its details and refresh
-	// the list then too.
 	onSettled: (_data: unknown, error: unknown, name: string) => {
 		if (isAxiosError(error) && error.response?.status === 404) {
 			queryClient.removeQueries({
