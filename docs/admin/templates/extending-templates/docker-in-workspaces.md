@@ -420,6 +420,8 @@ On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
    ```
 
    Set `DOCKER_HOST=unix:///tmp/podman.sock` for Docker clients that expect a daemon socket.
+   Also set `DOCKER_BUILDKIT=0` so that `docker build` and `docker compose build` use the classic builder, because BuildKit can't start inside the workspace.
+   `docker buildx` commands still require BuildKit and aren't supported.
 
 With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
 When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec; without the device plugin, that limit keeps pods in `Pending`.

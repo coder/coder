@@ -48,6 +48,9 @@ resource "coder_agent" "main" {
 
   env = {
     DOCKER_HOST = "unix:///tmp/podman.sock"
+    # BuildKit can't start inside the workspace; use the classic builder
+    # for docker build and docker compose build.
+    DOCKER_BUILDKIT = "0"
   }
 }
 
