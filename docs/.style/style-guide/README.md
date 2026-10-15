@@ -22,8 +22,8 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 80 rules.
-Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
+The guide documents 81 rules.
+Automated tooling checks 10 of them, and 1 of those 10 doesn't run on published pages.
 The other 71 are yours to apply by reading, 72 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
@@ -38,6 +38,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
 | `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
 | `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
+| `Coder.AbbreviationFirstUse`       | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | Abbreviations with no earlier "Expanded Form (ABBR)" on the page      |
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
 | `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
 
@@ -57,11 +58,11 @@ The markdownlint and emdash checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 17    | 2            | 10      | 5                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 3            | 3       | 8                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 80    | 9            | 25      | 46                 |
+| **Total**                                                             | 81    | 10           | 25      | 46                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
