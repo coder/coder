@@ -395,10 +395,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 }) => {
 	const { user: currentUser } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const { projectId: chatProjectId } = useChatProjectId(
-		chat,
-		experiments.includes("chat-projects"),
-	);
+	const { projectId: chatProjectId, isResolved: isChatProjectResolved } =
+		useChatProjectId(chat, experiments.includes("chat-projects"));
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -851,6 +849,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
 			chatProjectId={chatProjectId}
+			isChatProjectPending={!isChatProjectResolved}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}

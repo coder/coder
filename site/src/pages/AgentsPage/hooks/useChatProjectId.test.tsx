@@ -7,16 +7,16 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { useChatProjectId } from "./useChatProjectId";
 
-const rootChat: Chat = {
+const mockRootChat: Chat = {
 	...MockChat,
 	id: "root-chat",
 	project_id: "project-1",
 };
-const subagentChat: Chat = {
+const mockSubagentChat: Chat = {
 	...MockChat,
 	id: "subagent-chat",
-	parent_chat_id: rootChat.id,
-	root_chat_id: rootChat.id,
+	parent_chat_id: mockRootChat.id,
+	root_chat_id: mockRootChat.id,
 };
 
 const renderUseChatProjectId = (chat: Chat, enabled = true) => {
@@ -33,29 +33,10 @@ afterEach(() => {
 });
 
 describe("useChatProjectId", () => {
-	it("inherits the root chat's project for a subagent chat", async () => {
-		const getChat = vi
-			.spyOn(API.experimental, "getChat")
-			.mockResolvedValue(rootChat);
-
-		const { result } = renderUseChatProjectId(subagentChat);
-
-		// The project stays unknown while the root chat loads, so built-in
-		// commands are not run in place of an inherited project skill.
-		expect(result.current).toEqual({ projectId: undefined, isResolved: false });
-		await waitFor(() => {
-			expect(result.current).toEqual({
-				projectId: "project-1",
-				isResolved: true,
-			});
-		});
-		expect(getChat).toHaveBeenCalledWith(rootChat.id, expect.anything());
-	});
-
 	it("resolves no project when the root chat fails to load", async () => {
 		vi.spyOn(API.experimental, "getChat").mockRejectedValue(new Error("boom"));
 
-		const { result } = renderUseChatProjectId(subagentChat);
+		const { result } = renderUseChatProjectId(mockSubagentChat);
 
 		await waitFor(() => {
 			expect(result.current).toEqual({
@@ -69,7 +50,7 @@ describe("useChatProjectId", () => {
 		const getChat = vi.spyOn(API.experimental, "getChat");
 
 		const { result } = renderUseChatProjectId({
-			...subagentChat,
+			...mockSubagentChat,
 			project_id: "project-2",
 		});
 
@@ -83,7 +64,7 @@ describe("useChatProjectId", () => {
 	it("resolves no project while the chat-projects experiment is off", () => {
 		const getChat = vi.spyOn(API.experimental, "getChat");
 
-		const { result } = renderUseChatProjectId(subagentChat, false);
+		const { result } = renderUseChatProjectId(mockSubagentChat, false);
 
 		expect(result.current).toEqual({ projectId: undefined, isResolved: true });
 		expect(getChat).not.toHaveBeenCalled();

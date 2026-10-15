@@ -559,6 +559,11 @@ type ChatMessageInputProps = Omit<
 	/** Project, in organizationId, whose skills the chat loads, if any. */
 	projectId?: string;
 	/**
+	 * True while the chat's project is still unknown, such as a subagent
+	 * chat whose root chat is loading. Project skills then stay loading.
+	 */
+	isProjectPending?: boolean;
+	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
 	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
@@ -636,8 +641,13 @@ const useStoredSkillSource = (
 	queryOptions: SkillsScope["list"],
 	{
 		hasSource,
+		isSourcePending = false,
 		isTriggerActive,
-	}: { hasSource: boolean; isTriggerActive: boolean },
+	}: {
+		hasSource: boolean;
+		isSourcePending?: boolean;
+		isTriggerActive: boolean;
+	},
 ) => {
 	const queryEnabled = isTriggerActive && hasSource;
 	const query = useQuery({
@@ -645,6 +655,14 @@ const useStoredSkillSource = (
 		enabled: queryEnabled,
 		staleTime: 60_000,
 	});
+	if (isSourcePending) {
+		return {
+			skills: undefined,
+			isResolvedEmpty: false,
+			isLoading: isTriggerActive,
+			isError: false,
+		};
+	}
 	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
 	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
@@ -672,6 +690,7 @@ const ChatMessageInput = ({
 	hasWorkspace,
 	organizationId,
 	projectId,
+	isProjectPending = false,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -723,7 +742,11 @@ const ChatMessageInput = ({
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
+		{
+			hasSource: hasProject,
+			isSourcePending: isProjectPending,
+			isTriggerActive: hasSkillsTrigger,
+		},
 	);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
@@ -1086,7 +1109,7 @@ const ChatMessageInput = ({
 					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					organizationSkillsEnabled={Boolean(organizationId)}
-					projectSkillsEnabled={hasProject}
+					projectSkillsEnabled={hasProject || isProjectPending}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
