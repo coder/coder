@@ -122,43 +122,52 @@ const SkillChipWrapper: React.FC<{
 	);
 };
 
-export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
+/** chatd rejects a message that invokes more skills than this. */
+export const MAX_SKILL_INVOCATIONS_PER_MESSAGE = 8;
+
+export const $getSkillInvocationNodes = (): SkillInvocationNode[] =>
 	$getRoot()
 		.getChildren()
-		.some(
-			(paragraph) =>
-				$isParagraphNode(paragraph) &&
-				paragraph
-					.getChildren()
-					.some(
-						(node) =>
-							node instanceof SkillInvocationNode &&
-							node.__source === source &&
-							node.__name === name,
-					),
+		.flatMap((paragraph) =>
+			$isParagraphNode(paragraph)
+				? paragraph
+						.getChildren()
+						.filter((node) => node instanceof SkillInvocationNode)
+				: [],
 		);
+
+export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
+	$getSkillInvocationNodes().some(
+		(node) => node.__source === source && node.__name === name,
+	);
 
 /**
  * Replaces the selection with a skill chip followed by a space. A skill
  * already in the editor is not added again; the selection is only removed.
+ * Returns false, changing nothing, when the editor already holds the
+ * maximum number of skills.
  */
 export function $insertSkillInvocation(
 	selection: RangeSelection,
 	source: SkillSource,
 	name: string,
-) {
+): boolean {
 	if ($hasSkillInvocationNode(source, name)) {
 		selection.removeText();
-		return;
+		return true;
+	}
+	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		return false;
 	}
 	const chip = new SkillInvocationNode(source, name);
 	selection.insertNodes([chip]);
 	const next = chip.getNextSibling();
 	if ($isTextNode(next) && /^\s/.test(next.getTextContent())) {
 		next.select(1, 1);
-		return;
+		return true;
 	}
 	chip.selectNext().insertText(" ");
+	return true;
 }
 
 /**

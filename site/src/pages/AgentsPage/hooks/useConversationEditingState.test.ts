@@ -35,6 +35,7 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 			getValue,
 			addFileReference: vi.fn(),
 			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
 			getContentParts: vi.fn(() => []),
 		},
 		setValue,
@@ -410,6 +411,7 @@ describe("useConversationEditingState", () => {
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
 			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
 			getContentParts: vi.fn().mockReturnValue([]),
 		}; // The hook exposes chatInputRef, so assign the mock to it.
 		result.current.chatInputRef.current = mockInputRef;

@@ -39,6 +39,7 @@ import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import {
 	resolveSkillTriggers,
@@ -67,7 +68,9 @@ import {
 	type PasteCommandEvent,
 } from "./pasteHelpers";
 import {
+	$getSkillInvocationNodes,
 	$insertSkillInvocation,
+	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
 } from "./SkillInvocationNode";
 import {
@@ -574,6 +577,8 @@ export type ChatMessageInputRef = {
 	 * editor is not added again.
 	 */
 	insertSkill: (source: SkillSource, name: string) => void;
+	/** Remove the skill chips whose source is one of `sources`. */
+	removeSkills: (sources: readonly SkillSource[]) => void;
 	/**
 	 * Walk the Lexical tree in document order and return interleaved
 	 * text and chip parts. Adjacent text nodes within the same
@@ -735,6 +740,12 @@ const useStoredSkillSource = (
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
 	};
+};
+
+const warnSkillLimit = () => {
+	toast.error(
+		`A message can include up to ${MAX_SKILL_INVOCATIONS_PER_MESSAGE} skills.`,
+	);
 };
 
 const ChatMessageInput = ({
@@ -941,8 +952,8 @@ const ChatMessageInput = ({
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
 			if (skill.source === "command") {
 				selection.insertText(skill.triggerText);
-			} else {
-				$insertSkillInvocation(selection, skill.source, skill.name);
+			} else if (!$insertSkillInvocation(selection, skill.source, skill.name)) {
+				warnSkillLimit();
 			}
 		});
 		setSkillsTrigger(null);
@@ -1059,16 +1070,28 @@ const ChatMessageInput = ({
 
 				editor.update(() => {
 					const selection = $getSelection();
-					$insertSkillInvocation(
+					const isInserted = $insertSkillInvocation(
 						$isRangeSelection(selection) ? selection : $getRoot().selectEnd(),
 						source,
 						name,
 					);
+					if (!isInserted) {
+						warnSkillLimit();
+					}
 				});
 				// Lexical restores the selection but, unlike AutoFocusPlugin,
 				// does not move DOM focus when the editor was blurred.
 				editor.focus(() => {
 					editor.getRootElement()?.focus({ preventScroll: true });
+				});
+			},
+			removeSkills: (sources: readonly SkillSource[]) => {
+				editorRef.current?.update(() => {
+					for (const node of $getSkillInvocationNodes()) {
+						if (sources.includes(node.__source)) {
+							node.remove();
+						}
+					}
 				});
 			},
 			getContentParts: () => {
