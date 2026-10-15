@@ -187,6 +187,8 @@ type AgentChatInputProps = {
 	chatProjectId?: string;
 	isChatProjectPending?: boolean;
 	isWorkspaceLoading?: boolean;
+	// Shortcuts rendered above the composer, such as project actions.
+	actionBar?: React.ReactNode;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -532,6 +534,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	chatProjectId,
 	isChatProjectPending,
 	isWorkspaceLoading,
+	actionBar,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -1347,6 +1350,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
+			{actionBar}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
