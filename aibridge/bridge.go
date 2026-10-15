@@ -29,9 +29,11 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/quartz"
 )
 
@@ -445,6 +447,11 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// functionality, but we still want to link our shutdown context to each
 	// request.
 	ctx := mergeContexts(r.Context(), b.inflightCtx)
+
+	if xurl.ContainsEncodedPath(r.URL) {
+		http.Error(rw, routing.InvalidPathMessage, http.StatusBadRequest)
+		return
+	}
 
 	// Enforce the request body size limit. MaxBytesReader counts bytes as
 	// they are read from the connection and fails when the limit is exceeded.
