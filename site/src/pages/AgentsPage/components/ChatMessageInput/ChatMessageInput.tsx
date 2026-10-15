@@ -634,9 +634,12 @@ const isSameSkillsTrigger = (
  */
 const useStoredSkillSource = (
 	queryOptions: SkillsScope["list"],
-	{ hasSource, isMenuOpen }: { hasSource: boolean; isMenuOpen: boolean },
+	{
+		hasSource,
+		isTriggerActive,
+	}: { hasSource: boolean; isTriggerActive: boolean },
 ) => {
-	const queryEnabled = isMenuOpen && hasSource;
+	const queryEnabled = isTriggerActive && hasSource;
 	const query = useQuery({
 		...queryOptions,
 		enabled: queryEnabled,
@@ -715,12 +718,12 @@ const ChatMessageInput = ({
 	});
 	const organizationSource = useStoredSkillSource(
 		organizationSkills(organizationId ?? ""),
-		{ hasSource: Boolean(organizationId), isMenuOpen: hasSkillsTrigger },
+		{ hasSource: Boolean(organizationId), isTriggerActive: hasSkillsTrigger },
 	);
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		{ hasSource: hasProject, isMenuOpen: hasSkillsTrigger },
+		{ hasSource: hasProject, isTriggerActive: hasSkillsTrigger },
 	);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(

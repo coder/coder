@@ -190,17 +190,17 @@ export const SkillsTriggerMenu = ({
 		skills: readonly SkillMenuItem[];
 		startIndex: number;
 	}[] = [];
-	let startIndex = commands.length;
+	let nextStartIndex = commands.length;
 	for (const [heading, skills] of [
 		["Personal skills", personalSkills],
 		["Organization skills", organizationSkills],
 		["Project skills", projectSkills],
 		["Workspace skills", workspaceSkills],
 	] as const) {
-		skillGroups.push({ heading, skills, startIndex });
-		startIndex += skills.length;
+		skillGroups.push({ heading, skills, startIndex: nextStartIndex });
+		nextStartIndex += skills.length;
 	}
-	const itemCount = startIndex;
+	const itemCount = nextStartIndex;
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
