@@ -516,4 +516,18 @@ describe("ProjectDetailsPanel", () => {
 			),
 		);
 	});
+
+	it("returns focus to the Skills row when the skills dialog closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const { user } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+
+		await user.click(skillsButton);
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(skillsButton).toHaveFocus());
+	});
 });

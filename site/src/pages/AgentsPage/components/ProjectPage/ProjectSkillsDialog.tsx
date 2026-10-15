@@ -54,6 +54,7 @@ type ProjectSkillsDialogProps = {
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly canEdit: boolean;
+	readonly onCloseAutoFocus: (event: Event) => void;
 };
 
 /** Lists, creates, edits, and deletes the skills of a chat project. */
@@ -62,6 +63,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	open,
 	onOpenChange,
 	canEdit,
+	onCloseAutoFocus,
 }) => {
 	const queryClient = useQueryClient();
 	const scope = projectSkillsScope(project.organization_id, project.id);
@@ -117,7 +119,10 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0">
+			<DialogContent
+				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				{editor ? (
 					<ProjectSkillEditorView
 						scope={scope}

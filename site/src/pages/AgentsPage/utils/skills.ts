@@ -42,6 +42,7 @@ export type SkillFormValues = {
 	body: string;
 };
 
+/** The fields of a skill that has not been written yet. */
 export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",

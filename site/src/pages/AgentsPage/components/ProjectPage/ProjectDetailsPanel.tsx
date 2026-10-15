@@ -11,6 +11,7 @@ import { user } from "#/api/queries/users";
 import type { ChatProject } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
@@ -71,6 +72,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		}),
 	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
+	const skillsFocusReturn = useDialogFocusReturn();
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -112,7 +114,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				organizationLabel={organizationLabel}
 				skillCount={skillsQuery.data?.length}
 				skillsError={skillsQuery.error}
-				onOpenSkills={() => setIsSkillsDialogOpen(true)}
+				onOpenSkills={(event) => {
+					skillsFocusReturn.rememberTrigger(event);
+					setIsSkillsDialogOpen(true);
+				}}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
@@ -158,6 +163,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				open={isSkillsDialogOpen}
 				onOpenChange={setIsSkillsDialogOpen}
 				canEdit={permissionsQuery.data?.updateProject ?? false}
+				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
 			/>
 		</>
 	);

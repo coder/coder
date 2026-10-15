@@ -32,6 +32,7 @@ const meta: Meta<typeof ProjectSkillsDialog> = {
 		project: MockChatProject,
 		open: true,
 		onOpenChange: fn(),
+		onCloseAutoFocus: fn(),
 		canEdit: true,
 	},
 	parameters: {
@@ -91,7 +92,27 @@ export const Edit: Story = {
 	},
 };
 
-/** The saved skill could not be loaded into the editor. */
+export const EditLoading: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectSkillsKey(MockChatProject.id), data: mockSkills },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkill").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Edit" }),
+		);
+	},
+};
+
 export const EditLoadError: Story = {
 	parameters: {
 		queries: [

@@ -30,6 +30,7 @@ const renderDialog = ({ canEdit = true } = {}) => {
 				open
 				onOpenChange={vi.fn()}
 				canEdit={canEdit}
+				onCloseAutoFocus={vi.fn()}
 			/>
 		</QueryClientProvider>,
 	);

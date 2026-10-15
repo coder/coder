@@ -2,9 +2,11 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
+/** Keys the skill list of a chat project. */
 export const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
+/** Keys one project skill, under its project's list key. */
 export const chatProjectSkillKey = (projectId: string, name: string) =>
 	[...chatProjectSkillsKey(projectId), name] as const;
 
@@ -29,8 +31,6 @@ export const chatProjectSkill = (
 		API.experimental.getChatProjectSkill(organizationId, projectId, name),
 });
 
-// The list key also feeds the chat composer's slash menu, so every mutation
-// invalidates it.
 const invalidateChatProjectSkills = (
 	queryClient: QueryClient,
 	projectId: string,

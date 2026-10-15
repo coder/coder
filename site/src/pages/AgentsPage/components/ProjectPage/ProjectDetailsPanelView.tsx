@@ -20,7 +20,7 @@ type ProjectDetailsPanelViewProps = {
 	/** `undefined` until the project's skills load. */
 	readonly skillCount: number | undefined;
 	readonly skillsError: unknown;
-	readonly onOpenSkills: () => void;
+	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
