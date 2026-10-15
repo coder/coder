@@ -1753,6 +1753,11 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
+
+	families, err := api.PrometheusRegistry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, families, 1, "coderd_mcp_tool_calls_total",
+		mcpserver.ClientOther, string(mcpserver.ToolCallResultAuthzError), toolsdk.ToolNameWorkspaceReadFile))
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {

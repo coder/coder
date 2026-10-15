@@ -270,7 +270,7 @@ func TestRegisterSDKTool(t *testing.T) {
 	}.Generic()
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
-	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{})
+	mcpserver.RegisterSDKTool(server, tool, toolsdk.Deps{}, nil)
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	serverSession, err := server.Connect(ctx, serverTransport, nil)

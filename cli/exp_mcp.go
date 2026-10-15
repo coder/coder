@@ -415,7 +415,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			continue
 		}
 
-		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps)
+		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps, nil)
 		registeredTools[tool.Name] = true
 	}
 

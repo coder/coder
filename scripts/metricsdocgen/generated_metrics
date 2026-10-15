@@ -475,6 +475,12 @@ coderd_license_warnings 0
 # HELP coderd_lifecycle_autobuild_execution_duration_seconds Duration of each autobuild execution.
 # TYPE coderd_lifecycle_autobuild_execution_duration_seconds histogram
 coderd_lifecycle_autobuild_execution_duration_seconds 0
+# HELP coderd_mcp_tool_call_duration_seconds Duration of MCP tool calls handled by the remote MCP server, by tool.
+# TYPE coderd_mcp_tool_call_duration_seconds histogram
+coderd_mcp_tool_call_duration_seconds{tool=""} 0
+# HELP coderd_mcp_tool_calls_total Total number of MCP tool calls handled by the remote MCP server, by tool, normalized client, and result.
+# TYPE coderd_mcp_tool_calls_total counter
+coderd_mcp_tool_calls_total{tool="",client="",result=""} 0
 # HELP coderd_notifications_dispatcher_send_seconds The time taken to dispatch notifications.
 # TYPE coderd_notifications_dispatcher_send_seconds histogram
 coderd_notifications_dispatcher_send_seconds{method=""} 0

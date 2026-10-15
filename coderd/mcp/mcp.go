@@ -6,6 +6,7 @@ import (
 	"errors"
 	stdslog "log/slog" //nolint:depguard // mcp.ServerOptions.Logger requires a *log/slog.Logger; slogHandler forwards to cdr.dev/slog.
 	"net/http"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/xerrors"
@@ -34,10 +35,24 @@ type Server struct {
 	mcpServer *mcp.Server
 
 	handler http.Handler
+
+	// toolCallRecorder observes completed tool calls. May be nil.
+	toolCallRecorder ToolCallRecorder
+}
+
+// ServerOption configures a Server.
+type ServerOption func(*Server)
+
+// WithToolCallRecorder reports every tool call handled by the server to
+// recorder.
+func WithToolCallRecorder(recorder ToolCallRecorder) ServerOption {
+	return func(s *Server) {
+		s.toolCallRecorder = recorder
+	}
 }
 
 // NewServer creates a new MCP HTTP server
-func NewServer(logger slog.Logger) (*Server, error) {
+func NewServer(logger slog.Logger, opts ...ServerOption) (*Server, error) {
 	mcpSrv := mcp.NewServer(&mcp.Implementation{
 		Name:    MCPServerName,
 		Version: buildinfo.Version(),
@@ -63,11 +78,15 @@ func NewServer(logger slog.Logger) (*Server, error) {
 		DisableLocalhostProtection: true,
 	})
 
-	return &Server{
+	srv := &Server{
 		Logger:    logger,
 		mcpServer: mcpSrv,
 		handler:   handler,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(srv)
+	}
+	return srv, nil
 }
 
 // ServeHTTP implements http.Handler interface
@@ -93,7 +112,7 @@ func (s *Server) RegisterTools(client *codersdk.Client, opts ...func(*toolsdk.De
 			continue
 		}
 
-		RegisterSDKTool(s.mcpServer, tool, toolDeps)
+		RegisterSDKTool(s.mcpServer, tool, toolDeps, s.toolCallRecorder)
 	}
 	return nil
 }
@@ -125,13 +144,14 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client, opts ...func(*too
 			continue
 		}
 
-		RegisterSDKTool(s.mcpServer, tool, toolDeps)
+		RegisterSDKTool(s.mcpServer, tool, toolDeps, s.toolCallRecorder)
 	}
 	return nil
 }
 
 // RegisterSDKTool registers a [toolsdk.GenericTool] with an MCP server.
-func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps) {
+// Each call is reported to recorder when it is non-nil.
+func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps, recorder ToolCallRecorder) {
 	if sdkTool.Schema.Properties == nil {
 		panic("developer error: schema properties cannot be nil")
 	}
@@ -158,7 +178,9 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			OpenWorldHint:   new(sdkTool.MCPAnnotations.OpenWorldHint),
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		start := time.Now()
 		result, err := sdkTool.Handler(ctx, tb, req.Params.Arguments)
+		recordToolCall(recorder, req, sdkTool.Name, start, err)
 		if err != nil {
 			var validationErr *toolsdk.ArgumentValidationError
 			if !errors.As(err, &validationErr) {

@@ -33,7 +33,7 @@ const (
 func (api *API) mcpHTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create MCP server instance for each request
-		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"))
+		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"), mcp.WithToolCallRecorder(api.mcpToolMetrics))
 		if err != nil {
 			api.Logger.Error(r.Context(), "failed to create MCP server", slog.Error(err))
 			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
@@ -59,7 +59,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 		// commands through MCP tools.
 		toolOpt := toolsdk.WithAgentConnFunc(func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			if api.Entitlements.Enabled(codersdk.FeatureBrowserOnly) {
-				return nil, nil, xerrors.New("non-browser connections are disabled")
+				return nil, nil, mcp.NewAuthzError("non-browser connections are disabled")
 			}
 			// Use system context for the lookup because the tool
 			// handler context does not carry a dbauthz actor. The
@@ -74,7 +74,7 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			// Enforce the same ActionSSH check that the coordinate
 			// endpoint uses (workspaceagents.go:1317).
 			if !api.Authorize(r, policy.ActionSSH, workspace) {
-				return nil, nil, xerrors.New("unauthorized: you do not have SSH access to this workspace")
+				return nil, nil, mcp.NewAuthzError("unauthorized: you do not have SSH access to this workspace")
 			}
 			conn, release, err := api.agentProvider.AgentConn(ctx, agentID)
 			if unreachable, ok := errors.AsType[*workspaceapps.AgentUnreachableError](err); ok {

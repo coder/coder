@@ -740,6 +740,11 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("create experiment evaluator: %w", err))
 	}
 
+	api.mcpToolMetrics, err = mcp.NewMetrics(options.PrometheusRegistry)
+	if err != nil {
+		panic(xerrors.Errorf("create MCP tool metrics: %w", err))
+	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -2241,6 +2246,8 @@ type API struct {
 
 	*Options
 	mcpHTTPClient *http.Client
+	// mcpToolMetrics records Prometheus metrics for remote MCP tool calls.
+	mcpToolMetrics *mcp.Metrics
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a
