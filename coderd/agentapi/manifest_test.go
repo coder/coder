@@ -56,7 +56,6 @@ func TestGetManifest(t *testing.T) {
 		agentBuild = database.WorkspaceBuild{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
-			JobID:       uuid.New(),
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -341,10 +340,11 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
@@ -356,8 +356,6 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), gomock.Any()).Return(database.WorkspaceResource{JobID: agentBuild.JobID}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), agentBuild.JobID).Return(agentBuild, nil)
 		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -411,10 +409,11 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
@@ -426,8 +425,6 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), gomock.Any()).Return(database.WorkspaceResource{JobID: agentBuild.JobID}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), agentBuild.JobID).Return(agentBuild, nil)
 		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -588,10 +585,11 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
@@ -614,8 +612,6 @@ func TestGetManifest(t *testing.T) {
 		}, nil)
 		// Workspace secrets follow user secrets so a workspace secret that
 		// targets the same env var wins when the agent applies them in order.
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), gomock.Any()).Return(database.WorkspaceResource{JobID: agentBuild.JobID}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), agentBuild.JobID).Return(agentBuild, nil)
 		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return([]database.WorkspaceSecret{
 			{EnvName: "GITHUB_TOKEN", Value: sql.NullString{String: "ghp_workspace", Valid: true}},
 		}, nil)
@@ -718,10 +714,11 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
-			WorkspaceID: workspace.ID,
-			Database:    mDB,
-			DerpMapFn:   derpMapFn,
+			AgentFn:          func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID:      workspace.ID,
+			WorkspaceBuildID: agentBuild.ID,
+			Database:         mDB,
+			DerpMapFn:        derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
@@ -733,8 +730,6 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), gomock.Any()).Return(database.WorkspaceResource{JobID: agentBuild.JobID}, nil)
-		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), agentBuild.JobID).Return(agentBuild, nil)
 		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
