@@ -13,11 +13,6 @@ const (
 	CheckAIModelPricesCacheWritePriceCheck                   CheckConstraint = "ai_model_prices_cache_write_price_check"                   // ai_model_prices
 	CheckAIModelPricesInputPriceCheck                        CheckConstraint = "ai_model_prices_input_price_check"                         // ai_model_prices
 	CheckAIModelPricesOutputPriceCheck                       CheckConstraint = "ai_model_prices_output_price_check"                        // ai_model_prices
-	CheckAIOrgModelPricesCacheReadPriceCheck                 CheckConstraint = "ai_org_model_prices_cache_read_price_check"                // ai_org_model_prices
-	CheckAIOrgModelPricesCacheWritePriceCheck                CheckConstraint = "ai_org_model_prices_cache_write_price_check"               // ai_org_model_prices
-	CheckAIOrgModelPricesInputPriceCheck                     CheckConstraint = "ai_org_model_prices_input_price_check"                     // ai_org_model_prices
-	CheckAIOrgModelPricesOutputPriceCheck                    CheckConstraint = "ai_org_model_prices_output_price_check"                    // ai_org_model_prices
-	CheckAIOrgModelPricesProviderCheck                       CheckConstraint = "ai_org_model_prices_provider_check"                        // ai_org_model_prices
 	CheckAIOrgProviderModelPricesCacheReadPriceCheck         CheckConstraint = "ai_org_provider_model_prices_cache_read_price_check"       // ai_org_provider_model_prices
 	CheckAIOrgProviderModelPricesCacheWritePriceCheck        CheckConstraint = "ai_org_provider_model_prices_cache_write_price_check"      // ai_org_provider_model_prices
 	CheckAIOrgProviderModelPricesInputPriceCheck             CheckConstraint = "ai_org_provider_model_prices_input_price_check"            // ai_org_provider_model_prices

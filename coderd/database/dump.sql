@@ -12,7 +12,6 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 
 CREATE TYPE ai_model_price_kind AS ENUM (
     'organization_provider',
-    'organization_provider_type',
     'site_custom',
     'site_default'
 );
@@ -1649,25 +1648,6 @@ COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to
 
 COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
-CREATE TABLE ai_org_model_prices (
-    organization_id uuid NOT NULL,
-    provider text NOT NULL,
-    model text NOT NULL,
-    input_price bigint,
-    output_price bigint,
-    cache_read_price bigint,
-    cache_write_price bigint,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ai_org_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
-    CONSTRAINT ai_org_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
-    CONSTRAINT ai_org_model_prices_input_price_check CHECK ((input_price >= 0)),
-    CONSTRAINT ai_org_model_prices_output_price_check CHECK ((output_price >= 0)),
-    CONSTRAINT ai_org_model_prices_provider_check CHECK ((provider <> 'openai-compat'::text))
-);
-
-COMMENT ON TABLE ai_org_model_prices IS 'Per-model token prices for every provider of a type within one organization. Overrides site-wide prices in ai_model_prices.';
-
 CREATE TABLE ai_org_provider_model_prices (
     organization_id uuid NOT NULL,
     provider_id uuid NOT NULL,
@@ -1684,7 +1664,7 @@ CREATE TABLE ai_org_provider_model_prices (
     CONSTRAINT ai_org_provider_model_prices_output_price_check CHECK ((output_price >= 0))
 );
 
-COMMENT ON TABLE ai_org_provider_model_prices IS 'Per-model token prices for one configured AI provider within one organization. Overrides organization provider type prices and site-wide prices.';
+COMMENT ON TABLE ai_org_provider_model_prices IS 'Per-model token prices for one configured AI provider within one organization. Overrides site-wide prices in ai_model_prices.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4467,9 +4447,6 @@ ALTER TABLE ONLY ai_gateway_keys
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
-ALTER TABLE ONLY ai_org_model_prices
-    ADD CONSTRAINT ai_org_model_prices_pkey PRIMARY KEY (organization_id, provider, model);
-
 ALTER TABLE ONLY ai_org_provider_model_prices
     ADD CONSTRAINT ai_org_provider_model_prices_pkey PRIMARY KEY (organization_id, provider_id, model);
 
@@ -5373,9 +5350,6 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
-
-ALTER TABLE ONLY ai_org_model_prices
-    ADD CONSTRAINT ai_org_model_prices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_org_provider_model_prices
     ADD CONSTRAINT ai_org_provider_model_prices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

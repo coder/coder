@@ -92,10 +92,9 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 type AIModelPriceKind string
 
 const (
-	AIModelPriceKindOrganizationProvider     AIModelPriceKind = "organization_provider"
-	AIModelPriceKindOrganizationProviderType AIModelPriceKind = "organization_provider_type"
-	AIModelPriceKindSiteCustom               AIModelPriceKind = "site_custom"
-	AIModelPriceKindSiteDefault              AIModelPriceKind = "site_default"
+	AIModelPriceKindOrganizationProvider AIModelPriceKind = "organization_provider"
+	AIModelPriceKindSiteCustom           AIModelPriceKind = "site_custom"
+	AIModelPriceKindSiteDefault          AIModelPriceKind = "site_default"
 )
 
 func (e *AIModelPriceKind) Scan(src interface{}) error {
@@ -136,7 +135,6 @@ func (ns NullAIModelPriceKind) Value() (driver.Value, error) {
 func (e AIModelPriceKind) Valid() bool {
 	switch e {
 	case AIModelPriceKindOrganizationProvider,
-		AIModelPriceKindOrganizationProviderType,
 		AIModelPriceKindSiteCustom,
 		AIModelPriceKindSiteDefault:
 		return true
@@ -147,7 +145,6 @@ func (e AIModelPriceKind) Valid() bool {
 func AllAIModelPriceKindValues() []AIModelPriceKind {
 	return []AIModelPriceKind{
 		AIModelPriceKindOrganizationProvider,
-		AIModelPriceKindOrganizationProviderType,
 		AIModelPriceKindSiteCustom,
 		AIModelPriceKindSiteDefault,
 	}
@@ -5077,20 +5074,7 @@ type AIModelPrice struct {
 	Source AIModelPriceSource `db:"source" json:"source"`
 }
 
-// Per-model token prices for every provider of a type within one organization. Overrides site-wide prices in ai_model_prices.
-type AIOrgModelPrice struct {
-	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
-	Provider        string        `db:"provider" json:"provider"`
-	Model           string        `db:"model" json:"model"`
-	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
-	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-}
-
-// Per-model token prices for one configured AI provider within one organization. Overrides organization provider type prices and site-wide prices.
+// Per-model token prices for one configured AI provider within one organization. Overrides site-wide prices in ai_model_prices.
 type AIOrgProviderModelPrice struct {
 	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
 	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
