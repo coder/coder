@@ -7,5 +7,3 @@ ALTER TABLE aibridge_token_usages
 DROP TYPE ai_model_price_kind;
 
 DROP TABLE ai_org_provider_model_prices;
-
-DROP TABLE ai_org_model_prices;
