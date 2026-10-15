@@ -2,18 +2,14 @@
 title: MCP servers
 ---
 
-Organization admins can register external MCP servers that provide additional
-tools for agent chat sessions. Each organization has its own set of MCP
-servers, and chats only offer servers from the chat's organization. Configured
-servers are injected into or offered to users during chat depending on the
-availability policy.
+Organization admins can register external MCP servers that provide additional tools for agent chat sessions.
+Each organization has its own set of MCP servers, and chats only offer servers from the chat's organization.
+Configured servers are injected into or offered to users during chat depending on the availability policy.
 
-This feature is accessible at **Admin settings** > **AI** > **Coder Agents** > **MCP servers**
-(`/ai/settings/mcp-servers`). In multi-organization deployments, use the
-organization picker to choose which organization's servers to manage. The
-server list shows the picker when you can access more than one organization's
-servers. The add and update views always show the target organization, as a
-read-only field when only one organization is available.
+This feature is accessible at **Admin settings** > **AI** > **Coder Agents** > **MCP servers** (`/ai/settings/mcp-servers`).
+In multi-organization deployments, use the organization picker to choose which organization's servers to manage.
+The server list shows the picker when you can access more than one organization's servers.
+The add and update views always show the target organization, as a read-only field when only one organization is available.
 
 ## Add an MCP server
 
@@ -57,21 +53,21 @@ read-only field when only one organization is available.
 
 ## Authentication
 
-Each MCP server uses one of five authentication modes. When you change the
-auth type, fields from the previous type are automatically cleared.
+Each MCP server uses one of five authentication modes.
+When you change the auth type, fields from the previous type are automatically cleared.
 
 OAuth2 client secrets, API keys, and custom headers are never returned in API responses.
 Boolean flags indicate whether each value is set.
 
 ### None
 
-No credentials are sent. Use this for servers that do not require
-authentication.
+No credentials are sent.
+Use this for servers that do not require authentication.
 
 ### OAuth2
 
-Per-user authorization. The administrator configures the OAuth2 provider, and
-each user independently completes the authorization flow.
+Per-user authorization.
+The administrator configures the OAuth2 provider, and each user independently completes the authorization flow.
 
 **Manual configuration** — provide all three fields together:
 
@@ -98,8 +94,9 @@ The value must be an absolute URI without a fragment or user information.
 A manual configuration sends no `resource` parameter unless you set this field.
 Leave it empty for providers that reject the parameter, such as Microsoft Entra ID.
 
-**Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
-`oauth2_token_url` empty. The server attempts discovery in this order:
+**Auto-discovery**:
+leave `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` empty.
+The server attempts discovery in this order:
 
 1. RFC 9728 — Protected Resource Metadata
 1. RFC 8414 — Authorization Server Metadata
@@ -128,23 +125,20 @@ A static key sent as a header on every request.
 
 ### Custom headers
 
-Arbitrary key-value header pairs sent on every request. At least one header
-is required when this mode is selected.
+Arbitrary key-value header pairs sent on every request.
+At least one header is required when this mode is selected.
 
 ### User OIDC Identity
 
-Forwards the calling user's OIDC access token (stored in
-`user_links.oauth_access_token`) to the MCP server as an
-`Authorization: Bearer <token>` header. The token is refreshed
-transparently before each request if it has expired or is close to
-expiring.
+Forwards the calling user's OIDC access token (stored in `user_links.oauth_access_token`) to the MCP server as an `Authorization: Bearer <token>` header.
+The token is refreshed transparently before each request if it has expired or is close to expiring.
 
-No admin-configurable fields. No per-user connect step.
+No admin-configurable fields.
+No per-user connect step.
 
-**Limitation**: this auth mode only works for users who authenticated to
-Coder via OIDC. Users who logged in with password or GitHub will see
-requests sent without an authorization header, and the upstream MCP
-server is expected to respond with 401.
+**Limitation**:
+this auth mode only works for users who authenticated to Coder via OIDC.
+Users who logged in with password or GitHub will see requests sent without an authorization header, and the upstream MCP server is expected to respond with 401.
 
 ## Tool governance
 
@@ -234,36 +228,28 @@ Enable it only for first-party or trusted internal MCP servers.
 | OAuth2 disconnect         | Token owner                |
 | Manage ACLs               | Organization admin         |
 
-Disconnect only needs a valid session: users removed from the ACL or the
-organization can still delete their stored token and revoke the provider
-grant.
+Disconnect only needs a valid session: users removed from the ACL or the organization can still delete their stored token and revoke the provider grant.
 
-Members only see enabled servers in their own organizations. Sensitive fields
-such as API keys and client secrets are redacted in API responses.
+Members only see enabled servers in their own organizations.
+Sensitive fields such as API keys and client secrets are redacted in API responses.
 
-Users with access to an organization's MCP servers can open the **MCP servers**
-settings page. Coder enables the edit controls for the users who can manage the
-selected organization's servers.
+Users with access to an organization's MCP servers can open the **MCP servers** settings page.
+Coder enables the edit controls for the users who can manage the selected organization's servers.
 Only deployment administrators can add or update a server that uses **User OIDC Identity** authentication.
 
 Refer to [Organization scope](./organizations.md) for the organization scope of MCP servers and the upgrade behavior.
 
 ### Access control
 
-Each server has a group and user ACL that controls which members can see and
-use it. New servers grant read access to the organization's **Everyone** group,
-so all members have access by default. Members with MCP server share permission
-can open **Server actions** > **Manage permissions** to remove the Everyone
-entry and grant specific groups or users instead. They can also manage the ACL
-through the API
-(`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
-ACL management is available in all editions and does not require a Premium
-license. ACL changes are recorded in the audit log.
+Each server has a group and user ACL that controls which members can see and use it.
+New servers grant read access to the organization's **Everyone** group, so all members have access by default.
+Members with MCP server share permission can open **Server actions** > **Manage permissions** to remove the Everyone entry and grant specific groups or users instead.
+They can also manage the ACL through the API (`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
+ACL management is available in all editions and does not require a Premium license.
+ACL changes are recorded in the audit log.
 
-Revoking access stops a member from newly selecting the server in any chat,
-but chats that already have the server selected keep using it, the same way
-existing workspaces keep running after template access is revoked. To cut
-off existing chats as well, disable or delete the server.
+Revoking access stops a member from newly selecting the server in any chat, but chats that already have the server selected keep using it, the same way existing workspaces keep running after template access is revoked.
+To cut off existing chats as well, disable or delete the server.
 
 ## Inline MCP servers (experimental)
 
