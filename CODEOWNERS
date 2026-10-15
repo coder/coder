@@ -65,9 +65,10 @@ docs/ @coder/docs
 .github/workflows/test-deploy-docs-release.sh @coder/docs @jdomeracki-coder
 .github/workflows/test-docs-preview-mapper.sh @coder/docs @jdomeracki-coder
 
-# Generated documentation has no owner. The Makefile regenerates these from
-# code, so a review belongs to the generator's owner, not the docs team. A
-# path with no owners overrides the docs/ rule above.
+# Generated documentation has no owner. The Makefile regenerates these on
+# many code changes, so owning them would send the docs team a review
+# request for each of those PRs. A path with no owners overrides the docs/
+# rule above.
 docs/manifest.json
 docs/manifest/generated/
 docs/reference/api/
