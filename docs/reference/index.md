@@ -10,7 +10,7 @@ are several ways to extend/automate Coder:
 - [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
 - [CLI](../reference/cli/index.md)
 - [Representational State Transfer (REST) API](../reference/api/index.md)
-- [Coder software development kit (SDK)](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
+- [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 - [Agent API](../reference/agent-api/index.md)
 
 ## Quickstart
@@ -64,7 +64,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 activity.
 
 - [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs):
-  Expose messages prior to the Coder init script running (e.g. pulling image, virtual machine (VM)
+  Expose messages prior to the Coder init script running (e.g. pulling image, VM
   starting, restoring snapshot).
   [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses
   this to show Kubernetes events, such as image pulls or ResourceQuota

@@ -105,7 +105,7 @@ Coder added several security and networking controls between 2.29 and 2.34:
 - Authenticated request rate limiting is keyed by user instead of IP address.
 - Kubernetes Gateway API `HTTPRoute` is supported as an alternative to Ingress.
 - Helm chart probes are more configurable, and Prometheus and pprof addresses can be overridden through chart environment values.
-- Designated Encrypted Relay for Packets (DERP) TLS configuration is wired through the CLI, software development kit (SDK), tailnet, virtual private network (VPN), agent, and health checks.
+- Designated Encrypted Relay for Packets (DERP) TLS configuration is wired through the CLI, SDK, tailnet, virtual private network (VPN), agent, and health checks.
 
 ### Operations and Scale
 

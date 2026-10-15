@@ -122,6 +122,6 @@ Use this when you have no way to allow user namespace creation.
 
 ### Example 3: EKS + Fargate (Firecracker VMs)
 
-nsjail is not currently supported on **EKS Fargate** (Firecracker-based virtual machines (VMs)), which blocks the capabilities needed for nsjail.
+nsjail is not currently supported on **EKS Fargate** (Firecracker-based VMs), which blocks the capabilities needed for nsjail.
 
 If you run on Fargate, we recommend using [landjail](../landjail.md) instead, provided kernel version supports it (Linux 6.7+).

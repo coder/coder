@@ -10,7 +10,7 @@ This guide assumes you have `roles/compute.instanceAdmin.v1` access to your Goog
 
 ## Launch a Coder instance from the Google Cloud Marketplace
 
-We publish an Ubuntu 22.04 virtual machine (VM) image with Coder and Docker pre-installed.
+We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed.
 
 Two stock keeping units (SKUs) are available via the Google Cloud Marketplace:
 

@@ -101,7 +101,7 @@ A consumer must apply all of the following checks before it uses the body:
 - Compute SHA-256 over the exact request body bytes and compare it with `body_sha256`.
 - Check that `sub` has the form `coder:chat:<chat ID>` and that its chat ID matches `meta.chat_id`.
 
-The Go consumer software development kit (SDK) in `codersdk/x/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
+The Go consumer SDK in `codersdk/x/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
 Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
 Pass the deployment's `CODER_CHAT_HOOK_URL` as the expected audience, because a handler built without one rejects every request.
 Pass `agenthooks.WithExpectedIssuer` with the deployment ID associated with the secret to enforce the `iss` check.

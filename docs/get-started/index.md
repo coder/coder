@@ -31,7 +31,7 @@ explained through a cooking analogy:
 
 ## Prerequisites
 
-- A machine with 2+ CPU cores and 4&nbsp;GB+ RAM (ideally a separate machine or virtual machine (VM), not your primary dev machine)
+- A machine with 2+ CPU cores and 4&nbsp;GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
 - Familiarity with running commands in the terminal
 - 10&nbsp;minutes of your time
 

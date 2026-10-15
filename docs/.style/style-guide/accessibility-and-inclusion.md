@@ -98,6 +98,10 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | replica, secondary                                    | slave                                         |
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
+| on-path attacker, machine-in-the-middle (MITM)        | man-in-the-middle                             |
+
+Use "on-path attacker" for the attack.
+When a feature intercepts traffic on purpose, such as the AI Gateway Proxy's MITM mode, expand MITM as "machine-in-the-middle."
 
 *Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).*
 
@@ -363,8 +367,8 @@ It also helps readers whose first language isn't English, and readers who know t
 > Register an MCP server for your organization.
 > Each MCP server provides additional tools to the agent.
 
-Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "virtual machine (VM)" but "OpenID Connect (OIDC)."
-For a plural, add `s` to both forms: "virtual machines (VMs)."
+Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "large language model (LLM)" but "OpenID Connect (OIDC)."
+For a plural, add `s` to both forms: "large language models (LLMs)."
 
 When the first use is a UI label in bold, keep the label exactly as the UI shows it and put the expansion elsewhere in the same paragraph or list item.
 

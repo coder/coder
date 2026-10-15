@@ -174,7 +174,7 @@ Refer to [Architecture](../install/plan/architecture.md).
 
 ### codersdk
 
-The Go software development kit (SDK) that the CLI and dashboard use and that you can use for automation.
+The Go SDK that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
 <!-- "Coding" is an adjective in this glossary term, not a task verb. -->

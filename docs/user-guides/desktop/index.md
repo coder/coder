@@ -87,7 +87,7 @@ winget install Coder.CoderDesktop
 1. Choose the correct architecture (`x64` or `arm64`) for your system
 1. Run the installer and accept the license terms
 1. If prompted, install the .NET Windows Desktop Runtime
-1. Install Windows App Runtime software development kit (SDK) if prompted
+1. Install Windows App Runtime SDK if prompted
 
 </div>
 

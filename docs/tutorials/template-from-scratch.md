@@ -119,7 +119,7 @@ We'll use this information in later steps to:
 
 All templates need to create and run a [Coder agent](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 This lets developers connect to their workspaces.
-The `coder_agent` resource runs inside the compute aspect of your workspace, typically a virtual machine (VM) or container.
+The `coder_agent` resource runs inside the compute aspect of your workspace, typically a VM or container.
 In our case, it will run in Docker.
 
 You do not need to have any open ports on the compute aspect, but the agent needs `curl` access to the control plane.

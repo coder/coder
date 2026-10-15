@@ -157,7 +157,7 @@ coder update --always-prompt <workspace name>
 
 ## I'm running coder on a VM with systemd but latest release installed isn't showing up
 
-Take, for example, a Coder deployment on a virtual machine (VM) with a 2 shared vCPU systemd service.
+Take, for example, a Coder deployment on a VM with a 2 shared vCPU systemd service.
 In this scenario, it's necessary to reload the daemon and then restart the Coder service.
 This prevents the `systemd` daemon from trying to reference the previous Coder release service since the unit file has changed.
 

@@ -47,7 +47,7 @@ coder:
 
 ### VM control plane
 
-If you deployed Coder on a virtual machine (VM), copy the kubeconfig file to `/home/coder/.kube/config`.
+If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/config`.
 
 ### Create a Coder template
 

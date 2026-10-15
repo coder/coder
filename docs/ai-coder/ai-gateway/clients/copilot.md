@@ -45,7 +45,7 @@ export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 
 Refer to [Client Configuration certificate authority (CA) certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
-When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the man-in-the-middle (MITM) CA certificate and the TLS certificate into a single file:
+When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the machine-in-the-middle (MITM) CA certificate and the TLS certificate into a single file:
 
 ```sh
 cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem

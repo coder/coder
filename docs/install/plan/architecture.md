@@ -44,7 +44,7 @@ By default, the control plane runs multiple provisioner daemons.
 ### Workspaces
 
 At the highest level, a workspace is a set of cloud resources.
-These resources can be virtual machines (VMs), Kubernetes clusters, storage buckets, or whatever else Terraform lets you dream up.
+These resources can be VMs, Kubernetes clusters, storage buckets, or whatever else Terraform lets you dream up.
 
 The resources that run the workspace agent are described as _computational resources_, while those that don't are called _peripheral resources_.
 

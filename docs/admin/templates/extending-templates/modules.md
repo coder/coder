@@ -165,7 +165,7 @@ In GitHub, you can generate a
 [fine-grained token](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens?apiVersion=2022-11-28)
 with read only access to the necessary repos.
 
-If you are running Coder on a virtual machine (VM), make sure that you have `git` installed and
+If you are running Coder on a VM, make sure that you have `git` installed and
 the `coder` user has access to the following files:
 
 ```sh

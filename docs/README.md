@@ -19,7 +19,7 @@ automatically shut down when not in use. Agents and developers share the same
 workspace infrastructure.
 
 - **Defined in Terraform**: Templates describe the infrastructure for each
-  workspace, from Amazon Elastic Compute Cloud (EC2) virtual machines (VMs) and Kubernetes Pods to Docker containers.
+  workspace, from Amazon Elastic Compute Cloud (EC2) VMs and Kubernetes Pods to Docker containers.
 - **Any architecture and OS**: Support ARM and x86-64 across Windows, Linux,
   and macOS from a single deployment.
 - **Managed by admins**: Platform teams create and maintain templates that

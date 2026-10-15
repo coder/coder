@@ -18,16 +18,16 @@ Each LLM provider has a type, credentials, and an endpoint/base URL for the upst
 
 Coder supports the following provider types:
 
-| Provider          | Description                                         |
-|-------------------|-----------------------------------------------------|
-| Anthropic         | Claude models via Anthropic API                     |
-| OpenAI            | GPT and o-series models via OpenAI API              |
-| Google            | Gemini models via Google AI API                     |
-| Azure OpenAI      | OpenAI models hosted on Azure                       |
-| AWS Bedrock       | Models via AWS Bedrock                              |
-| OpenAI Compatible | Any endpoint implementing the OpenAI API            |
-| OpenRouter        | Multi-model routing via OpenRouter                  |
-| Vercel AI Gateway | Models via Vercel AI software development kit (SDK) |
+| Provider          | Description                              |
+|-------------------|------------------------------------------|
+| Anthropic         | Claude models via Anthropic API          |
+| OpenAI            | GPT and o-series models via OpenAI API   |
+| Google            | Gemini models via Google AI API          |
+| Azure OpenAI      | OpenAI models hosted on Azure            |
+| AWS Bedrock       | Models via AWS Bedrock                   |
+| OpenAI Compatible | Any endpoint implementing the OpenAI API |
+| OpenRouter        | Multi-model routing via OpenRouter       |
+| Vercel AI Gateway | Models via Vercel AI SDK                 |
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an OpenAI-compatible chat completions endpoint.
 Use it to connect to self-hosted models, internal gateways, or third-party proxies like LiteLLM.

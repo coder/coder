@@ -10,7 +10,7 @@ External workspaces allow you to seamlessly connect externally managed infrastru
   - **Windows**: amd64 or arm64 architecture
   - **Linux**: amd64, arm64, or armv7 architecture
   - **macOS**: amd64 or arm64 architecture
-  - **Examples**: Virtual machines (VMs), bare-metal servers, Kubernetes nodes, or any machine meeting the above requirements.
+  - **Examples**: VMs, bare-metal servers, Kubernetes nodes, or any machine meeting the above requirements.
 - Networking access to your Coder deployment.
 - A workspace template that includes a [`coder_external_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/external_agent) resource.
 

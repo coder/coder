@@ -167,7 +167,7 @@ Requests from users without a personal key continue to use the credentials below
 
 AI Gateway resolves AWS credentials one of three ways:
 
-- **AWS software development kit (SDK) default credential chain (recommended).**
+- **AWS SDK default credential chain (recommended).**
   When no explicit credentials are configured, the AWS SDK resolves them automatically from the environment: IAM Roles (instance profiles, IAM Roles for Service Accounts (IRSA), Amazon Elastic Container Service (ECS) task roles), shared config files, environment variables, single sign-on (SSO), and more.
   Attaching an IAM Role to the compute running Coder follows [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) for temporary credentials.
   The role must permit `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.

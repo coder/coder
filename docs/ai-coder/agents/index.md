@@ -95,12 +95,12 @@ Creating a workspace doesn't change the current mode's tool restrictions: worksp
 Workspace skills, MCP tools, and context can finish loading after the workspace reports ready.
 The agent can continue with available file and shell tools, but provisioning doesn't guarantee immediate access to a missing MCP tool.
 
-| No workspace needed                                                               | Workspace provisioned                                                      |
-|-----------------------------------------------------------------------------------|----------------------------------------------------------------------------|
-| "What are the tradeoffs between Representational State Transfer (REST) and gRPC?" | "Find and fix the nil pointer crash in the auth service"                   |
-| "Help me draft a Request for Comments (RFC) for adding a caching layer"           | "Run the test suite and fix any failures"                                  |
-| "What's the best way to handle retry logic in Go?"                                | "Refactor the handler to use the new software development kit (SDK) types" |
-| "Compare connection pooling strategies for Postgres"                              | "Read the config file and add the new feature flag"                        |
+| No workspace needed                                                               | Workspace provisioned                                    |
+|-----------------------------------------------------------------------------------|----------------------------------------------------------|
+| "What are the tradeoffs between Representational State Transfer (REST) and gRPC?" | "Find and fix the nil pointer crash in the auth service" |
+| "Help me draft a Request for Comments (RFC) for adding a caching layer"           | "Run the test suite and fix any failures"                |
+| "What's the best way to handle retry logic in Go?"                                | "Refactor the handler to use the new SDK types"          |
+| "Compare connection pooling strategies for Postgres"                              | "Read the config file and add the new feature flag"      |
 
 ### Sub-agents
 

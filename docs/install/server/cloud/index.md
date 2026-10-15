@@ -28,7 +28,7 @@ Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or fo
 
 ## Azure
 
-Use the following guide to run Coder on an Azure virtual machine (VM):
+Use the following guide to run Coder on an Azure VM:
 
 - [Install Coder on an Azure VM](./azure-vm.md)
 

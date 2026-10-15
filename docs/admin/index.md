@@ -34,7 +34,7 @@ For any information not strictly contained in these sections, check out our
 
 - [Templates](./templates/index.md) include infrastructure-level dependencies
   for the workspace. For example, a template can include Kubernetes
-  PersistentVolumeClaims, Docker containers, or Amazon Elastic Compute Cloud (EC2) virtual machines (VMs).
+  PersistentVolumeClaims, Docker containers, or Amazon Elastic Compute Cloud (EC2) VMs.
 - Managed by: Template administrators from within the Coder deployment.
 
 ### Startup scripts

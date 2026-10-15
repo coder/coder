@@ -42,7 +42,7 @@ information displayed in the dashboard's workspace view.
 
 Multiple agents may be used in a single template or even a single resource. Each
 agent may have its own apps, startup script, and metadata. This can be used to
-associate multiple containers or virtual machines (VMs) with a workspace.
+associate multiple containers or VMs with a workspace.
 
 ## Resource persistence
 

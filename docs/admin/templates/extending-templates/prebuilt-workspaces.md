@@ -239,7 +239,7 @@ When external dependencies change without a template version update, you can inv
 
 This is useful when:
 
-- A base virtual machine (VM) image or container image has been updated externally
+- A base VM image or container image has been updated externally
 - Infrastructure configuration has drifted from the desired state
 - A monorepo cloned during the prebuild has fallen behind its origin
 - You want to ensure prebuilt workspaces use the latest dependencies without publishing a new template version

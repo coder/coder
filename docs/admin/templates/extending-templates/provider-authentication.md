@@ -29,7 +29,7 @@ these ways:
   Portable Operating System Interface (POSIX) systems.
 - Environment variables.
 
-It is usually sufficient to authenticate using the CLI or software development kit (SDK) for the provider
+It is usually sufficient to authenticate using the CLI or SDK for the provider
 before running Coder, but check the Terraform provider's documentation for
 details.
 
