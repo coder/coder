@@ -82,6 +82,8 @@
 	--color-border-destructive: hsl(var(--border-destructive));
 	--color-border-success: hsl(var(--border-success));
 	--color-border-secondary: hsl(var(--border-secondary));
+	--color-border-control: hsl(var(--border-control));
+	--color-border-control-hover: hsl(var(--border-control-hover));
 	--color-border-purple: hsl(var(--border-purple));
 	--color-border-magenta: hsl(var(--border-magenta));
 
@@ -466,6 +468,12 @@
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 72.2% 50.6%;
 		--border-secondary: 240 5% 65%;
+		/*
+		  Boundaries of form controls such as checkboxes and radios. Must keep
+		  at least 3:1 contrast with adjacent surfaces (WCAG 1.4.11).
+		*/
+		--border-control: 240 3.8% 46.1%;
+		--border-control-hover: 240 5.2% 33.9%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
@@ -540,6 +548,8 @@
 		--border-sky: 194 90% 62%;
 		--border-green: 143 77% 87%;
 		--border-secondary: 240 5% 26%;
+		--border-control: 240 3.8% 46.1%;
+		--border-control-hover: 240 5% 64.9%;
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;

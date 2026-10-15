@@ -545,6 +545,12 @@ const (
 	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
 	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
 	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
+	ApiKeyScopeWorkspaceSecret                     APIKeyScope = "workspace_secret:*"
+	ApiKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -841,7 +847,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeOrganizationSkillRead,
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
-		ApiKeyScopeOrganizationSkillShare:
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -1107,6 +1119,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
 		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate,
 	}
 }
 
@@ -4817,6 +4835,64 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 	}
 }
 
+type WorkspaceSecretSource string
+
+const (
+	WorkspaceSecretSourceRequest      WorkspaceSecretSource = "request"
+	WorkspaceSecretSourceCarryForward WorkspaceSecretSource = "carry_forward"
+)
+
+func (e *WorkspaceSecretSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceSecretSource(s)
+	case string:
+		*e = WorkspaceSecretSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceSecretSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceSecretSource struct {
+	WorkspaceSecretSource WorkspaceSecretSource `json:"workspace_secret_source"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceSecretSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceSecretSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceSecretSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceSecretSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceSecretSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceSecretSource), nil
+}
+
+func (e WorkspaceSecretSource) Valid() bool {
+	switch e {
+	case WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceSecretSourceValues() []WorkspaceSecretSource {
+	return []WorkspaceSecretSource{
+		WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -5411,6 +5487,10 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5757,6 +5837,7 @@ type MCPServerConfig struct {
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
 }
 
 type MCPServerUserToken struct {
@@ -7043,6 +7124,21 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceSecret struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt        time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime          `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {
