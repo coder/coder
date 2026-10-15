@@ -3,7 +3,6 @@ import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -18,6 +17,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
@@ -153,17 +153,21 @@ export const OrganizationProvisionersPageView: React.FC<
 											defaultIsOpen={filter.ids.includes(provisioner.id)}
 										/>
 									))
+								) : filter.ids ? (
+									<TableEmptyState
+										variant="search"
+										message="No provisioners match your search"
+										onResetFilters={() =>
+											onFilterChange({ ...filter, ids: "" })
+										}
+									/>
 								) : (
-									<TableEmpty
+									<TableEmptyState
+										variant="docs"
 										message="No provisioners found"
 										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
-										cta={
-											<Button size="sm" asChild>
-												<Link href={docs("/admin/provisioners")}>
-													Create a provisioner
-												</Link>
-											</Button>
-										}
+										docsHref={docs("/admin/provisioners")}
+										docsLabel="Create a provisioner"
 									/>
 								)
 							) : error ? (
