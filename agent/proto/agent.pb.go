@@ -529,11 +529,13 @@ const (
 	Timing_TIMED_OUT       Timing_Status = 2
 	Timing_PIPES_LEFT_OPEN Timing_Status = 3
 	// The script never ran because a prerequisite did not reach the
-	// outcome it needed. Start and end are both the moment of the skip.
+	// outcome it needed. Start and end are both the moment of the skip
+	// and exit_code is 0.
 	Timing_SKIPPED Timing_Status = 4
-	// The lifecycle execution ended before the script finished. A script
-	// that was running keeps its real interval; one that never started
-	// has start equal to end at the moment of cancellation.
+	// The workspace stopped before the script finished. A script that
+	// was running keeps its real interval and the exit code its process
+	// returned; one that never started has start equal to end at the
+	// moment of cancellation and exit_code 0.
 	Timing_CANCELED Timing_Status = 5
 )
 

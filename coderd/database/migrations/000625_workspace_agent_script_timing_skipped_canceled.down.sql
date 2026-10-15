@@ -1,6 +1,7 @@
--- An older dashboard throws on a status it has no legend for, so rows must
--- not keep the two values after a rollback. exit_failure with the runner's
--- "unknown" exit code is the nearest older meaning.
+-- The old type cannot hold skipped or canceled, so the cast below fails on
+-- any row that still has them. exit_failure with the runner's "unknown"
+-- exit code is the nearest older meaning, and an older dashboard also
+-- throws on a status it has no legend for.
 UPDATE workspace_agent_script_timings
 SET status = 'exit_failure', exit_code = 255
 WHERE status IN ('skipped', 'canceled');

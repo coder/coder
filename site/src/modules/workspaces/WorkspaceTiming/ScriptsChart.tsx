@@ -113,6 +113,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Bar
+												role="img"
 												aria-label={`${t.name}: ${legend.label}`}
 												tabIndex={0}
 												value={duration}
@@ -125,7 +126,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 											side="bottom"
 											className="border-surface-quaternary text-content-primary"
 										>
-											{tooltipText(t)}
+											{tooltipContent(t)}
 										</TooltipContent>
 									</Tooltip>
 
@@ -140,12 +141,18 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	);
 };
 
-function tooltipText(t: ScriptTiming): React.ReactNode {
+// The runner reports 255 when it has no exit code, so a timeout or an open
+// pipe must not be shown as an exit code.
+function tooltipContent(t: ScriptTiming): React.ReactNode {
 	switch (t.status) {
+		case "timed_out":
+			return "Script timed out.";
+		case "pipes_left_open":
+			return "Script exited without closing its output pipes.";
 		case "skipped":
-			return "Script was skipped.";
+			return "Script was skipped because a prerequisite did not reach the required outcome.";
 		case "canceled":
-			return "Script was canceled.";
+			return "Script was canceled because the workspace stopped before it finished.";
 		default:
 			return (
 				<>

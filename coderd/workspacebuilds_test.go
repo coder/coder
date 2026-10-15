@@ -2234,8 +2234,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		// A skipped script and a canceled one that never started
-		// both have a zero duration. The remaining three keep the defaults.
+		// Starting an hour ago puts these two rows before the default
+		// timings once sorted by StartedAt below.
 		skippedAt := dbtime.Now().Add(-time.Hour)
 		canceledAt := skippedAt.Add(time.Second)
 		agentScriptTimings := []database.WorkspaceAgentScriptTiming{

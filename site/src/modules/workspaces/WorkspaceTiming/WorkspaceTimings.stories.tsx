@@ -83,7 +83,7 @@ const skippedScriptTiming = {
 	status: "skipped" as const,
 };
 
-const canceledWaitingScriptTiming = {
+const canceledNotStartedScriptTiming = {
 	...skippedScriptTiming,
 	display_name: "Post setup",
 	status: "canceled" as const,
@@ -123,7 +123,9 @@ export const SkippedScript: Story = {
 		const { user, canvas, body } = await openStartupScripts(canvasElement);
 		const bar = await canvas.findByLabelText("Install tools: skipped");
 		await user.hover(bar);
-		await body.findByText("Script was skipped.");
+		await body.findByText(
+			"Script was skipped because a prerequisite did not reach the required outcome.",
+		);
 	},
 };
 
@@ -131,7 +133,7 @@ export const CanceledScript: Story = {
 	args: {
 		agentScriptTimings: [
 			canceledRunningScriptTiming,
-			canceledWaitingScriptTiming,
+			canceledNotStartedScriptTiming,
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -139,7 +141,9 @@ export const CanceledScript: Story = {
 		await canvas.findByLabelText("Clone repo: canceled");
 		const bar = await canvas.findByLabelText("Post setup: canceled");
 		await user.hover(bar);
-		await body.findByText("Script was canceled.");
+		await body.findByText(
+			"Script was canceled because the workspace stopped before it finished.",
+		);
 	},
 };
 
@@ -155,8 +159,31 @@ export const TimedOutScript: Story = {
 		],
 	},
 	play: async ({ canvasElement }) => {
-		const { canvas } = await openStartupScripts(canvasElement);
-		await canvas.findByLabelText("Startup Script: timed out");
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		const bar = await canvas.findByLabelText("Startup Script: timed out");
+		await user.hover(bar);
+		await body.findByText("Script timed out.");
+	},
+};
+
+export const PipesLeftOpenScript: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				status: "pipes_left_open",
+				exit_code: 255,
+			},
+			WorkspaceTimingsResponse.agent_script_timings[1],
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const { user, canvas, body } = await openStartupScripts(canvasElement);
+		const bar = await canvas.findByLabelText(
+			"Startup Script: output pipes left open",
+		);
+		await user.hover(bar);
+		await body.findByText("Script exited without closing its output pipes.");
 	},
 };
 
@@ -174,7 +201,7 @@ export const MixedScriptOutcomes: Story = {
 				exit_code: 1,
 			},
 			skippedScriptTiming,
-			canceledWaitingScriptTiming,
+			canceledNotStartedScriptTiming,
 		],
 	},
 	play: async ({ canvasElement }) => {
