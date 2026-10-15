@@ -300,7 +300,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'organization_skill:read',
     'organization_skill:update',
     'organization_skill:delete',
-    'organization_skill:share'
+    'organization_skill:share',
+    'chat_project:share',
+    'workspace_secret:*',
+    'workspace_secret:create',
+    'workspace_secret:read',
+    'workspace_secret:read_secret',
+    'workspace_secret:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -755,6 +761,11 @@ CREATE TYPE workspace_app_status_state AS ENUM (
     'idle'
 );
 
+CREATE TYPE workspace_secret_source AS ENUM (
+    'request',
+    'carry_forward'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -1172,6 +1183,65 @@ BEGIN
             new_env_bytes, env_bytes_limit
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_workspace_secrets_per_build_limits() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    existing_count       int;
+    existing_total_bytes bigint;
+    existing_env_bytes   bigint;
+
+    new_count       int;
+    new_total_bytes bigint;
+    new_env_bytes   bigint;
+
+    count_limit       constant int    := 50;
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
+    env_bytes_limit   constant bigint := 24576;    -- 24 KiB
+BEGIN
+    -- Serialize cap checks per build so concurrent inserts cannot all
+    -- observe the same pre-insert aggregates and exceed the cap.
+    PERFORM 1 FROM workspace_builds WHERE id = NEW.workspace_build_id FOR UPDATE;
+
+    SELECT
+        count(*),
+        coalesce(sum(octet_length(value)), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE env_name <> ''), 0)
+    INTO existing_count, existing_total_bytes, existing_env_bytes
+    FROM workspace_secrets
+    WHERE workspace_build_id = NEW.workspace_build_id
+      AND cleared_at IS NULL;
+
+    new_count       := existing_count + 1;
+    new_total_bytes := existing_total_bytes + octet_length(NEW.value);
+    new_env_bytes   := existing_env_bytes
+                       + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
+
+    IF new_count > count_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets count limit (% > %)',
+            new_count, count_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_count_limit';
+    END IF;
+
+    IF new_total_bytes > total_bytes_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets total value bytes limit (% > %)',
+            new_total_bytes, total_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_total_bytes_limit';
+    END IF;
+
+    IF new_env_bytes > env_bytes_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets env value bytes limit (% > %)',
+            new_env_bytes, env_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_env_bytes_limit';
     END IF;
 
     RETURN NEW;
@@ -2231,15 +2301,23 @@ CREATE TABLE chat_projects (
     icon text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
     CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
-    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
 
 COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
+
+COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
+
+COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2758,6 +2836,7 @@ CREATE TABLE mcp_server_configs (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
+    oauth2_resource text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -4340,6 +4419,23 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
 
+CREATE TABLE workspace_secrets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid NOT NULL,
+    workspace_build_id uuid NOT NULL,
+    name text NOT NULL,
+    value text,
+    value_key_id text,
+    env_name text DEFAULT ''::text NOT NULL,
+    file_path text DEFAULT ''::text NOT NULL,
+    ephemeral boolean DEFAULT false NOT NULL,
+    source workspace_secret_source NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    cleared_at timestamp with time zone,
+    CONSTRAINT workspace_secrets_requires_target CHECK (((env_name <> ''::text) OR (file_path <> ''::text))),
+    CONSTRAINT workspace_secrets_value_cleared CHECK (((value IS NULL) = (cleared_at IS NOT NULL)))
+);
+
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
     workspaces.created_at,
@@ -4848,6 +4944,9 @@ ALTER TABLE ONLY workspace_resource_metadata
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
@@ -4995,9 +5094,13 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
+CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
+
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 
 CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
+
+CREATE INDEX idx_chat_projects_user_acl ON chat_projects USING gin (user_acl);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -5183,6 +5286,14 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
+CREATE UNIQUE INDEX workspace_secrets_build_env_name_idx ON workspace_secrets USING btree (workspace_build_id, env_name) WHERE (env_name <> ''::text);
+
+CREATE UNIQUE INDEX workspace_secrets_build_file_path_idx ON workspace_secrets USING btree (workspace_build_id, file_path) WHERE (file_path <> ''::text);
+
+CREATE UNIQUE INDEX workspace_secrets_build_name_idx ON workspace_secrets USING btree (workspace_build_id, name);
+
+CREATE INDEX workspace_secrets_workspace_live_idx ON workspace_secrets USING btree (workspace_id) WHERE (cleared_at IS NULL);
+
 CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
@@ -5298,6 +5409,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+
+CREATE TRIGGER trigger_workspace_secrets_per_build_limits BEFORE INSERT ON workspace_secrets FOR EACH ROW EXECUTE FUNCTION enforce_workspace_secrets_per_build_limits();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -5806,6 +5919,15 @@ ALTER TABLE ONLY workspace_resource_metadata
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_build_workspace_fkey FOREIGN KEY (workspace_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;

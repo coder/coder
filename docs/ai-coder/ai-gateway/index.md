@@ -4,31 +4,32 @@ title: AI Gateway
 
 ![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)
 
-AI Gateway is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
-and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
-the upstream APIs, AI Gateway can record user prompts, token usage, and tool invocations.
+AI Gateway is a smart gateway for AI.
+It acts as an intermediary between your users' coding agents / IDEs and providers like OpenAI and Anthropic.
+By intercepting all the AI traffic between these clients and the upstream APIs, AI Gateway can record user prompts, token usage, and tool invocations.
 AI Gateway supports clients running inside or outside Coder workspaces.
 You can run the gateway inside the Coder control plane (`coderd`) or as a [standalone service](./standalone.md).
 
 AI Gateway solves 3 key problems:
 
-1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
-   Users use their Coder session or API tokens to authenticate with `coderd`, and
-   `coderd` securely communicates with the upstream APIs on their behalf.
-1. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
-   are audited and attributed back to a user.
-1. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
-   use.
+1. **Centralized authn/z management**:
+   no more issuing & managing API tokens for OpenAI/Anthropic usage.
+   Users use their Coder session or API tokens to authenticate with `coderd`, and `coderd` securely communicates with the upstream APIs on their behalf.
+1. **Auditing and attribution**:
+   all interactions with AI services, whether autonomous or human-initiated, are audited and attributed back to a user.
+1. **Centralized MCP administration**:
+   define a set of approved MCP servers and tools which your users may use.
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 >
-> AI Gateway was previously known as "AI Bridge". Visit [Rebranding Migration](./rebranding-migration.md) for details.
+> AI Gateway was previously known as "AI Bridge".
+> Visit [Rebranding Migration](./rebranding-migration.md) for details.
 
 ## When to use AI Gateway
 
-As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Gateway enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
+As LLM adoption grows, administrators need centralized auditing, monitoring, and token management.
+AI Gateway enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
 
 If you are an administrator or devops leader looking to:
 

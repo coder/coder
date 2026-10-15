@@ -424,6 +424,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
+		OAuth2Resource:          seed.OAuth2Resource,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -2057,6 +2058,27 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 	userSecret, err := db.CreateUserSecret(genCtx, params)
 	require.NoError(t, err, "failed to insert user secret")
 	return userSecret
+}
+
+func WorkspaceSecret(t testing.TB, db database.Store, seed database.WorkspaceSecret) database.WorkspaceSecret {
+	value := seed.Value
+	if !value.Valid {
+		value = sql.NullString{String: "secret value", Valid: true}
+	}
+	secret, err := db.InsertWorkspaceSecret(genCtx, database.InsertWorkspaceSecretParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceBuildID: takeFirst(seed.WorkspaceBuildID, uuid.New()),
+		Name:             takeFirst(seed.Name, "secret-name"),
+		Value:            value,
+		ValueKeyID:       seed.ValueKeyID,
+		EnvName:          takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
+		FilePath:         seed.FilePath,
+		Ephemeral:        seed.Ephemeral,
+		Source:           takeFirst(seed.Source, database.WorkspaceSecretSourceRequest),
+	})
+	require.NoError(t, err, "failed to insert workspace secret")
+	return secret
 }
 
 func ClaimPrebuild(

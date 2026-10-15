@@ -125,6 +125,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
 
+	protoScripts, err := dbAgentScriptsToProto(scripts)
+	if err != nil {
+		return nil, xerrors.Errorf("converting workspace agent scripts: %w", err)
+	}
+
 	var parentID []byte
 	if workspaceAgent.ParentID.Valid {
 		parentID = workspaceAgent.ParentID.UUID[:]
@@ -151,7 +156,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:       dbAgentScriptsToProto(scripts),
+		Scripts:       protoScripts,
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
@@ -190,15 +195,40 @@ func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadat
 	}
 }
 
-func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []*agentproto.WorkspaceAgentScript {
+func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) ([]*agentproto.WorkspaceAgentScript, error) {
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
-		ret[i] = dbAgentScriptToProto(script)
+		converted, err := dbAgentScriptToProto(script)
+		if err != nil {
+			return nil, xerrors.Errorf("script %s: %w", script.ID, err)
+		}
+		ret[i] = converted
 	}
-	return ret
+	return ret, nil
 }
 
-func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) *agentproto.WorkspaceAgentScript {
+// dbAgentScriptToProto goes through db2sdk.WorkspaceAgentScript so the
+// manifest and the REST API agree on what a valid dependency list is.
+func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) (*agentproto.WorkspaceAgentScript, error) {
+	sdkScript, err := db2sdk.WorkspaceAgentScript(script)
+	if err != nil {
+		return nil, err
+	}
+	var dependencies []*agentproto.WorkspaceAgentScriptDependency
+	if len(sdkScript.Dependencies) > 0 {
+		dependencies = make([]*agentproto.WorkspaceAgentScriptDependency, len(sdkScript.Dependencies))
+	}
+	for i, dependency := range sdkScript.Dependencies {
+		requirement, err := workspaceAgentScriptDependencyRequirementToProto(dependency.Requirement)
+		if err != nil {
+			return nil, xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		dependencies[i] = &agentproto.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.PrerequisiteResourceAddress,
+			Requirement:                 requirement,
+		}
+	}
+
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
 		LogSourceId:      script.LogSourceID[:],
@@ -209,6 +239,21 @@ func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow)
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		ResourceAddress:  sdkScript.ResourceAddress,
+		Dependencies:     dependencies,
+	}, nil
+}
+
+func workspaceAgentScriptDependencyRequirementToProto(requirement codersdk.WorkspaceAgentScriptDependencyRequirement) (agentproto.WorkspaceAgentScriptDependency_Requirement, error) {
+	switch requirement {
+	case codersdk.WorkspaceAgentScriptDependencyRequirementSuccess:
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS, nil
+	case codersdk.WorkspaceAgentScriptDependencyRequirementCompletion:
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_COMPLETION, nil
+	default:
+		// db2sdk already rejected anything else. The error stays so a new
+		// requirement can never fall through to UNSPECIFIED unnoticed.
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_UNSPECIFIED, xerrors.Errorf("unsupported requirement %q", requirement)
 	}
 }
 

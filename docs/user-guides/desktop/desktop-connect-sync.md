@@ -23,9 +23,11 @@ You can also connect to the SSH server in your workspace using any SSH client, s
 
 ### Automatic port forwarding
 
-Any services listening on ports in your workspace are automatically available on the same hostname, with no manual port forwarding required. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
+Any services listening on ports in your workspace are automatically available on the same hostname, with no manual port forwarding required.
+For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
 
-This works for all TCP ports. Start a service in your workspace and access it immediately from your local machine at `http://your-workspace.coder:PORT`.
+This works for all TCP ports.
+Start a service in your workspace and access it immediately from your local machine at `http://your-workspace.coder:PORT`.
 
 For other port forwarding methods (CLI, dashboard, SSH), see [Workspace Ports](../workspace-access/port-forwarding.md).
 
@@ -124,9 +126,11 @@ Even though the browser displays a warning about an insecure connection without 
 
 1. Ensure that the dropdown to the right of the text field is set to **Enabled**.
 
-1. You will be prompted to relaunch Google Chrome at the bottom of the page. Select **Relaunch** to restart Google Chrome.
+1. You will be prompted to relaunch Google Chrome at the bottom of the page.
+   Select **Relaunch** to restart Google Chrome.
 
-1. On relaunch and subsequent launches, Google Chrome will show a banner stating "You are using an unsupported command-line flag". This banner can be safely dismissed.
+1. On relaunch and subsequent launches, Google Chrome will show a banner stating "You are using an unsupported command-line flag".
+   This banner can be safely dismissed.
 
 1. Web apps accessed on the configured hostnames and ports will now function correctly in a secure context.
 
@@ -140,7 +144,8 @@ Even though the browser displays a warning about an insecure connection without 
 
 1. Select **String** on the entry with the same name at the bottom of the list, then select the plus icon on the right.
 
-1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`. Then select the tick icon.
+1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`.
+   Then select the tick icon.
 
    If you need to enter multiple URLs, use a comma to separate them.
 

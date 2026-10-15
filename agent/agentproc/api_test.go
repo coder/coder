@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1110,7 +1111,7 @@ func TestChatIsolation(t *testing.T) {
 	}
 }
 
-func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T) {
+func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_TracksDefaultDir(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
@@ -1118,10 +1119,11 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	ch, unsub := pathStore.Subscribe(chatID)
 	defer unsub()
 
+	defaultDir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, pathStore, nil, func(current []string) ([]string, error) {
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, afero.NewOsFs(), pathStore, nil, func(current []string) ([]string, error) {
 		return current, nil
-	}, nil)
+	}, func() string { return defaultDir })
 	defer api.Close()
 
 	routes := agentchat.Middleware(api.Routes())
@@ -1138,16 +1140,15 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 
 	require.Equal(t, http.StatusOK, rw.Code)
 
-	// The subscriber should be notified even though no paths
-	// were added.
+	// A command without a workdir runs in the default directory,
+	// which counts as touched by the chat.
 	select {
 	case <-ch:
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("timed out waiting for path store notification")
 	}
 
-	// No paths should have been stored for this chat.
-	require.Nil(t, pathStore.GetPaths(chatID))
+	require.Equal(t, []string{defaultDir}, pathStore.GetPaths(chatID))
 }
 
 func TestProcessLifecycle(t *testing.T) {
