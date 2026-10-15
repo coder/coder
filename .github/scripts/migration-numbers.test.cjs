@@ -144,6 +144,7 @@ function harness(options = {}) {
         list: async () => ({ data: [pr, ...(lists++ && options.finalOthers ? options.finalOthers : options.others || [])] }),
         get: async () => {
           prReads++;
+          if (options.mergeables) pr.mergeable = options.mergeables.length > 1 ? options.mergeables.shift() : options.mergeables[0];
           if (prReads === options.raceAt) options.race(pr);
           return { data: structuredClone(pr) };
         },
@@ -196,7 +197,9 @@ function harness(options = {}) {
     serverUrl: "https://github.com", runId: 123,
   };
   const core = { info: (message) => infos.push(message), warning: (message) => infos.push(message) };
-  return { github, context, core, writer, statuses, commits, infos, pr };
+  const sleeps = [];
+  const sleep = async (ms) => { sleeps.push(ms); };
+  return { github, context, core, writer, sleep, sleeps, statuses, commits, infos, pr };
 }
 
 test("API repair preserves bytes and uses an atomic normal commit, never an old-head success", async () => {
@@ -273,6 +276,24 @@ test("blob read errors name the file", async () => {
   await run(h);
   assert.equal(h.commits.length, 0);
   assert.ok(h.statuses.at(-1).description.includes("Oversized file; manual fix required: " + fixture));
+});
+
+test("unknown mergeability waits before deciding on autofix", async () => {
+  const h = harness({ mergeables: [null, true] });
+  await run(h);
+  assert.equal(h.commits.length, 1);
+  assert.deepEqual(h.sleeps, [3000]);
+
+  const final = harness({ mergeables: [true, true, null, true] });
+  await run(final);
+  assert.equal(final.commits.length, 1);
+  assert.equal(final.sleeps.length, 1);
+
+  const unknown = harness({ mergeables: [null] });
+  await run(unknown);
+  assert.equal(unknown.commits.length, 0);
+  assert.equal(unknown.sleeps.length, 4);
+  assert.match(unknown.statuses.at(-1).description, /unknown mergeability/);
 });
 
 test("author push, main movement and label removal before mutation discard autofix", async () => {

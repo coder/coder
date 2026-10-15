@@ -6,12 +6,22 @@ const rules = require("./migration-numbers.cjs");
  * Trusted orchestration. GitHub trees and blobs are data only; this module
  * never checks out a PR, runs its scripts, or evaluates its SQL.
  */
-async function run({ github, context, core, writer }) {
+async function run({ github, context, core, writer,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   const { owner, repo } = context.repo;
   const repository = owner + "/" + repo;
   const cache = new Map();
   const mainSha = async () => (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data.commit.sha;
   const getPR = async (number) => (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+  // GitHub reports mergeable: null while it computes mergeability after a push.
+  const settledPR = async (number, pr) => {
+    pr ||= await getPR(number);
+    for (let attempt = 1; attempt < 5 && pr.mergeable === null; attempt++) {
+      await sleep(3000);
+      pr = await getPR(number);
+    }
+    return pr;
+  };
   const snapshot = async (sha) => {
     if (!cache.has(sha)) {
       const { data } = await github.rest.git.getTree({ owner, repo, tree_sha: sha, recursive: "1" });
@@ -61,7 +71,7 @@ async function run({ github, context, core, writer }) {
   }
 
   for (const number of targets) {
-    const pr = await getPR(number);
+    let pr = await getPR(number);
     if (pr.state !== "open" || pr.base.ref !== "main") continue;
 
     const main = await mainSha();
@@ -78,6 +88,11 @@ async function run({ github, context, core, writer }) {
       const isStacked = (pulls) => pulls.some((other) => other.number !== number
         && other.head.repo?.full_name === repository
         && (other.base.ref === pr.head.ref || comparison.commits.some((commit) => commit.sha === other.head.sha)));
+      if (pr.mergeable === null && pr.labels.some((label) => label.name === rules.LABEL)) {
+        const settled = await settledPR(number, pr);
+        // Keep the planned revision; a new head gets its own run.
+        if (rules.sameRevision(pr, settled, main, main)) pr = settled;
+      }
       const stacked = isStacked(allPRs);
       let reason = rules.skipReason(pr, repository, stacked);
       if (!reason && comparison.total_commits > comparison.commits.length) reason = "Incomplete commit history; manual fix required.";
@@ -117,7 +132,7 @@ async function run({ github, context, core, writer }) {
       // Re-read both refs and eligibility immediately before mutation. GitHub
       // atomically rejects an author push via expectedHeadOid. Main/label reads
       // are best-effort; branch protection remains the final freshness gate.
-      const current = await getPR(number);
+      const current = await settledPR(number);
       const currentPRs = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
       if (!rules.unchanged(pr, current, main, await mainSha()) || rules.skipReason(current, repository, isStacked(currentPRs))) {
         core.info("Discarding stale autofix for PR #" + number + ".");
