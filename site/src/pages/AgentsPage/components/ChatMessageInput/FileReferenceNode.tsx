@@ -162,6 +162,7 @@ const FileReferenceChipWrapper: React.FC<{
 				node.remove();
 			}
 		});
+		editor.getRootElement()?.focus({ preventScroll: true });
 	};
 
 	const handleClick = () => {

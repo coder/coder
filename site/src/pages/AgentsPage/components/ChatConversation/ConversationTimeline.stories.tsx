@@ -1476,7 +1476,6 @@ export const UserMessageWithInlineFileRef: Story = {
 	},
 };
 
-/** Skill chips render inline with text, and a skill-only message still renders. */
 export const UserMessageWithSkillChips: Story = {
 	args: {
 		...defaultArgs,

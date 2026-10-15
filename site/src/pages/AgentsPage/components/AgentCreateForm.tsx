@@ -667,7 +667,10 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
+	// Organization skill chips would be sent with the new organization, so
+	// they are removed when it changes.
 	const selectOrganization = (organization: TypesGen.Organization) => {
+		chatInputRef.current?.removeSkills(["org"]);
 		setUserMCPServerIds(null);
 		setPickedProject(null);
 		setSelectedOrg(organization);
@@ -754,6 +757,16 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		);
 
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// Project skill chips would be sent with another project, so the editor,
+	// which lives outside React state, drops them whenever the project
+	// changes, including when a refetch removes the picked project.
+	const lastChatProjectIdRef = useRef(chatProjectId);
+	useEffect(() => {
+		if (lastChatProjectIdRef.current !== chatProjectId) {
+			lastChatProjectIdRef.current = chatProjectId;
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],

@@ -132,7 +132,7 @@ export function FileReferenceChip({
 }
 
 /**
- * Removes an editable chip; pointer only, since Backspace removes chips.
+ * Removes an editable chip by click or by Tab then Enter or Space.
  * The pseudo-element widens the tap target to 24px without moving the icon.
  */
 export const ChipRemoveButton: React.FC<{
@@ -147,8 +147,10 @@ export const ChipRemoveButton: React.FC<{
 			e.stopPropagation();
 			onRemove();
 		}}
+		// Keys on the focused button must not reach the editor, where Enter
+		// would send the message instead of pressing the button.
+		onKeyDownCapture={(e) => e.stopPropagation()}
 		aria-label={label}
-		tabIndex={-1}
 	>
 		<XIcon className="size-2.5" />
 	</button>

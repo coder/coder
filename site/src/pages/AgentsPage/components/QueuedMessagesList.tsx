@@ -46,7 +46,7 @@ export const getQueuedMessageInfo = (
 		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
-			previewParts.push({ type: "text", text: part.text.trim() });
+			previewParts.push({ type: "text", text: part.text });
 		} else if (part.type === "skill-invocation") {
 			previewParts.push(part);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
@@ -57,31 +57,55 @@ export const getQueuedMessageInfo = (
 	return { previewParts, attachmentCount, hookNotices };
 };
 
-// Shows the message's first line, with skills as chips in document order.
+/**
+ * Cuts preview parts at the message's first line break, trimming text only
+ * after the cut so a break at the end of a text part still ends the line.
+ */
+export const getFirstLinePreview = (
+	parts: readonly QueuedMessagePreviewPart[],
+): { parts: QueuedMessagePreviewPart[]; isTruncated: boolean } => {
+	const firstLine: QueuedMessagePreviewPart[] = [];
+	for (const [index, part] of parts.entries()) {
+		if (part.type !== "text") {
+			firstLine.push(part);
+			continue;
+		}
+		// Leading blank lines do not end an empty first line.
+		const text = firstLine.length === 0 ? part.text.trimStart() : part.text;
+		const lineBreakIndex = text.indexOf("\n");
+		const line = lineBreakIndex === -1 ? text : text.slice(0, lineBreakIndex);
+		if (line.trim()) {
+			firstLine.push({ ...part, text: line.trim() });
+		}
+		if (lineBreakIndex !== -1) {
+			const isTruncated =
+				Boolean(text.slice(lineBreakIndex).trim()) || index < parts.length - 1;
+			return { parts: firstLine, isTruncated };
+		}
+	}
+	return { parts: firstLine, isTruncated: false };
+};
+
 const QueuedMessagePreview: React.FC<{
 	parts: readonly QueuedMessagePreviewPart[];
 }> = ({ parts }) => {
 	if (parts.length === 0) {
 		return "[Queued message]";
 	}
-	const lineBreakIndex = parts.findIndex(
-		(part) => part.type === "text" && part.text.includes("\n"),
-	);
-	const firstLineParts =
-		lineBreakIndex === -1 ? parts : parts.slice(0, lineBreakIndex + 1);
+	const firstLine = getFirstLinePreview(parts);
 	return (
 		<>
-			{firstLineParts.map((part, index) => (
+			{firstLine.parts.map((part, index) => (
 				<Fragment key={index}>
 					{index > 0 && " "}
 					{part.type === "skill-invocation" ? (
 						<SkillChip source={part.skill_source} name={part.skill_name} />
 					) : (
-						part.text.split("\n")[0]
+						part.text
 					)}
 				</Fragment>
 			))}
-			{lineBreakIndex !== -1 && "…"}
+			{firstLine.isTruncated && "…"}
 		</>
 	);
 };

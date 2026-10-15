@@ -280,7 +280,7 @@ Because stored skills are read again at each step, a change takes effect on the 
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
 The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
-When you write a new message in an existing chat, a **Commands** group above them also lists the built-in `/compact` and `/clear` commands.
+When you write a new message in an existing chat, a **Commands** group above them also lists the built-in `/compact` and `/clear` commands, unless a skill with the same name hides the built-in command.
 The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
