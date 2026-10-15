@@ -27,7 +27,7 @@ machine/VM.
 > `CODER_LOGGING_HUMAN`) to `/dev/null`. An empty string does not disable
 > logging.
 
-Events such as server errors, audit logs, user activities, and SSO & OpenID
+Events such as server errors, audit logs, user activities, and single sign-on (SSO) & OpenID
 Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs

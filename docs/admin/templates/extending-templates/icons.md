@@ -4,7 +4,7 @@ title: Icons
 
 Coder uses icons in several places, including ones that can be configured
 throughout the app, or specified in your Terraform. They're specified by a URL,
-which can be to an image hosted on a CDN of your own, or one of the icons that
+which can be to an image hosted on a content delivery network (CDN) of your own, or one of the icons that
 come bundled with your Coder deployment.
 
 - **Template Icons**:

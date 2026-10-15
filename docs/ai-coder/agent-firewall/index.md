@@ -108,7 +108,7 @@ module "agent-firewall" {
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
 - `no_user_namespace` disables creation of a user namespace inside the jail.
-  Enable this in restricted environments that disallow user namespaces, such as Bottlerocket nodes in EKS auto-mode.
+  Enable this in restricted environments that disallow user namespaces, such as Bottlerocket nodes in Amazon Elastic Kubernetes Service (EKS) auto-mode.
   Only applies to the `nsjail` jail type.
 - `proxy_port` defines the port used by the HTTP proxy.
   Default: `8080`.
@@ -146,15 +146,15 @@ Landjail may be preferred in environments where namespace capabilities are limit
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                | Landlock V4 Jail                                                        |
-|-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
-| **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
-| **Kernel requirements**       | Linux 3.8+ (widely available)                                                     | ❌ Linux 6.7+ (very new, limited adoption)                               |
-| **Bypass resistance**         | ✅ Strong - transparent interception prevents bypass                               | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
-| **Process isolation**         | ✅ PID namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
-| **Non-TCP traffic control**   | ✅ Can block/control UDP via iptables; **implementation in-progress**              | ❌ No control over UDP (data can leak via UDP)                           |
-| **Application compatibility** | ✅ Works with ANY application (transparent interception)                           | ❌ Tools without `HTTP_PROXY` support will be blocked                    |
+| Aspect                                                      | Namespace Jail (Namespaces + veth-pair + iptables)                                             | Landlock V4 Jail                                                        |
+|-------------------------------------------------------------|------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Privileges**                                              | Requires `CAP_NET_ADMIN`                                                                       | ✅ No special capabilities required                                      |
+| **Docker seccomp**                                          | ❌ Requires seccomp profile modifications or sysbox-runc                                        | ✅ Works without seccomp changes                                         |
+| **Kernel requirements**                                     | Linux 3.8+ (widely available)                                                                  | ❌ Linux 6.7+ (very new, limited adoption)                               |
+| **Bypass resistance**                                       | ✅ Strong - transparent interception prevents bypass                                            | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
+| **Process isolation**                                       | ✅ process ID (PID) namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
+| **Non-Transmission Control Protocol (TCP) traffic control** | ✅ Can block/control User Datagram Protocol (UDP) via iptables; **implementation in-progress**  | ❌ No control over UDP (data can leak via UDP)                           |
+| **Application compatibility**                               | ✅ Works with ANY application (transparent interception)                                        | ❌ Tools without `HTTP_PROXY` support will be blocked                    |
 
 ## Audit Logs
 
@@ -180,7 +180,7 @@ Each Agent Firewall audit log entry includes:
 | Field                 | Description                                                                             |
 |-----------------------|-----------------------------------------------------------------------------------------|
 | `decision`            | Whether the request was allowed (`allow`) or blocked (`deny`)                           |
-| `workspace_id`        | The UUID of the workspace where the request originated                                  |
+| `workspace_id`        | The universally unique identifier (UUID) of the workspace where the request originated  |
 | `workspace_name`      | The name of the workspace where the request originated                                  |
 | `owner`               | The owner of the workspace where the request originated                                 |
 | `template_id`         | The UUID of the template that the workspace was created from                            |

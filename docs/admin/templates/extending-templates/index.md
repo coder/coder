@@ -139,7 +139,7 @@ resource "coder_app" "zed" {
 </div>
 
 Check out our [module registry](https://registry.coder.com/modules) for
-additional Coder apps from the team and our OSS community.
+additional Coder apps from the team and our open source software (OSS) community.
 
 ## Environment variables
 

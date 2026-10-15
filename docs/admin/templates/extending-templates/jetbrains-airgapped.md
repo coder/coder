@@ -60,7 +60,7 @@ We now have both clients and backends installed.
 ## 3. Install a web server
 
 You will need to run a web server in order to serve requests to the backend and
-client files. We installed `nginx` and setup an FQDN and routed all requests to
+client files. We installed `nginx` and setup a fully qualified domain name (FQDN) and routed all requests to
 `/`. See below:
 
 ```console

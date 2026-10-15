@@ -13,25 +13,25 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 
 ## What each scope owns
 
-| Setting                         | Scope                  | Where to configure                                                         |
-|---------------------------------|------------------------|----------------------------------------------------------------------------|
-| AI providers and credentials    | Deployment             | **Admin settings** > **AI** > **Providers**                                |
-| Chat models                     | Organization           | **Admin settings** > **AI** > **Models**                                   |
-| Default model                   | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
-| Admin model overrides           | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
-| Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
-| Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
-| Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
-| Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
-| System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Agent access to a template      | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
-| Advisor runtime limits          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| Virtual desktop provider        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| Autostop fallback and lifecycle | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
-| Data retention                  | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
+| Setting                              | Scope                  | Where to configure                                                         |
+|--------------------------------------|------------------------|----------------------------------------------------------------------------|
+| AI providers and credentials         | Deployment             | **Admin settings** > **AI** > **Providers**                                |
+| Chat models                          | Organization           | **Admin settings** > **AI** > **Models**                                   |
+| Default model                        | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Admin model overrides                | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Personal model overrides             | User, per organization | **Agents** > **Settings** > **Agents**                                     |
+| Personal override toggle             | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| Model Context Protocol (MCP) servers | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| Organization skills                  | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Personal skills                      | User                   | **Agents** > **Settings** > **Skills**                                     |
+| System prompt                        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Organization instructions            | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Plan mode instructions               | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Agent access to a template           | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
+| Advisor runtime limits               | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| Virtual desktop provider             | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| Autostop fallback and lifecycle      | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
+| Data retention                       | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
 
 The **Deployment settings** section holds the Advisor card and the Virtual desktop card.
 Both cards appear on the **Coder Agents** page.

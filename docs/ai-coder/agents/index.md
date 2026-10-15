@@ -8,7 +8,7 @@ Developers describe the work they want done, and Coder Agents handles selecting 
 Coder Agents includes its own self-hosted AI coding agent that runs the agent loop directly within the Coder control plane.
 
 No specialized software, API keys, or network access is required inside your workspace.
-The only requirement is network access between the control plane and external LLM providers.
+The only requirement is network access between the control plane and external large language model (LLM) providers.
 
 <video autoplay controls muted playsinline loop>
   <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
@@ -66,7 +66,7 @@ It makes outbound requests to LLM providers and connects to workspaces only when
 
 Not every chat requires a workspace.
 The agent uses the conversation and available tools when they're sufficient for your request.
-If missing tools, skills, MCP integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
+If missing tools, skills, Model Context Protocol (MCP) integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
 Workspaces also support reading code, running commands, and editing files.
 Requests to fix a bug or build an app authorize the necessary workspace setup; you don't need to ask for a workspace separately.
 Questions and self-contained code examples don't need a workspace when the conversation and available tools are sufficient.
@@ -95,12 +95,12 @@ Creating a workspace doesn't change the current mode's tool restrictions: worksp
 Workspace skills, MCP tools, and context can finish loading after the workspace reports ready.
 The agent can continue with available file and shell tools, but provisioning doesn't guarantee immediate access to a missing MCP tool.
 
-| No workspace needed                                  | Workspace provisioned                                    |
-|------------------------------------------------------|----------------------------------------------------------|
-| "What are the tradeoffs between REST and gRPC?"      | "Find and fix the nil pointer crash in the auth service" |
-| "Help me draft an RFC for adding a caching layer"    | "Run the test suite and fix any failures"                |
-| "What's the best way to handle retry logic in Go?"   | "Refactor the handler to use the new SDK types"          |
-| "Compare connection pooling strategies for Postgres" | "Read the config file and add the new feature flag"      |
+| No workspace needed                                                               | Workspace provisioned                                    |
+|-----------------------------------------------------------------------------------|----------------------------------------------------------|
+| "What are the tradeoffs between Representational State Transfer (REST) and gRPC?" | "Find and fix the nil pointer crash in the auth service" |
+| "Help me draft a Request for Comments (RFC) for adding a caching layer"           | "Run the test suite and fix any failures"                |
+| "What's the best way to handle retry logic in Go?"                                | "Refactor the handler to use the new SDK types"          |
+| "Compare connection pooling strategies for Postgres"                              | "Read the config file and add the new feature flag"      |
 
 ### Sub-agents
 

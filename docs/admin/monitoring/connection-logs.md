@@ -58,7 +58,7 @@ You can filter connection logs by the following parameters:
 - `method` - How the connection was established, such as `ssh`, `reconnecting_pty`, or `workspace_app`.
   For every method, refer to the [`codersdk.ConnectionLogMethod` schema](../../reference/api/schemas.md#codersdkconnectionlogmethod).
   For example, `method:ssh` matches every SSH connection, whichever app made it.
-- `app` - The name of the application that made an SSH or reconnecting PTY connection, such as `cursor`.
+- `app` - The name of the application that made an SSH or reconnecting pseudo-terminal (PTY) connection, such as `cursor`.
   Repeat the filter to match any of several apps, for example `app:vscode app:cursor`.
   Some clients report only `vscode` or `jetbrains` instead of their own name, so `app:vscode` and `app:jetbrains` can also include other VS Code-based editors and JetBrains IDEs.
   Coder lowercases the value and replaces hyphens with underscores before it matches.

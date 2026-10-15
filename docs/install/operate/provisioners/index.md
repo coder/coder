@@ -91,7 +91,7 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners), 
 
 ## Global PSK (Not Recommended)
 
-We do not recommend using global PSK.
+We do not recommend using global pre-shared key (PSK).
 
 Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 

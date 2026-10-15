@@ -3,7 +3,7 @@
 The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA conformance wherever it doesn't sacrifice clarity.
 The rules on this page support that target.
 They cover heading structure, inclusive language, link text, and images.
-They also cover plain English for international readers, page descriptions, and reading level.
+They also cover plain English for international readers, abbreviations, page descriptions, and reading level.
 
 > [!NOTE]
 > Color contrast and other rendered-output accessibility concerns belong to the docs site theme, not to prose conventions.
@@ -98,6 +98,10 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | replica, secondary                                    | slave                                         |
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
+| on-path attacker, machine-in-the-middle (MITM)        | man-in-the-middle                             |
+
+Use "on-path attacker" for the attack.
+When a feature intercepts traffic on purpose, such as the AI Gateway Proxy's MITM mode, expand MITM as "machine-in-the-middle."
 
 *Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).*
 
@@ -343,6 +347,47 @@ Restricting them burdens writers without a matching gain for readers familiar wi
 
 *Documentation-only.
 No Vale rule.*
+
+## Expand abbreviations on first use
+
+Spell out an abbreviation the first time it appears on a page, followed by the abbreviation in parentheses: "Model Context Protocol (MCP)."
+After that, use the abbreviation on its own.
+Each page needs its own expansion, because readers arrive on a page from search or a link and don't read the docs in order.
+
+The rule supports [WCAG 2.2 Level AAA](https://www.w3.org/TR/WCAG22/#abbreviations) Success Criterion 3.1.4 (Abbreviations), which asks for a way to find the expanded form of an abbreviation.
+It also helps readers whose first language isn't English, and readers who know the concept but not its abbreviation.
+
+**Do**:
+
+> Register a Model Context Protocol (MCP) server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+**Don't**:
+
+> Register an MCP server for your organization.
+> Each MCP server provides additional tools to the agent.
+
+Write the expansion in lowercase unless it's a proper noun, such as a product, protocol, or standard name: "large language model (LLM)" but "OpenID Connect (OIDC)."
+For a plural, add `s` to both forms: "large language models (LLMs)."
+
+When the first use is a UI label in bold, keep the label exactly as the UI shows it and put the expansion elsewhere in the same paragraph or list item.
+
+**Do**:
+
+> Paste the path to the certificate authority (CA) certificate in **CA Path**.
+
+**Don't**:
+
+> Paste the path to the certificate in **certificate authority (CA) Path**.
+
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, and JSON.
+The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
+Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+
+The rule skips headings, code, link URLs, and pages generated from source code.
+An abbreviation in a page title still needs its expansion in the body of the page.
+
+*Enforced by `Coder.AbbreviationFirstUse`.*
 
 ## Page title and sidebar title
 

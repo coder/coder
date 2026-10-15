@@ -165,7 +165,7 @@ You must add the SSH key to your Git provider.
 
 ## PKCE Support
 
-[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0
+[Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0
 security extension that prevents authorization code interception attacks. Coder supports PKCE when
 acting as an OAuth client to external identity providers.
 
@@ -223,7 +223,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.example.com/rest/oauth2/latest/authorize
 ```
 
-When configuring your Bitbucket OAuth application, set the redirect URI to
+When configuring your Bitbucket OAuth application, set the redirect Uniform Resource Identifier (URI) to
 `https://example.com/external-auth/primary-bitbucket-server/callback`.
 This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 

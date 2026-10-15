@@ -93,7 +93,7 @@ resource "coder_agent" "main" {
 You can also show agent metadata for information about the workspace's host.
 
 [top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is
-available in most Linux distributions and provides virtual memory, CPU and IO
+available in most Linux distributions and provides virtual memory, CPU and input/output (IO)
 statistics. Running `top` produces output that looks like:
 
 ```txt

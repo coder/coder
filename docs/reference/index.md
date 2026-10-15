@@ -9,7 +9,7 @@ are several ways to extend/automate Coder:
 
 - [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
 - [CLI](../reference/cli/index.md)
-- [REST API](../reference/api/index.md)
+- [Representational State Transfer (REST) API](../reference/api/index.md)
 - [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 - [Agent API](../reference/agent-api/index.md)
 
@@ -56,7 +56,7 @@ payloads, we recommend checking the relevant documentation.
 ### Templates
 
 - [Manage templates via Terraform or CLI](../admin/templates/managing-templates/change-management.md):
-  Store all templates in git and update them in CI/CD pipelines.
+  Store all templates in git and update them in continuous integration and continuous delivery (CI/CD) pipelines.
 
 ### Workspace agents
 

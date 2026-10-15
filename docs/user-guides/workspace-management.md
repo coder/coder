@@ -68,7 +68,7 @@ The following filters are supported:
 - `has-agent` - Only applicable for workspaces in "start" transition.
   Stopped and deleted workspaces don't have agents.
   List of supported values `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
-- `id` - Workspace UUID
+- `id` - Workspace universally unique identifier (UUID)
 - `healthy` - Only applicable for workspaces in "start" transition.
   `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
 - `include_agent_metadata` - Not a filter: expands each agent in the API response with the named agent metadata keys, e.g, `include_agent_metadata:cpu_usage`.

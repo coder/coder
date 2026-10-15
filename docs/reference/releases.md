@@ -20,7 +20,7 @@ We support four primary release channels, as well as ad-hoc release candidates:
 - **Release Candidates:** Ad-hoc builds to validate in-development features
 
 We field our mainline releases publicly for one month before promoting them to stable. The security support version, so n-2 from mainline, receives patches
-only for security issues or CVEs.
+only for security issues or Common Vulnerabilities and Exposures (CVEs).
 
 ### Mainline releases
 
@@ -48,7 +48,7 @@ For more information on feature rollout, see our
 - Receives only critical bugfixes and security patches
 - Ideal for regulated environments or large deployments with strict upgrade cycles
 
-ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.12).
+Extended Support Release (ESR) releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.12).
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or the [2.29 to 2.34 ESR Upgrade Guide](../install/operate/upgrade/esr-2.29-2.34-upgrade.md).
 
@@ -56,7 +56,7 @@ For more information, see the [Coder ESR announcement](https://coder.com/blog/es
 
 - Ad-hoc builds that Coder releases to validate in-development features with select customers
 - Not guaranteed to be stable or free of bugs
-- Features introduced in an RC are not guaranteed to be included in a mainline or stable release
+- Features introduced in a release candidate (RC) are not guaranteed to be included in a mainline or stable release
 - Not intended for production use
 
 Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version. Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support. They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.

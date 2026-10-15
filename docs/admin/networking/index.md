@@ -10,7 +10,7 @@ workspaces, but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the control plane. All
+When Network Address Translation (NAT) traversal fails, connections are relayed through the control plane. All
 user-workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
@@ -52,11 +52,11 @@ In order for clients to be able to establish direct connections:
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server/index.md#--derp-server-stun-addresses)
+  [the configured Session Traversal Utilities for Network Address Translation (STUN) servers](../../reference/cli/server/index.md#--derp-server-stun-addresses)
   to try and determine which `ip:port` can be used to communicate with their
   counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
-- All outbound UDP traffic must be allowed for both the client and the agent on
+- All outbound User Datagram Protocol (UDP) traffic must be allowed for both the client and the agent on
   **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN. This
     involves sending UDP packets outbound on `udp/3478` to the configured
@@ -121,7 +121,7 @@ but this can be disabled or changed for
 
 ### Relayed connections
 
-By default, your control plane also runs a built-in DERP relay which can be used
+By default, your control plane also runs a built-in Designated Encrypted Relay for Packets (DERP) relay which can be used
 for both public and [Air-gapped deployments](../../install/prepare/airgap.md).
 
 However, Tailscale maintains a global fleet of [DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers) intended for their product, and has allowed Coder to access and use them.
@@ -212,7 +212,7 @@ There are three main types of latency metrics for your Coder deployment:
 
   The latency shown on the workspace dashboard measures the round-trip time between the workspace agent and its DERP relay server.
 
-  This metric is displayed in milliseconds on the workspace dashboard and specifically shows the agent-to-relay latency, not direct P2P connections.
+  This metric is displayed in milliseconds on the workspace dashboard and specifically shows the agent-to-relay latency, not direct peer-to-peer (P2P) connections.
 
   To estimate the total end-to-end latency experienced by a user, add the dashboard-to-server latency to this agent-to-relay latency.
 

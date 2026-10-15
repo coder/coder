@@ -39,7 +39,7 @@ Or, you can configure plain SSH on your client below.
 
 ### Run remote commands with quoting
 
-Arguments after `--` are joined with spaces into a single command string before being sent to the workspace agent (per [RFC 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5), which defines the SSH exec request as a single string).
+Arguments after `--` are joined with spaces into a single command string before being sent to the workspace agent (per [Request for Comments (RFC) 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5), which defines the SSH exec request as a single string).
 Your local shell consumes outer quotes before the CLI ever sees the arguments, so inner quoting is not preserved on the wire.
 
 This means a common pattern from interactive shells does not behave as you might expect:
@@ -187,7 +187,7 @@ If you have a request for a new IDE or tool, please file an issue in our [Module
 
 ## Coder Desktop
 
-[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a VPN tunnel.
+[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a virtual private network (VPN) tunnel.
 With Coder Desktop, you get:
 
 - **Automatic port forwarding**:
@@ -214,4 +214,4 @@ Read more in the [docs on workspace ports](./port-forwarding.md).
 
 ## Remote Desktops
 
-Coder also supports connecting with an RDP solution, see our [RDP guide](./remote-desktops.md) for details.
+Coder also supports connecting with a Remote Desktop Protocol (RDP) solution, see our [RDP guide](./remote-desktops.md) for details.

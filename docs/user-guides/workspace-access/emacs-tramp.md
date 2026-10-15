@@ -23,7 +23,7 @@ This will open up Dired on the workspace's home directory.
 
 ### Use SSH
 
-By default Emacs TRAMP is setup to use SCP to access files on the Coder workspace instance.
+By default Emacs TRAMP is setup to use Secure Copy Protocol (SCP) to access files on the Coder workspace instance.
 However you might want to use SSH if you have a jumpbox or some other complex network setup.
 
 To do so set the following in your Emacs `init.el` file:
@@ -97,7 +97,7 @@ The `eshell` mode will perform directory tracking by default, no additional conf
 
 If you use [`lsp-mode`](https://emacs-lsp.github.io/lsp-mode) for code intelligence and completion some additional configuration is required.
 
-In your Emacs `init.el` file you must register a LSP client and tell `lsp-mode` how to find it on the remote machine using the `lsp-register-client` function.
+In your Emacs `init.el` file you must register a Language Server Protocol (LSP) client and tell `lsp-mode` how to find it on the remote machine using the `lsp-register-client` function.
 For each LSP server you want to use in your workspace add the following:
 
 ```lisp

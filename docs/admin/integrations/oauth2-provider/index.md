@@ -70,7 +70,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
      Your application name
    - **Default callback**:
      `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop).
-     Select **Add redirect URI** for additional callback URLs.
+     Select **Add redirect URI** to add a Uniform Resource Identifier (URI) for each additional callback URL.
    - **Icon**:
      Optional icon URL
    - **Allowed scopes**:
@@ -137,11 +137,11 @@ curl -X POST \
 The response includes `client_secret_full`, the plaintext secret.
 Save it now: later reads of this application return only a truncated version.
 
-Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
+Every client, whichever method you used to create its application, must complete Proof Key for Code Exchange (PKCE) to exchange a code for a token; refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
 
 ## Dynamic Client Registration
 
-Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually.
+Dynamic Client Registration ([Request for Comments (RFC) 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually.
 It's **disabled by default**; an owner must turn it on before any client can self-register.
 
 Change the setting in the web UI:

@@ -15,7 +15,7 @@ Follow the tutorial here:
 
 Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Kubernetes cluster.
 
-For EKS-specific installation guidance, see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
+For installation guidance specific to Amazon Elastic Kubernetes Service (EKS), see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
 
 ## GCP
 
@@ -24,7 +24,7 @@ Follow the tutorial here:
 
 - [Install Coder on GCP Compute Engine](./compute-engine.md)
 
-Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing GKE cluster.
+Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an existing Google Kubernetes Engine (GKE) cluster.
 
 ## Azure
 

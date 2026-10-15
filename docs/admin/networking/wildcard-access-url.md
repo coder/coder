@@ -94,7 +94,7 @@ You'll need to configure DNS to point wildcard subdomains to your control plane:
 *.coder.example.com    A    <your-coder-server-ip>
 ```
 
-Or alternatively, using a CNAME record:
+Or alternatively, using a canonical name (CNAME) record:
 
 ```txt
 *.coder.example.com    CNAME    coder.example.com

@@ -8,12 +8,12 @@ a browser.
 
 There are four ways to forward ports in Coder:
 
-| Method                                 | Details                                                                                                                                                        |
-|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
-| [CLI](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
-| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                               |
-| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                         |
+| Method                                 | Details                                                                                                                                                                                  |
+|:---------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via virtual private network (VPN) tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
+| [CLI](#the-coder-port-forward-command) | Forwards specific Transmission Control Protocol (TCP) or User Datagram Protocol (UDP) ports from the workspace to local ports. Supports peer-to-peer connections.                        |
+| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                                                         |
+| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                                                   |
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
@@ -145,7 +145,7 @@ not it is still accessible.
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 The sharing level is limited by the maximum level enforced in the template
-settings in premium deployments, and not restricted in OSS deployments.
+settings in premium deployments, and not restricted in open source software (OSS) deployments.
 
 This can also be used to change the sharing level of `coder_app`s by entering
 their port number in the sharable ports UI. The `share` attribute on `coder_app`
@@ -192,7 +192,7 @@ When forwarding via the dashboard, Coder automatically sets headers that allow
 requests between separately forwarded applications belonging to the same user.
 
 When forwarding through other methods the application itself will need to set
-its own CORS headers if they are being forwarded through different origins since
+its own cross-origin resource sharing (CORS) headers if they are being forwarded through different origins since
 Coder does not intercept these cases. See below for the required headers.
 
 #### Authentication

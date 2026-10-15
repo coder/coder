@@ -82,7 +82,7 @@ You must have the certificate `.key` and `.crt` files in your working directory 
    ```
 
    You can use a single certificate for the both the access URL and wildcard access URL.
-   The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
+   The certificate Common Name (CN) must match the wildcard domain, such as `*.example.coder.com`.
 
 1. Reference the TLS secret in your Coder Helm chart values
 

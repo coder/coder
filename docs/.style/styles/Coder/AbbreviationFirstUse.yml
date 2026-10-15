@@ -1,0 +1,139 @@
+# Coder.AbbreviationFirstUse - require an abbreviation to be expanded on its
+# first use on a page, in the form "Expanded Form (ABBR)".
+#
+# The policy supports WCAG 2.2 Level AAA Success Criterion 3.1.4
+# (Abbreviations) and lives in the style guide:
+# docs/.style/style-guide/accessibility-and-inclusion.md#expand-abbreviations-on-first-use
+#
+# Implementation: a conditional rule. Vale collects every abbreviation that
+# `second` captures inside parentheses after a word, then reports each `first`
+# match that hasn't been captured yet. The captures accumulate across the
+# page's blocks in document order, so an expansion later on the page doesn't
+# cover an earlier use. Inside one paragraph, list item, or table cell, an
+# expansion anywhere in the block covers every use in it.
+#
+# An abbreviation is 2 to 6 capitals, each optionally followed by digits
+# (`EC2`, `P2P`). A plural `s` is matched but not reported, so `VMs` counts as
+# a use of `VM` and "virtual machines (VMs)" expands it. `second` also accepts
+# a pair joined by a slash or a space, as in "(CI/CD)" and "(PCI DSS)".
+#
+# Scope: everything except headings. A page title often names the
+# abbreviation that the first paragraph then expands. Vale already skips
+# front matter, code blocks, inline code, and link URLs.
+#
+# The rule checks that an expansion exists, not that it's correct: any word
+# before the parentheses satisfies it.
+#
+# Generated pages are excluded in .vale.ini.
+#
+# Level: warning. Whether an abbreviation is familiar enough to skip is a
+# judgment call, and the exceptions list records those calls.
+extends: conditional
+message: "Expand '%s' on its first use on the page, in the form 'Expanded Form (ABBR)'. Refer to accessibility-and-inclusion.md#expand-abbreviations-on-first-use."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#expand-abbreviations-on-first-use
+level: warning
+scope: ~heading
+ignorecase: false
+first: '\b(?:[A-Z][0-9]*){2,6}(?=s?\b)'
+second: '[\w-]+ \(((?:[A-Z][0-9]*){2,6})s?(?:[/ ]((?:[A-Z][0-9]*){2,6})s?)?\)'
+exceptions:
+  # Abbreviations every reader of these docs already knows. A plural `s` is
+  # covered too, so VMs and SDKs pass.
+  - AI
+  - API
+  - AWS
+  - CLI
+  - CPU
+  - DNS
+  - GCP
+  - HTTPS?
+  - ID
+  - IDE
+  - IP
+  - JSON
+  - OS
+  - PR
+  - RAM
+  - SDK
+  - SQL
+  - SSH
+  - TLS
+  - UI
+  - URL
+  - VM
+  - YAML
+  # Units, clock times, and file and package formats, which readers know by
+  # the abbreviation rather than by the expansion.
+  - GB
+  - KB
+  - MB
+  - AM
+  - PM
+  - CSV
+  - GIF
+  - JPEG
+  - PDF
+  - PNG
+  - RPM
+  - SVG
+  - VSIX
+  - ZIP
+  # Not abbreviations: alert labels, file names, emphasis and keywords in
+  # capitals, HTTP methods, SQL keywords, SMTP authentication mechanisms,
+  # control characters, rule labels, RFC numbers, and TL;DR.
+  - NOTE
+  - TIP
+  - OK
+  - README
+  - SKILL
+  - ALL
+  - AND
+  - ANY
+  - ERROR
+  - MUST
+  - NOT
+  - 'ON'
+  - OR
+  - DELETE
+  - GET
+  - POST
+  - PUT
+  - ILIKE
+  - VACUUM
+  - LOGIN
+  - PLAIN
+  - NUL
+  - CRON
+  - TERM
+  - DOCS
+  - DOC\d+
+  - RFC\d+
+  - TL
+  - DR
+  # Names written in capitals, where the capitals are the name: VS Code,
+  # IntelliJ IDEA and its IU product code, NGINX, SUSE, GNU, Xfce, DX, IBM,
+  # Amazon DCV, Emacs TRAMP, MSYS2, .NET, Open VSX, Arm, GPT models, and
+  # cryptographic algorithms.
+  - VS
+  - IDEA
+  - IU
+  - NGINX
+  - SUSE
+  - GNU
+  - XFCE
+  - DX
+  - IBM
+  - DCV
+  - TRAMP
+  - MSYS2
+  - NET
+  - VSX
+  - ARM
+  - GPT
+  - AES
+  - GCM
+  - HMAC
+  - HS256
+  - RSA
+  - SHA
+  - SHA256

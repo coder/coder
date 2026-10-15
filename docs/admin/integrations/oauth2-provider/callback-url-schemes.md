@@ -2,7 +2,7 @@
 title: OAuth2 provider callback URL schemes
 ---
 
-This page covers which redirect URI schemes and hosts Coder accepts, for both admin-created and self-registered applications.
+This page covers which redirect Uniform Resource Identifier (URI) schemes and hosts Coder accepts, for both admin-created and self-registered applications.
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications.
 The OS routes the redirect back to the registered application without requiring a running HTTP server.
@@ -10,7 +10,7 @@ A private-use scheme must name a path or an authority, as in `com.example.app:/c
 The bare form `com.example.app:callback` is rejected.
 
 The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect.
-No other URN is accepted.
+No other Uniform Resource Name (URN) is accepted.
 
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
 
@@ -24,7 +24,7 @@ Every other host must use `https://`, so that an authorization code is never del
 The management API and Dynamic Client Registration apply the same rule, so an administrator cannot store a target that a client could not register for itself.
 
 Coder ignores the port of an `http://` redirect URI to `localhost`, `127.0.0.1`, or `[::1]`, for public and confidential clients alike.
-RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime.
+Request for Comments (RFC) 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime.
 Coder applies it to `localhost` too.
 A `.localhost` subdomain still requires an exact port match.
 Register `http://127.0.0.1/callback` and present whichever port the client is listening on.

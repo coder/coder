@@ -29,7 +29,7 @@ Envbuilder can run on Docker or Kubernetes.
 
 It is independently packaged and versioned from the centralized Coder open-source project.
 This means that Envbuilder can be used with Coder, but it is not required.
-It also means that dev container builds can scale independently of the Coder control plane and even run within a CI/CD pipeline.
+It also means that dev container builds can scale independently of the Coder control plane and even run within a continuous integration and continuous delivery (CI/CD) pipeline.
 
 ## Next steps
 

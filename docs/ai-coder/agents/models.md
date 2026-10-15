@@ -2,7 +2,7 @@
 title: Models
 ---
 
-Administrators configure LLM providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
+Administrators configure large language model (LLM) providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
 Providers and centrally managed credentials are deployment-wide settings managed by platform teams.
 Each model belongs to an organization.
 Each organization has its own model list.
@@ -147,7 +147,7 @@ Management visibility and runtime availability are separate.
 A member can see a model in settings through its access list even when the model isn't available for chat.
 
 The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
-Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
+Coder evaluates providers by provider universally unique identifier (UUID), so 2 providers of the same type can have different availability.
 An unavailable provider can remain visible while its models are omitted from the selector.
 
 Model APIs identify each configured model with a UUID.

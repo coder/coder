@@ -12,7 +12,7 @@ For an overview of nsjail, see [nsjail](./index.md).
 ## Runtime & Permission Requirements for Running Boundary in Docker
 
 This section describes the Linux capabilities and runtime configurations required to run Agent Firewall with nsjail inside a Docker container.
-Requirements vary depending on the OCI runtime and the seccomp profile in use.
+Requirements vary depending on the Open Container Initiative (OCI) runtime and the seccomp profile in use.
 
 ### 1. Default `runc` runtime with `CAP_NET_ADMIN`
 

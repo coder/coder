@@ -15,7 +15,7 @@ Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
 ## "Invalid redirect_uri"
 
-Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
+Ensure the redirect Uniform Resource Identifier (URI) in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
 Refer to [Callback URL schemes](./callback-url-schemes.md).
 
@@ -132,7 +132,7 @@ The rule covers `client_secret` only.
 Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string.
 Send those in the request body too, not in the query string.
 
-A `client_secret` with no value, as in `?client_secret=`, counts as absent under RFC 6749 section 3.2 and is not refused by this rule.
+A `client_secret` with no value, as in `?client_secret=`, counts as absent under Request for Comments (RFC) 6749 section 3.2 and is not refused by this rule.
 `POST /oauth2/revoke` accepts such a request when the body authenticates.
 `POST /oauth2/tokens` answers 400 only when the body also carries a `client_secret`, because it reads the body copy and the empty URL copy as the same parameter sent twice, and the error says so.
 An empty query value alone never causes a 400: a request that authenticates with HTTP Basic and sends no secret in the body, or one from a public client, succeeds.
@@ -154,7 +154,7 @@ The check also runs after the `client_id` is resolved.
 A request with a missing, malformed, or unknown `client_id` is answered by that lookup first and writes no such line, so an absent line does not mean no integration is leaking.
 
 Rotate the secret that was in the URL.
-It is still valid, and a URL is recorded by reverse proxies, load balancers, CDN access logs, shell history, and client libraries.
+It is still valid, and a URL is recorded by reverse proxies, load balancers, content delivery network (CDN) access logs, shell history, and client libraries.
 Coder does not log query strings, so an empty result when you search the Coder logs does not mean the secret stayed private.
 Deleting a secret also revokes the tokens issued under it, so the client has to authorize again.
 
@@ -209,7 +209,7 @@ An integration that watched for either now has to read the error from its own ca
 ## "invalid_request" for `code_challenge_method`
 
 Coder supports the `S256` challenge method only.
-`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what Proof Key for Code Exchange (PKCE) exists to prevent.
 Omitting the parameter is allowed and means `S256`.
 
 An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
@@ -225,7 +225,7 @@ The rejection redirects to your registered callback with `error=invalid_request`
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 A description longer than 2048 characters is cut short and marked `(truncated)`.
 
-Parameters the endpoint does not read are ignored, as RFC 6749 Section 3.1 requires, so an OIDC `nonce` or a vendor extension does not fail the request.
+Parameters the endpoint does not read are ignored, as RFC 6749 Section 3.1 requires, so an OpenID Connect (OIDC) `nonce` or a vendor extension does not fail the request.
 A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
 
 Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
@@ -265,7 +265,7 @@ Verify that the `code_verifier` used in the token request matches the one used t
 ## "public clients may not use the mailto/tel/sms scheme"
 
 This error appears during client registration when a public client (`token_endpoint_auth_method: none`) registers a redirect URI using the `mailto:`, `tel:`, or `sms:` scheme.
-These schemes hand off to a mail client, dialer, or SMS app instead of returning control to the application that started the flow, so a public client registered with one of them could never complete authorization.
+These schemes hand off to a mail client, dialer, or Short Message Service (SMS) app instead of returning control to the application that started the flow, so a public client registered with one of them could never complete authorization.
 Register a redirect URI the client can actually receive control on instead, such as a custom scheme (`myapp://callback`) or a loopback HTTP address.
 
 ## Learn more

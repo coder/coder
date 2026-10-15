@@ -26,7 +26,7 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 
 ## Use URI parameters
 
-For direct connections or creating bookmarks, use custom URI links with parameters:
+For direct connections or creating bookmarks, use custom Uniform Resource Identifier (URI) links with parameters:
 
 ```sh
 jetbrains://gateway/com.coder.toolbox?url=https://coder.example.com&token=<auth-token>&workspace=my-workspace
@@ -54,7 +54,7 @@ To connect to a Coder deployment that uses internal certificates, configure the 
 1. In the Toolbox App, select **Coder**.
 1. Select the (⋮) next to the username in top right corner.
 1. Select **Settings**.
-1. Add your certificate path in the **CA Path** field.
+1. Add your certificate authority (CA) certificate path in the **CA Path** field.
    ![JetBrains Toolbox Coder Provider certificate path](../../../images/user-guides/jetbrains/toolbox/certificate.png)
 
 ## Troubleshooting

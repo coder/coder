@@ -154,7 +154,7 @@ If you encounter any of the following issues, contact [Coder support](../../../s
 
 - Locking issues that cannot be mitigated by the steps in this guide
 - Migrations taking significantly longer than expected (more than 15&nbsp;minutes) without evidence of lock contention, which may indicate database resource constraints requiring investigation
-- Resource consumption issues (excessive memory, CPU, or OOM kills) during upgrades
+- Resource consumption issues (excessive memory, CPU, or out-of-memory (OOM) kills) during upgrades
 - Any other upgrade problems not covered by this documentation
 
 When contacting support, please collect and provide:

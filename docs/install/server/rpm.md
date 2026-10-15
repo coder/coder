@@ -2,7 +2,7 @@
 title: Install Coder on RHEL-family Linux
 ---
 
-This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux host or another RHEL-family distribution.
+This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux (RHEL) host or another RHEL-family distribution.
 Coder publishes an RPM with every release, and `systemd` manages the server like any other service.
 For a multi-replica deployment, refer to [Kubernetes](./kubernetes/index.md) or [OpenShift](./openshift.md) instead.
 To install the CLI on a client machine that connects to an existing deployment, refer to [Install the Coder CLI](../cli.md).
@@ -127,7 +127,7 @@ If your templates run Docker or Podman inside a workspace on a RHEL-family node,
 
 ## Hardened base images
 
-Coder publishes a container image built on Red Hat's UBI9-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
+Coder publishes a container image built on Red Hat's Universal Base Image 9 (UBI9)-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
 Choose that image when your compliance program requires an accredited base image.
 The Iron Bank image is a container image, so deploy it with [Kubernetes](./kubernetes/index.md) or [OpenShift](./openshift.md) rather than through the RPM.
 

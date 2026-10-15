@@ -61,7 +61,7 @@ These notifications are sent to the workspace owner:
 
 ## Delivery Methods
 
-Notifications can be delivered through the Coder dashboard Inbox and by SMTP or webhook.
+Notifications can be delivered through the Coder dashboard Inbox and by Simple Mail Transfer Protocol (SMTP) or webhook.
 OOM/OOD notifications can be delivered to users in VS Code.
 
 You can configure:
@@ -224,7 +224,7 @@ Here is an example payload for Coder's webhook notification:
 The top-level object has these keys:
 
 - `_version`: describes the version of this schema; follows semantic versioning
-- `msg_id`: the UUID of the notification (matches the ID in the
+- `msg_id`: the universally unique identifier (UUID) of the notification (matches the ID in the
   `notification_messages` table)
 - `payload`: contains the specific details of the notification; described below
 - `title`: the title of the notification message (equivalent to a subject in
@@ -241,7 +241,7 @@ The `payload` object has these keys:
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
 - `user_username`: username of the target user
-- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP
+- `actions`: a list of calls to action (CTAs); these are mainly relevant for SMTP
   delivery in which they're shown as buttons
 - `labels`: dynamic map of zero or more string key-value pairs; these vary from
   event to event

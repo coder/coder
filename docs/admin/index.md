@@ -17,7 +17,7 @@ For automation and scripting workflows, see our [CLI](../reference/cli/index.md)
 and [API](../reference/api/index.md) docs.
 
 For any information not strictly contained in these sections, check out our
-[Tutorials](../tutorials/index.md) and [FAQs](../tutorials/faqs.md).
+[Tutorials](../tutorials/index.md) and [frequently asked questions (FAQs)](../tutorials/faqs.md).
 
 ## What is an image, template, dev container, or workspace
 
@@ -34,7 +34,7 @@ For any information not strictly contained in these sections, check out our
 
 - [Templates](./templates/index.md) include infrastructure-level dependencies
   for the workspace. For example, a template can include Kubernetes
-  PersistentVolumeClaims, Docker containers, or EC2 VMs.
+  PersistentVolumeClaims, Docker containers, or Amazon Elastic Compute Cloud (EC2) VMs.
 - Managed by: Template administrators from within the Coder deployment.
 
 ### Startup scripts
@@ -56,7 +56,7 @@ For any information not strictly contained in these sections, check out our
 - A
   [Development Container](./integrations/devcontainers/index.md)
   is an open-source specification for defining development environments (called
-  dev containers). It is generally stored in VCS alongside associated source
+  dev containers). It is generally stored in version control system (VCS) alongside associated source
   code. It can reference an existing base image, or a custom Dockerfile that
   will be built on-demand.
 - Managed by: Dev Teams

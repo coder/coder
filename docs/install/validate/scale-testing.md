@@ -20,7 +20,7 @@ Our scale tests include the following stages:
 
 1. SSH connections: establish user connections with agents, verifying their ability to echo back received content.
 
-1. Web Terminal: verify the PTY connection used for communication with Web Terminal.
+1. Web Terminal: verify the pseudo-terminal (PTY) connection used for communication with Web Terminal.
 
 1. Workspace application traffic: assess the handling of user connections with specific workspace apps, confirming their capability to echo back received content effectively.
 
@@ -64,7 +64,7 @@ Here are the resulting metrics:
 Coder:
 
 - Median CPU usage for `coderd`: 3&nbsp;vCPU, peaking at 3.7&nbsp;vCPU while all tests are running concurrently.
-- Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web Terminal and workspace apps tests.
+- Median API request rate: 350 requests per second (RPS) during dashboard tests, 250 RPS during Web Terminal and workspace apps tests.
 - 2000 agent API connections with latency: p90 at 60&nbsp;ms, p95 at 220&nbsp;ms.
 - on average 2400 Web Socket connections during dashboard tests.
 
@@ -184,4 +184,4 @@ Another option is to scale based on metrics such as the number of workspaces or 
 It's important to note that as new users onboard, the autoscaling configuration should account for ongoing workspaces.
 
 Scaling down workspace nodes to zero is not recommended, as it will result in longer wait times for workspace provisioning by users.
-However, this may be necessary for workspaces with special resource requirements (e.g. GPUs) that incur significant cost overheads.
+However, this may be necessary for workspaces with special resource requirements (e.g. graphics processing units (GPUs)) that incur significant cost overheads.

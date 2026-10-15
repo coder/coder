@@ -12,7 +12,7 @@ This guide assumes you have `roles/compute.instanceAdmin.v1` access to your Goog
 
 We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed.
 
-Two SKU's are available via the Google Cloud Marketplace:
+Two stock keeping units (SKUs) are available via the Google Cloud Marketplace:
 
 1. [License purchase via Google Cloud Marketplace](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-gcmp?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)
 2. [A solution to deploy VM's on GCP (Bring Your Own License)](https://console.cloud.google.com/marketplace/product/workspan-public-422119/coder?inv=1&invt=Ab45rg&project=secret-beacon-468405-p5)

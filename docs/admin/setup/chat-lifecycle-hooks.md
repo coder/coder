@@ -4,7 +4,7 @@ title: Configure chat lifecycle hooks
 
 > [!NOTE]
 > Chat lifecycle hooks are an experimental feature.
-> The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JWT claims) may change or be removed in any release without a compatibility guarantee.
+> The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JSON Web Token (JWT) claims) may change or be removed in any release without a compatibility guarantee.
 
 This guide is for Coder deployment administrators who need to apply an external policy service to the agent loop.
 Work through it to configure the deployment, handle events in a consumer, recover from dispatch failures, and roll out enforcement.
@@ -79,7 +79,7 @@ Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events b
 For `pre_tool_use`, `tool_input` carries the model's JSON bytes with key spelling and order preserved, so a policy can read them exactly as the model wrote them.
 Coder's built-in tools decode that JSON with Go, which matches property names case-insensitively and keeps the last match, so `{"path":"/allowed","PATH":"/secret"}` could make a policy approve `/allowed` while the tool opens `/secret`.
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
-This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
+This check doesn't cover dynamic and Model Context Protocol (MCP) tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
 The chat `edit_files` tool reads `old_text` and `new_text`; a policy that gates edit content must inspect those keys.
 

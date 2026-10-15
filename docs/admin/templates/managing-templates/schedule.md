@@ -112,7 +112,7 @@ Admins can define the default quiet hours for all users with the
 environment variable. The value should be a cron expression such as
 `CRON_TZ=America/Chicago 30 2 * * *` which would set the default quiet hours to
 2:30 AM in the America/Chicago timezone. The cron schedule can only have a
-minute and hour component. The default schedule is UTC 00:00. It is recommended
+minute and hour component. The default schedule is Coordinated Universal Time (UTC) 00:00. It is recommended
 to set the default quiet hours to a time when most users are not expected to be
 using Coder.
 

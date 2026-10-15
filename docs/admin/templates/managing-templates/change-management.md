@@ -3,7 +3,7 @@ title: Template change management
 ---
 
 We recommend source-controlling your templates as you would other any code, and
-automating the creation of new versions in CI/CD pipelines.
+automating the creation of new versions in continuous integration and continuous delivery (CI/CD) pipelines.
 
 These pipelines will require tokens for your deployment. To cap token lifetime
 on creation,

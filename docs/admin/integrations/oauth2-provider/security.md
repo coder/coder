@@ -11,10 +11,10 @@ This page covers security guidance and current limitations.
 - **Use HTTPS**:
   Always use HTTPS in production to protect tokens in transit
 - **Implement PKCE**:
-  PKCE is mandatory for all authorization code clients (public and confidential)
+  Proof Key for Code Exchange (PKCE) is mandatory for all authorization code clients (public and confidential)
 - **Validate redirect URLs**:
   Only register trusted redirect URIs.
-  Dangerous schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control plane, custom URI schemes for native apps (`myapp://`) are permitted, and public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
+  Dangerous schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control plane, custom Uniform Resource Identifier (URI) schemes for native apps (`myapp://`) are permitted, and public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**:
   Periodically rotate client secrets using the management API
 - **Rate limits**:
@@ -26,7 +26,7 @@ This page covers security guidance and current limitations.
   Running the deployment with `--dangerous-disable-rate-limits` turns it off, and a user with the Owner role can bypass it on a single request with the `X-Coder-Bypass-Ratelimit` header
 - **Refresh tokens are not self-sufficient**:
   a confidential client must present its `client_secret` to refresh or revoke, so a leaked token alone cannot mint new access tokens or end another client's session
-- **No CORS on the authorization endpoint**:
+- **No cross-origin resource sharing (CORS) on the authorization endpoint**:
   `/oauth2/authorize` is reached only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
   The token, registration, revocation, and metadata endpoints do allow cross-origin requests so that browser-based clients can call them
 
@@ -35,9 +35,9 @@ This page covers security guidance and current limitations.
 The current implementation has these limitations:
 
 - No client credentials grant support
-- No device authorization grant support (RFC 8628)
+- No device authorization grant support (Request for Comments (RFC) 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
-- Limited to opaque access tokens (no JWT support)
+- Limited to opaque access tokens (no JSON Web Token (JWT) support)
 - An application may register at most 32 redirect URIs of at most 2048 bytes each.
   An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits.
   To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Create an application with the API](./index.md#create-an-application-with-the-api).

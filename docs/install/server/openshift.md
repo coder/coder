@@ -44,7 +44,7 @@ coder:
     seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -166,7 +166,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes role-based access control (RBAC) error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -226,7 +226,7 @@ These images can then be run without modifying the Security Context Constraints 
 1. Create a `BuildConfig` referencing the source image you want to customize.
    This will automatically kick off a `Build` that will remain pending until step 3.
 
-   > For more information, please consult the [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).
+   > For more information, please consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
 
    ```sh
    oc create -f - <<EOF

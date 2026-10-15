@@ -39,7 +39,7 @@ _Replace `coder.example.com` with your Coder deployment URL._
 ## Environment variables
 
 Xum reads provider configuration from its settings UI and also from environment variables.
-Environment variables are useful in CI or when running Xum inside a Coder workspace.
+Environment variables are useful in continuous integration (CI) or when running Xum inside a Coder workspace.
 
 > [!NOTE]
 > Xum treats environment variables as a fallback when a provider is not configured in settings.

@@ -128,5 +128,5 @@ or shuts down the control plane. To avoid this, run
 
 In low-trust environments, we do not recommend giving users direct access to
 edit templates. Instead, use
-[CI/CD pipelines to update templates](../templates/managing-templates/change-management.md)
+[Continuous integration and continuous delivery (CI/CD) pipelines to update templates](../templates/managing-templates/change-management.md)
 with proper security scans and code reviews in place.

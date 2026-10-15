@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > This is the **canonical** guidance for what belongs in the Coder documentation under `docs/` (published to [coder.com/docs](https://coder.com/docs)) and what doesn't.
-> It applies to both human contributors and any LLM-assisted workflow that touches the docs.
+> It applies to both human contributors and any large language model (LLM)-assisted workflow that touches the docs.
 > When this file conflicts with another style or contributing document in the repository, this file governs.
 
 ## How to use this guide
@@ -69,7 +69,7 @@ Untestable claims rot silently.
 
 Docs claims should be checked against the actual implementation, not approximations:
 
-- Exact RBAC action names.
+- Exact role-based access control (RBAC) action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
   Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
@@ -146,7 +146,7 @@ Practical impact for docs:
   The feature is in active development, hidden behind a flag the user wouldn't enable on a real deployment, and may be reverted at any time.
 - **Safe experiments and Early Access features** need at least a single docs page covering how to enable the feature, what it does, and known limitations.
 - **Beta features** get full docs (how to use, configure, and operate), with the `Beta` label.
-- **GA features** get full docs across reference, tutorials, and guides as appropriate.
+- **General availability (GA) features** get full docs across reference, tutorials, and guides as appropriate.
 
 *Why:* Holding unsafe-experiment PRs to the docs bar is noise.
 Holding Early Access or Beta PRs to a lower bar is drift.
@@ -157,7 +157,7 @@ Use this catalog with the [quick decision checklist](#quick-decision-checklist) 
 Each entry includes the reason it belongs in the docs.
 
 - **Tutorials that touch programmatic aspects of the product.**
-  "If I run this group of CLI commands, what's supposed to happen?" and "How do I do X in the product?", each written so it can become a testable, verifiable CI surface.
+  "If I run this group of CLI commands, what's supposed to happen?" and "How do I do X in the product?", each written so it can become a testable, verifiable continuous integration (CI) surface.
 
   *Why:* A true tutorial serves the user's study and informs action; it teaches the right way to use a command in an approachable, no-risk way that a bare reference page can't.
 
@@ -213,7 +213,7 @@ Each entry includes the reason it belongs in the docs.
   The policy is not "no screenshots"; it is "use screenshots wisely."
   Every screenshot must follow all of these rules:
 
-  1. No PHI or PII.
+  1. No protected health information (PHI) or personally identifiable information (PII).
   2. No internal secrets leaked without properly obfuscating the text.
   3. Capture the minimally necessary surface area.
      The more area a

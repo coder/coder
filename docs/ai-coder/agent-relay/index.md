@@ -25,7 +25,7 @@ Those stay with the cloud provider.
 
 Agent Relay is not:
 
-- A replacement for [Coder Agents](../agents/index.md), Coder's own AI workflow infrastructure that runs its native agent loop inside the Coder control plane and calls out to your configured LLM provider for inference.
+- A replacement for [Coder Agents](../agents/index.md), Coder's own AI workflow infrastructure that runs its native agent loop inside the Coder control plane and calls out to your configured large language model (LLM) provider for inference.
 - A proxy or observability layer for a provider's AI inference.
   Coder has no access to model selection or token usage for sessions that run through Agent Relay.
 - A self-hosted deployment of a cloud provider's control plane.

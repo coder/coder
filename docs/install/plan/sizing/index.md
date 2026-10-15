@@ -220,7 +220,7 @@ We recommend leveraging a [supported Container Storage Interface (CSI) driver](h
 The following Kubernetes volume types have been validated by Coder internally, and/or by our customers:
 
 - [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/volumes/#persistentvolumeclaim)
-- [NFS](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
+- [Network File System (NFS)](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
 - [subPath](https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath)
 - [cephfs](https://kubernetes.io/docs/concepts/storage/volumes/#cephfs)
 
@@ -291,8 +291,8 @@ Below are recommended instance types for each major cloud provider:
 
 For optimal database performance, use the following storage types:
 
-- **AWS RDS/Aurora**: Use `gp3` (General Purpose SSD) volumes with at least 3,000 IOPS for production workloads.
-  For high-performance requirements, consider `io1` or `io2` volumes with provisioned IOPS.
+- **AWS Relational Database Service (RDS)/Aurora**: Use `gp3` General Purpose solid-state drive (SSD) volumes with at least 3,000 IOPS for production workloads.
+  For high-performance requirements, consider `io1` or `io2` volumes with provisioned input/output operations per second (IOPS).
 
 - **Azure Database for PostgreSQL**: Use Premium SSD (P-series) with appropriate IOPS and throughput provisioning.
   Standard SSD can be used for development/test environments.

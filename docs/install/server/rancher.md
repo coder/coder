@@ -40,7 +40,7 @@ We recommend that you use a managed PostgreSQL service, but you can use an in-cl
 For production deployments, we recommend using a managed PostgreSQL service:
 
 - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/)
-- [AWS RDS for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
+- [AWS Relational Database Service (RDS) for PostgreSQL](https://aws.amazon.com/rds/postgresql/)
 - [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/)
 - [DigitalOcean Managed PostgreSQL](https://www.digitalocean.com/products/managed-databases-postgresql)
 

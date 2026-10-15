@@ -3,7 +3,7 @@ title: Users
 ---
 
 By default, Coder is accessible via password authentication. For production
-deployments, we recommend using an SSO authentication provider with multi-factor
+deployments, we recommend using a single sign-on (SSO) authentication provider with multi-factor
 authentication (MFA). It is your responsibility to ensure the auth provider
 enforces MFA correctly.
 
@@ -11,7 +11,7 @@ enforces MFA correctly.
 
 ## Configure SSO
 
-- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure Active Directory (AD))
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups

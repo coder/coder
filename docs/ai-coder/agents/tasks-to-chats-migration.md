@@ -25,16 +25,16 @@ Tasks and Chats are separate resources with separate APIs, so plan to update you
 
 Before mapping individual endpoints, understand the structural changes:
 
-| Aspect                 | Tasks API                                                                        | Chats API                                                  |
-|------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------|
-| Agent execution        | Agent runs **inside the workspace** (via AgentAPI)                               | Agent loop runs **in the control plane**                   |
-| LLM credentials        | Injected into workspace environment                                              | Stored in control plane only; never enters the workspace   |
-| Workspace provisioning | You specify a `template_version_id` at creation                                  | The agent auto-selects a template and provisions on demand |
-| Template requirements  | Requires `coder_ai_task` resource, `coder_task` data source, and an agent module | Any template with a clear description works                |
-| Chat state             | Stored in the workspace (AgentAPI state file)                                    | Persisted in the Coder database                            |
-| Conversation model     | Single prompt with optional follow-up input                                      | Multi-turn chat with message history, queuing, and editing |
-| Real-time updates      | HTTP polling (`GET .../logs`)                                                    | WebSocket streaming (`GET .../stream`)                     |
-| Sub-agents             | Not supported                                                                    | Built-in sub-agent delegation                              |
+| Aspect                                 | Tasks API                                                                        | Chats API                                                  |
+|----------------------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------|
+| Agent execution                        | Agent runs **inside the workspace** (via AgentAPI)                               | Agent loop runs **in the control plane**                   |
+| Large language model (LLM) credentials | Injected into workspace environment                                              | Stored in control plane only; never enters the workspace   |
+| Workspace provisioning                 | You specify a `template_version_id` at creation                                  | The agent auto-selects a template and provisions on demand |
+| Template requirements                  | Requires `coder_ai_task` resource, `coder_task` data source, and an agent module | Any template with a clear description works                |
+| Chat state                             | Stored in the workspace (AgentAPI state file)                                    | Persisted in the Coder database                            |
+| Conversation model                     | Single prompt with optional follow-up input                                      | Multi-turn chat with message history, queuing, and editing |
+| Real-time updates                      | HTTP polling (`GET .../logs`)                                                    | WebSocket streaming (`GET .../stream`)                     |
+| Sub-agents                             | Not supported                                                                    | Built-in sub-agent delegation                              |
 
 ## Endpoint mapping
 
@@ -115,7 +115,7 @@ Key differences:
 - `template_version_id` and `template_version_preset_id` are removed.
   The agent selects a template automatically based on the prompt and available template descriptions.
   To pin to a specific workspace, pass `workspace_id` instead.
-- Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach MCP servers.
+- Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach Model Context Protocol (MCP) servers.
 - Optionally pass `title` to set the chat's title.
   A title you set is kept; automatic title generation runs only when `title` is omitted.
 
@@ -305,7 +305,7 @@ jobs:
 +         comment-on-issue: true
 ```
 
-Key differences from the Tasks GHA:
+Key differences from the Tasks GitHub Action (GHA):
 
 - No `coder-template-name` or `coder-task-name-prefix`.
   The agent auto-provisions a workspace; pass `workspace-id` if you want to pin to an existing workspace instead.
@@ -625,7 +625,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 
 | Tasks API field    | Chats API equivalent                          | Notes                                                            |
 |--------------------|-----------------------------------------------|------------------------------------------------------------------|
-| `id`               | `id`                                          | Both are UUIDs                                                   |
+| `id`               | `id`                                          | Both are universally unique identifiers (UUIDs)                  |
 | `initial_prompt`   | First message in `GET /chats/{chat}/messages` | Prompt is a message, not a top-level field                       |
 | `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                |
 | `status`           | `status`                                      | Different enum values (see status table above)                   |
@@ -638,7 +638,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents TUI.
+The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents terminal user interface (TUI).
 Use the web UI for interactive chat and direct API calls for automation.
 The table below maps the removed commands to their Chats API equivalents.
 

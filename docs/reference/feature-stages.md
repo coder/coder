@@ -12,11 +12,11 @@ If you encounter an issue with any Coder feature, please submit a
 
 ## Feature stages
 
-| Feature stage                          | Stable | Production-ready | Support               | Description                                                                                                                   |
-|----------------------------------------|--------|------------------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| [Early Access](#early-access-features) | No     | No               | GitHub issues         | For staging only. Not feature-complete or stable. Disabled by default.                                                        |
-| [Beta](#beta)                          | No     | Not fully        | Docs, Discord, GitHub | Publicly available. In active development with minor bugs. Suitable for staging; optional for production. Not covered by SLA. |
-| [GA](#general-availability-ga)         | Yes    | Yes              | License-based         | Stable and tested. Enabled by default. Fully documented. Support based on license.                                            |
+| Feature stage                                         | Stable | Production-ready | Support               | Description                                                                                                                                             |
+|-------------------------------------------------------|--------|------------------|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Early Access](#early-access-features)                | No     | No               | GitHub issues         | For staging only. Not feature-complete or stable. Disabled by default.                                                                                  |
+| [Beta](#beta)                                         | No     | Not fully        | Docs, Discord, GitHub | Publicly available. In active development with minor bugs. Suitable for staging; optional for production. Not covered by service-level agreement (SLA). |
+| [General availability (GA)](#general-availability-ga) | Yes    | Yes              | License-based         | Stable and tested. Enabled by default. Fully documented. Support based on license.                                                                      |
 
 ## Early access features
 
@@ -85,12 +85,12 @@ The list also shows stored rules that target other experiments as `ignored`, bec
 
 Each user-scoped experiment has at most one rule:
 
-| Rule                  | Effect                                                                     | Command                                                   |
-|-----------------------|----------------------------------------------------------------------------|-----------------------------------------------------------|
-| No rule, or `inherit` | Uses the startup `--experiments` default                                   | `coder exp experiment-rules reset <experiment>`           |
-| `on`                  | On for every user                                                          | `coder exp experiment-rules on <experiment>`              |
-| `off`                 | Off for every user, even if the experiment is enabled at startup           | `coder exp experiment-rules off <experiment>`             |
-| `condition`           | On for users whose [CEL](https://cel.dev) condition is true, off otherwise | `coder exp experiment-rules set <experiment> <condition>` |
+| Rule                  | Effect                                                                                                  | Command                                                   |
+|-----------------------|---------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| No rule, or `inherit` | Uses the startup `--experiments` default                                                                | `coder exp experiment-rules reset <experiment>`           |
+| `on`                  | On for every user                                                                                       | `coder exp experiment-rules on <experiment>`              |
+| `off`                 | Off for every user, even if the experiment is enabled at startup                                        | `coder exp experiment-rules off <experiment>`             |
+| `condition`           | On for users whose [Common Expression Language (CEL)](https://cel.dev) condition is true, off otherwise | `coder exp experiment-rules set <experiment> <condition>` |
 
 For example, to turn on an experiment for users in one group, widen it to every member of the `coder` organization, and then turn it off for everyone:
 

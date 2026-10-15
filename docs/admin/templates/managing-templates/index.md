@@ -28,7 +28,7 @@ configuring template settings without writing Terraform.
 
 Starter templates for common cloud providers (AWS, Azure) and orchestrators
 (Kubernetes, Docker) are available as base templates within the builder. You can
-modify the generated template to use your own images, VPC, cloud credentials,
+modify the generated template to use your own images, virtual private cloud (VPC), cloud credentials,
 and so on. Coder supports all Terraform resources and properties.
 
 If you prefer to use Coder on the
