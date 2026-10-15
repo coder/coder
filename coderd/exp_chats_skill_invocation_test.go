@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -50,6 +52,14 @@ func TestChatSkillInvocation(t *testing.T) {
 		require.Equal(t, "Invalid input part.", sdkErr.Message, tt.name)
 		require.Equal(t, tt.detail, sdkErr.Detail, tt.name)
 	}
+
+	tooMany := slices.Repeat([]codersdk.ChatInputPart{
+		{Type: codersdk.ChatInputPartTypeSkillInvocation, SkillSource: codersdk.ChatSkillSourcePersonal, SkillName: "notes"},
+	}, chatd.MaxSkillInvocationsPerMessage+1)
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: tooMany})
+	tooManyErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Too many skill invocations.", tooManyErr.Message)
+	require.Equal(t, "content can invoke at most 8 skills.", tooManyErr.Detail)
 
 	// The body is stored with the message but never returned by the API.
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{

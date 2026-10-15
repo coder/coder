@@ -7491,6 +7491,7 @@ func createChatInputFromParts(
 
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	var pasteData map[uuid.UUID][]byte
+	skillInvocations := 0
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
@@ -7638,6 +7639,13 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].skill_name must be a kebab-case skill name.", fieldName, i),
 				}
 			}
+			skillInvocations++
+			if skillInvocations > chatd.MaxSkillInvocationsPerMessage {
+				return nil, nil, &codersdk.Response{
+					Message: "Too many skill invocations.",
+					Detail:  fmt.Sprintf("%s can invoke at most %d skills.", fieldName, chatd.MaxSkillInvocationsPerMessage),
+				}
+			}
 			content = append(content, codersdk.ChatMessageSkillInvocation(part.SkillSource, part.SkillName))
 		default:
 			return nil, nil, &codersdk.Response{
@@ -7686,9 +7694,17 @@ func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, 
 	return true
 }
 
-// writeChatSkillInvocationError writes a 400 for a message that invokes a
-// skill the chat owner cannot use and reports whether it wrote a response.
+// writeChatSkillInvocationError writes a 400 for a message that invokes too
+// many skills or a skill the chat owner cannot use, and reports whether it
+// wrote a response.
 func writeChatSkillInvocationError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	if errors.Is(err, chatd.ErrTooManySkillInvocations) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many skill invocations.",
+			Detail:  err.Error(),
+		})
+		return true
+	}
 	var unavailable *chatd.SkillInvocationUnavailableError
 	if !errors.As(err, &unavailable) {
 		return false

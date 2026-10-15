@@ -17,6 +17,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// MaxSkillInvocationsPerMessage bounds the skill-invocation parts in one
+// message, and with them the skill bodies a message stores.
+const MaxSkillInvocationsPerMessage = 8
+
+// ErrTooManySkillInvocations reports a message with more than
+// MaxSkillInvocationsPerMessage skill-invocation parts.
+var ErrTooManySkillInvocations = xerrors.Errorf("a message can invoke at most %d skills", MaxSkillInvocationsPerMessage)
+
 // SkillInvocationUnavailableError reports a skill-invocation part whose
 // skill the chat owner cannot use: it is missing, disabled, or not readable.
 type SkillInvocationUnavailableError struct {
@@ -57,8 +65,12 @@ func (p *Server) resolveSkillInvocations(
 	chat database.Chat,
 	parts []codersdk.ChatMessagePart,
 ) ([]codersdk.ChatMessagePart, error) {
-	if !slices.ContainsFunc(parts, isSkillInvocation) {
+	invocations := countSkillInvocations(parts)
+	if invocations == 0 {
 		return parts, nil
+	}
+	if invocations > MaxSkillInvocationsPerMessage {
+		return nil, ErrTooManySkillInvocations
 	}
 	loadOwner := sync.OnceValues(func() (rbac.Subject, error) {
 		return p.chatOwnerSubject(ctx, chat.OwnerID)
@@ -104,9 +116,20 @@ func (p *Server) resolveSkillInvocations(
 		return "", skillspkg.ErrSkillNotFound
 	}
 
+	// A message that repeats a skill loads it once.
+	type skillKey struct {
+		source codersdk.ChatSkillSource
+		name   string
+	}
+	bodies := make(map[skillKey]string, invocations)
 	resolved := slices.Clone(parts)
 	for i, part := range resolved {
 		if !isSkillInvocation(part) {
+			continue
+		}
+		key := skillKey{source: part.SkillSource, name: part.SkillName}
+		if body, ok := bodies[key]; ok {
+			resolved[i].SkillBody = body
 			continue
 		}
 		body, err := loadBody(part)
@@ -116,9 +139,20 @@ func (p *Server) resolveSkillInvocations(
 		if err != nil {
 			return nil, xerrors.Errorf("load invoked skill %s/%s: %w", part.SkillSource, part.SkillName, err)
 		}
+		bodies[key] = body
 		resolved[i].SkillBody = body
 	}
 	return resolved, nil
+}
+
+func countSkillInvocations(parts []codersdk.ChatMessagePart) int {
+	count := 0
+	for _, part := range parts {
+		if isSkillInvocation(part) {
+			count++
+		}
+	}
+	return count
 }
 
 func isSkillInvocation(part codersdk.ChatMessagePart) bool {
