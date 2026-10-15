@@ -773,6 +773,7 @@ export type APIKeyScope =
 	| "chat_project_memory:delete"
 	| "chat_project_memory:read"
 	| "chat_project:read"
+	| "chat_project:share"
 	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
@@ -1035,6 +1036,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:delete",
 	"chat_project_memory:read",
 	"chat_project:read",
+	"chat_project:share",
 	"chat_project:update",
 	"chat:read",
 	"chat:share",
