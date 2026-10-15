@@ -19190,16 +19190,9 @@ func TestGetUnpricedAIModelsSince(t *testing.T) {
 	}))
 	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
 
-	// Still included: an organization's provider type price applies to that
-	// organization only, so model-b stays unpriced elsewhere.
-	org := dbgen.Organization(t, db, database.Organization{})
-	require.NoError(t, db.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
-		OrganizationID: org.ID,
-		Prices:         []byte(`[{"provider":"anthropic","model":"model-b","input_price":1,"output_price":null,"cache_read_price":null,"cache_write_price":null}]`),
-	}))
-
 	// openai-compat gateways can only be priced per provider. One gateway
 	// prices its model, the other does not.
+	org := dbgen.Organization(t, db, database.Organization{})
 	pricedGateway := dbgen.AIProvider(t, db, database.AIProvider{
 		Name: "priced-gateway",
 		Type: database.AIProviderTypeOpenaiCompat,
@@ -19470,15 +19463,14 @@ func TestGetAIModelPriceForProvider(t *testing.T) {
 	const (
 		siteDefault      int64 = 1
 		siteCustom       int64 = 2
-		orgProviderType  int64 = 3
-		orgProvider      int64 = 4
-		otherOrgProvider int64 = 5
+		orgProvider      int64 = 3
+		otherOrgProvider int64 = 4
 	)
 
 	type kinds struct {
-		siteDefault, siteCustom, orgProviderType, orgProvider, otherProvider bool
+		siteDefault, siteCustom, orgProvider, otherProvider bool
 	}
-	all := kinds{siteDefault: true, siteCustom: true, orgProviderType: true, orgProvider: true}
+	all := kinds{siteDefault: true, siteCustom: true, orgProvider: true}
 
 	tests := []struct {
 		name string
@@ -19494,7 +19486,6 @@ func TestGetAIModelPriceForProvider(t *testing.T) {
 	}{
 		{name: "SiteDefault", kinds: kinds{siteDefault: true}, wantKind: database.AIModelPriceKindSiteDefault, wantPrice: siteDefault},
 		{name: "SiteCustomBeatsSiteDefault", kinds: kinds{siteDefault: true, siteCustom: true}, wantKind: database.AIModelPriceKindSiteCustom, wantPrice: siteCustom},
-		{name: "OrgProviderTypeBeatsSite", kinds: kinds{siteDefault: true, siteCustom: true, orgProviderType: true}, wantKind: database.AIModelPriceKindOrganizationProviderType, wantPrice: orgProviderType},
 		{name: "OrgProviderBeatsAll", kinds: all, wantKind: database.AIModelPriceKindOrganizationProvider, wantPrice: orgProvider},
 		{name: "OrgProviderWithoutSitePrice", kinds: kinds{orgProvider: true}, wantKind: database.AIModelPriceKindOrganizationProvider, wantPrice: orgProvider},
 		{name: "NoOrgContextFallsBackToSite", kinds: all, noOrg: true, wantKind: database.AIModelPriceKindSiteCustom, wantPrice: siteCustom},
@@ -19502,9 +19493,9 @@ func TestGetAIModelPriceForProvider(t *testing.T) {
 		{
 			// A price for another provider of the same type does not apply.
 			name:      "OtherProviderPriceDoesNotApply",
-			kinds:     kinds{siteDefault: true, orgProviderType: true, otherProvider: true},
-			wantKind:  database.AIModelPriceKindOrganizationProviderType,
-			wantPrice: orgProviderType,
+			kinds:     kinds{siteDefault: true, otherProvider: true},
+			wantKind:  database.AIModelPriceKindSiteDefault,
+			wantPrice: siteDefault,
 		},
 		{name: "NoPrice", kinds: kinds{otherProvider: true}, wantNone: true},
 	}
@@ -19530,12 +19521,6 @@ func TestGetAIModelPriceForProvider(t *testing.T) {
 				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
 					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteCustom),
 					Source: database.AIModelPriceSourceCustom,
-				}))
-			}
-			if tt.orgProviderType {
-				require.NoError(t, db.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
-					OrganizationID: org.ID,
-					Prices:         aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, orgProviderType),
 				}))
 			}
 			if tt.orgProvider {
@@ -19580,9 +19565,6 @@ func TestGetAIModelPriceForProvider(t *testing.T) {
 			case database.AIModelPriceKindOrganizationProvider:
 				require.Equal(t, orgID, got.OrganizationID)
 				require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, got.ProviderID)
-			case database.AIModelPriceKindOrganizationProviderType:
-				require.Equal(t, orgID, got.OrganizationID)
-				require.False(t, got.ProviderID.Valid)
 			default:
 				require.False(t, got.OrganizationID.Valid)
 				require.False(t, got.ProviderID.Valid)
@@ -19648,15 +19630,7 @@ func TestOrganizationAIModelPricesOpenAICompat(t *testing.T) {
 	gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
 	const model = "bedrock/claude-sonnet-4-5"
 
-	// A blanket openai-compat price would apply to every gateway, whatever
-	// upstream each routes to, so it is rejected.
-	err := db.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
-		OrganizationID: org.ID,
-		Prices:         aiModelPriceSeed(t, map[string]string{"provider": string(database.AIProviderTypeOpenaiCompat), "model": model}, 1),
-	})
-	require.True(t, database.IsCheckViolation(err, database.CheckAIOrgModelPricesProviderCheck), "want provider check violation, got %v", err)
-
-	// A price for one gateway is allowed and matched.
+	// A price for one gateway is matched.
 	require.NoError(t, db.UpsertOrganizationAIProviderModelPrices(ctx, database.UpsertOrganizationAIProviderModelPricesParams{
 		OrganizationID: org.ID,
 		Prices:         aiModelPriceSeed(t, map[string]string{"provider_id": gateway.ID.String(), "model": model}, 7),
@@ -19813,13 +19787,9 @@ func TestDeleteOrganizationAIModelPrices(t *testing.T) {
 		Seed:   aiModelPriceSeed(t, map[string]string{"provider": "anthropic", "model": "model-a"}, 1),
 		Source: database.AIModelPriceSourceDefault,
 	}))
-	require.NoError(t, db.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
-		OrganizationID: org.ID,
-		Prices:         aiModelPriceSeed(t, map[string]string{"provider": "anthropic", "model": "model-a"}, 2),
-	}))
 	require.NoError(t, db.UpsertOrganizationAIProviderModelPrices(ctx, database.UpsertOrganizationAIProviderModelPricesParams{
 		OrganizationID: org.ID,
-		Prices:         aiModelPriceSeed(t, map[string]string{"provider_id": provider.ID.String(), "model": "model-a"}, 3),
+		Prices:         aiModelPriceSeed(t, map[string]string{"provider_id": provider.ID.String(), "model": "model-a"}, 2),
 	}))
 
 	lookup := func() database.GetAIModelPriceForProviderRow {
@@ -19837,13 +19807,6 @@ func TestDeleteOrganizationAIModelPrices(t *testing.T) {
 
 	n, err := db.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, n)
-	require.Equal(t, database.AIModelPriceKindOrganizationProviderType, lookup().Kind)
-
-	n, err = db.DeleteOrganizationAIModelPrice(ctx, database.DeleteOrganizationAIModelPriceParams{
-		OrganizationID: org.ID, Provider: "anthropic", Model: "model-a",
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, n)

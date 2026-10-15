@@ -360,9 +360,8 @@ type sqlcQuerier interface {
 	// organization prices.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
 	// Returns the price in effect for the model served by the configured provider,
-	// most specific first: the organization's price for the provider, the
-	// organization's price for the provider type, a site-wide custom price, then
-	// the price book. The requested model is preferred over the model reported
+	// most specific first: the organization's price for the provider, a
+	// site-wide custom price, then the price book. The requested model is preferred over the model reported
 	// by the provider, whatever the kind of price. A NULL organization_id matches
 	// no organization price, so only site-wide prices apply. Each branch is a
 	// primary key lookup.
@@ -992,8 +991,6 @@ type sqlcQuerier interface {
 	// A model counts as priced when the site-wide catalog prices it for the
 	// provider type, or when any organization prices it for the configured
 	// provider. The latter is the only way to price an openai-compat provider.
-	// Organization provider type prices apply to one organization only, so they
-	// leave the model unpriced elsewhere and do not count.
 	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
