@@ -27,7 +27,9 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 )
 
 const (
@@ -396,6 +398,11 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		b.inflightReqs.Add(-1)
 		b.inflightWG.Done()
 	}()
+
+	if xurl.ContainsEncodedPath(r.URL) {
+		http.Error(rw, routing.InvalidPathMessage, http.StatusBadRequest)
+		return
+	}
 
 	// Enforce the request body size limit. MaxBytesReader counts bytes as
 	// they are read from the connection and fails when the limit is exceeded.
