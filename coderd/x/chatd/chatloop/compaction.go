@@ -42,8 +42,8 @@ const (
 	// clamp would truncate the summary, so the elided request goes first.
 	minSummaryOutputTokens = int64(16_000)
 
-	// elidedToolResultMinBytes is what an elided tool result or text
-	// attachment keeps at least: enough for its leading summary and
+	// elidedToolResultMinBytes is what an elided tool result or user text
+	// keeps at least: enough for its leading summary and
 	// trailing status.
 	elidedToolResultMinBytes = 1 << 10
 
@@ -499,10 +499,10 @@ func messagePartSize(part fantasy.MessagePart) (textBytes int, mediaParts int64)
 }
 
 // elideToolResults returns a copy of messages in which the largest tool
-// result and text attachment texts are cut to one common size, keeping
-// their head and tail, so the copy's estimate fits budgetTokens. Cut texts
-// keep at least elidedToolResultMinBytes, so the copy can still exceed the
-// budget. It reports the bytes removed; zero means nothing was cut and
+// results and user texts, including text attachments, are cut to one
+// common size, keeping their head and tail, so the copy's estimate fits
+// budgetTokens. Cut texts keep at least elidedToolResultMinBytes, so the
+// copy can still exceed the budget. It reports the bytes removed; zero means nothing was cut and
 // messages is returned unchanged.
 func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy.Message, int) {
 	excessBytes := (estimateMessagesTokens(messages) - budgetTokens) * bytesPerTokenEstimate
@@ -512,7 +512,7 @@ func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy
 	var sizes []int
 	for _, msg := range messages {
 		for _, part := range msg.Content {
-			if text, ok := elidableText(part); ok {
+			if text, ok := elidableText(msg.Role, part); ok {
 				sizes = append(sizes, len(text))
 			}
 		}
@@ -527,7 +527,7 @@ func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy
 	for i, msg := range elided {
 		var content []fantasy.MessagePart
 		for j, part := range msg.Content {
-			text, ok := elidableText(part)
+			text, ok := elidableText(msg.Role, part)
 			if !ok || len(text) <= keepBytes {
 				continue
 			}
@@ -546,11 +546,15 @@ func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy
 	return elided, removed
 }
 
-// elidableText returns the text of a locally executed tool result or a text
-// attachment when that is longer than elidedToolResultMinBytes.
-func elidableText(part fantasy.MessagePart) (string, bool) {
+// elidableText returns the text of a locally executed tool result, or of a
+// user message's text or text attachment, when that is longer than
+// elidedToolResultMinBytes. Providers that reject text attachments get them
+// inlined as user text, so both forms are elidable.
+func elidableText(role fantasy.MessageRole, part fantasy.MessagePart) (string, bool) {
 	var text string
-	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok && !isMediaFile(file) {
+	if textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok && role == fantasy.MessageRoleUser {
+		text = textPart.Text
+	} else if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok && !isMediaFile(file) {
 		text = string(file.Data)
 	} else if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && !result.ProviderExecuted {
 		if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
@@ -569,6 +573,10 @@ func elidableText(part fantasy.MessagePart) (string, bool) {
 // replaced. Attachments keep their filename and media type, and error
 // results stay errors.
 func withElidedText(part fantasy.MessagePart, text string) fantasy.MessagePart {
+	if textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+		textPart.Text = text
+		return textPart
+	}
 	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
 		file.Data = []byte(text)
 		return file
@@ -782,7 +790,7 @@ type summaryRequest struct {
 
 // newSummaryRequest builds the summary request of kind. It reports false
 // when kind cannot shrink the request: no tools to drop or no tool results
-// or text attachments to elide.
+// or user texts to elide.
 func newSummaryRequest(kind summaryRequestKind, messages []fantasy.Message, options CompactionOptions) (summaryRequest, bool) {
 	request := summaryRequest{kind: kind, history: messages, inputTokens: options.estimatedInputTokens}
 	switch kind {
@@ -860,7 +868,7 @@ func (r summaryRequest) logFields(err error) []slog.Field {
 // Compaction is the recovery path for an over-limit conversation, so a
 // request the model rejects for its size falls back to smaller ones:
 // first without tool definitions, then with the largest tool results and
-// text attachments elided. options.elideFirst starts with the elided request.
+// user texts elided. options.elideFirst starts with the elided request.
 func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,

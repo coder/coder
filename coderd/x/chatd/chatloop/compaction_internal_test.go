@@ -1683,6 +1683,24 @@ func TestElideToolResults(t *testing.T) {
 		require.Equal(t, image, elided[0].Content[1])
 	})
 
+	t.Run("cuts user text and keeps system and assistant text", func(t *testing.T) {
+		t.Parallel()
+
+		system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 30_000))
+		assistant := textMessage(fantasy.MessageRoleAssistant, strings.Repeat("r", 30_000))
+		// Providers that reject text attachments get them inlined as
+		// user text.
+		messages := []fantasy.Message{system, textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 30_000)), assistant}
+		elided, removed := elideToolResults(messages, 0)
+		require.Positive(t, removed)
+		require.Equal(t, system, elided[0])
+		require.Equal(t, assistant, elided[2])
+		text, ok := fantasy.AsMessagePart[fantasy.TextPart](elided[1].Content[0])
+		require.True(t, ok)
+		require.Contains(t, text.Text, "Coder truncated")
+		require.Equal(t, 30_000-len(text.Text), removed)
+	})
+
 	t.Run("cuts error results and keeps them errors", func(t *testing.T) {
 		t.Parallel()
 
