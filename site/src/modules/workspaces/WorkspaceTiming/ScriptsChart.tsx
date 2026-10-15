@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { WorkspaceAgentScriptStatus } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
@@ -36,7 +37,7 @@ import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
 	name: string;
-	status: string;
+	status: WorkspaceAgentScriptStatus;
 	exitCode: number;
 	range: TimeRange;
 };
@@ -102,6 +103,7 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 					<XAxisSection>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
+							const legend = legendsByStatus[t.status];
 
 							return (
 								<XAxisRow
@@ -111,17 +113,19 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Bar
+												aria-label={`${t.name}: ${legend.label}`}
+												tabIndex={0}
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={legend.colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
 											side="bottom"
 											className="border-surface-quaternary text-content-primary"
 										>
-											Script exited with <strong>code {t.exitCode}</strong>
+											{tooltipText(t)}
 										</TooltipContent>
 									</Tooltip>
 
@@ -136,7 +140,26 @@ export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	);
 };
 
-function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
+function tooltipText(t: ScriptTiming): React.ReactNode {
+	switch (t.status) {
+		case "skipped":
+			return "Script was skipped.";
+		case "canceled":
+			return "Script was canceled.";
+		default:
+			return (
+				<>
+					Script exited with <strong>code {t.exitCode}</strong>
+				</>
+			);
+	}
+}
+
+// Keyed by the union so a status without a legend fails the type check
+// instead of throwing on .colors at runtime.
+function getLegendsByStatus(
+	theme: Theme,
+): Record<WorkspaceAgentScriptStatus, ChartLegend> {
 	return {
 		ok: {
 			label: "success",
@@ -152,11 +175,32 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.error.outline,
 			},
 		},
-		timeout: {
+		timed_out: {
 			label: "timed out",
 			colors: {
 				fill: theme.roles.warning.background,
 				stroke: theme.roles.warning.outline,
+			},
+		},
+		pipes_left_open: {
+			label: "output pipes left open",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
+		skipped: {
+			label: "skipped",
+			colors: {
+				fill: theme.roles.inactive.background,
+				stroke: theme.roles.inactive.outline,
+			},
+		},
+		canceled: {
+			label: "canceled",
+			colors: {
+				fill: theme.roles.info.background,
+				stroke: theme.roles.info.outline,
 			},
 		},
 	};

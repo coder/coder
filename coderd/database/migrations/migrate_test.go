@@ -4477,3 +4477,78 @@ func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
 	require.NoError(t, err)
 	assertRows()
 }
+
+func TestMigration000625WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	enumValues := func() []string {
+		var values []string
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT enum_range(NULL::workspace_agent_script_timing_status)::text[]`,
+		).Scan(pq.Array(&values))
+		require.NoError(t, err)
+		return values
+	}
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{WorkspaceAgentID: agent.ID})
+
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	timingWith := func(status database.WorkspaceAgentScriptTimingStatus, startedAt time.Time, exitCode int32) database.WorkspaceAgentScriptTiming {
+		return dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+			ScriptID:  script.ID,
+			StartedAt: startedAt,
+			EndedAt:   startedAt.Add(time.Second),
+			Status:    status,
+			ExitCode:  exitCode,
+		})
+	}
+	okTiming := timingWith(database.WorkspaceAgentScriptTimingStatusOk, at, 0)
+	skippedTiming := timingWith(database.WorkspaceAgentScriptTimingStatusSkipped, at.Add(time.Minute), 0)
+	canceledTiming := timingWith(database.WorkspaceAgentScriptTimingStatusCanceled, at.Add(2*time.Minute), -1)
+
+	downSQL, err := os.ReadFile("000625_workspace_agent_script_timing_skipped_canceled.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open"}, enumValues())
+
+	statusAndExitCode := func(startedAt time.Time) (string, int32) {
+		var status string
+		var exitCode int32
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT status, exit_code FROM workspace_agent_script_timings WHERE script_id = $1 AND started_at = $2`,
+			script.ID, startedAt,
+		).Scan(&status, &exitCode)
+		require.NoError(t, err)
+		return status, exitCode
+	}
+	status, exitCode := statusAndExitCode(okTiming.StartedAt)
+	require.Equal(t, "ok", status)
+	require.Equal(t, int32(0), exitCode)
+	status, exitCode = statusAndExitCode(skippedTiming.StartedAt)
+	require.Equal(t, "exit_failure", status)
+	require.Equal(t, int32(255), exitCode)
+	status, exitCode = statusAndExitCode(canceledTiming.StartedAt)
+	require.Equal(t, "exit_failure", status)
+	require.Equal(t, int32(255), exitCode)
+
+	upSQL, err := os.ReadFile("000625_workspace_agent_script_timing_skipped_canceled.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+}

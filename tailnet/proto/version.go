@@ -104,9 +104,15 @@ import (
 //   - A v2.14 agent decodes these fields but does not yet enforce the
 //     ordering, so a version check alone does not tell coderd that an agent
 //     orders its scripts.
+//
+// API v2.15:
+//   - Added SKIPPED and CANCELED to Timing.Status on the Agent API. A v2.15
+//     agent reports a skipped lifecycle script as a zero-duration SKIPPED
+//     timing and a canceled one as CANCELED, and writes a cancellation line
+//     to the script's log.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 14
+	CurrentMinor = 15
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

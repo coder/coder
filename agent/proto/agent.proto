@@ -348,6 +348,13 @@ message Timing {
         EXIT_FAILURE = 1;
         TIMED_OUT = 2;
         PIPES_LEFT_OPEN = 3;
+        // The script never ran because a prerequisite did not reach the
+        // outcome it needed. Start and end are both the moment of the skip.
+        SKIPPED = 4;
+        // The lifecycle execution ended before the script finished. A script
+        // that was running keeps its real interval; one that never started
+        // has start equal to end at the moment of cancellation.
+        CANCELED = 5;
     }
     Status status = 6;
 }

@@ -82,6 +82,63 @@ func TestScriptCompleted(t *testing.T) {
 			expectInsert: true,
 		},
 		{
+			// A skipped script has a zero duration, which passes the
+			// start-after-end check.
+			scriptID: uuid.New(),
+			timing: func() *agentproto.Timing {
+				at := timestamppb.New(dbtime.Now())
+				return &agentproto.Timing{
+					Stage:    agentproto.Timing_START,
+					Start:    at,
+					End:      at,
+					Status:   agentproto.Timing_SKIPPED,
+					ExitCode: 0,
+				}
+			}(),
+			expectInsert: true,
+		},
+		{
+			// A script canceled while running keeps its real interval.
+			scriptID: uuid.New(),
+			timing: &agentproto.Timing{
+				Stage:    agentproto.Timing_START,
+				Start:    timestamppb.New(dbtime.Now()),
+				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
+				Status:   agentproto.Timing_CANCELED,
+				ExitCode: 255,
+			},
+			expectInsert: true,
+		},
+		{
+			// A script canceled before it started has a zero duration.
+			scriptID: uuid.New(),
+			timing: func() *agentproto.Timing {
+				at := timestamppb.New(dbtime.Now())
+				return &agentproto.Timing{
+					Stage:    agentproto.Timing_START,
+					Start:    at,
+					End:      at,
+					Status:   agentproto.Timing_CANCELED,
+					ExitCode: 0,
+				}
+			}(),
+			expectInsert: true,
+		},
+		{
+			// A status this coderd does not know is refused by name
+			// before the insert.
+			scriptID: uuid.New(),
+			timing: &agentproto.Timing{
+				Stage:    agentproto.Timing_START,
+				Start:    timestamppb.New(dbtime.Now()),
+				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
+				Status:   agentproto.Timing_Status(6),
+				ExitCode: 0,
+			},
+			expectInsert: false,
+			expectError:  "unknown script timing status",
+		},
+		{
 			scriptID: uuid.New(),
 			timing: &agentproto.Timing{
 				Stage:    agentproto.Timing_START,
@@ -195,6 +252,10 @@ func protoScriptTimingStatusToDatabase(stage agentproto.Timing_Status) database.
 		dbStatus = database.WorkspaceAgentScriptTimingStatusTimedOut
 	case agentproto.Timing_PIPES_LEFT_OPEN:
 		dbStatus = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
+	case agentproto.Timing_SKIPPED:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusSkipped
+	case agentproto.Timing_CANCELED:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusCanceled
 	}
 	return dbStatus
 }
