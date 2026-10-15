@@ -16,10 +16,6 @@ import (
 
 const maxAttachmentSize = 10 << 20 // 10 MiB
 
-// ErrChatFileCapExceeded reports that the per-chat attachment cap rejected a
-// file.
-var ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
-
 // StoreFileFunc persists a chat attachment after classifying it for durable
 // storage and returns the stored attachment metadata.
 type StoreFileFunc func(ctx context.Context, name string, detectName string, data []byte) (AttachmentMetadata, error)

@@ -253,59 +253,36 @@ func TestComputerUseTool_Run_Screenshot_PersistsAttachment(t *testing.T) {
 	assert.Equal(t, "image/png", attachments[0].MediaType)
 }
 
-func TestComputerUseTool_Run_Screenshot_StoreError(t *testing.T) {
+func TestComputerUseTool_Run_Screenshot_StoreErrorReturnsToolError(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		storeErr  error
-		wantImage bool
-	}{
-		{name: "CapExceededFallsBackToImage", storeErr: xerrors.Errorf("link files: %w", chattool.ErrChatFileCapExceeded), wantImage: true},
-		{name: "OtherErrorReturnsToolError", storeErr: xerrors.New("db down")},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	const screenshotPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg=="
 
-			ctrl := gomock.NewController(t)
-			mockConn := agentconnmock.NewMockAgentConn(ctrl)
-			geometry := workspacesdk.DefaultDesktopGeometry()
-			const screenshotPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg=="
+	mockConn.EXPECT().ExecuteDesktopAction(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).Return(workspacesdk.DesktopActionResponse{
+		Output:           "screenshot",
+		ScreenshotData:   screenshotPNG,
+		ScreenshotWidth:  geometry.DeclaredWidth,
+		ScreenshotHeight: geometry.DeclaredHeight,
+	}, nil)
 
-			mockConn.EXPECT().ExecuteDesktopAction(
-				gomock.Any(),
-				gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
-			).Return(workspacesdk.DesktopActionResponse{
-				Output:           "screenshot",
-				ScreenshotData:   screenshotPNG,
-				ScreenshotWidth:  geometry.DeclaredWidth,
-				ScreenshotHeight: geometry.DeclaredHeight,
-			}, nil)
+	tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+		return mockConn, nil
+	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
+		return chattool.AttachmentMetadata{}, xerrors.New("db down")
+	}, quartz.NewReal(), slogtest.Make(t, nil))
 
-			tool := chattool.NewComputerUseTool(codersdk.ChatComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
-			}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
-				return chattool.AttachmentMetadata{}, tc.storeErr
-			}, quartz.NewReal(), slogtest.Make(t, nil))
-
-			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-				ID: "test-screenshot-store-error", Name: "computer", Input: `{"action":"screenshot"}`,
-			})
-			require.NoError(t, err)
-			if !tc.wantImage {
-				assert.True(t, resp.IsError)
-				assert.Contains(t, resp.Content, "store screenshot attachment: db down")
-				return
-			}
-			assert.Equal(t, "image", resp.Type)
-			assert.Equal(t, "image/png", resp.MediaType)
-			assert.False(t, resp.IsError)
-			attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
-			require.NoError(t, err)
-			assert.Empty(t, attachments)
-		})
-	}
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID: "test-screenshot-store-error", Name: "computer", Input: `{"action":"screenshot"}`,
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.IsError)
+	assert.Contains(t, resp.Content, "store screenshot attachment: db down")
 }
 
 func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *testing.T) {
@@ -660,32 +637,6 @@ func TestComputerUseTool_Run_OpenAI_EmptyActionsCapturesScreenshotAndStoresAttac
 	require.Len(t, attachments, 1)
 	assert.Equal(t, uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), attachments[0].FileID)
 	assert.Equal(t, "image/png", attachments[0].MediaType)
-}
-
-func TestComputerUseTool_Run_OpenAI_FinalScreenshotCapExceededFallsBackToImage(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	geometry := workspacesdk.DefaultDesktopGeometry()
-	const screenshotPNG = "ZmluYWwtc2NyZWVuc2hvdA=="
-	recordDesktopActions(t, mockConn, geometry, 1, screenshotPNG)
-
-	tool := newOpenAIComputerUseTool(t, geometry, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
-		return chattool.AttachmentMetadata{}, chattool.ErrChatFileCapExceeded
-	}, quartz.NewReal())
-
-	resp, err := tool.Run(context.Background(), openAIComputerUseCall(`{
-		"call_id":"call_store_error",
-		"actions":[{"type":"screenshot"}]
-	}`))
-	require.NoError(t, err)
-	assert.Equal(t, "image", resp.Type)
-	assert.Equal(t, "image/png", resp.MediaType)
-	assert.False(t, resp.IsError)
-	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
-	require.NoError(t, err)
-	assert.Empty(t, attachments)
 }
 
 func TestComputerUseTool_Run_OpenAI_DragReleaseFailureRetriesMouseUp(t *testing.T) {

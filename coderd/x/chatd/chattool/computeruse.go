@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -398,7 +397,7 @@ func (t *computerUseTool) captureSharedScreenshot(
 	}
 
 	response := fantasy.NewImageResponse(screenData, "image/png")
-	// Attachment limits skip storage but still return the screenshot.
+	// The size limit skips storage but still returns the screenshot.
 	if len(screenData) > maxAttachmentSize {
 		return response, nil
 	}
@@ -409,9 +408,6 @@ func (t *computerUseTool) captureSharedScreenshot(
 		attachmentName,
 		screenResp.ScreenshotData,
 	)
-	if errors.Is(err, ErrChatFileCapExceeded) {
-		return response, nil
-	}
 	if err != nil {
 		return fantasy.NewTextErrorResponse(
 			xerrors.Errorf("store screenshot attachment: %w", err).Error(),

@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
 
 // Sentinel errors returned by chatstate transitions and helpers.
@@ -61,9 +59,8 @@ var (
 	// promotion cannot find an enabled default model in the chat organization.
 	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
 
-	// ErrChatFileCapExceeded reports a [LinkFiles] cap rejection. It is the
-	// same error as [chattool.ErrChatFileCapExceeded].
-	ErrChatFileCapExceeded = chattool.ErrChatFileCapExceeded
+	// ErrChatFileCapExceeded reports a [LinkFiles] cap rejection.
+	ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
 
 	// ErrChatFileUnavailable reports a file passed to [LinkFiles] that is
 	// missing or already attached to another chat.
