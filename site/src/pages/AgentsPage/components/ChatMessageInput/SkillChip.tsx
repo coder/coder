@@ -1,7 +1,10 @@
 import { cn } from "cn";
-import { XIcon, ZapIcon } from "lucide-react";
+import { ZapIcon } from "lucide-react";
 import { getSkillAlias, type SkillSource } from "../../utils/skillAliases";
-import { fileReferenceChipVariants } from "./FileReferenceChip";
+import {
+	ChipRemoveButton,
+	fileReferenceChipVariants,
+} from "./FileReferenceChip";
 
 type SkillChipProps = {
 	source: SkillSource;
@@ -36,25 +39,14 @@ export const EditableSkillChip: React.FC<
 		<span
 			className={cn(
 				fileReferenceChipVariants({ selected }),
-				"border-border-secondary bg-surface-tertiary pl-1 text-content-primary",
+				"pl-1 text-content-primary",
+				!selected && "border-border-secondary bg-surface-tertiary",
 				className,
 			)}
 			contentEditable={false}
 		>
 			<SkillChipLabel alias={alias} />
-			<button
-				type="button"
-				className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemove();
-				}}
-				aria-label={`Remove skill ${alias}`}
-				tabIndex={-1}
-			>
-				<XIcon className="size-2.5" />
-			</button>
+			<ChipRemoveButton label={`Remove skill ${alias}`} onRemove={onRemove} />
 		</span>
 	);
 };

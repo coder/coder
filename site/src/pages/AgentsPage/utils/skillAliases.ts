@@ -1,5 +1,7 @@
-/** Skill sources in chatd's merge order, named by their alias prefix. */
-export type SkillSource = "personal" | "org" | "project" | "workspace";
+import type { ChatSkillSource } from "#/api/typesGenerated";
+
+/** Where a skill is stored, named by its alias prefix. */
+export type SkillSource = ChatSkillSource;
 
 export type SkillSourceList<T extends { name: string }> = {
 	source: SkillSource;

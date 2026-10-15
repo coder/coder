@@ -119,6 +119,26 @@ export function FileReferenceChip({
 	);
 }
 
+/** Removes an editable chip; pointer only, since Backspace removes chips. */
+export const ChipRemoveButton: React.FC<{
+	label: string;
+	onRemove: () => void;
+}> = ({ label, onRemove }) => (
+	<button
+		type="button"
+		className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
+		onClick={(e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			onRemove();
+		}}
+		aria-label={label}
+		tabIndex={-1}
+	>
+		<XIcon className="size-2.5" />
+	</button>
+);
+
 export function EditableFileReferenceChip({
 	fileName,
 	startLine,
@@ -158,20 +178,7 @@ export function EditableFileReferenceChip({
 			>
 				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
-			<button
-				data-slot="file-reference-chip-remove"
-				type="button"
-				className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemove();
-				}}
-				aria-label="Remove reference"
-				tabIndex={-1}
-			>
-				<XIcon className="size-2.5" />
-			</button>
+			<ChipRemoveButton label="Remove reference" onRemove={onRemove} />
 		</span>
 	);
 }

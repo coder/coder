@@ -492,7 +492,6 @@ type SkillInvocationData = {
 
 /**
  * A content part extracted from the Lexical editor in document order.
- * Either a text segment, a file-reference chip, or a skill chip.
  */
 type EditorContentPart =
 	| { readonly type: "text"; readonly text: string }
@@ -1011,19 +1010,12 @@ const ChatMessageInput = ({
 				if (!editor) return;
 
 				editor.update(() => {
-					let selection = $getSelection();
-					if (!$isRangeSelection(selection)) {
-						const root = $getRoot();
-						const last = root.getLastChild() ?? $createParagraphNode();
-						if (!last.isAttached()) {
-							root.append(last);
-						}
-						last.selectEnd();
-						selection = $getSelection();
-					}
-					if ($isRangeSelection(selection)) {
-						$insertSkillInvocation(selection, source, name);
-					}
+					const selection = $getSelection();
+					$insertSkillInvocation(
+						$isRangeSelection(selection) ? selection : $getRoot().selectEnd(),
+						source,
+						name,
+					);
 				});
 				// Lexical restores the selection but, unlike AutoFocusPlugin,
 				// does not move DOM focus when the editor was blurred.
