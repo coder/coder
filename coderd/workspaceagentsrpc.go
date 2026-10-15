@@ -159,6 +159,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:       workspace.ID,
 		OrganizationID:    workspace.OrganizationID,
 		TemplateVersionID: build.TemplateVersionID,
+		WorkspaceBuildID:  build.ID,
 
 		AuthenticatedCtx:                  ctx,
 		Log:                               logger,
