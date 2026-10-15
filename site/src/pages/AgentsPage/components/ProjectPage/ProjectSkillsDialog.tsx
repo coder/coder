@@ -178,7 +178,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
-						onSubmit={(values, content, onSettled) => {
+						onSubmit={(values, content, onSettled, isContentChanged) => {
 							const req = {
 								content,
 								action: values.action,
@@ -194,7 +194,12 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								createMutation.mutate(req, { onSuccess, onSettled });
 							} else {
 								updateMutation.mutate(
-									{ name: editor.name, req },
+									{
+										name: editor.name,
+										req: isContentChanged
+											? req
+											: { ...req, content: undefined },
+									},
 									{ onSuccess, onSettled },
 								);
 							}
@@ -344,7 +349,10 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: SkillSubmitHandler;
+	/** isContentChanged is false when an edit changes only the settings. */
+	readonly onSubmit: (
+		...args: [...Parameters<SkillSubmitHandler>, isContentChanged: boolean]
+	) => void;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
@@ -459,7 +467,19 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 						</DialogFooter>
 					)
 				}
-				onSubmit={onSubmit}
+				onSubmit={(values, content, onSettled) => {
+					// A settings-only edit keeps the stored SKILL.md as written.
+					const opened = openedValues ?? loaded.values;
+					onSubmit(
+						values,
+						content,
+						onSettled,
+						view.type === "create" ||
+							values.name !== opened.name ||
+							values.description !== opened.description.trim() ||
+							values.body !== opened.body,
+					);
+				}}
 			/>
 			<ConfirmDialog
 				open={isDiscardOpen}

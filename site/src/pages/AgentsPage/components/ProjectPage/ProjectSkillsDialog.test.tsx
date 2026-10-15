@@ -178,7 +178,7 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
-	it("saves a change to only a skill's automatic use", async () => {
+	it("saves a change to only a skill's automatic use without rewriting SKILL.md", async () => {
 		const updateSkill = vi
 			.spyOn(API.experimental, "updateChatProjectSkill")
 			.mockResolvedValue(mockReviewerSkill);
@@ -195,8 +195,7 @@ describe("ProjectSkillsDialog", () => {
 
 		await waitFor(() =>
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
-				content:
-					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview the diff.\n',
+				content: undefined,
 				action: false,
 				model_invocable: false,
 			}),
