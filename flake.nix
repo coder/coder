@@ -257,8 +257,10 @@
         devShellPackages =
           with pkgs;
           [
-            # google-chrome is not available on aarch64 linux
-            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            # Browser for the scaletest dashboard tests. On Linux, google-chrome
+            # downloads a pinned .deb that Google deletes after each release, so
+            # use chromium, which builds from source and is in the binary cache.
+            (if stdenv.isLinux then chromium else google-chrome)
             # strace is not available on OSX
             (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
             bat
