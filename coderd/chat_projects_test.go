@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
@@ -441,6 +442,18 @@ func TestChatProjectTemplates(t *testing.T) {
 		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &tc.templates})
 		requireChatProjectFieldError(t, err, tc.field, tc.detail)
 	}
+
+	// Values are checked against the parameter's validation rules.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{first.ID},
+		DefaultTemplateID: &first.ID,
+		DefaultParameters: map[string]string{"cpu": "99"},
+	}})
+	sdkErr := coderdtest.SDKError(t, err)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "templates.default_parameters", sdkErr.Validations[0].Field)
+	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
 }
 
 // createAgentTemplate creates a template whose active version has a "region"
@@ -463,7 +476,16 @@ func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUI
 			OrganizationID: orgID,
 			CreatedBy:      userID,
 		}).
-		Params(database.TemplateVersionParameter{Name: "region"}).
+		Params(
+			database.TemplateVersionParameter{Name: "region"},
+			database.TemplateVersionParameter{
+				Name:          "cpu",
+				Type:          "number",
+				DefaultValue:  "2",
+				ValidationMin: sql.NullInt32{Int32: 1, Valid: true},
+				ValidationMax: sql.NullInt32{Int32: 8, Valid: true},
+			},
+		).
 		Preset(preset).
 		Do()
 	return template, preset
