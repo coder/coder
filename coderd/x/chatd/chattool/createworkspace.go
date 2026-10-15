@@ -662,22 +662,25 @@ func waitForAgentReady(
 
 	var lastState database.WorkspaceAgentLifecycleState
 	for {
-		row, err := db.GetWorkspaceAgentLifecycleStateByID(ctx, agentID)
-		if err != nil {
+		row, err := db.GetWorkspaceAgentLifecycleStateByID(scriptCtx, agentID)
+		// A read cut short by scriptCtx is reported as the timeout below.
+		if err != nil && scriptCtx.Err() == nil {
 			return nil, xerrors.Errorf("get agent lifecycle state: %w", err)
 		}
-		lastState = row.LifecycleState
-		switch lastState {
-		case database.WorkspaceAgentLifecycleStateCreated,
-			database.WorkspaceAgentLifecycleStateStarting:
-			// Still in progress, keep polling.
-		case database.WorkspaceAgentLifecycleStateReady:
-			return result, nil
-		default:
-			// Terminal non-ready state.
-			result["startup_scripts"] = "startup_scripts_failed"
-			result["lifecycle_state"] = string(lastState)
-			return result, nil
+		if err == nil {
+			lastState = row.LifecycleState
+			switch lastState {
+			case database.WorkspaceAgentLifecycleStateCreated,
+				database.WorkspaceAgentLifecycleStateStarting:
+				// Still in progress, keep polling.
+			case database.WorkspaceAgentLifecycleStateReady:
+				return result, nil
+			default:
+				// Terminal non-ready state.
+				result["startup_scripts"] = "startup_scripts_failed"
+				result["lifecycle_state"] = string(lastState)
+				return result, nil
+			}
 		}
 
 		select {
