@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import { API } from "#/api/api";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -140,6 +140,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
 	dashboard.experiments = ["chat-projects"];
+	vi.restoreAllMocks();
 });
 
 describe("AgentChatInput", () => {
@@ -225,15 +226,14 @@ describe("AgentChatInput", () => {
 	it("offers the chat project's skills in the slash menu", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(userSkills().queryKey, []);
-		queryClient.setQueryData(organizationSkills("org-1").queryKey, []);
-		queryClient.setQueryData(chatProjectSkills("org-1", "project-1").queryKey, [
-			{ ...MockSkill, name: "project-conventions" },
-		]);
+		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
 
 		render(
-			<AppProviders queryClient={queryClient}>
+			<AppProviders queryClient={createTestQueryClient()}>
 				<AgentChatInput
 					{...inputProps}
 					inputRef={inputRef}
@@ -249,22 +249,24 @@ describe("AgentChatInput", () => {
 			await screen.findByRole("option", { name: /project-conventions/ }),
 		);
 		expect(inputRef.current?.getValue()).toBe("/project-conventions");
+		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
 	});
 
-	it("hides project skills while the chat-projects experiment is off", async () => {
+	it("skips the project skills request while the chat-projects experiment is off", async () => {
 		dashboard.experiments = [];
 		const user = userEvent.setup();
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(userSkills().queryKey, [
-			{ ...MockSkill, name: "project-plan" },
-		]);
-		queryClient.setQueryData(organizationSkills("org-1").queryKey, []);
-		queryClient.setQueryData(chatProjectSkills("org-1", "project-1").queryKey, [
-			{ ...MockSkill, name: "project-conventions" },
-		]);
+		const getUserSkills = vi
+			.spyOn(API.experimental, "getUserSkills")
+			.mockResolvedValue([]);
+		const getOrganizationSkills = vi
+			.spyOn(API.experimental, "getOrganizationSkills")
+			.mockResolvedValue([]);
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([]);
 
 		render(
-			<AppProviders queryClient={queryClient}>
+			<AppProviders queryClient={createTestQueryClient()}>
 				<AgentChatInput
 					{...inputProps}
 					chatOrganizationId="org-1"
@@ -275,13 +277,13 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.paste("/proj");
-		// The personal skill shows that the menu opened with every list loaded.
-		expect(
-			await screen.findByRole("option", { name: /project-plan/ }),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("option", { name: /project-conventions/ }),
-		).not.toBeInTheDocument();
+		// The skills trigger enables every skills request in the same
+		// render, so the other requests show the trigger activated.
+		await waitFor(() => {
+			expect(getUserSkills).toHaveBeenCalled();
+			expect(getOrganizationSkills).toHaveBeenCalledWith("org-1");
+		});
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
