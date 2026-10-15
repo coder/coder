@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SKILL_MAX_SIZE_BYTES } from "../utils/skills";
@@ -40,6 +40,39 @@ describe("SkillEditor", () => {
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
 		);
+	});
+
+	it("keeps an edited skill's name focusable but unchangeable", async () => {
+		const { user, onSubmit } = renderEditor("edit");
+		const name = screen.getByRole("textbox", { name: "Name" });
+		await user.click(name);
+		expect(name).toHaveFocus();
+		await user.type(name, "-renamed");
+		await user.type(screen.getByRole("textbox", { name: "Body" }), " More.");
+		await user.click(screen.getByRole("button", { name: "Save skill" }));
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "existing-skill" }),
+				expect.any(String),
+				expect.any(Function),
+			),
+		);
+	});
+
+	it("accepts another submit only after the previous one settles", async () => {
+		const { user, onSubmit } = renderEditor("edit");
+		await user.type(screen.getByRole("textbox", { name: "Body" }), " More.");
+		const save = screen.getByRole("button", { name: "Save skill" });
+		await user.dblClick(save);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		await user.click(save);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+
+		// Settle the first request as a failure, leaving the form open.
+		const onSettled: () => void = onSubmit.mock.calls[0][2];
+		act(() => onSettled());
+		await user.click(save);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
 	});
 });
 
