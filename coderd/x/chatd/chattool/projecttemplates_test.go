@@ -150,6 +150,17 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		require.NotNil(t, req)
 		require.Equal(t, uuid.Nil, req.TemplateVersionPresetID)
 
+		// A parameter the model passes would be overridden by the default
+		// preset's value for it, so the preset is skipped.
+		_, req = createWorkspace(t, withPreset, `{"template_id":"`+inProject.ID.String()+`","parameters":{"region":"us"}}`)
+		require.NotNil(t, req)
+		require.Equal(t, uuid.Nil, req.TemplateVersionPresetID)
+
+		// Parameters the preset does not set leave it applied.
+		_, req = createWorkspace(t, withPreset, `{"template_id":"`+inProject.ID.String()+`","parameters":{"size":"xl"}}`)
+		require.NotNil(t, req)
+		require.Equal(t, preset.ID, req.TemplateVersionPresetID)
+
 		// A preset the model chooses wins over the default.
 		_, req = createWorkspace(t, withPreset, `{"template_id":"`+inProject.ID.String()+`","preset_id":"`+otherPreset.ID.String()+`"}`)
 		require.NotNil(t, req)
@@ -172,7 +183,7 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 }
 
 // projectTestTemplate creates an agent-allowed template whose active version
-// has one preset.
+// has one preset that sets region to "eu".
 func projectTestTemplate(t *testing.T, db database.Store, orgID, userID uuid.UUID) (database.Template, database.TemplateVersionPreset) {
 	t.Helper()
 
@@ -184,6 +195,7 @@ func projectTestTemplate(t *testing.T, db database.Store, orgID, userID uuid.UUI
 		AgentsAllowed:   true,
 	})
 	preset := database.TemplateVersionPreset{ID: uuid.New(), Name: "default"}
+	presetRegion := database.TemplateVersionPresetParameter{TemplateVersionPresetID: preset.ID, Name: "region", Value: "eu"}
 	dbfake.TemplateVersion(t, db).
 		Seed(database.TemplateVersion{
 			ID:             versionID,
@@ -191,7 +203,7 @@ func projectTestTemplate(t *testing.T, db database.Store, orgID, userID uuid.UUI
 			OrganizationID: orgID,
 			CreatedBy:      userID,
 		}).
-		Preset(preset).
+		Preset(preset, presetRegion).
 		Do()
 	return template, preset
 }
