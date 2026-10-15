@@ -61,25 +61,18 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 		Name:      "project-disabled",
 	})
 	require.NoError(t, err)
-	// The teammate's personal skill keeps read_skill available after the
-	// project is no longer shared with them.
-	for _, skill := range []struct {
-		userID      uuid.UUID
-		name        string
-		description string
-	}{
-		{owner.ID, "shared", "Personal shared process"},
-		{teammate.ID, "teammate-notes", "Teammate notes"},
-	} {
-		_, err = db.InsertUserSkill(ctx, database.InsertUserSkillParams{
+	insertPersonalSkill := func(userID uuid.UUID, name, description string) {
+		t.Helper()
+		_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
 			ID:          uuid.New(),
-			UserID:      skill.userID,
-			Name:        skill.name,
-			Description: skill.description,
-			Content:     skillMarkdown(skill.name, skill.description, "Personal instructions."),
+			UserID:      userID,
+			Name:        name,
+			Description: description,
+			Content:     skillMarkdown(name, description, "Personal instructions."),
 		})
 		require.NoError(t, err)
 	}
+	insertPersonalSkill(owner.ID, "shared", "Personal shared process")
 
 	// The dbauthz wrapper applies the project ACL in production.
 	authzDB := dbauthz.New(
@@ -157,12 +150,15 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	require.Contains(t, lastToolResults(calls[1], 1)[0], "Instructions for project-review.")
 
 	// A user the project is shared with gets its skills, with bare names
-	// because they have no colliding personal skill.
+	// because they have no colliding personal skill. The teammate has no
+	// other skills yet, so project skills alone enable read_skill.
 	teammateChatID, calls := runTurn(t, teammate.ID, uuid.Nil, inProject, readSkillsDirective+"shared")
 	require.Contains(t, calls[0].system, "- shared: Project shared process\n")
 	require.Contains(t, lastToolResults(calls[1], 1)[0], "Instructions for shared.")
 
-	// Revoking the share removes project skills on the next turn.
+	// Revoking the share removes project skills on the next turn. The
+	// teammate's personal skill keeps read_skill available to observe that.
+	insertPersonalSkill(teammate.ID, "teammate-notes", "Teammate notes")
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID: project.ID, UserACL: database.ChatACL{}, GroupACL: database.ChatACL{},
 	}))

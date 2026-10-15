@@ -2351,6 +2351,72 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 	}
 }
 
+// TestLoadProjectSkillBody covers the loader directly because a turn only
+// reaches it for skills it already listed, so the not-found mapping for
+// unshared, disabled, and missing skills is otherwise unreachable.
+func TestLoadProjectSkillBody(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	server := &Server{
+		db:     authzDB,
+		logger: slogtest.Make(t, nil),
+		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
+			return callerModelConfigContext(ctx, authzDB, ownerID)
+		},
+	}
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, outsider} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	for _, name := range []string{"project-review", "disabled-review"} {
+		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID:        uuid.New(),
+			ProjectID: project.ID,
+			Name:      name,
+			Content:   "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+		})
+		require.NoError(t, err)
+	}
+	_, err := db.UpdateProjectSkillByProjectIDAndName(ctx, database.UpdateProjectSkillByProjectIDAndNameParams{
+		Enabled:   sql.NullBool{Bool: false, Valid: true},
+		ProjectID: project.ID,
+		Name:      "disabled-review",
+	})
+	require.NoError(t, err)
+
+	subject := func(userID uuid.UUID) rbac.Subject {
+		t.Helper()
+		got, err := server.chatOwnerSubject(dbauthz.AsChatd(ctx), userID)
+		require.NoError(t, err)
+		return got
+	}
+
+	got, err := server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "project-review")
+	require.NoError(t, err)
+	require.Equal(t, skillspkg.SourceProject, got.Source)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	for _, tc := range []struct {
+		name   string
+		reader uuid.UUID
+		skill  string
+	}{
+		{name: "NotShared", reader: outsider.ID, skill: "project-review"},
+		{name: "Disabled", reader: owner.ID, skill: "disabled-review"},
+		{name: "Missing", reader: owner.ID, skill: "missing-review"},
+	} {
+		_, err := server.loadProjectSkillBody(ctx, subject(tc.reader), project.ID, tc.skill)
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
+	}
+}
+
 func systemPromptText(t *testing.T, prompt []fantasy.Message) string {
 	t.Helper()
 

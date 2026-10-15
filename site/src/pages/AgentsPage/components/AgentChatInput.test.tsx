@@ -23,8 +23,15 @@ import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
+const dashboard = vi.hoisted(() => ({
+	experiments: ["chat-projects"] as string[],
+}));
+
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => ({ organizations: [], experiments: ["chat-projects"] }),
+	useDashboard: () => ({
+		organizations: [],
+		experiments: dashboard.experiments,
+	}),
 }));
 
 vi.mock("../hooks/useSpeechRecognition", async (importOriginal) => {
@@ -132,6 +139,7 @@ beforeAll(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
+	dashboard.experiments = ["chat-projects"];
 });
 
 describe("AgentChatInput", () => {
@@ -241,6 +249,39 @@ describe("AgentChatInput", () => {
 			await screen.findByRole("option", { name: /project-conventions/ }),
 		);
 		expect(inputRef.current?.getValue()).toBe("/project-conventions");
+	});
+
+	it("hides project skills while the chat-projects experiment is off", async () => {
+		dashboard.experiments = [];
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(userSkills().queryKey, [
+			{ ...MockSkill, name: "project-plan" },
+		]);
+		queryClient.setQueryData(organizationSkills("org-1").queryKey, []);
+		queryClient.setQueryData(chatProjectSkills("org-1", "project-1").queryKey, [
+			{ ...MockSkill, name: "project-conventions" },
+		]);
+
+		render(
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/proj");
+		// The personal skill shows that the menu opened with every list loaded.
+		expect(
+			await screen.findByRole("option", { name: /project-plan/ }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("option", { name: /project-conventions/ }),
+		).not.toBeInTheDocument();
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
