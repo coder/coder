@@ -3635,9 +3635,7 @@ export const ChatRoles: ChatRole[] = ["", "read"];
 export interface ChatSkillInvocationPart {
 	readonly type: "skill-invocation";
 	/**
-	 * SkillName is the kebab-case name of a discovered skill
-	 * from the workspace's .agents/skills/ directory, or of the
-	 * skill a skill-invocation part invokes.
+	 * SkillName is the kebab-case name of the skill.
 	 */
 	readonly skill_name: string;
 	/**
@@ -3651,9 +3649,7 @@ export interface ChatSkillInvocationPart {
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
-	 * SkillName is the kebab-case name of a discovered skill
-	 * from the workspace's .agents/skills/ directory, or of the
-	 * skill a skill-invocation part invokes.
+	 * SkillName is the kebab-case name of the skill.
 	 */
 	readonly skill_name: string;
 	/**

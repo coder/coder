@@ -598,9 +598,7 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
-	// SkillName is the kebab-case name of a discovered skill
-	// from the workspace's .agents/skills/ directory, or of the
-	// skill a skill-invocation part invokes.
+	// SkillName is the kebab-case name of the skill.
 	SkillName string `json:"skill_name" variants:"skill,skill-invocation"`
 	// SkillSource is where the invoked skill of a skill-invocation
 	// part is stored.

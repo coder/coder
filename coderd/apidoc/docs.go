@@ -22165,7 +22165,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_name": {
-                    "description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory, or of the\nskill a skill-invocation part invokes.",
+                    "description": "SkillName is the kebab-case name of the skill.",
                     "type": "string"
                 },
                 "skill_source": {
