@@ -143,8 +143,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
 				onEscapeKeyDown={(event) => {
-					// Back asks before it discards unsaved edits. Escape closes a
-					// read-only view, as clicking outside does.
+					// Back asks before it discards unsaved edits.
 					if (editor && canEdit) {
 						event.preventDefault();
 						backButtonRef.current?.click();
@@ -175,18 +174,13 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									`Project skill ${editor.type === "create" ? "created" : "saved"}.`,
 								);
 							};
-							// The editor shows the failure through submitError.
 							if (editor.type === "create") {
-								return createMutation
-									.mutateAsync({ content }, { onSuccess })
-									.catch(() => {});
+								return createMutation.mutateAsync({ content }, { onSuccess });
 							}
-							return updateMutation
-								.mutateAsync(
-									{ name: editor.name, req: { content } },
-									{ onSuccess },
-								)
-								.catch(() => {});
+							return updateMutation.mutateAsync(
+								{ name: editor.name, req: { content } },
+								{ onSuccess },
+							);
 						}}
 					/>
 				) : (

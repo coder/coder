@@ -54,9 +54,8 @@ type SkillEditorFormProps = {
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
 	footer: (state: SkillEditorFormState) => React.ReactNode;
 	/**
-	 * Return the request's promise to keep the form busy until it settles,
-	 * so a fast double click cannot submit twice. The promise should not
-	 * reject; report failures through submitError.
+	 * Return the request's promise to keep the form busy until it settles.
+	 * Report failures through submitError.
 	 */
 	onSubmit: (values: SkillFormValues, content: string) => Promise<unknown>;
 };
@@ -151,20 +150,26 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		enableReinitialize: true,
 		validationSchema,
 		validate,
-		onSubmit: (values) => {
+		// Formik keeps isSubmitting set until this settles, so a second click
+		// cannot submit again before the caller's isSubmitting turns on.
+		onSubmit: async (values) => {
 			const normalizedValues = {
 				name: values.name.trim(),
 				description: values.description.trim(),
 				body: values.body.trim(),
 			};
-			return onSubmit(normalizedValues, buildSkillMarkdown(normalizedValues));
+			const content = buildSkillMarkdown(normalizedValues);
+			try {
+				await onSubmit(normalizedValues, content);
+			} catch {
+				// The caller shows the failure through submitError.
+			}
 		},
 	});
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isReadingFile, setIsReadingFile] = useState(false);
-	// Formik marks the form submitting during the click itself, before the
-	// caller's isSubmitting can re-render, which blocks a second click.
+	// Covers the window between Save and the caller's isSubmitting update.
 	const isBusy = isSubmitting || isReadingFile || form.isSubmitting;
 	const [importContent, setImportContent] = useState("");
 	const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
@@ -390,9 +395,11 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="review-database-query"
-						disabled={isBusy || !isCreate || readOnly}
+						readOnly={readOnly}
+						disabled={isBusy || (!isCreate && !readOnly)}
 						aria-invalid={Boolean(nameError)}
 						aria-describedby={nameError ? nameErrorId : undefined}
+						className={cn(readOnly && "bg-surface-secondary")}
 					/>
 					{nameError ? (
 						<p
@@ -417,9 +424,11 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="When to use this skill"
-						disabled={isBusy || readOnly}
+						readOnly={readOnly}
+						disabled={isBusy}
 						aria-invalid={Boolean(descriptionError)}
 						aria-describedby={descriptionError ? descriptionErrorId : undefined}
+						className={cn(readOnly && "bg-surface-secondary")}
 					/>
 					{descriptionError && (
 						<p
@@ -440,13 +449,15 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder={bodyPlaceholder}
-						disabled={isBusy || readOnly}
+						readOnly={readOnly}
+						disabled={isBusy}
 						minRows={8}
 						aria-invalid={Boolean(bodyError)}
 						aria-describedby={bodyError ? bodyErrorId : undefined}
 						className={cn(
 							"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
 							bodyError && "border-border-destructive",
+							readOnly && "bg-surface-secondary",
 						)}
 					/>
 					{bodyError && (

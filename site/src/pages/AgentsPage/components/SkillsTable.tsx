@@ -255,8 +255,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				// The editor shows the failure through submitError.
-				return createMutation.mutateAsync({ content }).catch(() => {});
+				return createMutation.mutateAsync({ content });
 			},
 			onClose: () => setDialogState(null),
 		};
@@ -290,9 +289,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				return updateMutation
-					.mutateAsync({ name: dialogState.name, req: { content } })
-					.catch(() => {});
+				return updateMutation.mutateAsync({
+					name: dialogState.name,
+					req: { content },
+				});
 			},
 			onClose: () => setDialogState(null),
 		};
