@@ -1,13 +1,11 @@
 package chatloop
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -20,16 +18,12 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -444,7 +438,6 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 		name            string
 		toolDefinitions []fantasy.Tool
 		err             error
-		rejected        []string
 	}{
 		{
 			name:            "unrelated bad request",
@@ -468,9 +461,8 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 			err:             xerrors.New("context window"),
 		},
 		{
-			name:     "no tools to drop",
-			err:      contextTooLarge,
-			rejected: []string{"full"},
+			name: "no tools to drop",
+			err:  contextTooLarge,
 		},
 	}
 	for _, tc := range cases {
@@ -486,19 +478,16 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 					return nil, tc.err
 				},
 			}
-			logSink := testutil.NewFakeSink(t)
 
 			_, _, err := generateCompactionSummary(context.Background(), model,
 				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 				CompactionOptions{
 					SummaryPrompt:   "summarize",
 					ToolDefinitions: tc.toolDefinitions,
-					Logger:          logSink.Logger(),
 				},
 			)
 			require.ErrorIs(t, err, tc.err)
 			require.Equal(t, 1, calls)
-			require.Equal(t, tc.rejected, rejectedSummaryRequestKinds(t, logSink))
 		})
 	}
 }
@@ -547,168 +536,117 @@ func toolResultTexts(prompt []fantasy.Message) []string {
 	return texts
 }
 
-// TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge covers a
-// history the provider rejects even without tool definitions: the third
-// request cuts the large tool result, the caller's messages stay intact,
-// and the compaction span describes the request that fit.
-func TestGenerateCompactionSummaryElidesToolResultsWhenStillTooLarge(t *testing.T) {
-	t.Parallel()
+// rejectedToolResultMaxBytes returns the tool result cap of each summary
+// request the sink recorded as rejected for its size, zero for a request
+// that cut nothing.
+func rejectedToolResultMaxBytes(t *testing.T, sink *testutil.FakeSink) []int {
+	t.Helper()
 
-	large := strings.Repeat("a", 60_000)
-	messages := toolResultHistory(large, "small result")
-	toolDefinitions := []fantasy.Tool{
-		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
-	}
-	var calls []fantasy.Call
-	model := &chattest.FakeModel{
-		ProviderName: "fake",
-		ModelName:    "fake-model",
-		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-			calls = append(calls, call)
-			// The provider's real window fits the history only once the
-			// large result is cut.
-			if slices.Contains(toolResultTexts(call.Prompt), large) {
-				return nil, contextWindowError()
+	var caps []int
+	for _, entry := range sink.Entries(func(entry slog.SinkEntry) bool {
+		return entry.Message == "compaction summary request rejected for its size"
+	}) {
+		require.Equal(t, slog.LevelWarn, entry.Level)
+		for _, field := range entry.Fields {
+			if field.Name == "summary_tool_result_max_bytes" {
+				maxBytes, ok := field.Value.(int)
+				require.True(t, ok, "unexpected type %T", field.Value)
+				caps = append(caps, maxBytes)
 			}
-			return summaryTextStream(), nil
-		},
+		}
 	}
-	ctx, spanAttr := compactionSpan(t)
-	logSink := testutil.NewFakeSink(t)
-
-	summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
-		SummaryPrompt:   "summarize",
-		ToolDefinitions: toolDefinitions,
-		Logger:          logSink.Logger(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, "summary", summary)
-	require.Len(t, calls, 3)
-	require.Equal(t, toolDefinitions, calls[0].Tools)
-	require.Nil(t, calls[1].Tools)
-	require.Equal(t, calls[0].Prompt, calls[1].Prompt)
-	require.Nil(t, calls[2].Tools)
-	texts := toolResultTexts(calls[2].Prompt)
-	require.Len(t, texts, 2)
-	require.Contains(t, texts[0], "Coder truncated")
-	require.Equal(t, "small result", texts[1])
-	elidedHistory := calls[2].Prompt[:len(calls[2].Prompt)-1]
-	require.LessOrEqual(t, estimateMessagesTokens(elidedHistory), estimateMessagesTokens(messages)/2)
-	require.Equal(t, toolResultHistory(large, "small result"), messages, "the caller's messages must not change")
-	require.Equal(t, []string{"full", "without_tools"}, rejectedSummaryRequestKinds(t, logSink))
-
-	require.EqualValues(t, 3, spanAttr(AttrSummaryRequestsSent).AsInt64())
-	require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
-	require.Zero(t, spanAttr(AttrSummaryToolCount).AsInt64())
-	require.EqualValues(t, len(large)-len(texts[0]), spanAttr(AttrSummaryElidedBytes).AsInt64())
+	return caps
 }
 
-// TestGenerateCompactionSummaryElidesToFitSummaryWindow covers a history
-// larger than the summary model's window on a provider that rejects input
-// plus max_tokens above the window: the elided request must fit the
-// window rather than half the history, and its cap the room left. The
-// summary prompt and hint share that window, so the history gets half of
-// what they leave.
-func TestGenerateCompactionSummaryElidesToFitSummaryWindow(t *testing.T) {
+// TestGenerateCompactionSummaryCutsToolResultsWhenStillTooLarge covers a
+// history the provider rejects even without tool definitions: each later
+// request cuts the tool results to a smaller size until one fits, skipping a
+// size that cuts nothing, and the caller's messages stay intact.
+func TestGenerateCompactionSummaryCutsToolResultsWhenStillTooLarge(t *testing.T) {
 	t.Parallel()
 
-	const window = 9_000
+	huge := strings.Repeat("a", 100_000)
+	medium := strings.Repeat("b", 10_000)
 	cases := []struct {
-		name string
-		hint string
+		name    string
+		results []string
+		// acceptedBytes is the largest tool result the provider accepts.
+		acceptedBytes int
+		wantRejected  []int
 	}{
-		{name: "without a hint"},
-		// The largest model context a pre_compact hook can return.
-		{name: "with the largest hook hint", hint: strings.Repeat("h", 16<<10)},
+		{
+			name:          "fits once the largest result is cut",
+			results:       []string{huge, medium, "small"},
+			acceptedBytes: 32 << 10,
+			wantRejected:  []int{0, 0},
+		},
+		{
+			name:          "fits once every large result is cut",
+			results:       []string{huge, medium, "small"},
+			acceptedBytes: 4 << 10,
+			wantRejected:  []int{0, 0, 32 << 10},
+		},
+		{
+			name:          "skips a size that cuts nothing",
+			results:       []string{medium, "small"},
+			acceptedBytes: 4 << 10,
+			wantRejected:  []int{0, 0},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			messages := toolResultHistory(strings.Repeat("a", 60_000))
-			summaryTokens := estimateTokens(len("summarize") + len(tc.hint))
+			messages := toolResultHistory(tc.results...)
+			toolDefinitions := []fantasy.Tool{
+				fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+			}
 			var calls []fantasy.Call
 			model := &chattest.FakeModel{
 				ProviderName: "fake",
 				ModelName:    "fake-model",
 				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 					calls = append(calls, call)
-					if estimateMessagesTokens(call.Prompt)+ptr.NilToEmpty(call.MaxOutputTokens) > window {
-						return nil, contextWindowError()
+					for _, text := range toolResultTexts(call.Prompt) {
+						if len(text) > tc.acceptedBytes {
+							return nil, contextWindowError()
+						}
 					}
 					return summaryTextStream(), nil
 				},
 			}
-			ctx, spanAttr := compactionSpan(t)
+			logSink := testutil.NewFakeSink(t)
 
-			summary, _, err := generateCompactionSummary(ctx, model, messages, CompactionOptions{
-				SummaryPrompt:        "summarize",
-				SummaryHint:          tc.hint,
-				SummaryCall:          fantasy.Call{MaxOutputTokens: ptr.Ref(int64(8_000))},
-				ToolDefinitions:      []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
-				summaryWindow:        window,
-				estimatedInputTokens: estimateMessagesTokens(messages) + summaryTokens,
+			summary, _, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+				SummaryPrompt:   "summarize",
+				ToolDefinitions: toolDefinitions,
+				Logger:          logSink.Logger(),
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", summary)
-			require.Len(t, calls, 3)
-			require.Nil(t, calls[2].Tools)
-			elidedHistory := estimateMessagesTokens(calls[2].Prompt[:len(calls[2].Prompt)-1])
-			require.LessOrEqual(t, elidedHistory, (window-summaryTokens)/2)
-			elidedInput := elidedHistory + summaryTokens
-			require.Equal(t, window-elidedInput, *calls[2].MaxOutputTokens)
-
-			require.Equal(t, "elided", spanAttr(AttrSummaryRequestKind).AsString())
-			require.Equal(t, elidedInput, spanAttr(AttrSummaryEstimatedInputTokens).AsInt64())
-			require.Equal(t, window-elidedInput, spanAttr(AttrSummaryMaxOutputTokens).AsInt64())
+			require.Equal(t, tc.wantRejected, rejectedToolResultMaxBytes(t, logSink))
+			require.Len(t, calls, len(tc.wantRejected)+1)
+			require.Equal(t, toolDefinitions, calls[0].Tools)
+			require.Equal(t, calls[0].Prompt, calls[1].Prompt)
+			for _, call := range calls[1:] {
+				require.Nil(t, call.Tools)
+			}
+			texts := toolResultTexts(calls[len(calls)-1].Prompt)
+			require.Len(t, texts, len(tc.results))
+			for i, result := range tc.results {
+				if len(result) <= tc.acceptedBytes {
+					require.Equal(t, result, texts[i], "a result that fits must stay whole")
+					continue
+				}
+				require.Contains(t, texts[i], "Coder truncated")
+			}
+			require.Equal(t, toolResultHistory(tc.results...), messages, "the caller's messages must not change")
 		})
 	}
 }
 
-// compactionSpan returns a context carrying a recording span and a lookup
-// of the span's attributes. The first lookup ends the span.
-func compactionSpan(t *testing.T) (context.Context, func(attribute.Key) attribute.Value) {
-	t.Helper()
-
-	recorder := tracetest.NewSpanRecorder()
-	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() {
-		require.NoError(t, tracerProvider.Shutdown(context.Background()))
-	})
-	ctx, span := tracerProvider.Tracer("test").Start(context.Background(), "compaction")
-	return ctx, func(key attribute.Key) attribute.Value {
-		t.Helper()
-		span.End()
-		ended := recorder.Ended()
-		require.Len(t, ended, 1)
-		attrs := attribute.NewSet(ended[0].Attributes()...)
-		value, ok := attrs.Value(key)
-		require.True(t, ok, "missing span attribute %s", key)
-		return value
-	}
-}
-
-// rejectedSummaryRequestKinds returns the kind of each summary request the
-// sink recorded as rejected for its size.
-func rejectedSummaryRequestKinds(t *testing.T, sink *testutil.FakeSink) []string {
-	t.Helper()
-
-	var kinds []string
-	for _, entry := range sink.Entries(func(entry slog.SinkEntry) bool {
-		return entry.Message == "compaction summary request rejected for its size"
-	}) {
-		require.Equal(t, slog.LevelWarn, entry.Level)
-		for _, field := range entry.Fields {
-			if field.Name == AttrSummaryRequestKind {
-				kinds = append(kinds, fmt.Sprint(field.Value))
-			}
-		}
-	}
-	return kinds
-}
-
 // TestGenerateCompactionSummaryReportsConversationTooLarge covers a history
-// no request fits: every request shape is tried, and the rejection is
+// no request fits: every thinner request is tried, and the rejection is
 // classified as a non-retryable configuration error that tells the user how
 // to recover.
 func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
@@ -727,7 +665,7 @@ func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
 	logSink := testutil.NewFakeSink(t)
 
 	_, _, err := generateCompactionSummary(context.Background(), model,
-		toolResultHistory(strings.Repeat("a", 60_000)),
+		toolResultHistory(strings.Repeat("a", 100_000)),
 		CompactionOptions{
 			SummaryPrompt:    "summarize",
 			ResolvedProvider: "openai",
@@ -736,13 +674,57 @@ func TestGenerateCompactionSummaryReportsConversationTooLarge(t *testing.T) {
 		},
 	)
 	require.ErrorIs(t, err, rejection)
-	require.Equal(t, 3, calls)
-	require.Equal(t, []string{"full", "without_tools", "elided"}, rejectedSummaryRequestKinds(t, logSink))
+	require.Equal(t, 4, calls)
+	require.Equal(t, []int{0, 0, 32 << 10, 4 << 10}, rejectedToolResultMaxBytes(t, logSink))
 	classified := chaterror.Classify(err)
 	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 	require.Equal(t, compactionContextTooLargeMessage, classified.Message)
 	require.False(t, classified.Retryable)
 	require.Equal(t, "openai", classified.Provider)
+}
+
+// TestCutToolResults covers which parts the summary requests cut: only
+// locally executed tool results, with error results staying errors.
+func TestCutToolResults(t *testing.T) {
+	t.Parallel()
+
+	large := strings.Repeat("a", 10_000)
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleUser, large),
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolCallPart{ToolCallID: "search", ToolName: "web_search", Input: "{}", ProviderExecuted: true},
+				fantasy.ToolResultPart{ToolCallID: "search", ProviderExecuted: true, Output: fantasy.ToolResultOutputContentText{Text: large}},
+				fantasy.ToolCallPart{ToolCallID: "read", ToolName: "read_file", Input: "{}"},
+				fantasy.ToolCallPart{ToolCallID: "screenshot", ToolName: "screenshot", Input: "{}"},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleTool,
+			Content: []fantasy.MessagePart{
+				fantasy.ToolResultPart{ToolCallID: "read", Output: fantasy.ToolResultOutputContentError{Error: xerrors.New(large)}},
+				fantasy.ToolResultPart{ToolCallID: "screenshot", Output: fantasy.ToolResultOutputContentMedia{Data: large, MediaType: "image/png"}},
+			},
+		},
+	}
+
+	cut, removed := cutToolResults(messages, 4<<10)
+	require.Equal(t, messages[:2], cut[:2], "user text and provider-executed results stay whole")
+	require.Equal(t, messages[2].Content[1], cut[2].Content[1], "media results stay whole")
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](cut[2].Content[0])
+	require.True(t, ok)
+	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
+	require.True(t, ok, "an error result must stay an error")
+	require.Contains(t, output.Error.Error(), "Coder truncated")
+	require.LessOrEqual(t, len(output.Error.Error()), 4<<10)
+	require.Equal(t, len(large)-len(output.Error.Error()), removed)
+
+	original, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](messages[2].Content[0])
+	require.True(t, ok)
+	originalOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](original.Output)
+	require.True(t, ok)
+	require.Equal(t, large, originalOutput.Error.Error(), "the caller's messages must not change")
 }
 
 // TestGenerateCompactionSummaryRetriesInStreamOverflow drives the OpenAI
@@ -1267,41 +1249,29 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 // TestGenerateCompaction_ClampsSummaryCapToRemainingWindow pins the
 // summary output cap bound: sum-enforcing providers reject requests
 // whose input plus max_tokens exceeds the context window, so the cap
-// shrinks to the remaining window minus the trigger step's output, the
-// trailing messages, and the appended summary prompt (ceil(bytes/3)
-// tokens), and degenerate cases stay unchanged.
+// shrinks to the remaining window minus the trigger step's output and
+// the appended summary prompt (ceil(bytes/3) tokens), and degenerate
+// cases stay unchanged.
 func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
-	// About 49 tokens of definitions that the step's usage counts.
-	tools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 60)}}
 	cases := []struct {
-		name         string
-		contextLimit int64
-		inputTokens  int64
-		outputTokens int64
-		// trailing is the text of a message after the trigger step's
-		// assistant message.
-		trailing string
-		// interrupted is the text of an assistant message after trailing
-		// that persisted without usage.
-		interrupted         string
+		name                string
+		contextLimit        int64
+		inputTokens         int64
+		outputTokens        int64
+		toolResultBytes     int
 		summaryContextLimit int64
-		// omittedTools are tool definitions that the summary requests omit.
-		omittedTools []fantasy.Tool
-		cap          int64
-		wantCap      int64
+		cap                 int64
+		wantCap             int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
-		{name: "reserves trailing messages", contextLimit: 100, inputTokens: 72, trailing: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
-		{name: "reserves an interrupted response", contextLimit: 100, inputTokens: 72, interrupted: strings.Repeat("a", 30), cap: 64_000, wantCap: 16},
+		{name: "reserves trailing tool results", contextLimit: 100, inputTokens: 72, toolResultBytes: 30, cap: 64_000, wantCap: 16},
 		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryContextLimit: 160_000, cap: 64_000, wantCap: 9998},
 		{name: "uses a larger summary window", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryContextLimit: 1_000, cap: 64_000, wantCap: 913},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
 		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
-		// Only the omitted definitions push the estimate past the window.
-		{name: "leaves omitted tool definitions out", contextLimit: 160, inputTokens: 120, summaryContextLimit: 100, omittedTools: tools, cap: 64_000, wantCap: 27},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1321,483 +1291,32 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 					), nil
 				},
 			}
-			// StepUsage measures every message up to the assistant one.
-			messages := []fantasy.Message{
-				textMessage(fantasy.MessageRoleUser, "hello"),
-				textMessage(fantasy.MessageRoleAssistant, "hi"),
-			}
-			if tc.trailing != "" {
-				messages = append(messages, textMessage(fantasy.MessageRoleUser, tc.trailing))
-			}
-			unmeasuredAssistants := 0
-			if tc.interrupted != "" {
-				messages = append(messages, textMessage(fantasy.MessageRoleAssistant, tc.interrupted))
-				unmeasuredAssistants = 1
-			}
 			capTokens := tc.cap
+			messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+			if tc.toolResultBytes > 0 {
+				messages = append(messages, fantasy.Message{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+						ToolCallID: "call-1",
+						Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", tc.toolResultBytes)},
+					}},
+				})
+			}
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:                 model,
-				Messages:              messages,
-				Clock:                 quartz.NewMock(t),
-				ThresholdPercent:      70,
-				ContextLimit:          tc.contextLimit,
-				SummaryContextLimit:   tc.summaryContextLimit,
-				SummaryPrompt:         "prompt",
-				StepUsage:             fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				SummaryTrailingTokens: EstimateTrailingTokens(messages, unmeasuredAssistants),
-				SummaryCall:           fantasy.Call{MaxOutputTokens: &capTokens},
-				ToolDefinitions:       tc.omittedTools,
-				OmitToolDefinitions:   tc.omittedTools != nil,
+				Model:               model,
+				Messages:            messages,
+				Clock:               quartz.NewMock(t),
+				ThresholdPercent:    70,
+				ContextLimit:        tc.contextLimit,
+				SummaryContextLimit: tc.summaryContextLimit,
+				SummaryPrompt:       "prompt",
+				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)
 			require.NotNil(t, gotCap)
 			require.Equal(t, tc.wantCap, *gotCap)
-		})
-	}
-}
-
-// TestGenerateCompaction_CountsTrailingTokens verifies the threshold gate
-// adds the trailing messages to the trigger step's usage while the result
-// reports the measured usage.
-func TestGenerateCompaction_CountsTrailingTokens(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name           string
-		trailingTokens int64
-		wantCalls      int
-	}{
-		{name: "below threshold", trailingTokens: 5},
-		{name: "trailing tokens reach threshold", trailingTokens: 15, wantCalls: 1},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			calls := 0
-			model := &chattest.FakeModel{
-				ProviderName: "fake",
-				ModelName:    "fake-model",
-				StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-					calls++
-					return summaryTextStream(), nil
-				},
-			}
-			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:            model,
-				Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
-				Clock:            quartz.NewMock(t),
-				ThresholdPercent: 70,
-				ContextLimit:     100,
-				StepUsage:        fantasy.Usage{InputTokens: 60},
-				TrailingTokens:   tc.trailingTokens,
-			})
-			require.NoError(t, err)
-			require.Equal(t, tc.wantCalls, calls)
-			if tc.wantCalls == 0 {
-				require.Empty(t, result.SummaryReport)
-				return
-			}
-			require.Equal(t, "summary", result.SummaryReport)
-			require.Equal(t, int64(60), result.ContextTokens)
-			require.InDelta(t, 60, result.UsagePercent, 0.001)
-		})
-	}
-}
-
-// TestGenerateCompaction_ElidesFirstNearTheWindow verifies that when the
-// full summary request would leave too little of the window for the
-// summary, the elided request goes first with a cap that fits the window,
-// the full request runs only when nothing can be elided, and a rejected
-// elided request ends the attempts.
-func TestGenerateCompaction_ElidesFirstNearTheWindow(t *testing.T) {
-	t.Parallel()
-
-	const (
-		contextLimit = int64(25_000)
-		maxOutput    = int64(20_000)
-	)
-	toolDefinitions := []fantasy.Tool{
-		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
-	}
-	// summarize answers every summary request with rejection, or with a
-	// summary when rejection is nil.
-	summarize := func(t *testing.T, messages []fantasy.Message, rejection error) ([]fantasy.Call, error) {
-		t.Helper()
-		var calls []fantasy.Call
-		model := &chattest.FakeModel{
-			ProviderName: "fake",
-			ModelName:    "fake-model",
-			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-				calls = append(calls, call)
-				if rejection != nil {
-					return nil, rejection
-				}
-				return summaryTextStream(), nil
-			},
-		}
-		capTokens := maxOutput
-		result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-			Model:            model,
-			Messages:         messages,
-			Clock:            quartz.NewMock(t),
-			ThresholdPercent: 70,
-			ContextLimit:     contextLimit,
-			SummaryPrompt:    "summarize",
-			// The trigger step's 20,100 tokens, the trailing tool result,
-			// and the summary prompt leave under 16,000 tokens of the
-			// window for the summary.
-			StepUsage:             fantasy.Usage{InputTokens: 20_000, OutputTokens: 100},
-			SummaryTrailingTokens: EstimateTrailingTokens(messages, 0),
-			SummaryCall:           fantasy.Call{MaxOutputTokens: &capTokens},
-			ToolDefinitions:       toolDefinitions,
-		})
-		if err == nil {
-			require.Equal(t, "summary", result.SummaryReport)
-		}
-		return calls, err
-	}
-
-	t.Run("elides before the full request", func(t *testing.T) {
-		t.Parallel()
-
-		calls, err := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)), nil)
-		require.NoError(t, err)
-		require.Len(t, calls, 1)
-		require.Nil(t, calls[0].Tools)
-		require.Contains(t, toolResultTexts(calls[0].Prompt)[0], "Coder truncated")
-		require.NotNil(t, calls[0].MaxOutputTokens)
-		require.Less(t, *calls[0].MaxOutputTokens, maxOutput)
-		require.LessOrEqual(t, estimateMessagesTokens(calls[0].Prompt)+*calls[0].MaxOutputTokens, contextLimit)
-	})
-
-	t.Run("sends the full request when nothing can be elided", func(t *testing.T) {
-		t.Parallel()
-
-		calls, err := summarize(t, toolResultHistory("small result"), nil)
-		require.NoError(t, err)
-		require.Len(t, calls, 1)
-		require.Equal(t, toolDefinitions, calls[0].Tools)
-		require.Equal(t, []string{"small result"}, toolResultTexts(calls[0].Prompt))
-		require.NotNil(t, calls[0].MaxOutputTokens)
-		// 25,000 minus 20,100 for the step, 4 for the trailing result,
-		// and 3 for the summary prompt.
-		require.Equal(t, int64(4_893), *calls[0].MaxOutputTokens)
-	})
-
-	t.Run("stops when the elided request is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		calls, err := summarize(t, toolResultHistory(strings.Repeat("a", 60_000)), contextWindowError())
-		require.Error(t, err)
-		require.Equal(t, codersdk.ChatErrorKindConfig, chaterror.Classify(err).Kind)
-		require.Len(t, calls, 1, "the full requests are larger than the rejected elided one")
-		require.Nil(t, calls[0].Tools)
-	})
-}
-
-// TestGenerateCompaction_ElideFirstRoomFloor pins when the elided request
-// goes first: the full request must leave less room in a known window than
-// the smaller of 16,000 tokens and the output cap.
-func TestGenerateCompaction_ElideFirstRoomFloor(t *testing.T) {
-	t.Parallel()
-
-	// The step's 50,000 tokens, 2,000 for the trailing tool result, and 3
-	// for the summary prompt.
-	const fullInput = int64(52_003)
-	readFile := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}}
-	// About 10,000 tokens of definitions that the step's usage counts.
-	largeTools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 30_000)}}
-	cases := []struct {
-		name      string
-		window    int64
-		maxOutput int64
-		// usage defaults to the step's 50,000 input tokens.
-		usage      fantasy.Usage
-		tools      []fantasy.Tool
-		omitTools  bool
-		wantElided bool
-	}{
-		{name: "room below the floor", window: fullInput + 15_999, maxOutput: 20_000, tools: readFile, wantElided: true},
-		{name: "room at the floor", window: fullInput + 16_000, maxOutput: 20_000, tools: readFile},
-		{name: "a smaller output cap lowers the floor", window: fullInput + 10_000, maxOutput: 4_000, tools: readFile},
-		{name: "unknown window", maxOutput: 20_000, tools: readFile},
-		{name: "omitted tool definitions leave room", window: fullInput + 10_000, maxOutput: 20_000, tools: largeTools, omitTools: true},
-		// The total already counts the step's output.
-		{name: "a total-only usage counts the output once", window: fullInput + 16_000, maxOutput: 20_000, usage: fantasy.Usage{TotalTokens: 50_000, OutputTokens: 4_000}, tools: readFile},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var calls []fantasy.Call
-			model := &chattest.FakeModel{
-				ProviderName: "fake",
-				ModelName:    "fake-model",
-				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-					calls = append(calls, call)
-					return summaryTextStream(), nil
-				},
-			}
-			messages := toolResultHistory(strings.Repeat("a", 6_000))
-			_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:                 model,
-				Messages:              messages,
-				SummaryTrailingTokens: EstimateTrailingTokens(messages, 0),
-				Clock:                 quartz.NewMock(t),
-				ContextLimit:          tc.window,
-				SummaryPrompt:         "summarize",
-				StepUsage:             cmp.Or(tc.usage, fantasy.Usage{InputTokens: 50_000}),
-				SummaryCall:           fantasy.Call{MaxOutputTokens: ptr.Ref(tc.maxOutput)},
-				ToolDefinitions:       tc.tools,
-				OmitToolDefinitions:   tc.omitTools,
-				Force:                 true,
-			})
-			require.NoError(t, err)
-			require.Len(t, calls, 1)
-			texts := toolResultTexts(calls[0].Prompt)
-			require.Len(t, texts, 1)
-			if tc.wantElided {
-				require.Contains(t, texts[0], "Coder truncated")
-				require.Nil(t, calls[0].Tools)
-				return
-			}
-			require.Equal(t, strings.Repeat("a", 6_000), texts[0])
-			if tc.omitTools {
-				require.Nil(t, calls[0].Tools)
-				return
-			}
-			require.Equal(t, tc.tools, calls[0].Tools)
-		})
-	}
-}
-
-func TestStepOutputTokens(t *testing.T) {
-	t.Parallel()
-
-	require.EqualValues(t, 500, StepOutputTokens(fantasy.Usage{InputTokens: 1_000, CacheReadTokens: 2_000, OutputTokens: 500}))
-	// The total already counts the output.
-	require.Zero(t, StepOutputTokens(fantasy.Usage{TotalTokens: 1_500, OutputTokens: 500}))
-}
-
-func TestElideToolResults(t *testing.T) {
-	t.Parallel()
-
-	toolResult := func(callID, text string) fantasy.ToolResultPart {
-		return fantasy.ToolResultPart{ToolCallID: callID, Output: fantasy.ToolResultOutputContentText{Text: text}}
-	}
-	toolErr := xerrors.New("boom")
-	newMessages := func() []fantasy.Message {
-		return []fantasy.Message{
-			textMessage(fantasy.MessageRoleUser, "hello"),
-			{
-				Role: fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{fantasy.ToolResultPart{
-					ToolCallID:       "web_search",
-					ProviderExecuted: true,
-					Output:           fantasy.ToolResultOutputContentText{Text: strings.Repeat("p", 50_000)},
-				}},
-			},
-			{
-				Role: fantasy.MessageRoleTool,
-				Content: []fantasy.MessagePart{
-					toolResult("a", strings.Repeat("a", 30_000)),
-					toolResult("b", strings.Repeat("b", 20_000)),
-					toolResult("c", strings.Repeat("c", 4_000)),
-					toolResult("d", strings.Repeat("d", 500)),
-					fantasy.ToolResultPart{ToolCallID: "e", Output: fantasy.ToolResultOutputContentError{Error: toolErr}},
-				},
-			},
-		}
-	}
-
-	t.Run("cuts the largest results to a common size", func(t *testing.T) {
-		t.Parallel()
-
-		messages := newMessages()
-		// Cutting about 26,000 bytes takes the two largest results to about
-		// 12,000 bytes each, above the third largest.
-		budget := estimateMessagesTokens(messages) - 26_000/bytesPerTokenEstimate
-		elided, removed := elideToolResults(messages, budget)
-		require.Equal(t, newMessages(), messages, "the caller's messages must not change")
-		require.LessOrEqual(t, estimateMessagesTokens(elided), budget)
-
-		texts := toolResultTexts(elided)
-		require.Len(t, texts, 5)
-		require.Equal(t, strings.Repeat("p", 50_000), texts[0], "provider-executed results are not cut")
-		require.Contains(t, texts[1], "Coder truncated")
-		require.Contains(t, texts[2], "Coder truncated")
-		require.InDelta(t, len(texts[1]), len(texts[2]), 16)
-		require.Greater(t, len(texts[2]), 4_000)
-		require.Equal(t, strings.Repeat("c", 4_000), texts[3])
-		require.Equal(t, strings.Repeat("d", 500), texts[4])
-		require.Equal(t, messages[2].Content[4], elided[2].Content[4])
-		require.Equal(t, 50_000-len(texts[1])-len(texts[2]), removed)
-	})
-
-	t.Run("keeps a floor of each result", func(t *testing.T) {
-		t.Parallel()
-
-		elided, removed := elideToolResults(newMessages(), 0)
-		require.Positive(t, removed)
-		texts := toolResultTexts(elided)
-		require.Len(t, texts, 5)
-		require.Len(t, texts[0], 50_000)
-		for _, text := range texts[1:4] {
-			require.Contains(t, text, "Coder truncated")
-			require.LessOrEqual(t, len(text), elidedToolResultMinBytes)
-		}
-		require.Equal(t, strings.Repeat("d", 500), texts[4])
-	})
-
-	t.Run("leaves a history that fits", func(t *testing.T) {
-		t.Parallel()
-
-		messages := newMessages()
-		elided, removed := elideToolResults(messages, estimateMessagesTokens(messages))
-		require.Zero(t, removed)
-		require.Equal(t, messages, elided)
-	})
-
-	t.Run("cuts text attachments and keeps media", func(t *testing.T) {
-		t.Parallel()
-
-		image := fantasy.FilePart{Filename: "shot.png", Data: make([]byte, 30_000), MediaType: "image/png"}
-		messages := []fantasy.Message{{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.FilePart{Filename: "notes.txt", Data: []byte(strings.Repeat("n", 30_000)), MediaType: "text/plain; charset=utf-8"},
-				image,
-			},
-		}}
-		elided, removed := elideToolResults(messages, 0)
-		require.Positive(t, removed)
-		file, ok := fantasy.AsMessagePart[fantasy.FilePart](elided[0].Content[0])
-		require.True(t, ok)
-		require.Equal(t, "notes.txt", file.Filename)
-		require.Equal(t, "text/plain; charset=utf-8", file.MediaType)
-		require.Contains(t, string(file.Data), "Coder truncated")
-		require.LessOrEqual(t, len(file.Data), elidedToolResultMinBytes)
-		require.Equal(t, 30_000-len(file.Data), removed)
-		require.Equal(t, image, elided[0].Content[1])
-	})
-
-	t.Run("cuts user text and keeps system and assistant text", func(t *testing.T) {
-		t.Parallel()
-
-		system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 30_000))
-		assistant := textMessage(fantasy.MessageRoleAssistant, strings.Repeat("r", 30_000))
-		// Providers that reject text attachments get them inlined as
-		// user text.
-		messages := []fantasy.Message{system, textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 30_000)), assistant}
-		elided, removed := elideToolResults(messages, 0)
-		require.Positive(t, removed)
-		require.Equal(t, system, elided[0])
-		require.Equal(t, assistant, elided[2])
-		text, ok := fantasy.AsMessagePart[fantasy.TextPart](elided[1].Content[0])
-		require.True(t, ok)
-		require.Contains(t, text.Text, "Coder truncated")
-		require.Equal(t, 30_000-len(text.Text), removed)
-	})
-
-	t.Run("cuts error results and keeps them errors", func(t *testing.T) {
-		t.Parallel()
-
-		messages := []fantasy.Message{{
-			Role: fantasy.MessageRoleTool,
-			Content: []fantasy.MessagePart{fantasy.ToolResultPart{
-				ToolCallID: "a",
-				Output:     fantasy.ToolResultOutputContentError{Error: xerrors.New(strings.Repeat("e", 30_000))},
-			}},
-		}}
-		elided, removed := elideToolResults(messages, 0)
-		require.Positive(t, removed)
-		result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](elided[0].Content[0])
-		require.True(t, ok)
-		output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output)
-		require.True(t, ok, "an elided error result stays an error")
-		require.Contains(t, output.Error.Error(), "Coder truncated")
-		require.LessOrEqual(t, len(output.Error.Error()), elidedToolResultMinBytes)
-	})
-}
-
-func TestEstimateTrailingTokens(t *testing.T) {
-	t.Parallel()
-
-	toolCall := fantasy.Message{
-		Role:    fantasy.MessageRoleAssistant,
-		Content: []fantasy.MessagePart{fantasy.ToolCallPart{ToolCallID: "call", ToolName: "read_file", Input: "{}"}},
-	}
-	toolResult := fantasy.Message{
-		Role: fantasy.MessageRoleTool,
-		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
-			ToolCallID: "call",
-			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", 300)},
-		}},
-	}
-	media := fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "image/png"},
-			fantasy.FilePart{Data: make([]byte, 1<<20), MediaType: "application/pdf"},
-		},
-	}
-	document := fantasy.Message{
-		Role:    fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{fantasy.FilePart{Data: make([]byte, 300), MediaType: "text/plain; charset=utf-8"}},
-	}
-	cases := []struct {
-		name                 string
-		messages             []fantasy.Message
-		unmeasuredAssistants int
-		want                 int64
-	}{
-		{
-			name:     "ends with an assistant message",
-			messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), toolCall},
-			want:     0,
-		},
-		{
-			name: "counts every message after the last assistant message",
-			messages: []fantasy.Message{
-				textMessage(fantasy.MessageRoleUser, "hello"),
-				toolCall,
-				toolResult,
-				textMessage(fantasy.MessageRoleUser, "abc"),
-			},
-			want: 101,
-		},
-		{
-			name: "counts unmeasured assistant messages",
-			messages: []fantasy.Message{
-				toolCall,
-				toolResult,
-				textMessage(fantasy.MessageRoleAssistant, "abc"),
-			},
-			unmeasuredAssistants: 1,
-			want:                 101,
-		},
-		{
-			name:     "counts images and PDFs by part, not by size",
-			messages: []fantasy.Message{toolCall, media},
-			want:     2 * mediaTokenEstimate,
-		},
-		{
-			name:     "counts a text document by size",
-			messages: []fantasy.Message{toolCall, document},
-			want:     100,
-		},
-		{
-			name:     "counts the whole history without an assistant message",
-			messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "abc")},
-			want:     1,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, EstimateTrailingTokens(tc.messages, tc.unmeasuredAssistants))
 		})
 	}
 }

@@ -1,7 +1,6 @@
 package chatloop
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,15 +11,11 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -36,24 +31,6 @@ const (
 	// running without the debug row is preferable to blocking
 	// compaction on a slow or locked DB.
 	compactionDebugCreateRunTimeout = 5 * time.Second
-
-	// minSummaryOutputTokens is the least room for the summary that the
-	// full summary request must leave in the window. With less, the cap
-	// clamp would truncate the summary, so the elided request goes first.
-	minSummaryOutputTokens = int64(16_000)
-
-	// elidedToolResultMinBytes is what an elided tool result or user text
-	// keeps at least: enough for its leading summary and
-	// trailing status.
-	elidedToolResultMinBytes = 1 << 10
-
-	// mediaTokenEstimate approximates one image or PDF part, about what
-	// providers bill for a typical screenshot. Providers bill images by
-	// dimensions and PDFs by pages, which their size overstates by an order
-	// of magnitude or more, so a size estimate would compact a chat for
-	// every large attachment. A long PDF counts low until the next step
-	// measures it.
-	mediaTokenEstimate = int64(1_600)
 
 	// compactionContextTooLargeMessage tells the user how to recover a
 	// conversation that is too large to summarize.
@@ -136,20 +113,6 @@ type CompactionOptions struct {
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
 
-	// GenerateCompaction sets the next three fields.
-	//
-	// summaryWindow is the summary model's context window, or zero when
-	// unknown. It bounds the summary cap and the elided request.
-	summaryWindow int64
-	// estimatedInputTokens estimates the input of the full summary
-	// request: the trigger step's prompt and output, the trailing
-	// messages, and the summary prompt.
-	estimatedInputTokens int64
-	// elideFirst sends the elided summary request before the full one
-	// because the full one leaves too little of summaryWindow for the
-	// summary.
-	elideFirst bool
-
 	// Logger records summary requests the model rejects for their size.
 	Logger slog.Logger
 
@@ -194,9 +157,9 @@ type CompactionResult struct {
 	EstimatedContextTokens int64
 	TriggerContextLimit    int64
 	// Runtime is the wall-clock duration of the summarization model
-	// calls, including requests the model rejected for their size, and
-	// the compaction step's billable runtime (see PersistedStep.Runtime).
-	// Zero when the run was gated off before calling the model.
+	// call, the compaction step's billable runtime (see
+	// PersistedStep.Runtime). Zero when the run was gated off before
+	// calling the model.
 	Runtime time.Duration
 	// ProviderResponseID identifies the summary response. See
 	// PersistedStep.ProviderResponseID.
@@ -211,10 +174,7 @@ type CompactionToolResult struct {
 	// ThresholdPercent is relative to TriggerContextLimitTokens.
 	ThresholdPercent int32 `json:"threshold_percent"`
 	// UsagePercent is relative to the resolved limit, which equals
-	// TriggerContextLimitTokens when it is positive. Like ContextTokens,
-	// it measures the trigger step's prompt, so it can be below
-	// ThresholdPercent when the step's output or the messages after it
-	// triggered the compaction.
+	// TriggerContextLimitTokens when it is positive.
 	UsagePercent  float64 `json:"usage_percent"`
 	ContextTokens int64   `json:"context_tokens"`
 	// ContextLimitTokens is the chat model's window.
@@ -247,15 +207,8 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		config.ContextLimit,
 		opts.ContextLimitFallback,
 	)
-	// The result reports the measured usage, but the gate also counts what
-	// the next model call sends after the trigger step's prompt.
-	usagePercent, _ := shouldCompact(
+	usagePercent, compact := shouldCompact(
 		contextTokens,
-		contextLimit,
-		config.ThresholdPercent,
-	)
-	_, compact := shouldCompact(
-		contextTokens+opts.TrailingTokens,
 		contextLimit,
 		config.ThresholdPercent,
 	)
@@ -263,32 +216,25 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		return CompactionResult{}, nil
 	}
 
-	// The summary request's input is the trigger step's prompt and output,
-	// the messages after it, and the summary prompt appended by
-	// generateCompactionSummary.
-	config.estimatedInputTokens = stepTokensFromUsage(opts.StepUsage) + opts.SummaryTrailingTokens +
-		estimateTokens(len(config.SummaryPrompt)+len(config.SummaryHint))
-	config.summaryWindow = contextLimit
-	if opts.SummaryContextLimit > 0 {
-		config.summaryWindow = opts.SummaryContextLimit
-	}
-	minRoom := minSummaryOutputTokens
-	if maxOutput := config.SummaryCall.MaxOutputTokens; maxOutput != nil {
-		minRoom = min(minRoom, *maxOutput)
-	}
-	config.elideFirst = config.summaryWindow > 0 && config.summaryWindow-config.estimatedInputTokens < minRoom
-	if config.elideFirst && opts.OmitToolDefinitions {
-		// The step's usage also counts the tool definitions that the
-		// summary requests omit. They stay in the estimate as a margin for
-		// the output cap while the summary has room to spare. Near the
-		// window the margin would shrink the cap below the floor, or leave
-		// no room and so no clamp at all, so they come out.
-		toolTokens, err := estimateToolTokens(opts.ToolDefinitions)
-		if err != nil {
-			config.Logger.Warn(ctx, "failed to estimate omitted tool definitions", slog.Error(err))
-		} else {
-			config.estimatedInputTokens -= toolTokens
-			config.elideFirst = config.summaryWindow-config.estimatedInputTokens < minRoom
+	// Sum-enforcing providers reject requests whose input plus
+	// max_tokens exceeds the context window, so bound the summary cap
+	// by the remaining window. contextTokens covers only the trigger
+	// step's prompt, so also reserve that step's output, the tool
+	// results executed after it, and the summary prompt appended by
+	// generateCompactionSummary, all of which become input to the
+	// summary request. Degenerate cases (unknown limit, no room left)
+	// leave the cap unchanged.
+	if config.SummaryCall.MaxOutputTokens != nil {
+		promptBytes := len(config.SummaryPrompt) + len(config.SummaryHint)
+		promptTokens := int64((promptBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+		reserved := opts.StepUsage.OutputTokens + promptTokens + trailingToolResultTokens(opts.Messages)
+		windowLimit := contextLimit
+		if opts.SummaryContextLimit > 0 {
+			windowLimit = opts.SummaryContextLimit
+		}
+		remaining := windowLimit - contextTokens - reserved
+		if remaining > 0 && remaining < *config.SummaryCall.MaxOutputTokens {
+			config.SummaryCall.MaxOutputTokens = &remaining
 		}
 	}
 
@@ -328,7 +274,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		Runtime:             summaryRuntime,
 		ProviderResponseID:  responseID,
 	}
-	result.EstimatedContextTokens = estimateTokens(len(result.SystemSummary))
+	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(CompactionToolResult{
 			Summary:                   summary,
@@ -362,6 +308,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedModel:        opts.ResolvedModel,
 		ModelConfigID:        opts.ModelConfigID,
 		SummaryCall:          opts.SummaryCall,
+		ToolDefinitions:      opts.ToolDefinitions,
 		Force:                opts.Force,
 		Source:               opts.Source,
 		ToolCallID:           opts.ToolCallID,
@@ -370,9 +317,6 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		Clock:                opts.Clock,
 		StreamSilenceTimeout: opts.StreamSilenceTimeout,
 		Logger:               opts.Logger,
-	}
-	if !opts.OmitToolDefinitions {
-		config.ToolDefinitions = opts.ToolDefinitions
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -410,213 +354,35 @@ func publishCompactionError(config CompactionOptions, msg string) {
 	)
 }
 
-// EstimateTrailingTokens estimates the prompt tokens of the messages after
-// the assistant message whose step reported the latest usage, typically the
-// results of its tool calls. They are input to the next model call but
-// absent from that usage. unmeasuredAssistants counts the assistant messages
-// after that one, such as the partial response of an interrupted step,
-// which persist without usage and so count as trailing too.
-func EstimateTrailingTokens(messages []fantasy.Message, unmeasuredAssistants int) int64 {
-	start := len(messages)
-	for ; start > 0; start-- {
-		if messages[start-1].Role != fantasy.MessageRoleAssistant {
-			continue
-		}
-		if unmeasuredAssistants == 0 {
-			break
-		}
-		unmeasuredAssistants--
-	}
-	return estimateMessagesTokens(messages[start:])
-}
-
-// estimateToolTokens approximates the prompt tokens of tool definitions
-// from their JSON encoding.
-func estimateToolTokens(tools []fantasy.Tool) (int64, error) {
-	if len(tools) == 0 {
-		return 0, nil
-	}
-	encoded, err := json.Marshal(tools)
-	if err != nil {
-		return 0, xerrors.Errorf("marshal tool definitions: %w", err)
-	}
-	return estimateTokens(len(encoded)), nil
-}
-
-func estimateTokens(byteCount int) int64 {
-	return int64((byteCount + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
-}
-
-// estimateMessagesTokens approximates the prompt tokens of messages from
-// their content size.
-func estimateMessagesTokens(messages []fantasy.Message) int64 {
-	textBytes := 0
-	mediaParts := int64(0)
-	for _, msg := range messages {
-		for _, part := range msg.Content {
-			partBytes, partMedia := messagePartSize(part)
-			textBytes += partBytes
-			mediaParts += partMedia
-		}
-	}
-	return estimateTokens(textBytes) + mediaParts*mediaTokenEstimate
-}
-
-// messagePartSize returns the text bytes and the number of media
-// attachments that part adds to a prompt.
-func messagePartSize(part fantasy.MessagePart) (textBytes int, mediaParts int64) {
-	if text, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
-		return len(text.Text), 0
-	}
-	if reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part); ok {
-		return len(reasoning.Text), 0
-	}
-	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
-		if isMediaFile(file) {
-			return 0, 1
-		}
-		// Other attachments, such as text documents, are text the model
-		// reads in full.
-		return len(file.Data), 0
-	}
-	if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
-		return len(call.ToolName) + len(call.Input), 0
-	}
-	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-	if !ok {
-		return 0, 0
-	}
-	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
-		return len(output.Text), 0
-	}
-	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
-		return len(output.Error.Error()), 0
-	}
-	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](result.Output); ok {
-		return len(output.Text), 1
-	}
-	return 0, 0
-}
-
-// elideToolResults returns a copy of messages in which the largest tool
-// results and user texts, including text attachments, are cut to one
-// common size, keeping their head and tail, so the copy's estimate fits
-// budgetTokens. Cut texts keep at least elidedToolResultMinBytes, so the
-// copy can still exceed the budget. It reports the bytes removed; zero means nothing was cut and
-// messages is returned unchanged.
-func elideToolResults(messages []fantasy.Message, budgetTokens int64) ([]fantasy.Message, int) {
-	excessBytes := (estimateMessagesTokens(messages) - budgetTokens) * bytesPerTokenEstimate
-	if excessBytes <= 0 {
-		return messages, 0
-	}
-	var sizes []int
-	for _, msg := range messages {
-		for _, part := range msg.Content {
-			if text, ok := elidableText(msg.Role, part); ok {
-				sizes = append(sizes, len(text))
+// trailingToolResultTokens estimates tokens for the tool-result
+// messages that follow the usage-measured assistant step. Local tools
+// execute before compaction, so their results are input to the summary
+// request but absent from StepUsage.
+func trailingToolResultTokens(messages []fantasy.Message) int64 {
+	totalBytes := 0
+	for i := len(messages) - 1; i >= 0 && messages[i].Role == fantasy.MessageRoleTool; i-- {
+		for _, part := range messages[i].Content {
+			result, ok := part.(fantasy.ToolResultPart)
+			if !ok {
+				resultPtr, okPtr := part.(*fantasy.ToolResultPart)
+				if !okPtr || resultPtr == nil {
+					continue
+				}
+				result = *resultPtr
+			}
+			switch output := result.Output.(type) {
+			case fantasy.ToolResultOutputContentText:
+				totalBytes += len(output.Text)
+			case fantasy.ToolResultOutputContentError:
+				if output.Error != nil {
+					totalBytes += len(output.Error.Error())
+				}
+			case fantasy.ToolResultOutputContentMedia:
+				totalBytes += len(output.Data) + len(output.Text)
 			}
 		}
 	}
-	if len(sizes) == 0 {
-		return messages, 0
-	}
-	keepBytes := toolResultElisionSize(sizes, excessBytes)
-
-	elided := slices.Clone(messages)
-	removed := 0
-	for i, msg := range elided {
-		var content []fantasy.MessagePart
-		for j, part := range msg.Content {
-			text, ok := elidableText(msg.Role, part)
-			if !ok || len(text) <= keepBytes {
-				continue
-			}
-			truncated, _ := TruncateToolResultText(text, keepBytes)
-			if content == nil {
-				// The content slices are shared with the caller's messages.
-				content = slices.Clone(msg.Content)
-			}
-			content[j] = withElidedText(part, truncated)
-			removed += len(text) - len(truncated)
-		}
-		if content != nil {
-			elided[i].Content = content
-		}
-	}
-	return elided, removed
-}
-
-// elidableText returns the text of a locally executed tool result, or of a
-// user message's text or text attachment, when that is longer than
-// elidedToolResultMinBytes. Providers that reject text attachments get them
-// inlined as user text, so both forms are elidable.
-func elidableText(role fantasy.MessageRole, part fantasy.MessagePart) (string, bool) {
-	var text string
-	if textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok && role == fantasy.MessageRoleUser {
-		text = textPart.Text
-	} else if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok && !isMediaFile(file) {
-		text = string(file.Data)
-	} else if result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && !result.ProviderExecuted {
-		if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
-			text = output.Text
-		} else if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
-			text = output.Error.Error()
-		}
-	}
-	if len(text) <= elidedToolResultMinBytes {
-		return "", false
-	}
-	return text, true
-}
-
-// withElidedText returns part, which elidableText accepted, with its text
-// replaced. Attachments keep their filename and media type, and error
-// results stay errors.
-func withElidedText(part fantasy.MessagePart, text string) fantasy.MessagePart {
-	if textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
-		textPart.Text = text
-		return textPart
-	}
-	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
-		file.Data = []byte(text)
-		return file
-	}
-	result, _ := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-	if _, isError := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); isError {
-		result.Output = fantasy.ToolResultOutputContentError{Error: xerrors.New(text)}
-	} else {
-		result.Output = fantasy.ToolResultOutputContentText{Text: text}
-	}
-	return result
-}
-
-// isMediaFile reports whether file is an image or PDF, which providers
-// tokenize as media rather than as the text of its bytes.
-func isMediaFile(file fantasy.FilePart) bool {
-	mediaType := chatfiles.BaseMediaType(file.MediaType)
-	return strings.HasPrefix(mediaType, "image/") || mediaType == "application/pdf"
-}
-
-// toolResultElisionSize returns the largest size such that cutting every
-// result above it to that size removes at least excessBytes, but never less
-// than elidedToolResultMinBytes. Every size must exceed that minimum.
-func toolResultElisionSize(sizes []int, excessBytes int64) int {
-	slices.SortFunc(sizes, func(a, b int) int { return cmp.Compare(b, a) })
-	var cutBytes int64
-	for i, size := range sizes {
-		cutBytes += int64(size)
-		// Cutting the i+1 largest results to keepBytes removes at least
-		// excessBytes. The size holds when no smaller result needs a cut.
-		keepBytes := (cutBytes - excessBytes) / int64(i+1)
-		nextBytes := int64(elidedToolResultMinBytes)
-		if i+1 < len(sizes) {
-			nextBytes = int64(sizes[i+1])
-		}
-		if keepBytes >= nextBytes {
-			return int(keepBytes)
-		}
-	}
-	return elidedToolResultMinBytes
+	return int64((totalBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 }
 
 // contextTokensFromUsage returns the total context token count from
@@ -644,23 +410,6 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	}
 
 	return total
-}
-
-// stepTokensFromUsage returns the tokens of a step's prompt and output,
-// which are both input to the request after it. The TotalTokens fallback
-// of contextTokensFromUsage already counts the output.
-func stepTokensFromUsage(usage fantasy.Usage) int64 {
-	if usage.InputTokens <= 0 && usage.CacheReadTokens <= 0 && usage.CacheCreationTokens <= 0 && usage.TotalTokens > 0 {
-		return usage.TotalTokens
-	}
-	return contextTokensFromUsage(usage) + usage.OutputTokens
-}
-
-// StepOutputTokens returns the tokens of a step's output that the prompt
-// count of its usage leaves out. A usage report with only TotalTokens
-// already counts them.
-func StepOutputTokens(usage fantasy.Usage) int64 {
-	return stepTokensFromUsage(usage) - contextTokensFromUsage(usage)
 }
 
 // resolveContextLimit returns the configured limit when positive, then
@@ -768,96 +517,10 @@ func startCompactionDebugRun(
 	}
 }
 
-// summaryRequestKind names the shape of a summary request.
-type summaryRequestKind string
-
-// Summary request kinds, from the largest request to the smallest.
-const (
-	summaryRequestFull         summaryRequestKind = "full"
-	summaryRequestWithoutTools summaryRequestKind = "without_tools"
-	summaryRequestElided       summaryRequestKind = "elided"
-)
-
-// summaryRequest is the shape of one summary request.
-type summaryRequest struct {
-	kind            summaryRequestKind
-	history         []fantasy.Message
-	tools           []fantasy.Tool
-	maxOutputTokens *int64
-	inputTokens     int64
-	elidedBytes     int
-}
-
-// newSummaryRequest builds the summary request of kind. It reports false
-// when kind cannot shrink the request: no tools to drop or no tool results
-// or user texts to elide.
-func newSummaryRequest(kind summaryRequestKind, messages []fantasy.Message, options CompactionOptions) (summaryRequest, bool) {
-	request := summaryRequest{kind: kind, history: messages, inputTokens: options.estimatedInputTokens}
-	switch kind {
-	case summaryRequestFull:
-		request.tools = options.ToolDefinitions
-	case summaryRequestWithoutTools:
-		if len(options.ToolDefinitions) == 0 {
-			return summaryRequest{}, false
-		}
-	case summaryRequestElided:
-		summaryTokens := estimateTokens(len(options.SummaryPrompt) + len(options.SummaryHint))
-		historyTokens := estimateMessagesTokens(messages)
-		if options.summaryWindow > 0 {
-			// The summary prompt and hint go into the same request.
-			historyTokens = min(historyTokens, max(options.summaryWindow-summaryTokens, 0))
-		}
-		// Halving leaves room for the summary and absorbs both the
-		// estimate's error and a configured window larger than the
-		// provider's real one.
-		request.history, request.elidedBytes = elideToolResults(messages, historyTokens/2)
-		if request.elidedBytes == 0 {
-			return summaryRequest{}, false
-		}
-		request.inputTokens = estimateMessagesTokens(request.history) + summaryTokens
-	default:
-		return summaryRequest{}, false
-	}
-	request.maxOutputTokens = summaryOutputCap(options.SummaryCall.MaxOutputTokens, options.summaryWindow, request.inputTokens)
-	return request, true
-}
-
-// summaryOutputCap bounds maxOutputTokens by the room inputTokens leaves in
-// window, since sum-enforcing providers reject requests whose input plus
-// max_tokens exceeds the context window. An unknown window or no room left
-// leaves the cap unchanged.
-func summaryOutputCap(maxOutputTokens *int64, window, inputTokens int64) *int64 {
-	if maxOutputTokens == nil || window <= 0 {
-		return maxOutputTokens
-	}
-	remaining := window - inputTokens
-	if remaining > 0 && remaining < *maxOutputTokens {
-		return &remaining
-	}
-	return maxOutputTokens
-}
-
-func (r summaryRequest) attributes(sent int) []attribute.KeyValue {
-	return []attribute.KeyValue{
-		attribute.Int(AttrSummaryRequestsSent, sent),
-		attribute.String(AttrSummaryRequestKind, string(r.kind)),
-		attribute.Int64(AttrSummaryEstimatedInputTokens, r.inputTokens),
-		attribute.Int64(AttrSummaryMaxOutputTokens, ptr.NilToEmpty(r.maxOutputTokens)),
-		attribute.Int(AttrSummaryToolCount, len(r.tools)),
-		attribute.Int(AttrSummaryElidedBytes, r.elidedBytes),
-	}
-}
-
-func (r summaryRequest) logFields(err error) []slog.Field {
-	return []slog.Field{
-		slog.F("summary_request_kind", string(r.kind)),
-		slog.F("summary_estimated_input_tokens", r.inputTokens),
-		slog.F("summary_max_output_tokens", ptr.NilToEmpty(r.maxOutputTokens)),
-		slog.F("summary_tool_count", len(r.tools)),
-		slog.F("summary_elided_bytes", r.elidedBytes),
-		slog.Error(err),
-	}
-}
+// summaryToolResultCaps are the sizes, in bytes, that successive summary
+// requests cut large tool results to after the model rejects the request
+// without tool definitions for its size.
+var summaryToolResultCaps = []int{32 << 10, 4 << 10}
 
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
@@ -865,10 +528,10 @@ func (r summaryRequest) logFields(err error) []slog.Field {
 // results). A final user message with the summary prompt is appended
 // before calling the model.
 //
-// Compaction is the recovery path for an over-limit conversation, so a
-// request the model rejects for its size falls back to smaller ones:
-// first without tool definitions, then with the largest tool results and
-// user texts elided. options.elideFirst starts with the elided request.
+// Compaction is the recovery path for an over-limit conversation, so each
+// request the model rejects for its size is followed by a thinner one:
+// first without tool definitions, then with large tool results cut to each
+// of summaryToolResultCaps.
 func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1011,53 +674,124 @@ func generateCompactionSummary(
 		}
 		return joined, nil
 	}
-	kinds := []summaryRequestKind{summaryRequestFull, summaryRequestWithoutTools, summaryRequestElided}
-	if options.elideFirst {
-		// The full requests are larger, so they run only when there is
-		// nothing to elide.
-		kinds = []summaryRequestKind{summaryRequestElided, summaryRequestFull, summaryRequestWithoutTools}
-	}
-	span := trace.SpanFromContext(ctx)
-	sent := 0
-	for _, kind := range kinds {
-		request, ok := newSummaryRequest(kind, messages, options)
-		if !ok {
-			continue
-		}
-		sent++
-		span.SetAttributes(request.attributes(sent)...)
+	request := summaryRequest{history: messages, tools: options.ToolDefinitions}
+	for {
 		call := options.SummaryCall
 		call.Prompt = summaryPromptFor(request.history)
 		call.Tools = request.tools
-		call.MaxOutputTokens = request.maxOutputTokens
 		summary, err = streamSummaryText(call)
-		if err == nil {
-			return summary, responseID, nil
-		}
-		// Tool definitions keep the summary request on the parent turn's
-		// cacheable prefix, but the tools and the full history both make
-		// it larger than the turn that overflowed. The rejection can
-		// arrive from the stream open or as an in-stream error part, so
-		// the next request repeats the whole attempt.
+		// The rejection can arrive from the stream open or as an in-stream
+		// error part, so the next request repeats the whole attempt.
 		if !isContextTooLargeError(err) {
+			return summary, responseID, err
+		}
+		options.Logger.Warn(ctx, "compaction summary request rejected for its size",
+			slog.F("summary_tool_count", len(request.tools)),
+			slog.F("summary_tool_result_max_bytes", request.toolResultMaxBytes),
+			slog.F("summary_elided_bytes", request.elidedBytes),
+			slog.Error(err),
+		)
+		next, ok := request.thinner(messages)
+		if !ok {
 			break
 		}
-		options.Logger.Warn(ctx, "compaction summary request rejected for its size", request.logFields(err)...)
-		// The elided request is the smallest, so its rejection ends the
-		// attempts.
-		if kind == summaryRequestElided {
-			break
+		request = next
+	}
+	classified := chaterror.Classify(err)
+	classified.Kind = codersdk.ChatErrorKindConfig
+	classified.Message = compactionContextTooLargeMessage
+	classified.Retryable = false
+	classified.RetryAfter = 0
+	return "", responseID, chaterror.WithClassification(err, classified)
+}
+
+// summaryRequest is the history and tool definitions of one summary
+// request, and how much of the history's tool results it cut.
+type summaryRequest struct {
+	history            []fantasy.Message
+	tools              []fantasy.Tool
+	toolResultMaxBytes int
+	elidedBytes        int
+}
+
+// thinner returns the request to send after the model rejects r for its
+// size: r without tool definitions, then messages with their tool results
+// cut to the first size in summaryToolResultCaps that cuts more than r did.
+// It reports false when no request is smaller than r.
+func (r summaryRequest) thinner(messages []fantasy.Message) (summaryRequest, bool) {
+	if len(r.tools) > 0 {
+		r.tools = nil
+		return r, true
+	}
+	for _, maxBytes := range summaryToolResultCaps {
+		history, elidedBytes := cutToolResults(messages, maxBytes)
+		if elidedBytes > r.elidedBytes {
+			return summaryRequest{history: history, toolResultMaxBytes: maxBytes, elidedBytes: elidedBytes}, true
 		}
 	}
-	if isContextTooLargeError(err) {
-		classified := chaterror.Classify(err)
-		classified.Kind = codersdk.ChatErrorKindConfig
-		classified.Message = compactionContextTooLargeMessage
-		classified.Retryable = false
-		classified.RetryAfter = 0
-		err = chaterror.WithClassification(err, classified)
+	return summaryRequest{}, false
+}
+
+// cutToolResults returns messages with every locally executed text or error
+// tool result longer than maxBytes cut to its head and tail, and the number
+// of bytes removed. It copies what it changes, so the caller's messages
+// stay intact.
+func cutToolResults(messages []fantasy.Message, maxBytes int) ([]fantasy.Message, int) {
+	var cut []fantasy.Message
+	removed := 0
+	for i, msg := range messages {
+		var content []fantasy.MessagePart
+		for j, part := range msg.Content {
+			cutPart, partRemoved := cutToolResult(part, maxBytes)
+			if partRemoved == 0 {
+				continue
+			}
+			if content == nil {
+				content = slices.Clone(msg.Content)
+			}
+			content[j] = cutPart
+			removed += partRemoved
+		}
+		if content == nil {
+			continue
+		}
+		if cut == nil {
+			cut = slices.Clone(messages)
+		}
+		cut[i].Content = content
 	}
-	return "", responseID, err
+	if cut == nil {
+		return messages, 0
+	}
+	return cut, removed
+}
+
+// cutToolResult returns part cut to maxBytes when it is a locally executed
+// text or error tool result longer than that, and the number of bytes
+// removed. An error result stays an error.
+func cutToolResult(part fantasy.MessagePart, maxBytes int) (fantasy.MessagePart, int) {
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+	if !ok || result.ProviderExecuted {
+		return part, 0
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Output); ok {
+		text, truncated := TruncateToolResultText(output.Text, maxBytes)
+		if !truncated {
+			return part, 0
+		}
+		result.Output = fantasy.ToolResultOutputContentText{Text: text}
+		return result, len(output.Text) - len(text)
+	}
+	if output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](result.Output); ok && output.Error != nil {
+		message := output.Error.Error()
+		text, truncated := TruncateToolResultText(message, maxBytes)
+		if !truncated {
+			return part, 0
+		}
+		result.Output = fantasy.ToolResultOutputContentError{Error: xerrors.New(text)}
+		return result, len(message) - len(text)
+	}
+	return part, 0
 }
 
 // contextTooLargePhrases are context-window rejections fantasy does not

@@ -237,9 +237,8 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 // summary text in one response; a low configured chat cap could otherwise
 // truncate the summary that replaces pruned history. The headroom stays
 // modest because a cap configured at a provider's output ceiling overshoots
-// it; that residual overshoot is an accepted tradeoff. Each summary request
-// bounds the increased cap by the room its input leaves in the summary
-// model's context window.
+// it; that residual overshoot is an accepted tradeoff. GenerateCompaction
+// bounds the increased cap by the remaining context window at trigger time.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone

@@ -889,16 +889,8 @@ func (server *Server) prepareGeneration(
 			otherTrigger = chatTrigger
 		}
 	}
-	compactionStepUsage, unmeasuredAssistants, err := latestPromptUsage(ctx, logger, model.Provider(), promptRows)
-	if err != nil {
-		return generationPrepared{}, xerrors.Errorf("read latest prompt usage: %w", err)
-	}
-	// The next model call replays the measured step's output and the
-	// messages after it. The full prompt includes the pending user
-	// messages, which that call sends after the compacted history.
-	compactionTrailingTokens := chatloop.StepOutputTokens(compactionStepUsage) +
-		chatloop.EstimateTrailingTokens(prompt, unmeasuredAssistants)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionTrailingTokens, binding.contextLimit, binding.thresholdPercent)
+	compactionStepUsage := latestPromptUsage(promptRows)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -917,11 +909,8 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
-		TrailingTokens:       compactionTrailingTokens,
-		// The summary request leaves out the pending user messages.
-		SummaryTrailingTokens: chatloop.EstimateTrailingTokens(compactionPromptMessages, unmeasuredAssistants),
-		SummaryCall:           compactionSummaryCall(resolved),
-		ToolDefinitions:       toolDefinitions,
+		SummaryCall:          compactionSummaryCall(resolved),
+		ToolDefinitions:      toolDefinitions,
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -989,45 +978,19 @@ func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed 
 	return connected, failed, nil
 }
 
-// latestPromptUsage returns the latest usage in messages and the number of
-// assistant messages that the prompt replays after the one that reported
-// it. Those persist without usage, like the partial response of an
-// interrupted step. Assistant messages that the prompt omits do not count,
-// such as one that holds a tool's attachments, or one that holds only
-// Anthropic provider tool history that provider cannot replay.
-func latestPromptUsage(ctx context.Context, logger slog.Logger, provider string, messages []database.ChatMessage) (fantasy.Usage, int, error) {
-	var unmeasured []database.ChatMessage
+func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	for i := len(messages) - 1; i >= 0; i-- {
 		usage := usageFromMessage(messages[i])
-		if usage == (fantasy.Usage{}) {
-			if messages[i].Role == database.ChatMessageRoleAssistant {
-				unmeasured = append(unmeasured, messages[i])
-			}
-			continue
+		if usage != (fantasy.Usage{}) {
+			return usage
 		}
-		replayed := 0
-		for _, msg := range unmeasured {
-			prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, []database.ChatMessage{msg}, nil, logger, nil, uuid.NullUUID{})
-			if err != nil {
-				return fantasy.Usage{}, 0, xerrors.Errorf("convert assistant message %d: %w", msg.ID, err)
-			}
-			// The sanitizer checks each assistant message on its own, so it
-			// drops this one here exactly when it drops it from the prompt.
-			prompt, _ = chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
-			if len(prompt) > 0 {
-				replayed++
-			}
-		}
-		return usage, replayed, nil
 	}
-	// With no measured step, the whole prompt is trailing.
-	return fantasy.Usage{}, len(unmeasured), nil
+	return fantasy.Usage{}
 }
 
 // compactionOverrideWindowPercent leaves the rest of the override's window as
 // headroom for the summary prompt and summary. It is a target margin, not a
-// guarantee: the trigger reads the previous step's prompt usage and only
-// estimates the messages after it.
+// guarantee: the trigger reads the previous step's prompt usage.
 const compactionOverrideWindowPercent = int32(80)
 
 type compactionTrigger struct {
@@ -1067,11 +1030,7 @@ func bindingCompactionTriggerSource(chat, override compactionTrigger) compaction
 	}
 }
 
-// shouldCompactPromptUsage reports whether a step's measured prompt usage
-// plus trailingTokens, an estimate of what the next request adds to that
-// prompt, reaches the trigger. Unmeasured usage never does, so a freshly
-// compacted history is not compacted again before its first step.
-func shouldCompactPromptUsage(usage fantasy.Usage, trailingTokens, contextLimit int64, thresholdPercent int32) bool {
+func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
 	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false
 	}
@@ -1079,7 +1038,7 @@ func shouldCompactPromptUsage(usage fantasy.Usage, trailingTokens, contextLimit 
 	if contextTokens <= 0 {
 		return false
 	}
-	usagePercent := (float64(contextTokens+trailingTokens) / float64(contextLimit)) * 100
+	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
 	return usagePercent >= float64(thresholdPercent)
 }
 

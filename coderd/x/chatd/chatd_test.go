@@ -5810,11 +5810,11 @@ func TestActiveServer_Compaction(t *testing.T) {
 		thresholdPercent  = int32(70)
 	)
 
-	newReadFileResponse := func(path string, inputTokens int) chattest.AnthropicResponse {
+	newHighUsageReadFileResponse := func(path string) chattest.AnthropicResponse {
 		chunks := chattest.AnthropicToolCallChunks("read_file", fmt.Sprintf(`{"path":%q}`, path))
 		for i := range chunks {
 			if chunks[i].Type == "message_start" {
-				chunks[i].Message.Usage = map[string]int{"input_tokens": inputTokens}
+				chunks[i].Message.Usage = map[string]int{"input_tokens": 80}
 			}
 			if chunks[i].Type == "message_delta" {
 				chunks[i].UsageMap = map[string]int{"output_tokens": 5}
@@ -5843,7 +5843,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 			}
 			switch streamCount.Add(1) {
 			case 1:
-				return newReadFileResponse("/tmp/a.txt", 80)
+				return newHighUsageReadFileResponse("/tmp/a.txt")
 			default:
 				require.Contains(t, body, compactionSummary)
 				require.Contains(t, body, "The following is a summary of the earlier conversation")
@@ -5918,75 +5918,6 @@ func TestActiveServer_Compaction(t *testing.T) {
 		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
 	})
 
-	t.Run("compacts before the next step when a tool result reaches the threshold", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, ps := dbtestutil.NewDB(t)
-		// About 70 tokens, which takes the 40-token step past the threshold.
-		fileContent := strings.Repeat("x", 210)
-		var streamCount atomic.Int32
-		var compactionRequests atomic.Int32
-		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-			body := anthropicRequestBody(t, *req)
-			if strings.Contains(body, "You are performing a context compaction") {
-				compactionRequests.Add(1)
-				require.Contains(t, body, fileContent)
-				return anthropicCompactionResponse(t, req, compactionSummary)
-			}
-			if !req.Stream {
-				return chattest.AnthropicNonStreamingResponse("title")
-			}
-			switch streamCount.Add(1) {
-			case 1:
-				return newReadFileResponse("/tmp/a.txt", 40)
-			default:
-				require.Contains(t, body, compactionSummary)
-				require.NotContains(t, body, fileContent)
-				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
-					InputTokens:  20,
-					OutputTokens: 5,
-				}, "continued after compaction")...)
-			}
-		})
-		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-		model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
-		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		setupToolExecutionAgentConn(t, mockConn)
-		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
-			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: int64(len(fileContent)), TotalLines: 1, LinesRead: 1, Content: "1\t" + fileContent}, nil).
-			Times(1)
-
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				require.Equal(t, dbAgent.ID, agentID)
-				return mockConn, func() {}, nil
-			}
-		})
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-			Title:          "compaction-tool-result",
-			ModelConfigID:  model.ID,
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("read the file and continue"),
-			},
-		})
-		require.NoError(t, err)
-		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-
-		require.Equal(t, int32(1), compactionRequests.Load())
-		require.Equal(t, int32(2), streamCount.Load())
-		messages := chatMessages(ctx, t, db, chat.ID)
-		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
-	})
-
 	t.Run("does not compact when high usage finishes the turn", func(t *testing.T) {
 		t.Parallel()
 
@@ -6045,7 +5976,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 			}
 			switch streamCount.Add(1) {
 			case 1:
-				return newReadFileResponse("/tmp/a.txt", 80)
+				return newHighUsageReadFileResponse("/tmp/a.txt")
 			default:
 				require.Contains(t, body, compactionSummary)
 				return highUsageTextResponse("still too large")

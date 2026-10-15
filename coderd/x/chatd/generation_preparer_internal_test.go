@@ -1,8 +1,6 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
-	"cmp"
-	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -188,147 +186,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
 	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
-}
-
-// TestPrepareGenerationCountsMessagesAfterMeasuredStep verifies that the
-// compaction trigger counts what the next model call sends after the last
-// step that reported usage: pending user messages, which the summary request
-// excludes, and an interrupted response, which persists without usage.
-func TestPrepareGenerationCountsMessagesAfterMeasuredStep(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-	})
-	// Compaction triggers at 89,600 tokens.
-	newModelConfig := func(providerType database.AIProviderType, model string) database.ChatModelConfig {
-		provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-			Type: providerType,
-		}, "test-key")
-		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:                model,
-			AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-			OrganizationID:       org.ID,
-			ContextLimit:         128_000,
-			CompressionThreshold: 70,
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = true
-		})
-	}
-	openAIConfig := newModelConfig(database.AIProviderTypeOpenai, "gpt-4o-mini")
-	anthropicConfig := newModelConfig(database.AIProviderTypeAnthropic, "claude-sonnet-4-5")
-	server := newInternalTestServer(
-		t,
-		db,
-		ps,
-		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-	)
-
-	cases := []struct {
-		name string
-		// asked is the message the measured step answered.
-		asked string
-		// output is the measured step's output, which the next request
-		// replays.
-		output int64
-		// attachment adds the assistant message that holds a tool's
-		// attachments, which the prompt omits.
-		attachment bool
-		// interrupted is a response that a stop cut short after the
-		// measured step.
-		interrupted string
-		// interruptedSearch is an interrupted Anthropic response that holds
-		// only a web search call without its result, which the prompt drops.
-		interruptedSearch bool
-		pending           string
-		wantRequired      bool
-	}{
-		{name: "small pending message", pending: "continue"},
-		// About 6,800 tokens on top of the 85,000 the last step measured.
-		{name: "large pending message", pending: strings.Repeat("a", 20<<10), wantRequired: true},
-		{name: "large interrupted response", interrupted: strings.Repeat("a", 20<<10), pending: "continue", wantRequired: true},
-		{name: "large measured output", output: 6_000, pending: "continue", wantRequired: true},
-		// The measured step already counts the large message it answered.
-		{name: "attachment after the measured step", asked: strings.Repeat("a", 20<<10), attachment: true, pending: "continue"},
-		{name: "interrupted search after the measured step", asked: strings.Repeat("a", 20<<10), interruptedSearch: true, pending: "continue"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := chatdTestContext(t)
-			modelConfig := openAIConfig
-			if tc.interruptedSearch {
-				modelConfig = anthropicConfig
-			}
-			message := func(role database.ChatMessageRole, text string) chatstate.Message {
-				msg := chatstate.Message{
-					Role:           role,
-					Content:        mustMarshalText(t, text),
-					Visibility:     database.ChatMessageVisibilityBoth,
-					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					ContentVersion: chatprompt.CurrentContentVersion,
-				}
-				if role == database.ChatMessageRoleUser {
-					msg.CreatedBy = uuid.NullUUID{UUID: user.ID, Valid: true}
-				}
-				return msg
-			}
-			assistant := func(parts ...codersdk.ChatMessagePart) chatstate.Message {
-				msg := message(database.ChatMessageRoleAssistant, "")
-				content, err := chatprompt.MarshalParts(parts)
-				require.NoError(t, err)
-				msg.Content = content
-				return msg
-			}
-			answer := message(database.ChatMessageRoleAssistant, "hi")
-			answer.InputTokens = sql.NullInt64{Int64: 85_000, Valid: true}
-			answer.OutputTokens = sql.NullInt64{Int64: tc.output, Valid: tc.output > 0}
-			initial := []chatstate.Message{message(database.ChatMessageRoleUser, cmp.Or(tc.asked, "hello")), answer}
-			if tc.attachment {
-				initial = append(initial, assistant(codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")))
-			}
-			if tc.interrupted != "" {
-				initial = append(initial,
-					message(database.ChatMessageRoleUser, "go on"),
-					message(database.ChatMessageRoleAssistant, tc.interrupted),
-				)
-			}
-			if tc.interruptedSearch {
-				search := codersdk.ChatMessageToolCall("srvtoolu_1", "web_search", json.RawMessage(`{"query":"coder"}`))
-				search.ProviderExecuted = true
-				initial = append(initial, message(database.ChatMessageRoleUser, "go on"), assistant(search))
-			}
-			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-				OrganizationID:    org.ID,
-				OwnerID:           user.ID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             tc.name,
-				ClientType:        database.ChatClientTypeApi,
-				InitialMessages:   append(initial, message(database.ChatMessageRoleUser, tc.pending)),
-			})
-			require.NoError(t, err)
-
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
-			})
-			require.NoError(t, err)
-			t.Cleanup(prepared.Cleanup)
-			require.NotNil(t, prepared.Compaction)
-			require.Len(t, prepared.Compaction.PendingUserRows, 1, "the summary request excludes the pending message")
-			require.Equal(t, tc.wantRequired, prepared.Compaction.Required)
-			// Of the large messages, only an interrupted response trails the
-			// measured step in the summary request.
-			require.Equal(t, tc.interrupted != "", prepared.Compaction.Options.SummaryTrailingTokens > 6_000)
-		})
-	}
 }
 
 func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
@@ -970,8 +827,7 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 5, database.ChatMessageRoleTool, false, codersdk.ChatMessageText("result")),
 			withUsage(dbMessage(t, 6, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step3")), 5400, 0),
 		}
-		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), fantasyopenai.Name, messages)
-		require.NoError(t, err)
+		usage := latestPromptUsage(messages)
 		assert.Equal(t, int64(5400), usage.InputTokens,
 			"must return the last step's usage, not the sum across steps")
 	})
@@ -982,16 +838,12 @@ func TestLatestPromptUsage(t *testing.T) {
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("hi")),
 		}
-		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), fantasyopenai.Name, messages)
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.Usage{}, usage)
+		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(messages))
 	})
 
 	t.Run("returns zero for empty message list", func(t *testing.T) {
 		t.Parallel()
-		usage, _, err := latestPromptUsage(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), fantasyopenai.Name, nil)
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.Usage{}, usage)
+		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(nil))
 	})
 }
 
@@ -1009,26 +861,26 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 		// produced for a ~6,000-token conversation.
 		assert.True(t, shouldCompactPromptUsage(
 			fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
-			0, contextLimit, 80))
+			contextLimit, 80))
 	})
 
 	t.Run("correct per-step usage does not trigger", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
 			fantasy.Usage{InputTokens: 6000, TotalTokens: 6030},
-			0, contextLimit, 80))
+			contextLimit, 80))
 	})
 
 	t.Run("threshold 100 disables compaction", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 500000}, 0, contextLimit, 100))
+			fantasy.Usage{InputTokens: 500000}, contextLimit, 100))
 	})
 
 	t.Run("zero context limit disables compaction", func(t *testing.T) {
 		t.Parallel()
 		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 6000}, 0, 0, 80))
+			fantasy.Usage{InputTokens: 6000}, 0, 80))
 	})
 
 	t.Run("counts cache read and creation tokens", func(t *testing.T) {
@@ -1039,27 +891,14 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 			CacheCreationTokens: 5000,
 		}
 		// 211,000 / 262,144 = ~80.5%
-		assert.True(t, shouldCompactPromptUsage(usage, 0, contextLimit, 80))
+		assert.True(t, shouldCompactPromptUsage(usage, contextLimit, 80))
 	})
 
 	t.Run("falls back to TotalTokens when granular fields are missing", func(t *testing.T) {
 		t.Parallel()
 		assert.True(t, shouldCompactPromptUsage(
 			fantasy.Usage{TotalTokens: 211000},
-			0, contextLimit, 80))
-	})
-
-	t.Run("counts trailing tokens on top of measured usage", func(t *testing.T) {
-		t.Parallel()
-		usage := fantasy.Usage{InputTokens: 150000}
-		// 150,000 / 262,144 = ~57%; with 60,000 trailing tokens ~80.1%.
-		assert.False(t, shouldCompactPromptUsage(usage, 0, contextLimit, 80))
-		assert.True(t, shouldCompactPromptUsage(usage, 60000, contextLimit, 80))
-	})
-
-	t.Run("trailing tokens without measured usage do not trigger", func(t *testing.T) {
-		t.Parallel()
-		assert.False(t, shouldCompactPromptUsage(fantasy.Usage{}, 500000, contextLimit, 80))
+			contextLimit, 80))
 	})
 }
 
