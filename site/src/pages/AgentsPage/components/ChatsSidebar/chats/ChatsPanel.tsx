@@ -644,7 +644,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								target={{ kind: "unfiled" }}
 								draggedChat={draggedChat}
 							>
-								{chatProjectsEnabled && chatsHeader}
+								{chatProjectsEnabled && (
+									<div className="group-data-[drop=unavailable]/drop:opacity-50">
+										{chatsHeader}
+									</div>
+								)}
 								<div className="flex flex-col gap-2 px-2 pb-3">
 									{loadError ? (
 										<div className="space-y-3 px-1">

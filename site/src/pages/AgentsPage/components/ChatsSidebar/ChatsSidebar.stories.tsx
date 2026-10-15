@@ -19,6 +19,8 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -2905,6 +2907,15 @@ export const ProjectFolderCollapsed: Story = {
 	},
 };
 
+const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
+	const row = await within(canvasElement).findByRole("button", {
+		name: title,
+		description: /pick up a draggable item/i,
+	});
+	row.focus();
+	await userEvent.keyboard("[Space]");
+};
+
 export const ChatDraggedOverProjectFolder: Story = {
 	args: {
 		chats: [
@@ -2920,13 +2931,82 @@ export const ChatDraggedOverProjectFolder: Story = {
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {
-		const row = await within(canvasElement).findByRole("button", {
-			name: /Loose chat/,
-			description: /pick up a draggable item/i,
-		});
-		row.focus();
-		await userEvent.keyboard("[Space]");
+		await startKeyboardDrag(canvasElement, /Loose chat/);
 		await userEvent.keyboard("[ArrowUp]");
+	},
+};
+
+const mockBillingProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "billing-project",
+	name: "Billing",
+};
+
+const mockOtherOrganizationProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-project",
+	name: "Research",
+	organization_id: MockOrganization2.id,
+};
+
+export const LooseChatDragMutesUnavailableTargets: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "loose-chat",
+				title: "Loose chat",
+				organization_id: MockChatProject.organization_id,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					MockChatProject,
+					mockBillingProject,
+					mockOtherOrganizationProject,
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+	},
+};
+
+export const ProjectChatDragMutesItsFolder: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "launch-chat",
+				title: "Launch chat",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockBillingProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Launch chat/);
 	},
 };
 

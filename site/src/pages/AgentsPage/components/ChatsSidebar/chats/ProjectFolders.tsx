@@ -176,7 +176,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 						<Button
 							variant="subtle"
 							size="icon"

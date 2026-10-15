@@ -13,26 +13,29 @@ type ChatDropAreaProps = React.PropsWithChildren<{
 }>;
 
 /**
- * Takes the drop of a chat that it would move, and shows an outline while the
- * chat is over it. dnd-kit leaves disabled targets out of the collision and of
- * the keyboard stops.
+ * Takes the drop of a chat that it would move. dnd-kit leaves disabled targets
+ * out of the collision and of the keyboard stops; during a drag, headers mute
+ * themselves with the group-data-[drop=unavailable]/drop variant.
  */
 export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 	target,
 	draggedChat,
 	children,
 }) => {
+	const unavailable =
+		draggedChat !== undefined &&
+		projectIdForTarget(draggedChat, target) === undefined;
 	const { setNodeRef, isOver } = useDroppable({
 		id: target.kind === "project" ? `project:${target.projectId}` : "unfiled",
 		data: { dropTarget: target } satisfies DropTargetData,
-		disabled:
-			!draggedChat || projectIdForTarget(draggedChat, target) === undefined,
+		disabled: !draggedChat || unavailable,
 	});
 	return (
 		<div
 			ref={setNodeRef}
+			data-drop={unavailable ? "unavailable" : undefined}
 			className={cn(
-				"rounded-md",
+				"group/drop rounded-md",
 				isOver &&
 					"outline-solid outline-1 -outline-offset-1 outline-content-link",
 			)}
