@@ -3,11 +3,11 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
 /** Keys the skill list of a chat project. */
-const chatProjectSkillsKey = (projectId: string) =>
+export const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
 /** Keys one project skill, under its project's list key. */
-const chatProjectSkillKey = (projectId: string, name: string) =>
+export const chatProjectSkillKey = (projectId: string, name: string) =>
 	[...chatProjectSkillsKey(projectId), name] as const;
 
 /** Lists the skills of a chat project, including disabled ones. */
