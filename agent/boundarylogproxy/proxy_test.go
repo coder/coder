@@ -719,12 +719,17 @@ func TestServer_Metrics(t *testing.T) {
 			sendLogs(t, conn, makeReq(1))
 		}
 
+		// The two metrics are updated separately, so the poll waits for both.
+		// See "Waiting on One Value and Asserting Another" in
+		// .claude/docs/TESTING.md.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") >= 1
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.GreaterOrEqual(t,
-			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"),
-			float64(1))
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full"))
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"))
 	})
 
 	// The remaining metrics share one server, forwarder, and connection. The
