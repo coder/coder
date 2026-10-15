@@ -116,6 +116,44 @@ export const MultiLineTextTruncation: Story = {
 	},
 };
 
+// Invoked skills render as chips in document order.
+export const WithSkillChips: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: "Draft start" },
+				{
+					type: "skill-invocation",
+					skill_source: "personal",
+					skill_name: "zebra-notes",
+				},
+				{ type: "text", text: "draft end" },
+			]),
+			buildMessage(2, [
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			]),
+			// Only the first line shows, so the chip after the break is hidden.
+			buildMessage(3, [
+				{
+					type: "skill-invocation",
+					skill_source: "org",
+					skill_name: "release-notes",
+				},
+				{ type: "text", text: "First line\nSecond line" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			]),
+		],
+	},
+};
+
 // A message with both text and a file attachment shows the ImageIcon badge.
 export const WithAttachments: Story = {
 	args: {
