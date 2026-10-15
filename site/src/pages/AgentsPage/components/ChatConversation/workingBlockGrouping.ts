@@ -292,6 +292,7 @@ type Draft = {
 	containsLiveRow: boolean;
 	/** Type of the row whose text, or non-folding content, closed the block. */
 	closedByRowType?: TimelineRow["type"];
+	isPartial: boolean;
 };
 
 /**
@@ -311,17 +312,25 @@ export const groupWorkingBlocks = (
 	const openAfter: (Draft | undefined)[] = [];
 	const draftOfTool = new Map<string, Draft>();
 	let open: Draft | undefined;
+	// Until assistant text or a row that never folds loads, the loaded rows may
+	// continue a block that older history opened, since attached files leave a
+	// block open.
+	let mayContinueOlderBlock = options.hasMoreMessages;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
+	const closeAnyBlock = (row: TimelineRow) => {
+		if (open) {
+			open.closedByRowType = row.type;
+			open = undefined;
+		}
+		mayContinueOlderBlock = false;
+	};
 
 	for (const [rowIndex, row] of rows.entries()) {
 		const split = rowPieces[rowIndex];
 		openAtStart[rowIndex] = open;
 		if (!split) {
-			if (open) {
-				open.closedByRowType = row.type;
-				open = undefined;
-			}
+			closeAnyBlock(row);
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
 				anchorKey = row.key;
 				ordinal = 0;
@@ -340,9 +349,8 @@ export const groupWorkingBlocks = (
 		for (const [pieceIndex, piece] of split.pieces.entries()) {
 			if (piece.kind === "output") {
 				// Attached files do not close the block, so later work stays in it.
-				if (open && piece.blocks.some((block) => block.type === "response")) {
-					open.closedByRowType = row.type;
-					open = undefined;
+				if (piece.blocks.some((block) => block.type === "response")) {
+					closeAnyBlock(row);
 				}
 				continue;
 			}
@@ -357,6 +365,7 @@ export const groupWorkingBlocks = (
 					anchorKey,
 					ordinal,
 					containsLiveRow: false,
+					isPartial: mayContinueOlderBlock,
 				};
 				ordinal += 1;
 				drafts.push(open);
@@ -551,7 +560,6 @@ export const groupWorkingBlocks = (
 	const rowInBlock = rows.map(() => false);
 
 	const blocks = blockDrafts.map((draft, draftIndex): WorkingBlock => {
-		const first = draft.slices[0];
 		const last = draft.slices[draft.slices.length - 1];
 		// A persisted row closing a block completes it even while the chat
 		// still runs; text still streaming does not.
@@ -582,8 +590,7 @@ export const groupWorkingBlocks = (
 			)?.workOrdinal,
 			stepCount: getStepCount(draft),
 			isLive,
-			isPartial:
-				options.hasMoreMessages && first.rowIndex === 0 && first.start === 0,
+			isPartial: draft.isPartial,
 			startedAt: draft.times.length > 0 ? Math.min(...draft.times) : undefined,
 			endedAt:
 				isLive || draft.times.length === 0
@@ -598,9 +605,13 @@ export const groupWorkingBlocks = (
 		return block;
 	});
 
+	// A partial block renders above the attached files that can precede its
+	// first loaded step, where it stays once the older rows load.
+	const items: TimelineItem[] = blocks
+		.filter((block) => block.isPartial)
+		.map((block) => ({ type: "block", block }));
 	// A row in a block renders its other pieces around the block in order,
 	// each run of them as one slice.
-	const items: TimelineItem[] = [];
 	for (const [rowIndex, row] of rows.entries()) {
 		const split = rowPieces[rowIndex];
 		if (!rowInBlock[rowIndex] || !split) {
@@ -637,6 +648,7 @@ export const groupWorkingBlocks = (
 			endRun(pieceIndex);
 			const first = block.slices[0];
 			if (
+				!block.isPartial &&
 				first.rowIndex === rowIndex &&
 				first.pieceRange.start === pieceIndex
 			) {
