@@ -294,6 +294,45 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 	});
 
+	it("drops a skill's cached details when its delete finds it already gone", async () => {
+		// Unlike the test client, keep the seeded detail cached while unobserved.
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		const detailKey = chatProjectSkill(orgId, projectId, "reviewer").queryKey;
+		queryClient.setQueryData(detailKey, mockReviewerSkill);
+		const notFound = mockApiError({ message: "Skill not found." });
+		vi.spyOn(API.experimental, "deleteChatProjectSkill").mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+		const { user, getSkills } = renderDialog({ queryClient });
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: /Delete/ }));
+		await user.click(
+			await screen.findByRole("button", { name: "Delete skill" }),
+		);
+
+		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+		expect(queryClient.getQueryData(detailKey)).toBeUndefined();
+	});
+
+	it("refreshes the list when a downloaded skill was deleted", async () => {
+		const { user, getSkill, getSkills } = renderDialog();
+		const notFound = mockApiError({ message: "Skill not found." });
+		getSkill.mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+
+		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+		expect(saveAs).not.toHaveBeenCalled();
+	});
+
 	it("downloads a skill's SKILL.md content", async () => {
 		const { user, getSkill } = renderDialog();
 
