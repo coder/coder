@@ -35,14 +35,11 @@ func checkTables(src []byte) []finding {
 	doc := goldmark.New(goldmark.WithExtensions(extension.Table)).Parser().Parse(text.NewReader(src))
 	t := &tableChecker{c: checker{src: src, lineStarts: lineStarts(src)}}
 
-	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
+	preorder(doc, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *east.TableHeader:
 			t.pipeHeader(node)
-			return ast.WalkSkipChildren, nil
+			return false
 		case *ast.HTMLBlock:
 			segs := segmentsOf(node.Lines())
 			if node.HasClosure() {
@@ -58,7 +55,7 @@ func checkTables(src []byte) []finding {
 		case *ast.String:
 			t.addText(string(node.Value))
 		}
-		return ast.WalkContinue, nil
+		return true
 	})
 
 	// A table left unclosed at end of file still reports its empty headers.
@@ -96,22 +93,31 @@ func (t *tableChecker) pipeHeader(header *east.TableHeader) {
 
 // inlineText returns the text a reader would hear from a pipe table cell.
 func inlineText(n ast.Node, src []byte) string {
-	var b strings.Builder
-	_ = ast.Walk(n, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
+	var b []byte
+	preorder(n, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.Text:
-			b.Write(node.Segment.Value(src))
+			b = append(b, node.Segment.Value(src)...)
 		case *ast.String:
-			b.Write(node.Value)
+			b = append(b, node.Value...)
 		case *ast.AutoLink:
-			b.Write(node.Label(src))
+			b = append(b, node.Label(src)...)
 		}
-		return ast.WalkContinue, nil
+		return true
 	})
-	return b.String()
+	return string(b)
+}
+
+// preorder visits n and its descendants in document order. visit returns
+// false to skip a node's children. Unlike ast.Walk it has no error path,
+// because none of these visitors can fail.
+func preorder(n ast.Node, visit func(ast.Node) bool) {
+	if !visit(n) {
+		return
+	}
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		preorder(c, visit)
+	}
 }
 
 // scanHTML tracks <table> and <th> through one raw-HTML node. State persists
