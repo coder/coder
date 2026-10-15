@@ -943,4 +943,31 @@ describe("AgentsPageLayout project moves", () => {
 
 		await expectOpenChatProject(queryClient, "project-b");
 	});
+
+	it("ends on the moved project when a move overtakes the first chat list fetch", async () => {
+		const firstFetch = createDeferred<Chat[]>();
+		vi.mocked(API.experimental.getChats).mockReturnValueOnce(
+			firstFetch.promise,
+		);
+		const { queryClient } = renderLayout();
+		await waitFor(() =>
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(1),
+		);
+
+		commitMove(mockChatInProjectB);
+		publishChatWatchEvent({ kind: "project_change", chat: mockChatInProjectB });
+		// The first fetch read the list before the move committed.
+		await act(async () => firstFetch.resolve([mockChatInProjectA]));
+
+		await waitFor(() =>
+			expect(
+				queryClient
+					.getQueryData<InfiniteData<Chat[]>>(
+						infiniteChats({ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources })
+							.queryKey,
+					)
+					?.pages.flat(),
+			).toEqual([mockChatInProjectB]),
+		);
+	});
 });

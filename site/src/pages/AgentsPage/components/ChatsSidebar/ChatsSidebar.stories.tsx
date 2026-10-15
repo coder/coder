@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
+import { useInfiniteQuery } from "react-query";
 import { useLocation } from "react-router";
 import {
 	expect,
@@ -14,7 +15,12 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
+import {
+	chatListKey,
+	infiniteChats,
+	toChatListParams,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -2941,15 +2947,32 @@ export const ChatDraggedOverProjectFolder: Story = {
 	},
 };
 
-/** The args are static, so the dropped chat stays under Chats. */
+/** Reads the cached chat list so the drop moves the chat. */
 export const ChatDroppedOnProjectFolder: Story = {
-	args: { chats: mockProjectChats },
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: chatListKey(
+					toChatListParams({ sources: defaultSidebarFilters.sources }),
+				),
+				data: { pages: [mockProjectChats], pageParams: [0] },
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	},
+	render: function ChatDroppedOnProjectFolderRender(args) {
+		// Stories have no API server, so the list must not fetch.
+		const chatsQuery = useInfiniteQuery({
+			...infiniteChats({ sources: defaultSidebarFilters.sources }),
+			enabled: false,
+		});
+		return (
+			<ChatsSidebar {...args} chats={chatsQuery.data?.pages.flat() ?? []} />
+		);
 	},
 	play: async ({ canvasElement }) => {
 		await startKeyboardDrag(canvasElement, /Loose chat/);

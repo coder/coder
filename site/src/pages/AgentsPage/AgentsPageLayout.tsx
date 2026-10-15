@@ -35,6 +35,7 @@ import {
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	resetUnloadedChatEntity,
+	resetUnloadedChatLists,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
 	updateChatTitle,
@@ -439,6 +440,11 @@ const AgentsPageLayout: React.FC = () => {
 							// and restart a first fetch that may predate the move.
 							void resetUnloadedChatEntity(queryClient, updatedChat.id);
 							void invalidateChatEntity(queryClient, updatedChat.id);
+							// First list fetches may predate the move too. Every move
+							// sends its root's event, so one reset per move is enough.
+							if (!updatedChat.parent_chat_id) {
+								void resetUnloadedChatLists(queryClient);
+							}
 						}
 					}
 				});

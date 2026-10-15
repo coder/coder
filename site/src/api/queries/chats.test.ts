@@ -106,6 +106,7 @@ import {
 	pinChat,
 	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
+	projectChats,
 	projectChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -115,6 +116,7 @@ import {
 	reorderPinnedChat,
 	replaceChatMessagesHistory,
 	resetUnloadedChatEntity,
+	resetUnloadedChatLists,
 	setChatGroupRole,
 	setChatUserRole,
 	shouldInvalidateChatSearches,
@@ -265,6 +267,34 @@ const observeChatWithDeferredFirstFetch = (
 		firstFetch,
 		fetchCount: () => fetchCount,
 		unsubscribe,
+	};
+};
+
+/** resetQueries refetches only observed queries. */
+const observeChatLists = (
+	queryClient: QueryClient,
+	options: { staleTime?: number } = {},
+) => {
+	const observers = [
+		new InfiniteQueryObserver(queryClient, { ...infiniteChats(), ...options }),
+		new InfiniteQueryObserver(queryClient, {
+			...projectChats("project-1"),
+			...options,
+		}),
+	];
+	const unsubscribes = observers.map((observer) =>
+		observer.subscribe(() => {}),
+	);
+	return {
+		chats: () =>
+			observers.map((observer) =>
+				observer.getCurrentResult().data?.pages.flat(),
+			),
+		unsubscribe: () => {
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe();
+			}
+		},
 	};
 };
 
@@ -4893,6 +4923,62 @@ describe("semantic cache operations: cancellation", () => {
 		await resetUnloadedChatEntity(queryClient, "chat-1");
 
 		expect(resetSpy).not.toHaveBeenCalled();
+	});
+
+	it("resetUnloadedChatLists restarts first fetches of sidebar and project lists", async () => {
+		const queryClient = createTestQueryClient();
+		const staleChat = makeChat("chat-1");
+		const movedChat = makeChat("chat-1", { project_id: "project-1" });
+		const firstFetches = [
+			createDeferred<TypesGen.Chat[]>(),
+			createDeferred<TypesGen.Chat[]>(),
+		];
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockReturnValueOnce(firstFetches[0].promise)
+			.mockReturnValueOnce(firstFetches[1].promise)
+			.mockResolvedValueOnce([movedChat])
+			.mockResolvedValueOnce([movedChat]);
+		const lists = observeChatLists(queryClient);
+		try {
+			expect(getChats).toHaveBeenCalledTimes(2);
+
+			const reset = resetUnloadedChatLists(queryClient);
+			// Both first responses read the lists before the move.
+			for (const firstFetch of firstFetches) {
+				firstFetch.resolve([staleChat]);
+			}
+			await reset;
+
+			expect(getChats).toHaveBeenCalledTimes(4);
+			expect(lists.chats()).toEqual([[movedChat], [movedChat]]);
+		} finally {
+			lists.unsubscribe();
+		}
+	});
+
+	it("resetUnloadedChatLists keeps loaded lists and sends no request", async () => {
+		const queryClient = createTestQueryClient();
+		// Answers any request, so a refetch fails below instead of timing out.
+		const getChats = vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		const loadedChats = [makeChat("chat-1")];
+		seedInfiniteChats(queryClient, loadedChats);
+		queryClient.setQueryData<InfiniteData>(projectChatsKey("project-1"), {
+			pages: [loadedChats],
+			pageParams: [0],
+		});
+		// Fresh data keeps the observers from fetching on mount.
+		const lists = observeChatLists(queryClient, {
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		try {
+			await resetUnloadedChatLists(queryClient);
+
+			expect(getChats).not.toHaveBeenCalled();
+			expect(lists.chats()).toEqual([loadedChats, loadedChats]);
+		} finally {
+			lists.unsubscribe();
+		}
 	});
 
 	it("cancelChatMessages cancels the exact messages entry", async () => {
