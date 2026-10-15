@@ -1016,11 +1016,18 @@ Project instructions are loaded on every turn, so edits show up in existing chat
 
 ##### Skill index
 
-<!-- TODO(jscottmiller): cover organization skills here: `org/<name>`, ordered after personal and before workspace skills. -->
+Each turn, chatd inserts an `<available-skills>` block listing each skill's alias and description into the system prompt, after the chat instruction and before the user prompt. Skills come from four sources, ordered as follows when a name is shared:
 
-Each turn, chatd merges the user's personal skills with the skills the workspace agent pushed and inserts an `<available-skills>` block into the system prompt, after the chat instruction and before the user prompt. Each entry is a skill alias and its description. A name held by one skill is listed bare; a name held by several is listed as `personal/<name>`, `workspace/<name>`, or `plugin/<plugin>/<name>`. The model passes an alias to `read_skill` to load the body, and to `read_skill_file` to read a supporting file of a workspace or plugin skill.
+- Personal: the chat owner's skills.
+- Organization: enabled skills in the chat's organization that the owner can read.
+- Workspace: skills pinned to the chat from the workspace agent's pushed context (`chat_context_resources`).
+- Plugin: pinned skills with a plugin name, keyed by (plugin, name), ordered by plugin name, and labeled `(plugin: <name>)`.
 
-A pinned skill row with a plugin name is a plugin skill: a skill shipped in an Agent Plugin's `skills/` directory. chatd keeps plugin skills apart from plain workspace skills and identifies each by (plugin, name), so two plugins can ship skills with the same name. Plugin skills follow personal and workspace skills when a name is shared, ordered by plugin name. Each plugin skill entry carries a `(plugin: <name>)` label after its alias, and the qualified-alias hint lists the `plugin/<plugin>/<name>` form only when a plugin skill is listed that way. `read_skill` and `read_skill_file` serve a plugin skill from its own pinned directory and never fall back to a same-named workspace skill.
+Pinned skills are the chat's copy of each pushed `SKILL.md`; a later push only marks the chat dirty, and the copy changes when the chat is refreshed or bound to a different agent.
+
+A name held by one skill is listed bare; otherwise each holder is listed as `personal/<name>`, `org/<name>`, `workspace/<name>`, or `plugin/<plugin>/<name>`.
+
+`read_skill` returns a skill's body. Personal and organization bodies are read from the database on each call, so later edits, disables, deletes, and unshares take effect. Workspace and plugin bodies are parsed from the pinned `SKILL.md`, so they load while the workspace is unreachable; the result also carries the skill directory and a best-effort live file listing. `read_skill_file` reads a supporting file of a workspace or plugin skill over a live connection.
 
 ##### Reasoning effort
 
