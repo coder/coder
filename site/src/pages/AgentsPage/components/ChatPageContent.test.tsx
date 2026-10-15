@@ -130,9 +130,13 @@ describe("ChatPageInput", () => {
 		await user.paste("/comp");
 		// An inherited project skill may shadow /compact, so the command
 		// stays hidden and Enter picks the qualified personal skill.
-		await screen.findByRole("option", { name: /compactor/ });
+		await screen.findByRole("option", { name: /^\/personal\/compactor/ });
 		await user.keyboard("{Enter}");
-		expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		expect(inputRef.current?.getContentParts()).toContainEqual({
+			type: "skill-invocation",
+			source: "personal",
+			name: "compactor",
+		});
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
