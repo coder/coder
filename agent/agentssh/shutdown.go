@@ -26,7 +26,7 @@ func (s *Server) isClosing() bool {
 // connection and session tracking. If the server is closing, the channel is
 // not registered.
 //
-//nolint:revive
+//nolint:revive // add is a control flag, matching trackConn and trackSession.
 func (s *Server) trackChannel(add bool) (ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
