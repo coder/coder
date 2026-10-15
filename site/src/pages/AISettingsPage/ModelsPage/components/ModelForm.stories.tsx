@@ -883,8 +883,6 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 	},
 };
 
-// The 1h field appears after the four base prices, followed by one note for
-// each long-context tier.
 export const CostEstimateWithCacheWrite1hAndTiers: Story = {
 	args: {
 		editingModel: mockClaude,

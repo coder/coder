@@ -32,8 +32,8 @@ type AIModelPrice struct {
 
 // AIModelPriceTier holds the prices for a request whose prompt is over
 // ThresholdTokens tokens. Every token of such a request uses the prices of the
-// highest tier it is over. A nil price uses the base price of the model, and a
-// nil CacheWrite1hPrice uses the CacheWritePrice of the tier.
+// highest tier it is over. A nil price uses the base price of the model, but a
+// nil CacheWrite1hPrice uses the cache write price that applies to the tier.
 type AIModelPriceTier struct {
 	ThresholdTokens   int64  `json:"threshold_tokens"`
 	InputPrice        *int64 `json:"input_price"`
@@ -77,8 +77,8 @@ type UpsertAIModelPricesRequest struct {
 }
 
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
-// only the writable fields of AIModelPrice. A missing or null
-// CacheWrite1hPrice or Tiers clears it.
+// only the writable fields of AIModelPrice. A null CacheWrite1hPrice, or a
+// missing or null Tiers, clears it.
 type AIModelPriceUpsert struct {
 	Provider          string             `json:"provider"`
 	Model             string             `json:"model"`

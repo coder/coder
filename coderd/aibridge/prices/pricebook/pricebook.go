@@ -28,7 +28,8 @@ type Row struct {
 }
 
 // Tier holds the prices for a request whose prompt is over ThresholdTokens
-// tokens. A nil price uses the price of the Row.
+// tokens. A nil price uses the price of the Row, but a nil CacheWrite1hPrice
+// uses the cache write price that applies to the tier.
 type Tier struct {
 	ThresholdTokens   int64  `json:"threshold_tokens"`
 	InputPrice        *int64 `json:"input_price"`

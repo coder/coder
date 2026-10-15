@@ -10,9 +10,11 @@ const formatLabeledPrice = (label: string, micros: number | null): string => {
 	return `${label} ${price.belowThreshold ? "<$" : "$"}${price.value}`;
 };
 
-// The 1h entry is listed when the model or the tier prices 1h writes apart.
-// A tier without a 1h price bills 1h writes at its own cache write price, not
-// at the base 1h price.
+/**
+ * Formats the note for one long-context tier of a price row. A tier without a
+ * 1h price bills 1h writes at its own cache write price, not at the base 1h
+ * price.
+ */
 export const formatTierNote = (
 	base: AIModelPrice,
 	tier: AIModelPriceTier,
@@ -41,6 +43,7 @@ export const formatTierNote = (
 	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens: ${prices.join(" · ")}`;
 };
 
+/** One note per long-context price tier of a price row. */
 export const PriceTierNotes: React.FC<{ price: AIModelPrice }> = ({
 	price,
 }) => (
