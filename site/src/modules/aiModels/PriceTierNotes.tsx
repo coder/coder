@@ -11,9 +11,8 @@ const formatLabeledPrice = (label: string, micros: number | null): string => {
 };
 
 /**
- * Formats the note for one long-context tier of a price row. A tier without a
- * 1h price bills 1h writes at its own cache write price, not at the base 1h
- * price.
+ * A tier without a 1h price bills 1h writes at the cache write price that
+ * applies to the tier, not at the base 1h price.
  */
 export const formatTierNote = (
 	base: AIModelPrice,
