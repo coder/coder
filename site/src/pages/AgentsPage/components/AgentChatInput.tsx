@@ -101,6 +101,7 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
+import { ProjectSkillActions } from "./ProjectSkillActions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -187,8 +188,8 @@ type AgentChatInputProps = {
 	chatProjectId?: string;
 	isChatProjectPending?: boolean;
 	isWorkspaceLoading?: boolean;
-	// Shortcuts rendered above the composer, such as project actions.
-	actionBar?: React.ReactNode;
+	// Offers the chat project's action skills above the composer.
+	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -534,7 +535,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	chatProjectId,
 	isChatProjectPending,
 	isWorkspaceLoading,
-	actionBar,
+	showProjectActions = false,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -1350,7 +1351,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
-			{actionBar}
+			{showProjectActions &&
+				experiments.includes("chat-projects") &&
+				chatOrganizationId &&
+				chatProjectId &&
+				!isReadOnly &&
+				!isReadOnlyView &&
+				hasModelOptions &&
+				!aiGatewayDisabled && (
+					<ProjectSkillActions
+						organizationId={chatOrganizationId}
+						projectId={chatProjectId}
+						onInvoke={(name) =>
+							internalRef.current?.insertSkill("project", name)
+						}
+					/>
+				)}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}

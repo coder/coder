@@ -32,7 +32,7 @@ const meta: Meta<typeof ProjectSkillActions> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-[480px]">
+			<div className="w-120">
 				<Story />
 			</div>
 		),
@@ -42,6 +42,7 @@ const meta: Meta<typeof ProjectSkillActions> = {
 export default meta;
 type Story = StoryObj<typeof ProjectSkillActions>;
 
+/** Hovers the action so the screenshot shows its description. */
 export const OneAction: Story = {
 	parameters: {
 		queries: [
@@ -50,6 +51,11 @@ export const OneAction: Story = {
 				data: mockActionSkills.slice(0, 1),
 			},
 		],
+	},
+	play: async () => {
+		await userEvent.hover(
+			await screen.findByRole("button", { name: "deploy" }),
+		);
 	},
 };
 
@@ -64,7 +70,7 @@ export const ThreeActions: Story = {
 	},
 };
 
-/** Actions past the third move to More, opened here. */
+/** Opens More so the screenshot shows the overflow actions. */
 export const FiveActionsMoreOpen: Story = {
 	parameters: {
 		queries: [

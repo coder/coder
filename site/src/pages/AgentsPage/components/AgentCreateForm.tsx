@@ -60,7 +60,6 @@ import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
 import { CompactProjectSelector } from "./ChatElements/CompactProjectSelector";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
-import { ProjectSkillActions } from "./ProjectSkillActions";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -1085,21 +1084,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
 					chatProjectId={chatProjectId}
-					actionBar={
-						project &&
-						experiments.includes("chat-projects") &&
-						!isForbidden &&
-						hasModelOptions &&
-						!aiGatewayDisabled && (
-							<ProjectSkillActions
-								organizationId={project.organization_id}
-								projectId={project.id}
-								onInvoke={(name) =>
-									chatInputRef.current?.insertSkill("project", name)
-								}
-							/>
-						)
-					}
+					showProjectActions={project !== undefined}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);

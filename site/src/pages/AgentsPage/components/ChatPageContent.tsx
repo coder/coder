@@ -77,7 +77,6 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
-import { ProjectSkillActions } from "./ProjectSkillActions";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -852,18 +851,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			chatOrganizationId={organizationId}
 			chatProjectId={chatProjectId}
 			isChatProjectPending={!isChatProjectResolved}
-			actionBar={
-				chatProjectId &&
-				!isReadOnly &&
-				hasModelOptions &&
-				!aiGatewayDisabled && (
-					<ProjectSkillActions
-						organizationId={organizationId}
-						projectId={chatProjectId}
-						onInvoke={(name) => inputRef.current?.insertSkill("project", name)}
-					/>
-				)
-			}
+			showProjectActions
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}

@@ -113,8 +113,13 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 	onInvoke,
 }) => {
 	const button = (
-		<Button size="sm" variant="outline" onClick={() => onInvoke(skill.name)}>
-			{skill.name}
+		<Button
+			size="sm"
+			variant="outline"
+			className="max-w-full"
+			onClick={() => onInvoke(skill.name)}
+		>
+			<span className="truncate">{skill.name}</span>
 		</Button>
 	);
 	if (!skill.description) {

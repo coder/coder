@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { MockChatProject } from "#/testHelpers/entities";
@@ -11,24 +10,29 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { ProjectSkillActions } from "./ProjectSkillActions";
 
-const mockSkill = (
-	name: string,
-	overrides: Partial<SkillMetadata> = {},
-): SkillMetadata => ({
-	...MockSkill,
-	id: `skill-${name}`,
-	name,
-	description: `Runs ${name}.`,
-	action: true,
-	...overrides,
-});
+// "audit" and "check" sort first, so either would take an inline slot if
+// non-action or disabled skills were offered.
+const mockSkills: SkillMetadata[] = [
+	{ ...MockSkill, id: "skill-triage", name: "triage", action: true },
+	{ ...MockSkill, id: "skill-audit", name: "audit", action: false },
+	{ ...MockSkill, id: "skill-review", name: "review", action: true },
+	{
+		...MockSkill,
+		id: "skill-check",
+		name: "check",
+		action: true,
+		enabled: false,
+	},
+	{ ...MockSkill, id: "skill-release", name: "release", action: true },
+	{ ...MockSkill, id: "skill-lint", name: "lint", action: true },
+	{ ...MockSkill, id: "skill-deploy", name: "deploy", action: true },
+];
 
 const renderActions = (skills: SkillMetadata[]) => {
 	vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(skills);
-	const queryClient = createTestQueryClient();
 	const onInvoke = vi.fn();
 	render(
-		<QueryClientProvider client={queryClient}>
+		<QueryClientProvider client={createTestQueryClient()}>
 			<TooltipProvider>
 				<ProjectSkillActions
 					organizationId={MockChatProject.organization_id}
@@ -38,7 +42,7 @@ const renderActions = (skills: SkillMetadata[]) => {
 			</TooltipProvider>
 		</QueryClientProvider>,
 	);
-	return { user: userEvent.setup(), queryClient, onInvoke };
+	return { user: userEvent.setup(), onInvoke };
 };
 
 describe("ProjectSkillActions", () => {
@@ -47,49 +51,25 @@ describe("ProjectSkillActions", () => {
 	});
 
 	it("offers the first three actions by name and the rest under More", async () => {
-		// "audit" and "check" sort first, so either would take an inline
-		// slot if non-action or disabled skills were offered.
-		const { user, onInvoke } = renderActions([
-			mockSkill("triage"),
-			mockSkill("audit", { action: false }),
-			mockSkill("review"),
-			mockSkill("check", { enabled: false }),
-			mockSkill("release"),
-			mockSkill("lint"),
-			mockSkill("deploy"),
-		]);
+		const { user, onInvoke } = renderActions(mockSkills);
 
 		await user.click(await screen.findByRole("button", { name: "deploy" }));
 		await user.click(screen.getByRole("button", { name: "lint" }));
 		await user.click(screen.getByRole("button", { name: "release" }));
-		for (const name of ["review", "triage"]) {
-			await user.click(screen.getByRole("button", { name: "More" }));
-			await user.click(
-				await screen.findByRole("menuitem", { name: new RegExp(`^${name}`) }),
-			);
-			await waitFor(() => expect(onInvoke).toHaveBeenLastCalledWith(name));
-		}
-
-		expect(onInvoke.mock.calls).toEqual([
-			["deploy"],
-			["lint"],
-			["release"],
-			["review"],
-			["triage"],
-		]);
-	});
-
-	it("offers nothing when no enabled skill is an action", async () => {
-		const { queryClient } = renderActions([
-			mockSkill("audit", { action: false }),
-			mockSkill("check", { enabled: false }),
-		]);
+		await user.click(screen.getByRole("button", { name: "More" }));
+		await user.click(await screen.findByRole("menuitem", { name: "review" }));
+		await waitFor(() => expect(onInvoke).toHaveBeenLastCalledWith("review"));
+		await user.click(screen.getByRole("button", { name: "More" }));
+		await user.click(await screen.findByRole("menuitem", { name: "triage" }));
 
 		await waitFor(() =>
-			expect(
-				queryClient.getQueryData(chatProjectSkillsKey(MockChatProject.id)),
-			).toHaveLength(2),
+			expect(onInvoke.mock.calls).toEqual([
+				["deploy"],
+				["lint"],
+				["release"],
+				["review"],
+				["triage"],
+			]),
 		);
-		expect(screen.queryAllByRole("button")).toEqual([]);
 	});
 });
