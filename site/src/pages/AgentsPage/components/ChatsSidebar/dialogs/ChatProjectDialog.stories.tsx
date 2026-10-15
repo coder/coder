@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	agentTemplates,
 	richParametersKey,
@@ -254,4 +255,31 @@ export const EditTemplatesSaveError: Story = {
 		}),
 	},
 	parameters: EditDefaultParameters.parameters,
+};
+
+export const NoEligibleTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: agentTemplates(MockDefaultOrganization.id).queryKey,
+				data: [],
+			},
+		],
+	},
+	// Opens the templates list so the screenshot shows its empty message.
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("combobox", { name: "Templates" }),
+		);
+	},
+};
+
+export const TemplatesLoadError: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockRejectedValue(
+			mockApiError({ message: "Failed to load templates." }),
+		);
+	},
 };
