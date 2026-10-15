@@ -415,8 +415,8 @@ export interface AIModelPriceTier {
 // From codersdk/aimodelprices.go
 /**
  * AIModelPriceUpsert is one model's prices in an upsert request. It carries
- * only the writable fields of AIModelPrice. A null CacheWrite1hPrice, or a
- * missing or null Tiers, clears it.
+ * only the writable fields of AIModelPrice. A missing or null
+ * CacheWrite1hPrice or Tiers clears it.
  */
 export interface AIModelPriceUpsert {
 	readonly provider: string;
@@ -425,7 +425,7 @@ export interface AIModelPriceUpsert {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
-	readonly cache_write_1h_price: number | null;
+	readonly cache_write_1h_price?: number;
 	readonly tiers?: readonly AIModelPriceTier[];
 }
 
