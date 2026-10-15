@@ -728,7 +728,10 @@ func TestServer_Metrics(t *testing.T) {
 	})
 
 	// The remaining metrics share one server, forwarder, and connection. The
-	// phases run sequentially so metrics accumulate.
+	// phases run sequentially so metrics accumulate. In all three phases the
+	// asserted values are updated separately, so each phase waits for every
+	// value it asserts. See "Waiting on One Value and Asserting Another" in
+	// .claude/docs/TESTING.md.
 	t.Run("Forwarding", func(t *testing.T) {
 		t.Parallel()
 
@@ -773,9 +776,7 @@ func TestServer_Metrics(t *testing.T) {
 		}
 
 		// The metrics are updated after ReportBoundaryLogs returns, each one
-		// separately, so the poll waits for every metric asserted below. See
-		// "Waiting on One Value and Asserting Another" in
-		// .claude/docs/TESTING.md.
+		// separately, so the poll waits for every metric asserted below.
 		require.Eventually(t, func() bool {
 			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") > 0 &&
 				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed") > 0
@@ -801,10 +802,12 @@ func TestServer_Metrics(t *testing.T) {
 			DroppedBatchFull:   3,
 		})
 
-		// Status is handled immediately by the reader goroutine, not by the
-		// forwarder, so poll metrics directly.
+		// Status is handled by the reader goroutine, not by the forwarder. It
+		// updates each series separately, so the poll waits for every series
+		// asserted below.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full") >= 5
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_batch_full") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
 		require.Equal(t, float64(5),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full"))
