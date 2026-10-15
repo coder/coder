@@ -92,6 +92,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -1096,16 +1097,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasRefs);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
-	const prevIsLoadingRef = useRef(isLoading);
-	useEffect(() => {
-		const wasLoading = prevIsLoadingRef.current;
-		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
-			internalRef.current?.focus();
-		}
-	}, [isLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1151,6 +1142,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
+			!isPendingRowID(queuedMessages[0].id) &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1445,7 +1437,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<ChatMessageInput
 						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
@@ -1458,7 +1449,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
+						// Stays editable during a send, so the user can write the
+						// next message. handleSubmit does not send while isLoading.
+						disabled={isReadOnly}
 						hasWorkspace={hasSkillsWorkspace}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}

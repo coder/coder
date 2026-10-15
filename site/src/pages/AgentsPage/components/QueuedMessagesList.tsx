@@ -6,7 +6,7 @@ import {
 	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -15,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -66,89 +67,44 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
-	// Tracks which item has an async action in flight and what kind.
-	const [busyItem, setBusyItem] = useState<{
-		id: number;
-		action: "delete" | "promote";
-	} | null>(null);
-	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
-		ReadonlySet<number>
-	>(new Set());
-
-	const hideItemOptimistically = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.has(id)) {
-				return current;
+	// The action in flight for each row. Only that row's actions wait for it.
+	const [busyItems, setBusyItems] = useState<
+		ReadonlyMap<number, "delete" | "promote">
+	>(new Map());
+	const setBusy = (id: number, action: "delete" | "promote" | null) => {
+		setBusyItems((current) => {
+			const next = new Map(current);
+			if (action) {
+				next.set(id, action);
+			} else {
+				next.delete(id);
 			}
-			const next = new Set(current);
-			next.add(id);
 			return next;
 		});
 	};
-
-	const restoreHiddenItem = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (!current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.delete(id);
-			return next;
-		});
-	};
-
-	useEffect(() => {
-		const liveIDs = new Set(messages.map((message) => message.id));
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.size === 0) {
-				return current;
-			}
-			let didChange = false;
-			const next = new Set<number>();
-			for (const id of current) {
-				if (liveIDs.has(id)) {
-					next.add(id);
-					continue;
-				}
-				didChange = true;
-			}
-			return didChange ? next : current;
-		});
-	}, [messages]);
-
 	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
-		hideItemOptimistically(id);
+		setBusy(id, "delete");
 		try {
 			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			setBusy(id, null);
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			setBusy(id, null);
 		}
 	};
 
 	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
+		setBusy(id, "promote");
 		try {
 			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			setBusy(id, null);
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			setBusy(id, null);
 		}
 	};
 
-	const visibleItems = items.filter(
-		(item) => !optimisticallyHiddenIDs.has(item.id),
-	);
-
-	if (visibleItems.length === 0) {
+	if (items.length === 0) {
 		return null;
 	}
-
-	const isBusy = busyItem !== null;
 
 	return (
 		<div
@@ -157,9 +113,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				className,
 			)}
 		>
-			{visibleItems.map((item, index) => {
+			{items.map((item, index) => {
 				const isFirst = index === 0;
-				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const busyAction = busyItems.get(item.id);
+				const isPending = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
 
@@ -227,11 +184,11 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											variant="subtle"
 											size="icon"
 											aria-label="Send now"
-											disabled={isBusy}
+											disabled={busyAction !== undefined || isPending}
 											onClick={() => void handlePromote(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
-											{isItemBusy && busyItem.action === "promote" ? (
+											{busyAction === "promote" ? (
 												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
 												<ArrowUpIcon className="size-3.5" />
@@ -246,11 +203,11 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											variant="subtle"
 											size="icon"
 											aria-label="Remove from queue"
-											disabled={isBusy}
+											disabled={busyAction !== undefined || isPending}
 											onClick={() => void handleDelete(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>
-											{isItemBusy && busyItem.action === "delete" ? (
+											{busyAction === "delete" ? (
 												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
 												<Trash2Icon className="size-3.5" />

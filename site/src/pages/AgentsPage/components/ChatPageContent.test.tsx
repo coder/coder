@@ -1,6 +1,7 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -74,7 +75,7 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
 		const store = createChatStore();
-		store.setChatStatus("requires_action");
+		store.applyServerChatStatus("requires_action");
 
 		renderChatPageInput(store, { onInterrupt });
 
@@ -115,5 +116,160 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("holds the attachments of a pending send and restores them when it fails", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "file-1",
+		});
+		let rejectSend: (error: Error) => void = () => {};
+		const onSend = vi
+			.fn()
+			.mockReturnValueOnce(
+				new Promise((_resolve, reject) => {
+					rejectSend = reject;
+				}),
+			)
+			.mockResolvedValue(undefined);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File(["png"], "shot.png", { type: "image/png" }),
+		);
+		const send = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		const sent = { fileId: "file-1", mediaType: "image/png" };
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+		expect(
+			screen.queryByRole("button", { name: "Remove shot.png" }),
+		).toBeNull();
+
+		rejectSend(new Error("send failed"));
+		await screen.findByRole("button", { name: "Remove shot.png" });
+		await user.click(send);
+		expect(onSend).toHaveBeenCalledTimes(2);
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+	});
+
+	it("keeps an attachment added while a send is pending", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile")
+			.mockResolvedValueOnce({ id: "file-1" })
+			.mockResolvedValueOnce({ id: "file-2" });
+		let resolveSend: () => void = () => {};
+		const onSend = vi.fn().mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		const fileInput = await screen.findByTestId("chat-attachment-file-input");
+		await user.upload(
+			fileInput,
+			new File(["png"], "first.png", { type: "image/png" }),
+		);
+		const send = await screen.findByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+		await user.upload(
+			fileInput,
+			new File(["png"], "second.png", { type: "image/png" }),
+		);
+		await screen.findByRole("button", { name: "Remove second.png" });
+
+		await act(async () => {
+			resolveSend();
+		});
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "Remove first.png" }),
+			).toBeNull(),
+		);
+		expect(
+			screen.getByRole("button", { name: "Remove second.png" }),
+		).toBeInTheDocument();
+	});
+
+	it("offers no queue actions on a row a pending send draws", async () => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+		const onDeleteQueuedMessage = vi.fn();
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		store.applyServerChatStatus("running");
+		store.addPendingAction({
+			kind: "send",
+			message: {
+				id: 0,
+				chat_id: "",
+				created_at: "2025-01-01T00:00:00.000Z",
+				role: "user",
+				content: [{ type: "text", text: "not stored yet" }],
+			},
+		});
+
+		renderChatPageInput(store, {
+			onPromoteQueuedMessage,
+			onDeleteQueuedMessage,
+		});
+		await screen.findByText("not stored yet");
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		await user.click(screen.getByTestId("chat-message-input"));
+		await user.keyboard("{Enter}");
+
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
+	});
+
+	it("lets another queued row act while one row's request is in flight", async () => {
+		const user = userEvent.setup();
+		const onDeleteQueuedMessage = vi
+			.fn()
+			.mockReturnValueOnce(new Promise(() => {}))
+			.mockResolvedValue(undefined);
+		const queuedRow = (id: number, text: string) => ({
+			id,
+			chat_id: "",
+			created_at: "2025-01-01T00:00:00.000Z",
+			content: [{ type: "text" as const, text }],
+		});
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [
+				queuedRow(1, "first queued"),
+				queuedRow(2, "second queued"),
+			],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		store.applyServerChatStatus("running");
+
+		renderChatPageInput(store, { onDeleteQueuedMessage });
+		await screen.findByText("second queued");
+		const [removeFirst, removeSecond] = screen.getAllByRole("button", {
+			name: "Remove from queue",
+		});
+		await user.click(removeFirst);
+
+		expect(removeFirst).toBeDisabled();
+		expect(removeSecond).toBeEnabled();
+		await user.click(removeSecond);
+		expect(onDeleteQueuedMessage.mock.calls).toEqual([[1], [2]]);
 	});
 });
