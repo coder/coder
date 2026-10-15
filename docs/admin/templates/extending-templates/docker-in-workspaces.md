@@ -436,6 +436,24 @@ Use the [`docker-outside-of-docker` feature](https://github.com/devcontainers/fe
 The dev container drives the workspace engine through its socket, so containers run as siblings of the dev container instead of nested inside it.
 Keep the repository path identical inside the dev container and the workspace, for example with `workspaceMount`, so bind mounts resolve against the engine correctly.
 
+The feature mounts the workspace's `/var/run/docker.sock` by default, which doesn't exist with rootless Podman.
+Start the API socket from the agent `startup_script` as shown in [Use native overlay storage](#use-native-overlay-storage-instead-of-fuse-overlayfs), then override the mount in `devcontainer.json` to point at it:
+
+```json
+"mounts": [
+  {
+    "source": "/tmp/podman.sock",
+    "target": "/var/run/docker-host.sock",
+    "type": "bind"
+  }
+]
+```
+
+Building dev container features, such as `docker-outside-of-docker`, fails against rootless Podman because the dev container CLI builds them with BuildKit, which can't start inside the workspace.
+Run `devcontainer up --buildkit never` with `DOCKER_BUILDKIT=0` set to use the classic builder instead.
+Coder's [dev container integration](../../integrations/devcontainers/index.md) doesn't pass this flag, so it doesn't support rootless Podman workspaces yet.
+To run dev containers on Kubernetes without a container engine in the workspace, use [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) instead.
+
 ## Privileged sidecar container
 
 A
