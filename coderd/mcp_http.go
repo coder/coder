@@ -33,7 +33,7 @@ const (
 func (api *API) mcpHTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create MCP server instance for each request
-		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"), mcp.WithToolCallRecorder(api.mcpToolMetrics))
+		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"), mcp.WithToolCallRecorder(api.mcpToolCallRecorder))
 		if err != nil {
 			api.Logger.Error(r.Context(), "failed to create MCP server", slog.Error(err))
 			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
