@@ -167,6 +167,7 @@ function harness(options = {}) {
   const infos = [];
   const trees = { base, main, head: options.head || head };
   const texts = options.texts || {};
+  const treeReads = [];
   let prReads = 0;
   let mainReads = 0;
   let lists = 0;
@@ -189,11 +190,14 @@ function harness(options = {}) {
         compareCommitsWithBasehead: async () => ({ data: {
           merge_base_commit: { sha: "base" }, total_commits: options.totalCommits || 1,
           commits: options.commitList || [{ sha: "head" }],
+          files: Object.hasOwn(options, "files") ? options.files
+            : Object.keys({ ...trees.base, ...trees.head }).filter((path) => trees.base[path]?.sha !== trees.head[path]?.sha)
+              .map((filename) => ({ filename })),
         } }),
         createCommitStatus: async (status) => { statuses.push(status); },
       },
       git: {
-        getTree: async ({ tree_sha }) => ({ data: {
+        getTree: async ({ tree_sha }) => (treeReads.push(tree_sha), { data: {
           truncated: options.truncated || false,
           tree: Object.entries(trees[tree_sha]).map(([path, entry]) => ({ ...entry, path })),
         } }),
@@ -231,7 +235,7 @@ function harness(options = {}) {
   const core = { info: (message) => infos.push(message), warning: (message) => infos.push(message) };
   const sleeps = [];
   const sleep = async (ms) => { sleeps.push(ms); };
-  return { github, context, core, writer, sleep, sleeps, statuses, commits, infos, pr };
+  return { github, context, core, writer, sleep, sleeps, statuses, commits, infos, treeReads, pr };
 }
 
 test("API repair preserves bytes and uses an atomic normal commit, never an old-head success", async () => {
@@ -251,6 +255,70 @@ test("main migration push refreshes current PR heads rather than rerunning old C
 });
 
 
+
+test("main refresh skips PRs without migration changes before reading trees", async () => {
+  const unrelated = { ...base, "README.md": { sha: "new", mode: "100644", type: "blob", size: 3 } };
+  const h = harness({ event: "push", head: unrelated });
+  await run(h);
+  assert.deepEqual(h.treeReads, []);
+  assert.deepEqual(h.statuses, []);
+
+  // The compare API lists at most 300 files, so a full list falls back to trees.
+  const capped = harness({ event: "push", head: unrelated, files: Array.from({ length: 300 }, (_, i) => ({ filename: "f" + i })) });
+  await run(capped);
+  assert.ok(capped.treeReads.length);
+  assert.equal(capped.statuses[0].state, "success");
+
+  const pr = harness({ head: unrelated });
+  await run(pr);
+  assert.equal(pr.statuses[0].state, "success");
+});
+
+test("manual runs reconcile PRs without migration changes", async () => {
+  const unrelated = { ...base, "README.md": { sha: "new", mode: "100644", type: "blob", size: 3 } };
+  const h = harness({ event: "workflow_dispatch", head: unrelated });
+  await run(h);
+  assert.equal(h.statuses.length, 1);
+  assert.equal(h.statuses[0].state, "success");
+});
+
+test("main moving during a refresh does not drop later statuses", async () => {
+  const h = harness({ event: "push", pr: { labels: [] } });
+  const second = { ...structuredClone(h.pr), number: 43, head: { ...h.pr.head, sha: "head2" } };
+  const get = h.github.rest.pulls.get;
+  h.github.rest.pulls.list = async () => ({ data: [h.pr, second] });
+  h.github.rest.pulls.get = async (params) => (params.pull_number === 43 ? { data: structuredClone(second) } : get(params));
+  // A non-migration commit lands on main after the first status is published.
+  let moved = false;
+  h.github.rest.repos.getBranch = async () => ({ data: { commit: { sha: moved ? "new-main" : "main" } } });
+  const create = h.github.rest.repos.createCommitStatus;
+  h.github.rest.repos.createCommitStatus = async (status) => {
+    await create(status);
+    moved = true;
+  };
+  const getTree = h.github.rest.git.getTree;
+  const aliases = { head2: "head", "new-main": "main" };
+  h.github.rest.git.getTree = async ({ tree_sha }) => getTree({ tree_sha: aliases[tree_sha] || tree_sha });
+  await run(h);
+  assert.deepEqual(h.statuses.map(({ sha, state }) => [sha, state]), [["head", "failure"], ["head2", "failure"]]);
+  assert.ok(h.treeReads.includes("main"));
+});
+
+test("main refresh continues after one PR fails to load", async () => {
+  const h = harness({ event: "push", pr: { labels: [] } });
+  const broken = { ...makePR(), number: 41 };
+  const get = h.github.rest.pulls.get;
+  h.github.rest.pulls.list = async () => ({ data: [broken, h.pr] });
+  h.github.rest.pulls.get = async (params) => {
+    if (params.pull_number === 41) throw new Error("not found");
+    return get(params);
+  };
+  await run(h);
+  assert.ok(h.infos.includes("PR #41: not found"));
+  assert.equal(h.statuses.length, 1);
+  assert.equal(h.statuses[0].sha, "head");
+  assert.match(h.statuses[0].description, /Autofix is disabled/);
+});
 
 test("missing credentials, forks, stacks, merge conflicts and hardcoded references never edit", async () => {
   for (const options of [

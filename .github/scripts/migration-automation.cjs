@@ -27,14 +27,15 @@ async function run({ github, context, core, writer,
     }
     return pr;
   };
-  const snapshot = async (sha) => {
-    if (!cache.has(sha)) {
-      const { data } = await github.rest.git.getTree({ owner, repo, tree_sha: sha, recursive: "1" });
-      if (data.truncated) throw new Error("Git tree is truncated; cannot safely check migration numbering.");
-      cache.set(sha, Object.fromEntries(data.tree.filter((entry) => entry.type !== "tree")
-        .map((entry) => [entry.path, entry])));
-    }
-    return cache.get(sha);
+  // Only base and main trees are shared across PRs; head trees are not cached
+  // to bound memory during a main refresh.
+  const snapshot = async (sha, keep = true) => {
+    if (cache.has(sha)) return cache.get(sha);
+    const { data } = await github.rest.git.getTree({ owner, repo, tree_sha: sha, recursive: "1" });
+    if (data.truncated) throw new Error("Git tree is truncated; cannot safely check migration numbering.");
+    const tree = Object.fromEntries(data.tree.filter((entry) => entry.type !== "tree").map((entry) => [entry.path, entry]));
+    if (keep) cache.set(sha, tree);
+    return tree;
   };
   // Copied files keep a strict cap; scanned-only files may be as large as the
   // Git blobs API allows so regenerated code does not block repair.
@@ -54,12 +55,13 @@ async function run({ github, context, core, writer,
     return Buffer.from(data.content, "base64");
   };
   const allPRs = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
-  let targets;
-  if (context.eventName === "push" || context.eventName === "workflow_dispatch") {
-    targets = allPRs.filter((pr) => pr.base.ref === "main").map((pr) => pr.number);
-  } else {
-    targets = [context.payload.pull_request.number];
-  }
+  const refresh = context.eventName === "push" || context.eventName === "workflow_dispatch";
+  const targets = refresh ? allPRs.filter((pr) => pr.base.ref === "main") : [context.payload.pull_request];
+  // Only a push prefilters by changed files. A manual run reconciles every PR,
+  // including ones whose PR-event status is missing.
+  const prefilterMain = context.eventName === "push" ? await mainSha() : undefined;
+  const compare = async (main, sha) => (await github.rest.repos.compareCommitsWithBasehead({
+    owner, repo, basehead: main + "..." + sha })).data;
 
   // Statuses lead with the first numbering error so a skip reason never hides it.
   async function publish(pr, main, result, detail) {
@@ -79,17 +81,30 @@ async function run({ github, context, core, writer,
       target_url: context.serverUrl + "/" + repository + "/actions/runs/" + context.runId });
   }
 
-  for (const number of targets) {
-    let pr = await getPR(number);
-    if (pr.state !== "open" || pr.base.ref !== "main") continue;
-
-    const main = await mainSha();
+  for (const { number, head: listedHead } of targets) {
+    let pr;
+    let main;
     let result;
     try {
-      const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
-        owner, repo, basehead: main + "..." + pr.head.sha });
+      let comparison;
+      if (prefilterMain) {
+        // A PR without migration changes is unaffected by main, and its own PR
+        // event already posted a status. The compare API lists at most 300 files.
+        comparison = await compare(prefilterMain, listedHead.sha);
+        const files = comparison.files;
+        if (Array.isArray(files) && files.length < 300 && !files.some((file) =>
+          rules.relevant(file.filename) || (file.previous_filename && rules.relevant(file.previous_filename)))) {
+          continue;
+        }
+      }
+      pr = await getPR(number);
+      if (pr.state !== "open" || pr.base.ref !== "main") continue;
+      // Plan against current main so a main commit during a long refresh does
+      // not make this PR's status stale before it is published.
+      main = await mainSha();
+      if (main !== prefilterMain || listedHead.sha !== pr.head.sha) comparison = await compare(main, pr.head.sha);
       const base = await snapshot(comparison.merge_base_commit.sha);
-      const head = await snapshot(pr.head.sha);
+      const head = await snapshot(pr.head.sha, false);
       result = rules.plan(base, await snapshot(main), head);
       if (!result.affected || !result.errors.length) {
         await publish(pr, main, result);
@@ -169,9 +184,11 @@ async function run({ github, context, core, writer,
       // synchronize event evaluates the new head against current main.
     } catch (error) {
       warn("PR #" + number + ": " + error.message);
+      if (!pr || !main) continue;
       const errors = result?.errors || [];
       await publish(pr, main, { errors: [...errors, error.message], renames: result?.renames || [], unsafe: result?.unsafe },
-        errors.length ? "No automatic edit: " + error.message : undefined);
+        errors.length ? "No automatic edit: " + error.message : undefined)
+        .catch((publishError) => warn("PR #" + number + ": " + publishError.message));
     }
   }
 }
