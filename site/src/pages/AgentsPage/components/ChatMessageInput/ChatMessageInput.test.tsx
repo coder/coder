@@ -13,6 +13,7 @@ import type {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
@@ -25,6 +26,14 @@ const requiredProps = () => ({
 	disabled: false,
 	hasWorkspace: false,
 });
+
+const getRequestContent = (
+	inputRef: React.RefObject<ChatMessageInputRef | null>,
+) =>
+	buildChatInputContent({
+		message: inputRef.current?.getValue() ?? "",
+		composerParts: inputRef.current?.getContentParts() ?? [],
+	}).content;
 
 const renderWithQueryClient = (
 	children: React.ReactNode,
@@ -301,17 +310,26 @@ describe("ChatMessageInput", () => {
 			return user;
 		};
 
-		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
+		it("sends an organization skill chosen with arrow keys as a chip between text", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
 				organization: [
 					{ ...MockSkill, id: "skill-release-notes", name: "release-notes" },
 				],
 			});
-			const user = await pasteTrigger("/");
-			await screen.findByRole("option", { name: /release-notes/ });
+			const user = await pasteTrigger("Draft /");
+			await screen.findByRole("option", { name: /^\/release-notes/ });
 			await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/release-notes");
+			await user.keyboard("now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Draft " },
+				{
+					type: "skill-invocation",
+					skill_source: "org",
+					skill_name: "release-notes",
+				},
+				{ type: "text", text: " now" },
+			]);
 		});
 
 		it("ignores disabled skills when qualifying triggers", async () => {
@@ -320,27 +338,146 @@ describe("ChatMessageInput", () => {
 				organization: [{ ...mockReviewerSkill, enabled: false }],
 			});
 			const user = await pasteTrigger("/rev");
-			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
-			expect(inputRef.current?.getValue()).toBe("/reviewer");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/reviewer/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				{
+					type: "skill-invocation",
+					skill_source: "personal",
+					skill_name: "reviewer",
+				},
+			]);
+		});
+
+		it("inserts built-in commands as text", async () => {
+			const inputRef = renderWithSkills({ personal: [], organization: [] });
+			const user = await pasteTrigger("/comp");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/compact/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "/compact" },
+			]);
 		});
 
 		it("hides built-in commands when the organization list fails", async () => {
-			// With /compact hidden, Enter picks the qualified personal match.
+			// With /compact hidden, Enter picks the personal match.
 			const inputRef = renderWithSkills({
 				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			expect(getRequestContent(inputRef)).toEqual([
+				{
+					type: "skill-invocation",
+					skill_source: "personal",
+					skill_name: "compactor",
+				},
+			]);
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
 			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
 			const user = await pasteTrigger("/rev");
 			await screen.findByText(/Could not load organization skills/);
-			await user.click(screen.getByRole("option", { name: /reviewer/ }));
-			expect(inputRef.current?.getValue()).toBe("/personal/reviewer");
+			await user.click(
+				screen.getByRole("option", { name: /^\/personal\/reviewer/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				{
+					type: "skill-invocation",
+					skill_source: "personal",
+					skill_name: "reviewer",
+				},
+			]);
+		});
+	});
+
+	describe("insertSkill", () => {
+		it("focuses the editor and inserts one chip per skill at the cursor", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			await user.click(textbox);
+			await user.paste("Fix the flaky test");
+			textbox.blur();
+
+			inputRef.current?.insertSkill("project", "triage");
+			inputRef.current?.insertSkill("project", "triage");
+			inputRef.current?.insertSkill("personal", "triage");
+
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Fix the flaky test" },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{
+						type: "skill-invocation",
+						skill_source: "personal",
+						skill_name: "triage",
+					},
+				]);
+			});
+			expect(textbox).toHaveFocus();
+		});
+
+		it("restores chips from a saved draft", async () => {
+			const onChange = vi.fn();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const { unmount } = renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					onChange={onChange}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(inputRef.current).not.toBeNull();
+			});
+			inputRef.current?.insertSkill("org", "release-notes");
+			await waitFor(() => {
+				expect(onChange).toHaveBeenLastCalledWith(
+					expect.any(String),
+					expect.any(String),
+					true,
+				);
+			});
+			const [, savedEditorState] = onChange.mock.lastCall ?? [];
+			unmount();
+
+			const restoredRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={restoredRef}
+					initialEditorState={savedEditorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(restoredRef)).toEqual([
+					{
+						type: "skill-invocation",
+						skill_source: "org",
+						skill_name: "release-notes",
+					},
+				]);
+			});
 		});
 	});
 });

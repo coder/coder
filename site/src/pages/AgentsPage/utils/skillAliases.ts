@@ -18,6 +18,10 @@ export type SkillTrigger = {
 	altTriggerText: string;
 };
 
+/** Returns the source-qualified alias of a skill, such as "/project/triage". */
+export const getSkillAlias = (source: SkillSource, name: string): string =>
+	`/${source}/${name}`;
+
 /**
  * Builds every "/" trigger. Workspace skills and names in more than one
  * source (chatd's MergeSkills) are qualified, as is every trigger while any
@@ -35,7 +39,7 @@ export const resolveSkillTriggers = (
 	}
 	return lists.flatMap(({ source, skills }) =>
 		(skills ?? []).map((skill) => {
-			const qualified = `/${source}/${skill.name}`;
+			const qualified = getSkillAlias(source, skill.name);
 			const isQualified =
 				source === "workspace" ||
 				hasUnknownList ||

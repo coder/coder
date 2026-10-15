@@ -65,6 +65,10 @@ import {
 	type PasteCommandEvent,
 } from "./pasteHelpers";
 import {
+	$insertSkillInvocation,
+	SkillInvocationNode,
+} from "./SkillInvocationNode";
+import {
 	createCommandMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
@@ -375,7 +379,7 @@ const ContentChangePlugin: React.FC<{
 	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
@@ -385,22 +389,25 @@ const ContentChangePlugin: React.FC<{
 			editorState.read(() => {
 				const root = $getRoot();
 				const content = root.getTextContent();
-				let hasRefs = false;
+				let hasChips = false;
 
 				for (const child of root.getChildren()) {
 					if (!$isParagraphNode(child)) continue;
 
 					for (const node of child.getChildren()) {
-						if (node instanceof FileReferenceNode) {
-							hasRefs = true;
+						if (
+							node instanceof FileReferenceNode ||
+							node instanceof SkillInvocationNode
+						) {
+							hasChips = true;
 							break;
 						}
 					}
 
-					if (hasRefs) break;
+					if (hasChips) break;
 				}
 				const serialized = JSON.stringify(editorState.toJSON());
-				onChange(content, serialized, hasRefs);
+				onChange(content, serialized, hasChips);
 			});
 		});
 	}, [editor, onChange]);
@@ -478,16 +485,22 @@ type FileReferenceData = {
 	readonly content: string;
 };
 
+type SkillInvocationData = {
+	readonly source: SkillSource;
+	readonly name: string;
+};
+
 /**
  * A content part extracted from the Lexical editor in document order.
- * Either a text segment or a file-reference chip.
+ * Either a text segment, a file-reference chip, or a skill chip.
  */
 type EditorContentPart =
 	| { readonly type: "text"; readonly text: string }
 	| {
 			readonly type: "file-reference";
 			readonly reference: FileReferenceData;
-	  };
+	  }
+	| ({ readonly type: "skill-invocation" } & SkillInvocationData);
 
 // Mutable variant used internally while building the parts
 // array so we can append to the last text segment without
@@ -497,7 +510,10 @@ type MutableFileRefPart = {
 	type: "file-reference";
 	reference: FileReferenceData;
 };
-type MutableContentPart = MutableTextPart | MutableFileRefPart;
+type MutableContentPart =
+	| MutableTextPart
+	| MutableFileRefPart
+	| ({ type: "skill-invocation" } & SkillInvocationData);
 
 export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
@@ -511,8 +527,14 @@ export type ChatMessageInputRef = {
 	 */
 	addFileReference: (ref: FileReferenceData) => void;
 	/**
+	 * Focus the editor and insert a skill chip at the cursor, or at the
+	 * end when the editor has no selection. A skill already in the
+	 * editor is not added again.
+	 */
+	insertSkill: (source: SkillSource, name: string) => void;
+	/**
 	 * Walk the Lexical tree in document order and return interleaved
-	 * text / file-reference parts. Adjacent text nodes within the same
+	 * text and chip parts. Adjacent text nodes within the same
 	 * paragraph are merged, and paragraphs are separated by newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
@@ -533,7 +555,7 @@ type ChatMessageInputProps = Omit<
 	onChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	/** Monotonic counter to force editor remount. */
 	remountKey?: number;
@@ -706,7 +728,7 @@ const ChatMessageInput = ({
 			paragraph: "m-0",
 		},
 		onError: (error: Error) => console.error("Lexical error:", error),
-		nodes: [FileReferenceNode],
+		nodes: [FileReferenceNode, SkillInvocationNode],
 		editable: !disabled,
 	};
 	const style = {
@@ -870,7 +892,11 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(skill.triggerText);
+			if (skill.source === "command") {
+				selection.insertText(skill.triggerText);
+			} else {
+				$insertSkillInvocation(selection, skill.source, skill.name);
+			}
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
@@ -980,6 +1006,31 @@ const ChatMessageInput = ({
 					chipNode.selectNext();
 				});
 			},
+			insertSkill: (source: SkillSource, name: string) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+
+				editor.update(() => {
+					let selection = $getSelection();
+					if (!$isRangeSelection(selection)) {
+						const root = $getRoot();
+						const last = root.getLastChild() ?? $createParagraphNode();
+						if (!last.isAttached()) {
+							root.append(last);
+						}
+						last.selectEnd();
+						selection = $getSelection();
+					}
+					if ($isRangeSelection(selection)) {
+						$insertSkillInvocation(selection, source, name);
+					}
+				});
+				// Lexical restores the selection but, unlike AutoFocusPlugin,
+				// does not move DOM focus when the editor was blurred.
+				editor.focus(() => {
+					editor.getRootElement()?.focus({ preventScroll: true });
+				});
+			},
 			getContentParts: () => {
 				const editor = editorRef.current;
 				if (!editor) return [];
@@ -1018,6 +1069,12 @@ const ChatMessageInput = ({
 										endLine: node.__endLine,
 										content: node.__content,
 									},
+								});
+							} else if (node instanceof SkillInvocationNode) {
+								parts.push({
+									type: "skill-invocation",
+									source: node.__source,
+									name: node.__name,
 								});
 							} else {
 								const t = node.getTextContent();
