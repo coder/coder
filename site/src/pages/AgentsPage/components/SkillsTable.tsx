@@ -31,7 +31,7 @@ type DialogState =
 	| null;
 
 /** Builds the alert for a failed skill request, labelled by HTTP status. */
-const skillError = (
+export const skillError = (
 	error: unknown,
 	fallback: string,
 	lowerNoun: string,
@@ -59,7 +59,7 @@ const skillError = (
 };
 
 /** Downloads one skill's SKILL.md content as `<name>.md`. */
-const downloadSkillFile = async (
+export const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {
