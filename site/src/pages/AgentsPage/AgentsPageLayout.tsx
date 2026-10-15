@@ -448,6 +448,14 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				// Events missed while disconnected, such as
+				// diff_status_change, only reach the open chat's cache
+				// through a refetch.
+				const activeChatId = activeChatIdForWatch();
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+					void invalidateChatDiffContents(queryClient, activeChatId);
+				}
 			},
 		});
 	}, [queryClient]);

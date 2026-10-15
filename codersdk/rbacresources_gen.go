@@ -59,6 +59,7 @@ const (
 	ResourceWorkspaceBuildOrchestration   RBACResource = "workspace_build_orchestration"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"
 	ResourceWorkspaceProxy                RBACResource = "workspace_proxy"
+	ResourceWorkspaceSecret               RBACResource = "workspace_secret"
 )
 
 type RBACAction string
@@ -72,6 +73,7 @@ const (
 	ActionDeleteAgent        RBACAction = "delete_agent"
 	ActionRead               RBACAction = "read"
 	ActionReadPersonal       RBACAction = "read_personal"
+	ActionReadSecret         RBACAction = "read_secret"
 	ActionSSH                RBACAction = "ssh"
 	ActionShare              RBACAction = "share"
 	ActionUnassign           RBACAction = "unassign"
@@ -142,4 +144,5 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWorkspaceBuildOrchestration:   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceWorkspaceSecret:               {ActionCreate, ActionRead, ActionReadSecret, ActionUpdate},
 }

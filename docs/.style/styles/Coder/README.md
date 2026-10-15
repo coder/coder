@@ -14,6 +14,7 @@ Planned coverage:
 - Next steps vs Learn more
 - Vale substitution rule scaffold
 - Weasel words
+- Compliance-claim wording
 - Em-dash and en-dash mirror in Vale
 - Inclusive-language substitutions
 - Product-voice rules
