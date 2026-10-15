@@ -928,7 +928,10 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 			require.Equal(t, codersdk.SessionCountAppFamilies(), appInfo(), "statistics must not change registry metadata")
 
 			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{row(`{"vscode":7}`)}})
-			require.Equal(t, map[string]float64{"vscode": 7}, counts(t), "apps no longer reported must be dropped")
+			// As in the first phase, the poll waits for the counts themselves.
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				assert.Equal(c, map[string]float64{"vscode": 7}, counts(c), "apps no longer reported must be dropped")
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }
