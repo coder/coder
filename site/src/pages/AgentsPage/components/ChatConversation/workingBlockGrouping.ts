@@ -277,7 +277,6 @@ type DraftSlice = {
 	rowIndex: number;
 	start: number;
 	end: number;
-	/** The slice's ordinal among its row's work pieces. */
 	workOrdinal: number;
 };
 
@@ -446,16 +445,18 @@ export const groupWorkingBlocks = (
 			// A hidden entry, like a tool result, counts toward the block open
 			// after the previous row. With none open, a search that rendered no
 			// row counts toward the block the next row starts.
+			let draft =
+				previousRowIndex === undefined
+					? undefined
+					: openAfter[previousRowIndex];
 			const nextRowIndex =
 				previousRowIndex === undefined ? 0 : previousRowIndex + 1;
-			const draft =
-				(previousRowIndex === undefined
-					? undefined
-					: openAfter[previousRowIndex]) ??
-				(parts.some(isProviderToolResult) &&
+			if (
+				parts.some(isProviderToolResult) &&
 				rowPieces[nextRowIndex]?.pieces.at(0)?.kind === "work"
-					? pieceDrafts[nextRowIndex][0]
-					: undefined);
+			) {
+				draft = pieceDrafts[nextRowIndex][0];
+			}
 			getDraft = () => draft;
 		}
 
