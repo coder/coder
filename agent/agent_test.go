@@ -1814,11 +1814,31 @@ func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("uses POSIX parameter expansion")
 		}
-		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+		// The agent inherits the runner's environment, so hide any build ID the
+		// runner itself exports.
+		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
+		})
 		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
 		require.NoError(t, err)
 		require.Equal(t, "unset", strings.TrimSpace(string(output)))
 	})
+}
+
+// withoutEnvInfo is the system environment without one variable.
+type withoutEnvInfo struct {
+	usershell.SystemEnvInfo
+	exclude string
+}
+
+func (e withoutEnvInfo) Environ() []string {
+	var environ []string
+	for _, kv := range e.SystemEnvInfo.Environ() {
+		if !strings.HasPrefix(kv, e.exclude+"=") {
+			environ = append(environ, kv)
+		}
+	}
+	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {

@@ -6843,6 +6843,13 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Nil(t, got["build-file"].EnvReplaces)
 		require.Nil(t, got["build-other"].EnvReplaces, "disabled user secrets are never replaced")
 
+		// A site owner can list the member's live build, but the replaced user
+		// secrets are the member's, so their IDs are omitted.
+		asOwner := listBuild(client, build1.ID)
+		require.Len(t, asOwner, 4)
+		require.Nil(t, asOwner["build-token"].EnvReplaces, "the member sees this replacement, the owner must not")
+		require.Nil(t, asOwner["build-file"].FileReplaces, "the member sees this replacement, the owner must not")
+
 		// After another build, the old build's secrets are still listed, but
 		// they are cleared and replace nothing.
 		build2 := coderdtest.CreateWorkspaceBuild(t, member, coderdtest.MustWorkspace(t, member, workspace.ID), database.WorkspaceTransitionStop)
@@ -6855,9 +6862,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 			require.Nil(t, s.FileReplaces, name)
 		}
 		require.Len(t, listBuild(member, build2.ID), 3, "the ephemeral secret is not carried forward")
-
-		// An owner can list another user's build.
-		require.Len(t, listBuild(client, build2.ID), 3)
+		require.Len(t, listBuild(client, build2.ID), 3, "an owner can list another user's build")
 
 		// A build the caller cannot read is not found.
 		ownerBuild := coderdtest.CreateWorkspace(t, client, template.ID).LatestBuild

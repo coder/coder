@@ -605,9 +605,12 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 			out := output.Stdout()
 			assert.Contains(t, out, "SOURCE")
 			assert.Contains(t, out, "REPLACED BY")
-			assert.Contains(t, out, "build-token")
-			assert.Contains(t, out, "env: build/build-token")
-			assert.Contains(t, out, "env: build/API_KEY")
+			// Rows start with the name and source columns, so a build row is
+			// distinct from the user row that names it under REPLACED BY.
+			assert.Regexp(t, `(?m)^build-token\s+build\s`, out)
+			assert.Regexp(t, `(?m)^API_KEY\s+build\s`, out)
+			assert.Regexp(t, `(?m)^user-token\s+user\s.*env: build/build-token`, out)
+			assert.Regexp(t, `(?m)^API_KEY\s+user\s.*env: build/API_KEY`, out)
 			assert.NotContains(t, out, "EPHEMERAL", "ephemeral is hidden by default")
 		})
 	}
