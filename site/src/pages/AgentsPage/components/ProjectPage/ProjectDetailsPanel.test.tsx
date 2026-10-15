@@ -12,6 +12,7 @@ import type {
 	ChatProject,
 	ChatProjectInstructions,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
@@ -518,6 +519,37 @@ describe("ProjectDetailsPanel", () => {
 				"reviewer",
 			),
 		);
+	});
+
+	it("checks skill access again before opening the skills after a failure", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockRejectedValue(mockApiError({ message: "Authorization failed." }));
+		const toastError = vi.spyOn(toast, "error");
+		const { user } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(1));
+
+		// A failed retry reports the error instead of opening read-only.
+		await user.click(skillsButton);
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(2);
+
+		// A successful retry opens the skills with the user's access.
+		checkAuthorization.mockResolvedValue({ updateProject: true });
+		await user.click(skillsButton);
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		expect(checkAuthorization).toHaveBeenCalledTimes(3);
+		expect(toastError).toHaveBeenCalledTimes(1);
 	});
 
 	it("returns focus to the Skills row when the skills dialog closes", async () => {

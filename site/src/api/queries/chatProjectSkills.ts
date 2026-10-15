@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -93,6 +94,15 @@ export const deleteChatProjectSkill = (
 			exact: true,
 		});
 	},
-	// A 404 means someone else deleted it, so refresh the list then too.
-	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
+	// A 404 means someone else deleted it, so drop its details and refresh
+	// the list then too.
+	onSettled: (_data: unknown, error: unknown, name: string) => {
+		if (isAxiosError(error) && error.response?.status === 404) {
+			queryClient.removeQueries({
+				queryKey: chatProjectSkillKey(projectId, name),
+				exact: true,
+			});
+		}
+		return invalidateChatProjectSkills(queryClient, projectId);
+	},
 });

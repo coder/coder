@@ -114,6 +114,10 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {
 				description: getErrorDetail(error),
 			});
+			// Someone else deleted it, and the list refetch drops its row.
+			if (isAxiosError(error) && error.response?.status === 404) {
+				void skillsQuery.refetch();
+			}
 		},
 	});
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
