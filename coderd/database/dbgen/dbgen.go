@@ -564,7 +564,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		RxBytes:          []int64{arg.RxBytes.Int64},
 		RxBytesValid:     []bool{arg.RxBytes.Valid},
 		TxBytes:          []int64{arg.TxBytes.Int64},
-		TxBytesValid:     []bool{arg.RxBytes.Valid},
+		TxBytesValid:     []bool{arg.TxBytes.Valid},
 	})
 	require.NoError(t, err, "insert connection log")
 

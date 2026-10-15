@@ -5529,95 +5529,94 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.ErrorContains(t, err, "violates check constraint")
 	})
 
-	t.Run("ZeroPreserved", func(t *testing.T) {
+	// Test that nullable fields can properly differentiate between a value, the
+	// empty value, and null.  For null tests, specifically set a non-empty value,
+	// just as a sanity check that it properly comes back as {empty value, false}
+	// rather than {original value, false} somehow.
+	t.Run("NullableFields", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"normal"},
-			DisconnectTime:   []time.Time{now},
-			ClientSessionID:  []string{""},
-			RxBytes:          []int64{0},
-			RxBytesValid:     []bool{true},
-			TxBytes:          []int64{0},
-			TxBytesValid:     []bool{true},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
-		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
-			"code=0 should be preserved, not treated as NULL")
-		require.Equal(t, int64(0), rows[0].ConnectionLog.RxBytes.Int64,
-			"rx_bytes=0 should be preserved, not treated as NULL")
-		require.Equal(t, int64(0), rows[0].ConnectionLog.TxBytes.Int64,
-			"tx_bytes=0 should be preserved, not treated as NULL")
-	})
-
-	t.Run("NullWhenInvalid", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
-
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{99},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-			RxBytes:          []int64{22},
-			RxBytesValid:     []bool{false},
-			TxBytes:          []int64{33},
-			TxBytesValid:     []bool{false},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.False(t, rows[0].ConnectionLog.Code.Valid,
-			"code should be NULL when code_valid is false")
-		require.False(t, rows[0].ConnectionLog.RxBytes.Valid,
-			"rx_bytes should be NULL when rx_bytes_valid is false")
-		require.False(t, rows[0].ConnectionLog.TxBytes.Valid,
-			"tx_bytes should be NULL when tx_bytes_valid is false")
+		tests := []struct {
+			name string
+			seed func(*database.UpsertConnectionLogParams)
+		}{
+			{
+				name: "CodeNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 10, Valid: false}
+				},
+			},
+			{
+				name: "CodeZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 0, Valid: true}
+				},
+			},
+			{
+				name: "RxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 20, Valid: false}
+				},
+			},
+			{
+				name: "RxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+			{
+				name: "TxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 30, Valid: false}
+				},
+			},
+			{
+				name: "TxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ws := createWorkspace(t, db)
+				connID := uuid.New()
+				// Base seed has non-null and > 0 values for every field.
+				seed := database.UpsertConnectionLogParams{
+					OrganizationID:   ws.OrganizationID,
+					WorkspaceOwnerID: ws.OwnerID,
+					WorkspaceID:      ws.ID,
+					WorkspaceName:    ws.Name,
+					AgentName:        "agent",
+					ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+					UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+					UserID:           uuid.NullUUID{UUID: uuid.Nil, Valid: true},
+					ConnectionMethod: database.ConnectionLogMethodSSH,
+					AppNameOrPort:    sql.NullString{String: "test", Valid: true},
+					ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
+					DisconnectReason: sql.NullString{String: "test", Valid: true},
+					Code:             sql.NullInt32{Int32: 10, Valid: true},
+					RxBytes:          sql.NullInt64{Int64: 20, Valid: true},
+					TxBytes:          sql.NullInt64{Int64: 30, Valid: true},
+				}
+				tc.seed(&seed)
+				log := dbgen.ConnectionLog(t, db, seed)
+				if !seed.Code.Valid {
+					seed.Code.Int32 = 0
+				}
+				require.Equal(t, seed.Code, log.Code)
+				if !seed.RxBytes.Valid {
+					seed.RxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.RxBytes, log.RxBytes)
+				if !seed.TxBytes.Valid {
+					seed.TxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.TxBytes, log.TxBytes)
+			})
+		}
 	})
 
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
