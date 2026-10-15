@@ -876,8 +876,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 					return executions.GetHistogram().GetSampleCount() >= polls
 				}, testutil.WaitShort, testutil.IntervalFast)
 			}
-			counts := func() map[string]float64 {
-				t.Helper()
+			counts := func(t require.TestingT) map[string]float64 {
 				metrics, err := registry.Gather()
 				require.NoError(t, err)
 				result := map[string]float64{}
@@ -908,17 +907,23 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				row(`not-json`),
 			}})
 			expected := map[string]float64{"cursor": 5, "vscode": 1, "future_ide": 4}
-			require.Equal(t, expected, counts())
+			// The session counts are committed separately from the execution
+			// histogram that poll waits on, so the poll waits for the counts
+			// themselves. See "Wait for Full Completion before Asserting" in
+			// .claude/docs/TESTING.md.
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				assert.Equal(c, expected, counts(c))
+			}, testutil.WaitShort, testutil.IntervalFast)
 
 			poll(sessionStatsResponse{err: xerrors.New("query failed")})
-			require.Equal(t, expected, counts(), "failed query must retain the last snapshot")
+			require.Equal(t, expected, counts(t), "failed query must retain the last snapshot")
 
 			poll(sessionStatsResponse{})
-			require.Equal(t, expected, counts(), "empty window must retain the last snapshot")
+			require.Equal(t, expected, counts(t), "empty window must retain the last snapshot")
 			require.Equal(t, codersdk.SessionCountAppFamilies(), appInfo(), "statistics must not change registry metadata")
 
 			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{row(`{"vscode":7}`)}})
-			require.Equal(t, map[string]float64{"vscode": 7}, counts(), "apps no longer reported must be dropped")
+			require.Equal(t, map[string]float64{"vscode": 7}, counts(t), "apps no longer reported must be dropped")
 		})
 	}
 }
