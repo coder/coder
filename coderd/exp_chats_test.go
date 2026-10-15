@@ -9,6 +9,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -10088,6 +10089,256 @@ func TestStreamChat(t *testing.T) {
 		}
 	})
 
+	t.Run("EditedChatSyncsOnlyChangedHistory", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		_ = sendChatMessage(ctx, t, client, chat.ID, "second prompt")
+
+		newestPage := func() codersdk.ChatMessagesResponse {
+			t.Helper()
+			page, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			require.False(t, page.HasMore)
+			return page
+		}
+		lastPromptID := func(page codersdk.ChatMessagesResponse) int64 {
+			t.Helper()
+			var id int64
+			for _, m := range page.Messages {
+				if m.Role == codersdk.ChatMessageRoleUser {
+					id = max(id, m.ID)
+				}
+			}
+			require.NotZero(t, id)
+			return id
+		}
+		edit := func(messageID int64, text string) {
+			t.Helper()
+			resp, err := client.EditChatMessage(ctx, chat.ID, messageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.DeletedMessageIDs)
+		}
+		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
+			t.Helper()
+			resets := 0
+			for _, event := range events {
+				switch event.Type {
+				case codersdk.ChatStreamEventTypeHistoryReset:
+					resets++
+					require.NotNil(t, event.HistoryReset, "the reset replaced the whole history")
+					require.Equal(t, fromID, event.HistoryReset.FromMessageID)
+					require.Positive(t, event.SnapshotVersion)
+				case codersdk.ChatStreamEventTypeMessage:
+					require.GreaterOrEqual(t, event.Message.ID, fromID, "a message below the edit was resent")
+					require.Positive(t, event.SnapshotVersion)
+				}
+			}
+			require.Equal(t, 1, resets)
+		}
+		// A resume at or after a commit resends that commit's messages, which
+		// the tab holds.
+		requireOnlyResent := func(held []int64, events []codersdk.ChatStreamEvent) {
+			t.Helper()
+			for _, event := range events {
+				require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "the stream reset the history")
+				if event.Message != nil {
+					require.Contains(t, held, event.Message.ID, "the stream sent a message the tab did not hold")
+				}
+			}
+		}
+
+		// Opening a chat edited earlier must not reset the history, even though
+		// the rows the edit soft-deleted are still in the chat.
+		edit(lastPromptID(newestPage()), "edited once")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		page := newestPage()
+		live := newChatTab(page)
+		pageIDs := live.sortedIDs()
+		applied, events := live.connect(ctx, t, client, chat.ID)
+		requireOnlyResent(pageIDs, applied)
+
+		// An edit while the stream is open resets the history from the
+		// edited message.
+		stale := newChatTab(page)
+		editedID := lastPromptID(page)
+		edit(editedID, "edited twice")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		wantIDs := liveChatMessageIDs(ctx, t, client, chat.ID)
+		applied = live.applyUntil(ctx, t, events, func(codersdk.ChatStreamEvent) bool {
+			return slices.Equal(wantIDs, live.sortedIDs())
+		})
+		requireResetFrom(applied, editedID)
+
+		// Reconnecting with the highest snapshot version the tab received
+		// does not reset the history again.
+		applied, _ = live.connect(ctx, t, client, chat.ID)
+		requireOnlyResent(wantIDs, applied)
+
+		// A tab that missed the edit and then sent a message holds both the
+		// deleted messages and a newer message ID. Its reconnect must still
+		// reset the history from the edited message.
+		stale.hold(sendChatMessage(ctx, t, client, chat.ID, "sent while the stream was down")...)
+		applied, _ = stale.connect(ctx, t, client, chat.ID)
+		requireResetFrom(applied, editedID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
+
+		// A client without a snapshot version gets a full reset.
+		legacy := newChatTab(newestPage())
+		legacy.withoutSnapshotVersion = true
+		applied, _ = legacy.connect(ctx, t, client, chat.ID)
+		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, applied[0].Type)
+		require.Nil(t, applied[0].HistoryReset, "a client without snapshot_version must get the full reset")
+		for _, event := range applied {
+			require.Zero(t, event.SnapshotVersion, "a %s event carries snapshot_version on a stream opened without it", event.Type)
+		}
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
+	})
+
+	t.Run("ReconnectReceivesMessagesSentElsewhere", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		tab := newChatTab(page)
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+
+		// While this tab is not reading its stream, another tab sends a message
+		// and then this tab sends one and holds it. The other tab's message
+		// has the lower ID, so after_id alone would skip it.
+		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
+		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
+
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
+	})
+
+	t.Run("InvalidSnapshotVersionReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+
+		for _, version := range []string{"0", "-1", "abc"} {
+			res, err := client.Request(
+				ctx,
+				http.MethodGet,
+				fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%s", chat.ID, version),
+				nil,
+			)
+			require.NoError(t, err)
+			_ = res.Body.Close()
+			require.Equal(t, http.StatusBadRequest, res.StatusCode, "snapshot_version=%s", version)
+		}
+	})
+
+	t.Run("SnapshotVersionAboveChatReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%d", chat.ID, page.SnapshotVersion+100),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	// A failed setup is an HTTP error before the upgrade, not an error
+	// event a client would show as the chat's state.
+	t.Run("SetupFailureReturnsHTTPError", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name string
+			err  error
+			want int
+		}{
+			{name: "ReadFails", err: xerrors.New("read failed"), want: http.StatusInternalServerError},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				rawDB, ps := dbtestutil.NewDB(t)
+				store := &chatStreamReadFailStore{Store: rawDB, fail: &atomic.Pointer[chatStreamReadFailure]{}}
+				client := newChatClient(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
+					opts.Database = store
+					opts.Pubsub = ps
+				})
+				user := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModel(t, client)
+				chat := dbgen.Chat(t, rawDB, database.Chat{
+					OrganizationID:    user.OrganizationID,
+					OwnerID:           user.UserID,
+					LastModelConfigID: model.ID,
+					Title:             "stream setup failure",
+					Status:            database.ChatStatusWaiting,
+				})
+				store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: tt.err})
+
+				u, err := client.URL.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID))
+				require.NoError(t, err)
+				conn, res, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+					HTTPHeader: http.Header{codersdk.SessionTokenHeader: {client.SessionToken()}},
+				})
+				if conn != nil {
+					_ = conn.Close(websocket.StatusNormalClosure, "")
+				}
+				require.Error(t, err, "the stream upgraded despite the failed setup")
+				require.NotNil(t, res)
+				if res.Body != nil {
+					_ = res.Body.Close()
+				}
+				require.Equal(t, tt.want, res.StatusCode)
+			})
+		}
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -13702,6 +13953,159 @@ func seedChatWithDeletedModelConfig(
 func createChatModel(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModel {
 	t.Helper()
 	return coderdtest.CreateOpenAICompatChatModel(t, client, "")
+}
+
+func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, chatID uuid.UUID, want codersdk.ChatStatus) {
+	t.Helper()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		chat, err := client.GetChat(ctx, chatID)
+		return err == nil && chat.Status == want
+	}, testutil.IntervalFast, "chat did not reach status %s", want)
+}
+
+// chatTab models the state a web client tab keeps for one chat: the IDs
+// of the messages it holds and its snapshot version.
+type chatTab struct {
+	ids     map[int64]bool
+	version int64
+	// withoutSnapshotVersion opens the stream without snapshot_version, as
+	// clients that predate it do.
+	withoutSnapshotVersion bool
+}
+
+func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
+	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion}
+	tab.hold(page.Messages...)
+	return tab
+}
+
+func (tab *chatTab) hold(messages ...codersdk.ChatMessage) {
+	for _, m := range messages {
+		tab.ids[m.ID] = true
+	}
+}
+
+func (tab *chatTab) sortedIDs() []int64 {
+	return slices.Sorted(maps.Keys(tab.ids))
+}
+
+// connect opens the stream with the tab's newest message ID and snapshot
+// version, and applies events through the status event, which every initial
+// sync sends after its versioned events.
+func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
+	t.Helper()
+	afterID := slices.Max(append(tab.sortedIDs(), 0))
+	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
+	if !tab.withoutSnapshotVersion {
+		opts.SnapshotVersion = tab.version
+	}
+	events, closer, err := client.StreamChat(ctx, chatID, opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = closer.Close() })
+	applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+		return event.Type == codersdk.ChatStreamEventTypeStatus
+	})
+	return applied, events
+}
+
+// applyUntil applies stream events to the tab until done reports true
+// after an event.
+func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent, done func(codersdk.ChatStreamEvent) bool) []codersdk.ChatStreamEvent {
+	t.Helper()
+	var applied []codersdk.ChatStreamEvent
+	progress := func() string {
+		types := make([]codersdk.ChatStreamEventType, 0, len(applied))
+		for _, event := range applied {
+			types = append(types, event.Type)
+		}
+		return fmt.Sprintf("applied %v, snapshot version %d", types, tab.version)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out applying stream events", progress())
+		case event, ok := <-events:
+			if !ok {
+				require.FailNow(t, "stream closed early", progress())
+			}
+			applied = append(applied, event)
+			tab.version = max(tab.version, event.SnapshotVersion)
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeHistoryReset:
+				var fromID int64
+				if event.HistoryReset != nil {
+					fromID = event.HistoryReset.FromMessageID
+				}
+				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
+			case codersdk.ChatStreamEventTypeMessage:
+				tab.hold(*event.Message)
+			}
+			if done(event) {
+				return applied
+			}
+		}
+	}
+}
+
+// sendChatMessage sends text, waits for the chat to return to waiting,
+// and returns the messages in the response.
+func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID, text string) []codersdk.ChatMessage {
+	t.Helper()
+	resp, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+	waitForChatStatus(ctx, t, client, chatID, codersdk.ChatStatusWaiting)
+	if len(resp.Messages) > 0 {
+		return resp.Messages
+	}
+	require.NotNil(t, resp.Message)
+	return []codersdk.ChatMessage{*resp.Message}
+}
+
+func liveChatMessageIDs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) []int64 {
+	t.Helper()
+	page, err := client.GetChatMessages(ctx, chatID, nil)
+	require.NoError(t, err)
+	require.False(t, page.HasMore)
+	ids := make([]int64, 0, len(page.Messages))
+	for _, m := range page.Messages {
+		ids = append(ids, m.ID)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// chatStreamReadFailStore fails reads of one chat inside transactions, so
+// the stream's first sync fails while the route's read, outside one,
+// succeeds.
+type chatStreamReadFailStore struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+type chatStreamReadFailure struct {
+	chatID uuid.UUID
+	err    error
+}
+
+func (s *chatStreamReadFailStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&chatStreamReadFailTx{Store: tx, fail: s.fail})
+	}, txOpts)
+}
+
+type chatStreamReadFailTx struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+func (s *chatStreamReadFailTx) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if failure := s.fail.Load(); failure != nil && failure.chatID == id {
+		return database.Chat{}, failure.err
+	}
+	return s.Store.GetChatByID(ctx, id)
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {
@@ -18163,6 +18567,31 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			got[i] = m.ID
 		}
 		require.Equal(t, want, got)
+	})
+
+	t.Run("SnapshotVersionOnlyOnUncursoredPage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 4)
+
+		newest, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Positive(t, newest.SnapshotVersion)
+
+		for name, opts := range map[string]*codersdk.ChatMessagesPaginationOptions{
+			"before_id": {BeforeID: ids[2]},
+			"after_id":  {AfterID: ids[0], Limit: 1},
+		} {
+			resp, err := client.GetChatMessages(ctx, chat.ID, opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Messages, name)
+			require.Zero(t, resp.SnapshotVersion, "%s page must not carry snapshot_version", name)
+		}
 	})
 
 	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {

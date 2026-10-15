@@ -1,8 +1,10 @@
 package chatd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -96,7 +98,7 @@ func TestStreamLoopMessageSyncAfterIDAndEdits(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.New()
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 1)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 1, 0)
 	initial := streamDBSnapshot{
 		chat: database.Chat{
 			ID:              chatID,
@@ -171,7 +173,7 @@ func TestStreamLoopQueuedMessageLink(t *testing.T) {
 
 	t.Run("live sync with two promotions", func(t *testing.T) {
 		t.Parallel()
-		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 		events := loop.applyDBSnapshot(streamDBSnapshot{
 			chat: database.Chat{
 				ID:              chatID,
@@ -198,7 +200,7 @@ func TestStreamLoopQueuedMessageLink(t *testing.T) {
 
 	t.Run("after_id replay", func(t *testing.T) {
 		t.Parallel()
-		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), seen.ID)
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), seen.ID, 0)
 		events := loop.applyDBSnapshot(streamDBSnapshot{
 			chat: database.Chat{
 				ID:              chatID,
@@ -213,7 +215,7 @@ func TestStreamLoopQueuedMessageLink(t *testing.T) {
 
 	t.Run("history_reset replay", func(t *testing.T) {
 		t.Parallel()
-		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 		loop.state.snapshotVersion = 1
 		loop.state.historyVersion = 1
 		loop.state.status = database.ChatStatusRunning
@@ -241,7 +243,7 @@ func TestStreamLoopHistoryReset(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.New()
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 	loop.state.snapshotVersion = 1
 	loop.state.historyVersion = 1
 	loop.state.status = database.ChatStatusRunning
@@ -285,7 +287,7 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 	errorRaw, err := json.Marshal(chatError)
 	require.NoError(t, err)
 
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 	loop.state.snapshotVersion = 1
 	loop.state.historyVersion = 1
 	loop.state.queueVersion = 1
@@ -319,7 +321,7 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 	)
 	require.Equal(t, chatError.Message, events[2].Error.Message)
 
-	retryLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	retryLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 	retryEvents := retryLoop.applyDBSnapshot(streamDBSnapshot{
 		chat: database.Chat{
 			ID:                chatID,
@@ -338,7 +340,7 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 	)
 	require.Equal(t, retry.Attempt, retryEvents[1].Retry.Attempt)
 
-	actionLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	actionLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 	actionEvents := actionLoop.applyDBSnapshot(streamDBSnapshot{
 		chat: database.Chat{
 			ID:              chatID,
@@ -368,7 +370,7 @@ func TestStreamLoopActionRequiredFromHistory(t *testing.T) {
 		ToolName:   "browser",
 		Args:       json.RawMessage(`{"url":"https://example.com"}`),
 	}}, false)
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
 	action, err := loop.actionRequiredFromHistory(database.Chat{
 		ID:           chatID,
 		DynamicTools: pqtype.NullRawMessage{RawMessage: toolDefs, Valid: true},
@@ -383,7 +385,7 @@ func TestStreamLoopPartValidation(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.New()
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), 0, 0)
 	loop.state.historyVersion = 7
 	loop.state.generationAttempt = 3
 
@@ -417,7 +419,7 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
-	loop := newStreamLoop(database.Chat{ID: chatID}, db, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(database.Chat{ID: chatID}, db, slogtest.Make(t, nil), 0, 0)
 	loop.state.snapshotVersion = 1
 	loop.state.status = database.ChatStatusRunning
 
@@ -435,6 +437,315 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	require.True(t, changed)
 	requireEventTypes(t, events, codersdk.ChatStreamEventTypeStatus)
 	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
+}
+
+// streamStore is the chat state a stream loop reads in one sync.
+type streamStore struct {
+	chat  database.Chat
+	rows  []database.ChatMessage
+	queue []database.ChatQueuedMessage
+}
+
+// syncAgainst runs one syncDB of loop against a mock store holding s.
+func syncAgainst(t *testing.T, loop *streamLoop, s streamStore) []codersdk.ChatStreamEvent {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	loop.db = db
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
+	)
+	tx.EXPECT().GetChatByID(gomock.Any(), s.chat.ID).Return(s.chat, nil)
+	tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.GetChatMessagesByRevisionForStreamParams) ([]database.ChatMessage, error) {
+			var changed []database.ChatMessage
+			for _, row := range s.rows {
+				if row.Revision > params.AfterRevision {
+					changed = append(changed, row)
+				}
+			}
+			return changed, nil
+		},
+	).AnyTimes()
+	tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
+			var live []database.ChatMessage
+			for _, row := range s.rows {
+				if !row.Deleted && row.ID > params.AfterID {
+					live = append(live, row)
+				}
+			}
+			return live, nil
+		},
+	).AnyTimes()
+	tx.EXPECT().GetChatQueuedMessages(gomock.Any(), s.chat.ID).Return(s.queue, nil).AnyTimes()
+
+	events, _, changed, err := loop.syncDB(ctx)
+	require.NoError(t, err)
+	require.True(t, changed)
+	return events
+}
+
+// streamEvent is the part of a stream event the snapshot version tests
+// check. id is the message ID of a message event and the from_message_id
+// of a history_reset.
+type streamEvent struct {
+	typ             codersdk.ChatStreamEventType
+	id              int64
+	snapshotVersion int64
+}
+
+func summarizeStreamEvents(events []codersdk.ChatStreamEvent) []streamEvent {
+	summary := make([]streamEvent, 0, len(events))
+	for _, event := range events {
+		e := streamEvent{typ: event.Type, snapshotVersion: event.SnapshotVersion}
+		switch {
+		case event.Message != nil:
+			e.id = event.Message.ID
+		case event.HistoryReset != nil:
+			e.id = event.HistoryReset.FromMessageID
+		}
+		summary = append(summary, e)
+	}
+	return summary
+}
+
+// applyStreamEvents returns the message IDs a client holding held has
+// after it applies events.
+func applyStreamEvents(held []int64, events []codersdk.ChatStreamEvent) []int64 {
+	ids := slices.Clone(held)
+	for _, event := range events {
+		switch event.Type {
+		case codersdk.ChatStreamEventTypeHistoryReset:
+			var from int64
+			if event.HistoryReset != nil {
+				from = event.HistoryReset.FromMessageID
+			}
+			ids = slices.DeleteFunc(ids, func(id int64) bool { return id >= from })
+		case codersdk.ChatStreamEventTypeMessage:
+			if !slices.Contains(ids, event.Message.ID) {
+				ids = append(ids, event.Message.ID)
+			}
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+func TestStreamLoopSnapshotVersion(t *testing.T) {
+	t.Parallel()
+
+	// Commits 1 to 4 write messages 1 to 4. Commit 5 edits message 3: it
+	// deletes 3 and 4 and writes 5. Commit 6 writes 6 and commit 7 queues a
+	// message. Commit 8 edits message 5: it deletes 5 and 6, writes 7 and
+	// clears the queue. Commit 9 writes 8 and commit 10 only ends the turn.
+	chatID := uuid.New()
+	msg := func(id, revision int64, deleted bool) database.ChatMessage {
+		role := database.ChatMessageRoleUser
+		if id%2 == 0 {
+			role = database.ChatMessageRoleAssistant
+		}
+		return streamMessage(t, chatID, id, revision, role, "text", deleted)
+	}
+	store := streamStore{
+		chat: database.Chat{
+			ID:              chatID,
+			Status:          database.ChatStatusWaiting,
+			SnapshotVersion: 10,
+			HistoryVersion:  9,
+			QueueVersion:    8,
+		},
+		rows: []database.ChatMessage{
+			msg(1, 1, false), msg(2, 2, false), msg(3, 5, true), msg(4, 5, true),
+			msg(5, 8, true), msg(6, 8, true), msg(7, 8, false), msg(8, 9, false),
+		},
+		queue: []database.ChatQueuedMessage{},
+	}
+	live := []int64{1, 2, 7, 8}
+	status := streamEvent{typ: codersdk.ChatStreamEventTypeStatus}
+	previewReset := streamEvent{typ: codersdk.ChatStreamEventTypePreviewReset}
+
+	for _, tt := range []struct {
+		name                     string
+		afterID, snapshotVersion int64
+		// held is the message IDs the client holds at the cursor.
+		held []int64
+		want []streamEvent
+	}{
+		{
+			name:    "resume across two edits",
+			afterID: 4, snapshotVersion: 4,
+			held: []int64{1, 2, 3, 4},
+			want: []streamEvent{
+				{codersdk.ChatStreamEventTypeHistoryReset, 3, 5},
+				{codersdk.ChatStreamEventTypeHistoryReset, 5, 8},
+				{codersdk.ChatStreamEventTypeMessage, 7, 8},
+				{codersdk.ChatStreamEventTypeQueueUpdate, 0, 8},
+				{codersdk.ChatStreamEventTypeMessage, 8, 9},
+				status,
+				previewReset,
+			},
+		},
+		{
+			// The client can have dropped the connection after the reset of
+			// commit 8, before its message and queue.
+			name:            "resume at an edit resends the edit",
+			snapshotVersion: 8,
+			held:            []int64{1, 2},
+			want: []streamEvent{
+				{codersdk.ChatStreamEventTypeHistoryReset, 5, 8},
+				{codersdk.ChatStreamEventTypeMessage, 7, 8},
+				{codersdk.ChatStreamEventTypeQueueUpdate, 0, 8},
+				{codersdk.ChatStreamEventTypeMessage, 8, 9},
+				status,
+				previewReset,
+			},
+		},
+		{
+			name:            "resume at a message resends it",
+			snapshotVersion: 9,
+			held:            []int64{1, 2, 7},
+			want: []streamEvent{
+				{codersdk.ChatStreamEventTypeMessage, 8, 9},
+				status,
+				previewReset,
+			},
+		},
+		{
+			name:            "resume at a commit without versioned changes",
+			snapshotVersion: 10,
+			held:            live,
+			want:            []streamEvent{status},
+		},
+		{
+			name:    "without a snapshot version",
+			afterID: 8,
+			held:    []int64{1, 2, 3, 4, 8},
+			want: []streamEvent{
+				{typ: codersdk.ChatStreamEventTypeHistoryReset},
+				{codersdk.ChatStreamEventTypeMessage, 1, 0},
+				{codersdk.ChatStreamEventTypeMessage, 2, 0},
+				{codersdk.ChatStreamEventTypeMessage, 7, 0},
+				{codersdk.ChatStreamEventTypeMessage, 8, 0},
+				{typ: codersdk.ChatStreamEventTypeQueueUpdate},
+				status,
+				previewReset,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), tt.afterID, tt.snapshotVersion)
+			events := syncAgainst(t, loop, store)
+			require.Equal(t, tt.want, summarizeStreamEvents(events))
+			require.Equal(t, live, applyStreamEvents(tt.held, events))
+		})
+	}
+}
+
+// TestStreamLoopSnapshotVersionOrder checks that a sync covering a queue
+// change and a later message sends them in snapshot version order, so a
+// client that resumes from the message's version has the queue change.
+func TestStreamLoopSnapshotVersionOrder(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	prompt := streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "prompt", false)
+	store := streamStore{
+		chat: database.Chat{ID: chatID, Status: database.ChatStatusRunning, SnapshotVersion: 1, HistoryVersion: 1},
+		rows: []database.ChatMessage{prompt},
+	}
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 1)
+	require.Equal(t, []streamEvent{
+		{codersdk.ChatStreamEventTypeMessage, 1, 1},
+		{typ: codersdk.ChatStreamEventTypeStatus},
+		{typ: codersdk.ChatStreamEventTypePreviewReset},
+	}, summarizeStreamEvents(syncAgainst(t, loop, store)))
+
+	// Commit 2 queues a message and commit 3 writes a step, and one sync
+	// reads both.
+	store.chat.SnapshotVersion, store.chat.QueueVersion, store.chat.HistoryVersion = 3, 2, 3
+	store.rows = append(store.rows, streamMessage(t, chatID, 2, 3, database.ChatMessageRoleAssistant, "step", false))
+	store.queue = []database.ChatQueuedMessage{{ID: 10, ChatID: chatID}}
+	require.Equal(t, []streamEvent{
+		{codersdk.ChatStreamEventTypeQueueUpdate, 0, 2},
+		{codersdk.ChatStreamEventTypeMessage, 2, 3},
+		{typ: codersdk.ChatStreamEventTypePreviewReset},
+	}, summarizeStreamEvents(syncAgainst(t, loop, store)))
+
+	// A stream without a snapshot version keeps the message first.
+	plain := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
+	plain.state.snapshotVersion, plain.state.historyVersion, plain.state.queueVersion = 1, 1, 1
+	plain.state.status = database.ChatStatusRunning
+	require.Equal(t, []streamEvent{
+		{codersdk.ChatStreamEventTypeMessage, 2, 0},
+		{typ: codersdk.ChatStreamEventTypeQueueUpdate},
+		{typ: codersdk.ChatStreamEventTypePreviewReset},
+	}, summarizeStreamEvents(syncAgainst(t, plain, store)))
+}
+
+// TestStreamLoopSnapshotVersionTurnEvents checks that a stream opened with
+// a snapshot version sends the same turn events as one opened without.
+func TestStreamLoopSnapshotVersionTurnEvents(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	retryRaw, err := json.Marshal(codersdk.ChatStreamRetry{Attempt: 2, DelayMs: 100, Error: "retrying", RetryingAt: time.Now()})
+	require.NoError(t, err)
+	errorRaw, err := json.Marshal(codersdk.ChatError{Message: "provider failed", Kind: codersdk.ChatErrorKindConfig})
+	require.NoError(t, err)
+	action := &codersdk.ChatStreamActionRequired{ToolCalls: []codersdk.ChatStreamToolCall{{ToolCallID: "call-1", ToolName: "browser"}}}
+
+	for _, tt := range []struct {
+		name     string
+		snapshot streamDBSnapshot
+		want     []codersdk.ChatStreamEventType
+	}{
+		{
+			name: "error",
+			snapshot: streamDBSnapshot{chat: database.Chat{
+				Status:    database.ChatStatusError,
+				LastError: pqtype.NullRawMessage{RawMessage: errorRaw, Valid: true},
+			}},
+			want: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeError},
+		},
+		{
+			name: "retry",
+			snapshot: streamDBSnapshot{chat: database.Chat{
+				Status:            database.ChatStatusRunning,
+				GenerationAttempt: 2,
+				RetryStateVersion: 3,
+				RetryState:        pqtype.NullRawMessage{RawMessage: retryRaw, Valid: true},
+			}},
+			want: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeRetry, codersdk.ChatStreamEventTypePreviewReset},
+		},
+		{
+			name: "requires_action",
+			snapshot: streamDBSnapshot{
+				chat:           database.Chat{Status: database.ChatStatusRequiresAction},
+				actionRequired: action,
+			},
+			want: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeActionRequired},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.snapshot.chat.ID = chatID
+			tt.snapshot.chat.SnapshotVersion = 4
+			tt.snapshot.chat.HistoryVersion = 2
+
+			// Both clients hold the history.
+			plain := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 0)
+			plain.state.historyVersion = 2
+			want := plain.applyDBSnapshot(tt.snapshot)
+			requireEventTypes(t, want, tt.want...)
+
+			versioned := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0, 3)
+			require.Equal(t, want, versioned.applyDBSnapshot(tt.snapshot))
+		})
+	}
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {

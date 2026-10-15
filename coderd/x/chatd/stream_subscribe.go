@@ -26,6 +26,7 @@ func (p *Server) subscribeStreamLoop(
 	chat database.Chat,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), bool) {
 	if p == nil || p.db == nil || p.pubsub == nil {
 		return nil, nil, nil, false
@@ -55,11 +56,11 @@ func (p *Server) subscribeStreamLoop(
 	if err != nil {
 		logger.Warn(ctx, "failed to subscribe to chat state updates", slog.Error(err))
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to subscribe to chat updates")
+		return nil, nil, nil, false
 	}
 
 	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
-	loop := newStreamLoop(chat, p.db, logger, afterMessageID)
+	loop := newStreamLoop(chat, p.db, logger, afterMessageID, snapshotVersion)
 	// The immediate sync builds the initial snapshot returned to the caller
 	// and the relay target for the forwarder. Hints only fire on state
 	// changes, so without it an idle chat would never deliver a snapshot and
@@ -71,7 +72,7 @@ func (p *Server) subscribeStreamLoop(
 		unregisterPoller()
 		pubsubCancel()
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, false
 	}
 
 	relay := newStreamRelayForwarder(
@@ -215,6 +216,7 @@ func (p *Server) Subscribe(
 	chatID uuid.UUID,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -234,9 +236,9 @@ func (p *Server) Subscribe(
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, false
 	}
-	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID)
+	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID, snapshotVersion)
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
@@ -245,11 +247,12 @@ func (p *Server) SubscribeAuthorized(
 	chat database.Chat,
 	requestHeader http.Header,
 	afterMessageID int64,
+	snapshotVersion int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
 	bool,
 ) {
-	return p.subscribeStreamLoop(ctx, chat, requestHeader, afterMessageID)
+	return p.subscribeStreamLoop(ctx, chat, requestHeader, afterMessageID, snapshotVersion)
 }

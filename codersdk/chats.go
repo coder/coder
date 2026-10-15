@@ -993,6 +993,12 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
+	// SnapshotVersion is the chat's snapshot_version, read before the rest
+	// of this page. The page can hold changes made after it; a stream opened
+	// with it sends them again. Pass it as the stream's snapshot_version
+	// parameter. It is set only on pages requested without before_id or
+	// after_id.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -2213,6 +2219,22 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	// HistoryReset is set on history_reset events of streams opened with a
+	// snapshot_version.
+	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// SnapshotVersion is set on the message, queue_update and history_reset
+	// events of streams opened with a snapshot_version. It is the snapshot
+	// version of the commit that made the change. A client reconnects with
+	// the highest one it has received.
+	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
+}
+
+// ChatStreamHistoryReset describes which messages a history_reset removes.
+type ChatStreamHistoryReset struct {
+	// FromMessageID is the lowest message ID the edit removed. The client
+	// drops its messages with this ID or higher. Only messages written by
+	// the edit or a later commit follow.
+	FromMessageID int64 `json:"from_message_id"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3179,6 +3201,14 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
+	// SnapshotVersion is the snapshot version of the caller's state: the
+	// one from ChatMessagesResponse, or the highest one from the stream's
+	// events. When it is set, the stream sends the changes made at or after
+	// it, the server ignores AfterID, and message, queue_update and
+	// history_reset events carry ChatStreamEvent.SnapshotVersion. When it is
+	// zero, every connection to a chat with a deleted message resends the
+	// whole history.
+	SnapshotVersion int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -3188,8 +3218,17 @@ type StreamChatOptions struct {
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
-	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	if opts != nil {
+		query := url.Values{}
+		if opts.AfterID != nil {
+			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+		}
+		if opts.SnapshotVersion > 0 {
+			query.Set("snapshot_version", strconv.FormatInt(opts.SnapshotVersion, 10))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
 	}
 
 	conn, err := c.Dial(

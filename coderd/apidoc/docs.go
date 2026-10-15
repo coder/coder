@@ -4309,6 +4309,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
+                "description": "Each WebSocket message is a JSON array of events.\n\nThe server increases a chat's ` + "`" + `snapshot_version` + "`" + ` by 1 each time it commits a change to the chat.\nEach change has the ` + "`" + `snapshot_version` + "`" + ` of the commit that made it.\nThe newest messages page, which ` + "`" + `GET /api/v2/chats/{chat}/messages` + "`" + ` returns when you set neither ` + "`" + `before_id` + "`" + ` nor ` + "`" + `after_id` + "`" + `, includes the chat's ` + "`" + `snapshot_version` + "`" + `.\nPages that you request with ` + "`" + `before_id` + "`" + ` or ` + "`" + `after_id` + "`" + ` don't include ` + "`" + `snapshot_version` + "`" + `.\nThe server reads ` + "`" + `snapshot_version` + "`" + ` before it reads the messages and the queue.\nA change that the server commits between those reads is in the page, and the stream sends that change again.\n\nThe server reads the chat when the stream opens and each time the chat changes.\nEach read sends the changes since the previous read.\nWhen you set ` + "`" + `snapshot_version` + "`" + ` to a value ` + "`" + `S` + "`" + `, the first read sends every change with a ` + "`" + `snapshot_version` + "`" + ` of ` + "`" + `S` + "`" + ` or greater:\n\n- A ` + "`" + `message` + "`" + ` event for each message that is not deleted.\n- A ` + "`" + `history_reset` + "`" + ` event for each edit.\n- A ` + "`" + `queue_update` + "`" + ` event, if the queue changed.\n\nThe server ignores ` + "`" + `after_id` + "`" + ` when you set ` + "`" + `snapshot_version` + "`" + `.\nThe server returns ` + "`" + `400 Bad Request` + "`" + ` when ` + "`" + `snapshot_version` + "`" + ` is not an integer, is less than 1, or is greater than the chat's ` + "`" + `snapshot_version` + "`" + `.\n\nOn a stream that you open with ` + "`" + `snapshot_version` + "`" + `, the ` + "`" + `message` + "`" + `, ` + "`" + `queue_update` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events include ` + "`" + `snapshot_version` + "`" + `.\nEach read sends these events in order of ` + "`" + `snapshot_version` + "`" + `.\nWithin one ` + "`" + `snapshot_version` + "`" + `, the read sends the ` + "`" + `history_reset` + "`" + ` event first, then the ` + "`" + `message` + "`" + ` events in order of message ID, then the ` + "`" + `queue_update` + "`" + ` event.\nThe ` + "`" + `status` + "`" + `, ` + "`" + `error` + "`" + `, ` + "`" + `action_required` + "`" + `, ` + "`" + `retry` + "`" + `, and ` + "`" + `preview_reset` + "`" + ` events of the read come after them.\nThe server sends ` + "`" + `message_part` + "`" + ` events between reads.\n\nA ` + "`" + `history_reset` + "`" + ` event on such a stream includes ` + "`" + `history_reset.from_message_id` + "`" + `, the lowest message ID that the edit removed.\nThe edit removed every message with that ID or higher.\nThe edit or a later commit wrote each message with that ID or higher that isn't deleted, so the stream sends each of those messages in a ` + "`" + `message` + "`" + ` event after the ` + "`" + `history_reset` + "`" + ` event.\n\nOn each new connection, the server sends the chat's current status again.\nWhen the chat has an error, a pending retry, or pending tool calls, the server also sends the ` + "`" + `error` + "`" + `, ` + "`" + `retry` + "`" + `, or ` + "`" + `action_required` + "`" + ` event again.\nThe server then sends the ` + "`" + `message_part` + "`" + ` events of the reply in progress again, from its first part.\n\nWhen you don't set ` + "`" + `snapshot_version` + "`" + `, the events don't include ` + "`" + `snapshot_version` + "`" + `, and ` + "`" + `history_reset` + "`" + ` events don't include ` + "`" + `from_message_id` + "`" + `.\nAfter a ` + "`" + `history_reset` + "`" + ` event, the server sends every message in the chat as ` + "`" + `message` + "`" + ` events.\nThe server sends this ` + "`" + `history_reset` + "`" + ` event and the whole history on each connection to a chat with a message that an edit removed, even when you set ` + "`" + `after_id` + "`" + `.\n\nWhen the server can't subscribe to the chat or read it, the server returns ` + "`" + `500 Internal Server Error` + "`" + ` and doesn't open the WebSocket connection.",
                 "produces": [
                     "application/json"
                 ],
@@ -4328,8 +4329,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Send the changes with this snapshot version or a later one",
+                        "name": "snapshot_version",
                         "in": "query"
                     }
                 ],
@@ -22027,6 +22034,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                     }
                 },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot_version, read before the rest\nof this page. The page can hold changes made after it; a stream opened\nwith it sends them again. Pass it as the stream's snapshot_version\nparameter. It is set only on pages requested without before_id or\nafter_id.",
+                    "type": "integer"
+                },
                 "turn_start_id": {
                     "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
                     "type": "integer"
@@ -22886,6 +22897,14 @@ const docTemplate = `{
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
+                "history_reset": {
+                    "description": "HistoryReset is set on history_reset events of streams opened with a\nsnapshot_version.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+                        }
+                    ]
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -22900,6 +22919,10 @@ const docTemplate = `{
                 },
                 "retry": {
                     "$ref": "#/definitions/codersdk.ChatStreamRetry"
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is set on the message, queue_update and history_reset\nevents of streams opened with a snapshot_version. It is the snapshot\nversion of the commit that made the change. A client reconnects with\nthe highest one it has received.",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStreamStatus"
@@ -22933,6 +22956,15 @@ const docTemplate = `{
                 "ChatStreamEventTypePreviewReset",
                 "ChatStreamEventTypeHistoryReset"
             ]
+        },
+        "codersdk.ChatStreamHistoryReset": {
+            "type": "object",
+            "properties": {
+                "from_message_id": {
+                    "description": "FromMessageID is the lowest message ID the edit removed. The client\ndrops its messages with this ID or higher. Only messages written by\nthe edit or a later commit follow.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
