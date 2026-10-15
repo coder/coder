@@ -12,7 +12,7 @@ children:
     description: Build conditional, identity-aware template forms with Coder's dynamic parameters.
     path: ./admin/templates/extending-templates/dynamic-parameters.md
   - title: Prebuilt workspaces
-    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters
+    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters.
     path: ./admin/templates/extending-templates/prebuilt-workspaces.md
     state: [premium]
   - title: Icons
