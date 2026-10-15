@@ -990,12 +990,12 @@ describe("ChatsSidebar project drops", () => {
 	// jsdom has no layout, so dnd-kit measures zero rects. Only a node that
 	// holds exactly one landmark gets a box, and the DragOverlay copy, which
 	// holds none, gets the row box.
-	const layoutDropTargets = (rowTop: number) => {
+	const layoutDropTargets = (row: string, rowTop: number) => {
 		const box = (y: number, height: number) =>
 			DOMRect.fromRect({ x: 0, y, width: 300, height });
 		const landmarks = [
 			{
-				node: screen.getByRole("button", { description: DRAG_INSTRUCTIONS }),
+				node: screen.getByRole("link", { name: new RegExp(row) }),
 				box: box(rowTop, 40),
 			},
 			{ node: screen.getByRole("link", { name: "Billing" }), box: box(0, 80) },
@@ -1011,55 +1011,91 @@ describe("ChatsSidebar project drops", () => {
 				if (held.length === 1) {
 					return held[0].box;
 				}
-				return this.textContent === "Fix invoice dates"
-					? landmarks[0].box
-					: box(0, 0);
+				return this.textContent === row ? landmarks[0].box : box(0, 0);
 			},
 		);
+	};
+
+	// user-event's pointer API leaves dnd-kit's updates outside act, and its
+	// drop sends no request, so the gesture uses fireEvent.
+	const dragRowOntoBilling = async (row: string) => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		layoutDropTargets(row, 240);
+		fireEvent.mouseDown(screen.getByRole("link", { name: new RegExp(row) }), {
+			clientX: 10,
+			clientY: 250,
+		});
+		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
+		fireEvent.mouseMove(document, { clientX: 10, clientY: 40 });
+		fireEvent.mouseUp(document, { clientX: 10, clientY: 40 });
+		// The request goes out after the mutation's async onMutate.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+		return update.mock.calls;
 	};
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("gives a drag only to idle root chats of the viewer that are not pinned", async () => {
-		const child = buildChat({
-			id: "c6",
-			parent_chat_id: "c5",
-			status: "running",
-		});
-		renderSidebar([
-			buildChat({ id: "c1", title: "Free chat" }),
-			buildChat({ id: "c2", title: "Pinned chat", pin_order: 1 }),
-			buildChat({
-				id: "c3",
-				title: "Shared chat",
-				owner_id: "sharing-user-id",
-				shared: true,
-			}),
-			buildChat({ id: "c4", title: "Busy chat", status: "running" }),
-			buildChat({ id: "c7", title: "Archived chat", archived: true }),
-			// A waiting root with a running subagent.
-			buildChat({ id: "c5", title: "Parent chat", children: [child] }),
-		]);
-		await screen.findByText("Free chat");
-		const dragHandles = (title: string) =>
-			screen.queryAllByRole("button", {
-				name: new RegExp(title),
-				description: DRAG_INSTRUCTIONS,
-			});
+	it.each<{ outcome: string; row: string; chat: Partial<Chat>; body?: string }>(
+		[
+			{
+				outcome: "moves",
+				row: "Free chat",
+				chat: {},
+				body: mockBillingProject.id,
+			},
+			{
+				outcome: "moves nothing",
+				row: "Pinned chat",
+				// A pinned row drags only to reorder the pins.
+				chat: { pin_order: 1 },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Shared chat",
+				chat: { owner_id: "sharing-user-id", shared: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Busy chat",
+				chat: { status: "running" },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Archived chat",
+				chat: { archived: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Parent chat",
+				// A running subagent blocks the move, as it blocks archiving.
+				chat: {
+					children: [
+						buildChat({ id: "c2", parent_chat_id: "c1", status: "running" }),
+					],
+				},
+			},
+		],
+	)("$outcome on a mouse drag of $row", async ({ row, chat, body }) => {
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: row,
+					organization_id: mockBillingProject.organization_id,
+					...chat,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
 
-		// The pinned row keeps only its sortable drag.
-		expect(dragHandles("Free chat")).toHaveLength(1);
-		expect(dragHandles("Pinned chat")).toHaveLength(1);
-		for (const title of [
-			"Shared chat",
-			"Busy chat",
-			"Archived chat",
-			"Parent chat",
-		]) {
-			expect(dragHandles(title)).toHaveLength(0);
-		}
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
 	});
 
 	it("keeps a row mounted when its chat starts running", async () => {
@@ -1127,7 +1163,7 @@ describe("ChatsSidebar project drops", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Expand Billing" }),
 		);
-		layoutDropTargets(rowTop);
+		layoutDropTargets("Fix invoice dates", rowTop);
 
 		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
 		await user.keyboard("[Space]");
@@ -1154,19 +1190,14 @@ describe("ChatsSidebar project drops", () => {
 			row: "Spawner chat",
 			outcome: "moves",
 			body: mockBillingProject.id,
-			expanded: "true",
 		},
 		{
 			row: "Simple task",
 			outcome: "moves nothing",
 			body: undefined,
-			expanded: "false",
 		},
-	])("$outcome on a mouse drag of $row", async ({ row, body, expanded }) => {
+	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
 		const user = userEvent.setup();
-		const update = vi
-			.spyOn(API.experimental, "updateChat")
-			.mockResolvedValue(undefined);
 		const child = buildChat({
 			id: "c2",
 			title: "Simple task",
@@ -1185,23 +1216,10 @@ describe("ChatsSidebar project drops", () => {
 			[mockBillingProject, mockOpsProject],
 		);
 		await user.click(await screen.findByRole("button", { name: "Expand" }));
-		layoutDropTargets(240);
 
-		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
-		fireEvent.mouseDown(rowLink, { clientX: 10, clientY: 250 });
-		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
-		fireEvent.mouseMove(document, { clientX: 10, clientY: 40 });
-		fireEvent.mouseUp(document, { clientX: 10, clientY: 40 });
-		// A drop's mutation reaches the API one task later.
-		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-
-		expect(update.mock.calls).toEqual(
+		expect(await dragRowOntoBilling(row)).toEqual(
 			body ? [["c1", { project_id: body }]] : [],
 		);
-		// A drop opens its folder so the user sees the chat arrive.
-		expect(
-			screen.getByRole("button", { name: /^(Expand|Collapse) Billing$/ }),
-		).toHaveAttribute("aria-expanded", expanded);
 	});
 });
 

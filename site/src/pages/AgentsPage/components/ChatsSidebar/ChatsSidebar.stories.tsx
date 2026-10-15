@@ -5,6 +5,7 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
 	spyOn,
 	userEvent,
 	waitFor,
@@ -2885,7 +2886,11 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 };
 
 const mockProjectChats = [
-	buildChat({ id: "loose-chat", title: "Loose chat" }),
+	buildChat({
+		id: "loose-chat",
+		title: "Loose chat",
+		organization_id: MockChatProject.organization_id,
+	}),
 	buildChat({
 		id: "project-chat",
 		title: "Project chat",
@@ -2933,6 +2938,25 @@ export const ChatDraggedOverProjectFolder: Story = {
 	play: async ({ canvasElement }) => {
 		await startKeyboardDrag(canvasElement, /Loose chat/);
 		await userEvent.keyboard("[ArrowUp]");
+	},
+};
+
+/** The args are static, so the dropped chat stays under Chats. */
+export const ChatDroppedOnProjectFolder: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		// Space drops on the folder only after the sensor has moved over it.
+		await screen.findByText("Chat Loose chat is over project Launch.");
+		await userEvent.keyboard("[Space]");
 	},
 };
 

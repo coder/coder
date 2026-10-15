@@ -56,10 +56,7 @@ const dropTargetOf = (
 	return isDropTargetData(data) ? data.dropTarget : undefined;
 };
 
-/**
- * A row can start a drag only where its menu turns "Move to project" on. A
- * pinned row keeps its drag for the pin order, and its menu can still move it.
- */
+/** A row can start a drag only where its menu turns "Move to project" on. */
 export const canDragChatToProject = (
 	chat: Chat,
 	currentUserId: string,
@@ -67,8 +64,7 @@ export const canDragChatToProject = (
 	canManageChat(chat, currentUserId) &&
 	!chat.archived &&
 	getParentChatID(chat) === undefined &&
-	chatFamilyAllowsArchive(chat.status, chat.children) &&
-	chat.pin_order === 0;
+	chatFamilyAllowsArchive(chat.status, chat.children);
 
 /**
  * The project_id that a drop on target sets: a project ID, null to remove the
