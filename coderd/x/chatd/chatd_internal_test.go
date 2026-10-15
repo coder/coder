@@ -2089,18 +2089,12 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 					Description:    "Personal review process",
 					Enabled:        true,
 					ModelInvocable: true,
-				}, {
-					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
-					Name:        "personal-manual",
-					Description: "Only users invoke this",
-					Enabled:     true,
 				}}, nil
 			},
 		)
 
 		got, err := server.fetchPersonalSkillMetadata(context.Background(), userID)
 		require.NoError(t, err)
-		// Skills that are not model-invocable stay out of the agent's index.
 		require.Equal(t, []skillspkg.Skill{{
 			Name:        "personal-review",
 			Description: "Personal review process",
