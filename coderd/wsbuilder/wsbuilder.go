@@ -629,10 +629,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 }
 
 // persistSecrets links workspace secrets to the new build inside the build
-// transaction.
+// transaction. Earlier builds' rows are not cleared here: the previous
+// build's agent may still be running until this build's job completes, so
+// provisionerdserver clears them on completion.
 //
-// Copying forward and clearing are bookkeeping, not a user writing secrets,
-// so they run as the workspace secret manager. This lets autostart, the build
+// Copying forward is bookkeeping, not a user writing secrets,
+// so it runs as the workspace secret manager. This lets autostart, the build
 // orchestrator, and other non-user initiators rebuild workspaces that hold
 // secrets. Secrets in the request are authorized as the build's actor, and
 // removals are authorized in authorize.
@@ -703,14 +705,6 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret, *secret.Value, database.WorkspaceSecretSourceRequest); err != nil {
 			return err
 		}
-	}
-
-	err = store.ClearWorkspaceSecretsBeforeBuild(managerCtx, database.ClearWorkspaceSecretsBeforeBuildParams{
-		WorkspaceID:      b.workspace.ID,
-		WorkspaceBuildID: workspaceBuildID,
-	})
-	if err != nil {
-		return BuildError{http.StatusInternalServerError, "clear previous workspace secrets", err}
 	}
 	return nil
 }

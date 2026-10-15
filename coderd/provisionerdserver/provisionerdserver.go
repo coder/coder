@@ -2432,6 +2432,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}()
 		}
 
+		// The previous build's agent may run until this job completes, so its
+		// secret values are kept live until now.
+		//nolint:gocritic // Clearing superseded secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsBeforeBuild(dbauthz.AsWorkspaceSecretManager(ctx), database.ClearWorkspaceSecretsBeforeBuildParams{
+			WorkspaceID:      workspaceBuild.WorkspaceID,
+			WorkspaceBuildID: workspaceBuild.ID,
+		}); err != nil {
+			return xerrors.Errorf("clear previous workspace secrets: %w", err)
+		}
+
 		if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
 			// This is for deleting a workspace!
 			return nil

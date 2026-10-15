@@ -1540,10 +1540,9 @@ func withBuild(mTx *dbmock.MockStore) {
 			return database.WorkspaceBuild{ID: id}, nil
 		})
 	// Every build after the first copies forward the previous build's
-	// secrets; with none present there is nothing to insert. Clearing older
-	// builds' rows runs on every build.
+	// secrets; with none present there is nothing to insert. Older builds'
+	// rows are cleared when the job completes, not here.
 	mTx.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), gomock.Any()).MaxTimes(1).Return(nil, nil)
-	mTx.EXPECT().ClearWorkspaceSecretsBeforeBuild(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 }
 
 // expectBuild captures a call to InsertWorkspaceBuild and runs the provided assertions

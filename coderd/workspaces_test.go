@@ -6960,3 +6960,44 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Len(t, cleared[build.ID], 1, "the delete build's row is kept as history")
 	})
 }
+
+// TestWorkspaceSecretsClearedOnCompletion checks that the previous build's
+// secrets stay live until the new build's job completes, since the previous
+// build's agent can keep running until then.
+func TestWorkspaceSecretsClearedOnCompletion(t *testing.T) {
+	t.Parallel()
+
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("first-value"), EnvName: "API_KEY"},
+		}
+	})
+	build1 := workspace.LatestBuild
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build1.ID)
+
+	live := func(buildID uuid.UUID) []database.WorkspaceSecret {
+		//nolint:gocritic // Only the workspace secret manager reads values.
+		rows, err := api.Database.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), buildID)
+		require.NoError(t, err)
+		return rows
+	}
+
+	// With no provisioner, the stop build stays pending and build 1's secret
+	// is still live alongside the carried-forward copy.
+	closeDaemon.Close()
+	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	require.Len(t, live(build1.ID), 1, "the previous build's secret is live while the new build is pending")
+	require.Len(t, live(build2.ID), 1)
+
+	coderdtest.NewProvisionerDaemon(t, api)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+	require.Empty(t, live(build1.ID), "the previous build's secret is cleared once the new build completes")
+	require.Len(t, live(build2.ID), 1)
+}
