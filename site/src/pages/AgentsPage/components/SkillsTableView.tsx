@@ -57,7 +57,11 @@ export type SkillEditorState =
 			existingNames: readonly string[];
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
-			onSubmit: (values: SkillFormValues, content: string) => Promise<unknown>;
+			onSubmit: (
+				values: SkillFormValues,
+				content: string,
+				onSettled: () => void,
+			) => void;
 			onClose: () => void;
 	  }
 	| {
@@ -71,7 +75,11 @@ export type SkillEditorState =
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
 			onRetry: () => void;
-			onSubmit: (values: SkillFormValues, content: string) => Promise<unknown>;
+			onSubmit: (
+				values: SkillFormValues,
+				content: string,
+				onSettled: () => void,
+			) => void;
 			onClose: () => void;
 	  };
 

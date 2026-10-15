@@ -596,6 +596,7 @@ export const SubmitsCreateDialog: Story = {
 					body: "Inspect request flow and response codes.",
 				},
 				'---\nname: debug-http\ndescription: "Debug HTTP handlers."\n---\nInspect request flow and response codes.\n',
+				expect.any(Function),
 			);
 		});
 	},

@@ -167,7 +167,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
-						onSubmit={(content) => {
+						onSubmit={(content, onSettled) => {
 							const onSuccess = () => {
 								closeEditor();
 								toast.success(
@@ -175,12 +175,13 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								);
 							};
 							if (editor.type === "create") {
-								return createMutation.mutateAsync({ content }, { onSuccess });
+								createMutation.mutate({ content }, { onSuccess, onSettled });
+							} else {
+								updateMutation.mutate(
+									{ name: editor.name, req: { content } },
+									{ onSuccess, onSettled },
+								);
 							}
-							return updateMutation.mutateAsync(
-								{ name: editor.name, req: { content } },
-								{ onSuccess },
-							);
 						}}
 					/>
 				) : (
@@ -324,7 +325,7 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: (content: string) => Promise<unknown>;
+	readonly onSubmit: (content: string, onSettled: () => void) => void;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
@@ -416,7 +417,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 						</DialogFooter>
 					)
 				}
-				onSubmit={(_values, content) => onSubmit(content)}
+				onSubmit={(_values, content, onSettled) => onSubmit(content, onSettled)}
 			/>
 			<ConfirmDialog
 				open={isDiscardOpen}

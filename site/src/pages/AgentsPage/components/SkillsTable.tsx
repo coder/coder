@@ -249,13 +249,13 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 						)
 					: undefined,
 			isSubmitting: createMutation.isPending,
-			onSubmit: (_values, content) => {
+			onSubmit: (_values, content, onSettled) => {
 				setDialogState((current) =>
 					current?.type === "create"
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				return createMutation.mutateAsync({ content });
+				createMutation.mutate({ content }, { onSettled });
 			},
 			onClose: () => setDialogState(null),
 		};
@@ -283,16 +283,16 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onRetry: () => {
 				void editSkillQuery.refetch();
 			},
-			onSubmit: (_values, content) => {
+			onSubmit: (_values, content, onSettled) => {
 				setDialogState((current) =>
 					current?.type === "edit" && current.name === dialogState.name
 						? { ...current, submittedContent: content }
 						: current,
 				);
-				return updateMutation.mutateAsync({
-					name: dialogState.name,
-					req: { content },
-				});
+				updateMutation.mutate(
+					{ name: dialogState.name, req: { content } },
+					{ onSettled },
+				);
 			},
 			onClose: () => setDialogState(null),
 		};

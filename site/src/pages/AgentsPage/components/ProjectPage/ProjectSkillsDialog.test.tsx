@@ -89,14 +89,16 @@ describe("ProjectSkillsDialog", () => {
 		expect(createSkill).toHaveBeenCalledTimes(1);
 	});
 
-	it("refreshes the skill list when the new name was just taken", async () => {
+	it("refreshes the list after a name conflict and lets Save retry", async () => {
 		const conflict = mockApiError({
 			message: "A skill with that name already exists.",
 		});
-		vi.spyOn(API.experimental, "createChatProjectSkill").mockRejectedValue({
-			...conflict,
-			response: { ...conflict.response, status: 409 },
-		});
+		const createSkill = vi
+			.spyOn(API.experimental, "createChatProjectSkill")
+			.mockRejectedValue({
+				...conflict,
+				response: { ...conflict.response, status: 409 },
+			});
 		const { user, getSkills } = renderDialog();
 
 		await user.click(await screen.findByRole("button", { name: "New" }));
@@ -108,6 +110,9 @@ describe("ProjectSkillsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+		await screen.findByText("A skill with that name already exists.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(createSkill).toHaveBeenCalledTimes(2));
 	});
 
 	it("fills a new skill from pasted SKILL.md content", async () => {

@@ -54,10 +54,14 @@ type SkillEditorFormProps = {
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
 	footer: (state: SkillEditorFormState) => React.ReactNode;
 	/**
-	 * Return the request's promise to keep the form busy until it settles.
-	 * Report failures through submitError.
+	 * Starts the save. Call onSettled when the request finishes so the form
+	 * accepts another submit, and report failures through submitError.
 	 */
-	onSubmit: (values: SkillFormValues, content: string) => Promise<unknown>;
+	onSubmit: (
+		values: SkillFormValues,
+		content: string,
+		onSettled: () => void,
+	) => void;
 };
 
 type SkillEditorProps = Omit<
@@ -150,26 +154,23 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		enableReinitialize: true,
 		validationSchema,
 		validate,
-		// Formik keeps isSubmitting set until this settles, so a second click
-		// cannot submit again before the caller's isSubmitting turns on.
-		onSubmit: async (values) => {
+		// Formik keeps isSubmitting set after a synchronous onSubmit until
+		// onSettled clears it, so a fast second click cannot submit again
+		// before the caller's isSubmitting turns on.
+		onSubmit: (values, { setSubmitting }) => {
 			const normalizedValues = {
 				name: values.name.trim(),
 				description: values.description.trim(),
 				body: values.body.trim(),
 			};
-			const content = buildSkillMarkdown(normalizedValues);
-			try {
-				await onSubmit(normalizedValues, content);
-			} catch {
-				// The caller shows the failure through submitError.
-			}
+			onSubmit(normalizedValues, buildSkillMarkdown(normalizedValues), () =>
+				setSubmitting(false),
+			);
 		},
 	});
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isReadingFile, setIsReadingFile] = useState(false);
-	// Covers the window between Save and the caller's isSubmitting update.
 	const isBusy = isSubmitting || isReadingFile || form.isSubmitting;
 	const [importContent, setImportContent] = useState("");
 	const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
