@@ -252,6 +252,26 @@ func TestWaitForAgentReady(t *testing.T) {
 		require.ErrorContains(t, err, "db down")
 	})
 
+	t.Run("LifecycleReadAfterDeadlineReportsTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			DoAndReturn(func(ctx context.Context, _ uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+				return database.GetWorkspaceAgentLifecycleStateByIDRow{}, ctx.Err()
+			})
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.NoError(t, err)
+		require.Equal(t, "startup_scripts_timeout", result["startup_scripts"])
+	})
+
 	t.Run("NilAgentConnFn", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
