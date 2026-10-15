@@ -182,12 +182,26 @@ export const SkillsTriggerMenu = ({
 	onClose,
 	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
+	const pointerHighlightRef = useRef(false);
+
+	// Groups follow selection order, so each starts where the previous ends.
+	const skillGroups = [
+		{ heading: "Personal skills", skills: personalSkills },
+		{ heading: "Organization skills", skills: organizationSkills },
+		{ heading: "Project skills", skills: projectSkills },
+		{ heading: "Workspace skills", skills: workspaceSkills },
+	].map((group, index, groups) => ({
+		...group,
+		startIndex: groups
+			.slice(0, index)
+			.reduce(
+				(start, previous) => start + previous.skills.length,
+				commands.length,
+			),
+	}));
 	const allSkills = [
 		...commands,
-		...personalSkills,
-		...organizationSkills,
-		...projectSkills,
-		...workspaceSkills,
+		...skillGroups.flatMap((group) => group.skills),
 	];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
@@ -215,8 +229,6 @@ export const SkillsTriggerMenu = ({
 	const shouldRender = open && anchor !== null;
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
-
-	const pointerHighlightRef = useRef(false);
 
 	const consumePointerHighlight = () => {
 		const fromPointer = pointerHighlightRef.current;
@@ -280,49 +292,14 @@ export const SkillsTriggerMenu = ({
 								{commands.map((skill, index) => renderSkill(skill, index))}
 							</CommandGroup>
 						)}
-						{personalSkills.length > 0 && (
-							<CommandGroup heading="Personal skills">
-								{personalSkills.map((skill, index) =>
-									renderSkill(skill, commands.length + index),
-								)}
-							</CommandGroup>
-						)}
-						{organizationSkills.length > 0 && (
-							<CommandGroup heading="Organization skills">
-								{organizationSkills.map((skill, index) =>
-									renderSkill(
-										skill,
-										commands.length + personalSkills.length + index,
-									),
-								)}
-							</CommandGroup>
-						)}
-						{projectSkills.length > 0 && (
-							<CommandGroup heading="Project skills">
-								{projectSkills.map((skill, index) =>
-									renderSkill(
-										skill,
-										commands.length +
-											personalSkills.length +
-											organizationSkills.length +
-											index,
-									),
-								)}
-							</CommandGroup>
-						)}
-						{workspaceSkills.length > 0 && (
-							<CommandGroup heading="Workspace skills">
-								{workspaceSkills.map((skill, index) =>
-									renderSkill(
-										skill,
-										commands.length +
-											personalSkills.length +
-											organizationSkills.length +
-											projectSkills.length +
-											index,
-									),
-								)}
-							</CommandGroup>
+						{skillGroups.map(({ heading, skills, startIndex }) =>
+							skills.length > 0 ? (
+								<CommandGroup key={heading} heading={heading}>
+									{skills.map((skill, index) =>
+										renderSkill(skill, startIndex + index),
+									)}
+								</CommandGroup>
+							) : null,
 						)}
 						{statusItems.map((message) => (
 							<CommandItem key={message} value={message} disabled>

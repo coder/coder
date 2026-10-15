@@ -577,9 +577,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations, experiments } = useDashboard();
-	const skillsProjectId = experiments.includes("chat-projects")
-		? chatProjectId
-		: undefined;
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
@@ -1469,7 +1466,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
-						projectId={skillsProjectId}
+						projectId={
+							experiments.includes("chat-projects") ? chatProjectId : undefined
+						}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

@@ -32,7 +32,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { type QueryKey, useQuery } from "react-query";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
@@ -624,6 +624,35 @@ const isSameSkillsTrigger = (
 	);
 };
 
+/**
+ * Loads a Coder-stored skill source for the "/" menu while a trigger is
+ * active. Skills stay undefined until the source loads, even after an
+ * error; a chat without the source has a known empty list.
+ */
+const useStoredSkillSource = (
+	queryOptions: {
+		queryKey: QueryKey;
+		queryFn: () => Promise<TypesGen.SkillMetadata[]>;
+	},
+	hasSource: boolean,
+	hasSkillsTrigger: boolean,
+) => {
+	const queryEnabled = hasSkillsTrigger && hasSource;
+	const query = useQuery({
+		...queryOptions,
+		enabled: queryEnabled,
+		staleTime: 60_000,
+	});
+	const isUnresolved = queryEnabled && query.data === undefined;
+	return {
+		// chatd skips disabled skills, so they never offer or collide.
+		skills: hasSource ? query.data?.filter((skill) => skill.enabled) : [],
+		isFetching: query.isFetching,
+		isLoading: isUnresolved && query.isFetching,
+		isError: isUnresolved && query.isError,
+	};
+};
+
 const ChatMessageInput = ({
 	className,
 	placeholder,
@@ -685,30 +714,21 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const organizationSkillsQueryEnabled =
-		hasSkillsTrigger && Boolean(organizationId);
-	const organizationSkillsQuery = useQuery({
-		...organizationSkills(organizationId ?? ""),
-		enabled: organizationSkillsQueryEnabled,
-		staleTime: 60_000,
-	});
+	const organizationSource = useStoredSkillSource(
+		organizationSkills(organizationId ?? ""),
+		Boolean(organizationId),
+		hasSkillsTrigger,
+	);
 	const hasProject = Boolean(organizationId && projectId);
-	const projectSkillsQueryEnabled = hasSkillsTrigger && hasProject;
-	const projectSkillsQuery = useQuery({
-		...chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		enabled: projectSkillsQueryEnabled,
-		staleTime: 60_000,
-	});
+	const projectSource = useStoredSkillSource(
+		chatProjectSkills(organizationId ?? "", projectId ?? ""),
+		hasProject,
+		hasSkillsTrigger,
+	);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
 	);
-	const loadedOrganizationSkills = organizationId
-		? organizationSkillsQuery.data?.filter((skill) => skill.enabled)
-		: [];
-	const loadedProjectSkills = hasProject
-		? projectSkillsQuery.data?.filter((skill) => skill.enabled)
-		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// A list stays undefined until its source loads, even after an error,
@@ -716,8 +736,8 @@ const ChatMessageInput = ({
 	// without an organization, project, or workspace has a known empty list.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: loadedOrganizationSkills },
-		{ source: "project", skills: loadedProjectSkills },
+		{ source: "org", skills: organizationSource.skills },
+		{ source: "project", skills: projectSource.skills },
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
@@ -731,10 +751,10 @@ const ChatMessageInput = ({
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		loadedOrganizationSkills?.length === 0 &&
-		!organizationSkillsQuery.isFetching &&
-		loadedProjectSkills?.length === 0 &&
-		!projectSkillsQuery.isFetching &&
+		organizationSource.skills?.length === 0 &&
+		!organizationSource.isFetching &&
+		projectSource.skills?.length === 0 &&
+		!projectSource.isFetching &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
@@ -760,14 +780,6 @@ const ChatMessageInput = ({
 		personalSkillsQueryEnabled &&
 		skillsQuery.isFetching &&
 		skillsQuery.data === undefined;
-	const isOrganizationSkillsLoading =
-		organizationSkillsQueryEnabled &&
-		organizationSkillsQuery.isFetching &&
-		organizationSkillsQuery.data === undefined;
-	const isProjectSkillsLoading =
-		projectSkillsQueryEnabled &&
-		projectSkillsQuery.isFetching &&
-		projectSkillsQuery.data === undefined;
 	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
@@ -1052,8 +1064,8 @@ const ChatMessageInput = ({
 					skills={allFilteredSkills}
 					skillsLoading={
 						isPersonalSkillsLoading ||
-						isOrganizationSkillsLoading ||
-						isProjectSkillsLoading ||
+						organizationSource.isLoading ||
+						projectSource.isLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
@@ -1084,18 +1096,10 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isOrganizationLoading={isOrganizationSkillsLoading}
-					isOrganizationError={
-						organizationSkillsQueryEnabled &&
-						organizationSkillsQuery.isError &&
-						organizationSkillsQuery.data === undefined
-					}
-					isProjectLoading={isProjectSkillsLoading}
-					isProjectError={
-						projectSkillsQueryEnabled &&
-						projectSkillsQuery.isError &&
-						projectSkillsQuery.data === undefined
-					}
+					isOrganizationLoading={organizationSource.isLoading}
+					isOrganizationError={organizationSource.isError}
+					isProjectLoading={projectSource.isLoading}
+					isProjectError={projectSource.isError}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}

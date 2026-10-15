@@ -129,6 +129,13 @@ export const OrganizationError: Story = {
 	},
 };
 
+export const ProjectError: Story = {
+	args: {
+		projectSkillsEnabled: true,
+		isProjectError: true,
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isPersonalLoading: true,
@@ -141,6 +148,14 @@ export const OrganizationLoading: Story = {
 		personalSkills: [],
 		organizationSkillsEnabled: true,
 		isOrganizationLoading: true,
+	},
+};
+
+export const ProjectLoading: Story = {
+	args: {
+		personalSkills: [],
+		projectSkillsEnabled: true,
+		isProjectLoading: true,
 	},
 };
 
