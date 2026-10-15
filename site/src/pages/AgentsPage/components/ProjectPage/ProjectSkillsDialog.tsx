@@ -541,7 +541,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 }) => (
 	<TableRow>
 		<TableCell className="w-full max-w-0">
-			<div className="flex min-w-0 items-center gap-1.5">
+			<div className="flex items-center gap-1.5">
 				<span className="truncate font-medium text-content-primary">
 					{skill.name}
 				</span>

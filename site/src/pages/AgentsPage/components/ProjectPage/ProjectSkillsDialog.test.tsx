@@ -238,14 +238,11 @@ describe("ProjectSkillsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
-			expect(updateSkill).toHaveBeenCalledWith(
-				orgId,
-				projectId,
-				"reviewer",
-				expect.objectContaining({
-					content: expect.stringContaining("Review carefully."),
-				}),
-			),
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: expect.stringContaining("Review carefully."),
+				action: false,
+				model_invocable: true,
+			}),
 		);
 	});
 
@@ -294,14 +291,12 @@ describe("ProjectSkillsDialog", () => {
 
 		expect(onOpenChange).not.toHaveBeenCalled();
 		await waitFor(() =>
-			expect(updateSkill).toHaveBeenCalledWith(
-				orgId,
-				projectId,
-				"reviewer",
-				expect.objectContaining({
-					content: expect.stringContaining("Review carefully."),
-				}),
-			),
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content:
+					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+				action: false,
+				model_invocable: true,
+			}),
 		);
 	});
 

@@ -198,7 +198,12 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		}
 
 		if (isCreate) {
-			await form.setValues({ ...form.values, ...result.values });
+			// Automatic use follows each imported file's frontmatter.
+			await form.setValues({
+				...form.values,
+				...(showProjectSettings && { modelInvocable: true }),
+				...result.values,
+			});
 			await form.setTouched(
 				{ name: true, description: true, body: true },
 				false,
