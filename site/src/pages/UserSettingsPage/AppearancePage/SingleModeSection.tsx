@@ -73,10 +73,7 @@ const SingleTile: React.FC<SingleTileProps> = ({
 			<div className="flex items-start gap-3">
 				<span
 					aria-hidden="true"
-					className={cn(
-						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-surface-primary",
-						selected && "border-border-secondary",
-					)}
+					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid border-border-control bg-surface-primary"
 				>
 					{selected && (
 						<span className="size-2.5 rounded-full bg-surface-invert-primary" />
