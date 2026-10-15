@@ -99,6 +99,43 @@ func TestDiffAIModelPrices(t *testing.T) {
 			wantChanged: 1,
 		},
 		{
+			name: "Changed1hPriceIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), CacheWrite1hPrice: new(int64(200)),
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), CacheWrite1hPrice: new(int64(300)),
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			name: "ChangedTierIsAChange",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, InputPrice: new(int64(200))}},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+				Tiers: []codersdk.AIModelPriceTier{{ThresholdTokens: 200_000, InputPrice: new(int64(300))}},
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
+		},
+		{
+			// The API lists a model without tiers as an empty array, and a
+			// document without tiers decodes to nil; both mean no tiers.
+			name: "NoTiersMatchesEmptyTiers",
+			current: []codersdk.AIModelPrice{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)), Tiers: []codersdk.AIModelPriceTier{},
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				Provider: "anthropic", Model: "my-model", InputPrice: new(int64(100)),
+			}},
+			wantAdded:   0,
+			wantChanged: 0,
+		},
+		{
 			// A model of the same name under another provider is a different
 			// row, so it does not match.
 			name: "SameModelDifferentProvider",

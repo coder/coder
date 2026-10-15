@@ -162,7 +162,9 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.mcpProxy = mcpProxy
 }
 
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage) {
+// recordTokenUsage records one usage record. promptTokens is the prompt size
+// of the message the record belongs to.
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage, promptTokens int64) {
 	var metadata recorder.Metadata
 	if usage.ServiceTier != "" {
 		metadata = recorder.Metadata{
@@ -191,12 +193,21 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 		CacheReadInputTokens:  usage.CacheReadInputTokens,
 		CacheWriteInputTokens: usage.CacheCreationInputTokens,
 		Metadata:              metadata,
+
+		CacheWrite1hInputTokens: usage.CacheCreation.Ephemeral1hInputTokens,
+		PromptTokens:            promptTokens,
 	}
 	if len(extraTokenTypes) > 0 {
 		usageRecord.ExtraTokenTypes = extraTokenTypes
 	}
 
 	_ = i.recorder.RecordTokenUsage(ctx, &usageRecord)
+}
+
+// promptSize returns the prompt size of one Messages request: the uncached
+// input plus the cached and newly cached input.
+func promptSize(usage anthropic.Usage) int64 {
+	return usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {

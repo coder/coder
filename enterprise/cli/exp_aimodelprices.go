@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -55,6 +56,12 @@ Coder's price book:
     model free.
   * Every entry sets all four prices, so all four are required. Use 'null'
     for a price you do not have.
+  * "cache_write_1h_price" (optional) is the price of a cache write with a
+    1-hour TTL. Omit it to use the cache write price.
+  * "tiers" (optional) lists long-context prices in ascending
+    "threshold_tokens" order. When the prompt of a request is over a
+    threshold, every token of that request uses the prices of that tier. A
+    tier price that is 'null' or absent uses the base price.
 `
 
 // aiModelPriceRow renders prices as dollars per million tokens for the table
@@ -71,9 +78,13 @@ type aiModelPriceRow struct {
 	OutputPrice     string `json:"-" table:"output price"`
 	CacheReadPrice  string `json:"-" table:"cache read price"`
 	CacheWritePrice string `json:"-" table:"cache write price"`
-	Source          string `json:"-" table:"source"`
-	CreatedAt       string `json:"-" table:"created at"`
-	UpdatedAt       string `json:"-" table:"updated at"`
+	// CacheWrite1hPrice and Tiers are not shown by default; JSON output
+	// carries them too.
+	CacheWrite1hPrice string `json:"-" table:"cache write 1h price"`
+	Tiers             string `json:"-" table:"tiers"`
+	Source            string `json:"-" table:"source"`
+	CreatedAt         string `json:"-" table:"created at"`
+	UpdatedAt         string `json:"-" table:"updated at"`
 }
 
 func (r *RootCmd) aiModelPricesList() *serpent.Command {
@@ -138,16 +149,18 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 			rows := make([]aiModelPriceRow, 0, len(prices))
 			for _, price := range prices {
 				rows = append(rows, aiModelPriceRow{
-					AIModelPrice:    price,
-					Provider:        price.Provider,
-					Model:           price.Model,
-					InputPrice:      formatMicros(price.InputPrice),
-					OutputPrice:     formatMicros(price.OutputPrice),
-					CacheReadPrice:  formatMicros(price.CacheReadPrice),
-					CacheWritePrice: formatMicros(price.CacheWritePrice),
-					Source:          string(price.Source),
-					CreatedAt:       humanize.Time(price.CreatedAt),
-					UpdatedAt:       humanize.Time(price.UpdatedAt),
+					AIModelPrice:      price,
+					Provider:          price.Provider,
+					Model:             price.Model,
+					InputPrice:        formatMicros(price.InputPrice),
+					OutputPrice:       formatMicros(price.OutputPrice),
+					CacheReadPrice:    formatMicros(price.CacheReadPrice),
+					CacheWritePrice:   formatMicros(price.CacheWritePrice),
+					CacheWrite1hPrice: formatMicros(price.CacheWrite1hPrice),
+					Tiers:             formatTiers(price.Tiers),
+					Source:            string(price.Source),
+					CreatedAt:         humanize.Time(price.CreatedAt),
+					UpdatedAt:         humanize.Time(price.UpdatedAt),
 				})
 			}
 
@@ -177,6 +190,8 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 		output     string
 		cacheRead  string
 		cacheWrite string
+		// cacheWrite1h is optional, unlike the four prices above.
+		cacheWrite1h string
 	)
 
 	cmd := &serpent.Command{
@@ -234,6 +249,11 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 				Description: "Cache write price in micro-units per million tokens, or 'null' if unknown.",
 				Value:       serpent.StringOf(&cacheWrite),
 			},
+			{
+				Flag:        cacheWrite1hPriceFlag,
+				Description: "1-hour cache write price in micro-units per million tokens. Omit it to use the cache write price.",
+				Value:       serpent.StringOf(&cacheWrite1h),
+			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -283,6 +303,10 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 
 var modelPriceFlags = []string{"input-price", "output-price", "cache-read-price", "cache-write-price"}
 
+// cacheWrite1hPriceFlag is an optional single-model flag, so it is not in
+// modelPriceFlags.
+const cacheWrite1hPriceFlag = "cache-write-1h-price"
+
 // readAIModelPrices picks the input source and returns the requested prices,
 // reporting whether they were read from stdin. The single-model flags win when
 // any of them is set, a JSON document is read otherwise, and supplying both is
@@ -290,7 +314,7 @@ var modelPriceFlags = []string{"input-price", "output-price", "cache-read-price"
 // are enforced by the server.
 func readAIModelPrices(inv *serpent.Invocation, provider, model string) ([]codersdk.AIModelPriceUpsert, bool, error) {
 	providedFlags := userSetPriceFlags(inv)
-	if provider == "" && model == "" && len(providedFlags) == 0 {
+	if provider == "" && model == "" && len(providedFlags) == 0 && !flagSet(inv, cacheWrite1hPriceFlag) {
 		return readAIModelPricesDocument(inv)
 	}
 	if len(inv.Args) > 0 {
@@ -310,11 +334,17 @@ func readAIModelPrices(inv *serpent.Invocation, provider, model string) ([]coder
 func userSetPriceFlags(inv *serpent.Invocation) []string {
 	var provided []string
 	for _, name := range modelPriceFlags {
-		if opt := inv.Command.Options.ByFlag(name); opt != nil && opt.ValueSource != serpent.ValueSourceNone {
+		if flagSet(inv, name) {
 			provided = append(provided, name)
 		}
 	}
 	return provided
+}
+
+// flagSet reports whether the caller supplied the named flag.
+func flagSet(inv *serpent.Invocation, name string) bool {
+	opt := inv.Command.Options.ByFlag(name)
+	return opt != nil && opt.ValueSource != serpent.ValueSourceNone
 }
 
 // validateModelPriceFlags checks the flag combination names one complete model.
@@ -334,28 +364,31 @@ func validateModelPriceFlags(provider, model string, providedFlags []string) err
 // modelPriceFromFlags builds the entry named by the single-model flags.
 func modelPriceFromFlags(inv *serpent.Invocation, provider, model string) (codersdk.AIModelPriceUpsert, error) {
 	price := codersdk.AIModelPriceUpsert{Provider: provider, Model: model}
-	for _, name := range modelPriceFlags {
+	type priceFlag struct {
+		name string
+		dst  **int64
+	}
+	flags := []priceFlag{
+		{"input-price", &price.InputPrice},
+		{"output-price", &price.OutputPrice},
+		{"cache-read-price", &price.CacheReadPrice},
+		{"cache-write-price", &price.CacheWritePrice},
+	}
+	if flagSet(inv, cacheWrite1hPriceFlag) {
+		flags = append(flags, priceFlag{cacheWrite1hPriceFlag, &price.CacheWrite1hPrice})
+	}
+	for _, flag := range flags {
 		// A nil value is an unknown price, spelled "null" to match the JSON
 		// document and the stored column.
-		raw := inv.Command.Options.ByFlag(name).Value.String()
-		var value *int64
-		if !strings.EqualFold(raw, "null") {
-			parsed, err := strconv.ParseInt(raw, 10, 64)
-			if err != nil {
-				return codersdk.AIModelPriceUpsert{}, xerrors.Errorf("--%s: want a whole number or 'null', got %q", name, raw)
-			}
-			value = &parsed
+		raw := inv.Command.Options.ByFlag(flag.name).Value.String()
+		if strings.EqualFold(raw, "null") {
+			continue
 		}
-		switch name {
-		case "input-price":
-			price.InputPrice = value
-		case "output-price":
-			price.OutputPrice = value
-		case "cache-read-price":
-			price.CacheReadPrice = value
-		case "cache-write-price":
-			price.CacheWritePrice = value
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return codersdk.AIModelPriceUpsert{}, xerrors.Errorf("--%s: want a whole number or 'null', got %q", flag.name, raw)
 		}
+		*flag.dst = &parsed
 	}
 	return price, nil
 }
@@ -438,12 +471,25 @@ func diffAIModelPrices(requested []codersdk.AIModelPriceUpsert, current []coders
 	return additions, changes
 }
 
-// pricesEqual reports whether all four prices already hold the requested values.
+// pricesEqual reports whether every price and tier already holds the requested
+// values.
 func pricesEqual(requested codersdk.AIModelPriceUpsert, stored codersdk.AIModelPrice) bool {
 	return priceEqual(requested.InputPrice, stored.InputPrice) &&
 		priceEqual(requested.OutputPrice, stored.OutputPrice) &&
 		priceEqual(requested.CacheReadPrice, stored.CacheReadPrice) &&
-		priceEqual(requested.CacheWritePrice, stored.CacheWritePrice)
+		priceEqual(requested.CacheWritePrice, stored.CacheWritePrice) &&
+		priceEqual(requested.CacheWrite1hPrice, stored.CacheWrite1hPrice) &&
+		slices.EqualFunc(requested.Tiers, stored.Tiers, tierEqual)
+}
+
+// tierEqual reports whether two tiers have the same threshold and prices.
+func tierEqual(a, b codersdk.AIModelPriceTier) bool {
+	return a.ThresholdTokens == b.ThresholdTokens &&
+		priceEqual(a.InputPrice, b.InputPrice) &&
+		priceEqual(a.OutputPrice, b.OutputPrice) &&
+		priceEqual(a.CacheReadPrice, b.CacheReadPrice) &&
+		priceEqual(a.CacheWritePrice, b.CacheWritePrice) &&
+		priceEqual(a.CacheWrite1hPrice, b.CacheWrite1hPrice)
 }
 
 // priceEqual compares two prices, treating unknown as equal only to unknown.
@@ -487,23 +533,54 @@ func describePrices(price codersdk.AIModelPriceUpsert) string {
 		}
 		parts = append(parts, fmt.Sprintf("%s %s", named.name, formatMicros(named.value)))
 	}
+	if len(price.Tiers) > 0 {
+		parts = append(parts, "tiers "+formatTiers(price.Tiers))
+	}
 	return strings.Join(parts, "  ")
+}
+
+// formatTiers renders tiers on one line, listing the set prices of each.
+func formatTiers(tiers []codersdk.AIModelPriceTier) string {
+	if len(tiers) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(tiers))
+	for _, tier := range tiers {
+		prices := []string{fmt.Sprintf("over %d:", tier.ThresholdTokens)}
+		for _, named := range []namedPrice{
+			{"input", tier.InputPrice},
+			{"output", tier.OutputPrice},
+			{"cache read", tier.CacheReadPrice},
+			{"cache write", tier.CacheWritePrice},
+			{"cache write 1h", tier.CacheWrite1hPrice},
+		} {
+			if named.value != nil {
+				prices = append(prices, named.name+" "+formatMicros(named.value))
+			}
+		}
+		parts = append(parts, strings.Join(prices, " "))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // describePriceChanges renders one "old -> new" line per price that moves.
 func describePriceChanges(change aiModelPriceChange) []string {
 	old := map[string]*int64{
-		"input_price":       change.old.InputPrice,
-		"output_price":      change.old.OutputPrice,
-		"cache_read_price":  change.old.CacheReadPrice,
-		"cache_write_price": change.old.CacheWritePrice,
+		"input_price":          change.old.InputPrice,
+		"output_price":         change.old.OutputPrice,
+		"cache_read_price":     change.old.CacheReadPrice,
+		"cache_write_price":    change.old.CacheWritePrice,
+		"cache_write_1h_price": change.old.CacheWrite1hPrice,
 	}
 	var lines []string
 	for _, named := range namedPrices(change.price) {
 		if priceEqual(named.value, old[named.name]) {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%-18s %s -> %s", named.name, formatMicros(old[named.name]), formatMicros(named.value)))
+		lines = append(lines, fmt.Sprintf("%-20s %s -> %s", named.name, formatMicros(old[named.name]), formatMicros(named.value)))
+	}
+	if !slices.EqualFunc(change.price.Tiers, change.old.Tiers, tierEqual) {
+		lines = append(lines, fmt.Sprintf("%-20s %s -> %s", "tiers", formatTiers(change.old.Tiers), formatTiers(change.price.Tiers)))
 	}
 	return lines
 }
@@ -514,13 +591,14 @@ type namedPrice struct {
 	value *int64
 }
 
-// namedPrices lists an entry's four prices in field order.
+// namedPrices lists an entry's prices in field order.
 func namedPrices(price codersdk.AIModelPriceUpsert) []namedPrice {
 	return []namedPrice{
 		{"input_price", price.InputPrice},
 		{"output_price", price.OutputPrice},
 		{"cache_read_price", price.CacheReadPrice},
 		{"cache_write_price", price.CacheWritePrice},
+		{"cache_write_1h_price", price.CacheWrite1hPrice},
 	}
 }
 

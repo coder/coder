@@ -12,6 +12,7 @@ import {
 	toFormFieldKey,
 } from "#/api/chatModelOptions";
 import { aiModelPrices } from "#/api/queries/aiProviders";
+import type { AIModelPrice, AIModelPriceTier } from "#/api/typesGenerated";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -673,6 +674,7 @@ type ModelCosts = {
 	outputCost?: number;
 	cacheReadCost?: number;
 	cacheWriteCost?: number;
+	cacheWrite1hCost?: number;
 };
 
 const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
@@ -684,6 +686,52 @@ const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
 
 const priceOrUndefined = (micros: number | null): number | undefined =>
 	micros === null ? undefined : microsToDollars(micros);
+
+const formatTierPrice = (label: string, micros: number | null): string => {
+	const cost = priceOrUndefined(micros);
+	if (cost === undefined) {
+		return `${label} N/A`;
+	}
+	const price = formatPricePerMillionTokens(cost);
+	return `${label} ${price.belowThreshold ? "<$" : "$"}${price.value}`;
+};
+
+// An unset tier 1h price bills at the cache write price of the tier, so the
+// 1h entry is listed only when the tier sets one.
+const formatPriceTier = (
+	base: AIModelPrice,
+	tier: AIModelPriceTier,
+): string => {
+	const prices = [
+		formatTierPrice("input", tier.input_price ?? base.input_price),
+		formatTierPrice("output", tier.output_price ?? base.output_price),
+		formatTierPrice(
+			"cache read",
+			tier.cache_read_price ?? base.cache_read_price,
+		),
+		formatTierPrice(
+			"cache write",
+			tier.cache_write_price ?? base.cache_write_price,
+		),
+	];
+	if (tier.cache_write_1h_price !== null) {
+		prices.push(formatTierPrice("cache write (1h)", tier.cache_write_1h_price));
+	}
+	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens: ${prices.join(" · ")}`;
+};
+
+const PriceTierNotes: React.FC<{ price: AIModelPrice }> = ({ price }) => (
+	<>
+		{price.tiers.map((tier) => (
+			<p
+				key={tier.threshold_tokens}
+				className="col-span-full m-0 text-xs text-content-secondary"
+			>
+				{formatPriceTier(price, tier)}
+			</p>
+		))}
+	</>
+);
 
 export const PricingEstimateFields: React.FC<{
 	provider: string;
@@ -727,8 +775,14 @@ export const PricingEstimateFields: React.FC<{
 				outputCost: priceOrUndefined(livePrice.output_price),
 				cacheReadCost: priceOrUndefined(livePrice.cache_read_price),
 				cacheWriteCost: priceOrUndefined(livePrice.cache_write_price),
+				cacheWrite1hCost: priceOrUndefined(livePrice.cache_write_1h_price),
 			}
 		: knownModel;
+	// The 1h price is set only for models that bill 1h cache writes apart.
+	const visibleFields: ReadonlyArray<[string, keyof ModelCosts]> =
+		costs?.cacheWrite1hCost === undefined
+			? priceEstimateFields
+			: [...priceEstimateFields, ["Cache write (1h)", "cacheWrite1hCost"]];
 
 	if (!debouncePending && livePricesQuery.isError) {
 		return (
@@ -753,7 +807,7 @@ export const PricingEstimateFields: React.FC<{
 
 	return (
 		<>
-			{priceEstimateFields.map(([label, key]) => {
+			{visibleFields.map(([label, key]) => {
 				const cost = costs?.[key];
 				const fieldId = `${fieldIdPrefix}-${label.toLowerCase().replace(/\s+/g, "-")}`;
 				const price =
@@ -795,6 +849,7 @@ export const PricingEstimateFields: React.FC<{
 					</div>
 				);
 			})}
+			{!livePriceLoading && livePrice && <PriceTierNotes price={livePrice} />}
 		</>
 	);
 };

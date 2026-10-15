@@ -156,7 +156,43 @@ export const MockGPT5ModelPrice: AIModelPrice = {
 	output_price: 10000000,
 	cache_read_price: 125000,
 	cache_write_price: null,
+	cache_write_1h_price: null,
+	tiers: [],
 	source: "default",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+};
+
+// The tiers apply to requests whose prompt is over their threshold_tokens.
+// The second tier sets no cache read or 1h price, so those use the base cache
+// read price and the tier cache write price.
+export const MockClaudeSonnetModelPrice: AIModelPrice = {
+	provider: "anthropic",
+	model: "claude-sonnet-4-5",
+	input_price: 3000000,
+	output_price: 15000000,
+	cache_read_price: 300000,
+	cache_write_price: 3750000,
+	cache_write_1h_price: 6000000,
+	tiers: [
+		{
+			threshold_tokens: 200000,
+			input_price: 6000000,
+			output_price: 22500000,
+			cache_read_price: 600000,
+			cache_write_price: 7500000,
+			cache_write_1h_price: 12000000,
+		},
+		{
+			threshold_tokens: 500000,
+			input_price: 9000000,
+			output_price: 30000000,
+			cache_read_price: null,
+			cache_write_price: 10000000,
+			cache_write_1h_price: null,
+		},
+	],
+	source: "custom",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };

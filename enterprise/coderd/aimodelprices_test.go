@@ -231,6 +231,49 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
+	t.Run("SetsCacheWrite1hPriceAndTiers", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: anthropic/my-model, which the price book does not cover.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: it is priced with a 1h cache write price and a tier.
+		price := newAIModelPrice("anthropic", "my-model", 3_000_000)
+		price.CacheWrite1hPrice = ptr.Ref(int64(6_000_000))
+		tiers := []codersdk.AIModelPriceTier{{
+			ThresholdTokens:   200_000,
+			InputPrice:        ptr.Ref(int64(6_000_000)),
+			CacheWrite1hPrice: ptr.Ref(int64(12_000_000)),
+		}}
+		price.Tiers = tiers
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{price},
+		}))
+
+		// Then: both are listed back.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "my-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(6_000_000), *prices[0].CacheWrite1hPrice)
+		require.Equal(t, tiers, prices[0].Tiers)
+
+		// When: the model is priced again without them.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 3_000_000)},
+		}))
+
+		// Then: both are cleared, and tiers list as empty rather than null.
+		prices, err = exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "my-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Nil(t, prices[0].CacheWrite1hPrice)
+		require.NotNil(t, prices[0].Tiers)
+		require.Empty(t, prices[0].Tiers)
+	})
+
 	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
 		t.Parallel()
 

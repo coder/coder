@@ -12,9 +12,13 @@ export const aiProvidersListKey = ["ai", "providers"] as const;
 
 const aiModelPricesKey = ["ai", "model-prices"] as const;
 
+/** Query key of the prices of one provider and model. */
+export const aiModelPricesKeyFor = (provider: string, model: string) =>
+	[...aiModelPricesKey, provider, model] as const;
+
 export const aiModelPrices = (provider: string, model: string) =>
 	queryOptions({
-		queryKey: [...aiModelPricesKey, provider, model] as const,
+		queryKey: aiModelPricesKeyFor(provider, model),
 		queryFn: () => API.experimental.getAIModelPrices({ provider, model }),
 	});
 

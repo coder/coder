@@ -103,7 +103,8 @@ func TestWrite(t *testing.T) {
     "input_price": 0,
     "output_price": null,
     "cache_read_price": null,
-    "cache_write_price": null
+    "cache_write_price": null,
+    "cache_write_1h_price": null
   }
 ]
 `, buf.String())
@@ -122,6 +123,13 @@ func TestWrite(t *testing.T) {
 				OutputPrice:     int64Ptr(0),
 				CacheReadPrice:  nil,
 				CacheWritePrice: int64Ptr(1),
+				// A tier keeps a null price, which falls back to the base price.
+				CacheWrite1hPrice: int64Ptr(6_000_000),
+				Tiers: []pricebook.Tier{{
+					ThresholdTokens: 200_000,
+					InputPrice:      int64Ptr(6_000_000),
+					CacheWritePrice: nil,
+				}},
 			},
 			{
 				Provider: "openai",
@@ -201,6 +209,30 @@ func TestRowSamePrices(t *testing.T) {
 			name: "cache write differs",
 			a:    pricebook.Row{CacheWritePrice: int64Ptr(1)},
 			b:    pricebook.Row{CacheWritePrice: int64Ptr(2)},
+			want: false,
+		},
+		{
+			name: "cache write 1h differs",
+			a:    pricebook.Row{CacheWrite1hPrice: int64Ptr(1)},
+			b:    pricebook.Row{CacheWrite1hPrice: int64Ptr(2)},
+			want: false,
+		},
+		{
+			name: "tier added",
+			a:    pricebook.Row{},
+			b:    pricebook.Row{Tiers: []pricebook.Tier{{ThresholdTokens: 200_000}}},
+			want: false,
+		},
+		{
+			name: "tier threshold differs",
+			a:    pricebook.Row{Tiers: []pricebook.Tier{{ThresholdTokens: 200_000}}},
+			b:    pricebook.Row{Tiers: []pricebook.Tier{{ThresholdTokens: 272_000}}},
+			want: false,
+		},
+		{
+			name: "tier price differs",
+			a:    pricebook.Row{Tiers: []pricebook.Tier{{ThresholdTokens: 200_000, CacheWrite1hPrice: int64Ptr(1)}}},
+			b:    pricebook.Row{Tiers: []pricebook.Tier{{ThresholdTokens: 200_000, CacheWrite1hPrice: int64Ptr(2)}}},
 			want: false,
 		},
 		{

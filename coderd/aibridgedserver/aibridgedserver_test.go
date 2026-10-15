@@ -2976,6 +2976,134 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	}
 }
 
+// TestRecordTokenUsageCacheTTLAndTiers covers the 1h cache write price and the
+// long-context tier against a real database, so the inserted row snapshots
+// the prices that applied and its breakdown adds up to the cost.
+func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
+	t.Parallel()
+
+	const model = "claude-tiered"
+	// Base and tier prices in micro-units per million tokens.
+	seed := json.RawMessage(`[{
+		"provider": "anthropic", "model": "claude-tiered",
+		"input_price": 1000000, "output_price": 2000000,
+		"cache_read_price": 100000, "cache_write_price": 1250000, "cache_write_1h_price": 2000000,
+		"tiers": [{"threshold_tokens": 1000, "input_price": 2000000, "output_price": 4000000,
+			"cache_read_price": 200000, "cache_write_price": 2500000, "cache_write_1h_price": 4000000}]
+	}]`)
+
+	tests := []struct {
+		name          string
+		req           *proto.RecordTokenUsageRequest
+		want1hTokens  int64
+		wantPrompt    int64
+		wantThreshold sql.NullInt64
+		wantPrices    [5]int64 // input, output, cache read, cache write, cache write 1h
+		wantCost      int64
+	}{
+		{
+			// The prompt equals the threshold, which is not over it.
+			name:         "BasePricesAtThreshold",
+			req:          &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			want1hTokens: 40,
+			wantPrompt:   1000,
+			wantPrices:   [5]int64{1_000_000, 2_000_000, 100_000, 1_250_000, 2_000_000},
+			wantCost:     1055, // 900 + 60*1.25 + 40*2
+		},
+		{
+			name:          "TierPricesOverThreshold",
+			req:           &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			want1hTokens:  40,
+			wantPrompt:    1001,
+			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
+			wantCost:      2112, // 901*2 + 60*2.5 + 40*4
+		},
+		{
+			// A message_delta record carries only output tokens and the
+			// prompt size of its message.
+			name:          "OutputOnlyRecordUsesPromptTokens",
+			req:           &proto.RecordTokenUsageRequest{OutputTokens: 10, PromptTokens: 1001},
+			wantPrompt:    1001,
+			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
+			wantCost:      40,
+		},
+		{
+			// A 1h count over the cache write total is clamped instead of
+			// failing the row on its check constraint.
+			name:         "OneHourCountClamped",
+			req:          &proto.RecordTokenUsageRequest{CacheWriteInputTokens: 10, CacheWriteOneHourInputTokens: 50},
+			want1hTokens: 10,
+			wantPrompt:   10,
+			wantPrices:   [5]int64{1_000_000, 2_000_000, 100_000, 1_250_000, 2_000_000},
+			wantCost:     20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+				Seed:   seed,
+				Source: database.AIModelPriceSourceDefault,
+			}))
+			aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+				Name: "anthropic-tiers",
+				Type: database.AIProviderTypeAnthropic,
+			})
+			intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  user.ID,
+				Provider:     "anthropic",
+				ProviderName: aiProvider.Name,
+				Model:        model,
+			}, nil)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			tt.req.InterceptionId = intc.ID.String()
+			tt.req.MsgId = "msg_tiers"
+			tt.req.CreatedAt = timestamppb.Now()
+			_, err = srv.RecordTokenUsage(ctx, tt.req)
+			require.NoError(t, err)
+
+			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.Len(t, tokenUsages, 1)
+			got := tokenUsages[0]
+			require.Equal(t, tt.want1hTokens, got.CacheWrite1hInputTokens, "1h cache write tokens")
+			require.Equal(t, sql.NullInt64{Int64: tt.wantPrompt, Valid: true}, got.PromptTokens, "prompt tokens")
+			require.Equal(t, tt.wantThreshold, got.PriceTierThresholdTokens, "tier threshold")
+			require.Equal(t, tt.wantPrices, [5]int64{
+				got.InputPriceMicros.Int64,
+				got.OutputPriceMicros.Int64,
+				got.CacheReadPriceMicros.Int64,
+				got.CacheWritePriceMicros.Int64,
+				got.CacheWrite1hPriceMicros.Int64,
+			}, "snapshotted prices")
+			require.Equal(t, sql.NullInt64{Int64: tt.wantCost, Valid: true}, got.CostMicros, "cost")
+		})
+	}
+}
+
 // TestRecordTokenUsageProviderResolution covers provider resolution against a real
 // database through dbauthz, where the live-row filter and name reuse apply.
 func TestRecordTokenUsageProviderResolution(t *testing.T) {

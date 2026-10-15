@@ -175,6 +175,33 @@ func TestValidateAIModelPrices(t *testing.T) {
 			want: nil,
 		},
 		{
+			// The 1h price and tiers are optional, unlike the four prices.
+			name: "ValidWith1hPriceAndTiers",
+			body: `{"prices":[{"provider":"anthropic","model":"my-model",` + allPrices + `,"cache_write_1h_price":800,` +
+				`"tiers":[{"threshold_tokens":200000,"input_price":200},{"threshold_tokens":500000,"cache_write_1h_price":0}]}]}`,
+			want: nil,
+		},
+		{
+			name: "NegativeOptionalPrices",
+			body: `{"prices":[{"provider":"anthropic","model":"my-model",` + allPrices + `,"cache_write_1h_price":-1,` +
+				`"tiers":[{"threshold_tokens":200000,"input_price":-1,"cache_write_1h_price":-1}]}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[0].cache_write_1h_price", Detail: "Price must not be negative."},
+				{Field: "prices[0].tiers[0].input_price", Detail: "Price must not be negative."},
+				{Field: "prices[0].tiers[0].cache_write_1h_price", Detail: "Price must not be negative."},
+			},
+		},
+		{
+			name: "InvalidTierThresholds",
+			body: `{"prices":[{"provider":"anthropic","model":"my-model",` + allPrices + `,` +
+				`"tiers":[{"threshold_tokens":0},{"threshold_tokens":200000},{"threshold_tokens":200000},{"threshold_tokens":100000}]}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[0].tiers[0].threshold_tokens", Detail: "Threshold must be positive."},
+				{Field: "prices[0].tiers[2].threshold_tokens", Detail: "Tier thresholds must be strictly ascending."},
+				{Field: "prices[0].tiers[3].threshold_tokens", Detail: "Tier thresholds must be strictly ascending."},
+			},
+		},
+		{
 			name: "ValidWithZeroPrice",
 			body: `{"prices":[{"provider":"anthropic","model":"my-model","input_price":0,"output_price":0,"cache_read_price":null,"cache_write_price":null}]}`,
 			want: nil,

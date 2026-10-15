@@ -14,15 +14,33 @@ import (
 // calculation treats the same as zero. Distinguish that from an explicit 0,
 // which declares the model free of charge.
 type AIModelPrice struct {
-	Provider        string             `json:"provider"`
-	Model           string             `json:"model"`
-	InputPrice      *int64             `json:"input_price"`
-	OutputPrice     *int64             `json:"output_price"`
-	CacheReadPrice  *int64             `json:"cache_read_price"`
-	CacheWritePrice *int64             `json:"cache_write_price"`
-	Source          AIModelPriceSource `json:"source"`
-	CreatedAt       time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time          `json:"updated_at" format:"date-time"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+	InputPrice      *int64 `json:"input_price"`
+	OutputPrice     *int64 `json:"output_price"`
+	CacheReadPrice  *int64 `json:"cache_read_price"`
+	CacheWritePrice *int64 `json:"cache_write_price"`
+	// CacheWrite1hPrice is the price of a cache write with a 1-hour TTL. Nil
+	// when a 1-hour write costs the cache write price.
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
+	// Tiers are long-context prices, sorted by ThresholdTokens.
+	Tiers     []AIModelPriceTier `json:"tiers"`
+	Source    AIModelPriceSource `json:"source"`
+	CreatedAt time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time          `json:"updated_at" format:"date-time"`
+}
+
+// AIModelPriceTier holds the prices for a request whose prompt is over
+// ThresholdTokens tokens. Every token of such a request uses the prices of the
+// highest tier it is over. A nil price uses the base price of the model, and a
+// nil CacheWrite1hPrice uses the CacheWritePrice of the tier.
+type AIModelPriceTier struct {
+	ThresholdTokens   int64  `json:"threshold_tokens"`
+	InputPrice        *int64 `json:"input_price"`
+	OutputPrice       *int64 `json:"output_price"`
+	CacheReadPrice    *int64 `json:"cache_read_price"`
+	CacheWritePrice   *int64 `json:"cache_write_price"`
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 }
 
 // AIModelPriceSource is where a model price came from.
@@ -59,14 +77,17 @@ type UpsertAIModelPricesRequest struct {
 }
 
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
-// only the writable fields of AIModelPrice.
+// only the writable fields of AIModelPrice. CacheWrite1hPrice and Tiers are
+// optional; leaving them out clears them.
 type AIModelPriceUpsert struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
+	Provider          string             `json:"provider"`
+	Model             string             `json:"model"`
+	InputPrice        *int64             `json:"input_price"`
+	OutputPrice       *int64             `json:"output_price"`
+	CacheReadPrice    *int64             `json:"cache_read_price"`
+	CacheWritePrice   *int64             `json:"cache_write_price"`
+	CacheWrite1hPrice *int64             `json:"cache_write_1h_price"`
+	Tiers             []AIModelPriceTier `json:"tiers,omitempty"`
 }
 
 // AIModelPricesFilter narrows the listed model prices. An empty field does not

@@ -45,7 +45,14 @@ func TestConvert(t *testing.T) {
 		"anthropic": {
 			"models": {
 				"claude-sonnet-4-7": {
-					"cost": {"input": 3, "output": 15, "cache_read": 0.3, "cache_write": 3.75}
+					"cost": {
+						"input": 3, "output": 15, "cache_read": 0.3, "cache_write": 3.75,
+						"tiers": [
+							{"input": 12, "output": 40, "tier": {"type": "context", "size": 500000}},
+							{"input": 6, "output": 22.5, "cache_read": 0.6, "cache_write": 7.5, "tier": {"type": "context", "size": 200000}}
+						],
+						"context_over_200k": {"input": 99, "output": 99}
+					}
 				},
 				"claude-haiku": {
 					"cost": {"input": 0.8, "output": 4}
@@ -54,7 +61,10 @@ func TestConvert(t *testing.T) {
 		},
 		"openai": {
 			"models": {
-				"gpt-4o": {"cost": {"input": 2.5, "output": 10, "cache_read": 1.25}},
+				"gpt-4o": {"cost": {
+					"input": 2.5, "output": 10, "cache_read": 1.25,
+					"tiers": [{"input": 5, "output": 20, "tier": {"type": "context", "size": 272000}}]
+				}},
 				"gpt-no-prices": {}
 			}
 		},
@@ -89,6 +99,26 @@ func TestConvert(t *testing.T) {
 	require.Equal(t, int64(15_000_000), *sonnet.OutputPrice)
 	require.Equal(t, int64(300_000), *sonnet.CacheReadPrice)
 	require.Equal(t, int64(3_750_000), *sonnet.CacheWritePrice)
+	require.Equal(t, int64(6_000_000), *sonnet.CacheWrite1hPrice)
+	// Tiers are sorted by size, keep absent prices nil, and get a 1h price
+	// of 2x their own input. context_over_200k is not read.
+	require.Equal(t, []pricebook.Tier{
+		{
+			ThresholdTokens:   200_000,
+			InputPrice:        int64Ptr(6_000_000),
+			OutputPrice:       int64Ptr(22_500_000),
+			CacheReadPrice:    int64Ptr(600_000),
+			CacheWritePrice:   int64Ptr(7_500_000),
+			CacheWrite1hPrice: int64Ptr(12_000_000),
+		},
+		{
+			ThresholdTokens:   500_000,
+			InputPrice:        int64Ptr(12_000_000),
+			OutputPrice:       int64Ptr(40_000_000),
+			CacheWrite1hPrice: int64Ptr(24_000_000),
+		},
+	}, sonnet.Tiers)
+	require.Empty(t, rows[0].Tiers, "claude-haiku has no tiers")
 
 	// Missing keys stay nil for OpenAI gpt-4o.
 	gpt := rows[2]
@@ -96,6 +126,68 @@ func TestConvert(t *testing.T) {
 	require.Equal(t, int64(10_000_000), *gpt.OutputPrice)
 	require.Equal(t, int64(1_250_000), *gpt.CacheReadPrice)
 	require.Nil(t, gpt.CacheWritePrice)
+	require.Nil(t, gpt.CacheWrite1hPrice)
+	require.Equal(t, []pricebook.Tier{{
+		ThresholdTokens: 272_000,
+		InputPrice:      int64Ptr(5_000_000),
+		OutputPrice:     int64Ptr(20_000_000),
+	}}, gpt.Tiers)
+}
+
+func TestClaude1hPrice(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		provider, model string
+		input           *int64
+		want            *int64
+	}{
+		{"anthropic", "claude-opus-5-5", int64Ptr(4_000_000), int64Ptr(8_000_000)},
+		{"bedrock", "anthropic.claude-sonnet-4-6", int64Ptr(3_000_000), int64Ptr(6_000_000)},
+		{"copilot", "claude-sonnet-4.6", int64Ptr(3_000_000), int64Ptr(6_000_000)},
+		// Other providers serve Claude through paths that do not report the
+		// 1h part of cache writes.
+		{"openrouter", "anthropic/claude-sonnet-4", int64Ptr(3_000_000), nil},
+		{"vercel", "anthropic/claude-sonnet-4", int64Ptr(3_000_000), nil},
+		{"azure", "claude-opus-5-5", int64Ptr(4_000_000), nil},
+		{"bedrock", "amazon.nova-pro", int64Ptr(800_000), nil},
+		{"anthropic", "claude-unpriced", nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.provider+"/"+tc.model, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, claude1hPrice(tc.provider, tc.model, tc.input))
+		})
+	}
+}
+
+func TestConvertTiersRejectsInvalid(t *testing.T) {
+	t.Parallel()
+
+	tier := func(typ string, size int64) upstreamTier {
+		var tier upstreamTier
+		tier.Input = floatPtr(1)
+		tier.Tier.Type = typ
+		tier.Tier.Size = size
+		return tier
+	}
+	cases := []struct {
+		name  string
+		tiers []upstreamTier
+		want  string
+	}{
+		{"UnknownType", []upstreamTier{tier("output", 1000)}, `unknown tier type "output"`},
+		{"ZeroSize", []upstreamTier{tier("context", 0)}, "tier size 0 is not positive"},
+		{"NegativeSize", []upstreamTier{tier("context", -1)}, "tier size -1 is not positive"},
+		{"DuplicateSize", []upstreamTier{tier("context", 1000), tier("context", 1000)}, "duplicate tier size 1000"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := convertTiers("openai", "gpt", tc.tiers)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
 }
 
 // TestConvertMissingProvider covers both shapes of "configured provider has
