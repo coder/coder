@@ -6675,6 +6675,37 @@ export interface MCPServerOAuth2DisconnectResponse {
 	readonly token_revocation_error?: string;
 }
 
+// From codersdk/mcp.go
+/**
+ * MCPToolUsageReport carries tool call counts aggregated by a local MCP
+ * server, such as `coder exp mcp server`, for deployment telemetry. It
+ * contains no tool arguments, results, or user identifiers.
+ */
+export interface MCPToolUsageReport {
+	readonly entries: readonly MCPToolUsageReportEntry[];
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPToolUsageReportEntry is the number of calls to one tool from one
+ * client since the previous report. Every error is also counted in Calls.
+ */
+export interface MCPToolUsageReportEntry {
+	/**
+	 * Tool is the toolsdk tool name.
+	 */
+	readonly tool: string;
+	/**
+	 * Client is the MCP client name. The server normalizes it to a fixed
+	 * set of known clients.
+	 */
+	readonly client: string;
+	readonly calls: number;
+	readonly tool_errors: number;
+	readonly validation_errors: number;
+	readonly authz_errors: number;
+}
+
 // From codersdk/provisionerdaemons.go
 /**
  * MatchedProvisioners represents the number of provisioner daemons

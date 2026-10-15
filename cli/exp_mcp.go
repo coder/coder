@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -17,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	coderdmcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/serpent"
@@ -405,6 +408,21 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
+	// Tool usage is aggregated locally and reported to coderd, which
+	// includes it in deployment telemetry.
+	toolUsage := telemetry.NewMCPToolUsage(nil)
+	toolUsageRecorder := coderdmcp.TelemetryRecorder{Usage: toolUsage, Transport: telemetry.MCPTransportStdio}
+	reportCtx, stopReporting := context.WithCancel(ctx)
+	reportDone := make(chan struct{})
+	go func() {
+		defer close(reportDone)
+		reportMCPToolUsage(reportCtx, codersdk.NewExperimentalClient(s.client), toolUsage)
+	}()
+	defer func() {
+		stopReporting()
+		<-reportDone
+	}()
+
 	// Register tools based on the allowlist.  Zero length means allow everything.
 	registeredTools := make(map[string]bool, len(toolsdk.All))
 	for _, tool := range toolsdk.All {
@@ -415,7 +433,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			continue
 		}
 
-		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps, nil)
+		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps, toolUsageRecorder)
 		registeredTools[tool.Name] = true
 	}
 
@@ -448,6 +466,59 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	}
 
 	return nil
+}
+
+const (
+	// mcpToolUsageReportInterval is how often the stdio MCP server reports
+	// aggregated tool usage to coderd.
+	mcpToolUsageReportInterval = 5 * time.Minute
+	// mcpToolUsageReportTimeout bounds each report, including the final
+	// report sent while the server shuts down.
+	mcpToolUsageReportTimeout = 5 * time.Second
+)
+
+// reportMCPToolUsage periodically sends the tool usage aggregated in usage
+// to coderd, and sends any remaining usage once ctx is canceled. Reporting
+// is best effort: failed reports are dropped, and reporting stops for
+// coderd versions that do not have the endpoint.
+func reportMCPToolUsage(ctx context.Context, client *codersdk.ExperimentalClient, usage *telemetry.MCPToolUsage) {
+	unsupported := false
+	flush := func() {
+		summaries := usage.Collect()
+		if len(summaries) == 0 || unsupported {
+			return
+		}
+		entries := make([]codersdk.MCPToolUsageReportEntry, 0, len(summaries))
+		for _, summary := range summaries {
+			entries = append(entries, codersdk.MCPToolUsageReportEntry{
+				Tool:             summary.Tool,
+				Client:           summary.Client,
+				Calls:            summary.Calls,
+				ToolErrors:       summary.ToolErrors,
+				ValidationErrors: summary.ValidationErrors,
+				AuthzErrors:      summary.AuthzErrors,
+			})
+		}
+		// Detach from ctx so the final report is still sent on shutdown.
+		reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mcpToolUsageReportTimeout)
+		defer cancel()
+		err := client.ReportMCPToolUsage(reportCtx, codersdk.MCPToolUsageReport{Entries: entries})
+		if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+			unsupported = true
+		}
+	}
+
+	ticker := time.NewTicker(mcpToolUsageReportInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			flush()
+			return
+		case <-ticker.C:
+			flush()
+		}
+	}
 }
 
 // nopWriteCloser adapts the invocation's stdout to the WriteCloser

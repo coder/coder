@@ -1427,6 +1427,8 @@ func New(options *Options) *API {
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
 			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			// Aggregated tool call counts reported by local MCP servers.
+			r.With(apiKeyMiddleware).Post("/tool-usage", api.postMCPToolUsage)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {

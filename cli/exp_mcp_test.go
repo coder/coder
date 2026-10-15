@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -617,6 +618,11 @@ func TestExpMcpServerToolError(t *testing.T) {
 	const sentinelMessage = "sentinel tool API failure"
 	var failRequests atomic.Bool
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The server reports aggregated tool usage on shutdown.
+		if r.URL.Path == "/api/experimental/mcp/tool-usage" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		assert.Equal(t, "/api/v2/users/me", r.URL.Path)
 		if failRequests.Load() {
 			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
@@ -672,4 +678,62 @@ func TestExpMcpServerToolError(t *testing.T) {
 	require.Len(t, response.Result.Content, 1)
 	require.Equal(t, "text", response.Result.Content[0].Type)
 	require.Contains(t, response.Result.Content[0].Text, sentinelMessage)
+}
+
+// enabledTelemetryReporter lets coderd accept MCP tool usage reports.
+type enabledTelemetryReporter struct{}
+
+func (enabledTelemetryReporter) Report(*telemetry.Snapshot) {}
+func (enabledTelemetryReporter) Enabled() bool              { return true }
+func (enabledTelemetryReporter) Close()                     {}
+
+func TestExpMcpServerReportsToolUsage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	cancelCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		TelemetryReporter: enabledTelemetryReporter{},
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	_ = api.MCPToolUsage.Collect()
+
+	inv, root := clitest.New(t, "exp", "mcp", "server")
+	inv = inv.WithContext(cancelCtx)
+	stdout, stdoutWriter := expecter.NewPiped(t)
+	inv.Stdout = stdoutWriter
+	stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
+	clitest.SetupConfig(t, client, root)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, inv.Run())
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.0.0"}}}`)
+	_ = stdout.ReadLine(ctx)
+	stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"` + toolsdk.ToolNameGetAuthenticatedUser + `","arguments":{}}}`)
+	_ = stdout.ReadLine(ctx)
+	stdin.WriteLine(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"` + toolsdk.ToolNameGetWorkspace + `","arguments":{}}}`)
+	_ = stdout.ReadLine(ctx)
+
+	// Shutting down sends the final report.
+	cancel()
+	<-done
+
+	summaries := api.MCPToolUsage.Collect()
+	require.Len(t, summaries, 2)
+	for _, summary := range summaries {
+		assert.Equal(t, telemetry.MCPTransportStdio, summary.Transport)
+		assert.Equal(t, "claude-code", summary.Client)
+		assert.EqualValues(t, 1, summary.Calls)
+	}
+	assert.Equal(t, toolsdk.ToolNameGetAuthenticatedUser, summaries[0].Tool)
+	assert.EqualValues(t, 0, summaries[0].ValidationErrors)
+	assert.Equal(t, toolsdk.ToolNameGetWorkspace, summaries[1].Tool)
+	assert.EqualValues(t, 1, summaries[1].ValidationErrors)
 }

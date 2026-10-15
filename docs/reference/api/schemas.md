@@ -11052,6 +11052,53 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `token_revocation_error` | string  | false    |              |             |
 | `token_revoked`          | boolean | false    |              |             |
 
+## codersdk.MCPToolUsageReport
+
+```json
+{
+  "entries": [
+    {
+      "authz_errors": 0,
+      "calls": 0,
+      "client": "string",
+      "tool": "string",
+      "tool_errors": 0,
+      "validation_errors": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                          | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `entries` | array of [codersdk.MCPToolUsageReportEntry](#codersdkmcptoolusagereportentry) | false    |              |             |
+
+## codersdk.MCPToolUsageReportEntry
+
+```json
+{
+  "authz_errors": 0,
+  "calls": 0,
+  "client": "string",
+  "tool": "string",
+  "tool_errors": 0,
+  "validation_errors": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                              |
+|---------------------|---------|----------|--------------|------------------------------------------------------------------------------------------|
+| `authz_errors`      | integer | false    |              |                                                                                          |
+| `calls`             | integer | false    |              |                                                                                          |
+| `client`            | string  | false    |              | Client is the MCP client name. The server normalizes it to a fixed set of known clients. |
+| `tool`              | string  | false    |              | Tool is the toolsdk tool name.                                                           |
+| `tool_errors`       | integer | false    |              |                                                                                          |
+| `validation_errors` | integer | false    |              |                                                                                          |
+
 ## codersdk.MatchedProvisioners
 
 ```json

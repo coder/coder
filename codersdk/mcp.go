@@ -340,3 +340,37 @@ func (c *Client) DeleteMCPServerConfig(ctx context.Context, organizationID, id u
 	}
 	return nil
 }
+
+// MCPToolUsageReport carries tool call counts aggregated by a local MCP
+// server, such as `coder exp mcp server`, for deployment telemetry. It
+// contains no tool arguments, results, or user identifiers.
+type MCPToolUsageReport struct {
+	Entries []MCPToolUsageReportEntry `json:"entries"`
+}
+
+// MCPToolUsageReportEntry is the number of calls to one tool from one
+// client since the previous report. Every error is also counted in Calls.
+type MCPToolUsageReportEntry struct {
+	// Tool is the toolsdk tool name.
+	Tool string `json:"tool"`
+	// Client is the MCP client name. The server normalizes it to a fixed
+	// set of known clients.
+	Client           string `json:"client"`
+	Calls            int64  `json:"calls"`
+	ToolErrors       int64  `json:"tool_errors"`
+	ValidationErrors int64  `json:"validation_errors"`
+	AuthzErrors      int64  `json:"authz_errors"`
+}
+
+// ReportMCPToolUsage reports tool call counts from a local MCP server.
+func (c *ExperimentalClient) ReportMCPToolUsage(ctx context.Context, req MCPToolUsageReport) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/mcp/tool-usage", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
