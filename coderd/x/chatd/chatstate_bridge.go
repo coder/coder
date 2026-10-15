@@ -10,9 +10,23 @@ import (
 )
 
 // newChatMachine constructs a chat-scoped state machine handle bound to
-// the server's database and pubsub.
+// the server's database and pubsub. Its updates acquire chats they make
+// runnable on this replica's worker.
 func (p *Server) newChatMachine(chatID uuid.UUID) *chatstate.ChatMachine {
-	return chatstate.NewChatMachine(p.db, p.pubsub, chatID)
+	machine := chatstate.NewChatMachine(p.db, p.pubsub, chatID)
+	if acquirer := p.localAcquirer(); acquirer != nil {
+		machine = machine.WithLocalAcquirer(acquirer)
+	}
+	return machine
+}
+
+// localAcquirer returns the worker that acquires chats made runnable by
+// this server's transitions, or nil for servers built without one.
+func (p *Server) localAcquirer() chatstate.LocalAcquirer {
+	if p.chatWorker == nil {
+		return nil
+	}
+	return p.chatWorker
 }
 
 // systemMessage builds a chatstate.Message representing a system

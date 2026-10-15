@@ -14372,6 +14372,130 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 		"LLM should have received at least 2 streaming requests")
 }
 
+type unlockedAgentCapacity struct{}
+
+func (unlockedAgentCapacity) Unlocked() bool { return true }
+
+// TestLocalFirstAcquisition covers that a started, uncapped server
+// acquires the chats its CreateChat and SendMessage make runnable without
+// an ownership hint, and that other servers fall back to the hint.
+func TestLocalFirstAcquisition(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		uncapped  bool
+		start     bool
+		wantLocal bool
+	}{
+		{name: "Uncapped", uncapped: true, start: true, wantLocal: true},
+		{name: "Capped", start: true},
+		{name: "WorkerNotStarted", uncapped: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+			var hints atomic.Int32
+			cancel, err := ps.SubscribeWithErr(coderdpubsub.ChatStateOwnershipChannel, coderdpubsub.HandleChatStateOwnership(
+				func(context.Context, coderdpubsub.ChatStateOwnershipMessage, error) { hints.Add(1) },
+			))
+			require.NoError(t, err)
+			t.Cleanup(cancel)
+
+			// Holding the second turn keeps its runner from releasing the
+			// chat while the test reads ownership.
+			holdSecond := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseSecond := func() { releaseOnce.Do(func() { close(holdSecond) }) }
+			var requests atomic.Int32
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				if requests.Add(1) == 2 {
+					select {
+					case <-holdSecond:
+					case <-req.Context().Done():
+					}
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("response")...)
+			})
+			t.Cleanup(releaseSecond)
+			replicaID := uuid.New()
+			configure := func(cfg *chatd.Config) {
+				cfg.ReplicaID = replicaID
+				cfg.PendingChatAcquireInterval = time.Hour
+				cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				if tc.uncapped {
+					cfg.AgentCapacityUnlock = unlockedAgentCapacity{}
+				}
+			}
+			var server *chatd.Server
+			if tc.start {
+				server = newActiveTestServer(t, db, ps, configure)
+			} else {
+				server = newTestServer(t, db, ps, replicaID, configure)
+			}
+			user, org, model := seedChatDependencies(t, db)
+			setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+			requireAcquisition := func(chat database.Chat, wantHints int32) {
+				t.Helper()
+				if tc.wantLocal {
+					require.Equal(t, uuid.NullUUID{UUID: replicaID, Valid: true}, chat.WorkerID)
+					require.True(t, chat.RunnerID.Valid)
+					return
+				}
+				require.False(t, chat.WorkerID.Valid)
+				testutil.Eventually(ctx, t, func(context.Context) bool {
+					return hints.Load() >= wantHints
+				}, testutil.IntervalFast)
+			}
+
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "local-first",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+			})
+			require.NoError(t, err)
+			requireAcquisition(chat, 1)
+			if !tc.start {
+				return
+			}
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			chatd.WaitUntilIdleForTest(server)
+
+			sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:  chat.ID,
+				Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("second")},
+			})
+			require.NoError(t, err)
+			if tc.wantLocal {
+				// SendMessage returns the row it reloaded before the local
+				// acquire, so read ownership from the database.
+				stored, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				requireAcquisition(stored, 2)
+			} else {
+				requireAcquisition(sent.Chat, 2)
+			}
+			releaseSecond()
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			chatd.WaitUntilIdleForTest(server)
+
+			require.GreaterOrEqual(t, requests.Load(), int32(2))
+			if tc.wantLocal {
+				require.Zero(t, hints.Load())
+			}
+		})
+	}
+}
+
 // TestAgentContextFilesAndSkillsLoadedIntoChat verifies the full
 // end-to-end path: the workspace agent reads instruction files and
 // discovers skills from the filesystem, chatd fetches them via a

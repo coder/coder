@@ -1183,6 +1183,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		ClientType:      parent.ClientType,
 		InitialMessages: initialMessages,
 		InitialStatus:   database.ChatStatusRunning,
+		LocalAcquirer:   p.localAcquirer(),
 	})
 	if err != nil {
 		if errors.Is(err, chatstate.ErrChatFamilyArchived) {

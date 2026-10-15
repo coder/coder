@@ -1417,6 +1417,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		LocalAcquirer:   p.localAcquirer(),
 	})
 	if err != nil {
 		return database.Chat{}, err

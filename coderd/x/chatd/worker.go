@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -377,4 +378,47 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 		return nil
 	}
 	return err
+}
+
+// PrepareAcquire implements [chatstate.LocalAcquirer] for transitions
+// applied on this replica.
+func (w *chatWorker) PrepareAcquire(ctx context.Context, store database.Store, chat database.Chat) (chatstate.AcquireInput, bool, error) {
+	w.mu.Lock()
+	running := w.started && w.ctx.Err() == nil
+	w.mu.Unlock()
+	if !running {
+		return chatstate.AcquireInput{}, false, nil
+	}
+	// Capped admission waits on a global lock whose timeout would abort
+	// the caller's transaction, so capped chats keep the worker path.
+	if _, capped := w.opts.AgentCapacityLimiter.Limits(); capped {
+		return chatstate.AcquireInput{}, false, nil
+	}
+	admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
+	if err != nil {
+		return chatstate.AcquireInput{}, false, xerrors.Errorf("agent admission: %w", err)
+	}
+	if !admitted {
+		return chatstate.AcquireInput{}, false, nil
+	}
+	return chatstate.AcquireInput{WorkerID: w.opts.WorkerID, RunnerID: uuid.New()}, true, nil
+}
+
+// StartAcquired implements [chatstate.LocalAcquirer]. It spawns on the
+// worker context so a canceled request does not abandon the chat.
+func (w *chatWorker) StartAcquired(chatID uuid.UUID, input chatstate.AcquireInput) {
+	w.mu.Lock()
+	ctx, manager := w.ctx, w.manager
+	w.mu.Unlock()
+	err := xerrors.New("chatworker: worker closed")
+	if manager != nil {
+		err = manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: input.WorkerID, RunnerID: input.RunnerID})
+	}
+	if err == nil {
+		return
+	}
+	w.opts.Logger.Warn(ctx, "chatworker local spawn failed", slog.F("chat_id", chatID), slogError(err))
+	if err := w.abandonAcquiredChat(ctx, input.WorkerID, input.RunnerID, chatID); err != nil {
+		w.opts.Logger.Error(ctx, "chatworker abandon after local spawn failure", slog.F("chat_id", chatID), slogError(err))
+	}
 }

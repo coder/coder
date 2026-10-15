@@ -31,6 +31,20 @@ type ChatMachine struct {
 	store     database.Store
 	publisher Publisher
 	chatID    uuid.UUID
+	acquirer  LocalAcquirer
+}
+
+// LocalAcquirer lets the replica that makes a chat runnable acquire it in
+// the same transaction, so no ownership hint makes every replica race for
+// the chat row lock.
+type LocalAcquirer interface {
+	// PrepareAcquire runs inside the transaction with the chat locked and
+	// unowned. Returning false leaves the chat to the ownership hint. An
+	// error rolls back the transaction.
+	PrepareAcquire(ctx context.Context, store database.Store, chat database.Chat) (AcquireInput, bool, error)
+	// StartAcquired runs once after commit and publication for a chat
+	// acquired with the input PrepareAcquire returned.
+	StartAcquired(chatID uuid.UUID, input AcquireInput)
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -48,6 +62,16 @@ func NewChatMachine(
 		publisher: publisher,
 		chatID:    chatID,
 	}
+}
+
+// WithLocalAcquirer returns a copy of m whose top-level updates acquire
+// the chat through a when they leave it runnable and unowned. The
+// machine's store must not be an outer transaction, because a is started
+// after Update's own commit.
+func (m *ChatMachine) WithLocalAcquirer(a LocalAcquirer) *ChatMachine {
+	c := *m
+	c.acquirer = a
+	return &c
 }
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
@@ -144,6 +168,11 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
+//
+// With a [LocalAcquirer] attached, a top-level Update that leaves the
+// chat runnable and unowned may acquire it in the same transaction. It
+// then publishes the owned row and no ownership hint, and starts the
+// acquirer once after commit.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
@@ -154,11 +183,21 @@ func (m *ChatMachine) Update(
 	if m.publisher == nil {
 		return xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
+	acquirer := m.acquirer
+	if insideUpdate(ctx) {
+		// The outer Update owns the commit, so a local acquire would
+		// start the chat before it is committed.
+		acquirer = nil
+	} else {
+		ctx = context.WithValue(ctx, updateInProgressKey{}, struct{}{})
+	}
 
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
+	var acquired *AcquireInput
 	err := m.store.InTx(func(store database.Store) error {
+		acquired = nil
 		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
@@ -177,13 +216,20 @@ func (m *ChatMachine) Update(
 		if err != nil {
 			return err
 		}
+		if acquirer != nil && state.IsRunnable() {
+			chat, acquired, err = acquireLocally(tx, acquirer, chat)
+			if err != nil {
+				return err
+			}
+		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),
 			buildChatUpdateMessage(chat),
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if state.IsRunnable() {
+		// A local acquire just wrote a fresh lease.
+		if state.IsRunnable() && acquired == nil {
 			stale, err := ownershipStaleOrMissing(ctx, store, chat, HeartbeatStaleSeconds)
 			if err != nil {
 				return xerrors.Errorf("evaluate ownership: %w", err)
@@ -202,7 +248,43 @@ func (m *ChatMachine) Update(
 	if err != nil {
 		return err
 	}
-	return buffer.Flush()
+	flushErr := buffer.Flush()
+	if acquired != nil {
+		// The chat is committed as ours even if a publication failed, so
+		// start it rather than leave the lease to expire.
+		acquirer.StartAcquired(m.chatID, *acquired)
+	}
+	return flushErr
+}
+
+// updateInProgressKey marks a context passed into a [ChatMachine.Update]
+// transaction.
+type updateInProgressKey struct{}
+
+func insideUpdate(ctx context.Context) bool {
+	return ctx.Value(updateInProgressKey{}) != nil
+}
+
+// acquireLocally acquires an unowned runnable chat for acquirer and
+// returns the post-acquire row, or returns chat unchanged when the chat is
+// owned or acquirer declines. Stale-owner takeovers stay on the worker
+// path, which rechecks the lease under the admission lock.
+func acquireLocally(tx *Tx, acquirer LocalAcquirer, chat database.Chat) (database.Chat, *AcquireInput, error) {
+	if chat.WorkerID.Valid || chat.RunnerID.Valid {
+		return chat, nil, nil
+	}
+	input, ok, err := acquirer.PrepareAcquire(tx.ctx, tx.store, chat)
+	if err != nil {
+		return database.Chat{}, nil, xerrors.Errorf("prepare local acquire: %w", err)
+	}
+	if !ok {
+		return chat, nil, nil
+	}
+	result, err := tx.acquireFrom(chat, input)
+	if err != nil {
+		return database.Chat{}, nil, xerrors.Errorf("local acquire: %w", err)
+	}
+	return result.Chat, &input, nil
 }
 
 // Lock locks the chat row with FOR UPDATE and runs fn in a

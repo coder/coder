@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -431,4 +434,191 @@ func TestWorkerRunnerReleasesTurnOnTaskExit(t *testing.T) {
 	}, testutil.IntervalFast)
 	outcome, _ := spanAttribute(t, turnSpansByStart(t, recorder)[0], chatloop.AttrTurnOutcome)
 	require.Equal(t, chatloop.TurnOutcomeCompleted, chatloop.TurnOutcome(outcome.AsString()))
+}
+
+// createWaitingChat creates an idle chat, which publishes no ownership
+// hint and is not an acquisition candidate.
+func (f *workerTestFixture) createWaitingChat(t *testing.T) database.Chat {
+	t.Helper()
+	res, err := chatstate.CreateChat(testutil.Context(t, testutil.WaitShort), f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		LastModelConfigID: f.model.ID,
+		Title:             "test",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusWaiting,
+		InitialMessages: []chatstate.Message{
+			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+		},
+	})
+	require.NoError(t, err)
+	return res.Chat
+}
+
+// sendMessageWith makes chat runnable through a machine that acquires
+// locally through acquirer, and returns the chat:update that Update
+// published.
+func sendMessageWith(t *testing.T, f *workerTestFixture, ps *recordingPubsub, acquirer chatstate.LocalAcquirer, chatID uuid.UUID) coderdpubsub.ChatStateUpdateMessage {
+	t.Helper()
+	before := len(ps.stateUpdateMessages(t, chatID))
+	machine := chatstate.NewChatMachine(f.db, ps, chatID).WithLocalAcquirer(acquirer)
+	err := machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
+			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+		})
+		return err
+	})
+	require.NoError(t, err)
+	published := ps.stateUpdateMessages(t, chatID)
+	require.Greater(t, len(published), before)
+	return published[before]
+}
+
+// closeBeforeStartAcquirer closes the worker between commit and spawn.
+type closeBeforeStartAcquirer struct {
+	*chatWorker
+	t *testing.T
+}
+
+func (a closeBeforeStartAcquirer) StartAcquired(chatID uuid.UUID, input chatstate.AcquireInput) {
+	require.NoError(a.t, a.Close())
+	a.chatWorker.StartAcquired(chatID, input)
+}
+
+func TestWorker_LocalAcquire(t *testing.T) {
+	t.Parallel()
+
+	uncapped := func() *fakeAdmission {
+		admission := newFakeAdmission()
+		admission.uncapped = true
+		return admission
+	}
+
+	t.Run("SpawnsWithoutHint", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		rec := newRecordingPubsub(f.pubsub)
+		starter := newRecordingTaskStarter()
+		opts := testOptions(t, f, starter)
+		opts.Pubsub = rec
+		admission := uncapped()
+		opts.AgentCapacityLimiter = admission
+		worker := startWorker(t, opts)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chat := f.createWaitingChat(t)
+		published := sendMessageWith(t, f, rec, worker, chat.ID)
+		require.NotNil(t, published.WorkerID)
+		require.Equal(t, worker.opts.WorkerID, *published.WorkerID)
+		call := starter.waitCall(t, taskKindGeneration, chat.ID)
+		require.NotNil(t, published.RunnerID)
+		require.Equal(t, *published.RunnerID, call.input.RunnerID)
+		stored, err := f.db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: worker.opts.WorkerID, Valid: true}, stored.WorkerID)
+		require.Equal(t, uuid.NullUUID{UUID: call.input.RunnerID, Valid: true}, stored.RunnerID)
+		require.Equal(t, 1, admission.admitCallCount())
+
+		created, err := chatstate.CreateChatWithID(ctx, f.db, rec, uuid.New(), chatstate.CreateChatInput{
+			OrganizationID:    f.org.ID,
+			OwnerID:           f.user.ID,
+			LastModelConfigID: f.model.ID,
+			Title:             "created",
+			ClientType:        database.ChatClientTypeApi,
+			InitialMessages: []chatstate.Message{
+				userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+			},
+			LocalAcquirer: worker,
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: worker.opts.WorkerID, Valid: true}, created.Chat.WorkerID)
+		call = starter.waitCall(t, taskKindGeneration, created.Chat.ID)
+		require.Equal(t, created.Chat.RunnerID.UUID, call.input.RunnerID)
+
+		require.Empty(t, rec.ownershipMessages(t))
+	})
+
+	t.Run("CappedFallsBackToHint", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		rec := newRecordingPubsub(f.pubsub)
+		starter := newRecordingTaskStarter()
+		worker := startWorker(t, testOptions(t, f, starter))
+
+		chat := f.createWaitingChat(t)
+		published := sendMessageWith(t, f, rec, worker, chat.ID)
+		require.Nil(t, published.WorkerID)
+		require.Len(t, rec.ownershipMessages(t), 1)
+		call := starter.waitCall(t, taskKindGeneration, chat.ID)
+		require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
+	})
+
+	t.Run("AdmissionRefusedFallsBackToHint", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		rec := newRecordingPubsub(f.pubsub)
+		starter := newRecordingTaskStarter()
+		opts := testOptions(t, f, starter)
+		admission := uncapped()
+		opts.AgentCapacityLimiter = admission
+		worker := startWorker(t, opts)
+
+		chat := f.createWaitingChat(t)
+		admission.refuse(chat.ID)
+		published := sendMessageWith(t, f, rec, worker, chat.ID)
+		require.Nil(t, published.WorkerID)
+		require.Len(t, rec.ownershipMessages(t), 1)
+	})
+
+	t.Run("WorkerNotRunning", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		opts := testOptions(t, f, nil)
+		opts.AgentCapacityLimiter = uncapped()
+		worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
+		require.NoError(t, err)
+		chat := f.createWaitingChat(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, ok, err := worker.PrepareAcquire(ctx, f.db, chat)
+		require.NoError(t, err)
+		require.False(t, ok, "an unstarted worker leaves the chat to the hint")
+
+		require.NoError(t, worker.Start(context.Background()))
+		_, ok, err = worker.PrepareAcquire(ctx, f.db, chat)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		require.NoError(t, worker.Close())
+		_, ok, err = worker.PrepareAcquire(ctx, f.db, chat)
+		require.NoError(t, err)
+		require.False(t, ok, "a closed worker leaves the chat to the hint")
+	})
+
+	t.Run("SpawnFailureAbandons", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		rec := newRecordingPubsub(f.pubsub)
+		starter := newRecordingTaskStarter()
+		opts := testOptions(t, f, starter)
+		opts.Pubsub = rec
+		opts.AgentCapacityLimiter = uncapped()
+		worker := startWorker(t, opts)
+
+		chat := f.createWaitingChat(t)
+		published := sendMessageWith(t, f, rec, closeBeforeStartAcquirer{chatWorker: worker, t: t}, chat.ID)
+		require.NotNil(t, published.WorkerID)
+		require.Equal(t, worker.opts.WorkerID, *published.WorkerID)
+
+		latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
+		require.NoError(t, err)
+		require.False(t, latest.WorkerID.Valid)
+		require.False(t, latest.RunnerID.Valid)
+		hints := rec.ownershipMessages(t)
+		require.Len(t, hints, 1)
+		require.Equal(t, latest.SnapshotVersion, hints[0].SnapshotVersion)
+		starter.assertNoCall(t)
+	})
 }
