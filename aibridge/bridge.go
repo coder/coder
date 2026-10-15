@@ -127,7 +127,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(routing.RejectInvalidForwardPath(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes)))
 	return b, nil
 }
 
