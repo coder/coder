@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -98,16 +98,16 @@ const mockSkillRequests = () => {
 		.mockResolvedValue([]);
 };
 
-beforeAll(() => {
+beforeEach(() => {
 	// jsdom lacks Range geometry, which the slash menu reads to anchor.
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
+	// The method does not exist to spy on, so add it per test and remove
+	// it afterwards.
+	Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 1, 16);
 });
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
 });
 
 describe("ChatPageInput", () => {
