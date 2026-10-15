@@ -101,7 +101,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
-	// nolint:gocritic // Only the workspace secret manager reads values.
+	//nolint:gocritic // Only the workspace secret manager reads values.
 	workspaceSecrets, err := a.Database.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), a.WorkspaceBuildID)
 	if err != nil {
 		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
