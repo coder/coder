@@ -77,8 +77,8 @@ type UpsertAIModelPricesRequest struct {
 }
 
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
-// only the writable fields of AIModelPrice. CacheWrite1hPrice and Tiers are
-// optional; leaving them out clears them.
+// only the writable fields of AIModelPrice. A missing or null
+// CacheWrite1hPrice or Tiers clears it.
 type AIModelPriceUpsert struct {
 	Provider          string             `json:"provider"`
 	Model             string             `json:"model"`

@@ -163,7 +163,6 @@ export const MockGPT5ModelPrice: AIModelPrice = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
-// The tiers apply to requests whose prompt is over their threshold_tokens.
 // The second tier sets no cache read or 1h price, so those use the base cache
 // read price and the tier cache write price.
 export const MockClaudeSonnetModelPrice: AIModelPrice = {

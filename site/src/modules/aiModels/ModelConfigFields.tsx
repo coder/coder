@@ -12,7 +12,6 @@ import {
 	toFormFieldKey,
 } from "#/api/chatModelOptions";
 import { aiModelPrices } from "#/api/queries/aiProviders";
-import type { AIModelPrice, AIModelPriceTier } from "#/api/typesGenerated";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -49,6 +48,7 @@ import {
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
 } from "./modelConfigFormLogic";
+import { PriceTierNotes } from "./PriceTierNotes";
 
 const booleanFieldOptions = [
 	{ label: "Off", value: "false" },
@@ -687,52 +687,6 @@ const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
 const priceOrUndefined = (micros: number | null): number | undefined =>
 	micros === null ? undefined : microsToDollars(micros);
 
-const formatTierPrice = (label: string, micros: number | null): string => {
-	const cost = priceOrUndefined(micros);
-	if (cost === undefined) {
-		return `${label} N/A`;
-	}
-	const price = formatPricePerMillionTokens(cost);
-	return `${label} ${price.belowThreshold ? "<$" : "$"}${price.value}`;
-};
-
-// An unset tier 1h price bills at the cache write price of the tier, so the
-// 1h entry is listed only when the tier sets one.
-const formatPriceTier = (
-	base: AIModelPrice,
-	tier: AIModelPriceTier,
-): string => {
-	const prices = [
-		formatTierPrice("input", tier.input_price ?? base.input_price),
-		formatTierPrice("output", tier.output_price ?? base.output_price),
-		formatTierPrice(
-			"cache read",
-			tier.cache_read_price ?? base.cache_read_price,
-		),
-		formatTierPrice(
-			"cache write",
-			tier.cache_write_price ?? base.cache_write_price,
-		),
-	];
-	if (tier.cache_write_1h_price !== null) {
-		prices.push(formatTierPrice("cache write (1h)", tier.cache_write_1h_price));
-	}
-	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens: ${prices.join(" · ")}`;
-};
-
-const PriceTierNotes: React.FC<{ price: AIModelPrice }> = ({ price }) => (
-	<>
-		{price.tiers.map((tier) => (
-			<p
-				key={tier.threshold_tokens}
-				className="col-span-full m-0 text-xs text-content-secondary"
-			>
-				{formatPriceTier(price, tier)}
-			</p>
-		))}
-	</>
-);
-
 export const PricingEstimateFields: React.FC<{
 	provider: string;
 	model: string;
@@ -796,7 +750,8 @@ export const PricingEstimateFields: React.FC<{
 	if (
 		!livePriceLoading &&
 		(costs === undefined ||
-			priceEstimateFields.every(([, key]) => costs[key] === undefined))
+			(visibleFields.every(([, key]) => costs[key] === undefined) &&
+				!livePrice?.tiers.length))
 	) {
 		return (
 			<p className="m-0 text-xs text-content-secondary sm:col-span-full">
