@@ -45,7 +45,12 @@ export const getQueuedMessageInfo = (
 	for (const part of message.content) {
 		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
-		} else if (part.type === "text" && part.text?.trim()) {
+		} else if (
+			part.type === "text" &&
+			// A blank line after a chip still ends the preview's first line.
+			(part.text?.trim() ||
+				(previewParts.length > 0 && part.text?.includes("\n")))
+		) {
 			previewParts.push({ type: "text", text: part.text });
 		} else if (part.type === "skill-invocation") {
 			previewParts.push(part);
