@@ -21,7 +21,9 @@ import {
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
+import { organizationSkillsKey } from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -43,6 +45,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { MockSkill } from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
@@ -296,6 +299,27 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+	});
+
+	it("submits a skill chosen from the slash menu as a composer part", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(userSkillsKey(), [MockSkill]);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /skill/ }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "personal",
+			name: MockSkill.name,
+		});
 	});
 
 	it("rejects workspace files when no workspace is selected", async () => {
