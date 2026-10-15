@@ -79,7 +79,7 @@ const OidcIcon: React.FC<OidcIconProps> = ({ iconUrl }) => {
 		<>
 			<ExternalImage alt="" src={iconUrl} aria-labelledby={oidcId} />
 			<div id={oidcId} className="sr-only">
-				Open ID Connect
+				OpenID Connect
 			</div>
 		</>
 	);

@@ -195,7 +195,7 @@ const ParameterLabel: React.FC<ParameterLabelProps> = ({
 									<span className="flex items-center">
 										<Badge size="sm">
 											<LinkIcon />
-											URL Autofill
+											URL autofill
 										</Badge>
 									</span>
 								</TooltipTrigger>

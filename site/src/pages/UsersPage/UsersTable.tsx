@@ -99,7 +99,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			<TableCell>
 				<AvatarData
 					title={user.username}
-					subtitle={user.is_service_account ? "Service Account" : user.email}
+					subtitle={user.is_service_account ? "Service account" : user.email}
 					src={user.avatar_url}
 				/>
 			</TableCell>

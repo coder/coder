@@ -38,7 +38,7 @@ export const Example: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "New Organization" }),
+			canvas.getByRole("heading", { name: "New organization" }),
 		).toBeVisible();
 		await expect(
 			canvas.getByRole("form", { name: "Organization settings form" }),
@@ -53,7 +53,7 @@ export const NotEntitled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "New Organization" }),
+			canvas.getByRole("heading", { name: "New organization" }),
 		).toBeVisible();
 		await expect(
 			canvas.queryByRole("form", { name: "Organization settings form" }),

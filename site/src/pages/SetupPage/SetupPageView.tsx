@@ -340,7 +340,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
 										href={CONTACT_SALES_LINK}
 										className="text-content-link hover:underline"
 									>
-										Contact Sales
+										Contact sales
 									</a>
 								</AlertDescription>
 							)}

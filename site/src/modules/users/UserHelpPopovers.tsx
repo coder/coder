@@ -12,7 +12,7 @@ export const RolesHelpPopover: React.FC = () => {
 				management. View our docs on how to use the available roles.
 				<br />
 				<Link size="sm" href={docs("/admin/users/groups-roles")}>
-					User Roles
+					User roles
 				</Link>
 			</TooltipMessage>
 		</InfoTooltip>

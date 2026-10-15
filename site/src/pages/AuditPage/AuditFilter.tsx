@@ -143,39 +143,39 @@ export const useResourceTypeFilterMenu = ({
 		let label: string = capitalize(type);
 
 		if (type === "api_key") {
-			label = "API Key";
+			label = "API key";
 		}
 
 		if (type === "git_ssh_key") {
-			label = "Git SSH Key";
+			label = "Git SSH key";
 		}
 
 		if (type === "template_version") {
-			label = "Template Version";
+			label = "Template version";
 		}
 
 		if (type === "workspace_build") {
-			label = "Workspace Build";
+			label = "Workspace build";
 		}
 
 		if (type === "chat_instruction_settings") {
-			label = "Chat Instruction Settings";
+			label = "Chat instruction settings";
 		}
 
 		if (type === "chat_organization_system_prompt") {
-			label = "Chat Organization System Prompt";
+			label = "Chat organization system prompt";
 		}
 
 		if (type === "chat_project_instructions") {
-			label = "Chat Project Instructions";
+			label = "Chat project instructions";
 		}
 
 		if (type === "chat_operational_settings") {
-			label = "Chat Operational Settings";
+			label = "Chat operational settings";
 		}
 
 		if (type === "experiment_rule") {
-			label = "Experiment Rule";
+			label = "Experiment rule";
 		}
 
 		return {

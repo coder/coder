@@ -187,7 +187,7 @@ async function deprecateTemplate(
 	user: ReturnType<typeof userEvent.setup>,
 	message: string,
 ) {
-	const deprecationField = await canvas.findByLabelText("Deprecation Message");
+	const deprecationField = await canvas.findByLabelText("Deprecation message");
 	await user.type(deprecationField, message);
 	await user.click(await canvas.findByRole("button", { name: /save/i }));
 }

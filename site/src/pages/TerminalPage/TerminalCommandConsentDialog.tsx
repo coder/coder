@@ -29,7 +29,7 @@ export const TerminalCommandConsentDialog: React.FC<
 				<DialogHeader>
 					<DialogTitle>
 						<TriangleAlertIcon className="size-icon-lg text-content-warning inline-block align-text-bottom mr-2" />
-						Warning: Terminal Command Execution
+						Warning: Terminal command execution
 					</DialogTitle>
 					<DialogDescription>
 						A link is requesting to run a command in your terminal. Running

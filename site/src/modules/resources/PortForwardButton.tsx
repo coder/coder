@@ -301,7 +301,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 			<div className="max-h-80 overflow-y-auto">
 				<div className="flex flex-col p-5">
 					<div className="flex flex-row justify-between items-start">
-						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
+						<HelpPopoverTitle>Listening ports</HelpPopoverTitle>
 						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
@@ -446,7 +446,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 				</div>
 			</div>
 			<div className="p-5 border-0 border-t border-solid border-border">
-				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
+				<HelpPopoverTitle>Shared ports</HelpPopoverTitle>
 				<HelpPopoverText>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
@@ -595,7 +595,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									</Select>
 								</div>
 								<div className="flex flex-col gap-2">
-									<Label htmlFor={shareLevelFieldId}>Sharing Level</Label>
+									<Label htmlFor={shareLevelFieldId}>Sharing level</Label>
 									<Select
 										value={form.values.share_level}
 										onValueChange={(value) => {
@@ -608,7 +608,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									>
 										<SelectTrigger
 											id={shareLevelFieldId}
-											aria-label="Sharing Level"
+											aria-label="Sharing level"
 											aria-invalid={shareLevelField.error}
 											className={
 												shareLevelField.error
@@ -628,7 +628,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 								</div>
 								<Button type="submit" disabled={!form.isValid || isSubmitting}>
 									<Spinner loading={isSubmitting} />
-									Share Port
+									Share port
 								</Button>
 							</div>
 						</form>

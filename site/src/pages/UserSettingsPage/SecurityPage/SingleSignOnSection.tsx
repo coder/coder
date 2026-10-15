@@ -107,7 +107,7 @@ const SSOEmptyState: React.FC = () => {
 	return (
 		<EmptyState
 			className="rounded-lg border border-solid border-border min-h-0"
-			message="No SSO Providers"
+			message="No SSO providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
 				<Link
@@ -143,7 +143,7 @@ export const SingleSignOnSection: React.FC<SingleSignOnSectionProps> = ({
 		<div id="sso-section" data-testid="sso-section">
 			<SettingsHeader>
 				<SettingsHeaderTitle hierarchy="secondary">
-					Single Sign On
+					Single sign-on
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Authenticate in Coder using one-click.
@@ -225,7 +225,7 @@ const OIDCIcon: React.FC<OIDCIconProps> = ({ oidcAuth }) => {
 
 	return (
 		<ExternalImage
-			alt="Open ID Connect icon"
+			alt="OpenID Connect icon"
 			src={oidcAuth.iconUrl}
 			className="size-4"
 		/>

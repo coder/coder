@@ -19,7 +19,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				description: "something",
 				value: "1234",
 				group,
-				flag: "derp",
+				flag: "ssh-keygen-algorithm",
 				flag_shorthand: "d",
 				hidden: false,
 			},
@@ -27,7 +27,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				name: "Secure Auth Cookie",
 				description: "something",
 				value: "1234",
-				flag: "derp",
+				flag: "secure-auth-cookie",
 				flag_shorthand: "d",
 				hidden: false,
 			},
@@ -35,7 +35,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				name: "Disable Owner Workspace Access",
 				description: "something",
 				value: false,
-				flag: "derp",
+				flag: "disable-owner-workspace-access",
 				flag_shorthand: "d",
 				hidden: false,
 			},
@@ -44,7 +44,7 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 				description: "something",
 				value: ["something"],
 				group: { ...group, name: "TLS" },
-				flag: "derp",
+				flag: "tls-enable",
 				flag_shorthand: "d",
 				hidden: false,
 			},
@@ -69,7 +69,7 @@ export const Page: Story = {
 		);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Enabled/,
+				name: /Browser-only connections Enabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(
@@ -87,7 +87,7 @@ export const EntitledAndTurnedOff: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Disabled/,
+				name: /Browser-only connections Disabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(
@@ -105,7 +105,7 @@ export const NotEntitled: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Disabled/,
+				name: /Browser-only connections Disabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(
@@ -114,20 +114,23 @@ export const NotEntitled: Story = {
 	},
 };
 
-export const NoTLS = {
+export const NoTLS: Story = {
 	args: {
 		options: [
 			{
 				name: "SSH Keygen Algorithm",
 				value: "1234",
+				flag: "ssh-keygen-algorithm",
 			} as SerpentOption,
 			{
 				name: "Disable Owner Workspace Access",
 				value: false,
+				flag: "disable-owner-workspace-access",
 			} as SerpentOption,
 			{
 				name: "Secure Auth Cookie",
 				value: "1234",
+				flag: "secure-auth-cookie",
 			} as SerpentOption,
 		],
 	},

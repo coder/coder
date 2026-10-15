@@ -54,7 +54,7 @@ const meta: Meta<typeof TemplateCustomizationsStep> = {
 			{ key: permittedOrgsKey, data: [MockOrganization, MockOrganization2] },
 		],
 	},
-	// The "Create Template" submit button lives in the wizard's shared nav bar,
+	// The "Create template" submit button lives in the wizard's shared nav bar,
 	// outside this component. It is associated with the form via the `form`
 	// attribute, so the stories render an equivalent button to exercise submit.
 	decorators: [
@@ -62,7 +62,7 @@ const meta: Meta<typeof TemplateCustomizationsStep> = {
 			<div className="flex flex-col gap-6">
 				<Story />
 				<Button type="submit" form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}>
-					Create Template
+					Create template
 				</Button>
 			</div>
 		),
@@ -81,7 +81,7 @@ export const MissingOrganizationError: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByTestId("organization-autocomplete");
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await canvas.findByText("Select an organization to continue.");
 		await expect(args.onCreate).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ export const SingleOrganizationSubmits: Story = {
 		// Wait for the auto-selected org to render in the autocomplete.
 		await canvas.findByText(MockDefaultOrganization.display_name);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await expect(args.onCreate).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -135,7 +135,7 @@ export const MissingNameError: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByText(MockDefaultOrganization.display_name);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Create Template" }),
+			canvas.getByRole("button", { name: "Create template" }),
 		);
 		await canvas.findByText("Please enter a template id.");
 		await expect(args.onCreate).not.toHaveBeenCalled();

@@ -88,14 +88,14 @@ export const AnnouncementBannerSettings: React.FC<
 					}
 				>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
-						Announcement Banners
+						Announcement banners
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Display message banners to all users.
 						{!isEntitled && (
 							<>
 								{" "}
-								Your license does not include Service Banners.{" "}
+								Your license does not include Service banners.{" "}
 								<Link href="mailto:sales@coder.com" showExternalIcon={false}>
 									Contact sales
 								</Link>{" "}

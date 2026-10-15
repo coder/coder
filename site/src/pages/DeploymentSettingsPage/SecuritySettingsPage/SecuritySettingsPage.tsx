@@ -9,7 +9,7 @@ const SecuritySettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Security Settings")}</title>
+			<title>{pageTitle("Security settings")}</title>
 
 			<SecuritySettingsPageView
 				options={deploymentConfig.options}

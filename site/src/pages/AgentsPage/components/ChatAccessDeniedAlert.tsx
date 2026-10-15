@@ -27,7 +27,7 @@ export const ChatAccessDeniedAlert: React.FC<ChatAccessDeniedAlertProps> = ({
 			<AlertDescription>
 				{description}{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
-					View Docs
+					View docs
 				</Link>
 			</AlertDescription>
 		</Alert>

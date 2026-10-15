@@ -42,13 +42,13 @@ export const WorkspaceSettingsLayout: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle(workspaceName, "Workspace Settings")}</title>
+			<title>{pageTitle(workspaceName, "Workspace settings")}</title>
 
 			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbPage>Workspace Settings</BreadcrumbPage>
+							<BreadcrumbPage>Workspace settings</BreadcrumbPage>
 						</BreadcrumbItem>
 						{workspace && (
 							<>

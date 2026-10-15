@@ -40,7 +40,7 @@ export const CoderWorkspacesProductCard: React.FC<
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="top" className="max-w-xs">
-							Only Active user accounts consume license seats. Dormant and
+							Only active user accounts consume license seats. Dormant and
 							suspended accounts don't count toward the total.
 						</TooltipContent>
 					</Tooltip>

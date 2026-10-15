@@ -74,7 +74,7 @@ const LicensesSettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("License Settings")}</title>
+			<title>{pageTitle("License settings")}</title>
 
 			<LicensesSettingsPageView
 				showConfetti={confettiOn}

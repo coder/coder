@@ -76,7 +76,7 @@ const ConnectionLogPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Connection Log")}</title>
+			<title>{pageTitle("Connection log")}</title>
 
 			<ConnectionLogPageView
 				connectionLogs={connectionlogsQuery.data?.connection_logs}

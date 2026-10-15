@@ -57,7 +57,7 @@ describe("UserDropdownContent", () => {
 		const onSignOut = vi.fn();
 		renderUserDropdownContent({ onSignOut });
 		await waitForLoaderToBeRemoved();
-		screen.getByText("Sign Out").click();
+		screen.getByText("Sign out").click();
 		expect(onSignOut).toBeCalledTimes(1);
 	});
 

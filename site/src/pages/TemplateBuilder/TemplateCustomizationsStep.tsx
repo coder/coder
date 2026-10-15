@@ -140,7 +140,7 @@ export const TemplateCustomizationsStep: React.FC<
 						field={getFieldHelpers("display_name")}
 						label="Display name"
 						id="template-display-name"
-						placeholder="My Template"
+						placeholder="My template"
 					/>
 
 					{/* Right column */}

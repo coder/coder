@@ -56,7 +56,7 @@ const SkillsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyOrganizationSkills}>
-			<title>{pageTitle("Skills", "AI Settings")}</title>
+			<title>{pageTitle("Skills", "AI settings")}</title>
 			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !organizationPermissionsQuery.data ? (

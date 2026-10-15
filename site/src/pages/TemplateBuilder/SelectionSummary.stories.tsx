@@ -197,7 +197,7 @@ export const NavigationClicks: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Go to Base Template" }),
+			await canvas.findByRole("button", { name: "Go to Base template" }),
 		);
 		await expect(args.onNavigateStep).toHaveBeenCalledWith("base-infra");
 

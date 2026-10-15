@@ -32,7 +32,7 @@ const AddMCPServerPageView: React.FC<AddMCPServerPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<title>{pageTitle("Add server", "AI Settings")}</title>
+			<title>{pageTitle("Add server", "AI settings")}</title>
 			{canCreate ? (
 				<MCPServerForm
 					listPath={

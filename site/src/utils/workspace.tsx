@@ -53,9 +53,9 @@ const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	initiator: "API",
 	dashboard: "Dashboard",
 	cli: "CLI",
-	ssh_connection: "SSH Connection",
-	vscode_connection: "VSCode Connection",
-	jetbrains_connection: "JetBrains Connection",
+	ssh_connection: "SSH connection",
+	vscode_connection: "VSCode connection",
+	jetbrains_connection: "JetBrains connection",
 
 	// System build reasons
 	autostart: "Autostart",
@@ -66,7 +66,7 @@ const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 // Build reasons removed from the API that can still appear on retained
 // workspace builds and their audit logs.
 const legacyBuildReasonLabels: Record<string, string> = {
-	task_resume: "Task Resume",
+	task_resume: "Task resume",
 };
 
 // Retained audit rows and workspace builds for automatic task pauses were

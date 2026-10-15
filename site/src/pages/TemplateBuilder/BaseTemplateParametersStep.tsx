@@ -126,7 +126,7 @@ export const BaseTemplateParametersStep: React.FC<
 			</TemplateBuilderSubtitle>
 
 			<TemplateConfiguration
-				name={base?.name ?? "Base Template"}
+				name={base?.name ?? "Base template"}
 				description={base?.description ?? ""}
 				iconUrl={base?.icon}
 				detailsUrl={detailsUrl(baseId)}

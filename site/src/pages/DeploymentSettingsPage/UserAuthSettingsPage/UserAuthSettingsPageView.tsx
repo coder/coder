@@ -22,17 +22,17 @@ export const UserAuthSettingsPageView = ({
 	options,
 }: UserAuthSettingsPageViewProps): React.JSX.Element => {
 	const oidcEnabled = Boolean(
-		useDeploymentOptions(options, "OIDC Client ID")[0].value,
+		useDeploymentOptions(options, "oidc-client-id")[0].value,
 	);
 	const githubEnabled = Boolean(
-		useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value,
+		useDeploymentOptions(options, "oauth2-github-client-id")[0].value,
 	);
 
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
-					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
+					<SettingsHeaderTitle>User authentication</SettingsHeaderTitle>
 				</SettingsHeader>
 
 				<SettingsHeader>

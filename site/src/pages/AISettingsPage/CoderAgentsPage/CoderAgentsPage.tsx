@@ -95,7 +95,7 @@ const CoderAgentsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={isFeatureVisible}>
-			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
+			<title>{pageTitle("Coder Agents", "AI settings")}</title>
 			<CoderAgentsPageView
 				organization={activeOrganization}
 				organizations={accessibleOrganizationsQuery.organizations}

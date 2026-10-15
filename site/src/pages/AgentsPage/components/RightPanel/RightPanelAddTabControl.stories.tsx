@@ -108,7 +108,7 @@ export const Default: Story = {
 
 		await openMenu();
 		await waitFor(() => {
-			expect(body.getByText("New Terminal")).toBeInTheDocument();
+			expect(body.getByText("New terminal")).toBeInTheDocument();
 			expect(body.getByText("Preview")).toBeInTheDocument();
 			expect(body.getByText("Claude Code")).toBeInTheDocument();
 			expect(body.getByText("Documentation")).toBeInTheDocument();
@@ -116,7 +116,7 @@ export const Default: Story = {
 		});
 
 		// Only the singleton panels are toggles. Terminals are unlimited, so
-		// "New Terminal" stays a plain action.
+		// "New terminal" stays a plain action.
 		expect(
 			body.getByRole("menuitemcheckbox", { name: "Desktop" }),
 		).toHaveAttribute("aria-checked", "true");
@@ -127,7 +127,7 @@ export const Default: Story = {
 			body.getByRole("menuitemcheckbox", { name: "Debug" }),
 		).toHaveAttribute("aria-checked", "false");
 		expect(
-			body.queryAllByRole("menuitemcheckbox", { name: "New Terminal" }),
+			body.queryAllByRole("menuitemcheckbox", { name: "New terminal" }),
 		).toHaveLength(0);
 
 		// Radix closes the menu after each item click, so reopen between
@@ -150,7 +150,7 @@ export const Default: Story = {
 		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("debug");
 
 		await openMenu();
-		await userEvent.click(body.getByText("New Terminal"));
+		await userEvent.click(body.getByText("New terminal"));
 		await expect(args.onNewTerminal).toHaveBeenCalledTimes(1);
 
 		await openMenu();
@@ -168,7 +168,7 @@ export const Default: Story = {
 		await openMenu();
 		await userEvent.hover(body.getByText("Ports (3)"));
 		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("Listening ports")).toBeInTheDocument();
 			expect(body.getByText("8080")).toBeInTheDocument();
 		});
 		await userEvent.click(body.getByText("8080"));
@@ -187,7 +187,7 @@ export const UnsupportedSingletonPanels: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Add panel"));
 
-		await within(document.body).findByText("New Terminal");
+		await within(document.body).findByText("New terminal");
 	},
 };
 
@@ -231,7 +231,7 @@ export const DisconnectedWorkspace: Story = {
 			// Creating a terminal is disabled while the workspace is not
 			// running, since the agent cannot accept a PTY session.
 			const terminalItem = body
-				.getByText("New Terminal")
+				.getByText("New terminal")
 				.closest("[role=menuitem]");
 			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
 

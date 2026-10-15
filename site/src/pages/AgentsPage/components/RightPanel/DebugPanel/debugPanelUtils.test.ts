@@ -472,14 +472,14 @@ describe("coerceStepResponse", () => {
 
 describe("getRunKindLabel", () => {
 	it.each([
-		["chat_turn", "Chat Turn"],
-		["title_generation", "Title Generation"],
+		["chat_turn", "Chat turn"],
+		["title_generation", "Title generation"],
 		["compaction", "Compaction"],
-		["quickgen", "Quick Gen"],
-		["quick_gen", "Quick Gen"],
-		["llm_call", "LLM Call"],
+		["quickgen", "Quick gen"],
+		["quick_gen", "Quick gen"],
+		["llm_call", "LLM call"],
 		["post_process", "Post-process"],
-		["tool_call", "Tool Call"],
+		["tool_call", "Tool call"],
 	])("maps %s to the canonical label", (kind, label) => {
 		expect(getRunKindLabel(kind)).toBe(label);
 	});

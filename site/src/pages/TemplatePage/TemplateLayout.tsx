@@ -137,7 +137,7 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 						</TabLink>
 						{data.permissions.canUpdateTemplate && (
 							<TabLink to="files" value="files">
-								Source Code
+								Source code
 							</TabLink>
 						)}
 						<TabLink to="resources" value="resources">

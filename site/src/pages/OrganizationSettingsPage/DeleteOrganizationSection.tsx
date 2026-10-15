@@ -17,7 +17,7 @@ export const DeleteOrganizationSection: React.FC<
 		<>
 			<HorizontalForm className="mt-12">
 				<FormSection
-					title="Delete Organization"
+					title="Delete organization"
 					description="Delete your organization permanently."
 				>
 					<div className="flex flex-col gap-4 grow">

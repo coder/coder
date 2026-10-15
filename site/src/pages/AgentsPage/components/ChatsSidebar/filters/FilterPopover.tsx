@@ -41,10 +41,10 @@ import {
 import { getChatStatusDisplay } from "../tree/statusConfig";
 
 const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
-	draft: "PR Draft",
-	open: "PR Open",
-	merged: "PR Merged",
-	closed: "PR Closed",
+	draft: "PR draft",
+	open: "PR open",
+	merged: "PR merged",
+	closed: "PR closed",
 	none: "No PR",
 };
 

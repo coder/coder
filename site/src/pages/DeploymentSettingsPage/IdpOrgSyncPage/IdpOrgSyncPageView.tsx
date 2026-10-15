@@ -197,7 +197,7 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 									/>
 									<span className="flex flex-row items-center gap-1">
 										<Label htmlFor={`${id}-assign-default-org`}>
-											Assign Default Organization
+											Assign default organization
 										</Label>
 										<AssignDefaultOrgHelpPopover />
 									</span>

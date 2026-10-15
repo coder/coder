@@ -421,7 +421,7 @@ export const ModelFormFields: React.FC<{
 								? "Update model"
 								: isDuplicating
 									? "Create duplicate"
-									: "Add Model"}
+									: "Add model"}
 						</Button>
 					)}
 				</div>

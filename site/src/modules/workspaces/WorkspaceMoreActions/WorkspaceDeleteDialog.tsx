@@ -73,7 +73,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 			type="delete"
 			hideCancel={false}
 			open={isOpen}
-			title="Delete Workspace"
+			title="Delete workspace"
 			onConfirm={confirm}
 			onClose={onCancel}
 			disabled={!confirmation.confirmed}
@@ -125,7 +125,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 									/>
 									<span>
 										<span className="block text-sm font-semibold">
-											Orphan Resources
+											Orphan resources
 										</span>
 										<span className="mt-1 block text-xs text-content-secondary">
 											As a Template Admin, you may skip resource cleanup to

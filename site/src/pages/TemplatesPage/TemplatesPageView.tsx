@@ -156,7 +156,7 @@ const TemplateActions: React.FC<TemplateActionsProps> = ({
 		>
 			<RouterLink to={`${templatePageLink}/workspace`}>
 				<ArrowRightIcon />
-				Create Workspace
+				Create workspace
 			</RouterLink>
 		</Button>
 	);

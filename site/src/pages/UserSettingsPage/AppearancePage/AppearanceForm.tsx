@@ -220,7 +220,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
-						<span id={fontGroupLabelId}>Terminal Font</span>
+						<span id={fontGroupLabelId}>Terminal font</span>
 						<Spinner
 							loading={isUpdating}
 							size="sm"

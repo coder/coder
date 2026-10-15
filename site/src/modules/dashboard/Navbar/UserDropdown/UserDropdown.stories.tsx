@@ -508,7 +508,7 @@ const trialLicenses = (expiresAt: Dayjs): GetLicensesResponse[] => [
 const expectMenuUsable = async (canvasElement: HTMLElement) => {
 	const menu = await openDropdown(canvasElement);
 	expect(menu.getByRole("menuitem", { name: "Account" })).toBeInTheDocument();
-	expect(menu.getByRole("menuitem", { name: "Sign Out" })).toBeInTheDocument();
+	expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
 	return menu;
 };
 

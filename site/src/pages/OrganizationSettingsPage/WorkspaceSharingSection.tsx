@@ -43,7 +43,7 @@ export const WorkspaceSharingSection: React.FC<
 		<>
 			<HorizontalForm className="mt-12">
 				<FormSection
-					title="Workspace Sharing"
+					title="Workspace sharing"
 					description="Control whether workspace owners can share their workspaces."
 				>
 					<div className="flex flex-col gap-2">

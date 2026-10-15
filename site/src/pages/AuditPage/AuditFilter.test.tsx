@@ -24,7 +24,7 @@ describe("useResourceTypeFilterMenu", () => {
 		);
 		expect(option).toEqual({
 			value: "experiment_rule",
-			label: "Experiment Rule",
+			label: "Experiment rule",
 		});
 
 		act(() => result.current.selectOption(option));

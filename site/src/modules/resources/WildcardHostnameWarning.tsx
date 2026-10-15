@@ -64,7 +64,7 @@ export const WildcardHostnameWarning: React.FC<
 							flag when starting the Coder server.
 						</>
 					) : (
-						", which requires a Coder deployment with a Wildcard Access URL configured. Please contact your administrator."
+						", which requires a Coder deployment with a wildcard access URL configured. Please contact your administrator."
 					)}
 				</div>
 				<div className="pt-2">

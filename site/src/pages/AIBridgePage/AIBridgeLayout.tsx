@@ -13,7 +13,7 @@ const AIBridgeLayout: React.FC<React.PropsWithChildren> = () => {
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Gateway Logs</span>
+						<span>AI Gateway logs</span>
 						<AIBridgeHelpPopover />
 					</div>
 				</PageHeaderTitle>

@@ -60,7 +60,7 @@ describe("LoginPage", () => {
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText("Sign in");
 		fireEvent.click(signInButton);
 
 		// Then
@@ -86,7 +86,7 @@ describe("LoginPage", () => {
 			"signin-password-error",
 		);
 
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText("Sign in");
 		fireEvent.click(signInButton);
 
 		// Then
@@ -185,7 +185,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the component uses React Router navigation for standard
 		// redirects so the new session cookie is picked up by the next route.
@@ -237,7 +237,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the malicious redirect must be replaced with the fallback
 		// path on both navigation paths (hard reload and SPA navigation).
@@ -330,7 +330,7 @@ describe("LoginPage", () => {
 
 		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
 		await userEvent.type(screen.getByLabelText(/Password/), "password");
-		fireEvent.click(await screen.findByText("Sign In"));
+		fireEvent.click(await screen.findByText("Sign in"));
 
 		// Then - the full redirect path (including query params) must be
 		// preserved for the OAuth2 authorization flow to complete.

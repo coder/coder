@@ -163,7 +163,7 @@ const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 					}}
 				>
 					<Spinner loading={externalAuthPollingState === "polling"} />
-					{authenticated ? "Authenticated" : "Click to Login"}
+					{authenticated ? "Authenticated" : "Click to login"}
 				</Button>
 			</TableCell>
 			<TableCell>

@@ -77,7 +77,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 					>
 						<p>
 							Licenses are consumed based on the status of user accounts. Only
-							Active user accounts are consuming license seats.
+							active user accounts are consuming license seats.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
@@ -104,7 +104,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 							<ul>
 								<li>
 									<Link asChild>
-										<RouterLink to="/audit">Activity Audit</RouterLink>
+										<RouterLink to="/audit">Activity audit</RouterLink>
 									</Link>
 								</li>
 								<li>

@@ -44,7 +44,7 @@ const SSHKeysPage: React.FC = () => {
 				onConfirm={async () => {
 					try {
 						await regenerateSSHKeyMutation.mutateAsync();
-						toast.success("SSH Key regenerated successfully.");
+						toast.success("SSH key regenerated successfully.");
 					} catch (error) {
 						toast.error(
 							getErrorMessage(error, "Failed to regenerate SSH key"),

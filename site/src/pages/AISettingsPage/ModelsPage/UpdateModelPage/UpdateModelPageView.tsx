@@ -67,7 +67,7 @@ const UpdateModelPageView: React.FC<UpdateModelPageViewProps> = (props) => {
 	return (
 		<>
 			<title>
-				{pageTitle(model.display_name || model.model, "AI Settings")}
+				{pageTitle(model.display_name || model.model, "AI settings")}
 			</title>
 			{refetchError != null && <ErrorAlert error={refetchError} />}
 			<ModelForm

@@ -65,7 +65,7 @@ export const EnablingAutostopUsesTemplateDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const autostopToggle = await canvas.findByLabelText("Enable Autostop");
+		const autostopToggle = await canvas.findByLabelText("Enable autostop");
 		await user.click(autostopToggle);
 		await canvas.findByText("Your workspace will shut down 1 day after", {
 			exact: false,
@@ -87,7 +87,7 @@ export const EnablingAutostopShowsRestartDialog: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const user = userEvent.setup();
-		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByLabelText("Enable autostop"));
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText(
 			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,
@@ -111,7 +111,7 @@ export const ApplyLaterKeepsUserOnSchedulePage: Story = {
 		const body = within(document.body);
 		const user = userEvent.setup();
 		const restartSpy = spyOn(API, "restartWorkspace");
-		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByLabelText("Enable autostop"));
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText("Restart workspace?");
 		await user.click(await body.findByRole("button", { name: /apply later/i }));
@@ -120,7 +120,7 @@ export const ApplyLaterKeepsUserOnSchedulePage: Story = {
 			expect(body.queryByText("Restart workspace?")).not.toBeInTheDocument(),
 		);
 		expect(restartSpy).not.toHaveBeenCalled();
-		await canvas.findByLabelText("Enable Autostop");
+		await canvas.findByLabelText("Enable autostop");
 	},
 };
 
@@ -162,7 +162,7 @@ export const DisablingAutostopSkipsRestartDialog: Story = {
 		const body = within(document.body);
 		const user = userEvent.setup();
 		// MockWorkspace has autostop enabled, so clicking the toggle disables it.
-		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByLabelText("Enable autostop"));
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText(
 			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,
@@ -190,7 +190,7 @@ export const EnablingAutostopWhileStoppedSkipsDialog: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const user = userEvent.setup();
-		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByLabelText("Enable autostop"));
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText(
 			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,
@@ -211,7 +211,7 @@ export const ChangingOnlyAutostartSkipsDialog: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const user = userEvent.setup();
-		await user.click(await canvas.findByLabelText("Enable Autostart"));
+		await user.click(await canvas.findByLabelText("Enable autostart"));
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText(
 			`Schedule for workspace "${MockWorkspace.name}" updated successfully.`,

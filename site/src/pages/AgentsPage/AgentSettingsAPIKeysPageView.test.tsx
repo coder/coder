@@ -81,7 +81,7 @@ describe("AgentSettingsAPIKeysPageView", () => {
 
 		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
 
-		const apiKeyInput = screen.getByLabelText("API Key");
+		const apiKeyInput = screen.getByLabelText("API key");
 		await user.type(apiKeyInput, "sk-test-key");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -112,7 +112,7 @@ describe("AgentSettingsAPIKeysPageView", () => {
 
 		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
 
-		await user.type(screen.getByLabelText("API Key"), "  sk-test-key  ");
+		await user.type(screen.getByLabelText("API key"), "  sk-test-key  ");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -131,7 +131,7 @@ describe("AgentSettingsAPIKeysPageView", () => {
 
 		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
 
-		await user.type(screen.getByLabelText("API Key"), "sk-test-key");
+		await user.type(screen.getByLabelText("API key"), "sk-test-key");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {

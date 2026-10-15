@@ -1298,7 +1298,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
+		? "Save edit"
 		: isStreaming
 			? "Queue"
 			: "Send";

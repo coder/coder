@@ -250,7 +250,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 								htmlFor="autostartEnabled"
 								className="font-medium cursor-pointer"
 							>
-								Enable Autostart
+								Enable autostart
 							</Label>
 							{!template.allow_user_autostart && (
 								<span className="text-xs text-content-secondary mt-0.5">
@@ -310,7 +310,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
 					<fieldset className="border-0 p-0 m-0">
 						<legend className="text-xs text-content-secondary font-medium mb-1">
-							Days of Week
+							Days of week
 						</legend>
 
 						<div className="flex flex-row flex-wrap gap-x-4 gap-y-2 pt-1">
@@ -377,7 +377,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 								htmlFor="autostopEnabled"
 								className="font-medium cursor-pointer"
 							>
-								Enable Autostop
+								Enable autostop
 							</Label>
 							{!template.allow_user_autostop && (
 								<span className="text-xs text-content-secondary mt-0.5">

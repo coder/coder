@@ -86,7 +86,7 @@ const fillAndSubmitForm = async ({
 
 	if (time_til_dormant_ms) {
 		const inactivityTtlField = screen.getByRole("switch", {
-			name: /Dormancy Threshold/i,
+			name: /Dormancy threshold/i,
 		});
 		await user.click(inactivityTtlField);
 	}

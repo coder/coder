@@ -12,7 +12,7 @@ export const WorkspaceHelpPopover: React.FC = () => {
 				the infrastructure and tools you need to work on your project.
 				<br />
 				<Link size="sm" href={docs("/user-guides")}>
-					Create Workspaces
+					Create workspaces
 				</Link>
 				<br />
 				<Link size="sm" href={docs("/user-guides/workspace-access")}>

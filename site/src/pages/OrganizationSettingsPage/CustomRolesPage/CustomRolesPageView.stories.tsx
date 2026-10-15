@@ -179,7 +179,7 @@ export const DefaultRolesReadOnlyWithoutEditPermission: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		// The section is visible read-only; only the edit button is hidden.
-		await body.findByRole("heading", { name: "Default Roles" });
+		await body.findByRole("heading", { name: "Default roles" });
 		expect(
 			body.queryByRole("button", { name: /edit default roles/i }),
 		).toBeNull();
