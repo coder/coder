@@ -61,6 +61,8 @@ Project instructions are optional context injected into all chats in a project. 
 
 TODO (project-skills): chats in a project now also get the project's enabled skills as a `project` skill source next to personal, organization, and workspace skills. They are read each turn as the chat owner, subagents use the root chat's project, and a failed read continues the turn without them. Describe this here.
 
+TODO (project-skills): stored skills now have a `model_invocable` setting, true by default. Skills with it off are left out of `<available-skills>`, `read_skill` reports them as not found, and they do not count toward enabling the skill tools. Workspace skills are always model-invocable. Describe this here.
+
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
 ## Execution states
@@ -491,6 +493,8 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 ### `POST /api/v2/chats/{chat}/messages`
 
 TODO (project-skills): `skill-invocation` content parts are resolved when a message is created, sent, or edited: chatd loads each invoked skill body as the chat owner (personal, organization, project via the chat's project, workspace from the pinned context snapshot), stores it on the part, and rejects the request with a 400 when the skill is not available. The prompt renders the stored body inside `<invoked-skill>`. Describe this here.
+
+TODO (project-skills): skill invocations also load skills whose `model_invocable` setting is off, since the user picked them explicitly. They still require the skill to be enabled and readable by the chat owner. Describe this here.
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 

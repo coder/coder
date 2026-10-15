@@ -57,7 +57,8 @@ func (p *Server) resolveChatSkillInvocations(
 // resolveSkillInvocations stores the current body of every invoked skill on
 // its part, read with the chat owner's permissions through the same loaders
 // as read_skill. Skills load by source and name, so an invocation does not
-// depend on the skill being listed in the turn's skill index. Workspace
+// depend on the skill being listed in the turn's skill index, and skills
+// that are not model-invocable still load. Workspace
 // skills come from the chat's pinned context snapshot, so a chat without
 // one cannot invoke them.
 func (p *Server) resolveSkillInvocations(
@@ -82,14 +83,14 @@ func (p *Server) resolveSkillInvocations(
 	loadBody := func(part codersdk.ChatMessagePart) (string, error) {
 		switch part.SkillSource {
 		case codersdk.ChatSkillSourcePersonal:
-			parsed, err := p.loadPersonalSkillBody(ctx, chat.OwnerID, part.SkillName)
+			parsed, err := p.loadPersonalSkillBody(ctx, chat.OwnerID, part.SkillName, skillLoaderUser)
 			return parsed.Body, err
 		case codersdk.ChatSkillSourceOrganization:
 			owner, err := loadOwner()
 			if err != nil {
 				return "", err
 			}
-			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OrganizationID, part.SkillName)
+			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OrganizationID, part.SkillName, skillLoaderUser)
 			return parsed.Body, err
 		case codersdk.ChatSkillSourceProject:
 			projectID := p.resolveChatProjectID(ctx, p.logger, chat)
@@ -100,7 +101,7 @@ func (p *Server) resolveSkillInvocations(
 			if err != nil {
 				return "", err
 			}
-			parsed, err := p.loadProjectSkillBody(ctx, owner, projectID.UUID, part.SkillName)
+			parsed, err := p.loadProjectSkillBody(ctx, owner, projectID.UUID, part.SkillName, skillLoaderUser)
 			return parsed.Body, err
 		case codersdk.ChatSkillSourceWorkspace:
 			skills, err := loadWorkspaceSkills()

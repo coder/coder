@@ -1384,6 +1384,8 @@ func (q *sqlQuerier) GetAuthorizedOrganizationSkillMetadata(ctx context.Context,
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
+			&i.Action,
+			&i.ModelInvocable,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

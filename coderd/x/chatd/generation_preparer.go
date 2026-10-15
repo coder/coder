@@ -684,11 +684,11 @@ func (server *Server) prepareGeneration(
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
-				return server.loadOrganizationSkillBody(ctx, skillOwner, chat.OrganizationID, skill.Name)
+				return server.loadOrganizationSkillBody(ctx, skillOwner, chat.OrganizationID, skill.Name, skillLoaderModel)
 			case skillspkg.SourceProject:
-				return server.loadProjectSkillBody(ctx, skillOwner, skillProjectID.UUID, skill.Name)
+				return server.loadProjectSkillBody(ctx, skillOwner, skillProjectID.UUID, skill.Name, skillLoaderModel)
 			default:
-				return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
+				return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name, skillLoaderModel)
 			}
 		},
 	}

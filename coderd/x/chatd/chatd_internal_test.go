@@ -2084,9 +2084,15 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, userID, gotUserID)
 				return []database.ListUserSkillMetadataByUserIDRow{{
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Description:    "Personal review process",
+					Enabled:        true,
+					ModelInvocable: true,
+				}, {
 					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
-					Name:        "personal-review",
-					Description: "Personal review process",
+					Name:        "personal-manual",
+					Description: "Only users invoke this",
 					Enabled:     true,
 				}}, nil
 			},
@@ -2094,6 +2100,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 
 		got, err := server.fetchPersonalSkillMetadata(context.Background(), userID)
 		require.NoError(t, err)
+		// Skills that are not model-invocable stay out of the agent's index.
 		require.Equal(t, []skillspkg.Skill{{
 			Name:        "personal-review",
 			Description: "Personal review process",
@@ -2152,15 +2159,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "personal-review",
-					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Content:        "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review", skillLoaderModel)
 		require.NoError(t, err)
 		require.Equal(t, "personal-review", got.Name)
 		require.Equal(t, "Personal review process", got.Description)
@@ -2188,7 +2196,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2206,7 +2214,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			Content: "---\nname: disabled-skill\ndescription: Disabled\n---\n\nInstructions.\n",
 		}, nil)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2232,7 +2240,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "load personal skill body")
 		require.ErrorIs(t, err, dbErr)
@@ -2261,15 +2269,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "broken-skill",
-					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "broken-skill",
+					Content:        "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "parse personal skill body")
 		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)
@@ -2332,7 +2341,7 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		return got
 	}
 
-	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review")
+	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review", skillLoaderModel)
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceOrganization, got.Source)
 	require.Equal(t, "Team instructions.", got.Body)
@@ -2346,7 +2355,7 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		{name: "Disabled", reader: member.ID, skill: "disabled-review"},
 		{name: "Missing", reader: member.ID, skill: "missing-review"},
 	} {
-		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill, skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
@@ -2375,12 +2384,13 @@ func TestLoadProjectSkillBody(t *testing.T) {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	}
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-	for _, name := range []string{"project-review", "disabled-review"} {
+	for _, name := range []string{"project-review", "disabled-review", "manual-review"} {
 		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID:        uuid.New(),
-			ProjectID: project.ID,
-			Name:      name,
-			Content:   "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+			ID:             uuid.New(),
+			ProjectID:      project.ID,
+			Name:           name,
+			Content:        "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+			ModelInvocable: sql.NullBool{Bool: name != "manual-review", Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -2398,9 +2408,16 @@ func TestLoadProjectSkillBody(t *testing.T) {
 		return got
 	}
 
-	got, err := server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "project-review")
+	got, err := server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "project-review", skillLoaderModel)
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceProject, got.Source)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	// A skill that is not model-invocable loads only for user invocations.
+	_, err = server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "manual-review", skillLoaderModel)
+	require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+	got, err = server.loadProjectSkillBody(ctx, subject(owner.ID), project.ID, "manual-review", skillLoaderUser)
+	require.NoError(t, err)
 	require.Equal(t, "Project instructions.", got.Body)
 
 	for _, tc := range []struct {
@@ -2412,7 +2429,7 @@ func TestLoadProjectSkillBody(t *testing.T) {
 		{name: "Disabled", reader: owner.ID, skill: "disabled-review"},
 		{name: "Missing", reader: owner.ID, skill: "missing-review"},
 	} {
-		_, err := server.loadProjectSkillBody(ctx, subject(tc.reader), project.ID, tc.skill)
+		_, err := server.loadProjectSkillBody(ctx, subject(tc.reader), project.ID, tc.skill, skillLoaderUser)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
