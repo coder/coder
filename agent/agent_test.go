@@ -4679,15 +4679,16 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
 	assert.Equal(t, int64(0), reports[0].GetConnection().GetRxBytes(), "connect rxbytes should be 0")
 	assert.Equal(t, int64(0), reports[0].GetConnection().GetTxBytes(), "connect txbytes should be 0")
-	if disconnect.RxBytes == wantSomeBytes {
-		assert.Greater(t, reports[1].GetConnection().GetRxBytes(), int64(0), "disconnect rx bytes should be greater than zero")
-	} else if disconnect.TxBytes != wantIgnoreBytes {
-		assert.Equal(t, disconnect.RxBytes, reports[1].GetConnection().GetRxBytes(), "disconnect rx bytes should be %d", disconnect.RxBytes)
-	}
-	if disconnect.TxBytes == wantSomeBytes {
-		assert.Greater(t, reports[1].GetConnection().GetTxBytes(), int64(0), "disconnect tx bytes should be greater than zero")
-	} else if disconnect.TxBytes != wantIgnoreBytes {
-		assert.Equal(t, disconnect.TxBytes, reports[1].GetConnection().GetTxBytes(), "disconnect tx bytes should be %d", disconnect.TxBytes)
+	assertBytes(t, disconnect.RxBytes, reports[1].GetConnection().GetRxBytes(), "rx")
+	assertBytes(t, disconnect.TxBytes, reports[1].GetConnection().GetTxBytes(), "tx")
+}
+
+func assertBytes(t testing.TB, expectedBytes, gotBytes int64, label string) {
+	t.Helper()
+	if expectedBytes == wantSomeBytes {
+		assert.Greater(t, gotBytes, int64(0), "disconnect %s bytes should be greater than zero", label)
+	} else if expectedBytes != wantIgnoreBytes {
+		assert.Equal(t, expectedBytes, gotBytes, "disconnect %s bytes should be %d", label, expectedBytes)
 	}
 }
 
