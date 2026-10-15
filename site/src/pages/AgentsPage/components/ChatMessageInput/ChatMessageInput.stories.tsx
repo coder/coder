@@ -2,6 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockSkill, MockSkills } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -158,7 +159,7 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 
 // Enough skills to overflow the menu's max height so arrow-key
 // navigation has to scroll the list.
-const manyPersonalSkills: TypesGen.UserSkillMetadata[] = Array.from(
+const manyPersonalSkills: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 15 },
 	(_, index) => ({
 		...MockSkill,
@@ -210,6 +211,40 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
 		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+	},
+};
+
+const mockOrganizationId = "organization-skills-story";
+
+export const OpensWithAllSkillSources: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: [
+					{
+						...MockSkill,
+						id: "skill-release-notes",
+						name: "release-notes",
+						description: "Write release notes in the organization style.",
+					},
+					{
+						...MockSkill,
+						id: "skill-org-reviewer",
+						name: "reviewer",
+						description: "Organization review checklist.",
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
 	},
 };
 
@@ -473,7 +508,7 @@ const mockMobileMatchMedia = (): (() => void) => {
 	};
 };
 
-const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
+const longSkillList: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
 		...MockSkill,

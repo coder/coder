@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
@@ -26,17 +25,18 @@ import {
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
-	updateChatManageAutomations,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -55,7 +55,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -85,7 +84,6 @@ import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
 } from "./utils/draftStorage";
-import { canToggleManageAutomations } from "./utils/manageAutomations";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -116,7 +114,6 @@ const AgentChatPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const { organizations, experiments } = useDashboard();
-	const automationsExperimentEnabled = useAutomationsEnabled();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
@@ -324,6 +321,11 @@ const AgentChatPage: React.FC = () => {
 		...userSkills(),
 		staleTime: 60_000,
 	});
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -331,20 +333,6 @@ const AgentChatPage: React.FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
-	const updateChatManageAutomationsBase =
-		updateChatManageAutomations(queryClient);
-	const {
-		isPending: isUpdateChatManageAutomationsPending,
-		mutate: updateChatManageAutomationsMutate,
-	} = useMutation({
-		...updateChatManageAutomationsBase,
-		onError: (error, variables, context) => {
-			updateChatManageAutomationsBase.onError(error, variables, context);
-			toast.error(
-				getErrorMessage(error, "Failed to update automations setting."),
-			);
-		},
-	});
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -505,9 +493,7 @@ const AgentChatPage: React.FC = () => {
 		isCompactPending ||
 		isClearPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending ||
-		isUpdateChatWorkspacePending ||
-		isUpdateChatManageAutomationsPending;
+		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -645,9 +631,12 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		personalSkills: personalSkillsQuery.isSuccess
-			? personalSkillsQuery.data
-			: undefined,
+		// chatd skips disabled skills, so they never shadow a built-in
+		// command. A list with no data stays unknown, even after an error.
+		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
+		organizationSkills: organizationSkillsQuery.data?.filter(
+			(skill) => skill.enabled,
+		),
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,
@@ -773,7 +762,7 @@ const AgentChatPage: React.FC = () => {
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
-					models={modelCatalog?.models}
+					modelCatalog={modelCatalog}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					modelSelectorHelp={modelSelectorHelp}
 					modelCatalogError={modelsQuery.error}
@@ -793,20 +782,6 @@ const AgentChatPage: React.FC = () => {
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
-					onManageAutomationsToggle={
-						chat &&
-						canToggleManageAutomations({
-							chat,
-							viewerId: currentUser.id,
-							automationsExperimentEnabled,
-						})
-							? (enabled) =>
-									updateChatManageAutomationsMutate({
-										chatId: agentId,
-										enabled,
-									})
-							: undefined
-					}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}

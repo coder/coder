@@ -1,6 +1,5 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
@@ -65,12 +64,10 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				}
 			/>
 			<ToolCall.Content>
-				<ScrollArea
+				<ToolCall.Scrollable
 					className="mt-1.5 rounded-md border border-solid border-border"
 					viewportClassName="max-h-64"
-					viewportTabIndex={0}
-					viewportAriaLabel="Advisor response"
-					scrollBarClassName="w-1.5"
+					ariaLabel="Advisor response"
 				>
 					<div className="space-y-2 px-3 py-2">
 						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
@@ -139,7 +136,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							)}
 						</div>
 					</div>
-				</ScrollArea>
+				</ToolCall.Scrollable>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

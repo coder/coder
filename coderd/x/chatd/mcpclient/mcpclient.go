@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -1475,8 +1476,9 @@ func RefreshFailureReason(err error) string {
 
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
-// the OAuth2 credentials from the server config. If the token is
-// still valid, no network call is made and Refreshed is false.
+// the OAuth2 credentials from the server config, sending the config's
+// RFC 8707 resource indicator when set. If the token is still valid,
+// no network call is made and Refreshed is false.
 //
 // The caller is responsible for persisting the result when
 // Refreshed is true.
@@ -1486,14 +1488,6 @@ func RefreshOAuth2Token(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
-	oauth2Cfg := &oauth2.Config{
-		ClientID:     cfg.OAuth2ClientID,
-		ClientSecret: cfg.OAuth2ClientSecret,
-		Endpoint: oauth2.Endpoint{
-			TokenURL: cfg.OAuth2TokenURL,
-		},
-	}
-
 	oldToken := &oauth2.Token{
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -1501,6 +1495,38 @@ func RefreshOAuth2Token(
 	}
 	if tok.Expiry.Valid {
 		oldToken.Expiry = tok.Expiry.Time
+	}
+	// Valid uses a 10-second expiry window, so tokens about to
+	// expire are also refreshed proactively.
+	if oldToken.Valid() {
+		return RefreshResult{
+			AccessToken:  tok.AccessToken,
+			RefreshToken: tok.RefreshToken,
+			TokenType:    tok.TokenType,
+			Expiry:       oldToken.Expiry,
+		}, nil
+	}
+	if tok.RefreshToken == "" {
+		return RefreshResult{}, xerrors.New("refresh oauth2 token: token expired and refresh token is not set")
+	}
+
+	params := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {tok.RefreshToken},
+	}
+	if cfg.OAuth2Resource != "" {
+		params.Set("resource", cfg.OAuth2Resource)
+	}
+	// oauth2.Config cannot add parameters to refresh requests. The
+	// clientcredentials token source sends EndpointParams verbatim,
+	// allows overriding grant_type, and shares oauth2.Config's token
+	// request code: auth style detection, *oauth2.RetrieveError, and
+	// keeping the request's refresh_token when the response omits it.
+	refreshCfg := &clientcredentials.Config{
+		ClientID:       cfg.OAuth2ClientID,
+		ClientSecret:   cfg.OAuth2ClientSecret,
+		TokenURL:       cfg.OAuth2TokenURL,
+		EndpointParams: params,
 	}
 
 	// Cap the refresh HTTP call so a stalled token endpoint
@@ -1515,10 +1541,7 @@ func RefreshOAuth2Token(
 	refreshClient.CheckRedirect = safedial.CheckSameOriginRedirect
 	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)
 
-	// TokenSource automatically refreshes expired tokens. It
-	// uses a 10-second expiry window, so tokens about to expire
-	// are also refreshed proactively.
-	newToken, err := oauth2Cfg.TokenSource(refreshCtx, oldToken).Token()
+	newToken, err := refreshCfg.Token(refreshCtx)
 	if err != nil {
 		return RefreshResult{}, xerrors.Errorf("refresh oauth2 token: %w", err)
 	}

@@ -2,7 +2,6 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { onlineManager } from "react-query";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -15,6 +14,7 @@ import {
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
@@ -31,6 +31,7 @@ import {
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
@@ -91,7 +92,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 							message: "Create this chat",
 							organizationId:
 								project?.organization_id ?? MockDefaultOrganization.id,
-							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
 				>
@@ -216,9 +216,12 @@ beforeAll(() => {
 	});
 });
 
-// Project pages list the project's chats below the composer.
+// Project pages list the project's chats and details below the composer.
 beforeEach(() => {
 	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+	vi.spyOn(API.experimental, "getChatProjectInstructions").mockResolvedValue(
+		MockUnsetChatProjectInstructions,
+	);
 });
 
 afterEach(() => {
@@ -860,7 +863,6 @@ const submit = (options: Partial<CreateChatOptions>) => {
 			message: "inspect this archive",
 			organizationId: MockDefaultOrganization.id,
 			workspaceId: "ws-1",
-			manageAutomationsEnabled: false,
 			...options,
 		}),
 	);
@@ -933,19 +935,6 @@ describe("AgentCreatePage workspace uploads", () => {
 			}),
 		);
 		expect(router.state.location.pathname).toBe(chatPath);
-	});
-
-	it("sends manage_automations_enabled matching the toggle", async () => {
-		await renderUploadPage();
-
-		await submit({ manageAutomationsEnabled: false });
-		await submit({ manageAutomationsEnabled: true });
-
-		const [offRequest, onRequest] = vi
-			.mocked(API.experimental.createChat)
-			.mock.calls.map(([request]) => request);
-		expect(offRequest).toMatchObject({ manage_automations_enabled: false });
-		expect(onRequest).toMatchObject({ manage_automations_enabled: true });
 	});
 
 	it("archives the chat when the upload fails", async () => {

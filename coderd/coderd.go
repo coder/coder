@@ -752,6 +752,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -952,7 +953,6 @@ func New(options *Options) *API {
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				ExperimentEvaluator:            api.ExperimentEvaluator,
-				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -1343,14 +1343,6 @@ func New(options *Options) *API {
 		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
 
-	// Webhook callers authenticate with the automation's secret, not with a
-	// Coder session, so this route has no API key middleware. It lives
-	// outside the /api/experimental group because that group's rate limiter
-	// keys unauthenticated callers by path, which gives every automation id
-	// a fresh bucket; this limiter keys by caller alone.
-	r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
-		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
-
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
 		api.ExperimentalHandler = r
@@ -1380,24 +1372,32 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
-		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
-		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				api.requireChatAutomations,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/", api.listChatAutomations)
-			r.Post("/", api.postChatAutomation)
-			r.Post("/schedule-preview", api.postChatAutomationSchedulePreview)
-			r.Route("/{automation}", func(r chi.Router) {
-				r.Get("/", api.chatAutomation)
-				r.Patch("/", api.patchChatAutomation)
-				r.Delete("/", api.deleteChatAutomation)
-				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
-				r.Post("/runs", api.postChatAutomationRun)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
 			})
 		})
+		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1476,7 +1476,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
@@ -1757,7 +1756,6 @@ func New(options *Options) *API {
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
 						r.Get("/", api.userByName)
-						r.Get("/autofill-parameters", api.userAutofillParameters)
 						r.Get("/login-type", api.userLoginType)
 						r.Put("/profile", api.putUserProfile)
 						r.Route("/status", func(r chi.Router) {

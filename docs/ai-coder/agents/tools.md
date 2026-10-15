@@ -2,37 +2,30 @@
 title: Tools
 ---
 
-Coder Agents completes work by calling tools: structured functions the agent
-invokes during a chat to gather context and take action, such as listing
-templates, reading files, running commands, or creating a workspace.
+Coder Agents completes work by calling tools: structured functions the agent invokes during a chat to gather context and take action, such as listing templates, reading files, running commands, or creating a workspace.
 
-This page explains how tool calls work and documents the tools the agent uses
-to select a template and create a workspace.
+This page explains how tool calls work and documents the tools the agent uses to select a template and create a workspace.
 
 ## How tool calls work
 
 Each turn of a conversation follows the same loop:
 
 1. You send a message.
-2. The model decides whether it needs a tool and calls it with structured
-   arguments. For example, `list_templates` with `{"query": "docker"}`.
-3. Coder executes the tool in the control plane using your identity and
-   permissions, and returns a JSON result to the model.
-4. The model uses the result to decide what to do next: call another tool or
-   reply to you.
+2. The model decides whether it needs a tool and calls it with structured arguments.
+   For example, `list_templates` with `{"query": "docker"}`.
+3. Coder executes the tool in the control plane using your identity and permissions, and returns a JSON result to the model.
+4. The model uses the result to decide what to do next: call another tool or reply to you.
 
-Tool calls and their results are visible in the chat timeline, so you can
-always inspect what the agent did and why.
+Tool calls and their results are visible in the chat timeline, so you can always inspect what the agent did and why.
 
 Two properties hold for every built-in tool:
 
-- **Your permissions apply.** Tools run with the chat owner's RBAC identity.
-  The agent cannot list templates or create workspaces that you could not
-  access yourself.
-- **Results carry instructions.** Where a decision matters, the tool result
-  includes a `next_step` field containing a fixed instruction for the agent,
-  such as asking you to choose between similar templates. This keeps agent
-  behavior consistent without relying on long prompt rules.
+- **Your permissions apply.**
+  Tools run with the chat owner's RBAC identity.
+  The agent cannot list templates or create workspaces that you could not access yourself.
+- **Results carry instructions.**
+  Where a decision matters, the tool result includes a `next_step` field containing a fixed instruction for the agent, such as asking you to choose between similar templates.
+  This keeps agent behavior consistent without relying on long prompt rules.
 
 ## Workspace creation tools
 
@@ -52,10 +45,7 @@ Administrators can restrict which templates these tools can use with the switche
 
 ### list_templates
 
-`list_templates` returns a ranked shortlist of the active, non-deprecated
-templates in the chat's organization, so the agent can pick a template the
-same way a colleague would: prefer what matches the request, what you already
-use, and what the rest of the organization uses.
+`list_templates` returns a ranked shortlist of the active, non-deprecated templates in the chat's organization, so the agent can pick a template the same way a colleague would: prefer what matches the request, what you already use, and what the rest of the organization uses.
 
 #### Arguments
 
@@ -66,14 +56,12 @@ use, and what the rest of the organization uses.
 
 #### How templates are ranked
 
-Templates are ordered by query relevance first (when a query is provided),
-then by an affinity score computed from your recent usage and organization
-popularity. Name and ID break any remaining ties so the order is stable.
+Templates are ordered by query relevance first (when a query is provided), then by an affinity score computed from your recent usage and organization popularity.
+Name and ID break any remaining ties so the order is stable.
 
 ##### Query relevance tiers
 
-When a query is provided, each template receives the highest tier that any
-of its fields matches:
+When a query is provided, each template receives the highest tier that any of its fields matches:
 
 | Tier | Match                                               |
 |------|-----------------------------------------------------|
@@ -83,15 +71,13 @@ of its fields matches:
 | 1    | The description contains the query                  |
 | 0    | No match. The template is excluded from the results |
 
-The description is checked only when neither the name nor the display name
-matched. Matching is case-insensitive and ignores spaces, hyphens, and
-underscores, so `python gpu` matches `python-gpu`. A higher tier always
-outranks a lower tier, regardless of usage.
+The description is checked only when neither the name nor the display name matched.
+Matching is case-insensitive and ignores spaces, hyphens, and underscores, so `python gpu` matches `python-gpu`.
+A higher tier always outranks a lower tier, regardless of usage.
 
 ##### Affinity score
 
-Within a relevance tier, or when no query is given, templates are ordered by
-an affinity score:
+Within a relevance tier, or when no query is given, templates are ordered by an affinity score:
 
 ```txt
 affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
@@ -102,27 +88,18 @@ affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
 - `deleted`: your recently deleted workspaces used in the last 60&nbsp;days, counted at half the weight of active ones.
 - `days_since_last_use`: days since you last used the template.
   The personal term halves every 14&nbsp;days and is zero when you have no usage in the last 60&nbsp;days.
-- `active_developers`: developers in the organization with an active
-  workspace on the template, excluding unclaimed prebuilt workspaces.
+- `active_developers`: developers in the organization with an active workspace on the template, excluding unclaimed prebuilt workspaces.
 
-Personal usage carries ten times the weight of organization popularity, and
-popularity grows logarithmically so heavily used templates do not drown out
-your own history. Each template is scored independently from its own
-signals; one template's usage never affects another's score. The score is
-internal and only determines ordering and the recommendation. The response
-carries the raw evidence instead: `active_developers`,
-`your_workspace_count`, and `last_used_by_you` appear on each template when
-they are non-zero.
+Personal usage carries ten times the weight of organization popularity, and popularity grows logarithmically so heavily used templates do not drown out your own history.
+Each template is scored independently from its own signals; one template's usage never affects another's score.
+The score is internal and only determines ordering and the recommendation.
+The response carries the raw evidence instead: `active_developers`, `your_workspace_count`, and `last_used_by_you` appear on each template when they are non-zero.
 
 #### Recommendation and next_step
 
 Beyond the ranked list, the result tells the agent what to do next:
 
-- `recommended_template_id` is present only when the top template is a clear
-  winner: it is the only available template, it matches the query at a
-  strictly higher tier than every other match, or its affinity score reaches
-  at least the score of two active developers and leads the runner-up by a
-  clear margin.
+- `recommended_template_id` is present only when the top template is a clear winner: it is the only available template, it matches the query at a strictly higher tier than every other match, or its affinity score reaches at least the score of two active developers and leads the runner-up by a clear margin.
 - `next_step` is always present and contains one of four fixed instructions:
 
 | Situation                           | `next_step` instruction for the agent                 |
@@ -137,8 +114,8 @@ You can always override the recommendation by naming a template yourself.
 
 #### Example
 
-A user asks for "a workspace to debug a Docker image". The agent extracts a
-search term and calls `list_templates` with:
+A user asks for "a workspace to debug a Docker image".
+The agent extracts a search term and calls `list_templates` with:
 
 ```json
 {
@@ -146,9 +123,8 @@ search term and calls `list_templates` with:
 }
 ```
 
-The response lists matching templates best-first. Here `docker` is an exact
-name match while `docker-gpu` is only a prefix match, so the top template is
-a clear winner and is recommended:
+The response lists matching templates best-first.
+Here `docker` is an exact name match while `docker-gpu` is only a prefix match, so the top template is a clear winner and is recommended:
 
 ```json
 {
@@ -176,29 +152,21 @@ a clear winner and is recommended:
 }
 ```
 
-The agent follows `next_step` and calls `create_workspace` with the
-recommended template. Had the two templates tied (for example, both plain
-substring matches with similar usage), the response would omit
-`recommended_template_id` and `next_step` would instruct the agent to ask
-you to choose.
+The agent follows `next_step` and calls `create_workspace` with the recommended template.
+Had the two templates tied (for example, both plain substring matches with similar usage), the response would omit `recommended_template_id` and `next_step` would instruct the agent to ask you to choose.
 
 `next_page` is present only when more results exist.
 
 ### read_template
 
-`read_template` reads one template's details: its configurable parameters
-(name, type, default, options, and validation rules) and its presets,
-including preset parameter values and whether prebuilt workspaces are
-available for faster startup.
+`read_template` reads one template's details: its configurable parameters (name, type, default, options, and validation rules) and its presets, including preset parameter values and whether prebuilt workspaces are available for faster startup.
 
-The agent calls it only when needed, typically when a template has required
-parameters or when a preset should be applied. For templates that work with
-defaults, the agent skips straight to `create_workspace`.
+The agent calls it only when needed, typically when a template has required parameters or when a preset should be applied.
+For templates that work with defaults, the agent skips straight to `create_workspace`.
 
 ### create_workspace
 
-`create_workspace` provisions a workspace from a template and waits for it to
-become ready, then attaches it to the chat.
+`create_workspace` provisions a workspace from a template and waits for it to become ready, then attaches it to the chat.
 
 | Argument      | Type   | Description                                                                        |
 |---------------|--------|------------------------------------------------------------------------------------|
@@ -215,6 +183,5 @@ Guardrails:
   Workspace readiness doesn't guarantee that skills, MCP tools, or context have finished loading.
   The agent uses available capabilities rather than recreating the workspace to retry discovery.
   It follows the `next_step` from `list_templates`, asking you to choose when no template is recommended.
-- The tool is idempotent: if the chat already has a workspace building or
-  running, that workspace is returned instead of creating a duplicate.
+- The tool is idempotent: if the chat already has a workspace building or running, that workspace is returned instead of creating a duplicate.
 - Templates that do not allow Coder Agents are rejected.
