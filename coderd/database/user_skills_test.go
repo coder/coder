@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -379,4 +380,106 @@ func TestOrganizationSkillQueries(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, groupSkill.ID, deleted.ID)
+}
+
+// TestProjectSkillQueries checks that project skill access follows the parent
+// project with the real authorizer: reading needs project read and writing
+// needs project update.
+func TestProjectSkillQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	newMember := func(orgRoles ...string) uuid.UUID {
+		user := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID, Roles: orgRoles})
+		return user.ID
+	}
+	var (
+		projectOwner = newMember()
+		orgAdmin     = newMember(rbac.RoleOrgAdmin())
+		otherMember  = newMember()
+		reader       = newMember()
+	)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{reader.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{},
+	}))
+
+	as := func(userID uuid.UUID) context.Context {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		return dbauthz.As(ctx, subject)
+	}
+	requireAllowed := func(t *testing.T, allowed bool, err error) {
+		t.Helper()
+		if allowed {
+			require.NoError(t, err)
+			return
+		}
+		require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	}
+
+	for name, tc := range map[string]struct {
+		user        uuid.UUID
+		read, write bool
+	}{
+		"ProjectOwner": {user: projectOwner, read: true, write: true},
+		"OrgAdmin":     {user: orgAdmin, read: true, write: true},
+		"SharedReader": {user: reader, read: true, write: false},
+		"OtherMember":  {user: otherMember, read: false, write: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			userCtx := as(tc.user)
+			_, err := authzDB.ListProjectSkillMetadataByProjectID(userCtx, project.ID)
+			requireAllowed(t, tc.read, err)
+
+			skillName := "skill-" + strings.ToLower(name)
+			_, err = authzDB.InsertProjectSkill(userCtx, database.InsertProjectSkillParams{
+				ID: uuid.New(), ProjectID: project.ID, Name: skillName, Description: "desc", Content: "body",
+			})
+			requireAllowed(t, tc.write, err)
+		})
+	}
+
+	ownerCtx := as(projectOwner)
+	skill, err := authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
+		ID: uuid.New(), ProjectID: project.ID, Name: "owned", Description: "desc", Content: "body",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, skill.ProjectID)
+
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	_, err = authzDB.GetProjectSkillByIDForUpdate(as(otherMember), skill.ID)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(reader), skill.ID)
+	require.NoError(t, err)
+	require.Equal(t, skill.ID, locked.ID)
+
+	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(reader), database.UpdateProjectSkillByProjectIDAndNameParams{
+		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	updated, err := authzDB.UpdateProjectSkillByProjectIDAndName(ownerCtx, database.UpdateProjectSkillByProjectIDAndNameParams{
+		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Enabled)
+	require.Equal(t, skill.Content, updated.Content)
+
+	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	deleted, err := authzDB.DeleteProjectSkillByProjectIDAndName(ownerCtx, database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.NoError(t, err)
+	require.Equal(t, skill.ID, deleted.ID)
 }

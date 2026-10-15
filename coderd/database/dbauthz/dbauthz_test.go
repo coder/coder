@@ -7068,6 +7068,68 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestProjectSkills() {
+	projectSkill := func(projectID uuid.UUID, name string) database.Skill {
+		return database.Skill{
+			ID:        uuid.New(),
+			ProjectID: uuid.NullUUID{UUID: projectID, Valid: true},
+			Name:      name,
+		}
+	}
+	s.Run("InsertProjectSkill", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.InsertProjectSkillParams{ID: uuid.New(), ProjectID: project.ID, Name: "test"}
+		skill := projectSkill(project.ID, arg.Name)
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().InsertProjectSkill(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionUpdate).Returns(skill)
+	}))
+	s.Run("GetProjectSkillByProjectIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "test"}
+		skill := projectSkill(project.ID, arg.Name)
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().GetProjectSkillByProjectIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead).Returns(skill)
+	}))
+	s.Run("ListProjectSkillMetadataByProjectID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		rows := []database.ListProjectSkillMetadataByProjectIDRow{
+			testutil.Fake(s.T(), faker, database.ListProjectSkillMetadataByProjectIDRow{ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}),
+		}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().ListProjectSkillMetadataByProjectID(gomock.Any(), project.ID).Return(rows, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("UpdateProjectSkillByProjectIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UpdateProjectSkillByProjectIDAndNameParams{
+			ProjectID: project.ID,
+			Name:      "test",
+			Enabled:   sql.NullBool{Bool: false, Valid: true},
+		}
+		updated := projectSkill(project.ID, arg.Name)
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UpdateProjectSkillByProjectIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("DeleteProjectSkillByProjectIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "test"}
+		skill := projectSkill(project.ID, arg.Name)
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().DeleteProjectSkillByProjectIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionUpdate).Returns(skill)
+	}))
+	s.Run("GetProjectSkillByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		skill := projectSkill(project.ID, "test")
+		dbm.EXPECT().GetProjectSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(skill.ID).Asserts(project, policy.ActionRead).Returns(skill)
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{

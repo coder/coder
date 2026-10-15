@@ -1800,6 +1800,19 @@ func (q *querier) authorizeChatProjectInstructions(ctx context.Context, action p
 	return q.authorizeContext(ctx, action, project.RBACObject())
 }
 
+// authorizeChatProjectSkills authorizes an action on a project's skills.
+// Skills are part of the project's configuration, so reading them requires
+// reading the project and changing them requires updating the project.
+// Skill.RBACObject denies project rows, so every project skill query must
+// authorize here instead.
+func (q *querier) authorizeChatProjectSkills(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, project.RBACObject())
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -2628,6 +2641,13 @@ func (q *querier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Con
 		return q.db.GetOrganizationSkillByOrganizationIDAndName(ctx, database.GetOrganizationSkillByOrganizationIDAndNameParams(arg))
 	}
 	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteOrganizationSkillByOrganizationIDAndName)(ctx, arg)
+}
+
+func (q *querier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.DeleteProjectSkillByProjectIDAndName(ctx, arg)
 }
 
 func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
@@ -4810,6 +4830,24 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 	return q.db.GetPreviousTemplateVersion(ctx, arg)
 }
 
+func (q *querier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	skill, err := q.db.GetProjectSkillByIDForUpdate(ctx, id)
+	if err != nil {
+		return database.Skill{}, err
+	}
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionRead, skill.ProjectID.UUID); err != nil {
+		return database.Skill{}, err
+	}
+	return skill, nil
+}
+
+func (q *querier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionRead, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.GetProjectSkillByProjectIDAndName(ctx, arg)
+}
+
 func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
 		return q.db.GetProvisionerDaemons(ctx)
@@ -6677,6 +6715,13 @@ func (q *querier) InsertPresetPrebuildSchedule(ctx context.Context, arg database
 	return q.db.InsertPresetPrebuildSchedule(ctx, arg)
 }
 
+func (q *querier) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.InsertProjectSkill(ctx, arg)
+}
+
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
@@ -7236,6 +7281,13 @@ func (q *querier) ListOrganizationSkillMetadataByOrganizationID(ctx context.Cont
 		return nil, xerrors.Errorf("prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedOrganizationSkillMetadata(ctx, organizationID, prepared)
+}
+
+func (q *querier) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.ListProjectSkillMetadataByProjectID(ctx, projectID)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
@@ -8327,6 +8379,13 @@ func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg databa
 	}
 
 	return q.db.UpdatePresetsLastInvalidatedAt(ctx, arg)
+}
+
+func (q *querier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	if err := q.authorizeChatProjectSkills(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.Skill{}, err
+	}
+	return q.db.UpdateProjectSkillByProjectIDAndName(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

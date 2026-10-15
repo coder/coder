@@ -86,6 +86,13 @@ type AuditableOrganizationSkill struct {
 	Skill
 }
 
+// AuditableChatProjectSkill is the audit-log representation of a chat
+// project skill. Project skills have no organization_id column, so callers
+// supply the project's organization when they write the audit entry.
+type AuditableChatProjectSkill struct {
+	Skill
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
@@ -1008,6 +1015,8 @@ func (s Skill) RBACObject() rbac.Object {
 	}
 	// No role grants the empty resource type, so rows without an RBAC
 	// resource stay unauthorizable for every user, including site owners.
+	// Project skills land here on purpose: dbauthz authorizes them through
+	// the parent project in authorizeChatProjectSkills.
 	return rbac.Object{ID: s.ID.String()}
 }
 
