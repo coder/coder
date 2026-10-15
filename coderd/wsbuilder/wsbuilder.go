@@ -217,7 +217,7 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 // build. Secrets are never forwarded to the provisioner; the agent manifest
 // delivers them at runtime. Inputs must already be validated.
 func (b Builder) Secrets(s []codersdk.WorkspaceSecretInput) Builder {
-	// nolint: revive
+	//nolint:revive // Builder methods return a modified copy by value.
 	b.secrets = s
 	return b
 }
@@ -655,7 +655,7 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		}
 	}
 
-	// nolint:gocritic // See the function comment.
+	//nolint:gocritic // See the function comment.
 	managerCtx := dbauthz.AsWorkspaceSecretManager(b.ctx)
 
 	var previous []database.WorkspaceSecret
