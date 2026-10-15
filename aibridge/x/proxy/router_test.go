@@ -97,6 +97,8 @@ func TestRouterDisabledProvider(t *testing.T) {
 		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "UnknownProvider", path: "/unknown/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "Root", path: "/", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
+		{name: "EncodedTraversal", path: "/openai/v1/models/%2e%2e/files", wantStatus: http.StatusBadRequest, wantBody: "invalid request path"},
+		{name: "DisabledEncodedTraversal", path: "/disabled-openai/v1/models/..%2F..%2Fadmin", wantStatus: http.StatusBadRequest, wantBody: "invalid request path"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
