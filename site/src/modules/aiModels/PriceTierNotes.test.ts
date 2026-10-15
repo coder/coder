@@ -11,9 +11,9 @@ describe("formatTierNote", () => {
 		);
 	});
 
-	it("uses the base price for an unset tier price and omits an unset 1h price", () => {
+	it("uses the base price for an unset tier price and the tier cache write price for an unset 1h price", () => {
 		expect(formatTierNote(MockClaudeSonnetModelPrice, secondTier)).toBe(
-			"Over 500,000 prompt tokens: input $9 · output $30 · cache read $0.30 · cache write $10",
+			"Over 500,000 prompt tokens: input $9 · output $30 · cache read $0.30 · cache write $10 · cache write (1h) $10",
 		);
 	});
 
@@ -21,6 +21,7 @@ describe("formatTierNote", () => {
 		const base: AIModelPrice = {
 			...MockClaudeSonnetModelPrice,
 			cache_read_price: null,
+			cache_write_1h_price: null,
 		};
 		expect(
 			formatTierNote(base, {

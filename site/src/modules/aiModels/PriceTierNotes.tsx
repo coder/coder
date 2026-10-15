@@ -10,12 +10,14 @@ const formatLabeledPrice = (label: string, micros: number | null): string => {
 	return `${label} ${price.belowThreshold ? "<$" : "$"}${price.value}`;
 };
 
-// An unset tier 1h price bills at the cache write price of the tier, so the
-// 1h entry is listed only when the tier sets one.
+// The 1h entry is listed when the model or the tier prices 1h writes apart.
+// A tier without a 1h price bills 1h writes at its own cache write price, not
+// at the base 1h price.
 export const formatTierNote = (
 	base: AIModelPrice,
 	tier: AIModelPriceTier,
 ): string => {
+	const cacheWrite = tier.cache_write_price ?? base.cache_write_price;
 	const prices = [
 		formatLabeledPrice("input", tier.input_price ?? base.input_price),
 		formatLabeledPrice("output", tier.output_price ?? base.output_price),
@@ -23,14 +25,17 @@ export const formatTierNote = (
 			"cache read",
 			tier.cache_read_price ?? base.cache_read_price,
 		),
-		formatLabeledPrice(
-			"cache write",
-			tier.cache_write_price ?? base.cache_write_price,
-		),
+		formatLabeledPrice("cache write", cacheWrite),
 	];
-	if (tier.cache_write_1h_price !== null) {
+	if (
+		base.cache_write_1h_price !== null ||
+		tier.cache_write_1h_price !== null
+	) {
 		prices.push(
-			formatLabeledPrice("cache write (1h)", tier.cache_write_1h_price),
+			formatLabeledPrice(
+				"cache write (1h)",
+				tier.cache_write_1h_price ?? cacheWrite,
+			),
 		);
 	}
 	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens: ${prices.join(" · ")}`;
