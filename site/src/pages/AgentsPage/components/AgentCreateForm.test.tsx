@@ -21,9 +21,9 @@ import {
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import { organizationSkillsKey } from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
-import { userSkills } from "#/api/queries/userSkills";
+import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -303,9 +303,9 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 	it("submits a skill chosen from the slash menu as a composer part", async () => {
 		const queryClient = createQueryClient();
-		queryClient.setQueryData(userSkills().queryKey, [MockSkill]);
+		queryClient.setQueryData(userSkillsKey(), [MockSkill]);
 		queryClient.setQueryData(
-			organizationSkills(MockDefaultOrganization.id).queryKey,
+			organizationSkillsKey(MockDefaultOrganization.id),
 			[],
 		);
 		const { onCreateChat } = renderForm({}, { queryClient });

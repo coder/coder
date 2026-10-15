@@ -122,7 +122,11 @@ const getFileReferenceSpacingSnapshot = (
 	);
 };
 
-const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
+/** Margins that keep an inline chip clear of adjacent text and chips. */
+export const useFileReferenceSpacing = (
+	editor: LexicalEditor,
+	nodeKey: NodeKey,
+) => {
 	const spacingSnapshot = useSyncExternalStore(
 		(notify) => editor.registerUpdateListener(notify),
 		() => getFileReferenceSpacingSnapshot(editor, nodeKey),

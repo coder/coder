@@ -11,7 +11,7 @@ const meta: Meta<typeof SkillChip> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ padding: 24 }}>
+			<div className="p-6">
 				<Story />
 			</div>
 		),

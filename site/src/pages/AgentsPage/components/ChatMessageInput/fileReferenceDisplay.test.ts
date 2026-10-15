@@ -59,7 +59,7 @@ describe("inline spacing helpers", () => {
 		expect(hasInlineContentAfter(whitespaceParts, 2)).toBe(false);
 	});
 
-	it("treats adjacent file references as inline neighbors", () => {
+	it("treats adjacent chips as inline neighbors", () => {
 		const adjacentReferences = [
 			{ type: "chip" },
 			{ type: "chip" },

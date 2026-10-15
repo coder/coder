@@ -14,8 +14,10 @@ type SkillChipProps = {
 
 const SkillChipLabel: React.FC<{ alias: string }> = ({ alias }) => (
 	<>
-		<ZapIcon className="size-3.5 shrink-0 text-content-secondary" />
-		<span className="min-w-0 truncate">{alias}</span>
+		<ZapIcon className="ml-0.5 size-3.5 shrink-0 text-content-secondary" />
+		<span className="min-w-0 truncate" title={alias}>
+			{alias}
+		</span>
 	</>
 );
 
@@ -25,7 +27,7 @@ export const SkillChip: React.FC<SkillChipProps> = ({
 	name,
 	className,
 }) => (
-	<span className={cn(fileReferenceChipVariants(), "pl-1", className)}>
+	<span className={cn(fileReferenceChipVariants(), className)}>
 		<SkillChipLabel alias={getSkillAlias(source, name)} />
 	</span>
 );
@@ -38,9 +40,7 @@ export const EditableSkillChip: React.FC<
 	return (
 		<span
 			className={cn(
-				fileReferenceChipVariants({ selected }),
-				"pl-1 text-content-primary",
-				!selected && "border-border-secondary bg-surface-tertiary",
+				fileReferenceChipVariants({ selected, editable: true }),
 				className,
 			)}
 			contentEditable={false}

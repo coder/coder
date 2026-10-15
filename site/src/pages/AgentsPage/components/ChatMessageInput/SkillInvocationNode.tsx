@@ -1,4 +1,5 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
+import { cn } from "cn";
 import {
 	$createLineBreakNode,
 	$createParagraphNode,
@@ -17,6 +18,7 @@ import {
 } from "lexical";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { SkillSource } from "../../utils/skillAliases";
+import { useFileReferenceSpacing } from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
 
 type SerializedSkillInvocationNode = Spread<
@@ -94,6 +96,7 @@ const SkillChipWrapper: React.FC<{
 	name: string;
 }> = ({ editor, nodeKey, source, name }) => {
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
+	const spacing = useFileReferenceSpacing(editor, nodeKey);
 	const handleRemove = () => {
 		editor.update(() => {
 			$getNodeByKey(nodeKey)?.remove();
@@ -105,7 +108,7 @@ const SkillChipWrapper: React.FC<{
 			name={name}
 			selected={isSelected}
 			onRemove={handleRemove}
-			className="mx-0.5"
+			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
 	);
 };

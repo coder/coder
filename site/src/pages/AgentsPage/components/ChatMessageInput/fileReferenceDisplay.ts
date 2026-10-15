@@ -6,8 +6,9 @@ export type InlinePart =
 	| { readonly type: "chip" }
 	| { readonly type: "text"; readonly text: string };
 
-const isFileReferenceNode = (node: LexicalNode) => {
-	return node.getType() === "file-reference";
+const isChipNode = (node: LexicalNode) => {
+	const type = node.getType();
+	return type === "file-reference" || type === "skill-invocation";
 };
 
 export const getFileReferenceDisplay = ({
@@ -75,7 +76,7 @@ export const getFileReferenceSiblingSpacing = (
 		let sibling = node.getPreviousSibling();
 		const previousParts: InlinePart[] = [];
 		while (sibling) {
-			if (isFileReferenceNode(sibling)) {
+			if (isChipNode(sibling)) {
 				previousParts.unshift({ type: "chip" });
 			} else {
 				previousParts.unshift({ type: "text", text: sibling.getTextContent() });
@@ -89,7 +90,7 @@ export const getFileReferenceSiblingSpacing = (
 
 		sibling = node.getNextSibling();
 		while (sibling) {
-			if (isFileReferenceNode(sibling)) {
+			if (isChipNode(sibling)) {
 				parts.push({ type: "chip" });
 			} else {
 				parts.push({ type: "text", text: sibling.getTextContent() });

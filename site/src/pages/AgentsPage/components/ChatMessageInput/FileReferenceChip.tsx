@@ -16,10 +16,22 @@ export const fileReferenceChipVariants = cva(
 				true: "border-content-link bg-content-link/10 text-content-primary ring-1 ring-content-link/40",
 				false: "",
 			},
+			editable: {
+				true: "text-content-primary hover:bg-surface-quaternary",
+				false: "",
+			},
 		},
+		compoundVariants: [
+			{
+				editable: true,
+				selected: false,
+				className: "border-border-secondary bg-surface-tertiary",
+			},
+		],
 		defaultVariants: {
 			interactive: false,
 			selected: false,
+			editable: false,
 		},
 	},
 );
@@ -162,8 +174,11 @@ export function EditableFileReferenceChip({
 		<span
 			data-slot="file-reference-chip"
 			className={cn(
-				fileReferenceChipVariants({ interactive: true, selected }),
-				"border-border-secondary bg-surface-tertiary text-content-primary hover:bg-surface-quaternary",
+				fileReferenceChipVariants({
+					interactive: true,
+					selected,
+					editable: true,
+				}),
 				className,
 			)}
 			contentEditable={false}
