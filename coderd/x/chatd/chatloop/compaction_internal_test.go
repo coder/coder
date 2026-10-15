@@ -1660,6 +1660,29 @@ func TestElideToolResults(t *testing.T) {
 		require.Equal(t, messages, elided)
 	})
 
+	t.Run("cuts text attachments and keeps media", func(t *testing.T) {
+		t.Parallel()
+
+		image := fantasy.FilePart{Filename: "shot.png", Data: make([]byte, 30_000), MediaType: "image/png"}
+		messages := []fantasy.Message{{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.FilePart{Filename: "notes.txt", Data: []byte(strings.Repeat("n", 30_000)), MediaType: "text/plain; charset=utf-8"},
+				image,
+			},
+		}}
+		elided, removed := elideToolResults(messages, 0)
+		require.Positive(t, removed)
+		file, ok := fantasy.AsMessagePart[fantasy.FilePart](elided[0].Content[0])
+		require.True(t, ok)
+		require.Equal(t, "notes.txt", file.Filename)
+		require.Equal(t, "text/plain; charset=utf-8", file.MediaType)
+		require.Contains(t, string(file.Data), "Coder truncated")
+		require.LessOrEqual(t, len(file.Data), elidedToolResultMinBytes)
+		require.Equal(t, 30_000-len(file.Data), removed)
+		require.Equal(t, image, elided[0].Content[1])
+	})
+
 	t.Run("cuts error results and keeps them errors", func(t *testing.T) {
 		t.Parallel()
 
