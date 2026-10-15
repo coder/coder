@@ -914,8 +914,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 			expected := map[string]float64{"cursor": 5, "vscode": 1, "future_ide": 4}
 			// The session counts are committed separately from the execution
 			// histogram that poll waits on, so the poll waits for the counts
-			// themselves. See "Wait for Full Completion before Asserting" in
-			// .claude/docs/TESTING.md.
+			// themselves.
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				assert.Equal(c, expected, counts(c))
 			}, testutil.WaitShort, testutil.IntervalFast)

@@ -396,8 +396,7 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
 	// The flush updates each metric separately, so the poll waits for both.
 	// MetadataTotal already counts earlier flushes, so the poll waits for
-	// its final value instead of a change. See "Wait for Full Completion
-	// before Asserting" in .claude/docs/TESTING.md.
+	// its final value instead of a change.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) == 507
@@ -497,8 +496,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	// Verify 12 metadata were sent in 6 capacity batches. The channel empties
 	// before the last flush runs, so the poll waits on these metrics, not on
 	// the channel. They already count the first flush, so it waits for their
-	// final values. See "Wait for Full Completion before Asserting" in
-	// .claude/docs/TESTING.md.
+	// final values.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Equal(c, float64(12), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 		assert.Equal(c, float64(6), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
@@ -665,8 +663,7 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 
 			// Verify flush occurred with correct number of entries
 			// The flush updates each metric separately, so the poll waits for
-			// both. See "Wait for Full Completion before Asserting" in
-			// .claude/docs/TESTING.md.
+			// both.
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 					prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0
@@ -765,8 +762,6 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Verify only 1 entry was flushed (newest timestamp wins)
 	// The flush updates each metric separately, so the poll waits for both.
-	// See "Wait for Full Completion before Asserting" in
-	// .claude/docs/TESTING.md.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0
@@ -1021,8 +1016,6 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	// Verify exactly 3 unique keys were flushed
 	// The flush updates each metric separately, so the poll waits for both.
-	// See "Wait for Full Completion before Asserting" in
-	// .claude/docs/TESTING.md.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0

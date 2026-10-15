@@ -720,8 +720,6 @@ func TestServer_Metrics(t *testing.T) {
 		}
 
 		// The two metrics are updated separately, so the poll waits for both.
-		// See "Wait for Full Completion before Asserting" in
-		// .claude/docs/TESTING.md.
 		require.Eventually(t, func() bool {
 			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") > 0 &&
 				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full") > 0
@@ -733,10 +731,7 @@ func TestServer_Metrics(t *testing.T) {
 	})
 
 	// The remaining metrics share one server, forwarder, and connection. The
-	// phases run sequentially so metrics accumulate. In all three phases the
-	// asserted values are updated separately, so each phase waits for every
-	// value it asserts. See "Wait for Full Completion before Asserting" in
-	// .claude/docs/TESTING.md.
+	// phases run sequentially so metrics accumulate.
 	t.Run("Forwarding", func(t *testing.T) {
 		t.Parallel()
 
