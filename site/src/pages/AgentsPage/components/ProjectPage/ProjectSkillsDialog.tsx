@@ -207,7 +207,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 									size="sm"
 									variant="outline"
 									autoFocus={lastEditor?.type === "create"}
-									disabled={isAtLimit}
+									disabled={isAtLimit || skillsQuery.isLoading}
 									onClick={() => openEditor({ type: "create" })}
 								>
 									<PlusIcon />
