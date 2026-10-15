@@ -398,11 +398,13 @@ const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="review-database-query"
-						readOnly={readOnly}
-						disabled={isBusy || (!isCreate && !readOnly)}
+						// Names cannot change after creation. readOnly, unlike
+						// disabled, keeps the name focusable and selectable.
+						readOnly={readOnly || !isCreate}
+						disabled={isBusy}
 						aria-invalid={Boolean(nameError)}
 						aria-describedby={nameError ? nameErrorId : undefined}
-						className={cn(readOnly && "bg-surface-secondary")}
+						className={cn((readOnly || !isCreate) && "bg-surface-secondary")}
 					/>
 					{nameError ? (
 						<p
