@@ -192,7 +192,7 @@ func TestBlockNonBrowserTemplate(t *testing.T) {
 			return connLogger.Contains(t, database.UpsertConnectionLogParams{
 				WorkspaceID:      r.workspace.ID,
 				AgentName:        r.sdkAgent.Name,
-				Type:             database.ConnectionTypeTunnel,
+				ConnectionMethod: database.ConnectionLogMethodTunnel,
 				Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
 				UserID:           uuid.NullUUID{UUID: user.UserID, Valid: true},
 				ConnectionStatus: database.ConnectionStatusConnected,
