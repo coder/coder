@@ -36,40 +36,16 @@ WHERE (
 	EXCLUDED.cache_write_price
 );
 
--- name: GetAIModelPriceByProviderModel :one
--- Returns the site-wide price in effect for the requested model, falling back
--- to the model reported by the provider when the requested model has no price.
--- Rows are ordered by model first, then by source, so the lookup order is:
---   1. Custom price for the requested model.
---   2. Price book price for the requested model.
---   3. Custom price for the provider-reported model.
---   4. Price book price for the provider-reported model.
--- Token usage is priced with GetAIModelPriceForProvider, which also considers
--- organization prices.
-SELECT *
-FROM ai_model_prices
-WHERE provider = @provider AND model IN (@model, @provider_model)
-ORDER BY
-	CASE WHEN model = @model THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
-LIMIT 1;
-
 -- name: GetAIModelPriceForProvider :one
 -- Returns the price in effect for the model served by the configured provider,
--- most specific first: the organization's price for the provider, a
--- site-wide custom price, then the price book. The requested model is preferred over the model reported
--- by the provider, whatever the kind of price. A NULL organization_id matches
--- no organization price, so only site-wide prices apply. Each branch is a
--- primary key lookup.
+-- most specific first: the organization's price for the provider, a site-wide
+-- custom price, then the price book. The requested model is preferred over the
+-- model reported by the provider, whatever the kind of price. A NULL
+-- organization_id matches no organization price, so only site-wide prices
+-- apply. Each branch is a primary key lookup.
 WITH prices AS (
 	SELECT
-		CASE source
-			WHEN 'custom' THEN 'site_custom'::ai_model_price_kind
-			ELSE 'site_default'::ai_model_price_kind
-		END AS kind,
-		NULL::uuid AS organization_id,
-		NULL::uuid AS provider_id,
-		provider,
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
 		model,
 		input_price,
 		output_price,
@@ -80,10 +56,7 @@ WITH prices AS (
 		AND ai_model_prices.model IN (@model::text, @provider_model::text)
 	UNION ALL
 	SELECT
-		'organization_provider'::ai_model_price_kind,
-		organization_id,
-		provider_id,
-		@provider_type::text,
+		1,
 		model,
 		input_price,
 		output_price,
@@ -95,10 +68,6 @@ WITH prices AS (
 		AND ai_org_provider_model_prices.model IN (@model::text, @provider_model::text)
 )
 SELECT
-	prices.kind,
-	prices.organization_id,
-	prices.provider_id,
-	prices.provider,
 	prices.model,
 	prices.input_price,
 	prices.output_price,
@@ -107,8 +76,7 @@ SELECT
 FROM prices
 ORDER BY
 	CASE WHEN prices.model = @model::text THEN 0 ELSE 1 END ASC,
-	-- Enum values are declared most specific first.
-	prices.kind ASC
+	prices.specificity ASC
 LIMIT 1;
 
 -- name: GetOrganizationAIProviderModelPrice :one
@@ -658,10 +626,7 @@ OFFSET @offset_opt::int;
 
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used
--- first. Only providers whose type is in priceable_providers are reported.
--- A model counts as priced when the site-wide catalog prices it for the
--- provider type, or when any organization prices it for the configured
--- provider. The latter is the only way to price an openai-compat provider.
+-- first. openai-compat providers cannot be priced, so their models are excluded.
 SELECT
 	providers.type::text AS provider_type,
 	interceptions.model AS model,
@@ -685,12 +650,6 @@ WHERE interceptions.started_at >= @since::timestamptz
 		FROM ai_model_prices AS prices
 		WHERE prices.provider = providers.type::text
 			AND prices.model = interceptions.model
-	)
-	AND NOT EXISTS (
-		SELECT 1
-		FROM ai_org_provider_model_prices AS provider_prices
-		WHERE provider_prices.provider_id = providers.id
-			AND provider_prices.model = interceptions.model
 	)
 GROUP BY providers.type, interceptions.model
 ORDER BY token_count DESC, provider_type ASC, model ASC;

@@ -7372,11 +7372,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 		}).Asserts(rbac.ResourceAiModelPrice, policy.ActionUpdate)
 	}))
 
-	s.Run("GetAIModelPriceByProviderModel", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Return(database.AIModelPrice{}, nil).AnyTimes()
-		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
-	}))
-
 	// Without an organization only site-wide prices are read.
 	s.Run("GetAIModelPriceForProvider", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).Return(database.GetAIModelPriceForProviderRow{}, nil).AnyTimes()

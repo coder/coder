@@ -2341,8 +2341,6 @@ func TestRecordTokenUsage(t *testing.T) {
 						Model:        intc.Model,
 						ProviderID:   providerID,
 					}).Return(database.GetAIModelPriceForProviderRow{
-						Kind:       database.AIModelPriceKindSiteDefault,
-						Provider:   string(database.AIProviderTypeAzure),
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2384,8 +2382,6 @@ func TestRecordTokenUsage(t *testing.T) {
 						Model:        intc.Model,
 						ProviderID:   providerID,
 					}).Return(database.GetAIModelPriceForProviderRow{
-						Kind:       database.AIModelPriceKindSiteDefault,
-						Provider:   string(database.AIProviderTypeBedrock),
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2396,60 +2392,6 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, p.InputPriceMicros, "input price") &&
 							assert.Equal(t, sql.NullInt64{Int64: 300, Valid: true}, p.CostMicros, "cost")
-					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
-					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
-						Return(database.AIUserDailySpend{}, nil)
-				},
-			},
-			{
-				// The kind and keys of the matched price are copied onto the
-				// record, so it keeps describing its price after prices change.
-				name: "matched price kind and keys are recorded",
-				request: &proto.RecordTokenUsageRequest{
-					InterceptionId: uuid.NewString(),
-					MsgId:          "msg_123",
-					InputTokens:    100,
-					CreatedAt:      timestamppb.Now(),
-				},
-				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
-					interceptionID, err := uuid.Parse(req.GetInterceptionId())
-					assert.NoError(t, err, "parse interception UUID")
-
-					intc := newTestInterception(interceptionID)
-					intc.Provider = "openai"
-					intc.ProviderName = "litellm"
-					intc.Model = "bedrock/claude-sonnet-4-5"
-					expectBudgetLookups(db, intc)
-
-					providerID := uuid.New()
-					orgID := uuid.New()
-					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeOpenaiCompat}, nil)
-					// No organization context is available yet, so the lookup is
-					// made without one.
-					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
-						ProviderType:   string(database.AIProviderTypeOpenaiCompat),
-						Model:          intc.Model,
-						OrganizationID: uuid.NullUUID{},
-						ProviderID:     providerID,
-					}).Return(database.GetAIModelPriceForProviderRow{
-						Kind:           database.AIModelPriceKindOrganizationProvider,
-						OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
-						ProviderID:     uuid.NullUUID{UUID: providerID, Valid: true},
-						Provider:       string(database.AIProviderTypeOpenaiCompat),
-						Model:          intc.Model,
-						InputPrice:     sql.NullInt64{Int64: 3_000_000, Valid: true},
-					}, nil)
-
-					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
-					)
-					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
-						return assert.Equal(t, sql.NullInt64{Int64: 300, Valid: true}, p.CostMicros, "cost") &&
-							assert.Equal(t, database.NullAIModelPriceKind{AIModelPriceKind: database.AIModelPriceKindOrganizationProvider, Valid: true}, p.PriceKind, "price kind") &&
-							assert.Equal(t, uuid.NullUUID{UUID: orgID, Valid: true}, p.PriceOrganizationID, "price organization") &&
-							assert.Equal(t, uuid.NullUUID{UUID: providerID, Valid: true}, p.PriceProviderID, "price provider ID") &&
-							assert.Equal(t, sql.NullString{String: string(database.AIProviderTypeOpenaiCompat), Valid: true}, p.PriceProvider, "price provider")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 						Return(database.AIUserDailySpend{}, nil)
@@ -2480,9 +2422,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.False(t, p.InputPriceMicros.Valid, "input price null") &&
-							assert.False(t, p.CostMicros.Valid, "cost null") &&
-							assert.False(t, p.PriceKind.Valid, "price kind null") &&
-							assert.False(t, p.PriceProvider.Valid, "price provider null")
+							assert.False(t, p.CostMicros.Valid, "cost null")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
@@ -3804,18 +3744,11 @@ func expectTokenUsageCostLookups(
 	}, nil)
 
 	if price != nil {
-		// A site-wide price matches as the kind its source names.
-		kind := database.AIModelPriceKindSiteDefault
-		if price.Source == database.AIModelPriceSourceCustom {
-			kind = database.AIModelPriceKindSiteCustom
-		}
 		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
 			ProviderType: intc.Provider,
 			Model:        intc.Model,
 			ProviderID:   providerID,
 		}).Return(database.GetAIModelPriceForProviderRow{
-			Kind:            kind,
-			Provider:        intc.Provider,
 			Model:           intc.Model,
 			InputPrice:      price.InputPrice,
 			OutputPrice:     price.OutputPrice,

@@ -74,12 +74,6 @@ type tokenUsageCost struct {
 	cacheWritePriceMicros sql.NullInt64
 	costMicros            sql.NullInt64
 	pricedModel           sql.NullString
-	// The kind and keys of the matched price, copied so the record keeps
-	// describing its price after the price changes.
-	priceKind           database.NullAIModelPriceKind
-	priceOrganizationID uuid.NullUUID
-	priceProviderID     uuid.NullUUID
-	priceProvider       sql.NullString
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
@@ -166,10 +160,6 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	result.outputPriceMicros = price.OutputPrice
 	result.cacheReadPriceMicros = price.CacheReadPrice
 	result.cacheWritePriceMicros = price.CacheWritePrice
-	result.priceKind = database.NullAIModelPriceKind{AIModelPriceKind: price.Kind, Valid: true}
-	result.priceOrganizationID = price.OrganizationID
-	result.priceProviderID = price.ProviderID
-	result.priceProvider = sql.NullString{String: price.Provider, Valid: true}
 
 	costMicros, err := computeCost(price,
 		in.GetInputTokens(), in.GetOutputTokens(),

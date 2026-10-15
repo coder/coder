@@ -1224,14 +1224,6 @@ func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, ha
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetAIModelPriceByProviderModel").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelPriceByProviderModel").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceForProvider(ctx, arg)

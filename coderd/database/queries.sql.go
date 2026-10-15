@@ -1728,38 +1728,32 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model,
-  price_kind, price_organization_id, price_provider_id, price_provider
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
-  $10, $11, $12, $13, $14, $15, $16, $17,
-  $18, $19, $20, $21
+  $10, $11, $12, $13, $14, $15, $16, $17
 )
 RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 `
 
 type InsertAIBridgeTokenUsageParams struct {
-	ID                    uuid.UUID            `db:"id" json:"id"`
-	InterceptionID        uuid.UUID            `db:"interception_id" json:"interception_id"`
-	ProviderResponseID    string               `db:"provider_response_id" json:"provider_response_id"`
-	InputTokens           int64                `db:"input_tokens" json:"input_tokens"`
-	OutputTokens          int64                `db:"output_tokens" json:"output_tokens"`
-	CacheReadInputTokens  int64                `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
-	CacheWriteInputTokens int64                `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
-	Metadata              json.RawMessage      `db:"metadata" json:"metadata"`
-	CreatedAt             time.Time            `db:"created_at" json:"created_at"`
-	EffectiveGroupID      uuid.NullUUID        `db:"effective_group_id" json:"effective_group_id"`
-	InputPriceMicros      sql.NullInt64        `db:"input_price_micros" json:"input_price_micros"`
-	OutputPriceMicros     sql.NullInt64        `db:"output_price_micros" json:"output_price_micros"`
-	CacheReadPriceMicros  sql.NullInt64        `db:"cache_read_price_micros" json:"cache_read_price_micros"`
-	CacheWritePriceMicros sql.NullInt64        `db:"cache_write_price_micros" json:"cache_write_price_micros"`
-	CostMicros            sql.NullInt64        `db:"cost_micros" json:"cost_micros"`
-	ProviderModel         sql.NullString       `db:"provider_model" json:"provider_model"`
-	PricedModel           sql.NullString       `db:"priced_model" json:"priced_model"`
-	PriceKind             NullAIModelPriceKind `db:"price_kind" json:"price_kind"`
-	PriceOrganizationID   uuid.NullUUID        `db:"price_organization_id" json:"price_organization_id"`
-	PriceProviderID       uuid.NullUUID        `db:"price_provider_id" json:"price_provider_id"`
-	PriceProvider         sql.NullString       `db:"price_provider" json:"price_provider"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	InterceptionID        uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID    string          `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens           int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          int64           `db:"output_tokens" json:"output_tokens"`
+	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
+	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	EffectiveGroupID      uuid.NullUUID   `db:"effective_group_id" json:"effective_group_id"`
+	InputPriceMicros      sql.NullInt64   `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros     sql.NullInt64   `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros  sql.NullInt64   `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros sql.NullInt64   `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+	CostMicros            sql.NullInt64   `db:"cost_micros" json:"cost_micros"`
+	ProviderModel         sql.NullString  `db:"provider_model" json:"provider_model"`
+	PricedModel           sql.NullString  `db:"priced_model" json:"priced_model"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -1781,10 +1775,6 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.CostMicros,
 		arg.ProviderModel,
 		arg.PricedModel,
-		arg.PriceKind,
-		arg.PriceOrganizationID,
-		arg.PriceProviderID,
-		arg.PriceProvider,
 	)
 	var i AIBridgeTokenUsage
 	err := row.Scan(
@@ -2992,59 +2982,10 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 	return items, nil
 }
 
-const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
-FROM ai_model_prices
-WHERE provider = $1 AND model IN ($2, $3)
-ORDER BY
-	CASE WHEN model = $2 THEN 0 ELSE 1 END ASC,
-	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
-LIMIT 1
-`
-
-type GetAIModelPriceByProviderModelParams struct {
-	Provider      string `db:"provider" json:"provider"`
-	Model         string `db:"model" json:"model"`
-	ProviderModel string `db:"provider_model" json:"provider_model"`
-}
-
-// Returns the site-wide price in effect for the requested model, falling back
-// to the model reported by the provider when the requested model has no price.
-// Rows are ordered by model first, then by source, so the lookup order is:
-//  1. Custom price for the requested model.
-//  2. Price book price for the requested model.
-//  3. Custom price for the provider-reported model.
-//  4. Price book price for the provider-reported model.
-//
-// Token usage is priced with GetAIModelPriceForProvider, which also considers
-// organization prices.
-func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
-	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model, arg.ProviderModel)
-	var i AIModelPrice
-	err := row.Scan(
-		&i.Provider,
-		&i.Model,
-		&i.InputPrice,
-		&i.OutputPrice,
-		&i.CacheReadPrice,
-		&i.CacheWritePrice,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Source,
-	)
-	return i, err
-}
-
 const getAIModelPriceForProvider = `-- name: GetAIModelPriceForProvider :one
 WITH prices AS (
 	SELECT
-		CASE source
-			WHEN 'custom' THEN 'site_custom'::ai_model_price_kind
-			ELSE 'site_default'::ai_model_price_kind
-		END AS kind,
-		NULL::uuid AS organization_id,
-		NULL::uuid AS provider_id,
-		provider,
+		CASE source WHEN 'custom' THEN 2 ELSE 3 END AS specificity,
 		model,
 		input_price,
 		output_price,
@@ -3055,10 +2996,7 @@ WITH prices AS (
 		AND ai_model_prices.model IN ($1::text, $3::text)
 	UNION ALL
 	SELECT
-		'organization_provider'::ai_model_price_kind,
-		organization_id,
-		provider_id,
-		$2::text,
+		1,
 		model,
 		input_price,
 		output_price,
@@ -3070,10 +3008,6 @@ WITH prices AS (
 		AND ai_org_provider_model_prices.model IN ($1::text, $3::text)
 )
 SELECT
-	prices.kind,
-	prices.organization_id,
-	prices.provider_id,
-	prices.provider,
 	prices.model,
 	prices.input_price,
 	prices.output_price,
@@ -3082,8 +3016,7 @@ SELECT
 FROM prices
 ORDER BY
 	CASE WHEN prices.model = $1::text THEN 0 ELSE 1 END ASC,
-	-- Enum values are declared most specific first.
-	prices.kind ASC
+	prices.specificity ASC
 LIMIT 1
 `
 
@@ -3096,23 +3029,19 @@ type GetAIModelPriceForProviderParams struct {
 }
 
 type GetAIModelPriceForProviderRow struct {
-	Kind            AIModelPriceKind `db:"kind" json:"kind"`
-	OrganizationID  uuid.NullUUID    `db:"organization_id" json:"organization_id"`
-	ProviderID      uuid.NullUUID    `db:"provider_id" json:"provider_id"`
-	Provider        string           `db:"provider" json:"provider"`
-	Model           string           `db:"model" json:"model"`
-	InputPrice      sql.NullInt64    `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64    `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64    `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64    `db:"cache_write_price" json:"cache_write_price"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 }
 
 // Returns the price in effect for the model served by the configured provider,
-// most specific first: the organization's price for the provider, a
-// site-wide custom price, then the price book. The requested model is preferred over the model reported
-// by the provider, whatever the kind of price. A NULL organization_id matches
-// no organization price, so only site-wide prices apply. Each branch is a
-// primary key lookup.
+// most specific first: the organization's price for the provider, a site-wide
+// custom price, then the price book. The requested model is preferred over the
+// model reported by the provider, whatever the kind of price. A NULL
+// organization_id matches no organization price, so only site-wide prices
+// apply. Each branch is a primary key lookup.
 func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceForProvider,
 		arg.Model,
@@ -3123,10 +3052,6 @@ func (q *sqlQuerier) GetAIModelPriceForProvider(ctx context.Context, arg GetAIMo
 	)
 	var i GetAIModelPriceForProviderRow
 	err := row.Scan(
-		&i.Kind,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.Provider,
 		&i.Model,
 		&i.InputPrice,
 		&i.OutputPrice,
@@ -3715,12 +3640,6 @@ WHERE interceptions.started_at >= $1::timestamptz
 		WHERE prices.provider = providers.type::text
 			AND prices.model = interceptions.model
 	)
-	AND NOT EXISTS (
-		SELECT 1
-		FROM ai_org_provider_model_prices AS provider_prices
-		WHERE provider_prices.provider_id = providers.id
-			AND provider_prices.model = interceptions.model
-	)
 GROUP BY providers.type, interceptions.model
 ORDER BY token_count DESC, provider_type ASC, model ASC
 `
@@ -3737,10 +3656,7 @@ type GetUnpricedAIModelsSinceRow struct {
 }
 
 // Returns the models used since the given time that hold no price, most used
-// first. Only providers whose type is in priceable_providers are reported.
-// A model counts as priced when the site-wide catalog prices it for the
-// provider type, or when any organization prices it for the configured
-// provider. The latter is the only way to price an openai-compat provider.
+// first. openai-compat providers cannot be priced, so their models are excluded.
 func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
 	if err != nil {
