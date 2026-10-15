@@ -24,7 +24,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -297,19 +297,26 @@ const RoleTableBody: React.FC<RoleTableBodyProps> = ({
 		return <TableLoader />;
 	}
 	if (roles.length === 0) {
+		if (!isCustomRolesEnabled) {
+			return (
+				<TableEmptyState
+					variant="upgrade"
+					message="No custom roles yet"
+					description="Upgrade to a premium license to create custom roles."
+				/>
+			);
+		}
 		return (
-			<TableEmpty
+			<TableEmptyState
+				variant="create"
 				message="No custom roles yet"
 				description={
-					canCreateOrgRole && isCustomRolesEnabled
+					canCreateOrgRole
 						? "Create your first custom role"
-						: !isCustomRolesEnabled
-							? "Upgrade to a premium license to create a custom role"
-							: "You don't have permission to create a custom role"
+						: "You don't have permission to create a custom role"
 				}
 				cta={
-					canCreateOrgRole &&
-					isCustomRolesEnabled && (
+					canCreateOrgRole && (
 						<Button asChild>
 							<RouterLink to="create">
 								<PlusIcon />
