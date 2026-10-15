@@ -32,6 +32,9 @@ type ManifestAPI struct {
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
 	WorkspaceID               uuid.UUID
+	// WorkspaceBuildID is the build that created the agent. Its live secrets
+	// are delivered in the manifest.
+	WorkspaceBuildID uuid.UUID
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -98,6 +101,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
+	//nolint:gocritic // Only the workspace secret manager reads values.
+	workspaceSecrets, err := a.Database.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), a.WorkspaceBuildID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
+	}
 
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
@@ -160,7 +168,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
-		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+		Secrets:       dbSecretsToProto(userSecrets, workspaceSecrets, secretFilePathPolicy),
 	}, nil
 }
 
@@ -239,6 +247,7 @@ func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow)
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		DisplayName:      script.DisplayName,
 		ResourceAddress:  sdkScript.ResourceAddress,
 		Dependencies:     dependencies,
 	}, nil
@@ -335,9 +344,12 @@ const (
 	userSecretFilePathBlocked
 )
 
-func dbUserSecretsToProto(secrets []database.UserSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
-	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
-	for _, s := range secrets {
+func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []database.WorkspaceSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
+	// Workspace secrets are appended after user secrets. The agent applies
+	// env vars in order, so a workspace secret overrides a user secret that
+	// targets the same environment variable.
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(userSecrets)+len(workspaceSecrets))
+	for _, s := range userSecrets {
 		// Skip disabled secrets so they are not injected as env vars or
 		// written to secret files. The API guarantees every enabled
 		// secret has at least one of env_name or file_path set, so we
@@ -345,18 +357,32 @@ func dbUserSecretsToProto(secrets []database.UserSecret, policy userSecretFilePa
 		if !s.Enabled {
 			continue
 		}
-		filePath := s.FilePath
-		if policy == userSecretFilePathBlocked {
-			if s.EnvName == "" {
-				continue
-			}
-			filePath = ""
+		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value, policy)
+	}
+	for _, s := range workspaceSecrets {
+		// ListActiveWorkspaceSecrets only returns rows that still hold a
+		// value; the check guards against a cleared row slipping through.
+		if !s.Value.Valid {
+			continue
 		}
-		ret = append(ret, &agentproto.WorkspaceSecret{
-			EnvName:  s.EnvName,
-			FilePath: filePath,
-			Value:    []byte(s.Value),
-		})
+		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value.String, policy)
 	}
 	return ret
+}
+
+// appendSecretProto appends one manifest secret, applying the deployment's
+// file path delivery policy. A secret that only targets a file is dropped
+// entirely when file delivery is blocked.
+func appendSecretProto(ret []*agentproto.WorkspaceSecret, envName, filePath, value string, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
+	if policy == userSecretFilePathBlocked {
+		if envName == "" {
+			return ret
+		}
+		filePath = ""
+	}
+	return append(ret, &agentproto.WorkspaceSecret{
+		EnvName:  envName,
+		FilePath: filePath,
+		Value:    []byte(value),
+	})
 }

@@ -8,18 +8,17 @@ Coder controls agent spend with AI Gateway budgets, and surfaces the resulting s
 
 Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway usage (including Coder Agents chats) per user over the budget period.
 
-- **Group budgets**: set a budget for a group from the group's settings page.
+- **Group budgets**:
+  set a budget for a group from the group's settings page.
   The deployment budget policy resolves which group budget applies when a user belongs to multiple budgeted groups, which defaults to the group with the highest budget.
-- **Per-user overrides**: set a custom budget for an individual user, attributed to one of their groups.
+- **Per-user overrides**:
+  set a custom budget for an individual user, attributed to one of their groups.
   Per-user overrides take priority over group budgets.
 
-The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently
-support only `highest` and `month`. `highest` selects the group with the
-largest spend limit, and `month` resets spend at the start of each UTC
-calendar month. A user who belongs to no budgeted group falls back to the
-Everyone group, which has no budget unless one is set for it. There is no
-deployment-wide budget amount, and a configured spend limit cannot exceed
-$1,000,000 per member per period.
+The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently support only `highest` and `month`.
+`highest` selects the group with the largest spend limit, and `month` resets spend at the start of each UTC calendar month.
+A user who belongs to no budgeted group falls back to the Everyone group, which has no budget unless one is set for it.
+There is no deployment-wide budget amount, and a configured spend limit cannot exceed $1,000,000 per member per period.
 
 > [!IMPORTANT]
 > Budget controls in the Coder UI, the group budget endpoints (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting endpoints all require the AI Gateway entitlement.
@@ -59,9 +58,12 @@ Spend is shown where it is actionable:
 - **Admin settings** > **AI** > **User spend**: total and per-user AI Gateway spend for the selected organization and reporting period.
   If you can also view AI sessions, you can filter it by provider, model, and client.
 -->
-- **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
-- **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
-- **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
+- **Agents page and user menu**:
+  the signed-in user's spend against their budget, as described previously.
+- **Group settings**:
+  each member's spend against the group's budget, for admins who can manage the group.
+- **Chat summary panel**:
+  the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
 
 For organization spend exports, refer to [AI Gateway spend export](../../ai-gateway/cost-controls.md#spend-export).
