@@ -667,10 +667,19 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
+	// Organization and project skill chips would be sent with the new scope,
+	// so they are removed when the scope changes.
 	const selectOrganization = (organization: TypesGen.Organization) => {
+		chatInputRef.current?.removeSkills(["org", "project"]);
 		setUserMCPServerIds(null);
 		setPickedProject(null);
 		setSelectedOrg(organization);
+	};
+	const selectProject = (nextProject: TypesGen.ChatProject | null) => {
+		if (nextProject?.id !== selectedProject?.id) {
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+		setPickedProject(nextProject);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -1011,7 +1020,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							<CompactProjectSelector
 								value={selectedProject}
 								options={organizationProjects}
-								onChange={setPickedProject}
+								onChange={selectProject}
 								onCreateProject={openCreateProjectDialog}
 								isLoading={projectsQuery.isLoading}
 								// A failed background refetch keeps the cached list usable.
@@ -1163,7 +1172,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 												? projects
 												: projects && [...projects, chatProject],
 									);
-									setPickedProject(chatProject);
+									selectProject(chatProject);
 									setIsCreateProjectOpen(false);
 								},
 							},

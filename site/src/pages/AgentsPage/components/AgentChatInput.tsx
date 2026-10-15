@@ -693,6 +693,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
 			insertSkill: (source, name) =>
 				internalRef.current?.insertSkill(source, name),
+			removeSkills: (sources) => internalRef.current?.removeSkills(sources),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
 		[],

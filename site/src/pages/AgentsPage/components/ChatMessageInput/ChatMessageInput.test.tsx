@@ -12,6 +12,7 @@ import type {
 	ChatSkillSource,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
@@ -446,8 +447,8 @@ describe("ChatMessageInput", () => {
 			});
 		});
 
-		it("removes a chip with its remove button", async () => {
-			const user = userEvent.setup();
+		it("refuses a ninth skill chip and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
 			const inputRef = createRef<ChatMessageInputRef>();
 			renderWithQueryClient(
 				<ChatMessageInput
@@ -457,14 +458,50 @@ describe("ChatMessageInput", () => {
 				/>,
 			);
 			await waitFor(() => expect(inputRef.current).not.toBeNull());
-			act(() => inputRef.current?.insertSkill("project", "triage"));
+			act(() => {
+				for (let index = 0; index < 9; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
 
-			await user.click(
-				await screen.findByRole("button", {
-					name: "Remove skill /project/triage",
-				}),
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
 			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
+		it("removes a chip from the keyboard without sending the message", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const props = requiredProps();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...props}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("project", "triage"));
+			await screen.findByRole("button", {
+				name: "Remove skill /project/triage",
+			});
+
+			await user.tab();
+			await user.keyboard("{Enter}");
 			expect(getRequestContent(inputRef)).toEqual([]);
+			expect(props.onEnter).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(
+					screen.getByRole("textbox", { name: "Chat message input" }),
+				).toHaveFocus(),
+			);
 		});
 
 		it("copies skill chips as aliases and pastes each available skill once", async () => {

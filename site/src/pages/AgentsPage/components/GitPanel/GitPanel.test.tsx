@@ -105,6 +105,7 @@ function mockComposer(value = ""): ChatMessageInputRef {
 		focus: vi.fn(),
 		addFileReference: vi.fn(),
 		insertSkill: vi.fn(),
+		removeSkills: vi.fn(),
 		getContentParts: vi.fn(() => []),
 	};
 }

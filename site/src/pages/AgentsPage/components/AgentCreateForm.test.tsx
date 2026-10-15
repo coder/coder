@@ -15,6 +15,7 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
@@ -937,6 +938,67 @@ describe("AgentCreateForm project picker", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("drops organization and project skill chips when their scope changes", async () => {
+		dashboard.showOrganizations = true;
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		queryClient.setQueryData(userSkillsKey(), [
+			{ ...MockSkill, name: "notes" },
+		]);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[{ ...MockSkill, name: "review" }],
+		);
+		queryClient.setQueryData(
+			chatProjectSkills(MockDefaultOrganization.id, MockChatProject.id)
+				.queryKey,
+			[{ ...MockSkill, name: "triage" }],
+		);
+		const { onCreateChat } = renderForm({}, { queryClient });
+		const insertSkills = async (names: string[]) => {
+			await user().click(screen.getByRole("textbox", { name: "Chat message" }));
+			for (const name of names) {
+				await user().paste("/");
+				await user().click(
+					await screen.findByRole("option", { name: new RegExp(name) }),
+				);
+			}
+		};
+		const switchOrganization = async (name: string) => {
+			await user().click(
+				screen.getByRole("button", { name: /^Organization:/ }),
+			);
+			await user().click(await screen.findByRole("option", { name }));
+		};
+
+		await insertSkills(["review", "notes"]);
+		await switchOrganization(MockOrganization2.display_name);
+		await switchOrganization(MockDefaultOrganization.display_name);
+		await pickProject(MockChatProject.name);
+		await insertSkills(["triage"]);
+		await user().click(screen.getByRole("button", { name: /^Project:/ }));
+		await user().click(
+			await screen.findByRole("option", { name: /^No project/ }),
+		);
+		await submitMessage("scope changed");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const skillParts = submittedOptions(onCreateChat).composerParts?.filter(
+			(part) => part.type === "skill-invocation",
+		);
+		expect(skillParts).toEqual([
+			{ type: "skill-invocation", source: "personal", name: "notes" },
+		]);
 	});
 
 	it("clears the picked project when the organization changes", async () => {

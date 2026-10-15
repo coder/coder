@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { getQueuedMessageInfo } from "./QueuedMessagesList";
+import {
+	getFirstLinePreview,
+	getQueuedMessageInfo,
+} from "./QueuedMessagesList";
 
 const buildMessage = (
 	content: ChatQueuedMessage["content"],
@@ -167,6 +170,25 @@ describe("getQueuedMessageInfo", () => {
 			previewParts: [{ type: "text", text: "check this" }],
 			attachmentCount: 2,
 			hookNotices: [],
+		});
+	});
+});
+
+describe("getFirstLinePreview", () => {
+	it("ends the first line at a break before a skill chip", () => {
+		const { previewParts } = getQueuedMessageInfo(
+			buildMessage([
+				{ type: "text", text: "Fix the build\n" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			]),
+		);
+		expect(getFirstLinePreview(previewParts)).toEqual({
+			parts: [{ type: "text", text: "Fix the build" }],
+			isTruncated: true,
 		});
 	});
 });
