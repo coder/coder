@@ -4,9 +4,10 @@
  * To change who appears in the game, edit the entries below.
  */
 
-type RosterEntry = {
+export type RosterEntry = {
 	name: string;
 	role: string;
+	isCommunity?: boolean;
 };
 
 export const ROSTER: RosterEntry[] = [
@@ -37,7 +38,7 @@ export const ROSTER: RosterEntry[] = [
 	{ name: "Kodie Dower", role: "Content & Social Media Marketing Manager" },
 	{ name: "Luke Brand", role: "VP International" },
 	{ name: "Marcin Tojek", role: "Senior Engineering Manager" },
-	{ name: "Marco Martinez", role: "Community Team Lead" },
+	{ name: "Marco Martinez", role: "Community Team Lead", isCommunity: true },
 	{ name: "Mark Eadie", role: "Technical Account Manager" },
 	{ name: "Matt Colton", role: "Staff Solutions Engineer" },
 	{ name: "Nick Spangler", role: "Customer Success Manager" },
