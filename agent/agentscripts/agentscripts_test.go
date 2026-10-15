@@ -407,11 +407,11 @@ func TestExecuteOrderedTimeoutStartsAfterWaiting(t *testing.T) {
 
 	clone := codersdk.WorkspaceAgentScript{
 		ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.clone",
-		Script: "sleep 0.3", RunOnStart: true,
+		Script: "sleep 2", RunOnStart: true,
 	}
 	install := codersdk.WorkspaceAgentScript{
 		ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.install",
-		Script: "echo installed", RunOnStart: true, Timeout: 100 * time.Millisecond,
+		Script: "echo installed", RunOnStart: true, Timeout: time.Second,
 		Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
 			PrerequisiteResourceAddress: "coder_script.clone",
 			Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
