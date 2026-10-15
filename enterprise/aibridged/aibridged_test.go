@@ -268,6 +268,25 @@ func TestRouting(t *testing.T) {
 			expectedStatus: http.StatusTeapot, // Nonsense status to indicate server was hit.
 			expectedHits:   1,
 		},
+		// Encoded dot segments are rejected before reaching the upstream.
+		{
+			name:           "openai encoded traversal",
+			path:           "/openai/v1/models/%2e%2e/chat/completions",
+			expectedStatus: http.StatusBadRequest,
+			expectedHits:   0,
+		},
+		{
+			name:           "openai escaped separator traversal",
+			path:           "/openai/v1/models/..%2F..%2Fchat/completions",
+			expectedStatus: http.StatusBadRequest,
+			expectedHits:   0,
+		},
+		{
+			name:           "anthropic double encoded traversal",
+			path:           "/anthropic/v1/models/%252e%252e/messages",
+			expectedStatus: http.StatusBadRequest,
+			expectedHits:   0,
+		},
 	}
 
 	for _, tc := range cases {
