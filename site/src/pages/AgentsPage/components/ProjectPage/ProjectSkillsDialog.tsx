@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { ChevronLeftIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
@@ -37,6 +37,7 @@ import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
 	emptySkillFormValues,
 	projectSkillsScope,
+	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
@@ -339,16 +340,40 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	onBack,
 	onSubmit,
 }) => {
+	const queryClient = useQueryClient();
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 	const skillQuery = useQuery({
 		...scope.detail(view.type === "edit" ? view.name : ""),
 		enabled: view.type === "edit",
 	});
+	const isSkillDeleted =
+		view.type === "edit" &&
+		isAxiosError(skillQuery.error) &&
+		skillQuery.error.response?.status === 404;
 	let loaded: ReturnType<typeof skillFormValuesFromSkill> | undefined;
 	if (view.type === "create") {
 		loaded = { ok: true, values: emptySkillFormValues };
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
+	}
+	// The form opens with the first loaded values. A background refetch must
+	// not reinitialize it and discard unsaved edits.
+	const [openedValues, setOpenedValues] = useState<SkillFormValues>();
+	if (loaded?.ok && !openedValues) {
+		setOpenedValues(loaded.values);
+	}
+	// Only the detail query learns that someone else deleted the skill, so
+	// leave the stale editor and refresh the list when it reports that.
+	useEffect(() => {
+		if (!isSkillDeleted) {
+			return;
+		}
+		toast.info(`That ${NOUN} was deleted.`);
+		void queryClient.invalidateQueries({ queryKey: scope.list.queryKey });
+		onBack();
+	}, [isSkillDeleted, onBack, queryClient, scope.list.queryKey]);
+	if (isSkillDeleted) {
+		return null;
 	}
 	const title =
 		view.type === "create"
@@ -393,7 +418,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 			<SkillEditorForm
 				mode={view.type}
 				readOnly={!canEdit}
-				initialValues={loaded.values}
+				initialValues={openedValues ?? loaded.values}
 				existingNames={existingNames}
 				submitError={submitError}
 				isSubmitting={isSubmitting}
