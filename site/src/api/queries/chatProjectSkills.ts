@@ -69,8 +69,7 @@ export const updateChatProjectSkill = (
 			name,
 			req,
 		),
-	// Invalidation refetches only active queries, so write the PATCH response
-	// for a detail no editor observes, after cancelling an older GET.
+	// Cancelling an older GET first keeps it from overwriting the PATCH response.
 	onSuccess: async (
 		skill: TypesGen.Skill,
 		{ name }: UpdateChatProjectSkillArgs,
@@ -82,10 +81,7 @@ export const updateChatProjectSkill = (
 	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
 });
 
-/**
- * Deletes a project skill. Success, or a 404 for an already deleted skill,
- * evicts its cached details, and every outcome refreshes the list.
- */
+/** Deletes a project skill. Success or a 404 evicts its details; the list always refreshes. */
 export const deleteChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
