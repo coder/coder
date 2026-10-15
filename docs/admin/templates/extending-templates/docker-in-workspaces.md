@@ -8,7 +8,7 @@ There are a few ways to run Docker within container-based Coder workspaces.
 |------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Sysbox container runtime](#sysbox-container-runtime)      | Install the Sysbox runtime on your Kubernetes nodes or Docker host(s) for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS, Docker.         | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). [Limitations](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md)                                                                    |
 | [Envbox](#envbox)                                          | A container image with all the packages necessary to run an inner Sysbox container. Removes the need to setup sysbox-runc on your nodes. Works with GKE, EKS, AKS. | Requires running the outer container as privileged (the inner container that acts as the workspace is locked down). Requires compatible [nodes](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility). |
-| [Rootless Podman](#rootless-podman)                        | Run Podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift                           | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                                                             |
+| [Rootless Podman](#rootless-podman)                        | Run Podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift                           | Requires a FUSE device plugin, or native overlay storage on kernel 5.13 or later. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                            |
 | [Privileged docker sidecar](#privileged-sidecar-container) | Run Docker as a privileged sidecar container.                                                                                                                      | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                                                             |
 
 ## Sysbox container runtime
@@ -359,7 +359,7 @@ spec:
 
 The `EC2NodeClass` above applies to self-managed Karpenter nodes.
 On EKS Auto Mode, raise `user.max_user_namespaces` with the `advancedCompute` field on a custom `NodeClass` (`eks.amazonaws.com`).
-AWS added `advancedCompute` in October 2026, so this works on pure Auto Mode nodes with no managed node group.
+Auto Mode `NodeClass` resources [support `advancedCompute`](https://aws.amazon.com/about-aws/whats-new/2026/10/eks-auto-mode-advanced-compute-config/), so this works on pure Auto Mode nodes with no managed node group.
 
 ```yaml
 apiVersion: eks.amazonaws.com/v1
@@ -383,6 +383,9 @@ spec:
 Reference the `NodeClass` from a `NodePool` and schedule Podman workspaces onto that pool with a node selector.
 Refer to [Create a Node Class for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-node-class.html) for the full `advancedCompute` reference.
 
+If you can't use `advancedCompute`, run Podman workspaces on a managed node group instead.
+The default AL2023 AMIs ship with user namespaces enabled.
+
 Pods that set `hostUsers: false` also need `advancedCompute.kubelet.idsPerPod` raised above the 65536 default before rootless Podman can allocate subordinate ID ranges inside them.
 The value must be a multiple of 65536, and `idsPerPod` requires `user.max_user_namespaces` to be set on the same `NodeClass`:
 
@@ -401,19 +404,27 @@ Kernel overlayfs cannot stack on the workspace container's own overlay root file
 Without extra configuration, Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
 On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
 
-1. Mount an `emptyDir` volume at `/home/coder/.local/share/containers` so the Podman graph root sits on a real filesystem.
-1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`:
+1. Put the Podman graph root on a real filesystem such as ext4 or xfs.
+   If your template mounts a persistent volume at `/home/coder`, like the `kubernetes` starter, the default graph root already qualifies and keeps images across workspace restarts.
+   For ephemeral workspaces, mount an `emptyDir` volume at `/home/coder/.local/share/containers` instead; pulled images and build cache are lost when the workspace stops.
+1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`.
+   Write the override from the agent `startup_script`, which can also start the Docker-compatible API socket:
 
-   ```ini
-   # ~/.config/containers/storage.conf
-   [storage]
-   driver = "overlay"
-
-   [storage.options.overlay]
-   mount_program = ""
+   ```tf
+   startup_script = <<-EOT
+     mkdir -p ~/.config/containers
+     printf '[storage]\ndriver = "overlay"\n\n[storage.options.overlay]\nmount_program = ""\n' > ~/.config/containers/storage.conf
+     (podman system service --time=0 unix:///tmp/podman.sock >/dev/null 2>&1 &)
+     for i in $(seq 50); do [ -S /tmp/podman.sock ] && break; sleep 0.1; done
+   EOT
    ```
 
+   Set `DOCKER_HOST=unix:///tmp/podman.sock` for Docker clients that expect a daemon socket.
+
 With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
+When you use native overlay, skip the smarter-device-manager steps above and remove the `github.com/fuse` limit from the pod spec; without the device plugin, that limit keeps pods in `Pending`.
+
+A complete reference template is available in [`examples/templates/kubernetes-podman-rootless`](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-podman-rootless).
 
 ### Nested container engines
 
