@@ -12228,30 +12228,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              | Source is custom for the organization's own prices.                          |
 | `updated_at`        | string                                                     | false    |              |                                                                              |
 
-## codersdk.OrganizationAIModelPriceUpsert
-
-```json
-{
-  "cache_read_price": 0,
-  "cache_write_price": 0,
-  "input_price": 0,
-  "model": "string",
-  "output_price": 0,
-  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
-}
-```
-
-### Properties
-
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider_id`       | string  | false    |              |             |
-
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -17704,28 +17680,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------|---------|----------|--------------|-----------------------------------------------------------|
 | `spend_limit_micros` | integer | false    |              | Spend limit micros must not exceed MaxAISpendLimitMicros. |
 
-## codersdk.UpsertOrganizationAIModelPricesRequest
+## codersdk.UpsertOrganizationAIModelPriceRequest
 
 ```json
 {
-  "prices": [
-    {
-      "cache_read_price": 0,
-      "cache_write_price": 0,
-      "input_price": 0,
-      "model": "string",
-      "output_price": 0,
-      "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
-    }
-  ]
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                                        | Required | Restrictions | Description |
-|----------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `prices` | array of [codersdk.OrganizationAIModelPriceUpsert](#codersdkorganizationaimodelpriceupsert) | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider_id`       | string  | false    |              |             |
 
 ## codersdk.UpsertUserAIBudgetOverrideRequest
 

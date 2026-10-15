@@ -427,8 +427,8 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Upsert organization AI model prices",
-                "operationId": "upsert-organization-ai-model-prices",
+                "summary": "Upsert organization AI model price",
+                "operationId": "upsert-organization-ai-model-price",
                 "parameters": [
                     {
                         "type": "string",
@@ -439,12 +439,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Prices to set",
+                        "description": "Price to set",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpsertOrganizationAIModelPricesRequest"
+                            "$ref": "#/definitions/codersdk.UpsertOrganizationAIModelPriceRequest"
                         }
                     }
                 ],
@@ -28031,30 +28031,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OrganizationAIModelPriceUpsert": {
-            "type": "object",
-            "properties": {
-                "cache_read_price": {
-                    "type": "integer"
-                },
-                "cache_write_price": {
-                    "type": "integer"
-                },
-                "input_price": {
-                    "type": "integer"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "output_price": {
-                    "type": "integer"
-                },
-                "provider_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
         "codersdk.OrganizationAISpendReport": {
             "type": "object",
             "properties": {
@@ -32825,14 +32801,27 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpsertOrganizationAIModelPricesRequest": {
+        "codersdk.UpsertOrganizationAIModelPriceRequest": {
             "type": "object",
             "properties": {
-                "prices": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.OrganizationAIModelPriceUpsert"
-                    }
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

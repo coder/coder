@@ -7760,20 +7760,6 @@ export interface OrganizationAIModelPrice {
 	readonly updated_at: string;
 }
 
-// From codersdk/aimodelprices.go
-/**
- * OrganizationAIModelPriceUpsert is one model's prices for one configured
- * provider in an organization upsert request.
- */
-export interface OrganizationAIModelPriceUpsert {
-	readonly provider_id: string;
-	readonly model: string;
-	readonly input_price: number | null;
-	readonly output_price: number | null;
-	readonly cache_read_price: number | null;
-	readonly cache_write_price: number | null;
-}
-
 // From codersdk/aibridge.go
 /**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
@@ -11408,11 +11394,17 @@ export interface UpsertGroupAIBudgetRequest {
 
 // From codersdk/aimodelprices.go
 /**
- * UpsertOrganizationAIModelPricesRequest sets an organization's prices for the
- * listed models. Prices absent from the request are left untouched.
+ * UpsertOrganizationAIModelPriceRequest sets an organization's price for one
+ * model on one configured provider. Every price key must be present. Use null
+ * for a price that is not known.
  */
-export interface UpsertOrganizationAIModelPricesRequest {
-	readonly prices: readonly OrganizationAIModelPriceUpsert[];
+export interface UpsertOrganizationAIModelPriceRequest {
+	readonly provider_id: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
 }
 
 // From codersdk/aibridge.go

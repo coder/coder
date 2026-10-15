@@ -1816,7 +1816,7 @@ func OrganizationAIModelPrices(dbPrices []database.GetOrganizationAIModelPricesR
 
 func OrganizationAIModelPrice(dbPrice database.GetOrganizationAIModelPricesRow) codersdk.OrganizationAIModelPrice {
 	return codersdk.OrganizationAIModelPrice{
-		Scope:           aiModelPriceScope(dbPrice.Kind),
+		Scope:           aiModelPriceScope(dbPrice.ProviderID),
 		OrganizationID:  nullUUIDPtr(dbPrice.OrganizationID),
 		ProviderID:      nullUUIDPtr(dbPrice.ProviderID),
 		ProviderName:    dbPrice.ProviderName.String,
@@ -1832,15 +1832,13 @@ func OrganizationAIModelPrice(dbPrice database.GetOrganizationAIModelPricesRow) 
 	}
 }
 
-// aiModelPriceScope reports what a matched price applies to. Both site-wide
-// kinds share a scope, since the price's source tells them apart.
-func aiModelPriceScope(kind database.AIModelPriceKind) codersdk.AIModelPriceScope {
-	switch kind {
-	case database.AIModelPriceKindOrganizationProvider:
+// aiModelPriceScope reports what a listed price applies to. Only an
+// organization's prices for a configured provider carry a provider ID.
+func aiModelPriceScope(providerID uuid.NullUUID) codersdk.AIModelPriceScope {
+	if providerID.Valid {
 		return codersdk.AIModelPriceScopeOrganizationProvider
-	default:
-		return codersdk.AIModelPriceScopeSite
 	}
+	return codersdk.AIModelPriceScopeSite
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {

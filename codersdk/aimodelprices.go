@@ -166,15 +166,10 @@ type OrganizationAIModelPrice struct {
 	UpdatedAt time.Time          `json:"updated_at" format:"date-time"`
 }
 
-// UpsertOrganizationAIModelPricesRequest sets an organization's prices for the
-// listed models. Prices absent from the request are left untouched.
-type UpsertOrganizationAIModelPricesRequest struct {
-	Prices []OrganizationAIModelPriceUpsert `json:"prices"`
-}
-
-// OrganizationAIModelPriceUpsert is one model's prices for one configured
-// provider in an organization upsert request.
-type OrganizationAIModelPriceUpsert struct {
+// UpsertOrganizationAIModelPriceRequest sets an organization's price for one
+// model on one configured provider. Every price key must be present. Use null
+// for a price that is not known.
+type UpsertOrganizationAIModelPriceRequest struct {
 	ProviderID      uuid.UUID `json:"provider_id" format:"uuid"`
 	Model           string    `json:"model"`
 	InputPrice      *int64    `json:"input_price"`
@@ -226,10 +221,9 @@ func (c *ExperimentalClient) ListOrganizationAIModelPrices(ctx context.Context, 
 	return prices, ReadBodyAsJSON(res, &prices)
 }
 
-// UpsertOrganizationAIModelPrices sets the organization's prices for the
-// models in req. The request is rejected in full if any model fails
-// validation.
-func (c *ExperimentalClient) UpsertOrganizationAIModelPrices(ctx context.Context, organization uuid.UUID, req UpsertOrganizationAIModelPricesRequest) error {
+// UpsertOrganizationAIModelPrice sets the organization's price for one model
+// on one configured provider.
+func (c *ExperimentalClient) UpsertOrganizationAIModelPrice(ctx context.Context, organization uuid.UUID, req UpsertOrganizationAIModelPriceRequest) error {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),
 		req,

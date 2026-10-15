@@ -364,7 +364,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/", api.listOrganizationAIModelPrices)
-			r.Post("/", api.upsertOrganizationAIModelPrices)
+			r.Post("/", api.upsertOrganizationAIModelPrice)
 			r.Delete("/", api.deleteOrganizationAIModelPrice)
 		})
 		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
