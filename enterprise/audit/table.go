@@ -513,6 +513,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":            ActionTrack,
 		"created_at":      ActionIgnore,
 		"updated_at":      ActionIgnore,
+		"user_acl":        ActionTrack,
+		"group_acl":       ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,
@@ -589,6 +591,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"group_acl":                   ActionTrack,
 		"user_acl":                    ActionTrack,
 		"oauth2_revocation_url":       ActionTrack,
+		"oauth2_resource":             ActionTrack,
 		"organization_id":             ActionIgnore,
 	},
 	&database.Skill{}: {

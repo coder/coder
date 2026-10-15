@@ -187,6 +187,9 @@
 			"modelIdentifier": "gemini-3.6-flash"
 		},
 		{
+			"modelIdentifier": "gemini-4-argon"
+		},
+		{
 			"modelIdentifier": "gemini-3.1-pro-preview"
 		},
 		{
@@ -326,6 +329,9 @@
 			"modelIdentifier": "anthropic/claude-haiku-4.5"
 		},
 		{
+			"modelIdentifier": "google/gemini-4-argon"
+		},
+		{
 			"modelIdentifier": "google/gemini-3.8-flash"
 		},
 		{
@@ -438,6 +444,9 @@
 		},
 		{
 			"modelIdentifier": "anthropic/claude-haiku-4.5"
+		},
+		{
+			"modelIdentifier": "google/gemini-4-argon"
 		},
 		{
 			"modelIdentifier": "google/gemini-3.8-flash"

@@ -629,6 +629,20 @@ func TestWorkspace(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Contains(t, apiError.Detail, "unable to create a workspace in this organization")
+
+		// Then: A member creating on behalf of another user is told so
+		_, err = goodClient.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "random2",
+		})
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, "You can't create workspaces for other users in this organization.", apiError.Message)
+		require.Contains(t, apiError.Detail, fmt.Sprintf("Creating a workspace for %q needs permission", user.Username))
+		org, err := owner.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Contains(t, apiError.Detail, fmt.Sprintf("organization %q", org.Name))
 
 		// When: workspace-ban use has a workspace
 		wrk, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
