@@ -494,15 +494,18 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	// Unblock the flush
 	close(unblockFlush)
 
-	// Wait for all queued entries to be processed (channel should be empty)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(b.updateCh) == 0
-	}, testutil.IntervalFast)
+	// Verify 12 metadata were sent in 6 capacity batches. The channel empties
+	// before the last flush runs, so the poll waits on these metrics, not on
+	// the channel. They already count the first flush, so it waits for their
+	// final values. See "Wait for Full Completion before Asserting" in
+	// .claude/docs/TESTING.md.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, float64(12), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
+		assert.Equal(c, float64(6), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
+	}, testutil.WaitShort, testutil.IntervalFast)
 
-	// Verify final state: 1 key was dropped, 12 metadata sent in 6 capacity batches
+	// Verify 1 key was dropped. Add updates this metric before returning.
 	require.Equal(t, droppedBefore+1, prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal))
-	require.Equal(t, float64(12), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
-	require.Equal(t, float64(6), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
 }
 
 // TestMetadataBatcher_Deduplication executes two Add calls, the second with a later timestamp than the first, to check
