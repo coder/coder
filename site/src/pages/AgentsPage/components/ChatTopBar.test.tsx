@@ -1,8 +1,8 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { Outlet, useParams } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { Outlet, useLocation, useParams } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
 import type { Chat, WorkspaceBuild } from "#/api/typesGenerated";
@@ -10,6 +10,7 @@ import { toast } from "#/components/Toaster/toast";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
@@ -475,5 +476,88 @@ describe("ChatTopBar PR chip", () => {
 			"href",
 			"https://github.com/coder/other-project/pull/123",
 		);
+	});
+});
+
+const LocationProbe: React.FC = () => {
+	const location = useLocation();
+	return (
+		<div data-testid="location">{`${location.pathname}${location.search}`}</div>
+	);
+};
+
+const renderProjectTopBar = (projectChat: Chat) =>
+	renderWithAuth(<Outlet />, {
+		route: `/agents/${projectChat.id}?archived=archived`,
+		path: "/agents",
+		children: [
+			{
+				path: ":agentId",
+				element: (
+					<ChatTopBar
+						chat={projectChat}
+						panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+					/>
+				),
+			},
+			{ path: "projects/:projectId", element: <LocationProbe /> },
+		],
+	});
+
+const expectProjectLinkNavigates = async () => {
+	const user = userEvent.setup();
+	await user.click(
+		await screen.findByRole("link", { name: MockChatProject.name }),
+	);
+	expect(await screen.findByTestId("location")).toHaveTextContent(
+		`/agents/projects/${MockChatProject.id}?archived=archived`,
+	);
+};
+
+describe("ChatTopBar project breadcrumb", () => {
+	beforeEach(() => {
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({});
+		vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	});
+
+	it("links a project chat to its project page, keeping the search", async () => {
+		renderProjectTopBar({ ...MockChat, project_id: MockChatProject.id });
+		await expectProjectLinkNavigates();
+	});
+
+	it("links a nested delegated chat to its root chat's project", async () => {
+		const rootChat = {
+			...MockChat,
+			id: "root-chat",
+			project_id: MockChatProject.id,
+		};
+		// Delegated chats do not store project_id, so the parent has none.
+		const parentChat = {
+			...MockChat,
+			id: "parent-chat",
+			parent_chat_id: rootChat.id,
+			root_chat_id: rootChat.id,
+		};
+		const chatsById = new Map<string, Chat>([
+			[rootChat.id, rootChat],
+			[parentChat.id, parentChat],
+		]);
+		vi.spyOn(API.experimental, "getChat").mockImplementation(async (id) => {
+			const chat = chatsById.get(id);
+			if (!chat) {
+				throw new Error(`unexpected chat ${id}`);
+			}
+			return chat;
+		});
+		renderProjectTopBar({
+			...MockChat,
+			id: "child-chat",
+			parent_chat_id: parentChat.id,
+			root_chat_id: rootChat.id,
+		});
+		await expectProjectLinkNavigates();
 	});
 });

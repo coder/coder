@@ -1,12 +1,13 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { ChatTreeNode } from "./ChatTreeNode";
 
 export const SortableChatTreeNode: React.FC<{
 	chat: Chat;
-}> = ({ chat }) => {
+	project?: ChatProject;
+}> = ({ chat, project }) => {
 	const {
 		attributes,
 		listeners,
@@ -41,7 +42,7 @@ export const SortableChatTreeNode: React.FC<{
 			{...attributes}
 			{...listeners}
 		>
-			<ChatTreeNode chat={chat} />
+			<ChatTreeNode chat={chat} project={project} />
 		</div>
 	);
 };

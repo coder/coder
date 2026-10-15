@@ -21,6 +21,7 @@ import {
 import { Link, useLocation, useOutletContext } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
@@ -38,9 +39,12 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { buildAgentProjectPath } from "../utils/navigation";
 import { prNumber } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
@@ -50,6 +54,7 @@ import {
 	chatFamilyAllowsArchive,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatProjectIcon } from "./ChatProjectIcon";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -115,6 +120,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -122,6 +128,28 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const chatProjectsEnabled = experiments.includes("chat-projects");
+	// Delegated chats do not copy project_id, so they take the root chat's.
+	const rootChatID =
+		chat?.root_chat_id && chat.root_chat_id !== chat.id
+			? chat.root_chat_id
+			: undefined;
+	const rootChatQuery = useQuery({
+		...chatById(rootChatID ?? ""),
+		enabled: chatProjectsEnabled && !chat?.project_id && Boolean(rootChatID),
+	});
+	// Chats keep project_id when the experiment is turned off, but project
+	// pages are unreachable then.
+	const projectId = chatProjectsEnabled
+		? (chat?.project_id ?? rootChatQuery.data?.project_id)
+		: undefined;
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: Boolean(projectId),
+	});
+	// The project breadcrumb is supplementary, so a project that fails to load
+	// or is missing from the user's list leaves just the chat title.
+	const project = projectQuery.data ?? undefined;
 	const isRootChat = chat !== undefined && parentChatID === undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	if (chat !== undefined && isRootChat) {
@@ -255,6 +283,35 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						aria-live="polite"
 						className="flex min-w-0 items-center gap-1.5"
 					>
+						{projectQuery.isLoading && (
+							<Skeleton
+								aria-label="Loading project"
+								className="h-3.5 w-20 shrink-0"
+							/>
+						)}
+						{project && (
+							<>
+								<Button
+									asChild
+									size="sm"
+									variant="subtle"
+									className="h-auto max-w-[16rem] gap-1.5 rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+								>
+									<Link
+										to={{
+											pathname: buildAgentProjectPath({
+												projectId: project.id,
+											}),
+											search: location.search,
+										}}
+									>
+										<ChatProjectIcon project={project} className="size-3.5" />
+										<span className="truncate">{project.name}</span>
+									</Link>
+								</Button>
+								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
+							</>
+						)}
 						{parentChat && (
 							<>
 								<Button
