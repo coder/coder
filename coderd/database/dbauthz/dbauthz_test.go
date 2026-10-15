@@ -7384,12 +7384,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead)
 	}))
 
-	s.Run("UpsertOrganizationAIProviderModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("UpsertOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
-		db.EXPECT().UpsertOrganizationAIProviderModelPrices(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(database.UpsertOrganizationAIProviderModelPricesParams{
+		db.EXPECT().UpsertOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.UpsertOrganizationAIProviderModelPriceParams{
 			OrganizationID: orgID,
-			Prices:         json.RawMessage(`[]`),
+			ProviderID:     uuid.New(),
+			Model:          "claude-sonnet-4-5",
 		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
 	}))
 

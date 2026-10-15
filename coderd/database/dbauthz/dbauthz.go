@@ -9528,11 +9528,11 @@ func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligibl
 	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 }
 
-func (q *querier) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {
+func (q *querier) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPriceParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
 		return err
 	}
-	return q.db.UpsertOrganizationAIProviderModelPrices(ctx, arg)
+	return q.db.UpsertOrganizationAIProviderModelPrice(ctx, arg)
 }
 
 func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {

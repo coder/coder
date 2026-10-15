@@ -12866,18 +12866,18 @@ func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
 }
 
-// UpsertOrganizationAIProviderModelPrices mocks base method.
-func (m *MockStore) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {
+// UpsertOrganizationAIProviderModelPrice mocks base method.
+func (m *MockStore) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPriceParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertOrganizationAIProviderModelPrices", ctx, arg)
+	ret := m.ctrl.Call(m, "UpsertOrganizationAIProviderModelPrice", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertOrganizationAIProviderModelPrices indicates an expected call of UpsertOrganizationAIProviderModelPrices.
-func (mr *MockStoreMockRecorder) UpsertOrganizationAIProviderModelPrices(ctx, arg any) *gomock.Call {
+// UpsertOrganizationAIProviderModelPrice indicates an expected call of UpsertOrganizationAIProviderModelPrice.
+func (mr *MockStoreMockRecorder) UpsertOrganizationAIProviderModelPrice(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationAIProviderModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationAIProviderModelPrices), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationAIProviderModelPrice", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationAIProviderModelPrice), ctx, arg)
 }
 
 // UpsertPrebuildsSettings mocks base method.

@@ -3310,10 +3310,6 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 const getOrganizationAIModelPrices = `-- name: GetOrganizationAIModelPrices :many
 WITH prices AS (
 	SELECT
-		CASE ai_model_prices.source
-			WHEN 'custom' THEN 'site_custom'::ai_model_price_kind
-			ELSE 'site_default'::ai_model_price_kind
-		END AS kind,
 		NULL::uuid AS organization_id,
 		NULL::uuid AS provider_id,
 		NULL::text AS provider_name,
@@ -3329,7 +3325,6 @@ WITH prices AS (
 	FROM ai_model_prices
 	UNION ALL
 	SELECT
-		'organization_provider'::ai_model_price_kind,
 		ai_org_provider_model_prices.organization_id,
 		ai_org_provider_model_prices.provider_id,
 		ai_providers.name,
@@ -3352,9 +3347,8 @@ SELECT DISTINCT ON (
 	prices.provider,
 	prices.model,
 	COALESCE(prices.provider_id::text, ''),
-	CASE WHEN $1::text = 'all' THEN prices.kind::text ELSE '' END
+	CASE WHEN $1::text = 'all' THEN prices.source::text ELSE '' END
 )
-	prices.kind,
 	prices.organization_id,
 	prices.provider_id,
 	prices.provider_name,
@@ -3389,10 +3383,11 @@ WHERE CASE
 ORDER BY
 	prices.provider ASC,
 	prices.model ASC,
+	-- Site-wide prices first, then each provider's price.
 	COALESCE(prices.provider_id::text, '') ASC,
-	CASE WHEN $1::text = 'all' THEN prices.kind::text ELSE '' END ASC,
-	-- Enum values are declared most specific first.
-	prices.kind ASC
+	CASE WHEN $1::text = 'all' THEN prices.source::text ELSE '' END ASC,
+	-- A custom price is in effect over the price book.
+	CASE WHEN prices.source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetOrganizationAIModelPricesParams struct {
@@ -3403,7 +3398,6 @@ type GetOrganizationAIModelPricesParams struct {
 }
 
 type GetOrganizationAIModelPricesRow struct {
-	Kind            AIModelPriceKind   `db:"kind" json:"kind"`
 	OrganizationID  uuid.NullUUID      `db:"organization_id" json:"organization_id"`
 	ProviderID      uuid.NullUUID      `db:"provider_id" json:"provider_id"`
 	ProviderName    sql.NullString     `db:"provider_name" json:"provider_name"`
@@ -3420,7 +3414,8 @@ type GetOrganizationAIModelPricesRow struct {
 
 // Returns every price that applies to the organization: its prices for
 // configured providers and the site-wide catalog. Prices for soft-deleted
-// providers are left out.
+// providers are left out. Organization rows have a provider_id, site-wide rows
+// do not.
 // By default each price is collapsed into the one in effect: a custom
 // site-wide price hides the price book. A price for one configured provider
 // hides nothing, since other providers of its type still use the site-wide
@@ -3442,7 +3437,6 @@ func (q *sqlQuerier) GetOrganizationAIModelPrices(ctx context.Context, arg GetOr
 	for rows.Next() {
 		var i GetOrganizationAIModelPricesRow
 		if err := rows.Scan(
-			&i.Kind,
 			&i.OrganizationID,
 			&i.ProviderID,
 			&i.ProviderName,
@@ -4090,19 +4084,12 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 	return i, err
 }
 
-const upsertOrganizationAIProviderModelPrices = `-- name: UpsertOrganizationAIProviderModelPrices :exec
+const upsertOrganizationAIProviderModelPrice = `-- name: UpsertOrganizationAIProviderModelPrice :exec
 INSERT INTO ai_org_provider_model_prices (
 	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7
 )
-SELECT
-	$1::uuid,
-	(elem->>'provider_id')::uuid,
-	elem->>'model',
-	(elem->>'input_price')::bigint,
-	(elem->>'output_price')::bigint,
-	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
-FROM jsonb_array_elements($2::jsonb) AS elem
 ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
@@ -4122,17 +4109,29 @@ WHERE (
 )
 `
 
-type UpsertOrganizationAIProviderModelPricesParams struct {
-	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Prices         json.RawMessage `db:"prices" json:"prices"`
+type UpsertOrganizationAIProviderModelPriceParams struct {
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 }
 
-// Upsert a batch of the organization's configured provider prices from a JSON
-// array. Each element must have provider_id, model, and the four price fields,
-// and null prices are written as SQL NULL. A conflicting row is only rewritten
-// when a price differs, so updated_at records when a price last changed.
-func (q *sqlQuerier) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg UpsertOrganizationAIProviderModelPricesParams) error {
-	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelPrices, arg.OrganizationID, arg.Prices)
+// Sets the organization's price for one model on one configured provider. A
+// NULL price is unknown. An existing row is only rewritten when a price
+// differs, so updated_at records when a price last changed.
+func (q *sqlQuerier) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg UpsertOrganizationAIProviderModelPriceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelPrice,
+		arg.OrganizationID,
+		arg.ProviderID,
+		arg.Model,
+		arg.InputPrice,
+		arg.OutputPrice,
+		arg.CacheReadPrice,
+		arg.CacheWritePrice,
+	)
 	return err
 }
 

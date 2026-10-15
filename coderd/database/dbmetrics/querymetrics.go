@@ -6841,11 +6841,11 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	return r0
 }
 
-func (m queryMetricsStore) UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPricesParams) error {
+func (m queryMetricsStore) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg database.UpsertOrganizationAIProviderModelPriceParams) error {
 	start := time.Now()
-	r0 := m.s.UpsertOrganizationAIProviderModelPrices(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertOrganizationAIProviderModelPrices").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIProviderModelPrices").Inc()
+	r0 := m.s.UpsertOrganizationAIProviderModelPrice(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOrganizationAIProviderModelPrice").Inc()
 	return r0
 }
 

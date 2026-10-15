@@ -780,7 +780,8 @@ type sqlcQuerier interface {
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
 	// Returns every price that applies to the organization: its prices for
 	// configured providers and the site-wide catalog. Prices for soft-deleted
-	// providers are left out.
+	// providers are left out. Organization rows have a provider_id, site-wide rows
+	// do not.
 	// By default each price is collapsed into the one in effect: a custom
 	// site-wide price hides the price book. A price for one configured provider
 	// hides nothing, since other providers of its type still use the site-wide
@@ -1828,11 +1829,10 @@ type sqlcQuerier interface {
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
-	// Upsert a batch of the organization's configured provider prices from a JSON
-	// array. Each element must have provider_id, model, and the four price fields,
-	// and null prices are written as SQL NULL. A conflicting row is only rewritten
-	// when a price differs, so updated_at records when a price last changed.
-	UpsertOrganizationAIProviderModelPrices(ctx context.Context, arg UpsertOrganizationAIProviderModelPricesParams) error
+	// Sets the organization's price for one model on one configured provider. A
+	// NULL price is unknown. An existing row is only rewritten when a price
+	// differs, so updated_at records when a price last changed.
+	UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg UpsertOrganizationAIProviderModelPriceParams) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error
