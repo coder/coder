@@ -257,6 +257,13 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	const selectedOrganization = organizations.find(
 		(organization) => organization.id === form.values.organizationId,
 	);
+	// The form has no field named after these validations, so the templates
+	// section shows them itself.
+	const templatesSaveError = isApiValidationError(error)
+		? error.response.data.validations?.find((validation) =>
+				validation.field.startsWith("templates."),
+			)?.detail
+		: undefined;
 	const templatesOrganizationId =
 		project?.organization_id ?? selectedOrganization?.id;
 	const eligibleTemplatesQuery = useQuery({
@@ -357,6 +364,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					<ChatProjectTemplatesFields
 						templates={eligibleTemplatesQuery.data}
 						templatesError={eligibleTemplatesQuery.error}
+						saveError={templatesSaveError}
 						value={form.values.templates}
 						onChange={(templates) => {
 							void form.setFieldValue("templates", templates);

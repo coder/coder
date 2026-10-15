@@ -237,3 +237,21 @@ export const EditDefaultParameters: Story = {
 		],
 	},
 };
+
+export const EditTemplatesSaveError: Story = {
+	args: {
+		...EditDefaultParameters.args,
+		error: mockApiError({
+			message:
+				'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
+			validations: [
+				{
+					field: "templates.default_parameters",
+					detail:
+						'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
+				},
+			],
+		}),
+	},
+	parameters: EditDefaultParameters.parameters,
+};

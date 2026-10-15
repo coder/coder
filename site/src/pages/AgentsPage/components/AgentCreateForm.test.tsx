@@ -521,6 +521,7 @@ describe("AgentCreateForm organization lock", () => {
 	const projectInOrg2 = {
 		id: "project-1",
 		organization_id: MockOrganization2.id,
+		templates: { template_ids: [mockWorkspace.template_id] },
 	};
 
 	// The default renderForm client pre-seeds permissions; these tests serve
@@ -564,7 +565,11 @@ describe("AgentCreateForm organization lock", () => {
 
 	it("submits the project's ID", async () => {
 		const { onCreateChat } = renderForm({
-			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
+			project: {
+				id: "project-1",
+				organization_id: MockDefaultOrganization.id,
+				templates: { template_ids: [] },
+			},
 		});
 
 		await submitMessage("hello project");
@@ -666,6 +671,7 @@ describe("AgentCreateForm organization lock", () => {
 				project: {
 					id: "project-1",
 					organization_id: MockDefaultOrganization.id,
+					templates: { template_ids: [] },
 				},
 			},
 			{ queryClient },
@@ -686,7 +692,11 @@ describe("AgentCreateForm organization lock", () => {
 
 	it("starts a fresh draft when the project changes", async () => {
 		const { onCreateChat, rerender } = renderForm({
-			project: { id: "project-a", organization_id: MockDefaultOrganization.id },
+			project: {
+				id: "project-a",
+				organization_id: MockDefaultOrganization.id,
+				templates: { template_ids: [] },
+			},
 		});
 		await typeMessage("draft for A");
 		await waitFor(() => {
@@ -697,7 +707,11 @@ describe("AgentCreateForm organization lock", () => {
 		const draftA = localStorage.getItem(draftStorageKeys("project-a").text);
 
 		rerender({
-			project: { id: "project-b", organization_id: MockDefaultOrganization.id },
+			project: {
+				id: "project-b",
+				organization_id: MockDefaultOrganization.id,
+				templates: { template_ids: [] },
+			},
 		});
 
 		await submitMessage("hello B");
@@ -718,7 +732,11 @@ describe("AgentCreateForm organization lock", () => {
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
 
 		const { onCreateChat } = renderForm({
-			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
+			project: {
+				id: "project-1",
+				organization_id: MockDefaultOrganization.id,
+				templates: { template_ids: [] },
+			},
 		});
 		// Send enables only after the attachment state is adopted, so a draft
 		// restored from the wrong key would be part of the submit.
@@ -762,6 +780,7 @@ describe("AgentCreateForm organization lock", () => {
 				project: {
 					id: "project-1",
 					organization_id: MockDefaultOrganization.id,
+					templates: { template_ids: [] },
 				},
 			},
 			{ queryClient },
@@ -913,6 +932,53 @@ describe("AgentCreateForm project picker", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("drops a saved workspace outside the picked project's templates", async () => {
+		const otherWorkspace: TypesGen.Workspace = {
+			...mockWorkspace,
+			id: "ws-other-template",
+			template_id: "other-template",
+		};
+		localStorage.setItem(selectedWorkspaceIdStorageKey, otherWorkspace.id);
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [
+			{
+				...MockChatProject,
+				templates: { template_ids: [mockWorkspace.template_id] },
+			},
+		]);
+		const { onCreateChat } = renderForm(
+			{ workspaceOptions: [mockWorkspace, otherWorkspace] },
+			{ queryClient },
+		);
+
+		await pickProject(MockChatProject.name);
+		await submitMessage("only project templates");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			projectId: MockChatProject.id,
+			workspaceId: undefined,
+		});
+	});
+
+	it("keeps a saved workspace built from the picked project's templates", async () => {
+		localStorage.setItem(selectedWorkspaceIdStorageKey, mockWorkspace.id);
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [
+			{
+				...MockChatProject,
+				templates: { template_ids: [mockWorkspace.template_id] },
+			},
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		await submitMessage("project template workspace");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).workspaceId).toBe(mockWorkspace.id);
 	});
 
 	it("clears the picked project when the organization changes", async () => {

@@ -81,6 +81,8 @@ type ChatProjectTemplatesFieldsProps = {
 	/** Templates in the project's organization that allow agents. */
 	readonly templates: readonly Template[] | undefined;
 	readonly templatesError: unknown;
+	/** The server's rejection of the saved templates, if any. */
+	readonly saveError: string | undefined;
 	readonly value: ChatProjectTemplatesValues;
 	readonly onChange: (value: ChatProjectTemplatesValues) => void;
 	readonly disabled: boolean;
@@ -88,7 +90,7 @@ type ChatProjectTemplatesFieldsProps = {
 
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
-> = ({ templates, templatesError, value, onChange, disabled }) => {
+> = ({ templates, templatesError, saveError, value, onChange, disabled }) => {
 	const defaultTemplateId = useId();
 	const options = (templates ?? []).map((template) => ({
 		value: template.id,
@@ -132,11 +134,7 @@ export const ChatProjectTemplatesFields: React.FC<
 						Select all
 					</Button>
 				</div>
-				{templatesError ? (
-					<p className="m-0 text-sm text-content-destructive">
-						{getErrorMessage(templatesError, "Failed to load templates.")}
-					</p>
-				) : templates ? (
+				{templates ? (
 					<MultiSelectCombobox
 						commandProps={{ label: "Templates" }}
 						options={options}
@@ -153,6 +151,10 @@ export const ChatProjectTemplatesFields: React.FC<
 						disabled={disabled}
 						hidePlaceholderWhenSelected
 					/>
+				) : templatesError ? (
+					<p className="m-0 text-sm text-content-destructive">
+						{getErrorMessage(templatesError, "Failed to load templates.")}
+					</p>
 				) : (
 					<Skeleton className="h-10 w-full" />
 				)}
@@ -197,6 +199,11 @@ export const ChatProjectTemplatesFields: React.FC<
 					onChange={onChange}
 					disabled={disabled}
 				/>
+			)}
+			{saveError && (
+				<p role="alert" className="m-0 text-sm text-content-destructive">
+					{saveError}
+				</p>
 			)}
 		</>
 	);
@@ -258,75 +265,79 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 				</div>
 			</RadioGroup>
 			{value.defaultsKind === "preset" ? (
-				presetsQuery.error ? (
+				presetsQuery.data ? (
+					presetsQuery.data.length === 0 ? (
+						<p className="m-0 text-sm text-content-secondary">
+							This template has no presets.
+						</p>
+					) : (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor={presetId}>Default preset</Label>
+							<Select
+								value={value.defaultPresetId}
+								onValueChange={(id) =>
+									onChange({ ...value, defaultPresetId: id })
+								}
+								disabled={disabled}
+							>
+								<SelectTrigger id={presetId}>
+									<SelectValue placeholder="Select a preset" />
+								</SelectTrigger>
+								<SelectContent>
+									{presetsQuery.data.map((preset) => (
+										<SelectItem key={preset.ID} value={preset.ID}>
+											{preset.Name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)
+				) : presetsQuery.error ? (
 					<p className="m-0 text-sm text-content-destructive">
 						{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
 					</p>
-				) : !presetsQuery.data ? (
+				) : (
 					<Skeleton className="h-10 w-full" />
-				) : presetsQuery.data.length === 0 ? (
+				)
+			) : parametersQuery.data ? (
+				parametersQuery.data.length === 0 ? (
 					<p className="m-0 text-sm text-content-secondary">
-						This template has no presets.
+						This template has no parameters.
 					</p>
 				) : (
-					<div className="flex flex-col gap-2">
-						<Label htmlFor={presetId}>Default preset</Label>
-						<Select
-							value={value.defaultPresetId}
-							onValueChange={(id) =>
-								onChange({ ...value, defaultPresetId: id })
-							}
-							disabled={disabled}
-						>
-							<SelectTrigger id={presetId}>
-								<SelectValue placeholder="Select a preset" />
-							</SelectTrigger>
-							<SelectContent>
-								{presetsQuery.data.map((preset) => (
-									<SelectItem key={preset.ID} value={preset.ID}>
-										{preset.Name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
+					parametersQuery.data.map((parameter) => {
+						const id = `${parameterIdPrefix}-${parameter.name}`;
+						return (
+							<div key={parameter.name} className="flex flex-col gap-2">
+								<Label htmlFor={id}>
+									{parameter.display_name || parameter.name}
+								</Label>
+								<Input
+									id={id}
+									value={value.defaultParameters[parameter.name] ?? ""}
+									placeholder={parameter.default_value}
+									disabled={disabled}
+									onChange={(event) =>
+										onChange({
+											...value,
+											defaultParameters: {
+												...value.defaultParameters,
+												[parameter.name]: event.target.value,
+											},
+										})
+									}
+								/>
+							</div>
+						);
+					})
 				)
 			) : parametersQuery.error ? (
 				<p className="m-0 text-sm text-content-destructive">
 					{getErrorMessage(parametersQuery.error, "Failed to load parameters.")}
 				</p>
-			) : !parametersQuery.data ? (
-				<Skeleton className="h-10 w-full" />
-			) : parametersQuery.data.length === 0 ? (
-				<p className="m-0 text-sm text-content-secondary">
-					This template has no parameters.
-				</p>
 			) : (
-				parametersQuery.data.map((parameter) => {
-					const id = `${parameterIdPrefix}-${parameter.name}`;
-					return (
-						<div key={parameter.name} className="flex flex-col gap-2">
-							<Label htmlFor={id}>
-								{parameter.display_name || parameter.name}
-							</Label>
-							<Input
-								id={id}
-								value={value.defaultParameters[parameter.name] ?? ""}
-								placeholder={parameter.default_value}
-								disabled={disabled}
-								onChange={(event) =>
-									onChange({
-										...value,
-										defaultParameters: {
-											...value.defaultParameters,
-											[parameter.name]: event.target.value,
-										},
-									})
-								}
-							/>
-						</div>
-					);
-				})
+				<Skeleton className="h-10 w-full" />
 			)}
 		</div>
 	);

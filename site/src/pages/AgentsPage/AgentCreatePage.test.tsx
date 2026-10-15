@@ -34,7 +34,6 @@ import {
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	MockUserPreferenceSettings,
-	MockWorkspace,
 	MockWorkspaceBuildLogs,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -66,7 +65,6 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| undefined,
 		createError: undefined as unknown,
 		prefill: undefined as AgentCreateFormProps["prefill"],
-		workspaceOptions: [] as AgentCreateFormProps["workspaceOptions"],
 	},
 }));
 
@@ -108,7 +106,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
 			formProps.prefill = props.prefill;
-			formProps.workspaceOptions = props.workspaceOptions;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -250,40 +247,6 @@ describe("AgentCreatePage project assignment", () => {
 		expect(renderedProjects.at(-1)).toMatchObject({
 			id: MockChatProject.id,
 			organization_id: MockOrganization2.id,
-		});
-	});
-
-	it("offers only workspaces built from the project's templates", async () => {
-		const allowedWorkspace = {
-			...MockWorkspace,
-			id: "allowed-workspace",
-			template_id: "allowed-template",
-		};
-		const otherWorkspace = {
-			...MockWorkspace,
-			id: "other-workspace",
-			template_id: "other-template",
-		};
-		enableExperiments("chat-projects");
-		serveProjects({
-			...MockChatProject,
-			templates: { template_ids: [allowedWorkspace.template_id] },
-		});
-		server.use(
-			http.get("/api/v2/workspaces", () =>
-				HttpResponse.json({
-					workspaces: [allowedWorkspace, otherWorkspace],
-					count: 2,
-				}),
-			),
-		);
-
-		renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(formProps.workspaceOptions.map((ws) => ws.id)).toEqual([
-				allowedWorkspace.id,
-			]);
 		});
 	});
 
