@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -423,6 +425,40 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"-c whose name needs expansion", `git -c "$k=status" st`, true},
 		{"-c that sets no alias", `git -c user.name="$n" -c advice.statusHints status`, false},
 		{"--config-env that sets no alias", "git --config-env=core.pager=PAGER log", false},
+		// git follows a chain of aliases to its end and refuses a loop.
+		{"chain of 16 aliases", gitAliasChain(16, "reset --hard"), true},
+		{"chain of 16 aliases of status", gitAliasChain(16, "status"), false},
+		{"chain of 17 aliases", gitAliasChain(17, "reset --hard"), true},
+		{"chain of more aliases than the check follows", gitAliasChain(17, "status"), true},
+		{"alias loop", "git -c alias.a=b -c alias.b=a a", false},
+		{"alias of itself", "git -c alias.a='a -q' a", false},
+		// git runs its own checkout even when an alias of that name is
+		// defined.
+		{"alias of a command that an alias shadows", "git -c alias.a=checkout -c alias.checkout=status a billing/invoice.py", true},
+		{"alias after env", "env git -c alias.wipe='checkout -q' wipe billing/invoice.py", true},
+		// An option word whose name or letters need expansion may be any
+		// option, such as --hard or -f, and so may an option word joined
+		// to an unquoted expansion, which the shell may split into more
+		// words.
+		{"reset with an expanded long option", `x=rd; git reset --ha"$x" HEAD`, true},
+		{"reset with an option named by an expansion", `x=hard; git reset --"$x"`, true},
+		{"reset with a dash before an expansion", `x=-hard; git reset -"$x"`, true},
+		{"checkout with expanded option letters", `x=f; git checkout -q"$x" main`, true},
+		{"switch with expanded option letters", `x=f; git switch -q"$x" main`, true},
+		{"restore --staged with an expanded option", `x=W; git restore --staged -"$x" a.py`, true},
+		{"clean with an expanded option", `x=f; git clean -"$x"d`, true},
+		{"push with an expanded option", `x=f; git push -"$x" origin fix`, true},
+		{"push of a plus refspec with an expansion", `b=fix; git push origin +"$b"`, true},
+		{"push of a plus refspec with an expansion before an option", `b=fix; git push origin +"$b" -q`, true},
+		{"branch with an expanded option", `x=D; git branch -"$x" old`, true},
+		{"checkout -b joined to an unquoted expansion", `b=fix; git checkout -q -b$b`, true},
+		{"checkout -b joined to a quoted expansion", `b=fix; git checkout -q -b"$b"`, false},
+		{"checkout with an expanded option value", `s=diff3; git checkout --conflict="$s" main`, false},
+		{"reset --soft to an expanded commit", `c=HEAD~1; git reset --soft "$c"`, false},
+		{"push of an expanded branch", `b=fix; git push -u origin "$b"`, false},
+		{"branch with an expanded upstream", `u=origin/fix; git branch -u"$u"`, false},
+		{"commit with a message joined to an expansion", `m=x; git commit -qm"$m"`, false},
+		{"log with a count joined to an expansion", `n=3; git log -n"$n"`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -433,4 +469,16 @@ func TestDestructiveGitDetection(t *testing.T) {
 			require.Equal(t, tc.destructive, len(findings) > 0, "findings: %v", findings)
 		})
 	}
+}
+
+// gitAliasChain returns a git command that runs alias a1 of n aliases,
+// each an alias of the next and the last of command.
+func gitAliasChain(n int, command string) string {
+	var b strings.Builder
+	_, _ = b.WriteString("git")
+	for i := 1; i < n; i++ {
+		_, _ = fmt.Fprintf(&b, " -c alias.a%d=a%d", i, i+1)
+	}
+	_, _ = fmt.Fprintf(&b, " -c 'alias.a%d=%s' a1", n, command)
+	return b.String()
 }

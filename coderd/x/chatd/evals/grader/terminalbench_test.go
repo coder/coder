@@ -285,6 +285,40 @@ func TestVerifyInTaskImageWithDockerStub(t *testing.T) {
 	})
 }
 
+// docker cp copies a symlink as a symlink, so an image whose /app links to
+// a host directory must not make the import run git there.
+//
+//nolint:paralleltest // t.Setenv puts the docker stub first on PATH.
+func TestImportTaskRejectsSymlinkedApp(t *testing.T) {
+	target := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(target, "host.txt"), []byte("host file"), 0o600))
+	stubDir := t.TempDir()
+	script := "#!/bin/sh\n" +
+		"case \"$1\" in\n" +
+		"create) echo stub-container ;;\n" +
+		"cp) ln -s '" + target + "' \"$3\" ;;\n" +
+		"esac\n" +
+		"exit 0\n"
+	stub := filepath.Join(stubDir, "docker")
+	require.NoError(t, os.WriteFile(stub, []byte(script), 0o600))
+	require.NoError(t, os.Chmod(stub, 0o700))
+	t.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	repo := t.TempDir()
+	taskDir := filepath.Join(repo, "tasks", "linked-app")
+	require.NoError(t, os.MkdirAll(taskDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(taskDir, "task.toml"), []byte("[environment]\ndocker_image = \"example.com/tb/linked-app:1\"\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(taskDir, "instruction.md"), []byte("Do the task.\n"), 0o600))
+	outDir := t.TempDir()
+
+	_, err := importTask(testutil.Context(t, testutil.WaitMedium), repo, outDir, tbTask{ID: "linked-app", Image: "example.com/tb/linked-app" + testDigest})
+	require.ErrorContains(t, err, "is not a directory")
+	entries, err := os.ReadDir(target)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "the import changed the directory that /app links to")
+	require.NoDirExists(t, filepath.Join(outDir, "tasks", "linked-app", "seed.git"))
+}
+
 // stubDocker puts a docker stub first on PATH. Its cp to stdout writes
 // archive, then junk bytes, then exits with cpExit; every other command
 // succeeds, and run prints a container id.

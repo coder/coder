@@ -358,7 +358,10 @@ func removeEmptySeedPlaceholder(dir string, seed tbSeed) error {
 }
 
 // copyAppFromImage copies an image's /app into dst without running the
-// image.
+// image. /app must be a directory: docker cp copies a symlink as a
+// symlink, and a link such as /app -> /tmp would point dst at a host
+// directory, where the import then runs git and from which it builds the
+// seed.
 func copyAppFromImage(ctx context.Context, image, dst string) error {
 	out, err := runDocker(ctx, time.Minute, "create", "--label", tbLabel+"=tb-import", image)
 	if err != nil {
@@ -368,6 +371,13 @@ func copyAppFromImage(ctx context.Context, image, dst string) error {
 	defer removeContainer(id)
 	if out, err := runDocker(ctx, 10*time.Minute, "cp", id+":/app", dst); err != nil {
 		return xerrors.Errorf("docker cp /app: %s: %w", truncate(string(out), 400), err)
+	}
+	info, err := os.Lstat(dst)
+	if err != nil {
+		return xerrors.Errorf("stat the copied /app: %w", err)
+	}
+	if !info.IsDir() {
+		return xerrors.Errorf("/app in %s is not a directory (mode %s)", image, info.Mode())
 	}
 	return nil
 }

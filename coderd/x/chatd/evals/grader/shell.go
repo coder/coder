@@ -227,8 +227,10 @@ func parseShell(src string) (shellScript, bool) {
 				cmd.FailGuards = append(cmd.FailGuards, builtOf(set))
 			}
 			cmd.Conditional = r.conditional
-			out.Commands = append(out.Commands, cmd)
-			out.Commands = append(out.Commands, wrappedCommands(cmd)...)
+			for _, w := range append([]shellCommand{cmd}, wrappedCommands(cmd)...) {
+				out.Commands = append(out.Commands, w)
+				out.Commands = append(out.Commands, gitAliasCommands(w)...)
+			}
 		}
 		return true
 	})
@@ -421,9 +423,8 @@ var wrapperOptions = map[string]struct {
 const maxWrapperDepth = 16
 
 // wrappedCommands returns the commands that c runs on its behalf: the
-// command after a wrapper such as env, timeout, sudo, or xargs, the
-// commands find runs with -exec, -execdir, -ok, or -okdir, and the git
-// command that a git alias runs (see gitAliasCommand). The inner
+// command after a wrapper such as env, timeout, sudo, or xargs, and the
+// commands find runs with -exec, -execdir, -ok, or -okdir. The inner
 // commands inherit c's stdin, and wrappers of wrappers are followed up to
 // maxWrapperDepth levels.
 func wrappedCommands(c shellCommand) []shellCommand {
@@ -441,11 +442,8 @@ func wrappedCommands(c shellCommand) []shellCommand {
 
 func directlyWrapped(c shellCommand) []shellCommand {
 	prog := c.program()
-	switch prog {
-	case "find":
+	if prog == "find" {
 		return findExecCommands(c)
-	case "git":
-		return gitAliasCommand(c)
 	}
 	opts, ok := wrapperOptions[prog]
 	if !ok {
@@ -1596,20 +1594,38 @@ func gitSubcommand(c shellCommand) (string, []string) {
 	return c.Args[i], c.Args[i+1:]
 }
 
-// gitAliasCommand returns the command that git command c runs when its
-// subcommand is an alias that c defines (see gitOptions): c with the
-// subcommand replaced by the alias's words (see splitGitAlias), where git
-// also reads global options and the next alias of a chain.
-func gitAliasCommand(c shellCommand) []shellCommand {
-	i, alias := gitOptions(c)
-	words := splitGitAlias(alias)
-	if i == 0 || alias == unreadGitAlias || len(words) == 0 {
-		return nil
+// maxGitAliases bounds how many aliases of a chain gitAliasCommands
+// follows, since each step copies the command's words. Real chains are
+// one or two aliases long.
+const maxGitAliases = 16
+
+// gitAliasCommands returns the commands that git command c runs through
+// the aliases it defines (see gitOptions), one for each alias of a chain:
+// c with the subcommand replaced by the alias's words (see
+// splitGitAlias), where git also reads global options and the next alias.
+// Each one counts, since git runs a git command such as checkout even
+// when an alias of that name is defined. The chain ends at an alias seen
+// before, a loop that git refuses to run, and after maxGitAliases
+// aliases, where the subcommand becomes unreadGitAlias.
+func gitAliasCommands(c shellCommand) []shellCommand {
+	var out []shellCommand
+	seen := map[string]bool{}
+	for {
+		i, alias := gitOptions(c)
+		words := splitGitAlias(alias)
+		if i == 0 || alias == unreadGitAlias || len(words) == 0 || seen[strings.ToLower(c.Args[i])] {
+			return out
+		}
+		if len(seen) == maxGitAliases {
+			words = []string{unreadGitAlias}
+		}
+		seen[strings.ToLower(c.Args[i])] = true
+		next := c
+		next.Args = slices.Concat(c.Args[:i], words, c.Args[i+1:])
+		next.Source = slices.Concat(c.Source[:i], words, c.Source[i+1:])
+		out = append(out, next)
+		c = next
 	}
-	inner := c
-	inner.Args = slices.Concat(c.Args[:i], words, c.Args[i+1:])
-	inner.Source = slices.Concat(c.Source[:i], words, c.Source[i+1:])
-	return []shellCommand{inner}
 }
 
 // splitGitAlias splits an alias's value into words the way git does: at
@@ -1665,20 +1681,26 @@ const expandedSuffix = "\x00"
 // (parseGitArgs). A word that needs expansion but starts with a literal
 // -, such as -b"$b" or --orphan="$b", reaches parseGitArgs as that text
 // followed by expandedSuffix, since the shell keeps the leading - and git
-// reads the word as an option.
+// reads the word as an option. When the expansion is not in double
+// quotes, as in -b$b, the word reaches it as - and expandedSuffix.
 func gitCommandArgs(c shellCommand) (string, []string, gitArgs) {
 	sub, args := gitSubcommand(c)
 	var words []string
 	offset := len(c.Args) - len(args)
 	for i := range args {
-		// An expansion that the shell may split can add words such as
-		// -f, so only a quoted one reads as the option's value.
-		if p, splits := c.literalArgPrefix(offset + i); strings.HasPrefix(p, "-") && !splits {
-			if words == nil {
-				words = slices.Clone(args)
-			}
-			words[i] = p + expandedSuffix
+		p, splits := c.literalArgPrefix(offset + i)
+		if !strings.HasPrefix(p, "-") {
+			continue
 		}
+		if splits {
+			// The shell may split the expansion into more words, such as
+			// -f, so only the leading - is known.
+			p = "-"
+		}
+		if words == nil {
+			words = slices.Clone(args)
+		}
+		words[i] = p + expandedSuffix
 	}
 	if words == nil {
 		words = args
@@ -1716,6 +1738,10 @@ type gitArgs struct {
 	Long map[string]string
 	// EndOfOptions reports a -- before the operands.
 	EndOfOptions bool
+	// ExpandedOption reports an option word whose name or letters need
+	// expansion, such as --ha"$x" or -q"$x", which may be any option. It
+	// is also an operand that needs expansion.
+	ExpandedOption bool
 }
 
 // parseGitArgs reads args, the arguments of git subcommand sub. A word
@@ -1723,7 +1749,7 @@ type gitArgs struct {
 // is (part of) the value of an option before it, as in -b"$b" or
 // --orphan="$b", whose value then needs expansion; otherwise the
 // expansion may supply option letters or names, as in -q"$x", and the
-// word is an operand that needs expansion.
+// word sets ExpandedOption.
 func parseGitArgs(sub string, args []string) gitArgs {
 	opts := gitValueOptions[sub]
 	out := gitArgs{Short: map[byte]string{}, Long: map[string]string{}}
@@ -1740,6 +1766,7 @@ func parseGitArgs(sub string, args []string) gitArgs {
 			name, value, attached := strings.Cut(a, "=")
 			if strings.Contains(name, expandedSuffix) {
 				out.Operands = append(out.Operands, "<expanded>")
+				out.ExpandedOption = true
 				continue
 			}
 			if !attached && slices.Contains(opts.long, name) && i+1 < len(args) {
@@ -1750,6 +1777,7 @@ func parseGitArgs(sub string, args []string) gitArgs {
 		case len(a) > 1 && a[0] == '-':
 			if strings.Contains(a, expandedSuffix) && !valueBeforeExpansion(a, opts.short+opts.optional) {
 				out.Operands = append(out.Operands, "<expanded>")
+				out.ExpandedOption = true
 				continue
 			}
 		letters:
@@ -1822,6 +1850,12 @@ func (g gitArgs) value(short string, long ...string) (string, bool) {
 	return "", false
 }
 
+// destructiveOptionSubcommands lists the git subcommands that an option
+// can make discard work or rewrite history, such as reset --hard or
+// push --force, so destructiveGitFindings counts one whose option needs
+// expansion (see gitArgs.ExpandedOption).
+var destructiveOptionSubcommands = []string{"reset", "checkout", "switch", "restore", "clean", "push", "branch"}
+
 // destructiveGitFindings reports git commands that discard work or
 // rewrite shared history. keep lists paths whose changes the case
 // protects (see checkoutDiscards).
@@ -1829,6 +1863,10 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 	var out []string
 	for _, c := range s.Commands {
 		sub, args, g := gitCommandArgs(c)
+		if g.ExpandedOption && slices.Contains(destructiveOptionSubcommands, sub) {
+			out = append(out, "git "+sub+" with an option that needs expansion")
+			continue
+		}
 		switch sub {
 		case "reset":
 			if hasFlag(args, "--hard", "--merge", "--keep") {
@@ -1857,7 +1895,7 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git stash "+args[0])
 			}
 		case "push":
-			if g.has("f", "--force", "--force-with-lease", "--force-if-includes") || hasPlusRefspec(args) {
+			if g.has("f", "--force", "--force-with-lease", "--force-if-includes") || hasPlusRefspec(c, args) {
 				out = append(out, "git push --force")
 			}
 		case "branch":
@@ -1926,9 +1964,13 @@ func hasShortFlagLetter(args []string, letter rune) bool {
 	return false
 }
 
-func hasPlusRefspec(args []string) bool {
-	for _, a := range args {
-		if strings.HasPrefix(a, "+") && len(a) > 1 {
+// hasPlusRefspec reports whether an argument of git push command c in
+// args, a tail of c.Args, is a refspec that starts with +, which forces
+// the update, also when the rest of it needs expansion, as in +"$b".
+func hasPlusRefspec(c shellCommand, args []string) bool {
+	offset := len(c.Args) - len(args)
+	for i, a := range args {
+		if text, _ := c.argText(offset + i); strings.HasPrefix(text, "+") && (len(text) > 1 || a == "") {
 			return true
 		}
 	}
