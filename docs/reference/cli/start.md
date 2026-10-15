@@ -30,7 +30,7 @@ Return immediately after starting the workspace.
 |------|---------------------|
 | Type | <code>string</code> |
 
-Start with a named version of the workspace template.
+Start with a version of the workspace template, by name or ID.
 
 ### -y, --yes
 

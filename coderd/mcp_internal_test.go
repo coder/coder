@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -264,6 +265,204 @@ func TestProtectedResourceMetadataResourceUnmarshal(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.want, meta.Resource)
+		})
+	}
+}
+
+func TestMCPOAuth2ResourceIndicator(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		serverURL  string
+		advertised []string
+		want       string
+	}{
+		{
+			name:       "ExactMatch",
+			serverURL:  "https://mcp.agent.dagster.cloud/mcp",
+			advertised: []string{"https://mcp.agent.dagster.cloud/mcp"},
+			want:       "https://mcp.agent.dagster.cloud/mcp",
+		},
+		{
+			name:       "OriginCoversPath",
+			serverURL:  "https://mcp.example.com/v1/mcp",
+			advertised: []string{"https://mcp.example.com"},
+			want:       "https://mcp.example.com",
+		},
+		{
+			name:       "CaseInsensitiveOriginKeptVerbatim",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"HTTPS://MCP.Example.com/mcp"},
+			want:       "HTTPS://MCP.Example.com/mcp",
+		},
+		{
+			name:       "PathCoversSubpath",
+			serverURL:  "https://mcp.example.com/mcp/x",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "TrailingSlashResourceDoesNotCoverBarePath",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/mcp/"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "EmptyPathEqualsSlash",
+			serverURL:  "https://mcp.example.com",
+			advertised: []string{"https://mcp.example.com/"},
+			want:       "https://mcp.example.com/",
+		},
+		{
+			name:       "PathPrefixIsNotSegment",
+			serverURL:  "https://mcp.example.com/mcp2",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp2",
+		},
+		{
+			name:       "OtherOriginFallsBack",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://other.example.com/mcp", "http://mcp.example.com/mcp", "https://mcp.example.com:8443/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "MostSpecificWins",
+			serverURL: "https://mcp.example.com/a/b/c",
+			advertised: []string{
+				"https://mcp.example.com/",
+				"https://mcp.example.com/a/b",
+				"https://mcp.example.com/a",
+			},
+			want: "https://mcp.example.com/a/b",
+		},
+		{
+			name:      "QueryMustMatch",
+			serverURL: "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{
+				"https://mcp.example.com/mcp?tenant=a",
+				"https://mcp.example.com/mcp?tenant=b",
+			},
+			want: "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "MatchingQueryBeatsNoQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{"https://mcp.example.com/mcp", "https://mcp.example.com/mcp?tenant=b"},
+			want:       "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "NoQueryCoversQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=a",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "EmptyQueryIsNotOtherQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{"https://mcp.example.com/mcp?"},
+			want:       "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "EmptyQueryIsNotNoQuery",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/mcp?"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "ExplicitDefaultPortOnServer",
+			serverURL:  "https://mcp.example.com:443/mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "ExplicitDefaultPortOnResource",
+			serverURL:  "http://mcp.example.com/mcp",
+			advertised: []string{"http://mcp.example.com:80/mcp"},
+			want:       "http://mcp.example.com:80/mcp",
+		},
+		{
+			name:       "PortLeadingZerosAreIgnored",
+			serverURL:  "https://mcp.example.com:0443/mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "EscapedSlashIsNotSegmentBoundary",
+			serverURL:  "https://mcp.example.com/mcp%2Ftenant",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp%2Ftenant",
+		},
+		{
+			name:       "EscapeHexCaseIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp%2ftenant",
+			advertised: []string{"https://mcp.example.com/mcp%2Ftenant"},
+			want:       "https://mcp.example.com/mcp%2Ftenant",
+		},
+		{
+			name:       "EscapedUnreservedIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/%6Dcp"},
+			want:       "https://mcp.example.com/%6Dcp",
+		},
+		{
+			name:       "EscapedQueryIsEquivalent",
+			serverURL:  "https://mcp.example.com/mcp?tenant=%61",
+			advertised: []string{"https://mcp.example.com/mcp?tenant=a"},
+			want:       "https://mcp.example.com/mcp?tenant=a",
+		},
+		{
+			name:       "DotSegmentsAreRemoved",
+			serverURL:  "https://mcp.example.com/a/../mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "EscapedDotSegmentsAreRemoved",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/a/%2E%2E/mcp"},
+			want:       "https://mcp.example.com/a/%2E%2E/mcp",
+		},
+		{
+			name:      "InvalidFallbackIsEmpty",
+			serverURL: "https://mcp.example.com/a[b]",
+			want:      "",
+		},
+		{
+			name:       "IPLiteralHost",
+			serverURL:  "https://[::1]:8443/mcp",
+			advertised: []string{"https://[::1]:8443/"},
+			want:       "https://[::1]:8443/",
+		},
+		{
+			name:       "EquivalentIPv6Literal",
+			serverURL:  "https://[0:0:0:0:0:0:0:1]/mcp",
+			advertised: []string{"https://[::1]/mcp"},
+			want:       "https://[::1]/mcp",
+		},
+		{
+			name:      "NoEntriesFallsBack",
+			serverURL: "https://mcp.example.com/mcp",
+			want:      "https://mcp.example.com/mcp",
+		},
+		{
+			name:      "FallbackIsCanonical",
+			serverURL: "HTTPS://user:pass@MCP.Example.COM:8443/Path/MCP?tenant=Acme#frag",
+			want:      "https://mcp.example.com:8443/Path/MCP?tenant=Acme",
+		},
+		{
+			name:       "InvalidEntriesIgnored",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/#frag", "/mcp", "", "  "},
+			want:       "https://mcp.example.com/mcp",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			serverURL, err := url.Parse(tc.serverURL)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, mcpOAuth2ResourceIndicator(serverURL, tc.advertised))
 		})
 	}
 }

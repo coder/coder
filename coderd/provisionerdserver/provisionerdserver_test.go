@@ -1979,8 +1979,7 @@ func TestCompleteJob(t *testing.T) {
 								Source:   "test-source2",
 								Resource: "test-resource2",
 								Action:   "test-action2",
-								// Start: omitted
-								// End: omitted
+								// Start and End are omitted.
 							},
 							{
 								Stage:    "test3",

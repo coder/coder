@@ -558,6 +558,27 @@ export const MockChatProject: TypesGen.ChatProject = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
+export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
+	project_id: MockChatProject.id,
+	instructions:
+		"Use TypeScript for new code.\nRun the linters before committing.",
+	updated_by: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: MockUserOwner.avatar_url,
+	},
+	updated_at: "2026-10-02T12:00:00Z",
+};
+
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
+
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
 	username: "TestUser2",
@@ -3387,6 +3408,14 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3450,6 +3479,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMCPServerConfigs: true,
+	viewAnyOrganizationSkills: true,
 	createAnyMCPServerConfig: true,
 	updateAnyMCPServerConfig: true,
 	deleteAnyMCPServerConfig: true,
@@ -3497,6 +3527,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMCPServerConfigs: false,
+	viewAnyOrganizationSkills: false,
 	createAnyMCPServerConfig: false,
 	updateAnyMCPServerConfig: false,
 	deleteAnyMCPServerConfig: false,
@@ -3538,6 +3569,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
 	shareMCPServerConfig: true,
+	viewOrganizationSkills: true,
+	createOrganizationSkill: true,
+	updateOrganizationSkill: true,
+	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3567,6 +3603,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
 	shareMCPServerConfig: false,
+	viewOrganizationSkills: false,
+	createOrganizationSkill: false,
+	updateOrganizationSkill: false,
+	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,

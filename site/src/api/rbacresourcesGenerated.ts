@@ -84,6 +84,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat project",
 		delete: "delete a chat project",
 		read: "read chat projects",
+		share: "share a chat project with other users or groups",
 		update: "update a chat project",
 	},
 	chat_project_memory: {
@@ -187,6 +188,13 @@ export const RBACResourceActions: Partial<
 		delete: "delete member",
 		read: "read member",
 		update: "update an organization member",
+	},
+	organization_skill: {
+		create: "create an organization skill",
+		delete: "delete an organization skill",
+		read: "read organization skill metadata and content",
+		share: "share an organization skill with other users or groups",
+		update: "update an organization skill",
 	},
 	prebuilt_workspace: {
 		delete: "delete prebuilt workspace",

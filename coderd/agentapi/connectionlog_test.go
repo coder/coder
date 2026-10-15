@@ -45,6 +45,8 @@ func TestConnectionLog(t *testing.T) {
 		id              uuid.UUID
 		action          *agentproto.Connection_Action
 		typ             *agentproto.Connection_Type
+		reqMethod       agentproto.Connection_Method
+		reqAppName      string
 		method          database.ConnectionLogMethod
 		appName         string
 		time            time.Time
@@ -130,6 +132,17 @@ func TestConnectionLog(t *testing.T) {
 			appName: "vscode",
 			time:    dbtime.Now(),
 		},
+		{
+			name:       "Method And App Connect",
+			id:         uuid.New(),
+			action:     agentproto.Connection_CONNECT.Enum(),
+			typ:        agentproto.Connection_TYPE_UNSPECIFIED.Enum(),
+			reqMethod:  agentproto.Connection_METHOD_SSH,
+			reqAppName: "Some-IDE",
+			method:     database.ConnectionLogMethodSSH,
+			appName:    "some_ide",
+			time:       dbtime.Now(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,14 +162,16 @@ func TestConnectionLog(t *testing.T) {
 			}
 			_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
-					Id:              tt.id[:],
-					Action:          *tt.action,
-					Type:            *tt.typ,
-					Timestamp:       timestamppb.New(tt.time),
-					Ip:              tt.ip,
-					StatusCode:      tt.status,
-					Reason:          &tt.reason,
-					ClientSessionId: tt.clientSessionID,
+					Id:               tt.id[:],
+					Action:           *tt.action,
+					Type:             *tt.typ,
+					Timestamp:        timestamppb.New(tt.time),
+					Ip:               tt.ip,
+					StatusCode:       tt.status,
+					Reason:           &tt.reason,
+					ClientSessionId:  tt.clientSessionID,
+					AppName:          tt.reqAppName,
+					ConnectionMethod: tt.reqMethod,
 				},
 			})
 			require.NoError(t, err)

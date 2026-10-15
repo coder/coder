@@ -11,39 +11,30 @@ April 24, 2024
 
 ---
 
-[Island](https://www.island.io/) is an enterprise-grade browser, offering a Chromium-based experience
-similar to popular web browsers like Chrome and Edge. It includes built-in
-security features for corporate applications and data, aiming to bridge the gap
-between consumer-focused browsers and the security needs of the enterprise.
+[Island](https://www.island.io/) is an enterprise-grade browser, offering a Chromium-based experience similar to popular web browsers like Chrome and Edge.
+It includes built-in security features for corporate applications and data, aiming to bridge the gap between consumer-focused browsers and the security needs of the enterprise.
 
-Coder natively integrates with Island's feature set, which include data
-loss protection (DLP), application awareness, browser session recording, and
-single sign-on (SSO). This guide intends to document these feature categories
-and how they apply to your Coder deployment.
+Coder natively integrates with Island's feature set, which include data loss protection (DLP), application awareness, browser session recording, and single sign-on (SSO).
+This guide intends to document these feature categories and how they apply to your Coder deployment.
 
 ## General Configuration
 
 ### Create an Application Group for Coder
 
-We recommend creating an Application Group specific to Coder in the Island
-Management console. This Application Group object will be referenced when
-creating browser policies.
+We recommend creating an Application Group specific to Coder in the Island Management console.
+This Application Group object will be referenced when creating browser policies.
 
 [See the Island documentation for creating an Application Group](https://documentation.island.io/docs/create-and-configure-an-application-group-object).
 
 ## Advanced Data Loss Protection
 
-Integrate Island's advanced data loss prevention (DLP) capabilities with
-Coder's cloud development environment (CDE), enabling you to control the
-"last mile" between developers' CDE and their local devices,
-ensuring that sensitive IP remains in your centralized environment.
+Integrate Island's advanced data loss prevention (DLP) capabilities with Coder's cloud development environment (CDE), enabling you to control the "last mile" between developers' CDE and their local devices, ensuring that sensitive IP remains in your centralized environment.
 
 ### Block cut, copy, paste, printing, screen share
 
 1. [Create a Data Sandbox Profile](https://documentation.island.io/docs/create-and-configure-a-data-sandbox-profile).
 
-1. Configure the following actions to allow/block (based on your security
-   requirements).
+1. Configure the following actions to allow/block (based on your security requirements).
 
    - Screenshot and Screen Share
    - Printing
@@ -54,17 +45,19 @@ ensuring that sensitive IP remains in your centralized environment.
 
 1. Define the Coder Application group as the Destination Object.
 
-1. Define the Data Sandbox Profile as the Action in the Last Mile Protection
-   section.
+1. Define the Data Sandbox Profile as the Action in the Last Mile Protection section.
 
 ### Conditionally allow copy on Coder's CLI authentication page
 
 1. [Create a URL Object](https://documentation.island.io/docs/create-and-configure-a-policy-rule-general) with the following configuration.
 
    - **Include**
-   - **URL type**: Wildcard
-   - **URL address**: `coder.example.com/cli-auth`
-   - **Casing**: Insensitive
+   - **URL type**:
+     Wildcard
+   - **URL address**:
+     `coder.example.com/cli-auth`
+   - **Casing**:
+     Insensitive
 
 1. [Create a Data Sandbox Profile](https://documentation.island.io/docs/create-and-configure-a-data-sandbox-profile).
 
@@ -74,8 +67,7 @@ ensuring that sensitive IP remains in your centralized environment.
 
 1. Define the URL Object you created as the Destination Object.
 
-1. Define the Data Sandbox Profile as the Action in the Last Mile Protection
-   section.
+1. Define the Data Sandbox Profile as the Action in the Last Mile Protection section.
 
 ### Prevent file upload/download from the browser
 
@@ -88,8 +80,7 @@ ensuring that sensitive IP remains in your centralized environment.
 
 1. Define the Coder Application group as the Destination Object.
 
-1. Define the applicable Protection Profile as the Action in the Data Protection
-   section.
+1. Define the applicable Protection Profile as the Action in the Data Protection section.
 
 ### Scan files for sensitive data
 
@@ -103,9 +94,7 @@ ensuring that sensitive IP remains in your centralized environment.
 
 ## Application Awareness and Boundaries
 
-Ensure that Coder is only accessed through the Island browser, guaranteeing that
-your browser-level DLP policies are always enforced, and developers can't
-sidestep such policies simply by using another browser.
+Ensure that Coder is only accessed through the Island browser, guaranteeing that your browser-level DLP policies are always enforced, and developers can't sidestep such policies simply by using another browser.
 
 ### Configure browser enforcement, conditional access policies
 
@@ -119,13 +108,12 @@ Note that the configured IdP must be the same for both Coder and Island.
 
 ## Browser Activity Logging
 
-Govern and audit in-browser terminal and IDE sessions using Island, such as
-screenshots, mouse clicks, and keystrokes.
+Govern and audit in-browser terminal and IDE sessions using Island, such as screenshots, mouse clicks, and keystrokes.
 
 ### Activity Logging Module
 
-1. [Create an Activity Logging Profile](https://documentation.island.io/docs/create-and-configure-an-activity-logging-profile). Supported browser
-   events include:
+1. [Create an Activity Logging Profile](https://documentation.island.io/docs/create-and-configure-an-activity-logging-profile).
+   Supported browser events include:
 
    - Web Navigation
    - File Download
@@ -141,17 +129,13 @@ screenshots, mouse clicks, and keystrokes.
 
 1. Define the Coder Application group as the Destination Object.
 
-1. Define the Activity Logging Profile as the Action in the Security &
-   Visibility section.
+1. Define the Activity Logging Profile as the Action in the Security & Visibility section.
 
 ## Identity-aware logins (SSO)
 
-Integrate Island's identity management system with Coder's
-authentication mechanisms to enable identity-aware logins.
+Integrate Island's identity management system with Coder's authentication mechanisms to enable identity-aware logins.
 
 ### Configure single sign-on (SSO) seamless authentication between Coder and Island
 
-Configure the same identity provider (IdP) for both your Island and Coder
-deployment. Upon initial login to the Island browser, the user's session
-token will automatically be passed to Coder and authenticate their Coder
-session.
+Configure the same identity provider (IdP) for both your Island and Coder deployment.
+Upon initial login to the Island browser, the user's session token will automatically be passed to Coder and authenticate their Coder session.

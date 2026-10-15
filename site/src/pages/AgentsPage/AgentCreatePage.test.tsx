@@ -2,7 +2,6 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { onlineManager } from "react-query";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -15,6 +14,7 @@ import {
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
@@ -31,6 +31,7 @@ import {
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
@@ -215,9 +216,12 @@ beforeAll(() => {
 	});
 });
 
-// Project pages list the project's chats below the composer.
+// Project pages list the project's chats and details below the composer.
 beforeEach(() => {
 	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+	vi.spyOn(API.experimental, "getChatProjectInstructions").mockResolvedValue(
+		MockUnsetChatProjectInstructions,
+	);
 });
 
 afterEach(() => {

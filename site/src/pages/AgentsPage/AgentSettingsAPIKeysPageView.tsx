@@ -1,7 +1,6 @@
 import { useFormik } from "formik";
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteUserChatProviderKey,
@@ -16,6 +15,7 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { FormField } from "#/components/FormField/FormField";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { getFormHelpers } from "#/utils/formUtils";
 import { SectionHeader } from "./components/SectionHeader";
 

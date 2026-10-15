@@ -83,6 +83,7 @@ var chatProjectActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat projects",
 	ActionUpdate: "update a chat project",
 	ActionDelete: "delete a chat project",
+	ActionShare:  "share a chat project with other users or groups",
 }
 
 var chatProjectMemoryActions = map[Action]ActionDefinition{
@@ -105,6 +106,14 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionUpdate: "update a chat model config",
 	ActionDelete: "delete a chat model config",
 	ActionShare:  "share a chat model config with other users or groups",
+}
+
+var organizationSkillActions = map[Action]ActionDefinition{
+	ActionCreate: "create an organization skill",
+	ActionRead:   "read organization skill metadata and content",
+	ActionUpdate: "update an organization skill",
+	ActionDelete: "delete an organization skill",
+	ActionShare:  "share an organization skill with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -272,6 +281,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update an organization member",
 			ActionDelete: "delete member",
 		},
+	},
+	"organization_skill": {
+		Actions: organizationSkillActions,
 	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{

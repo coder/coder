@@ -14,7 +14,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -42,6 +41,7 @@ import {
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -439,6 +439,14 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				// Events missed while disconnected, such as
+				// diff_status_change, only reach the open chat's cache
+				// through a refetch.
+				const activeChatId = activeChatIdForWatch();
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+					void invalidateChatDiffContents(queryClient, activeChatId);
+				}
 			},
 		});
 	}, [queryClient]);
@@ -535,7 +543,7 @@ const AgentsPageLayout: React.FC = () => {
 			<div
 				data-testid="agents-main-panel"
 				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
 					isSettingsIndex ? "hidden sm:flex" : "flex",
 					!agentId &&
 						!isSettingsDetail &&

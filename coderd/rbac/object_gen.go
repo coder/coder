@@ -144,6 +144,7 @@ var (
 	//  - "ActionCreate" :: create a new chat project
 	//  - "ActionDelete" :: delete a chat project
 	//  - "ActionRead" :: read chat projects
+	//  - "ActionShare" :: share a chat project with other users or groups
 	//  - "ActionUpdate" :: update a chat project
 	ResourceChatProject = Object{
 		Type: "chat_project",
@@ -333,6 +334,17 @@ var (
 	//  - "ActionUpdate" :: update an organization member
 	ResourceOrganizationMember = Object{
 		Type: "organization_member",
+	}
+
+	// ResourceOrganizationSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create an organization skill
+	//  - "ActionDelete" :: delete an organization skill
+	//  - "ActionRead" :: read organization skill metadata and content
+	//  - "ActionShare" :: share an organization skill with other users or groups
+	//  - "ActionUpdate" :: update an organization skill
+	ResourceOrganizationSkill = Object{
+		Type: "organization_skill",
 	}
 
 	// ResourcePrebuiltWorkspace
@@ -565,6 +577,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourceOrganizationSkill,
 		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,

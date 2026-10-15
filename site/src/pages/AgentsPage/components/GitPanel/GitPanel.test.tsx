@@ -1,15 +1,20 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import {
+	type QueryClient,
+	QueryClientProvider,
+	QueryObserver,
+} from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chat as chatById, chatDiffContents } from "#/api/queries/chats";
 import type {
 	ChatDiffContents,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
-import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { ChatMessageInputRef } from "../AgentChatInput";
@@ -23,8 +28,9 @@ const mockDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
-const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
-	const queryClient = createTestQueryClient();
+const Wrapper: React.FC<
+	React.PropsWithChildren<{ queryClient: QueryClient }>
+> = ({ children, queryClient }) => {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -35,8 +41,9 @@ const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
 };
 
 const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
+	const queryClient = createTestQueryClient();
 	const view = render(
-		<Wrapper>
+		<Wrapper queryClient={queryClient}>
 			<GitPanel
 				chatId="test-chat"
 				onRefresh={() => true}
@@ -53,7 +60,7 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 		next: Partial<React.ComponentProps<typeof GitPanel>>,
 	) => {
 		view.rerender(
-			<Wrapper>
+			<Wrapper queryClient={queryClient}>
 				<GitPanel
 					chatId="test-chat"
 					onRefresh={() => true}
@@ -67,7 +74,7 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 			</Wrapper>,
 		);
 	};
-	return { view, rerenderPanel };
+	return { view, rerenderPanel, queryClient };
 };
 
 const repoRoot = "/workspace/special-repo";
@@ -109,6 +116,46 @@ function renderGitPanel(input: ChatMessageInputRef) {
 }
 
 describe("GitPanel", () => {
+	it("allows refreshing before any git context is known", async () => {
+		const user = userEvent.setup();
+		const onRefresh = vi.fn(() => true);
+		renderPanel({ onRefresh });
+
+		await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+		expect(onRefresh).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		{ name: "the git watch socket is connected", sent: true },
+		{ name: "the git watch socket is down", sent: false },
+	])(
+		"refetches the chat and its diff contents on refresh when $name",
+		async ({ sent }) => {
+			const user = userEvent.setup();
+			const getChat = vi
+				.spyOn(API.experimental, "getChat")
+				.mockResolvedValue(MockChat);
+			const getChatDiffContents = vi
+				.spyOn(API.experimental, "getChatDiffContents")
+				.mockResolvedValue(mockDiffContents);
+			const { queryClient } = renderPanel({ onRefresh: () => sent });
+			// Stand in for the chat page and an open diff panel, so the
+			// invalidated queries are refetched.
+			new QueryObserver(queryClient, chatById("test-chat")).subscribe(() => {});
+			new QueryObserver(queryClient, chatDiffContents("test-chat")).subscribe(
+				() => {},
+			);
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(1));
+
+			await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
+			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(2));
+		},
+	);
+
 	it("inserts a commit prompt for the active repo when Commit is clicked", async () => {
 		const user = userEvent.setup();
 		const input = mockComposer();
@@ -144,7 +191,7 @@ describe("GitPanel", () => {
 });
 
 describe("GitPanel per-ref views", () => {
-	it("fetches the selected ref's diff, not the primary's", async () => {
+	it("fetches and links the selected ref, not the primary", async () => {
 		const user = userEvent.setup();
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
@@ -196,6 +243,10 @@ describe("GitPanel per-ref views", () => {
 				expect.any(AbortSignal),
 			),
 		);
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
 	});
 
 	it("fetches a branch-only ref's diff even without a PR URL", async () => {
@@ -226,6 +277,24 @@ describe("GitPanel per-ref views", () => {
 				}),
 				expect.any(AbortSignal),
 			),
+		);
+	});
+
+	it("links a legacy ref's PR from its URL", () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		const mockLegacyRef = { ...MockChatDiffStatus, pr_number: undefined };
+
+		renderPanel({
+			remoteDiffStats: [mockLegacyRef],
+			primaryDiffStatus: mockLegacyRef,
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockLegacyRef.url,
 		);
 	});
 
