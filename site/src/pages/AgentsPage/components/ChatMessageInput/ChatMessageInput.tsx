@@ -17,6 +17,7 @@ import {
 	$isParagraphNode,
 	$isRangeSelection,
 	$isTextNode,
+	$parseSerializedNode,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
@@ -24,6 +25,7 @@ import {
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
+	type SerializedLexicalNode,
 } from "lexical";
 import {
 	useEffect,
@@ -154,9 +156,24 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 	});
 }
 
+const EDITOR_NAMESPACE = "ChatMessageInput";
+
+const hasComposerClipboardNodes = (dataTransfer: DataTransfer | null) => {
+	const payload = dataTransfer?.getData("application/x-lexical-editor");
+	if (!payload) {
+		return false;
+	}
+	try {
+		return JSON.parse(payload).namespace === EDITOR_NAMESPACE;
+	} catch {
+		return false;
+	}
+};
+
 // Intercepts paste events and inserts clipboard content as plain text,
 // stripping any rich-text formatting. Image files and large pasted text
 // are forwarded to the parent via the onFilePaste callback instead.
+// Content copied from a chat composer keeps its chips.
 //
 // Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
 // user intent to paste inline, so the large-paste-to-attachment
@@ -273,6 +290,12 @@ const PasteSanitizationPlugin: React.FC<{
 						event.preventDefault();
 						onFilePaste(createPasteFile(text));
 						return true;
+					}
+
+					// Content copied from a composer carries its chips as
+					// Lexical nodes, so let the rich text handler paste them.
+					if (!isPlainTextPaste && hasComposerClipboardNodes(dataTransfer)) {
+						return false;
 					}
 
 					// Small paste (or Cmd+Shift+V): insert as plain text.
@@ -415,6 +438,20 @@ const ContentChangePlugin: React.FC<{
 	return null;
 };
 
+// Returns the root children of a serialized editor state, or null when
+// the state is malformed or uses node types the editor does not register.
+const getRestorableRootChildren = (
+	editor: LexicalEditor,
+	serializedEditorState: string,
+): SerializedLexicalNode[] | null => {
+	try {
+		return editor.parseEditorState(serializedEditorState).toJSON().root
+			.children;
+	} catch {
+		return null;
+	}
+};
+
 // Seeds the editor with an initial value on first mount. When
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
@@ -432,25 +469,22 @@ const ValueSyncPlugin: React.FC<{
 		}
 		hasInitialized.current = true;
 
-		// Prefer restoring the full serialized editor state
-		// (preserves file-reference chips and node positions).
-		if (initialEditorState) {
-			try {
-				const parsed = editor.parseEditorState(initialEditorState);
-				editor.setEditorState(parsed);
-				return;
-			} catch {
-				// Malformed state, fall through to plain-text path.
-			}
-		}
-
-		if (initialValue === "") {
+		// Restore via editor.update, not setEditorState: a synchronous
+		// commit here makes chip decorators flushSync inside this effect.
+		const restoredChildren = initialEditorState
+			? getRestorableRootChildren(editor, initialEditorState)
+			: null;
+		if (!restoredChildren && initialValue === "") {
 			return;
 		}
 
 		editor.update(() => {
 			const root = $getRoot();
 			root.clear();
+			if (restoredChildren) {
+				root.append(...restoredChildren.map($parseSerializedNode));
+				return;
+			}
 			const paragraph = $createParagraphNode();
 			const textNode = $createTextNode(initialValue);
 			paragraph.append(textNode);
@@ -722,7 +756,7 @@ const ChatMessageInput = ({
 	...props
 }: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
 	const initialConfig = {
-		namespace: "ChatMessageInput",
+		namespace: EDITOR_NAMESPACE,
 		theme: {
 			paragraph: "m-0",
 		},

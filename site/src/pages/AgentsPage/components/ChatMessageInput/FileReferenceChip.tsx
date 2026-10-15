@@ -131,14 +131,17 @@ export function FileReferenceChip({
 	);
 }
 
-/** Removes an editable chip; pointer only, since Backspace removes chips. */
+/**
+ * Removes an editable chip; pointer only, since Backspace removes chips.
+ * The pseudo-element widens the tap target to 24px without moving the icon.
+ */
 export const ChipRemoveButton: React.FC<{
 	label: string;
 	onRemove: () => void;
 }> = ({ label, onRemove }) => (
 	<button
 		type="button"
-		className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
+		className="relative ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors after:absolute after:-inset-1.25 after:content-[''] hover:bg-surface-quaternary hover:text-content-primary"
 		onClick={(e) => {
 			e.preventDefault();
 			e.stopPropagation();

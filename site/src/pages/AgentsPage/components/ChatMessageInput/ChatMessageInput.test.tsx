@@ -441,7 +441,69 @@ describe("ChatMessageInput", () => {
 			expect(getRequestContent(inputRef)).toEqual([]);
 		});
 
-		it("restores chips from a saved draft", async () => {
+		it("keeps chips when pasting content copied from a composer", async () => {
+			// Lexical's rich text paste checks these jsdom-missing classes.
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const user = userEvent.setup();
+			const onChange = vi.fn();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					onChange={onChange}
+					aria-label="Chat message input"
+				/>,
+			);
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			await user.click(textbox);
+			await user.paste("Lead");
+			act(() => inputRef.current?.insertSkill("project", "triage"));
+			await user.keyboard("tail");
+			const expectedContent = [
+				{ type: "text", text: "Lead" },
+				mockSkillPart("project", "triage"),
+				{ type: "text", text: " tail" },
+			];
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(expectedContent);
+			});
+			// Lexical copies the selected nodes in their exported JSON form.
+			const [plainText, editorState] = onChange.mock.lastCall ?? [];
+			const lexicalPayload = JSON.stringify({
+				namespace: "ChatMessageInput",
+				nodes: JSON.parse(editorState).root.children,
+			});
+			const clipboard: Record<string, string> = {
+				"text/plain": plainText,
+				"application/x-lexical-editor": lexicalPayload,
+			};
+			const fileInput = document.createElement("input");
+			fileInput.type = "file";
+			if (!fileInput.files) {
+				throw new Error("File inputs should expose a FileList.");
+			}
+			const clipboardData: Pick<DataTransfer, "types" | "files" | "getData"> = {
+				types: Object.keys(clipboard),
+				files: fileInput.files,
+				getData: (type) => clipboard[type] ?? "",
+			};
+			act(() => inputRef.current?.clear());
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([]);
+			});
+
+			await user.paste(clipboardData as DataTransfer);
+
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(expectedContent);
+			});
+		});
+
+		it("restores chips from a saved draft without React errors", async () => {
 			const onChange = vi.fn();
 			const inputRef = createRef<ChatMessageInputRef>();
 			const { unmount } = renderWithQueryClient(
@@ -466,6 +528,7 @@ describe("ChatMessageInput", () => {
 			const [, savedEditorState] = onChange.mock.lastCall ?? [];
 			unmount();
 
+			const errorSpy = vi.spyOn(console, "error");
 			const restoredRef = createRef<ChatMessageInputRef>();
 			renderWithQueryClient(
 				<ChatMessageInput
@@ -480,6 +543,8 @@ describe("ChatMessageInput", () => {
 					mockSkillPart("org", "release-notes"),
 				]);
 			});
+			// Restoring chips must not make React log a flushSync error.
+			expect(errorSpy).not.toHaveBeenCalled();
 		});
 
 		it("reopens an edited message with its skill chips in place", async () => {
