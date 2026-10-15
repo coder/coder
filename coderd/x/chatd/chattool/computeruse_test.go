@@ -285,7 +285,7 @@ func TestComputerUseTool_Run_Screenshot_StoreErrorReturnsToolError(t *testing.T)
 	assert.Contains(t, resp.Content, "store screenshot attachment: db down")
 }
 
-func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *testing.T) {
+func TestComputerUseTool_Run_Screenshot_OversizedAttachmentReturnsToolError(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -314,15 +314,8 @@ func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *t
 		ID: "test-screenshot-oversized", Name: "computer", Input: `{"action":"screenshot"}`,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "image", resp.Type)
-	assert.Equal(t, "image/png", resp.MediaType)
-	assert.False(t, resp.IsError)
-	expectedOversized, decErr := base64.StdEncoding.DecodeString(oversizedScreenshot)
-	require.NoError(t, decErr)
-	require.Len(t, resp.Data, len(expectedOversized))
-	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
-	require.NoError(t, err)
-	assert.Empty(t, attachments)
+	assert.True(t, resp.IsError)
+	assert.Contains(t, resp.Content, "store screenshot attachment: attachment exceeds 10 MiB size limit")
 }
 
 func TestComputerUseTool_Run_LeftClick(t *testing.T) {

@@ -397,10 +397,6 @@ func (t *computerUseTool) captureSharedScreenshot(
 	}
 
 	response := fantasy.NewImageResponse(screenData, "image/png")
-	// The size limit skips storage but still returns the screenshot.
-	if len(screenData) > maxAttachmentSize {
-		return response, nil
-	}
 
 	attachment, err := storeScreenshotAttachment(
 		ctx,
