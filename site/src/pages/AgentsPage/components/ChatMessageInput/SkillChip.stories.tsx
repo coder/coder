@@ -35,12 +35,6 @@ export const LongNameTruncates: Story = {
 	},
 };
 
-export const Editable: Story = {
-	render: (args) => (
-		<EditableSkillChip {...args} selected={false} onRemove={fn()} />
-	),
-};
-
 export const EditableSelected: Story = {
 	render: (args) => <EditableSkillChip {...args} selected onRemove={fn()} />,
 };

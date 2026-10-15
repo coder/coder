@@ -9,6 +9,7 @@ import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
 	ChatMessagePart,
+	ChatSkillSource,
 	SkillMetadata,
 } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -29,6 +30,11 @@ const requiredProps = () => ({
 	disabled: false,
 	hasWorkspace: false,
 });
+
+const mockSkillPart = (
+	skill_source: ChatSkillSource,
+	skill_name: string,
+): ChatMessagePart => ({ type: "skill-invocation", skill_source, skill_name });
 
 const getRequestContent = (
 	inputRef: React.RefObject<ChatMessageInputRef | null>,
@@ -326,11 +332,7 @@ describe("ChatMessageInput", () => {
 			await user.keyboard("now");
 			expect(getRequestContent(inputRef)).toEqual([
 				{ type: "text", text: "Draft " },
-				{
-					type: "skill-invocation",
-					skill_source: "org",
-					skill_name: "release-notes",
-				},
+				mockSkillPart("org", "release-notes"),
 				{ type: "text", text: " now" },
 			]);
 		});
@@ -345,11 +347,7 @@ describe("ChatMessageInput", () => {
 				await screen.findByRole("option", { name: /^\/reviewer/ }),
 			);
 			expect(getRequestContent(inputRef)).toEqual([
-				{
-					type: "skill-invocation",
-					skill_source: "personal",
-					skill_name: "reviewer",
-				},
+				mockSkillPart("personal", "reviewer"),
 			]);
 		});
 
@@ -373,11 +371,7 @@ describe("ChatMessageInput", () => {
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
 			expect(getRequestContent(inputRef)).toEqual([
-				{
-					type: "skill-invocation",
-					skill_source: "personal",
-					skill_name: "compactor",
-				},
+				mockSkillPart("personal", "compactor"),
 			]);
 		});
 
@@ -389,11 +383,7 @@ describe("ChatMessageInput", () => {
 				screen.getByRole("option", { name: /^\/personal\/reviewer/ }),
 			);
 			expect(getRequestContent(inputRef)).toEqual([
-				{
-					type: "skill-invocation",
-					skill_source: "personal",
-					skill_name: "reviewer",
-				},
+				mockSkillPart("personal", "reviewer"),
 			]);
 		});
 	});
@@ -423,16 +413,8 @@ describe("ChatMessageInput", () => {
 			await waitFor(() => {
 				expect(getRequestContent(inputRef)).toEqual([
 					{ type: "text", text: "Fix the flaky test" },
-					{
-						type: "skill-invocation",
-						skill_source: "project",
-						skill_name: "triage",
-					},
-					{
-						type: "skill-invocation",
-						skill_source: "personal",
-						skill_name: "triage",
-					},
+					mockSkillPart("project", "triage"),
+					mockSkillPart("personal", "triage"),
 				]);
 			});
 			expect(textbox).toHaveFocus();
@@ -495,11 +477,7 @@ describe("ChatMessageInput", () => {
 			);
 			await waitFor(() => {
 				expect(getRequestContent(restoredRef)).toEqual([
-					{
-						type: "skill-invocation",
-						skill_source: "org",
-						skill_name: "release-notes",
-					},
+					mockSkillPart("org", "release-notes"),
 				]);
 			});
 		});
@@ -507,11 +485,7 @@ describe("ChatMessageInput", () => {
 		it("reopens an edited message with its skill chips in place", async () => {
 			const content: ChatMessagePart[] = [
 				{ type: "text", text: "Use " },
-				{
-					type: "skill-invocation",
-					skill_source: "project",
-					skill_name: "triage",
-				},
+				mockSkillPart("project", "triage"),
 				{ type: "text", text: " on\nthe diff" },
 			];
 			const { text, editorState } = getEditableUserMessagePayload({
