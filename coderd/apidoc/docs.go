@@ -19812,6 +19812,7 @@ const docTemplate = `{
                 "chat_project:create",
                 "chat_project:delete",
                 "chat_project:read",
+                "chat_project:share",
                 "chat_project:update",
                 "chat_project_memory:*",
                 "chat_project_memory:create",
@@ -20074,6 +20075,7 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectCreate",
                 "APIKeyScopeChatProjectDelete",
                 "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectShare",
                 "APIKeyScopeChatProjectUpdate",
                 "APIKeyScopeChatProjectMemoryAll",
                 "APIKeyScopeChatProjectMemoryCreate",
@@ -23788,6 +23790,10 @@ const docTemplate = `{
                 "oauth2_client_secret": {
                     "type": "string"
                 },
+                "oauth2_resource": {
+                    "description": "OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2\nrequests when set. Auto-discovery fills it if empty.",
+                    "type": "string"
+                },
                 "oauth2_revocation_url": {
                     "description": "OAuth2RevocationURL is the provider's RFC 7009 revocation\nendpoint; auto-populated by OAuth2 discovery when omitted.",
                     "type": "string"
@@ -23883,11 +23889,11 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "allow_user_autostart": {
-                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled with a\nPremium license.",
                     "type": "boolean"
                 },
                 "allow_user_autostop": {
-                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled with a\nPremium license.",
                     "type": "boolean"
                 },
                 "allow_user_cancel_workspace_jobs": {
@@ -23899,7 +23905,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "autostart_requirement": {
-                    "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is a Premium feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
@@ -23907,7 +23913,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is a Premium feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -26481,6 +26487,9 @@ const docTemplate = `{
                 },
                 "oauth2_client_id": {
                     "description": "OAuth2 fields (only populated for admins).",
+                    "type": "string"
+                },
+                "oauth2_resource": {
                     "type": "string"
                 },
                 "oauth2_revocation_url": {
@@ -30384,7 +30393,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "allow_user_autostart": {
-                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "AllowUserAutostart and AllowUserAutostop are Premium features. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "boolean"
                 },
                 "allow_user_autostop": {
@@ -30401,7 +30410,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement and AutostartRequirement are enterprise features. Its\nvalue is only used if your license is entitled to use the advanced template\nscheduling feature.",
+                    "description": "AutostopRequirement and AutostartRequirement are Premium features. Their\nvalues are only used if your license is entitled to use the advanced template\nscheduling feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -30448,7 +30457,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -31977,6 +31986,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_client_secret": {
+                    "type": "string"
+                },
+                "oauth2_resource": {
+                    "description": "OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep\nthe stored value; send \"\" to clear it.",
                     "type": "string"
                 },
                 "oauth2_revocation_url": {

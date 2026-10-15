@@ -128,7 +128,7 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 		require.False(t, chat.WorkerID.Valid, "the promoted turn must still go through admission")
 	})
 
-	t.Run("QueuedHeadIsPromotedFirst", func(t *testing.T) {
+	t.Run("MessageIsPromotedAheadOfQueue", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -139,10 +139,11 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 
 		result := send(t, f, m, "second")
 
-		require.NotNil(t, result.QueuedMessage, "the new message stays queued behind the promoted head")
+		require.Nil(t, result.QueuedMessage, "the message is promoted ahead of the queued message")
 		require.NotEmpty(t, result.InsertedMessages)
-		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "first")
-		requireQueuedMessageDeleted(ctx, t, f, created.Chat.ID, first.QueuedMessage.ID)
+		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "second")
+		require.Equal(t, []int64{first.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID),
+			"the earlier queued message stays queued")
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 		chat := f.readChat(ctx, t, created.Chat.ID)
 		require.False(t, chat.WorkerID.Valid)

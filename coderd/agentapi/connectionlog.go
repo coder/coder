@@ -42,7 +42,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	method, appName, err := sdk2db.ConnectionLogFromAgentType(req.GetConnection().GetType())
+	method, appName, err := sdk2db.ConnectionLogFromAgentConnection(req.GetConnection())
 	if err != nil {
 		return nil, err
 	}

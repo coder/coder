@@ -126,6 +126,8 @@ func TestGetManifest(t *testing.T) {
 				RunOnStart:       true,
 				RunOnStop:        false,
 				TimeoutSeconds:   60,
+				ResourceAddress:  "coder_script.install_tools",
+				Dependencies:     json.RawMessage(`[{"prerequisite_resource_address":"coder_script.clone_repo","requirement":"success"}]`),
 			},
 			{
 				ID:               uuid.New(),
@@ -138,6 +140,8 @@ func TestGetManifest(t *testing.T) {
 				RunOnStart:       false,
 				RunOnStop:        true,
 				TimeoutSeconds:   30,
+				ResourceAddress:  "coder_script.clone_repo",
+				Dependencies:     json.RawMessage(`[]`),
 			},
 		}
 		metadata = []database.WorkspaceAgentMetadatum{
@@ -202,6 +206,11 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[0].RunOnStop,
 				StartBlocksLogin: scripts[0].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[0].TimeoutSeconds) * time.Second),
+				ResourceAddress:  "coder_script.install_tools",
+				Dependencies: []*agentproto.WorkspaceAgentScriptDependency{{
+					PrerequisiteResourceAddress: "coder_script.clone_repo",
+					Requirement:                 agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS,
+				}},
 			},
 			{
 				Id:               scripts[1].ID[:],
@@ -213,6 +222,9 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[1].RunOnStop,
 				StartBlocksLogin: scripts[1].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[1].TimeoutSeconds) * time.Second),
+				ResourceAddress:  "coder_script.clone_repo",
+				// An unordered script sends no entries, not placeholders.
+				Dependencies: nil,
 			},
 		}
 		protoMetadata = []*agentproto.WorkspaceAgentMetadata_Description{
@@ -434,6 +446,117 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		require.Equal(t, expected, got)
+	})
+
+	t.Run("SubagentScriptDependencies", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		subagentScripts := []database.GetWorkspaceAgentScriptsByAgentIDsRow{
+			{
+				ID:               uuid.New(),
+				WorkspaceAgentID: childAgent.ID,
+				LogSourceID:      uuid.New(),
+				Script:           "echo a",
+				RunOnStart:       true,
+				ResourceAddress:  "coder_script.a",
+				Dependencies:     json.RawMessage(`[]`),
+			},
+			{
+				ID:               uuid.New(),
+				WorkspaceAgentID: childAgent.ID,
+				LogSourceID:      uuid.New(),
+				Script:           "echo b",
+				RunOnStart:       true,
+				ResourceAddress:  "coder_script.b",
+				Dependencies:     json.RawMessage(`[{"prerequisite_resource_address":"coder_script.a","requirement":"completion"}]`),
+			},
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		// Only the subagent's own rows are loaded, never the parent's.
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return(subagentScripts, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: childAgent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		require.Equal(t, []*agentproto.WorkspaceAgentScript{
+			{
+				Id:              subagentScripts[0].ID[:],
+				LogSourceId:     subagentScripts[0].LogSourceID[:],
+				Script:          "echo a",
+				RunOnStart:      true,
+				Timeout:         durationpb.New(0),
+				ResourceAddress: "coder_script.a",
+			},
+			{
+				Id:              subagentScripts[1].ID[:],
+				LogSourceId:     subagentScripts[1].LogSourceID[:],
+				Script:          "echo b",
+				RunOnStart:      true,
+				Timeout:         durationpb.New(0),
+				ResourceAddress: "coder_script.b",
+				Dependencies: []*agentproto.WorkspaceAgentScriptDependency{{
+					PrerequisiteResourceAddress: "coder_script.a",
+					Requirement:                 agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_COMPLETION,
+				}},
+			},
+		}, got.Scripts)
+	})
+
+	t.Run("CorruptScriptDependencies", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		corruptScripts := []database.GetWorkspaceAgentScriptsByAgentIDsRow{{
+			ID:               uuid.New(),
+			WorkspaceAgentID: agent.ID,
+			LogSourceID:      uuid.New(),
+			ResourceAddress:  "coder_script.install_tools",
+			Dependencies:     json.RawMessage(`[{"requirement":"success"}]`),
+		}}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return(corruptScripts, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+
+		_, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.ErrorContains(t, err, "empty prerequisite resource address")
 	})
 
 	t.Run("SecretsFiltering", func(t *testing.T) {

@@ -84,9 +84,15 @@ Optional fields:
 | `oauth2_client_secret`  | OAuth2 client secret.                     |
 | `oauth2_scopes`         | Space-separated list of scopes.           |
 | `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
+| `oauth2_resource`       | Resource indicator URI (RFC 8707).        |
 
 The revocation endpoint must use HTTPS.
 Loopback URLs may use HTTP for local development and tests.
+
+When `oauth2_resource` is set, Coder sends it as the RFC 8707 `resource` parameter on authorization, token, and refresh requests.
+The value must be an absolute URI without a fragment or user information.
+A manual configuration sends no `resource` parameter unless you set this field.
+Leave it empty for providers that reject the parameter, such as Microsoft Entra ID.
 
 **Auto-discovery**:
 leave `oauth2_client_id`, `oauth2_auth_url`, and `oauth2_token_url` empty.
@@ -96,11 +102,14 @@ The server attempts discovery in this order:
 1. RFC 8414 — Authorization Server Metadata
 1. RFC 7591 — Dynamic Client Registration
 
-Auto-discovery also records the provider's `revocation_endpoint` from the RFC 8414 metadata when advertised.
-An explicit `oauth2_revocation_url` in the request takes precedence over the discovered value.
+Auto-discovery also records the provider's `revocation_endpoint` from the RFC 8414 metadata when advertised, and sets `oauth2_resource` to the Protected Resource Metadata `resource` that matches the MCP server URL.
+When none matches, it uses the server URL with the scheme and host lowercased and any user information or fragment removed.
+Explicit `oauth2_revocation_url` and `oauth2_resource` values in the request take precedence over the discovered values.
+Discovery runs only when a configuration is created, so to add a resource indicator to an existing configuration, set `oauth2_resource` on it or re-create the server.
 
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically.
+Changing the server URL, authentication type, `oauth2_client_id`, `oauth2_token_url`, `oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored token, so users must connect again.
 Users can disconnect via the UI or API to remove stored tokens.
 When a revocation endpoint is configured, disconnecting also asks the provider to revoke the token (RFC 7009).
 Provider revocation is best-effort: the stored token is always deleted from Coder, and the disconnect response reports whether provider revocation succeeded via `token_revoked` and `token_revocation_error`.
@@ -236,7 +245,7 @@ Each server has a group and user ACL that controls which members can see and use
 New servers grant read access to the organization's **Everyone** group, so all members have access by default.
 Members with MCP server share permission can open **Server actions** > **Manage permissions** to remove the Everyone entry and grant specific groups or users instead.
 They can also manage the ACL through the API (`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
-ACL management is available in all editions and does not require an enterprise entitlement.
+ACL management is available in all editions and does not require a Premium license.
 ACL changes are recorded in the audit log.
 
 Revoking access stops a member from newly selecting the server in any chat, but chats that already have the server selected keep using it, the same way existing workspaces keep running after template access is revoked.

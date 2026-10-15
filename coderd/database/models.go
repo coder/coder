@@ -545,6 +545,7 @@ const (
 	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
 	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
 	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -841,7 +842,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeOrganizationSkillRead,
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
-		ApiKeyScopeOrganizationSkillShare:
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare:
 		return true
 	}
 	return false
@@ -1107,6 +1109,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeOrganizationSkillUpdate,
 		ApiKeyScopeOrganizationSkillDelete,
 		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
 	}
 }
 
@@ -5411,6 +5414,10 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5757,6 +5764,7 @@ type MCPServerConfig struct {
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
 }
 
 type MCPServerUserToken struct {
