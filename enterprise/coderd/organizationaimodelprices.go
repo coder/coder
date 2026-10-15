@@ -14,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -118,7 +117,7 @@ func (api *API) upsertOrganizationAIModelPrices(rw http.ResponseWriter, r *http.
 	}
 
 	// Validate the whole request before writing anything, so a single bad
-	// entry cannot leave the tables half-updated.
+	// entry cannot leave the table half-updated.
 	//nolint:gocritic // Org admins may lack provider read; the update was authorized above.
 	validations, err := validateOrganizationAIModelPrices(dbauthz.AsSystemRestricted(ctx), api.Database, req.Prices, rawPrices)
 	if err != nil {
@@ -135,43 +134,16 @@ func (api *API) upsertOrganizationAIModelPrices(rw http.ResponseWriter, r *http.
 		return
 	}
 
-	// Each kind of price lives in its own table. The batch upserts read the
-	// rows as JSON arrays and ignore the key the other kind uses.
-	var typePrices, providerPrices []codersdk.OrganizationAIModelPriceUpsert
-	for _, price := range req.Prices {
-		if price.ProviderID != nil {
-			providerPrices = append(providerPrices, price)
-		} else {
-			typePrices = append(typePrices, price)
-		}
+	// The batch upsert reads the rows as a JSON array.
+	batch, err := json.Marshal(req.Prices)
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("marshal provider prices: %w", err))
+		return
 	}
-	err = api.Database.InTx(func(tx database.Store) error {
-		if len(typePrices) > 0 {
-			batch, err := json.Marshal(typePrices)
-			if err != nil {
-				return xerrors.Errorf("marshal provider type prices: %w", err)
-			}
-			if err := tx.UpsertOrganizationAIModelPrices(ctx, database.UpsertOrganizationAIModelPricesParams{
-				OrganizationID: org.ID,
-				Prices:         batch,
-			}); err != nil {
-				return xerrors.Errorf("upsert provider type prices: %w", err)
-			}
-		}
-		if len(providerPrices) > 0 {
-			batch, err := json.Marshal(providerPrices)
-			if err != nil {
-				return xerrors.Errorf("marshal provider prices: %w", err)
-			}
-			if err := tx.UpsertOrganizationAIProviderModelPrices(ctx, database.UpsertOrganizationAIProviderModelPricesParams{
-				OrganizationID: org.ID,
-				Prices:         batch,
-			}); err != nil {
-				return xerrors.Errorf("upsert provider prices: %w", err)
-			}
-		}
-		return nil
-	}, nil)
+	err = api.Database.UpsertOrganizationAIProviderModelPrices(ctx, database.UpsertOrganizationAIProviderModelPricesParams{
+		OrganizationID: org.ID,
+		Prices:         batch,
+	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -204,8 +176,7 @@ func (api *API) upsertOrganizationAIModelPrices(rw http.ResponseWriter, r *http.
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param provider_id query string false "Configured provider of the price to delete" format(uuid)
-// @Param provider query string false "Provider type of the price to delete"
+// @Param provider_id query string true "Configured provider of the price to delete" format(uuid)
 // @Param model query string true "Model of the price to delete"
 // @Success 204
 // @Router /api/experimental/organizations/{organization}/ai/model-prices [delete]
@@ -217,16 +188,9 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 	// Model names can contain slashes, so the key is read from the query
 	// rather than the path.
 	query := r.URL.Query()
-	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("model")
+	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("provider_id", "model")
 	model := parser.String(query, "", "model")
-	provider := parser.String(query, "", "provider")
 	providerID := parser.UUID(query, uuid.Nil, "provider_id")
-	if (providerID == uuid.Nil) == (provider == "") {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field:  "provider_id",
-			Detail: "Exactly one of provider_id or provider is required.",
-		})
-	}
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -236,23 +200,11 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	var (
-		deleted int64
-		err     error
-	)
-	if providerID != uuid.Nil {
-		deleted, err = api.Database.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
-			OrganizationID: org.ID,
-			ProviderID:     providerID,
-			Model:          model,
-		})
-	} else {
-		deleted, err = api.Database.DeleteOrganizationAIModelPrice(ctx, database.DeleteOrganizationAIModelPriceParams{
-			OrganizationID: org.ID,
-			Provider:       provider,
-			Model:          model,
-		})
-	}
+	deleted, err := api.Database.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID,
+		ProviderID:     providerID,
+		Model:          model,
+	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -274,7 +226,6 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 		slog.F("organization_id", org.ID),
 		slog.F("user_id", httpmw.APIKey(r).UserID),
 		slog.F("provider_id", providerID),
-		slog.F("provider", provider),
 		slog.F("model", model),
 	)
 
@@ -282,17 +233,14 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 }
 
 // organizationAIModelPriceKey identifies one of an organization's prices.
-// Exactly one of providerID and provider is set.
 type organizationAIModelPriceKey struct {
 	providerID uuid.UUID
-	provider   string
 	model      string
 }
 
 // validateOrganizationAIModelPrices reports every problem with the requested
-// organization prices: a live provider_id whose type matches any provider
-// given alongside it, or else a priceable provider type, a model, valid prices,
-// and no repeated key. It returns an error only when a provider lookup fails.
+// organization prices: a live provider_id, a model, valid prices, and no
+// repeated key. It returns an error only when a provider lookup fails.
 func validateOrganizationAIModelPrices(ctx context.Context, db database.Store, requested []codersdk.OrganizationAIModelPriceUpsert, raw []map[string]json.RawMessage) ([]codersdk.ValidationError, error) {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -301,9 +249,8 @@ func validateOrganizationAIModelPrices(ctx context.Context, db database.Store, r
 		}}, nil
 	}
 
-	supportedProviders := strings.Join(providers.SupportedStrings(), ", ")
-	// Live providers by ID, nil for an ID that matches none.
-	configured := make(map[uuid.UUID]*database.AIProvider)
+	// Whether each looked up provider ID matches a live provider.
+	live := make(map[uuid.UUID]bool)
 	seen := make(map[organizationAIModelPriceKey]struct{}, len(requested))
 	var validations []codersdk.ValidationError
 
@@ -311,52 +258,28 @@ func validateOrganizationAIModelPrices(ctx context.Context, db database.Store, r
 		field := fmt.Sprintf("prices[%d]", i)
 
 		// The provider and model identify the row, so report them first.
-		key := organizationAIModelPriceKey{model: price.Model}
-		if price.ProviderID != nil {
-			key.providerID = *price.ProviderID
-			provider, ok := configured[*price.ProviderID]
+		if price.ProviderID == uuid.Nil {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  field + ".provider_id",
+				Detail: "Provider ID is required.",
+			})
+		} else {
+			exists, ok := live[price.ProviderID]
 			if !ok {
-				p, err := db.GetAIProviderByID(ctx, *price.ProviderID)
+				_, err := db.GetAIProviderByID(ctx, price.ProviderID)
 				switch {
 				case errors.Is(err, sql.ErrNoRows):
 				case err != nil:
-					return nil, xerrors.Errorf("get provider %s: %w", *price.ProviderID, err)
+					return nil, xerrors.Errorf("get provider %s: %w", price.ProviderID, err)
 				default:
-					provider = &p
+					exists = true
 				}
-				configured[*price.ProviderID] = provider
+				live[price.ProviderID] = exists
 			}
-			switch {
-			case provider == nil:
+			if !exists {
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field + ".provider_id",
-					Detail: fmt.Sprintf("Provider %s does not exist.", *price.ProviderID),
-				})
-			case price.Provider != "" && price.Provider != string(provider.Type):
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + ".provider",
-					Detail: fmt.Sprintf("Provider %q does not match the type %q of provider %s.", price.Provider, provider.Type, *price.ProviderID),
-				})
-			}
-		} else {
-			key.provider = price.Provider
-			switch {
-			case price.Provider == "":
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + ".provider",
-					Detail: fmt.Sprintf("Provider or provider_id is required. Supported providers: %s.", supportedProviders),
-				})
-			case price.Provider == string(database.AIProviderTypeOpenaiCompat):
-				// Each openai-compat provider can route to a different
-				// upstream, so a type-wide price would misprice some of them.
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + ".provider",
-					Detail: "openai-compat providers can only be priced by provider_id.",
-				})
-			case !slices.Contains(providers.Supported, database.AIProviderType(price.Provider)):
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + ".provider",
-					Detail: fmt.Sprintf("Provider %q is not supported. Supported providers: %s.", price.Provider, supportedProviders),
+					Detail: fmt.Sprintf("Provider %s does not exist.", price.ProviderID),
 				})
 			}
 		}
@@ -369,14 +292,11 @@ func validateOrganizationAIModelPrices(ctx context.Context, db database.Store, r
 		validations = append(validations, validateAIModelPriceValues(field, rawEntryAt(raw, i),
 			price.InputPrice, price.OutputPrice, price.CacheReadPrice, price.CacheWritePrice)...)
 
+		key := organizationAIModelPriceKey{providerID: price.ProviderID, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
-			name := key.provider
-			if price.ProviderID != nil {
-				name = price.ProviderID.String()
-			}
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field,
-				Detail: fmt.Sprintf("%s/%s appears more than once.", name, price.Model),
+				Detail: fmt.Sprintf("%s/%s appears more than once.", price.ProviderID, price.Model),
 			})
 		}
 		seen[key] = struct{}{}

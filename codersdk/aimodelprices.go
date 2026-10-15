@@ -137,9 +137,6 @@ const (
 	// AIModelPriceScopeOrganizationProvider is an organization's price for one
 	// configured provider.
 	AIModelPriceScopeOrganizationProvider AIModelPriceScope = "organization_provider"
-	// AIModelPriceScopeOrganizationProviderType is an organization's price for
-	// every provider of a type.
-	AIModelPriceScopeOrganizationProviderType AIModelPriceScope = "organization_provider_type"
 	// AIModelPriceScopeSite is a site-wide price for a provider type, from the
 	// price book or set through the site-wide API.
 	AIModelPriceScopeSite AIModelPriceScope = "site"
@@ -175,39 +172,31 @@ type UpsertOrganizationAIModelPricesRequest struct {
 	Prices []OrganizationAIModelPriceUpsert `json:"prices"`
 }
 
-// OrganizationAIModelPriceUpsert is one model's prices in an organization
-// upsert request. Set ProviderID to price one configured provider, or only
-// Provider to price every provider of that type. When both are set, Provider
-// must be the configured provider's type. openai-compat providers can only be
-// priced by ProviderID.
+// OrganizationAIModelPriceUpsert is one model's prices for one configured
+// provider in an organization upsert request.
 type OrganizationAIModelPriceUpsert struct {
-	ProviderID      *uuid.UUID `json:"provider_id,omitempty" format:"uuid"`
-	Provider        string     `json:"provider,omitempty"`
-	Model           string     `json:"model"`
-	InputPrice      *int64     `json:"input_price"`
-	OutputPrice     *int64     `json:"output_price"`
-	CacheReadPrice  *int64     `json:"cache_read_price"`
-	CacheWritePrice *int64     `json:"cache_write_price"`
+	ProviderID      uuid.UUID `json:"provider_id" format:"uuid"`
+	Model           string    `json:"model"`
+	InputPrice      *int64    `json:"input_price"`
+	OutputPrice     *int64    `json:"output_price"`
+	CacheReadPrice  *int64    `json:"cache_read_price"`
+	CacheWritePrice *int64    `json:"cache_write_price"`
 }
 
 // OrganizationAIModelPriceKey identifies one of an organization's prices: a
-// model plus either a configured provider or a provider type.
+// configured provider and a model.
 //
 // @typescript-ignore OrganizationAIModelPriceKey
 type OrganizationAIModelPriceKey struct {
-	ProviderID *uuid.UUID `json:"provider_id,omitempty"`
-	Provider   string     `json:"provider,omitempty"`
-	Model      string     `json:"model"`
+	ProviderID uuid.UUID `json:"provider_id"`
+	Model      string    `json:"model"`
 }
 
 func (k OrganizationAIModelPriceKey) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		query := r.URL.Query()
-		if k.ProviderID != nil {
+		if k.ProviderID != uuid.Nil {
 			query.Set("provider_id", k.ProviderID.String())
-		}
-		if k.Provider != "" {
-			query.Set("provider", k.Provider)
 		}
 		query.Set("model", k.Model)
 		r.URL.RawQuery = query.Encode()
@@ -215,9 +204,10 @@ func (k OrganizationAIModelPriceKey) asRequestOption() RequestOption {
 }
 
 // ListOrganizationAIModelPrices returns the model prices that apply to the
-// organization and match the filter. By default each price is the one in
-// effect for the organization, so an organization price hides the site-wide
-// price it overrides. AIModelPriceSourceFilterAll reports every row instead.
+// organization and match the filter. By default a custom site-wide price
+// hides the price book price it overrides, and each organization price for a
+// configured provider is listed alongside the site-wide price for its type.
+// AIModelPriceSourceFilterAll reports every row instead.
 func (c *ExperimentalClient) ListOrganizationAIModelPrices(ctx context.Context, organization uuid.UUID, filter AIModelPricesFilter) ([]OrganizationAIModelPrice, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),

@@ -482,13 +482,8 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Configured provider of the price to delete",
                         "name": "provider_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Provider type of the price to delete",
-                        "name": "provider",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",
@@ -20032,12 +20027,10 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "organization_provider",
-                "organization_provider_type",
                 "site"
             ],
             "x-enum-varnames": [
                 "AIModelPriceScopeOrganizationProvider",
-                "AIModelPriceScopeOrganizationProviderType",
                 "AIModelPriceScopeSite"
             ]
         },
@@ -28621,9 +28614,6 @@ const docTemplate = `{
                 },
                 "output_price": {
                     "type": "integer"
-                },
-                "provider": {
-                    "type": "string"
                 },
                 "provider_id": {
                     "type": "string",
