@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -23,7 +24,7 @@ import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => ({ organizations: [] }),
+	useDashboard: () => ({ organizations: [], experiments: ["chat-projects"] }),
 }));
 
 vi.mock("../hooks/useSpeechRecognition", async (importOriginal) => {
@@ -211,6 +212,35 @@ describe("AgentChatInput", () => {
 			await screen.findByRole("option", { name: /release-notes/ }),
 		);
 		expect(inputRef.current?.getValue()).toBe("/release-notes");
+	});
+
+	it("offers the chat project's skills in the slash menu", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(userSkills().queryKey, []);
+		queryClient.setQueryData(organizationSkills("org-1").queryKey, []);
+		queryClient.setQueryData(chatProjectSkills("org-1", "project-1").queryKey, [
+			{ ...MockSkill, name: "project-conventions" },
+		]);
+
+		render(
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/proj");
+		await user.click(
+			await screen.findByRole("option", { name: /project-conventions/ }),
+		);
+		expect(inputRef.current?.getValue()).toBe("/project-conventions");
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {

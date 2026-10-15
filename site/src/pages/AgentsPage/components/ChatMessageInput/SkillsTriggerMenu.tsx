@@ -44,13 +44,17 @@ type SkillsTriggerMenuProps = {
 	commands: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
 	organizationSkills: readonly SkillMenuItem[];
+	projectSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
 	organizationSkillsEnabled: boolean;
+	projectSkillsEnabled: boolean;
 	workspaceSkillsEnabled: boolean;
 	isPersonalLoading: boolean;
 	isPersonalError: boolean;
 	isOrganizationLoading: boolean;
 	isOrganizationError: boolean;
+	isProjectLoading: boolean;
+	isProjectError: boolean;
 	isWorkspaceLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
@@ -65,16 +69,22 @@ type SkillsTriggerMenuProps = {
 const getEmptyMessage = (
 	query: string,
 	organizationSkillsEnabled: boolean,
+	projectSkillsEnabled: boolean,
 	workspaceSkillsEnabled: boolean,
 ) => {
 	if (query) {
-		return organizationSkillsEnabled || workspaceSkillsEnabled
+		return organizationSkillsEnabled ||
+			projectSkillsEnabled ||
+			workspaceSkillsEnabled
 			? "No skills match that query."
 			: "No personal skills match that query.";
 	}
 	const sources = ["personal"];
 	if (organizationSkillsEnabled) {
 		sources.push("organization");
+	}
+	if (projectSkillsEnabled) {
+		sources.push("project");
 	}
 	if (workspaceSkillsEnabled) {
 		sources.push("workspace");
@@ -154,13 +164,17 @@ export const SkillsTriggerMenu = ({
 	commands,
 	personalSkills,
 	organizationSkills,
+	projectSkills,
 	workspaceSkills,
 	organizationSkillsEnabled,
+	projectSkillsEnabled,
 	workspaceSkillsEnabled,
 	isPersonalLoading,
 	isPersonalError,
 	isOrganizationLoading,
 	isOrganizationError,
+	isProjectLoading,
+	isProjectError,
 	isWorkspaceLoading,
 	selectedIndex,
 	onSelectedIndexChange,
@@ -172,6 +186,7 @@ export const SkillsTriggerMenu = ({
 		...commands,
 		...personalSkills,
 		...organizationSkills,
+		...projectSkills,
 		...workspaceSkills,
 	];
 	const statusItems = [
@@ -186,6 +201,12 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 		isOrganizationError && organizationSkills.length === 0
 			? "Could not load organization skills. Close and type / again to retry."
+			: undefined,
+		isProjectLoading && projectSkills.length === 0
+			? "Loading project skills..."
+			: undefined,
+		isProjectError && projectSkills.length === 0
+			? "Could not load project skills. Close and type / again to retry."
 			: undefined,
 		isWorkspaceLoading && workspaceSkills.length === 0
 			? "Loading workspace skills..."
@@ -276,6 +297,19 @@ export const SkillsTriggerMenu = ({
 								)}
 							</CommandGroup>
 						)}
+						{projectSkills.length > 0 && (
+							<CommandGroup heading="Project skills">
+								{projectSkills.map((skill, index) =>
+									renderSkill(
+										skill,
+										commands.length +
+											personalSkills.length +
+											organizationSkills.length +
+											index,
+									),
+								)}
+							</CommandGroup>
+						)}
 						{workspaceSkills.length > 0 && (
 							<CommandGroup heading="Workspace skills">
 								{workspaceSkills.map((skill, index) =>
@@ -284,6 +318,7 @@ export const SkillsTriggerMenu = ({
 										commands.length +
 											personalSkills.length +
 											organizationSkills.length +
+											projectSkills.length +
 											index,
 									),
 								)}
@@ -299,6 +334,7 @@ export const SkillsTriggerMenu = ({
 								{getEmptyMessage(
 									query,
 									organizationSkillsEnabled,
+									projectSkillsEnabled,
 									workspaceSkillsEnabled,
 								)}
 							</CommandEmpty>

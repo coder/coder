@@ -33,6 +33,7 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -551,6 +552,8 @@ type ChatMessageInputProps = Omit<
 	hasWorkspace: boolean;
 	/** Organization whose skills the chat loads, if any. */
 	organizationId?: string;
+	/** Project, in organizationId, whose skills the chat loads, if any. */
+	projectId?: string;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
@@ -637,6 +640,7 @@ const ChatMessageInput = ({
 	disabled,
 	hasWorkspace,
 	organizationId,
+	projectId,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -688,6 +692,13 @@ const ChatMessageInput = ({
 		enabled: organizationSkillsQueryEnabled,
 		staleTime: 60_000,
 	});
+	const hasProject = Boolean(organizationId && projectId);
+	const projectSkillsQueryEnabled = hasSkillsTrigger && hasProject;
+	const projectSkillsQuery = useQuery({
+		...chatProjectSkills(organizationId ?? "", projectId ?? ""),
+		enabled: projectSkillsQueryEnabled,
+		staleTime: 60_000,
+	});
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
 		(skill) => skill.enabled,
@@ -695,14 +706,18 @@ const ChatMessageInput = ({
 	const loadedOrganizationSkills = organizationId
 		? organizationSkillsQuery.data?.filter((skill) => skill.enabled)
 		: [];
+	const loadedProjectSkills = hasProject
+		? projectSkillsQuery.data?.filter((skill) => skill.enabled)
+		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
-	// without an organization or workspace has a known empty list.
+	// without an organization, project, or workspace has a known empty list.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: loadedOrganizationSkills },
+		{ source: "project", skills: loadedProjectSkills },
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
@@ -718,6 +733,8 @@ const ChatMessageInput = ({
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
 		loadedOrganizationSkills?.length === 0 &&
 		!organizationSkillsQuery.isFetching &&
+		loadedProjectSkills?.length === 0 &&
+		!projectSkillsQuery.isFetching &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
@@ -737,6 +754,7 @@ const ChatMessageInput = ({
 		);
 	const personalSkillItems = filterSkillTriggers("personal");
 	const organizationSkillItems = filterSkillTriggers("org");
+	const projectSkillItems = filterSkillTriggers("project");
 	const workspaceSkillItems = filterSkillTriggers("workspace");
 	const isPersonalSkillsLoading =
 		personalSkillsQueryEnabled &&
@@ -746,12 +764,17 @@ const ChatMessageInput = ({
 		organizationSkillsQueryEnabled &&
 		organizationSkillsQuery.isFetching &&
 		organizationSkillsQuery.data === undefined;
+	const isProjectSkillsLoading =
+		projectSkillsQueryEnabled &&
+		projectSkillsQuery.isFetching &&
+		projectSkillsQuery.data === undefined;
 	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...commandMenuItems,
 		...personalSkillItems,
 		...organizationSkillItems,
+		...projectSkillItems,
 		...workspaceSkillItems,
 	];
 	const selectedSkillIndex =
@@ -1030,6 +1053,7 @@ const ChatMessageInput = ({
 					skillsLoading={
 						isPersonalSkillsLoading ||
 						isOrganizationSkillsLoading ||
+						isProjectSkillsLoading ||
 						isWorkspaceSkillsLoading
 					}
 					selectedIndex={selectedSkillIndex}
@@ -1049,8 +1073,10 @@ const ChatMessageInput = ({
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
 					organizationSkills={organizationSkillItems}
+					projectSkills={projectSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					organizationSkillsEnabled={Boolean(organizationId)}
+					projectSkillsEnabled={hasProject}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
@@ -1063,6 +1089,12 @@ const ChatMessageInput = ({
 						organizationSkillsQueryEnabled &&
 						organizationSkillsQuery.isError &&
 						organizationSkillsQuery.data === undefined
+					}
+					isProjectLoading={isProjectSkillsLoading}
+					isProjectError={
+						projectSkillsQueryEnabled &&
+						projectSkillsQuery.isError &&
+						projectSkillsQuery.data === undefined
 					}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}

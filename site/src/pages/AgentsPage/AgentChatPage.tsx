@@ -9,6 +9,7 @@ import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -326,6 +327,14 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
+	const chatProjectId = experiments.includes("chat-projects")
+		? chatQuery.data?.project_id
+		: undefined;
+	const projectSkillsQuery = useQuery({
+		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
+		enabled: Boolean(chatOrganizationId && chatProjectId),
+		staleTime: 60_000,
+	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId),
@@ -637,6 +646,9 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
+		projectSkills: chatProjectId
+			? projectSkillsQuery.data?.filter((skill) => skill.enabled)
+			: [],
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

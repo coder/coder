@@ -1076,6 +1076,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					}}
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
+					chatProjectId={project?.id ?? selectedProject?.id}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);

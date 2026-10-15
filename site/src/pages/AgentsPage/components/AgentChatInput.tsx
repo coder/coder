@@ -183,6 +183,8 @@ type AgentChatInputProps = {
 	// Organization ID of the current chat. When set, workspaces from
 	// other organizations are shown as disabled in the picker.
 	chatOrganizationId?: string;
+	// Project of the chat, whose skills the "/" menu offers.
+	chatProjectId?: string;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -526,6 +528,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	chatOrganizationId,
+	chatProjectId,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -573,7 +576,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
+	const skillsProjectId = experiments.includes("chat-projects")
+		? chatProjectId
+		: undefined;
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
@@ -1463,6 +1469,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
+						projectId={skillsProjectId}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

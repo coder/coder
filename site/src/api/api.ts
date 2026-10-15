@@ -3951,6 +3951,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatProjectSkills = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/skills`,
+		);
+		return response.data;
+	};
+
 	getOrganizationSkillByName = async (
 		organizationId: string,
 		name: string,
