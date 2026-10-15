@@ -1141,16 +1141,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
-	const prevIsLoadingRef = useRef(isLoading);
-	useEffect(() => {
-		const wasLoading = prevIsLoadingRef.current;
-		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
-			internalRef.current?.focus();
-		}
-	}, [isLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
