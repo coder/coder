@@ -36,10 +36,9 @@ func setupOrganizationAIModelPricesTest(t *testing.T) (*codersdk.Client, databas
 	return ownerClient, db, owner.OrganizationID, adminClient
 }
 
-func newOrganizationAIModelPrice(provider string, providerID *uuid.UUID, model string, input int64) codersdk.OrganizationAIModelPriceUpsert {
+func newOrganizationAIModelPrice(providerID uuid.UUID, model string, input int64) codersdk.OrganizationAIModelPriceUpsert {
 	return codersdk.OrganizationAIModelPriceUpsert{
 		ProviderID: providerID,
-		Provider:   provider,
 		Model:      model,
 		InputPrice: &input,
 	}
@@ -62,27 +61,28 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		t.Parallel()
 
 		ownerClient, db, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
+		anthropic := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 		gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
 
-		// Given: an organization price for every anthropic provider, and one
-		// for an openai-compat gateway, which can only be priced per provider.
+		// Given: organization prices for an anthropic provider and for an
+		// openai-compat gateway.
 		err := exp.UpsertOrganizationAIModelPrices(ctx, orgID, codersdk.UpsertOrganizationAIModelPricesRequest{
 			Prices: []codersdk.OrganizationAIModelPriceUpsert{
-				newOrganizationAIModelPrice("anthropic", nil, "org-model", 100),
-				newOrganizationAIModelPrice("", &gateway.ID, "bedrock/claude-sonnet-4-5", 200),
+				newOrganizationAIModelPrice(anthropic.ID, "org-model", 100),
+				newOrganizationAIModelPrice(gateway.ID, "bedrock/claude-sonnet-4-5", 200),
 			},
 		})
 		require.NoError(t, err)
 
-		// Then: the organization lists both, scoped to it.
+		// Then: the organization lists both, scoped to it and its providers.
 		prices, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "org-model"})
 		require.NoError(t, err)
 		require.Len(t, prices, 1)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProviderType, prices[0].Scope)
+		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProvider, prices[0].Scope)
 		require.Equal(t, &orgID, prices[0].OrganizationID)
-		require.Nil(t, prices[0].ProviderID)
+		require.Equal(t, &anthropic.ID, prices[0].ProviderID)
 		require.Equal(t, "anthropic", prices[0].Provider)
 		require.Equal(t, new(int64(100)), prices[0].InputPrice)
 		require.Equal(t, codersdk.AIModelPriceSourceCustom, prices[0].Source)
@@ -105,10 +105,10 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		// When: the org admin deletes both prices by their keys. The model
 		// name holds a slash, which the query string carries intact.
 		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			Provider: "anthropic", Model: "org-model",
+			ProviderID: anthropic.ID, Model: "org-model",
 		}))
 		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: &gateway.ID, Model: "bedrock/claude-sonnet-4-5",
+			ProviderID: gateway.ID, Model: "bedrock/claude-sonnet-4-5",
 		}))
 
 		// Then: they are gone, and deleting again finds nothing.
@@ -116,55 +116,44 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, prices)
 		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			Provider: "anthropic", Model: "org-model",
+			ProviderID: anthropic.ID, Model: "org-model",
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("OrganizationPriceOverridesSitePrice", func(t *testing.T) {
+	t.Run("ListsProviderPriceWithSitePrice", func(t *testing.T) {
 		t.Parallel()
 
-		ownerClient, _, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
+		ownerClient, db, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
 
-		// Given: a site-wide custom price and an organization price for the
-		// same provider type and model.
+		// Given: a site-wide custom price for the provider type, and an
+		// organization price for one provider of that type.
 		//nolint:gocritic // Setting site-wide prices is owner-only.
 		require.NoError(t, codersdk.NewExperimentalClient(ownerClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
 			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "shared-model", 1)},
 		}))
 		require.NoError(t, exp.UpsertOrganizationAIModelPrices(ctx, orgID, codersdk.UpsertOrganizationAIModelPricesRequest{
-			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("anthropic", nil, "shared-model", 2)},
+			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(provider.ID, "shared-model", 2)},
 		}))
 
-		// Then: the default listing reports only the organization price.
+		// Then: both are listed, since other providers of the type still use
+		// the site-wide price.
 		prices, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "shared-model"})
 		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProviderType, prices[0].Scope)
-		require.Equal(t, new(int64(2)), prices[0].InputPrice)
-
-		// And: source=all reports the site-wide price it overrides too.
-		prices, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{
-			Model:  "shared-model",
-			Source: codersdk.AIModelPriceSourceFilterAll,
-		})
-		require.NoError(t, err)
 		require.Len(t, prices, 2)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProviderType, prices[0].Scope)
-		require.Equal(t, codersdk.AIModelPriceScopeSite, prices[1].Scope)
-		require.Nil(t, prices[1].OrganizationID)
-		require.Equal(t, new(int64(1)), prices[1].InputPrice)
+		require.Equal(t, codersdk.AIModelPriceScopeSite, prices[0].Scope)
+		require.Nil(t, prices[0].OrganizationID)
+		require.Equal(t, new(int64(1)), prices[0].InputPrice)
+		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProvider, prices[1].Scope)
+		require.Equal(t, new(int64(2)), prices[1].InputPrice)
 
-		// And: the organization cannot delete the site-wide price.
+		// And: deleting the organization price leaves the site-wide price.
 		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			Provider: "anthropic", Model: "shared-model",
+			ProviderID: provider.ID, Model: "shared-model",
 		}))
-		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			Provider: "anthropic", Model: "shared-model",
-		})
-		requireSDKError(t, err, http.StatusNotFound)
 		prices, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "shared-model"})
 		require.NoError(t, err)
 		require.Len(t, prices, 1)
@@ -180,7 +169,7 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		exp := codersdk.NewExperimentalClient(adminClient)
 
 		require.NoError(t, exp.UpsertOrganizationAIModelPrices(ctx, orgID, codersdk.UpsertOrganizationAIModelPricesRequest{
-			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("", &provider.ID, "provider-model", 1)},
+			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(provider.ID, "provider-model", 1)},
 		}))
 		require.NoError(t, db.DeleteAIProviderByID(dbauthz.AsSystemRestricted(ctx), provider.ID))
 
@@ -202,11 +191,11 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		_, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{})
 		requireSDKError(t, err, http.StatusForbidden)
 		err = exp.UpsertOrganizationAIModelPrices(ctx, orgID, codersdk.UpsertOrganizationAIModelPricesRequest{
-			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("anthropic", nil, "my-model", 1)},
+			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(uuid.New(), "my-model", 1)},
 		})
 		requireSDKError(t, err, http.StatusForbidden)
 		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			Provider: "anthropic", Model: "my-model",
+			ProviderID: uuid.New(), Model: "my-model",
 		})
 		requireSDKError(t, err, http.StatusForbidden)
 	})
@@ -224,7 +213,7 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		_, err := exp.ListOrganizationAIModelPrices(ctx, other.ID, codersdk.AIModelPricesFilter{})
 		requireSDKError(t, err, http.StatusNotFound)
 		err = exp.UpsertOrganizationAIModelPrices(ctx, other.ID, codersdk.UpsertOrganizationAIModelPricesRequest{
-			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("anthropic", nil, "my-model", 1)},
+			Prices: []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(uuid.New(), "my-model", 1)},
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -246,64 +235,40 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 			wantField string
 		}{
 			{
-				name:      "BlanketOpenAICompat",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("openai-compat", nil, "my-model", 1)},
-				wantField: "prices[0].provider",
-			},
-			{
-				name:      "NoProvider",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("", nil, "my-model", 1)},
-				wantField: "prices[0].provider",
-			},
-			{
-				name:      "UnsupportedProvider",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("not-a-provider", nil, "my-model", 1)},
-				wantField: "prices[0].provider",
+				name:      "NoProviderID",
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(uuid.Nil, "my-model", 1)},
+				wantField: "prices[0].provider_id",
 			},
 			{
 				name:      "UnknownProviderID",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("", &unknownID, "my-model", 1)},
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(unknownID, "my-model", 1)},
 				wantField: "prices[0].provider_id",
 			},
 			{
 				name:      "DeletedProviderID",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("", &deleted.ID, "my-model", 1)},
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(deleted.ID, "my-model", 1)},
 				wantField: "prices[0].provider_id",
 			},
 			{
-				name:      "ProviderTypeMismatch",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("openai", &anthropic.ID, "my-model", 1)},
-				wantField: "prices[0].provider",
-			},
-			{
 				name:      "NoModel",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("anthropic", nil, "", 1)},
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(anthropic.ID, "", 1)},
 				wantField: "prices[0].model",
 			},
 			{
 				name:      "NoPrice",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{{Provider: "anthropic", Model: "my-model"}},
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{{ProviderID: anthropic.ID, Model: "my-model"}},
 				wantField: "prices[0]",
 			},
 			{
 				name:      "NegativePrice",
-				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice("anthropic", nil, "my-model", -1)},
+				prices:    []codersdk.OrganizationAIModelPriceUpsert{newOrganizationAIModelPrice(anthropic.ID, "my-model", -1)},
 				wantField: "prices[0].input_price",
 			},
 			{
-				name: "DuplicateProviderType",
-				prices: []codersdk.OrganizationAIModelPriceUpsert{
-					newOrganizationAIModelPrice("anthropic", nil, "my-model", 1),
-					newOrganizationAIModelPrice("anthropic", nil, "my-model", 2),
-				},
-				wantField: "prices[1]",
-			},
-			{
-				// A matching provider type does not make the key different.
 				name: "DuplicateProviderID",
 				prices: []codersdk.OrganizationAIModelPriceUpsert{
-					newOrganizationAIModelPrice("", &anthropic.ID, "my-model", 1),
-					newOrganizationAIModelPrice("anthropic", &anthropic.ID, "my-model", 2),
+					newOrganizationAIModelPrice(anthropic.ID, "my-model", 1),
+					newOrganizationAIModelPrice(anthropic.ID, "my-model", 2),
 				},
 				wantField: "prices[1]",
 			},
@@ -336,13 +301,11 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
 
-		// Valid entries of both kinds, followed by a blanket openai-compat
-		// price.
+		// A valid entry, followed by one for a provider that does not exist.
 		err := exp.UpsertOrganizationAIModelPrices(ctx, orgID, codersdk.UpsertOrganizationAIModelPricesRequest{
 			Prices: []codersdk.OrganizationAIModelPriceUpsert{
-				newOrganizationAIModelPrice("anthropic", nil, "valid-model", 1),
-				newOrganizationAIModelPrice("anthropic", &provider.ID, "valid-model", 2),
-				newOrganizationAIModelPrice("openai-compat", nil, "valid-model", 3),
+				newOrganizationAIModelPrice(provider.ID, "valid-model", 1),
+				newOrganizationAIModelPrice(uuid.New(), "valid-model", 2),
 			},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -362,11 +325,9 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 
 		for _, key := range []codersdk.OrganizationAIModelPriceKey{
 			// No model.
-			{Provider: "anthropic"},
-			// Neither provider nor provider ID.
+			{ProviderID: providerID},
+			// No provider ID.
 			{Model: "my-model"},
-			// Both provider and provider ID.
-			{Provider: "anthropic", ProviderID: &providerID, Model: "my-model"},
 		} {
 			err := exp.DeleteOrganizationAIModelPrice(ctx, orgID, key)
 			requireSDKError(t, err, http.StatusBadRequest)

@@ -1164,9 +1164,9 @@ title: Schemas
 
 #### Enumerated Values
 
-| Value(s)                                                      |
-|---------------------------------------------------------------|
-| `organization_provider`, `organization_provider_type`, `site` |
+| Value(s)                        |
+|---------------------------------|
+| `organization_provider`, `site` |
 
 ## codersdk.AIModelPriceSource
 
@@ -12237,7 +12237,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "input_price": 0,
   "model": "string",
   "output_price": 0,
-  "provider": "string",
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
 }
 ```
@@ -12251,7 +12250,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `input_price`       | integer | false    |              |             |
 | `model`             | string  | false    |              |             |
 | `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
 | `provider_id`       | string  | false    |              |             |
 
 ## codersdk.OrganizationAISpendReport
@@ -17717,7 +17715,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "input_price": 0,
       "model": "string",
       "output_price": 0,
-      "provider": "string",
       "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
     }
   ]

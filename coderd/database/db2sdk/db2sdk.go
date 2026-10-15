@@ -1838,8 +1838,6 @@ func aiModelPriceScope(kind database.AIModelPriceKind) codersdk.AIModelPriceScop
 	switch kind {
 	case database.AIModelPriceKindOrganizationProvider:
 		return codersdk.AIModelPriceScopeOrganizationProvider
-	case database.AIModelPriceKindOrganizationProviderType:
-		return codersdk.AIModelPriceScopeOrganizationProviderType
 	default:
 		return codersdk.AIModelPriceScopeSite
 	}

@@ -383,14 +383,10 @@ export interface AIModelPrice {
 }
 
 // From codersdk/aimodelprices.go
-export type AIModelPriceScope =
-	| "organization_provider"
-	| "organization_provider_type"
-	| "site";
+export type AIModelPriceScope = "organization_provider" | "site";
 
 export const AIModelPriceScopes: AIModelPriceScope[] = [
 	"organization_provider",
-	"organization_provider_type",
 	"site",
 ];
 
@@ -7766,15 +7762,11 @@ export interface OrganizationAIModelPrice {
 
 // From codersdk/aimodelprices.go
 /**
- * OrganizationAIModelPriceUpsert is one model's prices in an organization
- * upsert request. Set ProviderID to price one configured provider, or only
- * Provider to price every provider of that type. When both are set, Provider
- * must be the configured provider's type. openai-compat providers can only be
- * priced by ProviderID.
+ * OrganizationAIModelPriceUpsert is one model's prices for one configured
+ * provider in an organization upsert request.
  */
 export interface OrganizationAIModelPriceUpsert {
-	readonly provider_id?: string;
-	readonly provider?: string;
+	readonly provider_id: string;
 	readonly model: string;
 	readonly input_price: number | null;
 	readonly output_price: number | null;
