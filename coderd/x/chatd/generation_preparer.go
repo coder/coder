@@ -371,7 +371,10 @@ func (server *Server) prepareGeneration(
 		// the bound agent has changed, so this is a cheap metadata
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
-		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+		agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
+		if agentErr != nil && !isNoUsableWorkspaceAgent(agentErr) {
+			return generationPrepared{}, xerrors.Errorf("get workspace agent: %w", agentErr)
+		}
 
 		// API-created chats bind their agent lazily here, after
 		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
@@ -637,7 +640,7 @@ func (server *Server) prepareGeneration(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools, err = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -646,6 +649,9 @@ func (server *Server) prepareGeneration(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+		if err != nil {
+			return generationPrepared{}, err
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
