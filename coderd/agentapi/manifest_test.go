@@ -120,6 +120,7 @@ func TestGetManifest(t *testing.T) {
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/1",
+				DisplayName:      "Install tools",
 				Script:           "cool script 1",
 				Cron:             "30 2 * * *",
 				StartBlocksLogin: true,
@@ -134,6 +135,7 @@ func TestGetManifest(t *testing.T) {
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/2",
+				DisplayName:      "Clone repo",
 				Script:           "cool script 2",
 				Cron:             "",
 				StartBlocksLogin: false,
@@ -206,6 +208,7 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[0].RunOnStop,
 				StartBlocksLogin: scripts[0].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[0].TimeoutSeconds) * time.Second),
+				DisplayName:      scripts[0].DisplayName,
 				ResourceAddress:  "coder_script.install_tools",
 				Dependencies: []*agentproto.WorkspaceAgentScriptDependency{{
 					PrerequisiteResourceAddress: "coder_script.clone_repo",
@@ -222,6 +225,7 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[1].RunOnStop,
 				StartBlocksLogin: scripts[1].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[1].TimeoutSeconds) * time.Second),
+				DisplayName:      scripts[1].DisplayName,
 				ResourceAddress:  "coder_script.clone_repo",
 				// An unordered script sends no entries, not placeholders.
 				Dependencies: nil,

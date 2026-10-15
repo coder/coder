@@ -239,6 +239,7 @@ func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow)
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		DisplayName:      script.DisplayName,
 		ResourceAddress:  sdkScript.ResourceAddress,
 		Dependencies:     dependencies,
 	}, nil
