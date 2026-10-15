@@ -9,7 +9,10 @@ import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import {
+	chatProjectSkills,
+	chatProjectSkillsKey,
+} from "#/api/queries/chatProjectSkills";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -525,6 +528,12 @@ const AgentChatPage: React.FC = () => {
 	const handleRequestError = (error: unknown): void => {
 		if (!isApiError(error)) {
 			return;
+		}
+		// The request may have invoked a project skill removed elsewhere.
+		if (chatProjectId) {
+			void queryClient.invalidateQueries({
+				queryKey: chatProjectSkillsKey(chatProjectId),
+			});
 		}
 		const detail = error.response?.data?.detail?.trim() || undefined;
 		const kind = isChatHookDeniedResponse(error.response?.data)

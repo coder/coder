@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { focusManager, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { SkillMetadata } from "#/api/typesGenerated";
@@ -50,6 +50,7 @@ const renderActions = () => {
 describe("ProjectSkillActions", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+		focusManager.setFocused(undefined);
 	});
 
 	it("offers the first three actions by name and the rest under More", async () => {
@@ -72,6 +73,25 @@ describe("ProjectSkillActions", () => {
 				["review"],
 				["triage"],
 			]),
+		);
+	});
+
+	it("drops an action removed in another tab when the window regains focus", async () => {
+		renderActions();
+		await screen.findByRole("button", { name: "deploy" });
+		vi.mocked(API.experimental.getChatProjectSkills).mockResolvedValue(
+			mockSkills.filter((skill) => skill.name !== "deploy"),
+		);
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", { name: "deploy" }),
+			).not.toBeInTheDocument(),
 		);
 	});
 });

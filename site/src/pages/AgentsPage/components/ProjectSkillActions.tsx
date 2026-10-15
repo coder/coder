@@ -37,7 +37,11 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 	// Invoking from the menu waits for it to close, because the menu
 	// traps focus and then returns it to its trigger, away from the composer.
 	const menuSelectionRef = useRef<string | null>(null);
-	const skillsQuery = useQuery(chatProjectSkills(organizationId, projectId));
+	// The app skips focus refetches, but another tab may change the actions.
+	const skillsQuery = useQuery({
+		...chatProjectSkills(organizationId, projectId),
+		refetchOnWindowFocus: true,
+	});
 	const actions = (skillsQuery.data ?? [])
 		.filter((skill) => skill.enabled && skill.action)
 		.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
@@ -124,13 +128,16 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 			<span className="truncate">{skill.name}</span>
 		</Button>
 	);
-	if (!skill.description) {
-		return button;
-	}
+	// Shows the full name, which a narrow composer truncates.
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>{button}</TooltipTrigger>
-			<TooltipContent className="max-w-64">{skill.description}</TooltipContent>
+			<TooltipContent className="max-w-64">
+				<span className="block break-words font-medium">{skill.name}</span>
+				{skill.description && (
+					<span className="block">{skill.description}</span>
+				)}
+			</TooltipContent>
 		</Tooltip>
 	);
 };
