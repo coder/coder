@@ -47,7 +47,7 @@ export const createChatProjectSkill = (
 ) => ({
 	mutationFn: (req: TypesGen.CreateSkillRequest) =>
 		API.experimental.createChatProjectSkill(organizationId, projectId, req),
-	// A 409 means the name was just taken, so refresh the list then too.
+	// A 409 can mean a changed name set or skill count, so refresh the list.
 	onSettled: () => invalidateChatProjectSkills(queryClient, projectId),
 });
 
