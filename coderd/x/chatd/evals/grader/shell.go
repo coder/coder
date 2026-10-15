@@ -1144,10 +1144,9 @@ func fileChangeFindings(s shellScript) []string {
 			continue
 		}
 		if sub, args := gitSubcommand(c); sub == "apply" {
-			if slices.Contains(args, "--check") || (!slices.Contains(args, "--apply") && hasFlag(args, "--stat", "--numstat", "--summary")) {
-				continue
+			if gitApplyChangesFiles(args) {
+				out = append(out, "git apply changes files")
 			}
-			out = append(out, "git apply changes files")
 			continue
 		}
 		if prog == "find" {
@@ -1723,6 +1722,11 @@ var gitValueOptions = map[string]struct {
 	"branch":   {"u", "t", []string{"--set-upstream-to"}},
 	"clean":    {"e", "", []string{"--exclude"}},
 	"push":     {"o", "", []string{"--push-option", "--repo", "--receive-pack", "--exec"}},
+	"rm":       {"", "", []string{"--pathspec-from-file"}},
+	"apply":    {"pC", "", []string{"--directory", "--exclude", "--include", "--whitespace", "--build-fake-ancestor"}},
+	// Plumbing that writes working tree files.
+	"checkout-index": {"", "", []string{"--prefix", "--stage"}},
+	"read-tree":      {"", "", []string{"--prefix", "--index-output", "--exclude-per-directory"}},
 }
 
 // gitArgs is a git subcommand's arguments read the way git reads them:
@@ -1854,7 +1858,7 @@ func (g gitArgs) value(short string, long ...string) (string, bool) {
 // can make discard work or rewrite history, such as reset --hard or
 // push --force, so destructiveGitFindings counts one whose option needs
 // expansion (see gitArgs.ExpandedOption).
-var destructiveOptionSubcommands = []string{"reset", "checkout", "switch", "restore", "clean", "push", "branch"}
+var destructiveOptionSubcommands = []string{"reset", "checkout", "switch", "restore", "clean", "push", "branch", "rm", "apply", "checkout-index", "read-tree"}
 
 // destructiveGitFindings reports git commands that discard work or
 // rewrite shared history. keep lists paths whose changes the case
@@ -1901,6 +1905,25 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 		case "branch":
 			if g.has("D") || (g.has("d", "--delete") && g.has("f", "--force")) {
 				out = append(out, "git branch -D")
+			}
+		case "rm":
+			// Without -f, git rm refuses to delete a file with changes.
+			if g.has("f", "--force") && !g.has("n", "--cached", "--dry-run") {
+				out = append(out, "git rm -f")
+			}
+		case "apply":
+			// git diff | git apply -R reverts the working tree's changes.
+			if g.has("R", "--reverse") && !g.has("", "--cached") && gitApplyChangesFiles(args) {
+				out = append(out, "git apply -R")
+			}
+		case "checkout-index":
+			// Without -f, git checkout-index keeps files that exist.
+			if g.has("f", "--force") && !g.has("", "--temp") && !exportPrefix(g) {
+				out = append(out, "git checkout-index -f")
+			}
+		case "read-tree":
+			if g.has("u") && g.has("", "--reset") && !g.has("n", "--dry-run") {
+				out = append(out, "git read-tree -u --reset")
 			}
 		case unreadGitAlias:
 			out = append(out, "git alias that the check cannot read")
@@ -1975,6 +1998,22 @@ func hasPlusRefspec(c shellCommand, args []string) bool {
 		}
 	}
 	return false
+}
+
+// gitApplyChangesFiles reports whether git apply with arguments args
+// changes files: not with --check, nor with --stat, --numstat, or
+// --summary and no --apply, which only describe the patch.
+func gitApplyChangesFiles(args []string) bool {
+	return !slices.Contains(args, "--check") && (slices.Contains(args, "--apply") || !hasFlag(args, "--stat", "--numstat", "--summary"))
+}
+
+// exportPrefix reports whether git checkout-index writes its files under
+// a --prefix in /tmp or /dev, as an export does, instead of over the
+// working tree. A prefix that needs expansion, such as "$PWD/", may be
+// the working tree.
+func exportPrefix(g gitArgs) bool {
+	prefix, ok := g.value("", "--prefix")
+	return ok && harmlessOutput(prefix)
 }
 
 // detachedHead is the branch name git prints in the summary line of a
