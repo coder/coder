@@ -380,11 +380,11 @@ func TestChatProjectTemplates(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	orgID := firstUser.OrganizationID
 
-	first, firstPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true)
-	second, secondPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true)
-	notAllowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, false)
+	first, firstPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	second, secondPreset := createAgentTemplate(t, db, orgID, firstUser.UserID, true, true)
+	notAllowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, false, false)
 	otherOrganization := dbgen.Organization(t, db, database.Organization{})
-	otherOrgTemplate, _ := createAgentTemplate(t, db, otherOrganization.ID, firstUser.UserID, true)
+	otherOrgTemplate, _ := createAgentTemplate(t, db, otherOrganization.ID, firstUser.UserID, true, false)
 
 	// A new project has no templates.
 	project := createChatProject(t, client, orgID, "No Templates")
@@ -443,10 +443,10 @@ func TestChatProjectTemplates(t *testing.T) {
 		requireChatProjectFieldError(t, err, tc.field, tc.detail)
 	}
 
-	// Values are checked against the parameter's validation rules.
+	// Classic parameter values are checked against the parameter's rules.
 	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
-		TemplateIDs:       []uuid.UUID{first.ID},
-		DefaultTemplateID: &first.ID,
+		TemplateIDs:       []uuid.UUID{second.ID},
+		DefaultTemplateID: &second.ID,
 		DefaultParameters: map[string]string{"cpu": "99"},
 	}})
 	sdkErr := coderdtest.SDKError(t, err)
@@ -454,11 +454,19 @@ func TestChatProjectTemplates(t *testing.T) {
 	require.Len(t, sdkErr.Validations, 1)
 	require.Equal(t, "templates.default_parameters", sdkErr.Validations[0].Field)
 	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
+
+	// Dynamic parameter values are left for the build to validate.
+	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
+		TemplateIDs:       []uuid.UUID{first.ID},
+		DefaultTemplateID: &first.ID,
+		DefaultParameters: map[string]string{"cpu": "99"},
+	}})
+	require.NoError(t, err)
 }
 
 // createAgentTemplate creates a template whose active version has a "region"
 // parameter and one preset.
-func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed bool) (database.Template, database.TemplateVersionPreset) {
+func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUID, agentsAllowed, classicParameters bool) (database.Template, database.TemplateVersionPreset) {
 	t.Helper()
 
 	versionID := uuid.New()
@@ -467,6 +475,8 @@ func createAgentTemplate(t testing.TB, db database.Store, orgID, userID uuid.UUI
 		CreatedBy:       userID,
 		ActiveVersionID: versionID,
 		AgentsAllowed:   agentsAllowed,
+
+		UseClassicParameterFlow: classicParameters,
 	})
 	preset := database.TemplateVersionPreset{ID: uuid.New(), Name: "default"}
 	dbfake.TemplateVersion(t, db).
@@ -500,8 +510,8 @@ func TestChatProjectWorkspaceTemplates(t *testing.T) {
 	_ = createChatModel(t, client)
 	orgID := firstUser.OrganizationID
 
-	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true)
-	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true)
+	allowed, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
+	other, _ := createAgentTemplate(t, db, orgID, firstUser.UserID, true, false)
 	project, err := client.CreateChatProject(ctx, orgID, codersdk.CreateChatProjectRequest{
 		Name:      "Workspace Templates",
 		Templates: &codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{allowed.ID}},

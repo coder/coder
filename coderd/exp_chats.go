@@ -2592,7 +2592,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if chat.ProjectID.Valid {
-			project, err := api.Database.GetChatProjectByID(ctx, chat.ProjectID.UUID)
+			// The chat update is already authorized, and only the project's
+			// template list is read, so this does not require
+			// chat_project:read.
+			//nolint:gocritic // See above.
+			project, err := api.Database.GetChatProjectByID(dbauthz.AsSystemRestricted(ctx), chat.ProjectID.UUID)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to get chat project.",
