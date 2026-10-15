@@ -717,9 +717,9 @@ suite run: aegis stops scheduling trials when the cap is reached.
   whose expansion may supply an option's letters or name, such as
   `-q"$x"` or `--ha"$x"`, or more words, as an unquoted `-b$b` does with
   `b="fix -f"`, may be any option: it counts as destructive in
-  `git reset`, `checkout`, `switch`, `restore`, `clean`, `push`, and
-  `branch`, and it leaves the branch unknown after a `git checkout` or
-  `git switch`. A `git push` refspec with a literal `+` before an
+  `git reset`, `checkout`, `switch`, `restore`, `clean`, `push`,
+  `branch`, `rm`, `apply`, `checkout-index`, and `read-tree`, and it
+  leaves the branch unknown after a `git checkout` or `git switch`. A `git push` refspec with a literal `+` before an
   expansion, as in `+"$b"`, counts as a forced push. A word that needs
   expansion as a whole reads as an operand, which is what it usually is,
   so `m=--hard; git reset $m` and `c=-f; git checkout -q -b"$b" $c` are
