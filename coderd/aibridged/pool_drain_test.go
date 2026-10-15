@@ -25,8 +25,56 @@ import (
 func TestPoolDrain(t *testing.T) {
 	t.Parallel()
 
-	for _, scenario := range []string{"Complete", "DrainTimeout", "ShutdownRetired", "ShutdownCached", "ShutdownBlockedAcquire"} {
-		t.Run(scenario, func(t *testing.T) {
+	const firstEvent = "data: partial\n\n"
+	const lastEvent = "data: [DONE]\n\n"
+	tests := []struct {
+		name         string
+		expireBridge bool
+		shutdownPool bool
+		blockAcquire bool
+		aliveFor     time.Duration
+		cancelWithin time.Duration // Zero completes the stream instead of waiting for cancellation.
+		wantBody     string
+	}{
+		{
+			name:         "Complete",
+			expireBridge: true,
+			wantBody:     firstEvent + lastEvent,
+		},
+		{
+			name:         "DrainTimeout",
+			expireBridge: true,
+			aliveFor:     9 * time.Minute,
+			cancelWithin: time.Minute,
+			wantBody:     firstEvent,
+		},
+		{
+			name:         "ShutdownRetired",
+			expireBridge: true,
+			shutdownPool: true,
+			aliveFor:     4 * time.Second,
+			cancelWithin: time.Second,
+			wantBody:     firstEvent,
+		},
+		{
+			name:         "ShutdownCached",
+			shutdownPool: true,
+			aliveFor:     4 * time.Second,
+			cancelWithin: time.Second,
+			wantBody:     firstEvent,
+		},
+		{
+			name:         "ShutdownBlockedAcquire",
+			expireBridge: true,
+			shutdownPool: true,
+			blockAcquire: true,
+			aliveFor:     4 * time.Second,
+			cancelWithin: time.Second,
+			wantBody:     firstEvent,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Ristretto uses the standard clock internally. A synctest bubble
 			// advances both its TTL cleanup and the bridge drain deadlines.
@@ -35,8 +83,6 @@ func TestPoolDrain(t *testing.T) {
 				defer cancel()
 				started := make(chan context.Context, 1)
 				complete := make(chan struct{})
-				const firstEvent = "data: partial\n\n"
-				const lastEvent = "data: [DONE]\n\n"
 				transport := testutil.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 					if strings.HasSuffix(r.URL.Path, "/models") {
 						return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("fresh"))}, nil
@@ -66,9 +112,9 @@ func TestPoolDrain(t *testing.T) {
 					transport: transport,
 				}
 				opts := aibridged.DefaultPoolOptions
-				opts.TTL = time.Second
-				if scenario == "ShutdownCached" {
-					opts.TTL = time.Hour
+				opts.TTL = time.Hour
+				if tt.expireBridge {
+					opts.TTL = time.Second
 				}
 				pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{prov}, slogtest.Make(t, nil), nil, testTracer)
 				require.NoError(t, err)
@@ -99,7 +145,7 @@ func TestPoolDrain(t *testing.T) {
 				requestCtx := <-started
 				synctest.Wait()
 
-				if scenario != "ShutdownCached" {
+				if tt.expireBridge {
 					// Exceed the TTL, cleanup lag, and the previous five-second
 					// drain. The original stream must still be running.
 					<-time.After(20 * time.Second)
@@ -125,7 +171,7 @@ func TestPoolDrain(t *testing.T) {
 					assertHandlerBody(t, replacement, "/openai/v1/models", "fresh")
 				}
 
-				if scenario == "ShutdownBlockedAcquire" {
+				if tt.blockAcquire {
 					// An unrelated bridge build must not delay cancellation of
 					// streams already draining when pool shutdown begins.
 					factory := newBlockingMCPFactory()
@@ -141,21 +187,21 @@ func TestPoolDrain(t *testing.T) {
 					<-factory.firstStarted
 				}
 
-				switch scenario {
-				case "Complete":
-					close(complete)
-				case "DrainTimeout":
-					<-time.After(9 * time.Minute)
-					synctest.Wait()
-					require.NoError(t, requestCtx.Err())
-					<-time.After(time.Minute)
-				case "ShutdownRetired", "ShutdownCached", "ShutdownBlockedAcquire":
+				if tt.shutdownPool {
 					go func() { _ = pool.Shutdown(context.Background()) }()
 					synctest.Wait()
-					<-time.After(4 * time.Second)
+				}
+				if tt.aliveFor > 0 {
+					<-time.After(tt.aliveFor)
 					synctest.Wait()
 					require.NoError(t, requestCtx.Err())
-					<-time.After(time.Second)
+				}
+				if tt.cancelWithin > 0 {
+					<-time.After(tt.cancelWithin)
+					synctest.Wait()
+					require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+				} else {
+					close(complete)
 				}
 				synctest.Wait()
 				select {
@@ -169,12 +215,7 @@ func TestPoolDrain(t *testing.T) {
 					t.Fatal("bridge resources were not closed after drainage")
 				}
 				require.Equal(t, http.StatusOK, response.Code)
-				if scenario == "Complete" {
-					require.Equal(t, firstEvent+lastEvent, response.Body.String())
-				} else {
-					require.ErrorIs(t, requestCtx.Err(), context.Canceled)
-					require.Equal(t, firstEvent, response.Body.String())
-				}
+				require.Equal(t, tt.wantBody, response.Body.String())
 			})
 		})
 	}
