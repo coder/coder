@@ -737,8 +737,8 @@ suite run: aegis stops scheduling trials when the cap is reached.
   (`--reverse`), as in `git diff | git apply -R`, unless it runs with
   `--check` or `--cached` or only prints `--stat`, `--numstat`, or
   `--summary`; and the plumbing commands `git checkout-index -f` without
-  `--temp` or a `--prefix` under `/tmp`, and `git read-tree -u --reset`
-  without `-n`.
+  `--temp` or a `--prefix` under `/tmp` or `/dev`, and
+  `git read-tree -u --reset` without `-n`.
   Other ways to overwrite a file, such as `git show HEAD:a.py > a.py` or
   `git mv -f`, are not counted, but in `dirty-tree-preserved` the hidden
   tests still fail a trial whose final tree lost `late_fee`.
