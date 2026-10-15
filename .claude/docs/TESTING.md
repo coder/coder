@@ -32,18 +32,25 @@ Do not wait on real time either: when a ticker, heartbeat, or deadline is
 under test, inject `quartz.NewMock(t)` and advance it instead of
 constructing the code under test with `quartz.NewReal()`.
 
-### Waiting on One Value and Asserting Another
+### Wait for Full Completion before Asserting
 
-A wait establishes only the condition it polls. When a test waits, with
-`require.Eventually` or a channel receive, and then asserts, the wait must
-cover every value the assertions read. Do not rely on the order in which
-the code under test writes.
+An assertion is meaningful only once everything it depends on has
+finished. Do not rely on an order of work the code under test does not
+guarantee.
 
-Prometheus metrics invite this mistake. Each series is updated and read
-independently, so two counters updated on adjacent lines for one event can
-be read with the first updated and the second not. Each `promhelp` call,
-`reg.Gather()`, and `testutil.ToFloat64` is a separate read. The race
+A wait, such as `require.Eventually` or a channel receive, establishes only
+the condition it polls, so it must cover every value the assertions read.
+Prometheus metrics make this easy to get wrong. Each series is updated
+independently, and each read (a `promhelp` call, `reg.Gather()`, or
+`testutil.ToFloat64`) sees each series at its own instant, so two counters
+updated together can be read with one updated and the other not. The race
 detector does not report this, because each update is atomic on its own.
+
+When a test asserts that a value is unchanged, a poll on that value
+succeeds immediately, before the work has run, so it proves nothing. Wait
+instead on a signal that the work has finished, preferably one the code
+under test guarantees. If the only signal merely happens to come last,
+name the code it relies on in a comment at the wait.
 
 ### Fixture Cost
 

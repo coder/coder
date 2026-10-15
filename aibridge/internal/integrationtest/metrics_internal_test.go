@@ -366,7 +366,7 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			// Token usage is recorded asynchronously, possibly in several
 			// records, and each series is updated separately. Some expected
 			// values are zero, so the poll waits for every series to reach its
-			// expected value. See "Waiting on One Value and Asserting Another"
+			// expected value. See "Wait for Full Completion before Asserting"
 			// in .claude/docs/TESTING.md.
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				for label, expected := range tc.expectedLabels {

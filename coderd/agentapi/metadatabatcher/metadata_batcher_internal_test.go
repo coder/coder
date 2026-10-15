@@ -396,8 +396,8 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
 	// The flush updates each metric separately, so the poll waits for both.
 	// MetadataTotal already counts earlier flushes, so the poll waits for
-	// its final value instead of a change. See "Waiting on One Value and
-	// Asserting Another" in .claude/docs/TESTING.md.
+	// its final value instead of a change. See "Wait for Full Completion
+	// before Asserting" in .claude/docs/TESTING.md.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) == 507
@@ -662,7 +662,7 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 
 			// Verify flush occurred with correct number of entries
 			// The flush updates each metric separately, so the poll waits for
-			// both. See "Waiting on One Value and Asserting Another" in
+			// both. See "Wait for Full Completion before Asserting" in
 			// .claude/docs/TESTING.md.
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
@@ -762,7 +762,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Verify only 1 entry was flushed (newest timestamp wins)
 	// The flush updates each metric separately, so the poll waits for both.
-	// See "Waiting on One Value and Asserting Another" in
+	// See "Wait for Full Completion before Asserting" in
 	// .claude/docs/TESTING.md.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
@@ -1018,7 +1018,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	// Verify exactly 3 unique keys were flushed
 	// The flush updates each metric separately, so the poll waits for both.
-	// See "Waiting on One Value and Asserting Another" in
+	// See "Wait for Full Completion before Asserting" in
 	// .claude/docs/TESTING.md.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
