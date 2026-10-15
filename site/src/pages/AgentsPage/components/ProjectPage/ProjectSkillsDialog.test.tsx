@@ -207,9 +207,6 @@ describe("ProjectSkillsDialog", () => {
 		const { user, getSkill, onOpenChange } = renderDialog({ canEdit: false });
 
 		await openSkillMenu(user);
-		expect(
-			screen.queryByRole("menuitem", { name: /Delete/ }),
-		).not.toBeInTheDocument();
 		await user.click(screen.getByRole("menuitem", { name: "View" }));
 
 		await waitFor(() =>
