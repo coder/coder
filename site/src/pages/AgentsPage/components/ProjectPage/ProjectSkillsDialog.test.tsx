@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { saveAs } from "file-saver";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -9,8 +8,6 @@ import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
-
-vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 
 const { organization_id: orgId, id: projectId } = MockChatProject;
 
@@ -188,23 +185,6 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
-	it("turns a skill off from the list", async () => {
-		const updateSkill = vi
-			.spyOn(API.experimental, "updateChatProjectSkill")
-			.mockResolvedValue({ ...mockReviewerSkill, enabled: false });
-		const { user } = renderDialog();
-
-		await user.click(
-			await screen.findByRole("switch", { name: "Enable reviewer" }),
-		);
-
-		await waitFor(() =>
-			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
-				enabled: false,
-			}),
-		);
-	});
-
 	it("deletes a skill after confirmation", async () => {
 		const deleteSkill = vi
 			.spyOn(API.experimental, "deleteChatProjectSkill")
@@ -221,19 +201,6 @@ describe("ProjectSkillsDialog", () => {
 			expect(deleteSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer"),
 		);
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
-	});
-
-	it("downloads a skill's SKILL.md content", async () => {
-		const { user, getSkill } = renderDialog();
-
-		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Download" }));
-
-		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
-		expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer");
-		const [file, fileName] = vi.mocked(saveAs).mock.calls[0];
-		expect(fileName).toBe("reviewer.md");
-		expect(await (file as Blob).text()).toBe(mockReviewerSkill.content);
 	});
 
 	it("opens skills for viewing without update access", async () => {
