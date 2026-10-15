@@ -1502,5 +1502,21 @@
   {
     "source": "user-guides/*",
     "destination": "workspaces/*"
+  },
+  {
+    "source": "install/plan/sizing/1k-users",
+    "destination": "install/plan/sizing/600-workspaces"
+  },
+  {
+    "source": "install/plan/sizing/2k-users",
+    "destination": "install/plan/sizing/1200-workspaces"
+  },
+  {
+    "source": "install/plan/sizing/3k-users",
+    "destination": "install/plan/sizing/1800-workspaces"
+  },
+  {
+    "source": "install/plan/sizing/10k-users",
+    "destination": "install/plan/sizing/6000-workspaces"
   }
 ]

@@ -1,19 +1,19 @@
 ---
-title: "Reference architecture: up to 2,000 users"
+title: "Reference architecture: up to 10,000 concurrent workspaces"
 ---
 
-In the 2,000 users architecture, there is a moderate increase in traffic, suggesting a growing user base or expanding operations.
-This setup is well-suited for mid-sized companies experiencing growth or for universities seeking to accommodate their expanding user populations.
+This architecture supports up to 10,000 concurrent running workspaces, which is about 16,000 users.
+It targets enterprises with a very large global workforce, or applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./3k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./20000-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 2000  | 1200                          | 120               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                        10,000 |                       1,020 |          16,000 |
 
-**Observability**:
-Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+**Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations
@@ -22,15 +22,15 @@ This allows operators to respond quickly to incidents and continuously improve t
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 8    | 16&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
-- `coderd` does not typically benefit from high performance disks like solid-state drives (SSDs), unless you are co-locating provisioners.
+  - Set CPU request and limit to `8000m`
+  - Set Memory request and limit to `16Gi`
+- `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
 - `coderd` instances should be deployed in the same region as the database.
 
 ### Workspace Proxies
@@ -39,21 +39,21 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 3        |
+| 8    | 16&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
+  - Set CPU request and limit to `8000m`
+  - Set Memory request and limit to `16Gi`
 - Workspace Proxies do not typically benefit from high performance disks like SSDs.
 
 ### Provisioners
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 120      |
+| 1    | 1&nbsp;GB | 1,020    |
 
 **Notes**:
 
@@ -68,9 +68,9 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 ### Database
 
-| vCPU | Memory     | Replicas |
-|------|------------|----------|
-| 16   | 60&nbsp;GB | 1        |
+| vCPU | Memory      | Replicas |
+|------|-------------|----------|
+| 64   | 240&nbsp;GB | 1        |
 
 **Notes**:
 
