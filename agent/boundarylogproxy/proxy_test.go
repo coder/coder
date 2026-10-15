@@ -789,9 +789,14 @@ func TestServer_Metrics(t *testing.T) {
 		// Phase 2: forward succeeds.
 		sendLogs(t, conn, makeReq(1))
 
+		// The reporter records the logs before ReportBoundaryLogs returns, and
+		// the forwarder increments its counter afterward, so the poll waits
+		// for both.
 		require.Eventually(t, func() bool {
-			return len(reporter.getLogs()) >= 1
+			return len(reporter.getLogs()) > 0 &&
+				getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Len(t, reporter.getLogs(), 1)
 		require.Equal(t, float64(1),
 			getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total"))
 
