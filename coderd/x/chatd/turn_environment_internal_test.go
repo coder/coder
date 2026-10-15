@@ -91,7 +91,7 @@ func TestLatestAssistantText(t *testing.T) {
 	})
 }
 
-func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
+func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -156,13 +156,13 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
@@ -188,7 +188,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
 }
 
-func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
+func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -271,13 +271,13 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 				chatprovider.ProviderAPIKeys{},
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 				Chat:            created.Chat,
 				Messages:        created.InitialMessages,
 				TurnExperiments: &turnExperimentDecisions{},
 			})
 			require.NoError(t, err)
-			t.Cleanup(prepared.Cleanup)
+			t.Cleanup(prepared.Close)
 
 			var sawToolResult bool
 			for _, msg := range prepared.Prompt {
@@ -298,7 +298,7 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 	}
 }
 
-func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
+func TestBuildTurnEnvironmentComputerUseIgnoresChatTransportOverride(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -376,13 +376,13 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	// The computer-use model is Responses-selected by the SDK and its client
 	// ignores the config's forced Chat Completions, so the options must be the
@@ -408,7 +408,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
 }
 
-func TestPrepareGenerationMemory(t *testing.T) {
+func TestBuildTurnEnvironmentMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -463,9 +463,9 @@ func TestPrepareGenerationMemory(t *testing.T) {
 				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
 			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)
-			t.Cleanup(prepared.Cleanup)
+			t.Cleanup(prepared.Close)
 
 			var systemPrompt strings.Builder
 			for _, message := range prepared.Prompt {
@@ -501,7 +501,7 @@ func TestPrepareGenerationMemory(t *testing.T) {
 	}
 }
 
-func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
+func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -555,13 +555,13 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
 		UserID:    user.ID,
@@ -573,7 +573,7 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
 // the old in-memory generationSideEffects stash. The server here never ran
-// prepareGeneration, so a passing test proves the finish-turn inputs are
+// buildTurnEnvironment, so a passing test proves the finish-turn inputs are
 // rebuilt purely from persisted state.
 func TestDeriveFinalTurnRunResult(t *testing.T) {
 	t.Parallel()
