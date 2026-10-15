@@ -185,20 +185,21 @@ export const SkillsTriggerMenu = ({
 	const pointerHighlightRef = useRef(false);
 
 	// Groups follow selection order, so each starts where the previous ends.
-	const skillGroups = [
-		{ heading: "Personal skills", skills: personalSkills },
-		{ heading: "Organization skills", skills: organizationSkills },
-		{ heading: "Project skills", skills: projectSkills },
-		{ heading: "Workspace skills", skills: workspaceSkills },
-	].map((group, index, groups) => ({
-		...group,
-		startIndex: groups
-			.slice(0, index)
-			.reduce(
-				(start, previous) => start + previous.skills.length,
-				commands.length,
-			),
-	}));
+	const skillGroups: {
+		heading: string;
+		skills: readonly SkillMenuItem[];
+		startIndex: number;
+	}[] = [];
+	let startIndex = commands.length;
+	for (const [heading, skills] of [
+		["Personal skills", personalSkills],
+		["Organization skills", organizationSkills],
+		["Project skills", projectSkills],
+		["Workspace skills", workspaceSkills],
+	] as const) {
+		skillGroups.push({ heading, skills, startIndex });
+		startIndex += skills.length;
+	}
 	const allSkills = [
 		...commands,
 		...skillGroups.flatMap((group) => group.skills),

@@ -32,7 +32,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { type QueryKey, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
@@ -43,7 +43,11 @@ import {
 	type SkillSource,
 	type SkillSourceList,
 } from "../../utils/skillAliases";
-import { filterSkillsByQuery, isSkillTriggerToken } from "../../utils/skills";
+import {
+	filterSkillsByQuery,
+	isSkillTriggerToken,
+	type SkillsScope,
+} from "../../utils/skills";
 import {
 	type ChatSlashCommand,
 	resolveChatSlashCommandAvailability,
@@ -626,14 +630,10 @@ const isSameSkillsTrigger = (
 
 /**
  * Loads a Coder-stored skill source for the "/" menu while a trigger is
- * active. Skills stay undefined until the source loads, even after an
- * error; a chat without the source has a known empty list.
+ * active, without the disabled skills chatd skips.
  */
 const useStoredSkillSource = (
-	queryOptions: {
-		queryKey: QueryKey;
-		queryFn: () => Promise<TypesGen.SkillMetadata[]>;
-	},
+	queryOptions: SkillsScope["list"],
 	hasSource: boolean,
 	hasSkillsTrigger: boolean,
 ) => {
@@ -645,7 +645,6 @@ const useStoredSkillSource = (
 	});
 	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
-		// chatd skips disabled skills, so they never offer or collide.
 		skills: hasSource ? query.data?.filter((skill) => skill.enabled) : [],
 		isFetching: query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
