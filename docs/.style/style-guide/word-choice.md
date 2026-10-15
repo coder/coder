@@ -463,6 +463,63 @@ Replace with the specific condition, or remove the qualifier and accept the stat
 
 *Enforced by `Coder.WeaselWords` (planned).*
 
+## Describe what Coder does, not compliance outcomes
+
+Regulations and security frameworks apply to an organization and the systems it operates.
+The reader's organization is compliant or not, and its assessor decides.
+Coder provides controls and evidence that help, so describe the specific behavior Coder provides and let the reader map it to their own requirements.
+
+Back every claim about a certification, audit, validation, or authorization with a current artifact: an audit report, a certificate, or an authorization listing.
+If you can't name the artifact, or Coder's security team hasn't confirmed that it's current, remove the claim.
+
+| Framework or program       | Do                                                                                                 | Don't                                           |
+|----------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------|
+| SOC 2                      | Coder has a SOC 2 Type II report; audited under SOC 2 Type II                                      | SOC 2 certified, SOC 2 compliant                |
+| ISO/IEC 27001              | certified to ISO/IEC 27001:2022 by the named certification body, for the stated scope              | ISO certified, ISO compliant                    |
+| FIPS 140-3                 | uses a FIPS 140-3 validated cryptographic module, with the module name and CMVP certificate number | FIPS compliant, FIPS certified                  |
+| FedRAMP, DoD Impact Levels | runs inside your authorization boundary, under your Authority to Operate (ATO)                     | FedRAMP compliant, FedRAMP ready, IL5 certified |
+| DISA STIG                  | hardening guidance; a Coder-authored guide states that DISA hasn't reviewed or approved it         | STIG compliant, STIG certified, DISA approved   |
+| Iron Bank                  | available in Iron Bank; a hardened and scanned container image                                     | accredited image, Iron Bank certified           |
+| CMMC                       | supports the access control and audit practices your assessment covers                             | CMMC compliant, CMMC certified (about Coder)    |
+| HIPAA, GDPR, DORA, AI Act  | supports or helps you implement a named control, such as audit logging or data residency           | HIPAA compliant, GDPR compliant, DORA certified |
+
+The reasons behind the table:
+
+- The AICPA issues no SOC 2 certificate.
+  A CPA firm issues an attestation report.
+- ISO doesn't certify anyone.
+  An accredited certification body certifies an organization's management system within a stated scope, not a product.
+- "FIPS compliant" has no meaning in the Cryptographic Module Validation Program (CMVP).
+  Only a cryptographic module is validated, and only under a specific certificate.
+  Check that the certificate is active, not on the Historical list, before you cite it; every FIPS 140-2 certificate moved to the Historical list in September 2026.
+- FedRAMP authorizes cloud service offerings.
+  A self-hosted Coder deployment isn't one, so it inherits the authorization of the system it runs in.
+- CMMC certifies organizations, not software.
+- HIPAA, GDPR, DORA, and the AI Act set obligations for the organizations they cover.
+  HIPAA has no certification program, so "HIPAA certified" is always wrong.
+  For the others, describe the control Coder provides instead of a compliance status.
+
+The reader can be the subject of a compliance sentence: "to meet your audit-retention requirements" is correct.
+Conformance to a protocol specification is a different claim and is outside this rule, so "a specification-compliant OIDC provider" stays.
+
+**Do**:
+
+> Coder is independently audited annually under SOC 2 Type II.
+> Request the report from the Coder Trust Center.
+>
+> Coder runs in your infrastructure, inside your authorization boundary.
+> Audit logs record changes to templates, users, and workspaces, which supports the audit and accountability controls in NIST SP 800-53.
+
+**Don't**:
+
+> Coder is SOC 2 Type II certified.
+>
+> Coder is FedRAMP and HIPAA compliant.
+>
+> Choose the Iron Bank image when you need an accredited base image.
+
+*Enforced by `Coder.ComplianceClaims` (planned).*
+
 ## Stop, not kill; turn off, not disable
 
 In product-facing prose, prefer "stop" over "kill" and "turn off" over "disable".

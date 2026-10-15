@@ -2,6 +2,7 @@ package workspaceapps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -79,6 +80,20 @@ type AgentProvider interface {
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
 	Close() error
+}
+
+// AgentUnreachableError is returned by AgentProvider.AgentConn when the agent
+// did not answer before the context ended. It is not returned when the client
+// canceled within 5s, or when the context was canceled with
+// workspacesdk.ErrDialAbandoned or workspacesdk.ErrReadinessProbeTimeout.
+// Fields holds the peer diagnostics collected at that time. Callers with a
+// request log line that log the failure should include them.
+type AgentUnreachableError struct {
+	Fields []slog.Field
+}
+
+func (*AgentUnreachableError) Error() string {
+	return "agent is unreachable"
 }
 
 type ServerOptions struct {
@@ -802,7 +817,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
-		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		// A 101 response logs the request at debug, so log unreachable agents
+		// at warn here. Use s.Logger: Fields already has agent_id.
+		if unreachable, ok := errors.AsType[*AgentUnreachableError](err); ok {
+			s.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
+		} else {
+			log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
