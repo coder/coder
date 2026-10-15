@@ -11,7 +11,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { aiModelPricesKeyFor } from "#/api/queries/aiProviders";
+import { aiModelPrices } from "#/api/queries/aiProviders";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockClaudeSonnetModelPrice,
@@ -636,7 +636,7 @@ export const CostEstimateFieldsAreImmutable: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("anthropic", "claude-sonnet-4-5"),
+				key: aiModelPrices("anthropic", "claude-sonnet-4-5").queryKey,
 				data: [],
 			},
 		],
@@ -698,7 +698,7 @@ export const CostEstimateFromLivePriceBook: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("openai", "gpt-5"),
+				key: aiModelPrices("openai", "gpt-5").queryKey,
 				data: [MockGPT5ModelPrice],
 			},
 		],
@@ -725,7 +725,7 @@ export const CostEstimateBelowThresholdPrice: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("openai", "gpt-5"),
+				key: aiModelPrices("openai", "gpt-5").queryKey,
 				data: [MockGPT5BelowThresholdModelPrice],
 			},
 		],
@@ -819,7 +819,7 @@ export const CostEstimateClearingModelDiscardsStalePrices: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("openai", "gpt-5"),
+				key: aiModelPrices("openai", "gpt-5").queryKey,
 				data: [MockGPT5ModelPrice],
 			},
 		],
@@ -850,7 +850,7 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("anthropic", "claude-sonnet-4-5"),
+				key: aiModelPrices("anthropic", "claude-sonnet-4-5").queryKey,
 				data: [
 					{
 						provider: "anthropic",
@@ -893,7 +893,7 @@ export const CostEstimateWithCacheWrite1hAndTiers: Story = {
 	parameters: {
 		queries: [
 			{
-				key: aiModelPricesKeyFor("anthropic", "claude-sonnet-4-5"),
+				key: aiModelPrices("anthropic", "claude-sonnet-4-5").queryKey,
 				data: [MockClaudeSonnetModelPrice],
 			},
 		],
