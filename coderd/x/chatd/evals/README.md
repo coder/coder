@@ -268,8 +268,10 @@ A tag can be moved to another image, so the import refuses a task whose
 `docker_image` has no pin from the same repository, and a pin for a task
 that builds its image. It also refuses an image whose `/app` is not a
 directory: `docker cp` copies a symlink as a symlink, so `/app -> /tmp`
-would make the import run git in the host's `/tmp`. To pin a new task or
-refresh a pin, pull the tag and read its digest:
+would make the import run git in the host's `/tmp` and commit that
+directory's files into the seed, which becomes the agent's working
+directory. To pin a new task or refresh a pin, pull the tag and read its
+digest:
 
 ```sh
 docker pull alexgshaw/regex-log:20251031
