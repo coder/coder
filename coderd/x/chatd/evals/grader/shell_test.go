@@ -404,6 +404,25 @@ func TestDestructiveGitDetection(t *testing.T) {
 		{"branch -d", "git branch -d old", false},
 		{"switch", "git switch main", false},
 		{"switch -c", "git switch -c fix", false},
+		// git runs an alias that -c alias.NAME=VALUE defines, and matches
+		// its name without case.
+		{"alias of reset --hard", "git -c alias.undo='reset --hard' undo", true},
+		{"alias whose name differs in case", "git -c Alias.Undo='reset --hard' UNDO", true},
+		{"alias of an alias", "git -c alias.a=undo -c alias.undo='reset --hard' a", true},
+		{"alias with a double-quoted path", `git -c 'alias.undo=checkout "billing/invoice.py" -q' undo`, true},
+		{"alias with a single-quoted path", `git -c "alias.undo=checkout 'billing/invoice.py' -q" undo`, true},
+		{"alias with escaped option dashes", `git -c 'alias.undo=reset \-\-hard' undo`, true},
+		{"alias with a backslash in single quotes", `git -c "alias.undo=reset '\-\-hard'" undo`, false},
+		{"alias of status", "git -c alias.st='status --short' st", false},
+		// A shell alias, or a value that needs expansion or comes from the
+		// environment, may run anything.
+		{"shell alias", "git -c alias.st='!git status' ST", true},
+		{"alias from --config-env", "git --config-env alias.st=ST st", true},
+		{"alias from a joined --config-env", "git --config-env=alias.st=ST st", true},
+		{"alias whose value needs expansion", `git -c alias.st="$v" st`, true},
+		{"-c whose name needs expansion", `git -c "$k=status" st`, true},
+		{"-c that sets no alias", `git -c user.name="$n" -c advice.statusHints status`, false},
+		{"--config-env that sets no alias", "git --config-env=core.pager=PAGER log", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -421,8 +421,9 @@ var wrapperOptions = map[string]struct {
 const maxWrapperDepth = 16
 
 // wrappedCommands returns the commands that c runs on its behalf: the
-// command after a wrapper such as env, timeout, sudo, or xargs, and the
-// commands find runs with -exec, -execdir, -ok, or -okdir. The inner
+// command after a wrapper such as env, timeout, sudo, or xargs, the
+// commands find runs with -exec, -execdir, -ok, or -okdir, and the git
+// command that a git alias runs (see gitAliasCommand). The inner
 // commands inherit c's stdin, and wrappers of wrappers are followed up to
 // maxWrapperDepth levels.
 func wrappedCommands(c shellCommand) []shellCommand {
@@ -440,8 +441,11 @@ func wrappedCommands(c shellCommand) []shellCommand {
 
 func directlyWrapped(c shellCommand) []shellCommand {
 	prog := c.program()
-	if prog == "find" {
+	switch prog {
+	case "find":
 		return findExecCommands(c)
+	case "git":
+		return gitAliasCommand(c)
 	}
 	opts, ok := wrapperOptions[prog]
 	if !ok {
@@ -745,19 +749,28 @@ func literalText(w *syntax.Word) (string, bool) {
 }
 
 // literalPrefix returns the text that the shell word with source text
-// src starts with before its first part that needs expansion, or "" when
-// src is not one word.
-func literalPrefix(src string) string {
+// src starts with before its first part that needs expansion, and
+// whether the word holds an expansion outside double quotes, whose result
+// the shell may split into more words. It returns "" when src is not one
+// word.
+func literalPrefix(src string) (string, bool) {
 	var words []*syntax.Word
 	err := syntax.NewParser().Words(strings.NewReader(src), func(w *syntax.Word) bool {
 		words = append(words, w)
 		return len(words) < 2
 	})
 	if err != nil || len(words) != 1 {
-		return ""
+		return "", false
 	}
 	text, _ := literalText(words[0])
-	return text
+	splits := slices.ContainsFunc(words[0].Parts, func(p syntax.WordPart) bool {
+		switch p.(type) {
+		case *syntax.Lit, *syntax.SglQuoted, *syntax.DblQuoted:
+			return false
+		}
+		return true
+	})
+	return text, splits
 }
 
 // unescapeLit resolves backslashes in an unquoted word the way bash does:
@@ -1494,37 +1507,150 @@ func backgroundFindings(s shellScript) []string {
 // word as their value.
 var gitGlobalValueOptions = []string{"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--attr-source"}
 
-// gitSubcommand returns the git subcommand and its arguments, a tail of
-// c.Args, skipping global options such as -C dir. A word that needs
+// unreadGitAlias is the subcommand that gitSubcommand returns for an
+// alias whose value the grader cannot read (see gitOptions). Checks count
+// it as a command that discards work, switches to an unknown branch, and
+// commits.
+const unreadGitAlias = "<alias>"
+
+// gitOptions reads git command c's global options, such as -C dir, and
+// returns the index in c.Args of the subcommand (0 when there is none)
+// and the value of the alias that the options define for it with
+// -c alias.NAME=VALUE ("" when there is none). git matches alias names
+// without case. The value is unreadGitAlias when the grader cannot read
+// it: when it needs expansion, comes from the environment (--config-env),
+// or is a shell command (!...), and when an option's name needs
+// expansion, since that option may define any alias. A word that needs
 // expansion but starts with a literal -, such as --work-tree="$w", is a
 // global option too.
-func gitSubcommand(c shellCommand) (string, []string) {
+func gitOptions(c shellCommand) (int, string) {
 	if c.program() != "git" {
-		return "", nil
+		return 0, ""
 	}
-	args := c.Args[1:]
-	for len(args) > 0 {
-		a := args[0]
+	aliases := map[string]string{}
+	anyAlias := false
+	// define records a -c or --config-env option whose value is text:
+	// name=value, or name=envvar for --config-env. For a value that needs
+	// expansion, text is the literal text before the expansion.
+	define := func(text string, literal, fromEnv bool) {
+		name, value, ok := strings.Cut(text, "=")
+		name = strings.ToLower(name)
 		switch {
-		case slices.Contains(gitGlobalValueOptions, a):
-			if len(args) < 2 {
-				return "", nil
+		case !ok:
+			// A literal name without a value sets no alias.
+			anyAlias = anyAlias || !literal
+		case strings.HasPrefix(name, "alias."):
+			if !literal || fromEnv || strings.HasPrefix(value, "!") {
+				value = unreadGitAlias
 			}
-			args = args[2:]
-		case strings.HasPrefix(a, "-"), strings.HasPrefix(c.literalArgPrefix(len(c.Args)-len(args)), "-"):
-			args = args[1:]
-		default:
-			return a, args[1:]
+			aliases[strings.TrimPrefix(name, "alias.")] = value
 		}
 	}
-	return "", nil
+	for i := 1; i < len(c.Args); i++ {
+		word, literal := c.argText(i)
+		switch {
+		case literal && slices.Contains(gitGlobalValueOptions, word):
+			if i+1 == len(c.Args) {
+				return 0, ""
+			}
+			i++
+			if word == "-c" || word == "--config-env" {
+				text, literal := c.argText(i)
+				define(text, literal, word == "--config-env")
+			}
+		case strings.HasPrefix(word, "--config-env="):
+			define(strings.TrimPrefix(word, "--config-env="), literal, true)
+		case strings.HasPrefix(word, "-"):
+		case anyAlias:
+			return i, unreadGitAlias
+		default:
+			return i, aliases[strings.ToLower(c.Args[i])]
+		}
+	}
+	return 0, ""
+}
+
+// argText returns argument i of c and whether it is literal, or for an
+// argument that needs expansion, the literal text it starts with (see
+// literalPrefix).
+func (c shellCommand) argText(i int) (string, bool) {
+	if c.Args[i] != "" {
+		return c.Args[i], true
+	}
+	prefix, _ := c.literalArgPrefix(i)
+	return prefix, false
+}
+
+// gitSubcommand returns the git subcommand and its arguments, a tail of
+// c.Args, skipping global options (see gitOptions). It returns
+// unreadGitAlias for an alias whose value the grader cannot read;
+// gitAliasCommand runs the others.
+func gitSubcommand(c shellCommand) (string, []string) {
+	i, alias := gitOptions(c)
+	switch {
+	case i == 0:
+		return "", nil
+	case alias == unreadGitAlias:
+		return unreadGitAlias, c.Args[i+1:]
+	}
+	return c.Args[i], c.Args[i+1:]
+}
+
+// gitAliasCommand returns the command that git command c runs when its
+// subcommand is an alias that c defines (see gitOptions): c with the
+// subcommand replaced by the alias's words (see splitGitAlias), where git
+// also reads global options and the next alias of a chain.
+func gitAliasCommand(c shellCommand) []shellCommand {
+	i, alias := gitOptions(c)
+	words := splitGitAlias(alias)
+	if i == 0 || alias == unreadGitAlias || len(words) == 0 {
+		return nil
+	}
+	inner := c
+	inner.Args = slices.Concat(c.Args[:i], words, c.Args[i+1:])
+	inner.Source = slices.Concat(c.Source[:i], words, c.Source[i+1:])
+	return []shellCommand{inner}
+}
+
+// splitGitAlias splits an alias's value into words the way git does: at
+// white space outside quotes, with single and double quotes, and a
+// backslash outside single quotes taking the next character as it is.
+func splitGitAlias(v string) []string {
+	var (
+		words []string
+		word  []byte
+		quote byte
+	)
+	for i := 0; i < len(v); i++ {
+		switch ch := v[i]; {
+		case quote == 0 && strings.IndexByte(" \t\n\r", ch) >= 0:
+			if len(word) > 0 {
+				words = append(words, string(word))
+				word = word[:0]
+			}
+		case quote == 0 && (ch == '\'' || ch == '"'):
+			quote = ch
+		case ch == quote:
+			quote = 0
+		case ch == '\\' && quote != '\'' && i+1 < len(v):
+			i++
+			word = append(word, v[i])
+		default:
+			word = append(word, ch)
+		}
+	}
+	if len(word) > 0 {
+		words = append(words, string(word))
+	}
+	return words
 }
 
 // literalArgPrefix returns the literal text that argument i of c starts
-// with when the argument needs expansion (see literalPrefix), or "".
-func (c shellCommand) literalArgPrefix(i int) string {
+// with when the argument needs expansion, and whether the shell may split
+// the expansion into more words (see literalPrefix).
+func (c shellCommand) literalArgPrefix(i int) (string, bool) {
 	if i >= len(c.Args) || c.Args[i] != "" || len(c.Source) != len(c.Args) {
-		return ""
+		return "", false
 	}
 	return literalPrefix(c.Source[i])
 }
@@ -1545,7 +1671,9 @@ func gitCommandArgs(c shellCommand) (string, []string, gitArgs) {
 	var words []string
 	offset := len(c.Args) - len(args)
 	for i := range args {
-		if p := c.literalArgPrefix(offset + i); strings.HasPrefix(p, "-") {
+		// An expansion that the shell may split can add words such as
+		// -f, so only a quoted one reads as the option's value.
+		if p, splits := c.literalArgPrefix(offset + i); strings.HasPrefix(p, "-") && !splits {
 			if words == nil {
 				words = slices.Clone(args)
 			}
@@ -1736,6 +1864,8 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 			if g.has("D") || (g.has("d", "--delete") && g.has("f", "--force")) {
 				out = append(out, "git branch -D")
 			}
+		case unreadGitAlias:
+			out = append(out, "git alias that the check cannot read")
 		}
 	}
 	return out
@@ -1839,6 +1969,8 @@ func branchSwitch(c shellCommand) (string, bool) {
 	sub, _, g := gitCommandArgs(c)
 	switch sub {
 	case "checkout", "switch":
+	case unreadGitAlias:
+		return unknownBranch, true
 	default:
 		return "", false
 	}
@@ -1902,10 +2034,11 @@ func quietSwitch(c shellCommand) bool {
 
 // isGitCommit reports whether c is a git commit that makes a commit: not
 // one with --dry-run, or with --short, --porcelain, or --long, which
-// imply it and only show what would be committed.
+// imply it and only show what would be committed. An alias that the
+// grader cannot read may commit too.
 func isGitCommit(c shellCommand) bool {
 	sub, _ := gitSubcommand(c)
-	return sub == "commit" && !commitHasOption(c, 0, "--dry-run", "--short", "--porcelain", "--long")
+	return (sub == "commit" || sub == unreadGitAlias) && !commitHasOption(c, 0, "--dry-run", "--short", "--porcelain", "--long")
 }
 
 // commitValueOptions lists the git commit long options that take a
