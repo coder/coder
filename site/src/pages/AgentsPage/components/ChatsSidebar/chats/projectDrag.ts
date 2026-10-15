@@ -28,7 +28,11 @@ export type DropTarget =
 			/** The folder's visible name, for screen reader announcements. */
 			readonly label: string;
 	  }
-	| { readonly kind: "unfiled" };
+	| {
+			readonly kind: "unfiled";
+			/** The projects whose chats a drop here takes out of their folder. */
+			readonly folderProjectIds: ReadonlySet<string>;
+	  };
 
 /** The dnd-kit data of a chat row drag. */
 export type ChatDragData = { readonly chat: Chat };
@@ -80,7 +84,10 @@ export const projectIdForTarget = (
 			target.projectId !== chat.project_id;
 		return isNewProject ? target.projectId : undefined;
 	}
-	return target?.kind === "unfiled" && chat.project_id ? null : undefined;
+	if (target?.kind !== "unfiled" || !chat.project_id) {
+		return undefined;
+	}
+	return target.folderProjectIds.has(chat.project_id) ? null : undefined;
 };
 
 /**

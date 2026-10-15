@@ -3093,6 +3093,17 @@ export const ProjectChatWithoutLoadedProject: Story = {
 	},
 };
 
+export const UnloadedProjectChatDragMutesChats: Story = {
+	args: ProjectChatWithoutLoadedProject.args,
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Chat in an unloaded project/);
+	},
+};
+
 export const ProjectsLoading: Story = {
 	args: { chats: mockProjectChats },
 	parameters: { experiments: ["chat-projects"] },

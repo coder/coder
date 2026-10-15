@@ -209,8 +209,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => !canManageChat(chat, currentUserId),
 	);
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
-	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
-		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	const {
+		chatsByProjectId,
+		unfiledChats: unfiledOwnedChats,
+		folderProjectIds,
+	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -641,7 +644,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								</ChatTreeContext>
 							)}
 							<ChatDropArea
-								target={{ kind: "unfiled" }}
+								target={{ kind: "unfiled", folderProjectIds }}
 								draggedChat={draggedChat}
 							>
 								{chatProjectsEnabled && (

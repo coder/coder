@@ -982,12 +982,13 @@ describe("ChatsSidebar project drops", () => {
 		);
 	};
 
+	const box = (y: number, height: number) =>
+		DOMRect.fromRect({ x: 0, y, width: 300, height });
+
 	// jsdom has no layout, so dnd-kit measures zero rects. Only a node that
 	// holds exactly one landmark gets a box, and the DragOverlay copy, which
 	// holds none, gets the row box.
 	const layoutDropTargets = (row: string, rowTop: number) => {
-		const box = (y: number, height: number) =>
-			DOMRect.fromRect({ x: 0, y, width: 300, height });
 		const landmarks = [
 			{
 				node: screen.getByRole("link", { name: new RegExp(row) }),
@@ -1013,20 +1014,24 @@ describe("ChatsSidebar project drops", () => {
 
 	// user-event's pointer API leaves dnd-kit's updates outside act, and its
 	// drop sends no request, so the gesture uses fireEvent.
-	const dragRowOntoBilling = async (row: string) => {
-		const update = vi
-			.spyOn(API.experimental, "updateChat")
-			.mockResolvedValue(undefined);
-		layoutDropTargets(row, 240);
+	const mouseDragRow = async (row: string, dropY: number) => {
 		fireEvent.mouseDown(screen.getByRole("link", { name: new RegExp(row) }), {
 			clientX: 10,
 			clientY: 250,
 		});
 		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
-		fireEvent.mouseMove(document, { clientX: 10, clientY: 40 });
-		fireEvent.mouseUp(document, { clientX: 10, clientY: 40 });
+		fireEvent.mouseMove(document, { clientX: 10, clientY: dropY });
+		fireEvent.mouseUp(document, { clientX: 10, clientY: dropY });
 		// The request goes out after the mutation's async onMutate.
 		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+	};
+
+	const dragRowOntoBilling = async (row: string) => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		layoutDropTargets(row, 240);
+		await mouseDragRow(row, 40);
 		return update.mock.calls;
 	};
 
@@ -1091,6 +1096,55 @@ describe("ChatsSidebar project drops", () => {
 		expect(await dragRowOntoBilling(row)).toEqual(
 			body ? [["c1", { project_id: body }]] : [],
 		);
+	});
+
+	// A failed projects request shows project chats under Chats, where a drop
+	// would remove them from their project.
+	it("moves nothing on a mouse drag into Chats of a chat whose project did not load", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "Projects unavailable" }, { status: 500 }),
+			),
+		);
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("button", { name: "Retry" });
+		const chatLink = screen.getByRole("link", { name: /Fix invoice dates/ });
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+		// Chats holds the row here and needs its own box, and the folder links
+		// that layoutDropTargets needs do not render.
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				if (this.contains(chatsHeading)) {
+					return box(200, 300);
+				}
+				return this.contains(chatLink) ? box(240, 40) : box(0, 0);
+			},
+		);
+
+		// The drop lands in the Chats box, and the announcement proves that it
+		// ran, so the no-request check cannot pass without reaching the rule.
+		await mouseDragRow("Fix invoice dates", 270);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(/was dropped/),
+		);
+
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("keeps a row mounted when its chat starts running", async () => {
