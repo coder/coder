@@ -372,7 +372,7 @@ const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 					) : filteredModels.length === 0 ? (
 						<TableEmptyState
 							variant="search"
-							message="No models match your filters"
+							message="No models match your search"
 							onResetFilters={handleResetFilters}
 						/>
 					) : (
