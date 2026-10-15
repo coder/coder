@@ -70,4 +70,5 @@ jobs:
         with:
           script: |
             const { run } = require("./.github/scripts/migration-automation.cjs");
-            await run({ github, context, core, appToken: process.env.APP_TOKEN });
+            const token = process.env.APP_TOKEN;
+            await run({ github, context, core, writer: token ? getOctokit(token) : undefined });

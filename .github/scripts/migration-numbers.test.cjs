@@ -171,8 +171,11 @@ function harness(options = {}) {
       },
     },
     paginate: async (method, params) => (await method(params)).data,
-    graphql: async (query, { input, headers }) => {
-      assert.equal(headers.authorization, "token app-token");
+    graphql: async () => assert.fail("branch writes must use the App-token writer"),
+  };
+  const writer = {
+    graphql: async (query, { input, ...rest }) => {
+      assert.deepEqual(rest, {});
       assert.match(query, /createCommitOnBranch/);
       assert.equal(input.expectedHeadOid, "head");
       if (options.pushAtCommit) throw new Error("expectedHeadOid does not match");
@@ -193,12 +196,12 @@ function harness(options = {}) {
     serverUrl: "https://github.com", runId: 123,
   };
   const core = { info: (message) => infos.push(message), warning: (message) => infos.push(message) };
-  return { github, context, core, statuses, commits, infos, pr };
+  return { github, context, core, writer, statuses, commits, infos, pr };
 }
 
 test("API repair preserves bytes and uses an atomic normal commit, never an old-head success", async () => {
   const h = harness();
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 1);
   assert.ok(h.statuses.length);
   assert.ok(h.statuses.every((status) => status.state === "failure" && status.context === rules.CONTEXT));
@@ -206,7 +209,7 @@ test("API repair preserves bytes and uses an atomic normal commit, never an old-
 
 test("main migration push refreshes current PR heads rather than rerunning old CI", async () => {
   const h = harness({ event: "push" });
-  await run({ ...h });
+  await run({ ...h, writer: undefined });
   assert.equal(h.statuses[0].sha, "head");
   assert.match(h.statuses[0].description, /BACKPORT_APP_ID/);
   assert.equal(h.commits.length, 0);
@@ -216,7 +219,7 @@ test("main migration push refreshes current PR heads rather than rerunning old C
 
 test("missing credentials, forks, stacks, merge conflicts and hardcoded references never edit", async () => {
   for (const options of [
-    { appToken: undefined },
+    { writer: undefined },
     { pr: { head: { sha: "head", ref: "feature/migrations", repo: { full_name: "someone/coder" } } } },
     { pr: { mergeable: false } },
     { others: [{ number: 43, base: { ref: "feature/migrations" }, head: { sha: "child", repo: { full_name: "coder/coder" } } }] },
@@ -224,7 +227,7 @@ test("missing credentials, forks, stacks, merge conflicts and hardcoded referenc
       texts: { test: "migrateToVersion(2);" } },
   ]) {
     const h = harness(options);
-    await run({ ...h, appToken: Object.hasOwn(options, "appToken") ? options.appToken : "app-token" });
+    await run({ ...h, writer: Object.hasOwn(options, "writer") ? options.writer : h.writer });
     assert.equal(h.commits.length, 0);
     assert.equal(h.statuses.at(-1).state, "failure");
     assert.match(h.statuses.at(-1).description, /No automatic edit/);
@@ -238,7 +241,7 @@ test("author push, main movement and label removal before mutation discard autof
     { raceAt: 3, race: (pr) => { pr.labels = []; } },
   ]) {
     const h = harness(options);
-    await run({ ...h, appToken: "app-token" });
+    await run(h);
     assert.equal(h.commits.length, 0);
     assert.ok(h.infos.some((message) => message.includes("Discarding stale")));
   }
@@ -246,7 +249,7 @@ test("author push, main movement and label removal before mutation discard autof
 
 test("atomic commit rejection does not retry or overwrite the author", async () => {
   const h = harness({ pushAtCommit: true });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 0);
   assert.ok(h.statuses.every((status) => status.state === "failure"));
 });
@@ -254,14 +257,14 @@ test("atomic commit rejection does not retry or overwrite the author", async () 
 test("a bot-renumbered head checks successfully without another commit", async () => {
   const repaired = { ...base, ...pair(3, "ours"), [rules.FIXTURES + "000003_pre_ours.up.sql"]: head[fixture] };
   const h = harness({ head: repaired });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 0);
   assert.equal(h.statuses[0].state, "success");
 });
 
 test("truncated API trees fail closed with an explicit status", async () => {
   const h = harness({ truncated: true });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 0);
   assert.equal(h.statuses[0].state, "failure");
   assert.match(h.statuses[0].description, /truncated/);
@@ -277,7 +280,7 @@ test("CLI validates the real repository tree and an unchanged PR", () => {
 test("a stack created during planning prevents automatic mutation", async () => {
   const h = harness({ finalOthers: [{ number: 43, base: { ref: "feature/migrations" },
     head: { sha: "child", repo: { full_name: "coder/coder" } } }] });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 0);
   assert.ok(h.infos.some((message) => message.includes("Discarding stale")));
 });
@@ -285,7 +288,7 @@ test("a stack created during planning prevents automatic mutation", async () => 
 test("overlapping rename chains never delete an addition destination", async () => {
   const laterFixture = rules.FIXTURES + "000003_pre_ours.up.sql";
   const h = harness({ head: { ...head, ...pair(3, "ours"), [laterFixture]: head[fixture] }, additionCount: 6 });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 1);
   assert.equal(h.commits[0].fileChanges.deletions.length, 3);
 });
@@ -298,6 +301,7 @@ test("workflow checks without issue writes or usable App credentials", () => {
   assert.match(workflow, /ref: main\n          persist-credentials: false/);
   assert.match(workflow, /permission-contents: write/);
   assert.doesNotMatch(workflow, /permission-(?:workflows|issues|pull-requests): write/);
+  assert.match(workflow, /writer: token \? getOctokit\(token\) : undefined/);
 });
 
 
@@ -326,7 +330,7 @@ test("number overflow prohibits a partial rename plan", () => {
 test("opened, reopened and main-refresh events leave unlabeled conflicts untouched", async () => {
   for (const options of [{ action: "opened" }, { action: "reopened" }, { event: "push" }]) {
     const h = harness({ ...options, pr: { labels: [] } });
-    await run({ ...h, appToken: "app-token" });
+    await run(h);
     assert.equal(h.commits.length, 0);
     assert.equal(h.statuses.at(-1).state, "failure");
     assert.match(h.statuses.at(-1).description, /Autofix is disabled/);
@@ -336,7 +340,7 @@ test("opened, reopened and main-refresh events leave unlabeled conflicts untouch
 
 test("an unrelated unlabeled PR succeeds without opting into autofix", async () => {
   const h = harness({ head: base, action: "opened", pr: { labels: [] } });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.statuses[0].state, "success");
   assert.equal(h.commits.length, 0);
   assert.deepEqual(h.pr.labels, []);
@@ -344,18 +348,18 @@ test("an unrelated unlabeled PR succeeds without opting into autofix", async () 
 
 test("manually adding the label enables repair; removal disables further repairs", async () => {
   const h = harness({ action: "opened", pr: { labels: [] } });
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 0);
   assert.equal(h.statuses.at(-1).state, "failure");
 
   h.pr.labels = [{ name: rules.LABEL }];
   h.context.payload.action = "labeled";
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 1);
 
   h.pr.labels = [];
   h.context.payload.action = "unlabeled";
-  await run({ ...h, appToken: "app-token" });
+  await run(h);
   assert.equal(h.commits.length, 1);
   assert.match(h.statuses.at(-1).description, /Autofix is disabled/);
   assert.deepEqual(h.pr.labels, []);

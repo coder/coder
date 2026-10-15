@@ -6,7 +6,7 @@ const rules = require("./migration-numbers.cjs");
  * Trusted orchestration. GitHub trees and blobs are data only; this module
  * never checks out a PR, runs its scripts, or evaluates its SQL.
  */
-async function run({ github, context, core, appToken }) {
+async function run({ github, context, core, writer }) {
   const { owner, repo } = context.repo;
   const repository = owner + "/" + repo;
   const cache = new Map();
@@ -73,7 +73,7 @@ async function run({ github, context, core, appToken }) {
       let reason = rules.skipReason(pr, repository, stacked);
       if (!reason && comparison.total_commits > comparison.commits.length) reason = "Incomplete commit history; manual fix required.";
       if (!reason && !result.repairable) reason = "Unsafe migration change; fix the reported errors manually.";
-      if (!reason && !appToken) {
+      if (!reason && !writer) {
         reason = "Autofix needs BACKPORT_APP_ID and BACKPORT_APP_PRIVATE_KEY with contents:write access.";
       }
       const contents = new Map();
@@ -118,12 +118,11 @@ async function run({ github, context, core, appToken }) {
           additions: result.renames.map((rename) => ({ path: rename.to, contents: contents.get(rename.from).toString("base64") })),
         },
       };
-      // Only this API call receives the App token. It appends a normal signed
-      // commit and triggers ordinary CI, unlike commits made with GITHUB_TOKEN.
-      const writer = github.constructor === Object ? github : new github.constructor({ auth: appToken });
+      // writer holds the App token and is used only for this call. It appends a
+      // normal signed commit and triggers ordinary CI, unlike GITHUB_TOKEN commits.
       const response = await writer.graphql(
         "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
-        { input, headers: { authorization: "token " + appToken } });
+        { input });
       core.info("Renumbered migrations for PR #" + number + " in " + response.createCommitOnBranch.commit.oid + ".");
       // Do not mark the old head green. The App commit starts normal CI and a
       // synchronize event evaluates the new head against current main.
