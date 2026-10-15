@@ -1143,8 +1143,8 @@ func fileChangeFindings(s shellScript) []string {
 		if len(c.Args) == 0 {
 			continue
 		}
-		if sub, args := gitSubcommand(c); sub == "apply" {
-			if gitApplyChangesFiles(args) {
+		if sub, _, g := gitCommandArgs(c); sub == "apply" {
+			if gitApplyChangesFiles(g) {
 				out = append(out, "git apply changes files")
 			}
 			continue
@@ -1466,22 +1466,6 @@ func nonFlagOperands(args []string) []string {
 		out = append(out, a)
 	}
 	return out
-}
-
-// hasFlag matches exact flags and their attached forms (-i.bak,
-// --in-place=.bak, combined short flags such as -ni).
-func hasFlag(args []string, flags ...string) bool {
-	for _, a := range args {
-		for _, f := range flags {
-			if a == f || strings.HasPrefix(a, f+"=") {
-				return true
-			}
-			if !strings.HasPrefix(f, "--") && !strings.HasPrefix(a, "--") && strings.HasPrefix(a, f) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // backgroundFindings reports shell-level backgrounding that leaves
@@ -1838,6 +1822,33 @@ func (g gitArgs) has(short string, long ...string) bool {
 	})
 }
 
+// hasAbbrev is has for the options that make a command destructive: git
+// takes a unique prefix of a long option, so a long option as written
+// also sets each of long that it is a prefix of, and git reset --har is
+// git reset --hard. A prefix that git refuses as ambiguous, such as
+// git switch --forc (--force or --force-create), matches too, which counts
+// a command that does nothing rather than miss one that discards work.
+func (g gitArgs) hasAbbrev(short string, long ...string) bool {
+	if g.has(short) {
+		return true
+	}
+	for written := range g.Long {
+		if slices.ContainsFunc(long, func(l string) bool { return strings.HasPrefix(l, written) }) {
+			return true
+		}
+	}
+	return false
+}
+
+// exempts reports whether an option that keeps a git command from
+// changing files, such as --cached or --dry-run (short, as in -n), is set
+// and not turned off. git reads --no-cached, or a prefix of it, as
+// turning --cached off when it comes later, so any such negation cancels
+// the exemption, which errs toward counting the command.
+func (g gitArgs) exempts(short, long string) bool {
+	return g.has(short, long) && !g.hasAbbrev("", "--no-"+strings.TrimPrefix(long, "--"))
+}
+
 // value returns the value of the first of the short option letters or
 // long options that is set.
 func (g gitArgs) value(short string, long ...string) (string, bool) {
@@ -1873,7 +1884,7 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 		}
 		switch sub {
 		case "reset":
-			if hasFlag(args, "--hard", "--merge", "--keep") {
+			if g.hasAbbrev("", "--hard", "--merge", "--keep") {
 				out = append(out, "git reset --hard")
 			}
 		case "checkout":
@@ -1881,17 +1892,15 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git checkout discarding changes")
 			}
 		case "switch":
-			if g.has("f", "--force", "--discard-changes") {
+			if g.hasAbbrev("f", "--force", "--discard-changes") {
 				out = append(out, "git switch discarding changes")
 			}
 		case "restore":
-			if !g.has("S", "--staged") || g.has("W", "--worktree") {
+			if !g.has("S", "--staged") || g.hasAbbrev("W", "--worktree") {
 				out = append(out, "git restore of the working tree")
 			}
 		case "clean":
-			// git reads the last of -n and --no-dry-run, and a
-			// --no-dry-run before -n is too rare to tell apart.
-			if g.has("f", "--force") && (!g.has("n", "--dry-run") || g.has("", "--no-dry-run")) {
+			if g.hasAbbrev("f", "--force") && !g.exempts("n", "--dry-run") {
 				out = append(out, "git clean -f")
 			}
 		case "stash":
@@ -1899,30 +1908,30 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 				out = append(out, "git stash "+args[0])
 			}
 		case "push":
-			if g.has("f", "--force", "--force-with-lease", "--force-if-includes") || hasPlusRefspec(c, args) {
+			if g.hasAbbrev("f", "--force", "--force-with-lease", "--force-if-includes") || hasPlusRefspec(c, args) {
 				out = append(out, "git push --force")
 			}
 		case "branch":
-			if g.has("D") || (g.has("d", "--delete") && g.has("f", "--force")) {
+			if g.has("D") || (g.hasAbbrev("d", "--delete") && g.hasAbbrev("f", "--force")) {
 				out = append(out, "git branch -D")
 			}
 		case "rm":
 			// Without -f, git rm refuses to delete a file with changes.
-			if g.has("f", "--force") && !g.has("n", "--cached", "--dry-run") {
+			if g.hasAbbrev("f", "--force") && !g.exempts("n", "--dry-run") && !g.exempts("", "--cached") {
 				out = append(out, "git rm -f")
 			}
 		case "apply":
 			// git diff | git apply -R reverts the working tree's changes.
-			if g.has("R", "--reverse") && !g.has("", "--cached") && gitApplyChangesFiles(args) {
+			if g.hasAbbrev("R", "--reverse") && !g.exempts("", "--cached") && gitApplyChangesFiles(g) {
 				out = append(out, "git apply -R")
 			}
 		case "checkout-index":
 			// Without -f, git checkout-index keeps files that exist.
-			if g.has("f", "--force") && !g.has("", "--temp") && !exportPrefix(g) {
+			if g.hasAbbrev("f", "--force") && !g.exempts("", "--temp") && !exportPrefix(g) {
 				out = append(out, "git checkout-index -f")
 			}
 		case "read-tree":
-			if g.has("u") && g.has("", "--reset") && !g.has("n", "--dry-run") {
+			if g.has("u") && g.hasAbbrev("", "--reset") && !g.exempts("n", "--dry-run") {
 				out = append(out, "git read-tree -u --reset")
 			}
 		case unreadGitAlias:
@@ -1943,7 +1952,7 @@ func destructiveGitFindings(s shellScript, keep []string) []string {
 // -b, -B, or --orphan is a new branch, and an operand after them is its
 // start point, which git refuses to read as a path.
 func checkoutDiscards(g gitArgs, keep []string) bool {
-	if g.EndOfOptions || g.has("f23", "--force", "--ours", "--theirs", "--pathspec-from-file") {
+	if g.EndOfOptions || g.hasAbbrev("f23", "--force", "--ours", "--theirs", "--pathspec-from-file") {
 		return true
 	}
 	if g.has("bB", "--orphan") {
@@ -2000,11 +2009,14 @@ func hasPlusRefspec(c shellCommand, args []string) bool {
 	return false
 }
 
-// gitApplyChangesFiles reports whether git apply with arguments args
-// changes files: not with --check, nor with --stat, --numstat, or
-// --summary and no --apply, which only describe the patch.
-func gitApplyChangesFiles(args []string) bool {
-	return !slices.Contains(args, "--check") && (slices.Contains(args, "--apply") || !hasFlag(args, "--stat", "--numstat", "--summary"))
+// gitApplyChangesFiles reports whether git apply, with arguments read as
+// g, changes files: not with --check, --stat, --numstat, or --summary,
+// which only check or describe the patch, unless --apply (or a prefix of
+// it) is also given.
+func gitApplyChangesFiles(g gitArgs) bool {
+	return g.hasAbbrev("", "--apply") || !slices.ContainsFunc([]string{"--check", "--stat", "--numstat", "--summary"}, func(l string) bool {
+		return g.exempts("", l)
+	})
 }
 
 // exportPrefix reports whether git checkout-index writes its files under
@@ -2013,7 +2025,7 @@ func gitApplyChangesFiles(args []string) bool {
 // the working tree.
 func exportPrefix(g gitArgs) bool {
 	prefix, ok := g.value("", "--prefix")
-	return ok && harmlessOutput(prefix)
+	return ok && harmlessOutput(prefix) && !g.hasAbbrev("", "--no-prefix")
 }
 
 // detachedHead is the branch name git prints in the summary line of a
