@@ -22,8 +22,8 @@ coder organizations delete [flags] <organization_name_or_id>
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.

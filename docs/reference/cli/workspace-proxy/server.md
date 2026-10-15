@@ -18,7 +18,7 @@ coder workspace-proxy server [flags]
 
 ### --access-url
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>url</code>                  |
 | Environment | <code>$CODER_ACCESS_URL</code>    |
@@ -28,7 +28,7 @@ The URL that users will use to access the Coder deployment.
 
 ### --wildcard-access-url
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
@@ -38,7 +38,7 @@ Specifies the wildcard hostname to use for workspace applications in the form "*
 
 ### --docs-url
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>url</code>                    |
 | Environment | <code>$CODER_DOCS_URL</code>        |
@@ -49,7 +49,7 @@ Specifies the custom docs URL.
 
 ### --http-address
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_HTTP_ADDRESS</code>         |
@@ -60,7 +60,7 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
 ### --tls-address
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>host:port</code>              |
 | Environment | <code>$CODER_TLS_ADDRESS</code>     |
@@ -71,7 +71,7 @@ HTTPS bind address of the server.
 
 ### --tls-enable
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>bool</code>                  |
 | Environment | <code>$CODER_TLS_ENABLE</code>     |
@@ -81,7 +81,7 @@ Whether TLS will be enabled.
 
 ### --tls-cert-file
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_TLS_CERT_FILE</code>     |
@@ -91,7 +91,7 @@ Path to each certificate for TLS. It requires a PEM-encoded file. To configure t
 
 ### --tls-client-ca-file
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code>   |
@@ -101,7 +101,7 @@ PEM-encoded Certificate Authority file used for checking the authenticity of cli
 
 ### --tls-client-auth
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_TLS_CLIENT_AUTH</code>    |
@@ -112,7 +112,7 @@ Policy the server will follow for TLS Client Authentication. Accepted values are
 
 ### --tls-key-file
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_TLS_KEY_FILE</code>     |
@@ -122,7 +122,7 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 
 ### --tls-min-version
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_TLS_MIN_VERSION</code>    |
@@ -133,7 +133,7 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 
 ### --tls-client-cert-file
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code>   |
@@ -143,7 +143,7 @@ Path to certificate for client TLS authentication. It requires a PEM-encoded fil
 
 ### --tls-client-key-file
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_TLS_CLIENT_KEY_FILE</code>   |
@@ -153,7 +153,7 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 
 ### --tls-ciphers
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string-array</code>              |
 | Environment | <code>$CODER_TLS_CIPHERS</code>        |
@@ -163,7 +163,7 @@ Specify specific TLS ciphers that allowed to be used. See https://github.com/gol
 
 ### --tls-allow-insecure-ciphers
 
-|             |                                                     |
+| Property    | Value                                               |
 |-------------|-----------------------------------------------------|
 | Type        | <code>bool</code>                                   |
 | Environment | <code>$CODER_TLS_ALLOW_INSECURE_CIPHERS</code>      |
@@ -174,7 +174,7 @@ By default, only ciphers marked as 'secure' are allowed to be used. See https://
 
 ### --derp-server-enable
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_DERP_SERVER_ENABLE</code> |
@@ -185,7 +185,7 @@ Whether to enable or disable the embedded DERP relay server.
 
 ### --derp-server-relay-url
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>url</code>                          |
 | Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
@@ -195,7 +195,7 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 ### --block-direct-connections
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_BLOCK_DIRECT</code>         |
@@ -205,7 +205,7 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 
 ### --prometheus-enable
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_PROMETHEUS_ENABLE</code>        |
@@ -215,7 +215,7 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 ### --prometheus-address
 
-|             |                                               |
+| Property    | Value                                         |
 |-------------|-----------------------------------------------|
 | Type        | <code>host:port</code>                        |
 | Environment | <code>$CODER_PROMETHEUS_ADDRESS</code>        |
@@ -226,7 +226,7 @@ The bind address to serve prometheus metrics.
 
 ### --pprof-enable
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>bool</code>                       |
 | Environment | <code>$CODER_PPROF_ENABLE</code>        |
@@ -236,7 +236,7 @@ Serve pprof metrics on the address defined by pprof address.
 
 ### --pprof-address
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>host:port</code>                   |
 | Environment | <code>$CODER_PPROF_ADDRESS</code>        |
@@ -247,7 +247,7 @@ The bind address to serve pprof.
 
 ### --trace
 
-|             |                                           |
+| Property    | Value                                     |
 |-------------|-------------------------------------------|
 | Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_TRACE_ENABLE</code>          |
@@ -257,7 +257,7 @@ Whether application tracing data is collected. It exports to a backend configure
 
 ### --trace-honeycomb-api-key
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_TRACE_HONEYCOMB_API_KEY</code> |
@@ -266,7 +266,7 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 
 ### --trace-logs
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_TRACE_LOGS</code>                 |
@@ -276,7 +276,7 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 
 ### --log-human
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_LOGGING_HUMAN</code>            |
@@ -287,7 +287,7 @@ Output human-readable logs to a given file.
 
 ### --log-json
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_LOGGING_JSON</code>            |
@@ -297,7 +297,7 @@ Output JSON logs to a given file.
 
 ### --log-stackdriver
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>string</code>                                |
 | Environment | <code>$CODER_LOGGING_STACKDRIVER</code>            |
@@ -307,7 +307,7 @@ Output Stackdriver compatible logs to a given file.
 
 ### --experiments
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>string-array</code>       |
 | Environment | <code>$CODER_EXPERIMENTS</code> |
@@ -317,7 +317,7 @@ Enable one or more experiments. These are not ready for production. Separate mul
 
 ### --proxy-trusted-headers
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string-array</code>                   |
 | Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code>   |
@@ -327,7 +327,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 
 ### --proxy-trusted-origins
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>string-array</code>                   |
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code>   |
@@ -337,7 +337,7 @@ Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for sub
 
 ### --secure-auth-cookie
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SECURE_AUTH_COOKIE</code>   |
@@ -347,7 +347,7 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 ### --samesite-auth-cookie
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>lax\|none</code>                     |
 | Environment | <code>$CODER_SAMESITE_AUTH_COOKIE</code>   |
@@ -358,7 +358,7 @@ Controls the 'SameSite' property is set on browser session cookies.
 
 ### --host-prefix-cookie
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
@@ -369,7 +369,7 @@ Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee the
 
 ### --strict-transport-security
 
-|             |                                                     |
+| Property    | Value                                               |
 |-------------|-----------------------------------------------------|
 | Type        | <code>int</code>                                    |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY</code>       |
@@ -380,7 +380,7 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 
 ### --strict-transport-security-options
 
-|             |                                                            |
+| Property    | Value                                                      |
 |-------------|------------------------------------------------------------|
 | Type        | <code>string-array</code>                                  |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code>      |
@@ -390,7 +390,7 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 ### --disable-path-apps
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
@@ -400,7 +400,7 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 ### --disable-owner-workspace-access
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>bool</code>                                  |
 | Environment | <code>$CODER_DISABLE_OWNER_WORKSPACE_ACCESS</code> |
@@ -410,15 +410,15 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 
 ### --write-config
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 <br/>Write out the current server config as YAML to stdout.
 
 ### --proxy-session-token
 
-|             |                                                       |
+| Property    | Value                                                 |
 |-------------|-------------------------------------------------------|
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_PROXY_SESSION_TOKEN</code>               |
@@ -428,7 +428,7 @@ Authentication token for the workspace proxy to communicate with coderd.
 
 ### --primary-access-url
 
-|             |                                                      |
+| Property    | Value                                                |
 |-------------|------------------------------------------------------|
 | Type        | <code>url</code>                                     |
 | Environment | <code>$CODER_PRIMARY_ACCESS_URL</code>               |
@@ -438,7 +438,7 @@ URL to communicate with coderd. This should match the access URL of the Coder de
 
 ### --derp-only
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_PROXY_DERP_ONLY</code>          |

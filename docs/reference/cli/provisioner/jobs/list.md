@@ -22,7 +22,7 @@ coder provisioner jobs list [flags]
 
 ### -s, --status
 
-|             |                                                                                  |
+| Property    | Value                                                                            |
 |-------------|----------------------------------------------------------------------------------|
 | Type        | <code>[pending\|running\|succeeded\|canceling\|canceled\|failed\|unknown]</code> |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_STATUS</code>                                  |
@@ -31,7 +31,7 @@ Filter by job status.
 
 ### -l, --limit
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>int</code>                               |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_LIMIT</code> |
@@ -41,7 +41,7 @@ Limit the number of jobs returned.
 
 ### -i, --initiator
 
-|             |                                                    |
+| Property    | Value                                              |
 |-------------|----------------------------------------------------|
 | Type        | <code>string</code>                                |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_INITIATOR</code> |
@@ -50,7 +50,7 @@ Filter by initiator (user ID or username).
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
@@ -59,18 +59,18 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|created at\|started at\|completed at\|canceled at\|error\|error code\|status\|worker id\|worker name\|file id\|tags\|queue position\|queue size\|organization id\|initiator id\|template version id\|workspace build id\|type\|available workers\|template version name\|template id\|template name\|template display name\|template icon\|workspace id\|workspace name\|workspace build transition\|logs overflowed\|organization\|queue]</code> |
-| Default | <code>created at,id,type,template display name,status,queue,tags</code>                                                                                                                                                                                                                                                                                                                                                                                      |
+| Property | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[id\|created at\|started at\|completed at\|canceled at\|error\|error code\|status\|worker id\|worker name\|file id\|tags\|queue position\|queue size\|organization id\|initiator id\|template version id\|workspace build id\|type\|available workers\|template version name\|template id\|template name\|template display name\|template icon\|workspace id\|workspace name\|workspace build transition\|logs overflowed\|organization\|queue]</code> |
+| Default  | <code>created at,id,type,template display name,status,queue,tags</code>                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

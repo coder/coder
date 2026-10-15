@@ -71,8 +71,11 @@ func init() {
 			"generatedContentBanner": func() string {
 				return docgenenv.GeneratedContentBanner
 			},
+			// tableHeader opens each option's metadata table (Type,
+			// Environment, YAML, Default). The header cells need text: an
+			// empty one is announced by screen readers as an unnamed column.
 			"tableHeader": func() string {
-				return `| | |
+				return `| Property | Value |
 | --- | --- |`
 			},
 			"typeHelper": func(opt *serpent.Option) string {

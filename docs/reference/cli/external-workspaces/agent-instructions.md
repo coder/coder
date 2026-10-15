@@ -18,9 +18,9 @@ coder external-workspaces agent-instructions [flags] [user/]workspace[.agent]
 
 ### -o, --output
 
-|         |                         |
-|---------|-------------------------|
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+| Property | Value                   |
+|----------|-------------------------|
+| Type     | <code>text\|json</code> |
+| Default  | <code>text</code>       |
 
 Output format.

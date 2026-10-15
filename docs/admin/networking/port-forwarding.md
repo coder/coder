@@ -245,20 +245,20 @@ configurable by either admins or users.
 <table class="tg">
 <thead>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
-    <th class="tg-0pky" rowspan="3"></th>
-    <th class="tg-0pky">From</th>
+    <th class="tg-0pky" colspan="3">From user</th>
     <th class="tg-0pky" colspan="3">Alice</th>
     <th class="tg-0pky">Bob</th>
   </tr>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
+    <th class="tg-0pky" colspan="3">From workspace</th>
     <th class="tg-0pky">Workspace 1</th>
     <th class="tg-0pky" colspan="2">Workspace 2</th>
     <th class="tg-0pky">Workspace 3</th>
   </tr>
   <tr>
-    <th class="tg-0pky">To</th>
+    <th class="tg-0pky">To user</th>
+    <th class="tg-0pky">To workspace</th>
+    <th class="tg-0pky">To app</th>
     <th class="tg-0pky">App A</th>
     <th class="tg-0pky">App B</th>
     <th class="tg-0pky">App C</th>

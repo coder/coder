@@ -22,6 +22,12 @@ as `make lint/docs-html` (part of `make lint`).
   same way.
 - **Unclosed container tags**, for example a `<div class="tabs">` that is never
   closed and leaks its wrapper over the rest of the page.
+- **Empty table header cells** (`empty-table-header`).
+  Screen readers announce a header cell with no text as an unnamed column or row.
+  The check covers the header row of Markdown pipe tables and every `<th>` in raw HTML tables, after decoding entities and trimming whitespace, so `<th>&nbsp;</th>` and `<th><br></th>` are reported.
+  Markdown between the HTML blocks of a `<th>` counts as its text.
+  Each finding names the table by its first non-empty header.
+  For the top-left corner of a matrix, name what the row headers hold, such as `Permission`.
 
 ## How it works
 

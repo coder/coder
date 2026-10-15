@@ -26,42 +26,42 @@ coder organizations roles update [flags] <role_name>
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.
 
 ### --dry-run
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Does all the work, but does not submit the final updated role.
 
 ### --stdin
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Reads stdin for the json role definition to upload.
 
 ### -c, --column
 
-|         |                                                                                                                  |
-|---------|------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[name\|display name\|organization id\|site permissions\|organization permissions\|user permissions]</code> |
-| Default | <code>name,display name,site permissions,organization permissions,user permissions</code>                        |
+| Property | Value                                                                                                            |
+|----------|------------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[name\|display name\|organization id\|site permissions\|organization permissions\|user permissions]</code> |
+| Default  | <code>name,display name,site permissions,organization permissions,user permissions</code>                        |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.
