@@ -19,6 +19,20 @@ describe("getQueuedMessageInfo", () => {
 		});
 	});
 
+	it("shows invoked skills by alias in document order", () => {
+		const result = getQueuedMessageInfo(
+			buildMessage([
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "the flaky test" },
+			]),
+		);
+		expect(result.displayText).toBe("/project/triage the flaky test");
+	});
+
 	it("collects hook notices without polluting the preview text", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([

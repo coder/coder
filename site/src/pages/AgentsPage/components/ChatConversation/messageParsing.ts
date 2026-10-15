@@ -8,6 +8,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
+import { serializeSkillDraft } from "../ChatMessageInput/SkillInvocationNode";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -354,7 +355,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "skill-invocation": {
-				// Not rendered yet; the skill chip UI renders these.
+				parsed.blocks.push(part);
 				break;
 			}
 			default: {
@@ -382,6 +383,8 @@ export const getEditableUserMessagePayload = (
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+	/** Restores skill chips in place; undefined when there are none. */
+	editorState: string | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
@@ -392,9 +395,15 @@ export const getEditableUserMessagePayload = (
 		.join("");
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
+	const hasSkillInvocations = parsed.blocks.some(
+		(block) => block.type === "skill-invocation",
+	);
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
+		editorState: hasSkillInvocations
+			? serializeSkillDraft(message.content ?? [])
+			: undefined,
 	};
 };
 

@@ -7,6 +7,7 @@ import {
 	hasInlineContentBefore,
 	type InlinePart,
 } from "../ChatMessageInput/fileReferenceDisplay";
+import { SkillChip } from "../ChatMessageInput/SkillChip";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -21,10 +22,11 @@ const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
 ): InlinePart[] => {
 	return blocks.map((block) => {
-		if (block.type === "file-reference") {
-			return { type: "file-reference" };
+		if (block.type === "response") {
+			return { type: "text", text: block.text };
 		}
-		return { type: "text", text: block.text };
+		// Skill chips space against text the same way file chips do.
+		return { type: "file-reference" };
 	});
 };
 
@@ -36,6 +38,20 @@ const renderUserInlineBlock = (
 	if (block.type === "response") {
 		return <Fragment key={index}>{block.text}</Fragment>;
 	}
+	const spacing = cn(
+		hasInlineContentBefore(inlineParts, index) && "ml-1",
+		hasInlineContentAfter(inlineParts, index) && "mr-1",
+	);
+	if (block.type === "skill-invocation") {
+		return (
+			<SkillChip
+				key={index}
+				source={block.skill_source}
+				name={block.skill_name}
+				className={spacing}
+			/>
+		);
+	}
 
 	return (
 		<FileReferenceChip
@@ -43,10 +59,7 @@ const renderUserInlineBlock = (
 			fileName={block.file_name}
 			startLine={block.start_line}
 			endLine={block.end_line}
-			className={cn(
-				hasInlineContentBefore(inlineParts, index) && "ml-1",
-				hasInlineContentAfter(inlineParts, index) && "mr-1",
-			)}
+			className={spacing}
 		/>
 	);
 };

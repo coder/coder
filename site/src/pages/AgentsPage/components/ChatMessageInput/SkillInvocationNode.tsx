@@ -1,9 +1,13 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import {
+	$createLineBreakNode,
+	$createParagraphNode,
+	$createTextNode,
 	$getNodeByKey,
 	$getRoot,
 	$isParagraphNode,
 	$isTextNode,
+	createEditor,
 	DecoratorNode,
 	type LexicalEditor,
 	type NodeKey,
@@ -11,6 +15,7 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { SkillSource } from "../../utils/skillAliases";
 import { EditableSkillChip } from "./SkillChip";
 
@@ -143,3 +148,42 @@ export function $insertSkillInvocation(
 	}
 	chip.selectNext().insertText(" ");
 }
+
+/**
+ * Serializes the text and skill-invocation parts of a sent message as a
+ * composer draft, so editing the message keeps its skill chips in place.
+ */
+export const serializeSkillDraft = (
+	content: readonly ChatMessagePart[],
+): string => {
+	const editor = createEditor({
+		nodes: [SkillInvocationNode],
+		onError: (error) => {
+			throw error;
+		},
+	});
+	editor.update(
+		() => {
+			const paragraph = $createParagraphNode();
+			for (const part of content) {
+				if (part.type === "skill-invocation") {
+					paragraph.append(
+						new SkillInvocationNode(part.skill_source, part.skill_name),
+					);
+				} else if (part.type === "text") {
+					for (const [index, line] of part.text.split("\n").entries()) {
+						if (index > 0) {
+							paragraph.append($createLineBreakNode());
+						}
+						if (line) {
+							paragraph.append($createTextNode(line));
+						}
+					}
+				}
+			}
+			$getRoot().append(paragraph);
+		},
+		{ discrete: true },
+	);
+	return JSON.stringify(editor.getEditorState().toJSON());
+};

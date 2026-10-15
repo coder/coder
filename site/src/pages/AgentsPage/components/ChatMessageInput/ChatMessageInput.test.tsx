@@ -8,6 +8,7 @@ import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
+	ChatMessagePart,
 	SkillMetadata,
 } from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -15,6 +16,7 @@ import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
+import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -477,6 +479,38 @@ describe("ChatMessageInput", () => {
 						skill_name: "release-notes",
 					},
 				]);
+			});
+		});
+
+		it("reopens an edited message with its skill chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{ type: "text", text: "Use " },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: " on\nthe diff" },
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "user",
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
 			});
 		});
 	});

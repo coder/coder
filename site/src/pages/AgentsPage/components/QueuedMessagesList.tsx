@@ -15,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getSkillAlias } from "../utils/skillAliases";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -40,6 +41,8 @@ export const getQueuedMessageInfo = (
 			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);
+		} else if (part.type === "skill-invocation") {
+			textParts.push(getSkillAlias(part.skill_source, part.skill_name));
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
 			hookNotices.push(part.text);
 		}

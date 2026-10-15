@@ -280,6 +280,7 @@ The `/` menu in the chat composer lists skills in four groups: **Personal skills
 The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
+Choosing a skill from the `/` menu attaches it to your message, so the agent always loads that skill for the message instead of deciding whether to read it.
 
 ### Turn a skill on or off
 
