@@ -1427,7 +1427,8 @@ type sqlcQuerier interface {
 	// Locks the chat row with FOR UPDATE and atomically increments its
 	// snapshot_version, returning the post-bump chat. This is the single
 	// entry point ChatMachine.Update uses to acquire the row lock and
-	// allocate a new snapshot version in one round trip.
+	// allocate a new snapshot version in one round trip. Only chat_versions
+	// is written, so a later chats UPDATE in the transaction skips its FK checks.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
@@ -1636,6 +1637,8 @@ type sqlcQuerier interface {
 	// history_version so worker lifecycle transitions that do not change the
 	// active message history cannot reject final turn summary writes.
 	// Two summary workers using the same freshness marker are last-write-wins.
+	// Locking chats before chat_versions matches ChatMachine.Update and makes
+	// the fence read the latest committed history_version.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
@@ -1649,7 +1652,8 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
-	// updates while losing to newer message history.
+	// updates while losing to newer message history. Lock order matches
+	// UpdateChatLastTurnSummary.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	// Writes only when @title_source ranks at or above the current source.
 	// chat_title_source declares its values in rank order.

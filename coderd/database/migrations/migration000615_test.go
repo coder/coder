@@ -162,9 +162,9 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 		require.ElementsMatch(t, []string{chatID.String(), chatID.String()}, queryStrings(`SELECT chat_id::text FROM chat_messages`))
 		require.ElementsMatch(t, []string{`"ordinary"`, `"other chat"`}, queryStrings(`SELECT content::text FROM chat_queued_messages`))
 		var queueVersion, snapshotVersion int64
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT queue_version, snapshot_version FROM chats WHERE id = $1`, chatID).Scan(&queueVersion, &snapshotVersion))
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT queue_version, snapshot_version FROM chats_expanded WHERE id = $1`, chatID).Scan(&queueVersion, &snapshotVersion))
 		require.Equal(t, snapshotVersion, queueVersion, "the deleted queued message must advance queue_version")
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT queue_version, snapshot_version FROM chats WHERE id = $1`, otherChatID).Scan(&queueVersion, &snapshotVersion))
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT queue_version, snapshot_version FROM chats_expanded WHERE id = $1`, otherChatID).Scan(&queueVersion, &snapshotVersion))
 		require.Less(t, queueVersion, snapshotVersion, "a chat without automation-queued messages keeps its queue_version")
 
 		require.Equal(t, []string{"experiment_rule:example"}, queryStrings(`SELECT key FROM site_configs WHERE starts_with(key, 'experiment_rule:')`))
@@ -229,8 +229,11 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 	assertSchemaRemoved(t, true)
 
 	// The down migrations restore only the schema: removed data and
-	// credentials stay removed. The up migrations then apply again.
+	// credentials stay removed. The up migrations then apply again. 000625
+	// is reverted first because 000615 recreates chats_expanded from the
+	// version columns it moves off chats.
 	for _, file := range []string{
+		"000625_chat_versions.down.sql",
 		"000616_remove_chat_automation_permissions.down.sql",
 		"000615_remove_chat_automations.down.sql",
 	} {
@@ -243,6 +246,7 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 	for _, file := range []string{
 		"000615_remove_chat_automations.up.sql",
 		"000616_remove_chat_automation_permissions.up.sql",
+		"000625_chat_versions.up.sql",
 	} {
 		query, err := os.ReadFile(file)
 		require.NoError(t, err)
