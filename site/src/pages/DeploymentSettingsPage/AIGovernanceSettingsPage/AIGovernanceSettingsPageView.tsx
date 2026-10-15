@@ -58,8 +58,8 @@ export const AIGovernanceSettingsPageView: React.FC<
 								<AlertTitle>AI Gateway isn't set up yet</AlertTitle>
 								<AlertDescription>
 									Your license includes it, but it isn't turned on for this
-									deployment. Follow the setup guide to start monitoring AI
-									requests.
+									deployment. Follow the setup guide to start monitoring and
+									managing AI requests.
 								</AlertDescription>
 							</Alert>
 						)}
