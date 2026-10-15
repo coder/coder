@@ -1535,6 +1535,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
+	// Any outstanding call, dynamic or not, would leave invalid LLM history.
 	outstanding, err := outstandingToolCalls(tx.ctx, tx.store, chat, false)
 	if err != nil {
 		return FinishInterruptionResult{}, err

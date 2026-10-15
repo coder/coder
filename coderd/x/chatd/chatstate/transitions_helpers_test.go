@@ -64,43 +64,23 @@ func dynamicToolJSON(name string) []byte {
 // messages do not collide.
 func assistantToolCallMessage(t *testing.T, modelID uuid.UUID, toolName, callID string) chatstate.Message {
 	t.Helper()
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: callID,
-		ToolName:   toolName,
-		Args:       json.RawMessage(`{}`),
-	}})
-	require.NoError(t, err)
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
-	}
+	return chatMessage(t, modelID, database.ChatMessageRoleAssistant,
+		codersdk.ChatMessageToolCall(callID, toolName, json.RawMessage(`{}`)))
 }
 
 func mixedAssistantToolCallMessage(t *testing.T, modelID uuid.UUID, dynamicTool, dynCallID, nonDynCallID string) chatstate.Message {
 	t.Helper()
-	parts := []codersdk.ChatMessagePart{
-		{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: dynCallID,
-			ToolName:   dynamicTool,
-			Args:       json.RawMessage(`{}`),
-		},
-		{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: nonDynCallID,
-			ToolName:   "non_dynamic_tool",
-			Args:       json.RawMessage(`{}`),
-		},
-	}
-	raw, err := chatprompt.MarshalParts(parts)
-	require.NoError(t, err)
+	return chatMessage(t, modelID, database.ChatMessageRoleAssistant,
+		codersdk.ChatMessageToolCall(dynCallID, dynamicTool, json.RawMessage(`{}`)),
+		codersdk.ChatMessageToolCall(nonDynCallID, "non_dynamic_tool", json.RawMessage(`{}`)))
+}
+
+// chatMessage builds a chatstate.Message with the given role and parts.
+func chatMessage(t *testing.T, modelID uuid.UUID, role database.ChatMessageRole, parts ...codersdk.ChatMessagePart) chatstate.Message {
+	t.Helper()
 	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
+		Role:           role,
+		Content:        mustMarshalParts(t, parts),
 		Visibility:     database.ChatMessageVisibilityBoth,
 		ContentVersion: chatprompt.CurrentContentVersion,
 		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},

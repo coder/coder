@@ -23,20 +23,7 @@ import (
 // non-dynamic tools.
 func nonDynamicAssistantToolCallMessage(t *testing.T, modelID uuid.UUID, callID string) chatstate.Message {
 	t.Helper()
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: callID,
-		ToolName:   "non_dynamic_tool",
-		Args:       json.RawMessage(`{}`),
-	}})
-	require.NoError(t, err)
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
-	}
+	return assistantToolCallMessage(t, modelID, "non_dynamic_tool", callID)
 }
 
 // assertToolResultForCall asserts that msg is a tool-result message
@@ -60,25 +47,26 @@ func assertToolResultForCall(t *testing.T, msg database.ChatMessage, wantCallID 
 }
 
 // commitAssistantToolCall pushes an assistant message that calls
-// `tool_name` with `callID` into history via CommitStep. Returns the
-// inserted assistant ChatMessage. Use the dynamic-tools chat fixture
-// (createTestChatWithDynamicTools) when dynamicOnly cancellation
-// paths are exercised.
+// `tool_name` with `callID`, followed by any toolMessages, into history
+// via CommitStep. Returns the inserted assistant ChatMessage. Use the
+// dynamic-tools chat fixture (createTestChatWithDynamicTools) when
+// dynamicOnly cancellation paths are exercised.
 func commitAssistantToolCall(
 	t *testing.T,
 	f *testFixture,
 	m *chatstate.ChatMachine,
 	msg chatstate.Message,
+	toolMessages ...chatstate.Message,
 ) database.ChatMessage {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var step chatstate.CommitStepResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		var err error
-		step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{msg}})
+		step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: append([]chatstate.Message{msg}, toolMessages...)})
 		return err
 	}))
-	require.Len(t, step.InsertedMessages, 1)
+	require.Len(t, step.InsertedMessages, 1+len(toolMessages))
 	return step.InsertedMessages[0]
 }
 
@@ -134,15 +122,6 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
-		return chatstate.Message{
-			Role:           role,
-			Content:        content,
-			Visibility:     database.ChatMessageVisibilityBoth,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
-		}
-	}
 	call := func(id string) codersdk.ChatMessagePart {
 		return codersdk.ChatMessageToolCall(id, "non_dynamic_tool", json.RawMessage(`{}`))
 	}
@@ -151,18 +130,16 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	}
 	providerExecuted := call("provider-executed")
 	providerExecuted.ProviderExecuted = true
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
-			message(database.ChatMessageRoleAssistant, mustMarshalParts(t, []codersdk.ChatMessagePart{
-				call("outstanding-1"), providerExecuted,
-				call("answered-inline"), result("answered-inline"),
-				call("answered-after"), call("outstanding-2"),
-			})),
-			message(database.ChatMessageRoleTool, mustMarshalParts(t, []codersdk.ChatMessagePart{result("answered-after")})),
-			message(database.ChatMessageRoleTool, pqtype.NullRawMessage{RawMessage: json.RawMessage(`{}`), Valid: true}),
-		}})
-		return err
-	}))
+	unparsable := chatMessage(t, f.Model.ID, database.ChatMessageRoleTool)
+	unparsable.Content = pqtype.NullRawMessage{RawMessage: json.RawMessage(`{}`), Valid: true}
+	commitAssistantToolCall(t, f, m,
+		chatMessage(t, f.Model.ID, database.ChatMessageRoleAssistant,
+			call("outstanding-1"), providerExecuted,
+			call("answered-inline"), result("answered-inline"),
+			call("answered-after"), call("outstanding-2")),
+		chatMessage(t, f.Model.ID, database.ChatMessageRoleTool, result("answered-after")),
+		unparsable,
+	)
 
 	// R0 -> W.
 	landInW(t, f, m)

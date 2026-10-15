@@ -92,31 +92,62 @@ func outstandingToolCalls(ctx context.Context, store database.Store, chat databa
 			return nil, nil
 		}
 	}
+	parts, answered, err := lastAssistantTurn(ctx, store, chat.ID)
+	if err != nil {
+		return nil, err
+	}
+	var out []codersdk.ChatMessagePart
+	for _, p := range parts {
+		// Provider-executed tool calls are answered server-side by the
+		// LLM provider. A synthetic client tool-result for them is
+		// invalid replay history: Anthropic rejects a plain tool_result
+		// block that references a server_tool_use ID.
+		if p.Type != codersdk.ChatMessagePartTypeToolCall || p.ProviderExecuted || answered[p.ToolCallID] {
+			continue
+		}
+		if dynamicOnly && !dynamicToolNames[p.ToolName] {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// lastAssistantTurn returns the parts of the chat's last assistant
+// message and the IDs of the tool calls answered in that message or by
+// a tool message after it. Provider-executed tool results (e.g.
+// web_search) are persisted inside the assistant message itself.
+func lastAssistantTurn(ctx context.Context, store database.Store, chatID uuid.UUID) ([]codersdk.ChatMessagePart, map[string]bool, error) {
 	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
-		ChatID: chat.ID,
+		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, xerrors.Errorf("get last assistant message: %w", err)
+		return nil, nil, xerrors.Errorf("get last assistant message: %w", err)
 	}
 	parts, err := chatprompt.ParseContent(lastAssistant)
 	if err != nil {
-		return nil, xerrors.Errorf("parse assistant message: %w", err)
+		return nil, nil, xerrors.Errorf("parse assistant message: %w", err)
 	}
 	afterMsgs, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
+		ChatID:  chatID,
 		AfterID: lastAssistant.ID,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get messages after assistant: %w", err)
+		return nil, nil, xerrors.Errorf("get messages after assistant: %w", err)
 	}
-	// Provider-executed tool results (e.g. web_search) are persisted
-	// inside the assistant message itself, so they count as handled
-	// alongside the tool messages after it.
-	resultParts := parts
+	answered := make(map[string]bool)
+	markAnswered := func(msgParts []codersdk.ChatMessagePart) {
+		for _, p := range msgParts {
+			if p.Type == codersdk.ChatMessagePartTypeToolResult {
+				answered[p.ToolCallID] = true
+			}
+		}
+	}
+	markAnswered(parts)
 	for _, msg := range afterMsgs {
 		if msg.Role != database.ChatMessageRoleTool {
 			continue
@@ -127,29 +158,9 @@ func outstandingToolCalls(ctx context.Context, store database.Store, chat databa
 			// its tool results are treated as unknown.
 			continue
 		}
-		resultParts = append(resultParts, messageParts...)
+		markAnswered(messageParts)
 	}
-	handled := make(map[string]bool)
-	for _, p := range resultParts {
-		if p.Type == codersdk.ChatMessagePartTypeToolResult {
-			handled[p.ToolCallID] = true
-		}
-	}
-	var out []codersdk.ChatMessagePart
-	for _, p := range parts {
-		// Provider-executed tool calls are answered server-side by the
-		// LLM provider. A synthetic client tool-result for them is
-		// invalid replay history: Anthropic rejects a plain tool_result
-		// block that references a server_tool_use ID.
-		if p.Type != codersdk.ChatMessagePartTypeToolCall || p.ProviderExecuted || handled[p.ToolCallID] {
-			continue
-		}
-		if dynamicOnly && !dynamicToolNames[p.ToolName] {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out, nil
+	return parts, answered, nil
 }
 
 // parseDynamicToolNamesFromRaw is a private mirror of
