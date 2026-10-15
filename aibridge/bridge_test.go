@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -289,6 +291,89 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.Code)
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
+		})
+	}
+}
+
+// TestPassthroughRejectsEncodedPathTraversal verifies that encoded dot
+// segments, which upstreams decode and resolve outside the allowlisted route,
+// are rejected before an upstream request is made with a centralized key.
+func TestPassthroughRejectsEncodedPathTraversal(t *testing.T) {
+	t.Parallel()
+
+	providers := []struct {
+		name     string
+		prefix   string
+		provider func(*testing.T, string, *keypool.Pool) provider.Provider
+	}{
+		{
+			name:   "openai",
+			prefix: "/openai/v1/models/",
+			provider: func(_ *testing.T, baseURL string, pool *keypool.Pool) provider.Provider {
+				return aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: baseURL, KeyPool: pool})
+			},
+		},
+		{
+			name:   "anthropic",
+			prefix: "/anthropic/v1/models/",
+			provider: func(t *testing.T, baseURL string, pool *keypool.Pool) provider.Provider {
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
+			},
+		},
+		{
+			name:   "copilot",
+			prefix: "/copilot/models/",
+			provider: func(_ *testing.T, baseURL string, _ *keypool.Pool) provider.Provider {
+				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
+			},
+		},
+	}
+
+	for _, p := range providers {
+		t.Run(p.name, func(t *testing.T) {
+			t.Parallel()
+
+			var upstreamPaths []string
+			var mu sync.Mutex
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				upstreamPaths = append(upstreamPaths, r.URL.EscapedPath())
+				mu.Unlock()
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(upstream.Close)
+
+			pool, err := keypool.New(p.name, []string{"centralized-key"}, quartz.NewReal(), nil)
+			require.NoError(t, err)
+			logger := slogtest.Make(t, nil)
+			rec := testutil.MockRecorder{}
+			bridge, err := aibridge.NewRequestBridge(t.Context(), []provider.Provider{p.provider(t, upstream.URL+"/v1", pool)}, &rec, nil, logger, nil, bridgeTestTracer)
+			require.NoError(t, err)
+
+			for _, suffix := range []string{
+				"%2e%2e/files",
+				"%2E%2E/%2E%2E/admin",
+				"..%2F..%2Fadmin",
+				"%252e%252e/files",
+				"../files",
+			} {
+				resp := httptest.NewRecorder()
+				bridge.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, p.prefix+suffix, nil))
+				assert.Equal(t, http.StatusBadRequest, resp.Code, suffix)
+				assert.Contains(t, resp.Body.String(), "invalid request path", suffix)
+			}
+			mu.Lock()
+			require.Empty(t, upstreamPaths, "rejected requests must not reach the upstream")
+			mu.Unlock()
+
+			// Escaped separators in ordinary segments keep their escaping.
+			resp := httptest.NewRecorder()
+			bridge.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, p.prefix+"org%2Fmodel", nil))
+			require.Equal(t, http.StatusOK, resp.Code)
+			mu.Lock()
+			defer mu.Unlock()
+			require.Len(t, upstreamPaths, 1)
+			assert.True(t, strings.HasSuffix(upstreamPaths[0], "/models/org%2Fmodel"), upstreamPaths[0])
 		})
 	}
 }
