@@ -18,7 +18,7 @@ AI Gateway solves 3 key problems:
 1. **Auditing and attribution**:
    all interactions with AI services, whether autonomous or human-initiated, are audited and attributed back to a user.
 1. **Centralized MCP administration**:
-   define a set of approved MCP servers and tools which your users may use.
+   define a set of approved Model Context Protocol (MCP) servers and tools which your users may use.
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
@@ -28,7 +28,7 @@ AI Gateway solves 3 key problems:
 
 ## When to use AI Gateway
 
-As LLM adoption grows, administrators need centralized auditing, monitoring, and token management.
+As large language model (LLM) adoption grows, administrators need centralized auditing, monitoring, and token management.
 AI Gateway enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
 
 If you are an administrator or devops leader looking to:

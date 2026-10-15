@@ -2,7 +2,7 @@
 title: Models
 ---
 
-Administrators configure LLM providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
+Administrators configure large language model (LLM) providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
 Providers and centrally managed credentials are deployment-wide settings managed by platform teams.
 Each model belongs to an organization.
 Each organization has its own model list.
@@ -18,16 +18,16 @@ Each LLM provider has a type, credentials, and an endpoint/base URL for the upst
 
 Coder supports the following provider types:
 
-| Provider          | Description                              |
-|-------------------|------------------------------------------|
-| Anthropic         | Claude models via Anthropic API          |
-| OpenAI            | GPT and o-series models via OpenAI API   |
-| Google            | Gemini models via Google AI API          |
-| Azure OpenAI      | OpenAI models hosted on Azure            |
-| AWS Bedrock       | Models via AWS Bedrock                   |
-| OpenAI Compatible | Any endpoint implementing the OpenAI API |
-| OpenRouter        | Multi-model routing via OpenRouter       |
-| Vercel AI Gateway | Models via Vercel AI SDK                 |
+| Provider          | Description                                         |
+|-------------------|-----------------------------------------------------|
+| Anthropic         | Claude models via Anthropic API                     |
+| OpenAI            | GPT and o-series models via OpenAI API              |
+| Google            | Gemini models via Google AI API                     |
+| Azure OpenAI      | OpenAI models hosted on Azure                       |
+| AWS Bedrock       | Models via AWS Bedrock                              |
+| OpenAI Compatible | Any endpoint implementing the OpenAI API            |
+| OpenRouter        | Multi-model routing via OpenRouter                  |
+| Vercel AI Gateway | Models via Vercel AI software development kit (SDK) |
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an OpenAI-compatible chat completions endpoint.
 Use it to connect to self-hosted models, internal gateways, or third-party proxies like LiteLLM.
@@ -147,7 +147,7 @@ Management visibility and runtime availability are separate.
 A member can see a model in settings through its access list even when the model isn't available for chat.
 
 The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
-Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
+Coder evaluates providers by provider universally unique identifier (UUID), so 2 providers of the same type can have different availability.
 An unavailable provider can remain visible while its models are omitted from the selector.
 
 Model APIs identify each configured model with a UUID.

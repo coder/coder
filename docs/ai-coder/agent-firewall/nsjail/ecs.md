@@ -5,13 +5,13 @@ title: nsjail on ECS
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-This page describes the runtime and permission requirements for running Agent Firewall with the **nsjail** jail type on **Amazon ECS**.
+This page describes the runtime and permission requirements for running Agent Firewall with the **nsjail** jail type on **Amazon Elastic Container Service (ECS)**.
 
 ## Runtime & Permission Requirements for Running Agent Firewall in ECS
 
 The setup for ECS is similar to [nsjail on Kubernetes](./k8s.md); that environment is better explored and tested, so the Kubernetes page is a useful reference.
 On ECS, requirements depend on the node OS and how ECS runs your tasks.
-The following examples use **ECS with Self Managed Node Groups** (EC2 launch type).
+The following examples use **ECS with Self Managed Node Groups** (Amazon Elastic Compute Cloud (EC2) launch type).
 
 ---
 

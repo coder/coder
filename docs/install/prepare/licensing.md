@@ -10,7 +10,7 @@ To try paid features, you can [request a trial](https://coder.com/trial) or [con
 
 ## Offline license validation
 
-Coder license keys are signed JWTs that are validated locally using cryptographic signatures.
+Coder license keys are signed JSON Web Tokens (JWTs) that are validated locally using cryptographic signatures.
 No outbound connection to Coder's servers is required for license validation.
 This means licenses work in [air-gapped and offline deployments](./airgap.md) without any additional configuration.
 

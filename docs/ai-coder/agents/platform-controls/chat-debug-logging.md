@@ -2,7 +2,7 @@
 title: Chat debug logging
 ---
 
-Records a detailed trace of each chat turn for troubleshooting: the normalized request sent to the LLM provider, the full response, token usage, retry attempts, and errors.
+Records a detailed trace of each chat turn for troubleshooting: the normalized request sent to the large language model (LLM) provider, the full response, token usage, retry attempts, and errors.
 
 Off by default.
 Three layers control whether it runs for a given chat:

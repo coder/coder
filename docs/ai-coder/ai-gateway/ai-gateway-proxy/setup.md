@@ -10,7 +10,7 @@ Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traff
 1. AI Gateway must be enabled and configured (requires a Premium license, which includes [AI Governance](../../ai-governance.md)).
    See [AI Gateway Setup](../setup.md) for further information.
 1. AI Gateway Proxy must be [enabled](#proxy-configuration) using the `coder server` flag.
-1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
+1. A [certificate authority (CA) certificate](#ca-certificate) must be configured for man-in-the-middle (MITM) interception.
 1. [Clients](#client-configuration) must be configured to use the proxy and trust the CA certificate.
 
 ## Proxy Configuration
@@ -96,11 +96,11 @@ As a best practice, apply one or more of the following to protect credentials du
 ### Restrict proxy access
 
 Requests to non-allowlisted domains are tunneled through the proxy, but connections to private and reserved IP ranges are blocked by default.
-The IP validation and TCP connect happen atomically, preventing DNS rebinding attacks where the resolved address could change between the check and the connection.
+The IP validation and Transmission Control Protocol (TCP) connect happen atomically, preventing DNS rebinding attacks where the resolved address could change between the check and the connection.
 To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
 
 In case the AI Gateway [proxy target](#proxy-target) hostname (the Coder access URL by default) resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach the configured AI Gateway.
-If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server/index.md#--ai-gateway-proxy-allowed-private-cidrs)):
+If you need to allow access to additional internal networks, given as Classless Inter-Domain Routing (CIDR) ranges, via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server/index.md#--ai-gateway-proxy-allowed-private-cidrs)):
 
 ```sh
 CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS=10.0.0.0/8,172.16.0.0/12
@@ -339,7 +339,7 @@ curl -o coder-ai-gateway-proxy-ca.pem \
 Replace `<coder-url>` with your Coder deployment URL.
 
 When [TLS is enabled](#proxy-tls-configuration) on the proxy, AI tools must trust both the [MITM CA certificate](#ca-certificate) and the [TLS certificate](#proxy-tls-configuration).
-Combine both certificates into a single PEM file:
+Combine both certificates into a single Privacy-Enhanced Mail (PEM) file:
 
 ```sh
 cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem

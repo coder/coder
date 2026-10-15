@@ -165,7 +165,7 @@ The MCP server supports two authentication methods:
 
 ### OAuth2 (Recommended for Interactive Clients)
 
-MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (Protected Resource Metadata) can authenticate automatically using OAuth2.
+MCP clients that support [Request for Comments (RFC) 9728](https://datatracker.ietf.org/doc/html/rfc9728) (Protected Resource Metadata) can authenticate automatically using OAuth2.
 This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
 
 The MCP endpoint's `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource/api/experimental/mcp/http` through its `resource_metadata` parameter.

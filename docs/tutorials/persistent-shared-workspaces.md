@@ -14,7 +14,7 @@ This pattern is useful for any scenario where a workspace outlives the people wh
 - **On-call rotations**:
   Engineers share a workspace pre-loaded with runbooks, dashboards, and monitoring tools.
   Access rotates with the shift schedule.
-- **Shared staging or QA**:
+- **Shared staging or quality assurance (QA)**:
   A team workspace hosts a persistent staging environment.
   Testers and reviewers are added and removed as sprints change.
 - **Pair programming**:
@@ -22,16 +22,16 @@ This pattern is useful for any scenario where a workspace outlives the people wh
 - **Contractor onboarding**:
   An external team gets scoped access to a workspace for the duration of an engagement, then access is revoked.
 
-The steps below use an **on-call SRE workspace** as a running example, but the same commands apply to any of the scenarios above.
+The steps below use an **on-call site reliability engineering (SRE) workspace** as a running example, but the same commands apply to any of the scenarios above.
 Substitute the usernames, group names, and template to match your use case.
 
 ## Prerequisites
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
-  Sharing is on by default for OSS; Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
+  Sharing is on by default for open source software (OSS); Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
-- [OIDC authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate SSO identity.
+- [OpenID Connect (OIDC) authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate single sign-on (SSO) identity.
   Configure [refresh tokens](../admin/users/oidc-auth/refresh-tokens.md) to prevent session timeouts during long work sessions.
 - A [wildcard access URL](../admin/networking/wildcard-access-url.md) configured (e.g. `*.coder.example.com`) so that shared users can access workspace apps without a 404.
 - (Recommended) [IdP Group Sync](../admin/users/idp-sync.md#group-sync) configured if your identity provider manages group membership for the teams that will share the workspace.
@@ -172,7 +172,7 @@ coder sharing status "$WORKSPACE"
 
 ### Group-based rotation with IdP Sync
 
-If your identity provider manages group membership (e.g. an `sre-oncall` group in Okta or Azure AD), you can skip manual share/remove commands entirely:
+If your identity provider manages group membership (e.g. an `sre-oncall` group in Okta or Azure Active Directory (AD)), you can skip manual share/remove commands entirely:
 
 1. Configure [Group Sync](../admin/users/idp-sync.md#group-sync) to synchronize the group from your IdP to Coder.
 

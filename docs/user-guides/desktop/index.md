@@ -13,7 +13,7 @@ Connect to workspace services using simple hostnames like `myworkspace.coder`, l
 ## What You'll Need
 
 - A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
-- Administrator privileges on your local machine (for VPN extension installation)
+- Administrator privileges on your local machine (for virtual private network (VPN) extension installation)
 - Access to your Coder deployment URL
 
 ## Quick Start
@@ -87,7 +87,7 @@ winget install Coder.CoderDesktop
 1. Choose the correct architecture (`x64` or `arm64`) for your system
 1. Run the installer and accept the license terms
 1. If prompted, install the .NET Windows Desktop Runtime
-1. Install Windows App Runtime SDK if prompted
+1. Install Windows App Runtime software development kit (SDK) if prompted
 
 </div>
 
@@ -130,7 +130,7 @@ Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with t
 
 ## Administrator Configuration
 
-Organizations that manage Coder Desktop deployments can configure the application using MDM (Mobile Device Management) or group policy.
+Organizations that manage Coder Desktop deployments can configure the application using Mobile Device Management (MDM) or group policy.
 
 ### Disable Automatic Updates
 
@@ -249,7 +249,7 @@ If `dig` returns nothing or `dscacheutil` reports no entries, Coder Connect is n
 
 Run the following in an **elevated PowerShell** session.
 The service restart clears the embedded DNS state.
-The NRPT and adapter checks confirm the system routing policy is intact.
+The Name Resolution Policy Table (NRPT) and adapter checks confirm the system routing policy is intact.
 
 1. Stop the app and the VPN service:
 
@@ -285,7 +285,7 @@ The NRPT and adapter checks confirm the system routing policy is intact.
 > [!NOTE]
 > `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver; restarting the service is what clears its internal cache.
 > If you are running a network filtering agent (for example, Zscaler), it may shadow `.coder` lookups even after the tunnel comes back.
-> Check with your IT team if DNS still fails after a clean restart.
+> Check with your information technology (IT) team if DNS still fails after a clean restart.
 
 </div>
 

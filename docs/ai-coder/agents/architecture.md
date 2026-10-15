@@ -11,7 +11,7 @@ If your developers can already connect to their workspaces, the agent can too.
 Three components are involved in every agent interaction:
 
 1. **The control plane** runs the agent loop.
-   It receives prompts, streams them to the LLM provider, interprets tool calls, and dispatches them to workspaces.
+   It receives prompts, streams them to the large language model (LLM) provider, interprets tool calls, and dispatches them to workspaces.
 1. **The LLM provider** (Anthropic, OpenAI, Google, Azure, AWS Bedrock, or any OpenAI-compatible endpoint) performs model inference.
    It never communicates with the workspace directly.
 1. **The workspace** is standard compute infrastructure.
@@ -27,7 +27,7 @@ When a developer opens a web terminal in the Coder dashboard, connects via VS Co
 
 1. The client connects to the control plane.
 1. The control plane routes the connection through its internal Tailnet node.
-1. The connection reaches the workspace daemon over a DERP relay or direct peer-to-peer link.
+1. The connection reaches the workspace daemon over a Designated Encrypted Relay for Packets (DERP) relay or direct peer-to-peer link.
 1. The workspace daemon handles the request (spawning a shell, forwarding a port, or serving a file).
 
 When the agent executes a tool call (reading a file, running a command, writing code), it follows the same tunnel:
@@ -95,7 +95,7 @@ There is no need to wait for a response before providing additional context or r
 Tools are how the agent takes action.
 Each tool call from the LLM translates to a concrete operation, either inside a workspace or within the control plane itself.
 
-The agent is restricted to the built-in tool set defined in this section, plus any additional tools from workspace skills and MCP servers.
+The agent is restricted to the built-in tool set defined in this section, plus any additional tools from workspace skills and Model Context Protocol (MCP) servers.
 Skills provide structured instructions the agent loads on demand (see [Extending Agents](./extending-agents.md)).
 MCP tools come from admin-configured external servers (see [MCP Servers](./platform-controls/mcp-servers.md)) and from workspace `.mcp.json` files.
 The agent has no direct access to the Coder API beyond what these tools expose and cannot execute arbitrary operations against the control plane.
@@ -127,8 +127,8 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
 #### Windows workspace shell requirement
 
-Coder Agents run workspace commands through a POSIX-compatible shell (`sh`).
-Windows workspaces must provide `sh` on `PATH`, for example from [Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or WSL.
+Coder Agents run workspace commands through a Portable Operating System Interface (POSIX)-compatible shell (`sh`).
+Windows workspaces must provide `sh` on `PATH`, for example from [Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or Windows Subsystem for Linux (WSL).
 PowerShell alone cannot run the `execute` tool.
 After installing a shell, restart the workspace to pick up the updated `PATH`.
 

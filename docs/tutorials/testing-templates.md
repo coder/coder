@@ -29,7 +29,7 @@ This workflow ensures your templates are validated, tested, and promoted seamles
 > [!WARNING]
 > Creating users with `--login-type none` is deprecated.
 > For [Premium](https://coder.com/pricing) deployments, use [service accounts](../admin/users/headless-auth.md) instead.
-> For OSS deployments, use a regular account with password, GitHub, or OIDC authentication.
+> For open source software (OSS) deployments, use a regular account with password, GitHub, or OpenID Connect (OIDC) authentication.
 
 For Premium deployments, create a service account:
 

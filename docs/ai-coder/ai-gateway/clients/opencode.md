@@ -79,7 +79,7 @@ You can use OpenCode with custom model IDs through a [Bedrock Mantle provider](.
 AI Gateway signs requests with AWS credentials centrally, so you only need a [Coder API token](../auth.md#authenticate-ai-clients) in OpenCode.
 Use a custom provider in OpenCode that matches your model's API, rather than its native Amazon Bedrock integration.
 The following example uses Astra with the Responses API.
-For other models, choose the SDK package that matches the API:
+For other models, choose the software development kit (SDK) package that matches the API:
 
 | Model API          | OpenCode `npm` package      |
 |--------------------|-----------------------------|

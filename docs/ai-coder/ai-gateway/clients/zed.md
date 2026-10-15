@@ -72,7 +72,7 @@ You can set this in two ways:
 ## BYOK (Personal API Key)
 
 > [!NOTE]
-> At the time of writing, Zed Agent does not support sending custom headers, so BYOK mode is not available.
+> At the time of writing, Zed Agent does not support sending custom headers, so Bring Your Own Key (BYOK) mode is not available.
 
 **References:**
 [Configuring Zed - Language Models](https://zed.dev/docs/reference/all-settings#language-models)

@@ -48,7 +48,7 @@ helm install postgresql bitnami/postgresql \
     --set primary.persistence.size=10Gi
 ```
 
-The cluster-internal DB URL for the above database is:
+The cluster-internal database (DB) URL for the above database is:
 
 ```sh
 postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
@@ -126,7 +126,7 @@ We support two release channels: mainline and stable - read the [Releases](../..
         --version 2.35.3
     ```
 
-  - **OCI Registry**
+  - **Open Container Initiative (OCI) Registry**
 
     <!-- autoversion(mainline): "--version [version]" -->
 
@@ -211,7 +211,7 @@ This is intended to serve as a reference, and not all security requirements may 
 2. **All containers must run as non-root user**
 
    - Control plane - Our control plane pod [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
-   - Workspaces - Workspace pod UID is [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276), and are not required to run as `root`.
+   - Workspaces - Workspace pod user ID (UID) is [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276), and are not required to run as `root`.
 
 3. **Containers cannot run privileged**
 
@@ -237,7 +237,7 @@ This is intended to serve as a reference, and not all security requirements may 
 
 ### AWS
 
-If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS will default to the Classic load balancer.
+If you are deploying Coder on AWS Elastic Kubernetes Service (EKS) and service is set to `LoadBalancer`, AWS will default to the Classic load balancer.
 The load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
 
 ```yaml

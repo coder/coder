@@ -10,7 +10,7 @@ This page describes the runtime and permission requirements for running Agent Fi
 ## Runtime & Permission Requirements for Running Boundary in Kubernetes
 
 Requirements depend on the node OS and the container runtime.
-The following examples use **EKS with Managed Node Groups** for two common node AMIs.
+The following examples use **Amazon Elastic Kubernetes Service (EKS) with Managed Node Groups** for two common node Amazon Machine Images (AMIs).
 
 ---
 
@@ -122,6 +122,6 @@ Use this when you have no way to allow user namespace creation.
 
 ### Example 3: EKS + Fargate (Firecracker VMs)
 
-nsjail is not currently supported on **EKS Fargate** (Firecracker-based VMs), which blocks the capabilities needed for nsjail.
+nsjail is not currently supported on **EKS Fargate** (Firecracker-based virtual machines (VMs)), which blocks the capabilities needed for nsjail.
 
 If you run on Fargate, we recommend using [landjail](../landjail.md) instead, provided kernel version supports it (Linux 6.7+).

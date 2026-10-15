@@ -2,7 +2,7 @@
 title: OAuth2 provider integration patterns
 ---
 
-This page covers how a client proves who it is and completes a login: the supported ways to prove identity, the standard login steps, the required PKCE (Proof Key for Code Exchange) step, and how a client finds the right web addresses to use.
+This page covers how a client proves who it is and completes a login: the supported ways to prove identity, the standard login steps, the required Proof Key for Code Exchange (PKCE) step, and how a client finds the right web addresses to use.
 
 - [OAuth2 provider](./index.md): turn on the provider and create an application
 - [Scopes](./scopes.md): control what a client is allowed to access
@@ -13,7 +13,7 @@ This page covers how a client proves who it is and completes a login: the suppor
 
 Coder supports the following OAuth2 client authentication methods at the token endpoint (`/oauth2/tokens`):
 
-- `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1).
+- `client_secret_basic` (recommended): HTTP Basic authentication (Request for Comments (RFC) 6749 §2.3.1).
   The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret.
@@ -27,7 +27,7 @@ Send `client_secret` in the request body or in the `Authorization` header.
 Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential.
-Note the redirect URI restrictions below before choosing one.
+Note the redirect Uniform Resource Identifier (URI) restrictions below before choosing one.
 
 Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
 
@@ -126,9 +126,9 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 
 - **Authorization Server Metadata**:
   `GET /.well-known/oauth-authorization-server`
-- **REST API protected resource metadata**:
+- **Representational State Transfer (REST) API protected resource metadata**:
   `GET /.well-known/oauth-protected-resource`
-- **MCP protected resource metadata**:
+- **Model Context Protocol (MCP) protected resource metadata**:
   `GET /.well-known/oauth-protected-resource/api/experimental/mcp/http`
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
@@ -143,7 +143,7 @@ It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-regis
 ## Standards compliance
 
 This implementation follows established OAuth2 standards including [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core), [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the [OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
-Coder enforces OAuth 2.1 requirements including mandatory PKCE for all authorization code grants, exact redirect URI string matching with the [RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port exception, rejection of the implicit grant, and CSRF protections on consent pages.
+Coder enforces OAuth 2.1 requirements including mandatory PKCE for all authorization code grants, exact redirect URI string matching with the [RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port exception, rejection of the implicit grant, and cross-site request forgery (CSRF) protections on consent pages.
 
 ## Learn more
 

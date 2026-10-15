@@ -18,7 +18,7 @@ for the script declaration. With heredoc strings, you can script without messy
 escape codes, just as if you were working in your terminal.
 
 Some of the examples use the [`coder stat`](../../../reference/cli/stat/index.md)
-command. This is useful for determining CPU and memory usage of the VM or
+command. This is useful for determining CPU and memory usage of the virtual machine (VM) or
 container that the workspace is running in, which is more accurate than resource
 usage about the workspace's host.
 
@@ -93,7 +93,7 @@ resource "coder_agent" "main" {
 You can also show agent metadata for information about the workspace's host.
 
 [top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is
-available in most Linux distributions and provides virtual memory, CPU and IO
+available in most Linux distributions and provides virtual memory, CPU and input/output (IO)
 statistics. Running `top` produces output that looks like:
 
 ```txt

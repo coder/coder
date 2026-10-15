@@ -13,7 +13,7 @@ This guide assumes you have full administrator privileges on Azure.
 From the Azure Portal, navigate to the Virtual Machines Dashboard.
 Select **Create** to create a new Azure virtual machine.
 
-<img src="../../../images/platforms/azure/azure1.jpg" alt="Azure VM creation page">
+<img src="../../../images/platforms/azure/azure1.jpg" alt="Azure virtual machine (VM) creation page">
 
 This will bring you to the `Create a virtual machine` page.
 Select the subscription group of your choice, or create one if necessary.

@@ -2,7 +2,7 @@
 title: Extending agents
 ---
 
-Workspace templates can extend the agent with custom skills and MCP tools.
+Workspace templates can extend the agent with custom skills and Model Context Protocol (MCP) tools.
 These mechanisms let platform teams provide repository-specific instructions, domain expertise, and external tool integrations without modifying the agent itself.
 
 ## How the workspace shares context with chats

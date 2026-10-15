@@ -15,7 +15,7 @@ They differ in how requests are routed to the gateway.
 
 By default, `coder server` runs an in-memory gateway instance in the `coderd` process.
 AI clients send requests to `<Coder access URL>/api/v2/ai-gateway/<provider-name>/`.
-The embedded gateway uses the same control RPC as a standalone deployment, over an in-process transport rather than a network connection.
+The embedded gateway uses the same control remote procedure call (RPC) as a standalone deployment, over an in-process transport rather than a network connection.
 It does not use a gateway key and does not negotiate an AI Gateway API version.
 
 The following diagram shows the embedded topology:
@@ -34,7 +34,7 @@ The control connection carries the following:
 - Provider configuration, plus a change signal when the provider set changes.
 - AI session records.
 - **Deprecated**:
-  the configuration and access tokens used by [injected MCP](./mcp.md).
+  the configuration and access tokens used by [injected Model Context Protocol (MCP)](./mcp.md).
 
 Standalone replicas have no authoritative database state.
 They keep ephemeral provider snapshots, request caches, provider key pools, and metrics in memory, and emit their own logs and traces.
@@ -93,7 +93,7 @@ Gateway does not inject actor headers on passthrough routes.
 ### Header name restrictions
 
 An empty header name turns off that actor attribute.
-A nonempty name must be a valid [HTTP field name](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1) as defined by RFC 9110.
+A nonempty name must be a valid [HTTP field name](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1) as defined by Request for Comments (RFC) 9110.
 Nonempty configured names must be unique, ignoring case.
 
 You can't use any of these reserved names, regardless of casing:

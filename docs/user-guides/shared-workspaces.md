@@ -15,7 +15,7 @@ Owners of a workspace can grant access to other users or groups with scoped role
 This is helpful in a number of scenarios, including:
 
 - Developers can do ad-hoc debugging or pair programming.
-- A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
+- A workspace can be owned by a group of users for quality assurance (QA), on-call rotations, or shared staging.
 - AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/ai-coder/agents).)
 
 <a id="getting-started"></a>
@@ -25,7 +25,7 @@ This is helpful in a number of scenarios, including:
 Workspaces can be shared through either the Coder CLI or UI.
 
 Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
-This is true by default if you are an OSS user, but deployments with Premium licenses may be restricted by admins.
+This is true by default if you are an open source software (OSS) user, but deployments with Premium licenses may be restricted by admins.
 
 ### CLI
 

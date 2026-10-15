@@ -341,7 +341,7 @@ workspace presets with optional `description` and `icon` fields:
   to use it.
 - **icon**: A visual icon displayed alongside the preset name in the UI. Use
   emoji icons with the format `/emojis/{code}.png` (e.g.,
-  `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+  `/emojis/1f1fa-1f1f8.png` for the United States (US) flag emoji 🇺🇸).
 
 For a complete list of all available fields, see the
 [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).

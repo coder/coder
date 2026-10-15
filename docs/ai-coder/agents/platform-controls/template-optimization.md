@@ -3,7 +3,7 @@ title: Template optimization
 ---
 
 Not every chat with Coder Agents requires a workspace.
-The agent provisions one when missing tools, skills, MCP integrations, or context block progress, or when it needs to work with files or run commands.
+The agent provisions one when missing tools, skills, Model Context Protocol (MCP) integrations, or context block progress, or when it needs to work with files or run commands.
 
 When a workspace is needed, the agent reads the available templates, selects the appropriate one based on its name and description, and provisions a workspace automatically.
 Administrators can [restrict which templates the agent can use](#restrict-available-templates).
@@ -48,12 +48,12 @@ A good template description tells the agent:
 
 ### Examples
 
-| Description                                                                                 | Why it works                                                       |
-|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain                             |
-| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed                       |
-| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive — the agent can match it to Go-related tasks |
-| Java microservices for the order-processing pipeline. Maven, JDK 21, Kafka client libraries | Names the service domain and build tool                            |
+| Description                                                                                                        | Why it works                                                         |
+|--------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL                        | Specific language, repo, and toolchain                               |
+| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed                         | Clear stack, named project, key tools listed                         |
+| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools                              | Broad but descriptive, so the agent can match it to Go-related tasks |
+| Java microservices for the order-processing pipeline. Maven, Java Development Kit (JDK) 21, Kafka client libraries | Names the service domain and build tool                              |
 
 | Description        | Why it fails                                                            |
 |--------------------|-------------------------------------------------------------------------|
@@ -114,7 +114,7 @@ Agent templates differ from developer templates in several ways:
 - **Reduced permissions.**
   Agent workspaces can use scoped credentials with fewer permissions than a developer's interactive session.
 
-See [Creating templates](../../../admin/templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or CI/CD.
+See [Creating templates](../../../admin/templates/creating-templates.md) for step-by-step instructions on creating templates via the UI, CLI, or continuous integration and continuous delivery (CI/CD).
 
 ## Configure network boundaries
 
@@ -122,7 +122,7 @@ The workspace is the network boundary for the agent.
 If you want to control what the agent can access, control what the workspace can access.
 
 This is a deliberate architectural advantage of running the agent loop in the control plane.
-Because all AI functionality (LLM inference, tool dispatch, chat state) lives in the control plane, agent workspaces do not need outbound access to any LLM provider.
+Because all AI functionality (large language model (LLM) inference, tool dispatch, chat state) lives in the control plane, agent workspaces do not need outbound access to any LLM provider.
 The workspace only needs to reach:
 
 - **The Coder control plane** — required for the workspace daemon to function.

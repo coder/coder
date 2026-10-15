@@ -17,8 +17,8 @@ For a list of clients supported through AI Gateway Proxy, see [Client Configurat
 
 AI Gateway Proxy operates in two modes depending on the destination:
 
-* MITM (Man-in-the-Middle) mode for the hostnames of enabled AI providers:
-  * Intercepts and decrypts HTTPS traffic using a configured CA certificate
+* Man-in-the-Middle (MITM) mode for the hostnames of enabled AI providers:
+  * Intercepts and decrypts HTTPS traffic using a configured certificate authority (CA) certificate
   * Forwards requests to AI Gateway for authentication, auditing, and routing
   * Covers the hostname from each enabled provider's base URL
 

@@ -9,7 +9,7 @@ This guide walks platform teams and administrators through setting up Coder Agen
 Before you begin, confirm the following:
 
 - **Coder deployment** running the latest release.
-- **LLM provider credentials**:
+- **Large language model (LLM) provider credentials**:
   an API key for at least one [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI, AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
 - **Network access** from the control plane to your LLM provider.
   Workspaces do not need LLM access.
@@ -34,7 +34,7 @@ Before you begin, confirm the following:
 > Coder enables the edit controls for the organization that you select.
 > Coder shows the deployment settings only to deployment administrators.
 > Users with model access can view the relevant Models and Coder Agents pages.
-> Users with MCP server access can open the MCP servers page.
+> Users with Model Context Protocol (MCP) server access can open the MCP servers page.
 
 To configure Coder Agents:
 
@@ -224,7 +224,7 @@ The agent is a force multiplier, not a replacement for developer judgment.
 The [Chats API](../../reference/api/chats.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
-- Triggering Coder Agents from CI/CD pipelines when builds fail.
+- Triggering Coder Agents from continuous integration and continuous delivery (CI/CD) pipelines when builds fail.
 - Creating Coder Agents from GitHub webhooks on new issues or PRs.
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.

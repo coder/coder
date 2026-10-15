@@ -43,16 +43,16 @@ Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment v
 export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
-Refer to [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
+Refer to [Client Configuration certificate authority (CA) certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
-When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the MITM CA certificate and the TLS certificate into a single file:
+When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the man-in-the-middle (MITM) CA certificate and the TLS certificate into a single file:
 
 ```sh
 cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 export NODE_EXTRA_CA_CERTS="/path/to/combined-ca.pem"
 ```
 
-Copilot CLI may start MCP server processes that use runtimes other than Node.js (e.g. Go).
+Copilot CLI may start Model Context Protocol (MCP) server processes that use runtimes other than Node.js (e.g. Go).
 These processes inherit environment variables like `HTTPS_PROXY` but may not respect `NODE_EXTRA_CA_CERTS`.
 Adding the TLS certificate to the [system trust store](../ai-gateway-proxy/setup.md#system-trust-store) ensures all processes trust it.
 

@@ -22,10 +22,10 @@ Some of the key differences between code-server and VS Code Web are:
 | Path-based routing       | Has fixes for state collisions when used path-based                         | May have issues with path-based routing in certain configurations |
 | Proposed API             | Always enabled for all extensions                                           | Only Microsoft extensions without configuration                   |
 | Proxy integration        | Integrates with Coder's proxy for ports panel                               | Integration is more limited                                       |
-| Sourcemaps               | Loads locally                                                               | Uses CDN                                                          |
+| Sourcemaps               | Loads locally                                                               | Uses content delivery network (CDN)                               |
 | Telemetry                | Configurable endpoint                                                       | Does not allow a configurable endpoint                            |
 | Terminal access to files | You can use a terminal outside of the integrated one to interact with files | Limited to integrated terminal access                             |
 | User settings            | Stored on remote disk                                                       | Stored in browser                                                 |
 | Web views                | Self-contained                                                              | Uses Microsoft CDN                                                |
 
-For more information about code-server, visit the [code-server FAQ](https://coder.com/docs/code-server/FAQ).
+For more information about code-server, visit the [code-server frequently asked questions (FAQ)](https://coder.com/docs/code-server/FAQ).

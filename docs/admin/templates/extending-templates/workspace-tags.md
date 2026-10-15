@@ -35,7 +35,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
   provisioner runtime, `runtime_selector`
 - `project_id` - a formatted string supported by the string-type
   `coder_parameter`, `project_name`
-- `cache` - an HCL condition involving boolean-type `coder_parameter`,
+- `cache` - a HashiCorp Configuration Language (HCL) condition involving boolean-type `coder_parameter`,
   `feature_cache_enabled`
 
 Review the

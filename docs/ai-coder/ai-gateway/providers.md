@@ -95,7 +95,7 @@ It is distinct from [Amazon Bedrock](#amazon-bedrock), which is a separate provi
 Every Claude Platform provider requires:
 
 - A **region**, for example `us-east-1`.
-  It selects the default endpoint `https://aws-external-anthropic.<region>.api.aws` and, for IAM authentication, the signing scope.
+  It selects the default endpoint `https://aws-external-anthropic.<region>.api.aws` and, for Identity and Access Management (IAM) authentication, the signing scope.
   Set it explicitly even when you override the endpoint, so requests routed through a proxy are still signed for the correct region.
 - A **workspace ID**, sent as the `anthropic-workspace-id` header on every request.
   AI Gateway sets the header from provider configuration and strips any value a client sends, so a client cannot choose which workspace its traffic is attributed to.
@@ -161,20 +161,20 @@ curl "${CODER_URL}/api/v2/ai-gateway/${PROVIDER_NAME}/v1/messages" \
 Do not attach API keys to a Bedrock provider.
 The provider itself always authenticates with AWS credentials.
 
-When [BYOK](auth.md#bring-your-own-key-byok) is enabled, a user can save a personal Amazon Bedrock API key under their [Agents API keys](../agents/models.md#user-api-keys-byok).
+When [Bring Your Own Key (BYOK)](auth.md#bring-your-own-key-byok) is enabled, a user can save a personal Amazon Bedrock API key under their [Agents API keys](../agents/models.md#user-api-keys-byok).
 AI Gateway then sends that key as a bearer token for the user's requests instead of signing them with the deployment's AWS credentials.
 Requests from users without a personal key continue to use the credentials below.
 
 AI Gateway resolves AWS credentials one of three ways:
 
-- **AWS SDK default credential chain (recommended).**
-  When no explicit credentials are configured, the AWS SDK resolves them automatically from the environment: IAM Roles (instance profiles, IRSA, ECS task roles), shared config files, environment variables, SSO, and more.
+- **AWS software development kit (SDK) default credential chain (recommended).**
+  When no explicit credentials are configured, the AWS SDK resolves them automatically from the environment: IAM Roles (instance profiles, IAM Roles for Service Accounts (IRSA), Amazon Elastic Container Service (ECS) task roles), shared config files, environment variables, single sign-on (SSO), and more.
   Attaching an IAM Role to the compute running Coder follows [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) for temporary credentials.
   The role must permit `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
 - **Static credentials.**
   Provide an access key and secret for an IAM user with the same Bedrock permissions.
 - **Assumed IAM role.**
-  Set a **Role ARN** to have the gateway assume that role before calling Bedrock, signing requests with the resulting temporary credentials.
+  Set a **Role ARN**, the role's Amazon Resource Name (ARN), to have the gateway assume that role before calling Bedrock, signing requests with the resulting temporary credentials.
   This works on top of either of the above base identities and supports cross-account Bedrock access.
   See [IAM role assumption](#iam-role-assumption).
 
@@ -204,7 +204,7 @@ When you cannot use the default credential chain, create a dedicated IAM user an
 #### IAM role assumption
 
 Set the optional **Role ARN** field to have the gateway assume an IAM role before calling Bedrock.
-The base identity (static credentials or the default credential chain) signs an STS `AssumeRole` call, and the temporary credentials it returns sign Bedrock requests.
+The base identity (static credentials or the default credential chain) signs an AWS Security Token Service (STS) `AssumeRole` call, and the temporary credentials it returns sign Bedrock requests.
 The field is optional: a provider with no Role ARN authenticates with its base identity directly, exactly as described above.
 
 To use role assumption:

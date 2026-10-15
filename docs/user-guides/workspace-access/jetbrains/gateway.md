@@ -122,7 +122,7 @@ To resolve this issue, you will need to add Coder's certificate to the Java trus
 
 1. In JetBrains, go to **Settings** > **Tools** > **Coder**.
 
-1. Paste the path to the certificate in **CA Path**.
+1. Paste the path to the certificate authority (CA) certificate in **CA Path**.
 
 ## Manually Configuring A JetBrains Gateway Connection
 

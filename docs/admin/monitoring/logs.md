@@ -12,7 +12,7 @@ By default, `coderd`, the process that runs the control plane, exports
 human-readable logs to standard output. You can access these logs via
 `kubectl logs deployment/coder -n <coder-namespace>`
 on Kubernetes or `journalctl -u coder` if you deployed Coder on a host
-machine/VM.
+machine/virtual machine (VM).
 
 - To change the log format/location, you can set
   [`CODER_LOGGING_HUMAN`](../../reference/cli/server/index.md#--log-human) and
@@ -27,7 +27,7 @@ machine/VM.
 > `CODER_LOGGING_HUMAN`) to `/dev/null`. An empty string does not disable
 > logging.
 
-Events such as server errors, audit logs, user activities, and SSO & OpenID
+Events such as server errors, audit logs, user activities, and single sign-on (SSO) & OpenID
 Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs

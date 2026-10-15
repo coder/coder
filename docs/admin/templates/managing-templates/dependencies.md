@@ -98,7 +98,7 @@ file will be stored alongside with the other template source code.
 
 > [!NOTE]
 > Terraform best practices also recommend checking in your
-> `.terraform.lock.hcl` into Git or other VCS.
+> `.terraform.lock.hcl` into Git or other version control system (VCS).
 
 The next time a workspace is built from that template, Coder will make sure to
 use the same versions of those providers as specified in the lock file.

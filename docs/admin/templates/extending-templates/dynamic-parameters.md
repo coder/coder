@@ -363,7 +363,7 @@ data "coder_parameter" "environment" {
 ### Checkboxes
 
 A single checkbox for boolean values.
-This can be used for a TOS confirmation or to expose advanced options.
+This can be used for a terms of service (TOS) confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
@@ -682,7 +682,7 @@ data "coder_parameter" "cpu_cores" {
 
 Premium users can leverage our roles and groups to conditionally expose or change parameters based on user identity.
 This is helpful for establishing governance policy directly in the workspace creation form,
-rather than creating multiple templates to manage RBAC.
+rather than creating multiple templates to manage role-based access control (RBAC).
 
 User identity is referenced in Terraform by reading the
 [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
@@ -857,7 +857,7 @@ If your template's parameters do not work with Dynamic Parameters, please
 
 ### Template variables not showing up
 
-Dynamic Parameters are GA as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0). Template variables are fully supported in Dynamic Parameters.
+Dynamic Parameters are generally available (GA) as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0). Template variables are fully supported in Dynamic Parameters.
 
 If you are experiencing issues with template variables, try upgrading to the latest version. Otherwise, please file an issue in our Github.
 
@@ -866,7 +866,7 @@ If you are experiencing issues with template variables, try upgrading to the lat
 Yes, registry modules are supported with Dynamic Parameters.
 
 Unless explicitly mentioned, no registry modules require Dynamic Parameters.
-Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
+Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their user experience (UX).
 
 In the meantime, you can safely convert existing templates and build new parameters on top of the functionality provided in the registry.
 

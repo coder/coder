@@ -16,7 +16,7 @@ Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway
   Per-user overrides take priority over group budgets.
 
 The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently support only `highest` and `month`.
-`highest` selects the group with the largest spend limit, and `month` resets spend at the start of each UTC calendar month.
+`highest` selects the group with the largest spend limit, and `month` resets spend at the start of each Coordinated Universal Time (UTC) calendar month.
 A user who belongs to no budgeted group falls back to the Everyone group, which has no budget unless one is set for it.
 There is no deployment-wide budget amount, and a configured spend limit cannot exceed $1,000,000 per member per period.
 
@@ -28,7 +28,7 @@ There is no deployment-wide budget amount, and a configured spend limit cannot e
 > Existing native limit values are not migrated to AI Gateway budgets and are no longer enforced.
 > Configured per-model prices and historical native cost totals are also not migrated to AI Gateway.
 > Before upgrading, record any per-model prices you need from **Admin settings** > **AI** > **Models**.
-> The old cost endpoints default `start_date` to 30&nbsp;days before the request and `end_date` to the request time, so choose explicit RFC 3339 UTC values that cover all history you need.
+> The old cost endpoints default `start_date` to 30&nbsp;days before the request and `end_date` to the request time, so choose explicit Request for Comments (RFC) 3339 UTC values that cover all history you need.
 > Fetch `/api/v2/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0` and save the response.
 > After each page, stop when `offset + users.length >= count`; otherwise, increase `offset` by 100 and fetch the next page.
 > For every `users[].user_id` across those pages, save `/api/v2/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>` with the same dates.
@@ -43,7 +43,7 @@ The API reference documents how to [get](../../../reference/api/enterprise.md#ge
 
 - The AI Gateway checks the user's current spend before forwarding each request.
   When spend meets or exceeds the budget, the request is rejected and the chat shows a terminal error explaining that the budget was exceeded.
-- Brief overage is possible when concurrent requests are in flight, because cost is recorded after the LLM responds.
+- Brief overage is possible when concurrent requests are in flight, because cost is recorded after the large language model (LLM) responds.
 
 ### User-facing status
 

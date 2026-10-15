@@ -38,7 +38,7 @@ Optionally, configure a filter for which groups to be sent.
 
 Configure Coder to use these claims for group sync.
 These claims are present in the `id_token`.
-For more group sync configuration options, consult the [IDP sync documentation](../admin/users/idp-sync.md#group-sync).
+For more group sync configuration options, consult the [identity provider (IDP) sync documentation](../admin/users/idp-sync.md#group-sync).
 
 ```sh
 # Add the 'groups' scope and include the 'offline_access' scope for refresh tokens

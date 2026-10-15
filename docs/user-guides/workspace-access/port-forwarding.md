@@ -9,12 +9,12 @@ A common use case is testing web applications in a browser.
 
 There are multiple ways to forward ports in Coder:
 
-| Method                                                          | Details                                                                                                                                                                 |
-|:----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Desktop](#coder-desktop)                                 | Uses a VPN tunnel to your workspaces and provides access to all running ports. Supports peer-to-peer connections for the best performance.                              |
-| [`coder port-forward` command](#the-coder-port-forward-command) | Can be used to forward specific TCP or UDP ports from the remote workspace so they can be accessed locally. Supports peer-to-peer connections for the best performance. |
-| [Dashboard](#dashboard)                                         | Proxies traffic through the Coder control plane.                                                                                                                        |
-| [SSH](#ssh)                                                     | Forwards ports over an SSH connection.                                                                                                                                  |
+| Method                                                          | Details                                                                                                                                                                                                                          |
+|:----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)                                 | Uses a virtual private network (VPN) tunnel to your workspaces and provides access to all running ports. Supports peer-to-peer connections for the best performance.                                                             |
+| [`coder port-forward` command](#the-coder-port-forward-command) | Can be used to forward specific Transmission Control Protocol (TCP) or User Datagram Protocol (UDP) ports from the remote workspace so they can be accessed locally. Supports peer-to-peer connections for the best performance. |
+| [Dashboard](#dashboard)                                         | Proxies traffic through the Coder control plane.                                                                                                                                                                                 |
+| [SSH](#ssh)                                                     | Forwards ports over an SSH connection.                                                                                                                                                                                           |
 
 ## Coder Desktop
 
@@ -119,7 +119,7 @@ Once a port is shared at either `authenticated` or `public` levels, it will stay
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 > [!NOTE]
-> The sharing level is limited by the maximum level enforced in the template settings in licensed deployments, and not restricted in OSS deployments.
+> The sharing level is limited by the maximum level enforced in the template settings in licensed deployments, and not restricted in open source software (OSS) deployments.
 
 This can also be used to change the sharing level of port-based `coder_app`s by entering their port number in the sharable ports UI.
 The `share` attribute on `coder_app` resource uses a different method of authentication and **is not impacted by the template's maximum sharing level**, nor the level of a shared port that points to the app.

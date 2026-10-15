@@ -36,7 +36,7 @@ Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
 ### AI Gateway
 
-An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
+A large language model (LLM) gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes Model Context Protocol (MCP) administration.
 It was previously named AI Bridge and runs the `aibridged` component in memory inside `coderd`.
 This feature requires a Premium license.
 Refer to [AI Gateway](../ai-coder/ai-gateway/index.md).
@@ -81,11 +81,11 @@ Refer to [Groups and roles](../admin/users/groups-roles.md).
 ### CDE
 
 Cloud development environment, the category of product that hosts development environments on remote infrastructure.
-A Coder workspace is a CDE.
+A Coder workspace is a cloud development environment (CDE).
 
 ### Change management
 
-The GitOps flow that stores templates in Git and pushes them through CI/CD with `coder templates push`.
+The GitOps flow that stores templates in Git and pushes them through continuous integration and continuous delivery (CI/CD) with `coder templates push`.
 Refer to [Change management](../admin/templates/managing-templates/change-management.md).
 
 ### code-server
@@ -101,7 +101,7 @@ The self-hosted platform that provisions and manages remote development environm
 ### Coder Agents
 
 The native, self-hosted AI product for delegating development work and research to coding agents.
-The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the REST API.
+The agent loop runs in the control plane, and developers work through the dashboard, the `coder agents` CLI, or the Representational State Transfer (REST) API.
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
 Refer to [Coder Agents](../ai-coder/agents/index.md).
 
@@ -128,7 +128,7 @@ Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
 ### Coder Validated Architecture
 
-Coder's reference designs for sizing and deploying a control plane, abbreviated CVA.
+Coder's reference designs for sizing and deploying a control plane, known as the Coder Validated Architecture (CVA).
 Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
 A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
 Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
@@ -174,7 +174,7 @@ Refer to [Architecture](../install/plan/architecture.md).
 
 ### codersdk
 
-The Go SDK that the CLI and dashboard use and that you can use for automation.
+The Go software development kit (SDK) that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
 <!-- "Coding" is an adjective in this glossary term, not a task verb. -->
@@ -232,7 +232,7 @@ You provide it when you request a trial or a license.
 ### DERP
 
 Designated Encrypted Relay for Packets.
-The Tailnet uses DERP relays to carry traffic when a direct peer-to-peer connection between two nodes is not possible.
+The Tailnet uses Designated Encrypted Relay for Packets (DERP) relays to carry traffic when a direct peer-to-peer connection between two nodes is not possible.
 Refer to [Networking](../admin/networking/index.md).
 
 ### Dev container
@@ -363,7 +363,7 @@ Refer to [Modules](../admin/templates/extending-templates/modules.md).
 ### OIDC
 
 OpenID Connect.
-Coder supports any specification-compliant OIDC provider for single sign-on.
+Coder supports any specification-compliant OpenID Connect (OIDC) provider for single sign-on.
 Refer to [OIDC authentication](../admin/users/oidc-auth/index.md).
 
 ### OpenTofu
@@ -402,7 +402,7 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 
 ### Personal access token
 
-An API token, often abbreviated PAT, that a user creates to authenticate CLI and API requests.
+An API token, often called a personal access token (PAT), that a user creates to authenticate CLI and API requests.
 Refer to [Sessions and tokens](../admin/users/sessions-tokens.md).
 
 ### Port forwarding
@@ -418,7 +418,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, System for Cross-domain Identity Management (SCIM), and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics

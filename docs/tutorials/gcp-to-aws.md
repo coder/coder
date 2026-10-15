@@ -11,14 +11,14 @@ January 4, 2024
 
 ---
 
-This guide will walkthrough how to use a Google Cloud service account to authenticate the Coder control plane to AWS and create an EC2 workspace.
+This guide will walkthrough how to use a Google Cloud service account to authenticate the Coder control plane to AWS and create an Amazon Elastic Compute Cloud (EC2) workspace.
 The below steps assume your Coder control plane is running in Google Cloud and has the relevant service account assigned.
 
 For steps on assigning a service account to a resource like Coder, visit the [Google documentation](https://cloud.google.com/iam/docs/attach-service-accounts#attaching-new-resource).
 
 ## 1. Get your Google service account OAuth Client ID
 
-Navigate to the Google Cloud console, and select **IAM & Admin** > **Service Accounts**.
+Navigate to the Google Cloud console's Identity and Access Management (IAM) settings, and select **IAM & Admin** > **Service Accounts**.
 View the service account you want to use, and copy the **OAuth 2 Client ID** value shown on the right-hand side of the row.
 
 Optionally: If you do not yet have a service account, use the [Google IAM documentation on creating a service account](https://cloud.google.com/iam/docs/service-accounts-create) to create one.
@@ -108,7 +108,7 @@ Add the following policy to the role:
 ## 4. Generate the identity token for the service account
 
 Run the following `gcloud` command to generate the service account identity token.
-This is a JWT token with a payload that includes the service account email, audience, issuer, and expiration.
+This is a JSON Web Token (JWT) token with a payload that includes the service account email, audience, issuer, and expiration.
 
 ```console
 gcloud auth print-identity-token --audiences=https://aws.amazon.com --impersonate-service-account 12345-compute@de

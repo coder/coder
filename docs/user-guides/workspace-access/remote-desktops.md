@@ -4,7 +4,7 @@ title: Remote desktops
 
 ## RDP
 
-The most common way to get a GUI-based connection to a Windows workspace is by using Remote Desktop Protocol (RDP).
+The most common way to get a graphical user interface (GUI)-based connection to a Windows workspace is by using Remote Desktop Protocol (RDP).
 
 <div class="tabs">
 
@@ -23,7 +23,7 @@ You can use the [RDP Desktop](https://registry.coder.com/modules/coder/local-win
 
 ![RDP Desktop Button](../../images/user-guides/remote-desktops/rdp-button.gif)
 
-You can also use a URI handler to launch an RDP session directly.
+You can also use a Uniform Resource Identifier (URI) handler to launch an RDP session directly.
 
 The URI format is:
 
@@ -67,7 +67,7 @@ Then, connect to your workspace via RDP at `localhost:3399`. ![windows-rdp](../.
 </div>
 
 > [!NOTE]
-> Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
+> Some versions of Windows, including Windows Server 2022, do not communicate correctly over User Datagram Protocol (UDP) when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
 > When this happens, the RDP client will appear to connect, but displays a blank screen.
 >
 > To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
@@ -130,7 +130,7 @@ This requires just a few lines of Terraform in your template, see the documentat
 
 ## VNC
 
-The common way to connect to a desktop session of a Linux workspace is to use a VNC client.
+The common way to connect to a desktop session of a Linux workspace is to use a Virtual Network Computing (VNC) client.
 The VNC client can be installed on your local machine or accessed through a web browser.
 There is an additional requirement to install the VNC server on the workspace.
 

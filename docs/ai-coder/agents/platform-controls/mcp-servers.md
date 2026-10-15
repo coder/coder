@@ -2,7 +2,7 @@
 title: MCP servers
 ---
 
-Organization admins can register external MCP servers that provide additional tools for agent chat sessions.
+Organization admins can register external Model Context Protocol (MCP) servers that provide additional tools for agent chat sessions.
 Each organization has its own set of MCP servers, and chats only offer servers from the chat's organization.
 Configured servers are injected into or offered to users during chat depending on the availability policy.
 
@@ -45,11 +45,11 @@ The add and update views always show the target organization, as a read-only fie
 
 #### Availability policies
 
-| Policy        | Behavior                                                                          |
-|---------------|-----------------------------------------------------------------------------------|
-| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
-| `default_off` | Available in the server list but users must opt in.                               |
+| Policy        | Behavior                                                                                                |
+|---------------|---------------------------------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has access control list (ACL) access to the server. No opting out. |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                                           |
+| `default_off` | Available in the server list but users must opt in.                                                     |
 
 ## Authentication
 
@@ -79,12 +79,12 @@ The administrator configures the OAuth2 provider, and each user independently co
 
 Optional fields:
 
-| Field                   | Description                               |
-|-------------------------|-------------------------------------------|
-| `oauth2_client_secret`  | OAuth2 client secret.                     |
-| `oauth2_scopes`         | Space-separated list of scopes.           |
-| `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
-| `oauth2_resource`       | Resource indicator URI (RFC 8707).        |
+| Field                   | Description                                                      |
+|-------------------------|------------------------------------------------------------------|
+| `oauth2_client_secret`  | OAuth2 client secret.                                            |
+| `oauth2_scopes`         | Space-separated list of scopes.                                  |
+| `oauth2_revocation_url` | Token revocation endpoint URL (Request for Comments (RFC) 7009). |
+| `oauth2_resource`       | Resource indicator Uniform Resource Identifier (URI) (RFC 8707). |
 
 The revocation endpoint must use HTTPS.
 Loopback URLs may use HTTP for local development and tests.
@@ -130,7 +130,7 @@ At least one header is required when this mode is selected.
 
 ### User OIDC Identity
 
-Forwards the calling user's OIDC access token (stored in `user_links.oauth_access_token`) to the MCP server as an `Authorization: Bearer <token>` header.
+Forwards the calling user's OpenID Connect (OIDC) access token (stored in `user_links.oauth_access_token`) to the MCP server as an `Authorization: Bearer <token>` header.
 The token is refreshed transparently before each request if it has expired or is close to expiring.
 
 No admin-configurable fields.
@@ -163,7 +163,7 @@ When the server config has a signing secret, Coder also signs the request body a
 | `X-Coder-Signature-Timestamp` | Unix timestamp in seconds used to limit replay.                                           |
 | `X-Coder-Signature`           | Request signature in the form `v1=<lowercase hexadecimal HMAC-SHA256>`.                   |
 
-Coder sends the same identity headers to LLM providers, so a first-party MCP server can correlate a tool call with the originating chat.
+Coder sends the same identity headers to large language model (LLM) providers, so a first-party MCP server can correlate a tool call with the originating chat.
 
 ### Configure request signing
 
@@ -306,15 +306,15 @@ A subagent chat in plan mode gets none of them.
 
 ### Fields
 
-| Field                   | Description                                                                                                                      |
-|-------------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `slug`                  | 1 to 32 ASCII letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name. |
-| `url`                   | Streamable HTTP MCP endpoint. Refer to [URL and header requirements](#url-and-header-requirements).                              |
-| `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                              |
-| `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                 |
-| `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                |
-| `allow_in_subagents`    | Offer the server's tools to subagent chats spawned from this chat. Defaults to `false`.                                          |
-| `forward_coder_headers` | Send the [Coder identity headers](#coder-identity-headers). Defaults to `false`.                                                 |
+| Field                   | Description                                                                                                                                                                           |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `slug`                  | 1 to 32 American Standard Code for Information Interchange (ASCII) letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name. |
+| `url`                   | Streamable HTTP MCP endpoint. Refer to [URL and header requirements](#url-and-header-requirements).                                                                                   |
+| `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                                                                                   |
+| `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                                                                      |
+| `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                                                                     |
+| `allow_in_subagents`    | Offer the server's tools to subagent chats spawned from this chat. Defaults to `false`.                                                                                               |
+| `forward_coder_headers` | Send the [Coder identity headers](#coder-identity-headers). Defaults to `false`.                                                                                                      |
 
 ### Limits
 

@@ -107,7 +107,7 @@ Although the control plane persists no internal state, it operates as a proxy fo
 
 1. As an HTTP proxy when they access workspace applications in their browser via the Coder Dashboard.
 
-1. As a DERP proxy when establishing tunneled connections with CLI tools like `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
+1. As a Designated Encrypted Relay for Packets (DERP) proxy when establishing tunneled connections with CLI tools like `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
 
 Stopping a control plane instance will (momentarily) disconnect any users currently connecting through that instance.
 Adding a new instance is not disruptive, but you should remove instances and perform upgrades during a maintenance window to minimize disruption.
@@ -127,7 +127,7 @@ We recommend deploying provisioner daemons within the same cluster as the worksp
 
 - This gives them a low-latency connection to the APIs they will use to provision workspaces and can speed builds.
 
-- It allows provisioner daemons to use in-cluster mechanisms (for example Kubernetes service account tokens, AWS IAM Roles, and others) to authenticate with the infrastructure APIs.
+- It allows provisioner daemons to use in-cluster mechanisms (for example Kubernetes service account tokens, AWS Identity and Access Management (IAM) Roles, and others) to authenticate with the infrastructure APIs.
 
 - If you deploy workspaces in multiple clusters, run multiple provisioner daemon deployments and use template tags to select the correct set of provisioner daemons.
 

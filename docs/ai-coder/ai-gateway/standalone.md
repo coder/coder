@@ -99,7 +99,7 @@ aigateway:
 ```
 
 The gateway must be able to reach the Coder URL from every replica.
-For an HTTPS URL signed by a private CA, set `aigateway.coderTLS.caSecret.name` to the Secret holding the CA bundle.
+For an HTTPS URL signed by a private certificate authority (CA), set `aigateway.coderTLS.caSecret.name` to the Secret holding the CA bundle.
 If Coder requires client mTLS, also set `aigateway.coderTLS.clientSecret.name`.
 
 The chart defaults to one replica, a `ClusterIP` Service, and a data-plane listener on port 4001.

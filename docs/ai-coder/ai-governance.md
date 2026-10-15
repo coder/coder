@@ -8,7 +8,7 @@ As adoption grows, many enterprises also need observability, management, and pol
 AI Governance is included with a Premium license.
 Each Premium user gets access to a set of features that help organizations safely roll out AI tooling at scale:
 
-- [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central MCP server management, and policy enforcement
+- [AI Gateway](./ai-gateway/index.md): Large language model (LLM) gateway to audit AI sessions, central Model Context Protocol (MCP) server management, and policy enforcement
 - [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 
 > [!NOTE]
