@@ -34,6 +34,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
+	resetUnloadedChatEntity,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
 	updateChatTitle,
@@ -430,6 +431,13 @@ const AgentsPageLayout: React.FC = () => {
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
 							// merely marked stale.
+							void invalidateChatEntity(queryClient, updatedChat.id);
+						}
+						if (chatEvent.kind === "project_change") {
+							// Moves keep updated_at, so the merge above keeps whichever
+							// project_change arrives last. Refetch the committed project,
+							// and restart a first fetch that may predate the move.
+							void resetUnloadedChatEntity(queryClient, updatedChat.id);
 							void invalidateChatEntity(queryClient, updatedChat.id);
 						}
 					}
