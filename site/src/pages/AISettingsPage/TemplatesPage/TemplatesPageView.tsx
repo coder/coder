@@ -179,7 +179,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 							) : (
 								<TableEmptyState
 									variant="default"
-									message="No templates found"
+									message="No templates found."
 									description="Create a template before configuring whether Coder Agents can create workspaces."
 								/>
 							)

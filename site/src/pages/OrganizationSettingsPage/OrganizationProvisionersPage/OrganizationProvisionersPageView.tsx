@@ -164,7 +164,7 @@ export const OrganizationProvisionersPageView: React.FC<
 								) : (
 									<TableEmptyState
 										variant="docs"
-										message="No provisioners found"
+										message="No provisioners configured"
 										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
 										docsHref={docs("/admin/provisioners")}
 										docsLabel="Create a provisioner"

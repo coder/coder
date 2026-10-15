@@ -118,7 +118,7 @@ export const AnnouncementBannerSettings: React.FC<
 						{!isEntitled || banners.length < 1 ? (
 							<TableEmptyState
 								variant="create"
-								message="No announcement banners"
+								message="No announcement banners configured"
 								description="Create a banner to display a message to all users."
 								cta={
 									isEntitled ? (

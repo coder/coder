@@ -87,7 +87,7 @@ export const OrganizationProvisionerKeysPageView: React.FC<
 							filteredProvisionerKeyDaemons.length === 0 ? (
 								<TableEmptyState
 									variant="docs"
-									message="No provisioner keys"
+									message="No provisioner keys configured"
 									description="Create your first provisioner key to authenticate external provisioner daemons."
 									docsHref={docs("/admin/provisioners")}
 									docsLabel="How to create a provisioner key"

@@ -104,7 +104,7 @@ export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 						) : keys.length === 0 ? (
 							<TableEmptyState
 								variant="create"
-								message="No AI Gateway keys"
+								message="No AI Gateway keys configured"
 								description="Create a key to authenticate a standalone AI Gateway replica."
 								cta={
 									<Button variant="outline" onClick={onCreateKey}>
