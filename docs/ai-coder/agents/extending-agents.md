@@ -260,7 +260,6 @@ Each project can have up to 100 skills, and skills that are turned off count tow
 
 Anyone who can edit a project can add, change, turn on or off, and delete its skills.
 To manage them, open the project page and select the **Skills** row in the **Details** panel.
-People who can view the project but not edit it can open the same list to read its skills.
 A chat in the project can use the project's skills while the chat owner can view the project.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 

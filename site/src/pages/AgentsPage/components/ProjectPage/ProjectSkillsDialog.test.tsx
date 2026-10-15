@@ -16,7 +16,16 @@ const mockReviewerSkill: Skill = {
 	content: "---\nname: reviewer\n---\nReview the diff.\n",
 };
 
+const mockConflict = {
+	isAxiosError: true,
+	response: {
+		status: 409,
+		data: { message: "A skill with that name already exists." },
+	},
+};
+
 const renderDialog = ({ canEdit = true } = {}) => {
+	const onOpenChange = vi.fn();
 	const getSkills = vi
 		.spyOn(API.experimental, "getChatProjectSkills")
 		.mockResolvedValue([mockReviewerSkill]);
@@ -28,13 +37,13 @@ const renderDialog = ({ canEdit = true } = {}) => {
 			<ProjectSkillsDialog
 				project={MockChatProject}
 				open
-				onOpenChange={vi.fn()}
+				onOpenChange={onOpenChange}
 				canEdit={canEdit}
 				onCloseAutoFocus={vi.fn()}
 			/>
 		</QueryClientProvider>,
 	);
-	return { user: userEvent.setup(), getSkills, getSkill };
+	return { user: userEvent.setup(), getSkills, getSkill, onOpenChange };
 };
 
 const openSkillMenu = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -67,6 +76,23 @@ describe("ProjectSkillsDialog", () => {
 				content: "---\nname: planner\n---\nPlan the work.\n",
 			}),
 		);
+		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+	});
+
+	it("refreshes the skill list when the new name was just taken", async () => {
+		vi.spyOn(API.experimental, "createChatProjectSkill").mockRejectedValue(
+			mockConflict,
+		);
+		const { user, getSkills } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		await user.type(screen.getByRole("textbox", { name: "Name" }), "planner");
+		await user.type(
+			screen.getByRole("textbox", { name: "Body" }),
+			"Plan the work.",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 	});
 
@@ -110,6 +136,49 @@ describe("ProjectSkillsDialog", () => {
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content:
 					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+			}),
+		);
+	});
+
+	it("asks before Escape discards unsaved edits", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user, onOpenChange } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		const body = await screen.findByRole("textbox", { name: "Body" });
+		await user.clear(body);
+		await user.type(body, "Review carefully.");
+		await user.keyboard("{Escape}");
+		await user.click(
+			await screen.findByRole("button", { name: "Keep editing" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onOpenChange).not.toHaveBeenCalled();
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content:
+					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+			}),
+		);
+	});
+
+	it("turns a skill off from the list", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue({ ...mockReviewerSkill, enabled: false });
+		const { user } = renderDialog();
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable reviewer" }),
+		);
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				enabled: false,
 			}),
 		);
 	});

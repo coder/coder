@@ -1,11 +1,18 @@
 import { isAxiosError } from "axios";
-import { ChevronLeftIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
+import {
+	CheckIcon,
+	ChevronLeftIcon,
+	EllipsisVerticalIcon,
+	PlusIcon,
+	XIcon,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -41,6 +48,7 @@ import {
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import { SkillEditorForm, type SkillErrorDisplay } from "../SkillEditor";
+import { SkillEnabledSwitch } from "../SkillEnabledSwitch";
 import { downloadSkillFile, skillError } from "../SkillsTable";
 import { DeleteSkillDialog } from "../SkillsTableView";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
@@ -76,6 +84,8 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	);
 	const { rememberTrigger, restoreFocus, setPrimaryFallback } =
 		useDialogFocusReturn();
+	// Escape presses Back, which asks before discarding unsaved edits.
+	const backButtonRef = useRef<HTMLButtonElement>(null);
 
 	const skillsQuery = useQuery(scope.list);
 	const skills = skillsQuery.data ?? [];
@@ -116,12 +126,35 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 
 	const editorMutation =
 		editor?.type === "create" ? createMutation : updateMutation;
+	const editorError =
+		editor?.type === "edit" &&
+		isAxiosError(updateMutation.error) &&
+		updateMutation.error.response?.status === 404
+			? {
+					message: `This ${NOUN} was deleted. Go back to see the current list.`,
+				}
+			: skillError(
+					editorMutation.error,
+					`Failed to ${editor?.type === "create" ? "create" : "save"} ${NOUN}.`,
+					NOUN,
+				);
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
+				onEscapeKeyDown={(event) => {
+					if (editor) {
+						event.preventDefault();
+						backButtonRef.current?.click();
+					}
+				}}
+				onInteractOutside={(event) => {
+					if (editor && canEdit) {
+						event.preventDefault();
+					}
+				}}
 			>
 				{editor ? (
 					<ProjectSkillEditorView
@@ -131,12 +164,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						existingNames={skills.map((skill) =>
 							skill.name.toLocaleLowerCase("en-US"),
 						)}
-						submitError={skillError(
-							editorMutation.error,
-							`Failed to ${editor.type === "create" ? "create" : "save"} ${NOUN}.`,
-							NOUN,
-						)}
+						submitError={editorError}
 						isSubmitting={isSubmitting}
+						backButtonRef={backButtonRef}
 						onBack={closeEditor}
 						onSubmit={(content) => {
 							const onSuccess = () => {
@@ -203,6 +233,9 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 										<TableRow>
 											<TableHead className="w-full">Skill</TableHead>
 											<TableHead className="whitespace-nowrap">
+												Enabled
+											</TableHead>
+											<TableHead className="whitespace-nowrap">
 												Last updated
 											</TableHead>
 											<TableHead className="w-14">
@@ -214,6 +247,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 										{skills.map((skill) => (
 											<ProjectSkillRow
 												key={skill.id}
+												scope={scope}
 												skill={skill}
 												canEdit={canEdit}
 												autoFocus={
@@ -290,6 +324,7 @@ type ProjectSkillEditorViewProps = {
 	readonly existingNames: readonly string[];
 	readonly submitError: SkillErrorDisplay | undefined;
 	readonly isSubmitting: boolean;
+	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
 	readonly onSubmit: (content: string) => void;
 };
@@ -301,9 +336,11 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	existingNames,
 	submitError,
 	isSubmitting,
+	backButtonRef,
 	onBack,
 	onSubmit,
 }) => {
+	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 	const skillQuery = useQuery({
 		...scope.detail(view.type === "edit" ? view.name : ""),
 		enabled: view.type === "edit",
@@ -320,15 +357,16 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 			: canEdit
 				? "Edit skill"
 				: "View skill";
-	const header = (
+	const renderHeader = (isDirty: boolean) => (
 		<DialogHeader className="items-start px-6 pt-6">
 			<Button
+				ref={backButtonRef}
 				size="sm"
 				variant="subtle"
 				className="-ml-2"
 				disabled={isSubmitting}
 				autoFocus
-				onClick={onBack}
+				onClick={() => (isDirty ? setIsDiscardOpen(true) : onBack())}
 			>
 				<ChevronLeftIcon />
 				Back
@@ -344,7 +382,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 		const loadError = loaded ? new Error(loaded.error) : skillQuery.error;
 		return (
 			<>
-				{header}
+				{renderHeader(false)}
 				<div className="px-6 py-6">
 					{loadError ? (
 						<ErrorAlert
@@ -367,32 +405,51 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	}
 
 	return (
-		<SkillEditorForm
-			mode={view.type}
-			readOnly={!canEdit}
-			initialValues={loaded.values}
-			existingNames={existingNames}
-			submitError={submitError}
-			isSubmitting={isSubmitting}
-			nameHint="Lowercase letters, numbers, and hyphens."
-			bodyPlaceholder="Describe when and how the agent should use this skill."
-			header={header}
-			footer={({ canSubmit }) =>
-				canEdit && (
-					<DialogFooter className="border-t border-border px-6 py-4">
-						<Button type="submit" disabled={!canSubmit}>
-							<Spinner loading={isSubmitting} />
-							Save
-						</Button>
-					</DialogFooter>
-				)
-			}
-			onSubmit={(_values, content) => onSubmit(content)}
-		/>
+		<>
+			<SkillEditorForm
+				mode={view.type}
+				readOnly={!canEdit}
+				initialValues={loaded.values}
+				existingNames={existingNames}
+				submitError={submitError}
+				isSubmitting={isSubmitting}
+				nameHint="Lowercase letters, numbers, and hyphens."
+				bodyPlaceholder="Describe when and how the agent should use this skill."
+				header={({ isDirty }) => renderHeader(isDirty)}
+				footer={({ canSubmit }) =>
+					canEdit && (
+						<DialogFooter className="border-t border-border px-6 py-4">
+							<Button type="submit" disabled={!canSubmit}>
+								<Spinner loading={isSubmitting} />
+								Save
+							</Button>
+						</DialogFooter>
+					)
+				}
+				onSubmit={(_values, content) => onSubmit(content)}
+			/>
+			<ConfirmDialog
+				open={isDiscardOpen}
+				type="delete"
+				title="Discard unsaved changes?"
+				description="Your edits to this skill will be lost."
+				cancelText="Keep editing"
+				confirmText="Discard"
+				onConfirm={onBack}
+				onClose={() => setIsDiscardOpen(false)}
+				onCloseAutoFocus={(event) => {
+					if (backButtonRef.current?.isConnected) {
+						event.preventDefault();
+						backButtonRef.current.focus();
+					}
+				}}
+			/>
+		</>
 	);
 };
 
 type ProjectSkillRowProps = {
+	readonly scope: SkillsScope;
 	readonly skill: SkillMetadata;
 	readonly canEdit: boolean;
 	readonly autoFocus: boolean;
@@ -406,6 +463,7 @@ type ProjectSkillRowProps = {
 };
 
 const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
+	scope,
 	skill,
 	canEdit,
 	autoFocus,
@@ -426,6 +484,23 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 			>
 				{skill.description || "No description"}
 			</div>
+		</TableCell>
+		<TableCell>
+			{canEdit ? (
+				<SkillEnabledSwitch scope={scope} skill={skill} />
+			) : skill.enabled ? (
+				<CheckIcon
+					role="img"
+					aria-label="Enabled"
+					className="size-icon-sm text-content-success"
+				/>
+			) : (
+				<XIcon
+					role="img"
+					aria-label="Disabled"
+					className="size-icon-sm text-content-secondary"
+				/>
+			)}
 		</TableCell>
 		<TableCell className="whitespace-nowrap text-content-secondary">
 			<time
@@ -454,11 +529,11 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem onClick={onEdit}>
-						{canEdit ? "Edit" : "View"}
-					</DropdownMenuItem>
 					<DropdownMenuItem onClick={onDownload} disabled={isDownloading}>
 						Download
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={onEdit}>
+						{canEdit ? "Edit" : "View"}
 					</DropdownMenuItem>
 					{canEdit && (
 						<>

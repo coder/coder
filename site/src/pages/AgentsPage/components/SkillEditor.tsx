@@ -34,6 +34,12 @@ export type SkillErrorDisplay = {
 	detail?: string;
 };
 
+type SkillEditorFormState = {
+	isBusy: boolean;
+	canSubmit: boolean;
+	isDirty: boolean;
+};
+
 type SkillEditorFormProps = {
 	mode: "create" | "edit";
 	readOnly?: boolean;
@@ -44,9 +50,9 @@ type SkillEditorFormProps = {
 	nameHint?: string;
 	bodyPlaceholder?: string;
 	/** Rendered inside the form, above the scrollable fields. */
-	header: React.ReactNode;
+	header: (state: SkillEditorFormState) => React.ReactNode;
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
-	footer: (state: { isBusy: boolean; canSubmit: boolean }) => React.ReactNode;
+	footer: (state: SkillEditorFormState) => React.ReactNode;
 	onSubmit: (values: SkillFormValues, content: string) => void;
 };
 
@@ -271,10 +277,15 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 	const bodyError = form.touched.body ? form.errors.body : undefined;
 	const isTooLarge = sizeBytes > SKILL_MAX_SIZE_BYTES;
 	const isNearLimit = sizeBytes > SKILL_MAX_SIZE_BYTES * 0.9;
+	const formState: SkillEditorFormState = {
+		isBusy,
+		canSubmit: !isBusy && form.isValid && form.dirty,
+		isDirty: form.dirty,
+	};
 
 	return (
 		<form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit}>
-			{header}
+			{header(formState)}
 
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
 				{submitError && (
@@ -300,7 +311,9 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 							value={importContent}
 							onChange={handleImportContentChange}
 							onPaste={handleImportContentPaste}
-							placeholder="---\nname: my-skill\ndescription: ...\n---\n\nBody..."
+							placeholder={
+								"---\nname: my-skill\ndescription: ...\n---\n\nBody..."
+							}
 							disabled={isBusy}
 							minRows={4}
 							maxRows={10}
@@ -370,11 +383,9 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="review-database-query"
-						readOnly={!isCreate}
-						disabled={isBusy}
+						disabled={isBusy || !isCreate}
 						aria-invalid={Boolean(nameError)}
 						aria-describedby={nameError ? nameErrorId : undefined}
-						className={cn(!isCreate && "bg-surface-secondary")}
 					/>
 					{nameError ? (
 						<p
@@ -384,7 +395,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 							{nameError}
 						</p>
 					) : (
-						!readOnly && (
+						isCreate && (
 							<p className="m-0 text-xs text-content-secondary">{nameHint}</p>
 						)
 					)}
@@ -399,8 +410,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder="When to use this skill"
-						readOnly={readOnly}
-						disabled={isBusy}
+						disabled={isBusy || readOnly}
 						aria-invalid={Boolean(descriptionError)}
 						aria-describedby={descriptionError ? descriptionErrorId : undefined}
 					/>
@@ -423,8 +433,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						onChange={form.handleChange}
 						onBlur={form.handleBlur}
 						placeholder={bodyPlaceholder}
-						readOnly={readOnly}
-						disabled={isBusy}
+						disabled={isBusy || readOnly}
 						minRows={8}
 						aria-invalid={Boolean(bodyError)}
 						aria-describedby={bodyError ? bodyErrorId : undefined}
@@ -448,13 +457,12 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 							isTooLarge && "text-content-destructive",
 						)}
 					>
-						{formatKiB(sizeBytes)} of {formatKiB(SKILL_MAX_SIZE_BYTES)}
-						used.
+						{`${formatKiB(sizeBytes)} of ${formatKiB(SKILL_MAX_SIZE_BYTES)} used.`}
 					</p>
 				</div>
 			</div>
 
-			{footer({ isBusy, canSubmit: !isBusy && form.isValid && form.dirty })}
+			{footer(formState)}
 		</form>
 	);
 };
@@ -489,12 +497,12 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 			>
 				<SkillEditorForm
 					{...formProps}
-					header={
+					header={() => (
 						<DialogHeader className="px-6 pt-6">
 							<DialogTitle>{title}</DialogTitle>
 							<DialogDescription>{editorDescription}</DialogDescription>
 						</DialogHeader>
-					}
+					)}
 					footer={({ isBusy, canSubmit }) => (
 						<DialogFooter className="border-t border-border px-6 py-4">
 							<Button

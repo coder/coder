@@ -7,17 +7,19 @@ import {
 } from "#/api/queries/chatProjectSkills";
 import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
-import { MockSkills } from "#/testHelpers/skills";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 
 // Relative to now so "Last updated" reads the same in every capture.
 const hoursAgo = (hours: number) =>
 	new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
-const mockSkills: SkillMetadata[] = MockSkills.map((skill, index) => ({
-	...skill,
-	updated_at: hoursAgo(index * 5 + 2),
-}));
+const mockSkills: SkillMetadata[] = [...MockSkills, MockDisabledSkill].map(
+	(skill, index) => ({
+		...skill,
+		updated_at: hoursAgo(index * 5 + 2),
+	}),
+);
 
 const mockReviewerSkill: Skill = {
 	...mockSkills[0],
@@ -150,9 +152,42 @@ export const ReadOnlyView: Story = {
 	},
 };
 
+/** Someone deleted the skill in another tab before this edit was saved. */
+export const SaveDeletedError: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
+			mockSkills,
+		);
+		const notFound = mockApiError({
+			message: "Resource not found or you do not have access to this resource.",
+		});
+		spyOn(API.experimental, "updateChatProjectSkill").mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Edit" }),
+		);
+		await userEvent.type(
+			await screen.findByRole("textbox", { name: "Body" }),
+			" Keep it short.",
+		);
+		await userEvent.click(screen.getByRole("button", { name: "Save" }));
+		await screen.findByText(/was deleted/);
+	},
+};
+
 /** The API rejects a new skill once the project reaches its limit. */
 export const SaveError: Story = {
 	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
+			mockSkills,
+		);
 		spyOn(API.experimental, "createChatProjectSkill").mockRejectedValue(
 			mockApiError({
 				message: "Project skill limit reached.",

@@ -19,6 +19,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly organizationLabel?: string;
 	/** `undefined` until the project's skills load. */
 	readonly skillCount: number | undefined;
+	/** Turned-off skills, which chats in the project cannot use. */
+	readonly disabledSkillCount: number;
 	readonly skillsError: unknown;
 	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** `undefined` until the instructions load. */
@@ -37,6 +39,7 @@ export const ProjectDetailsPanelView: React.FC<
 	createdAt,
 	organizationLabel,
 	skillCount,
+	disabledSkillCount,
 	skillsError,
 	onOpenSkills,
 	instructions,
@@ -56,7 +59,7 @@ export const ProjectDetailsPanelView: React.FC<
 			}
 		/>
 	);
-	const skillsLabel =
+	let skillsLabel =
 		skillCount === undefined
 			? "Unknown"
 			: skillCount === 0
@@ -64,6 +67,9 @@ export const ProjectDetailsPanelView: React.FC<
 				: skillCount === 1
 					? "1 skill"
 					: `${skillCount} skills`;
+	if (skillCount && disabledSkillCount > 0) {
+		skillsLabel += `, ${disabledSkillCount} off`;
+	}
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">

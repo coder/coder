@@ -23,6 +23,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 		ownerLabel: "You",
 		createdAt: MockChatProject.created_at,
 		skillCount: 3,
+		disabledSkillCount: 0,
 		skillsError: undefined,
 		onOpenSkills: fn(),
 		instructions: MockChatProjectInstructions,
@@ -77,6 +78,10 @@ export const CreatedDateFocused: Story = {
 
 export const OneSkill: Story = {
 	args: { skillCount: 1 },
+};
+
+export const SomeSkillsOff: Story = {
+	args: { skillCount: 3, disabledSkillCount: 1 },
 };
 
 export const NoSkills: Story = {

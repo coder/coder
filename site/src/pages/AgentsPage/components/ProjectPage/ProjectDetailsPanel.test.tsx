@@ -21,7 +21,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { MockSkills } from "#/testHelpers/skills";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 
@@ -474,9 +474,10 @@ describe("ProjectDetailsPanel", () => {
 
 	it("opens the project skills from the Skills row with the user's access", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue(
-			MockSkills.slice(0, 2),
-		);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+			MockSkills[0],
+			MockDisabledSkill,
+		]);
 		const checkAuthorization = vi
 			.spyOn(API, "checkAuthorization")
 			.mockResolvedValue({ updateProject: true });
@@ -489,7 +490,7 @@ describe("ProjectDetailsPanel", () => {
 		const { user } = renderPanel();
 
 		await user.click(
-			await screen.findByRole("button", { name: "Skills: 2 skills" }),
+			await screen.findByRole("button", { name: "Skills: 2 skills, 1 off" }),
 		);
 		await user.click(
 			await screen.findByRole("button", { name: "Open menu for reviewer" }),
