@@ -21,26 +21,3 @@ COMMENT ON TABLE ai_org_provider_model_prices IS 'Per-model token prices for one
 
 -- Supports the cascade from ai_providers, which the primary key cannot serve.
 CREATE INDEX idx_ai_org_provider_model_prices_provider_id ON ai_org_provider_model_prices (provider_id);
-
--- Which kind of price was matched, most specific first.
-CREATE TYPE ai_model_price_kind AS ENUM (
-    'organization_provider',
-    'site_custom',
-    'site_default'
-);
-
--- The keys of the matched price are copied rather than referenced, so a token
--- usage record keeps describing its price after the price changes or is gone.
-ALTER TABLE aibridge_token_usages
-    ADD COLUMN price_kind            ai_model_price_kind,
-    ADD COLUMN price_organization_id UUID,
-    ADD COLUMN price_provider_id     UUID,
-    ADD COLUMN price_provider        TEXT;
-
-COMMENT ON COLUMN aibridge_token_usages.price_kind IS 'Kind of price used to compute cost_micros. NULL when no price matched.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_organization_id IS 'Organization of the matched price. Set only for organization prices.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_provider_id IS 'Configured provider of the matched price. Set only for organization provider prices.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_provider IS 'Provider type of the matched price. Set for every matched price.';

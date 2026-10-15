@@ -10,12 +10,6 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
-CREATE TYPE ai_model_price_kind AS ENUM (
-    'organization_provider',
-    'site_custom',
-    'site_default'
-);
-
 CREATE TYPE ai_model_price_source AS ENUM (
     'default',
     'custom'
@@ -1813,10 +1807,6 @@ CREATE TABLE aibridge_token_usages (
     cost_micros bigint,
     provider_model text,
     priced_model text,
-    price_kind ai_model_price_kind,
-    price_organization_id uuid,
-    price_provider_id uuid,
-    price_provider text,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1831,14 +1821,6 @@ COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the 
 COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
 
 COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_kind IS 'Kind of price used to compute cost_micros. NULL when no price matched.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_organization_id IS 'Organization of the matched price. Set only for organization prices.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_provider_id IS 'Configured provider of the matched price. Set only for organization provider prices.';
-
-COMMENT ON COLUMN aibridge_token_usages.price_provider IS 'Provider type of the matched price. Set for every matched price.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,

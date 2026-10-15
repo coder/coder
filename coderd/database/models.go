@@ -89,67 +89,6 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
-type AIModelPriceKind string
-
-const (
-	AIModelPriceKindOrganizationProvider AIModelPriceKind = "organization_provider"
-	AIModelPriceKindSiteCustom           AIModelPriceKind = "site_custom"
-	AIModelPriceKindSiteDefault          AIModelPriceKind = "site_default"
-)
-
-func (e *AIModelPriceKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AIModelPriceKind(s)
-	case string:
-		*e = AIModelPriceKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AIModelPriceKind: %T", src)
-	}
-	return nil
-}
-
-type NullAIModelPriceKind struct {
-	AIModelPriceKind AIModelPriceKind `json:"ai_model_price_kind"`
-	Valid            bool             `json:"valid"` // Valid is true if AIModelPriceKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAIModelPriceKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.AIModelPriceKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AIModelPriceKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAIModelPriceKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AIModelPriceKind), nil
-}
-
-func (e AIModelPriceKind) Valid() bool {
-	switch e {
-	case AIModelPriceKindOrganizationProvider,
-		AIModelPriceKindSiteCustom,
-		AIModelPriceKindSiteDefault:
-		return true
-	}
-	return false
-}
-
-func AllAIModelPriceKindValues() []AIModelPriceKind {
-	return []AIModelPriceKind{
-		AIModelPriceKindOrganizationProvider,
-		AIModelPriceKindSiteCustom,
-		AIModelPriceKindSiteDefault,
-	}
-}
-
 type AIModelPriceSource string
 
 const (
@@ -5007,14 +4946,6 @@ type AIBridgeTokenUsage struct {
 	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
 	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
 	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
-	// Kind of price used to compute cost_micros. NULL when no price matched.
-	PriceKind NullAIModelPriceKind `db:"price_kind" json:"price_kind"`
-	// Organization of the matched price. Set only for organization prices.
-	PriceOrganizationID uuid.NullUUID `db:"price_organization_id" json:"price_organization_id"`
-	// Configured provider of the matched price. Set only for organization provider prices.
-	PriceProviderID uuid.NullUUID `db:"price_provider_id" json:"price_provider_id"`
-	// Provider type of the matched price. Set for every matched price.
-	PriceProvider sql.NullString `db:"price_provider" json:"price_provider"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
