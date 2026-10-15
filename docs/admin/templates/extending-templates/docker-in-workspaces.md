@@ -370,7 +370,8 @@ spec:
   # Reuse the Auto Mode node role so the EKS access entry already exists.
   role: <your Auto Mode node role>
   subnetSelectorTerms:
-    - id: <cluster subnet IDs>
+    - id: <subnet ID 1>
+    - id: <subnet ID 2>
   securityGroupSelectorTerms:
     - id: <cluster security group ID>
   advancedCompute:
@@ -394,11 +395,11 @@ The value must be a multiple of 65536, and `idsPerPod` requires `user.max_user_n
       idsPerPod: 1048576
 ```
 
-#### Use native overlay storage instead of fuse-overlayfs
+### Use native overlay storage instead of fuse-overlayfs
 
 Kernel overlayfs cannot stack on the workspace container's own overlay root filesystem.
-Without extra configuration Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
-On nodes with kernel 5.13 or later you can skip the FUSE device entirely:
+Without extra configuration, Podman falls back to `fuse-overlayfs`, which requires the `/dev/fuse` device and the smarter-device-manager setup above.
+On nodes with kernel 5.13 or later, you can skip the FUSE device entirely:
 
 1. Mount an `emptyDir` volume at `/home/coder/.local/share/containers` so the Podman graph root sits on a real filesystem.
 1. Clear the `mount_program` setting, because some Podman images pin it to `fuse-overlayfs` in `/etc/containers/storage.conf`:
@@ -412,7 +413,7 @@ On nodes with kernel 5.13 or later you can skip the FUSE device entirely:
    mount_program = ""
    ```
 
-With both settings Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
+With both settings, Podman uses native kernel overlay, which performs better than `fuse-overlayfs` and removes the device plugin dependency.
 
 ### Nested container engines
 
@@ -420,7 +421,8 @@ Rootless Podman supports one level of nesting: the workspace runs containers, bu
 Running another container engine inside a container that the workspace engine started is not supported.
 This includes the dev container [`docker-in-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker), which starts a nested daemon inside the dev container.
 
-Use the [`docker-outside-of-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker) instead, so the dev container drives the workspace engine through its socket and containers run as siblings.
+Use the [`docker-outside-of-docker` feature](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker) instead.
+The dev container drives the workspace engine through its socket, so containers run as siblings of the dev container instead of nested inside it.
 Keep the repository path identical inside the dev container and the workspace, for example with `workspaceMount`, so bind mounts resolve against the engine correctly.
 
 ## Privileged sidecar container
