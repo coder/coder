@@ -224,7 +224,7 @@ const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 		return (
 			<TableEmptyState
 				variant="create"
-				message="No groups yet"
+				message="No groups configured"
 				description={
 					canCreateGroup
 						? "Create your first group"

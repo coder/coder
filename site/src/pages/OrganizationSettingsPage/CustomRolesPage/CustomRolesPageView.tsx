@@ -309,7 +309,7 @@ const RoleTableBody: React.FC<RoleTableBodyProps> = ({
 		return (
 			<TableEmptyState
 				variant="create"
-				message="No custom roles yet"
+				message="No custom roles configured"
 				description={
 					canCreateOrgRole
 						? "Create your first custom role"
