@@ -21699,11 +21699,11 @@
 					"type": "boolean"
 				},
 				"allow_user_autostart": {
-					"description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+					"description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled with a\nPremium license.",
 					"type": "boolean"
 				},
 				"allow_user_autostop": {
-					"description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+					"description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled with a\nPremium license.",
 					"type": "boolean"
 				},
 				"allow_user_cancel_workspace_jobs": {
@@ -27980,7 +27980,7 @@
 					"$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
 				},
 				"autostop_requirement": {
-					"description": "AutostopRequirement and AutostartRequirement are Premium features. Their\nvalue is only used if your license is entitled to use the advanced template\nscheduling feature.",
+					"description": "AutostopRequirement and AutostartRequirement are Premium features. Their\nvalues are only used if your license is entitled to use the advanced template\nscheduling feature.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.TemplateAutostopRequirement"

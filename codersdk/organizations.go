@@ -186,14 +186,14 @@ type CreateTemplateRequest struct {
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 
 	// AllowUserAutostart allows users to set a schedule for autostarting their
-	// workspace. By default this is true. This can only be disabled when using
-	// an enterprise license.
+	// workspace. By default this is true. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostart *bool `json:"allow_user_autostart,omitempty"`
 
 	// AllowUserAutostop allows users to set a custom workspace TTL to use in
 	// place of the template's DefaultTTL field. By default this is true. If
-	// false, the DefaultTTL will always be used. This can only be disabled when
-	// using an enterprise license.
+	// false, the DefaultTTL will always be used. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostop *bool `json:"allow_user_autostop,omitempty"`
 
 	// FailureTTLMillis allows optionally specifying the max lifetime before Coder

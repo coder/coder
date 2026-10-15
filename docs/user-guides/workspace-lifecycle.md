@@ -34,7 +34,7 @@ If some error occurs during the above, a workspace may fall into one of the foll
 Workspaces are created from [templates](../admin/templates/index.md) via the CLI, API, or dashboard.
 
 By default, there is no limit on the number of workspaces a user may create, regardless of the template's resource demands.
-On Premium deployments, administrators may limit the number of workspaces per template, group, and organization using [quotas](../admin/users/quotas.md) to prevent over provisioning and control costs.
+On Premium deployments, administrators can use [quotas](../admin/users/quotas.md) to limit each user's workspace spend in each organization, which prevents over provisioning and controls costs.
 
 When a user creates a workspace, they're sending a build request to the control plane.
 Coder takes this and uses [Terraform](https://www.terraform.io/) to provision a workspace defined by your [template](../admin/templates/index.md).

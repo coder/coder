@@ -4519,15 +4519,15 @@ export interface CreateTemplateRequest {
 	readonly allow_user_cancel_workspace_jobs: boolean | null;
 	/**
 	 * AllowUserAutostart allows users to set a schedule for autostarting their
-	 * workspace. By default this is true. This can only be disabled when using
-	 * an enterprise license.
+	 * workspace. By default this is true. This can only be disabled with a
+	 * Premium license.
 	 */
 	readonly allow_user_autostart?: boolean;
 	/**
 	 * AllowUserAutostop allows users to set a custom workspace TTL to use in
 	 * place of the template's DefaultTTL field. By default this is true. If
-	 * false, the DefaultTTL will always be used. This can only be disabled when
-	 * using an enterprise license.
+	 * false, the DefaultTTL will always be used. This can only be disabled with a
+	 * Premium license.
 	 */
 	readonly allow_user_autostop?: boolean;
 	/**
@@ -9958,7 +9958,7 @@ export interface Template {
 	readonly time_til_autostop_notify_ms: number;
 	/**
 	 * AutostopRequirement and AutostartRequirement are Premium features. Their
-	 * value is only used if your license is entitled to use the advanced template
+	 * values are only used if your license is entitled to use the advanced template
 	 * scheduling feature.
 	 */
 	readonly autostop_requirement: TemplateAutostopRequirement;

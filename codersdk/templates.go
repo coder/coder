@@ -40,7 +40,7 @@ type Template struct {
 	// the notification.
 	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
 	// AutostopRequirement and AutostartRequirement are Premium features. Their
-	// value is only used if your license is entitled to use the advanced template
+	// values are only used if your license is entitled to use the advanced template
 	// scheduling feature.
 	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
 	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
