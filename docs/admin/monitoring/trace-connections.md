@@ -10,7 +10,7 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
 ## Before you begin
 
 - Run Coder server and workspace agents on version 2.39 or later.
-  Older agents keep working, but they don't record client session IDs, app names, connection paths, or workspace shutdown reasons.
+  Older agents keep working, but they don't record client session IDs, app names, or workspace shutdown reasons.
 - Collect `coderd` logs with a log management tool such as Splunk, Datadog, or Grafana Loki.
   JSON output is easiest to query; enable it with [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json).
 - The `connection_log` entries in this guide require a [Premium license](https://coder.com/pricing#compare-plans).
@@ -86,6 +86,7 @@ To change the number of entries, set `coder.connectionLogBuffer.size`.
 
 Toolbox starts `coder ssh`, which writes its logs to the default directory for `coder ssh` unless an SSH log directory is set in the Coder plugin settings.
 For the Toolbox logs, ask the user to select **Collect logs** from the workspace action menu.
+**Collect logs** doesn't include the `coder ssh` log files, so also ask the user for the files from the `coder ssh` log directory.
 For details, refer to [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
@@ -111,8 +112,6 @@ The fields that matter most for tracing are:
 | `ConnectionMethod`   | How the connection was made, such as `ssh` or `reconnecting_pty`.                                                                     |
 | `AppNameOrPort`      | The app that made an SSH or web terminal connection, such as `vscode` or `cursor`.                                                    |
 | `DisconnectReason`   | Why the connection closed, on `disconnected` entries. Refer to [Read disconnect reasons](#read-disconnect-reasons).                   |
-| `ConnectPath`        | `direct` or `derp` when the connection opened. Empty for workspace app, port forwarding, and tunnel events, and for older agents.     |
-| `DisconnectPath`     | `direct` or `derp` when the connection closed. Empty until the connection closes.                                                     |
 | `RxBytes`, `TxBytes` | Bytes the agent received and sent over the connection.                                                                                |
 
 For every field and an example entry, refer to [Service logs](./connection-logs.md#service-logs).
@@ -136,15 +135,14 @@ To record every debug entry, set `CODER_VERBOSE=true` in the agent's environment
 
 Search the agent log for these messages:
 
-| Message                                              | What it records                                                                                                                                       |
-|------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `handling ssh session`                               | An SSH session started.                                                                                                                               |
-| `ssh session closed`                                 | An SSH session ended. Includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                           |
-| `ssh connection complete`                            | An SSH connection closed. When a workspace stop or delete closed it, also includes `disconnect_reason`, `build_id`, `build_reason`, and `transition`. |
-| `ssh connection failed`                              | An SSH connection failed before a session started.                                                                                                    |
-| `accepted conn`, `reconnecting pty closed`           | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                           |
-| `initial connection path`, `connection path changed` | The network path for an SSH or web terminal connection: `path` is `direct` or `derp`, with `endpoint` and `derp_region`.                              |
-| `disconnected from coderd`                           | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                              |
+| Message                                    | What it records                                                                                                                                       |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `handling ssh session`                     | An SSH session started.                                                                                                                               |
+| `ssh session closed`                       | An SSH session ended. Includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                           |
+| `ssh connection complete`                  | An SSH connection closed. When a workspace stop or delete closed it, also includes `disconnect_reason`, `build_id`, `build_reason`, and `transition`. |
+| `ssh connection failed`                    | An SSH connection failed before a session started.                                                                                                    |
+| `accepted conn`, `reconnecting pty closed` | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                           |
+| `disconnected from coderd`                 | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                              |
 
 ## Correlate a session
 
@@ -170,7 +168,7 @@ With a session ID and the logs, rebuild the timeline of the session:
    grep '<session-id>' /tmp/coder-agent.log
    ```
 
-   The matching lines show each SSH or web terminal session the client opened, its network path, and the reason it closed.
+   The matching lines show each SSH or web terminal session the client opened and the reason it closed.
 
 1. Line up the client log with the server-side entries by time.
    The last client entries before a disconnect usually show the error the client hit.
@@ -204,16 +202,6 @@ When `disconnect_reason` is `workspace_stopped`, `build_reason` shows what stopp
 | `initiator`    | A user or API client requested the build.     |
 | `autostop`     | The workspace reached its autostop schedule.  |
 | `dormancy`     | The workspace became dormant from inactivity. |
-
-## Read connection paths
-
-A connection is either `direct`, peer to peer between the client and the agent, or relayed through a DERP server, recorded as `derp`.
-The agent logs `initial connection path` when a connection opens.
-The CLI and the agent log `connection path changed` each time a connection moves between `direct` and `derp`, or when a direct connection's endpoint changes.
-
-In the connection log, compare `ConnectPath` with `DisconnectPath` to find connections whose path changed while they were open.
-A connection that stays on `derp`, or that switches paths often before it drops, usually points to a network problem between the client and the workspace.
-To diagnose it, run `coder ping` from the user's machine, as described in [Networking troubleshooting](../networking/troubleshooting.md).
 
 ## Next steps
 
