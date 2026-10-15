@@ -1535,11 +1535,11 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
-	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	outstanding, err := outstandingToolCalls(tx.ctx, tx.store, chat, false)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	if len(pendingAll) > 0 {
+	if len(outstanding) > 0 {
 		return FinishInterruptionResult{}, newTransitionError(
 			TransitionFinishInterruption, from,
 			"outstanding tool calls remain after partial commit",

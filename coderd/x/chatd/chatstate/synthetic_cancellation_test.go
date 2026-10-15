@@ -125,7 +125,8 @@ func TestSyntheticCancellation_SendMessageDirect(t *testing.T) {
 // testSendMessageDirectWSynthesizesToolCancellations verifies that
 // from W, SendMessage inserts synthetic tool-result rows for every
 // outstanding tool call on the last assistant message BEFORE the new
-// user message, regardless of whether the tools are dynamic.
+// user message, in assistant-part order and regardless of whether the
+// tools are dynamic. An unparsable tool message does not fail the scan.
 func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	t.Helper()
 	f := newTestFixture(t)
@@ -133,17 +134,39 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	callID := "call_" + uuid.NewString()
-	assistant := commitAssistantToolCall(t, f, m,
-		nonDynamicAssistantToolCallMessage(t, f.Model.ID, callID))
-	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
+		return chatstate.Message{
+			Role:           role,
+			Content:        content,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
+		}
+	}
+	call := func(id string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessageToolCall(id, "non_dynamic_tool", json.RawMessage(`{}`))
+	}
+	result := func(id string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessageToolResult(id, "non_dynamic_tool", json.RawMessage(`"ok"`), false, false)
+	}
+	providerExecuted := call("provider-executed")
+	providerExecuted.ProviderExecuted = true
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+			message(database.ChatMessageRoleAssistant, mustMarshalParts(t, []codersdk.ChatMessagePart{
+				call("outstanding-1"), providerExecuted,
+				call("answered-inline"), result("answered-inline"),
+				call("answered-after"), call("outstanding-2"),
+			})),
+			message(database.ChatMessageRoleTool, mustMarshalParts(t, []codersdk.ChatMessagePart{result("answered-after")})),
+			message(database.ChatMessageRoleTool, pqtype.NullRawMessage{RawMessage: json.RawMessage(`{}`), Valid: true}),
+		}})
+		return err
+	}))
 
 	// R0 -> W.
 	landInW(t, f, m)
 
-	// SendMessage with a fresh user message. The direct-history path
-	// must insert a synthetic tool-result (for callID) followed by
-	// the new user message.
 	var send chatstate.SendMessageResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		var err error
@@ -155,11 +178,12 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 		return err
 	}))
 
-	require.Len(t, send.InsertedMessages, 2, "synthetic cancel + new user")
-	assertToolResultForCall(t, send.InsertedMessages[0], callID)
-	require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
-	require.Less(t, send.InsertedMessages[0].ID, send.InsertedMessages[1].ID,
-		"synthetic cancel is inserted before the user message")
+	require.Len(t, send.InsertedMessages, 3, "synthetic cancels + new user")
+	assertToolResultForCall(t, send.InsertedMessages[0], "outstanding-1")
+	assertToolResultForCall(t, send.InsertedMessages[1], "outstanding-2")
+	require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[2].Role)
+	require.Less(t, send.InsertedMessages[1].ID, send.InsertedMessages[2].ID,
+		"synthetic cancels are inserted before the user message")
 }
 
 // testSendMessageDirectE0SynthesizesToolCancellations exercises
