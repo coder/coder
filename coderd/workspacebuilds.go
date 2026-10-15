@@ -386,6 +386,9 @@ func (api *API) postWorkspaceBuildsInternal(
 	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
+	if err := api.validateWorkspaceSecretInputs(createBuild.Secrets); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
 
 	var childParameterValuesJSON json.RawMessage
 	if createBuild.OnSuccess != nil {
@@ -411,6 +414,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
+		Secrets(createBuild.Secrets).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
