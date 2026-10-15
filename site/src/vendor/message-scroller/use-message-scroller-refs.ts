@@ -21,7 +21,10 @@ import type {
 // LOCAL CHANGE
 type RevealedItem = {
   element: HTMLElement
+  // performance.now() time after which the row's growth no longer scrolls.
+  expiresAt: number
   height: number
+  width: number
 }
 
 // Shared mutable ref bag for one MessageScroller, closed over by both the
@@ -69,7 +72,7 @@ type MessageScrollerRefs = {
   // clear it. The anchor hold must not, so scrollToElement does not.
   followSuppressedRef: React.RefObject<boolean>
   // LOCAL CHANGE: the row whose end a toggle scrolled into view, and its
-  // height then. scrollToElement and any scroll up clear it.
+  // size then. scrollToElement and any scroll up clear it.
   revealedItemRef: React.RefObject<RevealedItem | null>
 }
 

@@ -86,17 +86,20 @@ describe("WorkingBlockDisclosure", () => {
 type BlockRowProps = {
 	expandedHeight: number;
 	defaultExpanded?: boolean;
+	width?: number;
 };
 
 const BlockRow: React.FC<BlockRowProps> = ({
 	expandedHeight,
 	defaultExpanded = false,
+	width,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 	return (
 		<MessageScroller.Item
 			messageId="block"
 			data-height={expanded ? expandedHeight : 40}
+			data-width={width}
 		>
 			<ControlledDisclosure
 				expanded={expanded}
@@ -122,14 +125,16 @@ const JumpRow: React.FC = () => {
 
 type RevealTranscriptProps = {
 	expandedHeight: number;
+	width?: number;
 };
 
 const RevealTranscript: React.FC<RevealTranscriptProps> = ({
 	expandedHeight,
+	width,
 }) => (
 	<>
 		{history}
-		<BlockRow expandedHeight={expandedHeight} />
+		<BlockRow expandedHeight={expandedHeight} width={width} />
 		{row("answer", 100)}
 		<JumpRow />
 	</>
@@ -182,12 +187,24 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 			(user: UserEvent) =>
 				user.click(screen.getByRole("button", { name: "Jump to history-9" })),
 		],
+		[
+			"a while passes",
+			() => {
+				const now = performance.now.bind(performance);
+				vi.spyOn(performance, "now").mockImplementation(() => now() + 60_000);
+			},
+		],
+		[
+			"the block re-wraps at a new width",
+			(_user: UserEvent, update: ReturnType<typeof renderTranscript>) =>
+				update(<RevealTranscript expandedHeight={300} width={600} />),
+		],
 	])("stops revealing a block once %s", async (_name, intervene) => {
 		const user = userEvent.setup();
 		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
 		await user.click(summaryButton());
 		await flushLayout();
-		await intervene(user);
+		await intervene(user, update);
 		const before = await visibleRowsAfterLayout();
 
 		await update(<RevealTranscript expandedHeight={500} />);

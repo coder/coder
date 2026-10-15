@@ -16,14 +16,16 @@ export const SCROLLBAR_WIDTH = 10;
 export const isViewport = (element: Element | null) =>
 	element?.getAttribute("role") === "region";
 
-const heightOf = (element: Element) =>
+const sizeOf = (element: Element, dimension: "height" | "width") =>
 	element instanceof HTMLElement && !element.hidden
-		? Number.parseFloat(element.dataset.height ?? element.style.height) || 0
+		? Number.parseFloat(
+				element.dataset[dimension] ?? element.style[dimension],
+			) || 0
 		: 0;
 
 const contentHeight = (viewport: Element) =>
 	Array.from(viewport.firstElementChild?.children ?? []).reduce(
-		(sum, row) => sum + heightOf(row),
+		(sum, row) => sum + sizeOf(row, "height"),
 		0,
 	);
 
@@ -185,8 +187,13 @@ export const setupMessageScrollerLayout = () => {
 				const rows = Array.from(content.children);
 				const top = rows
 					.slice(0, rows.indexOf(this))
-					.reduce((sum, row) => sum + heightOf(row), 0);
-				return new DOMRect(0, top - region.scrollTop, 0, heightOf(this));
+					.reduce((sum, row) => sum + sizeOf(row, "height"), 0);
+				return new DOMRect(
+					0,
+					top - region.scrollTop,
+					sizeOf(this, "width"),
+					sizeOf(this, "height"),
+				);
 			},
 		);
 	});
