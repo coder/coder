@@ -40,6 +40,10 @@ export type SkillFormValues = {
 	name: string;
 	description: string;
 	body: string;
+	/** Project skills only: offers the skill above project composers. */
+	action?: boolean;
+	/** Project skills only: lets agents find and load the skill. */
+	modelInvocable?: boolean;
 };
 
 /** The fields of a skill that has not been written yet. */
@@ -47,6 +51,13 @@ export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+};
+
+/** The fields and API defaults of a project skill not written yet. */
+export const emptyProjectSkillFormValues: SkillFormValues = {
+	...emptySkillFormValues,
+	action: false,
+	modelInvocable: true,
 };
 
 type SkillSearchMetadata = {
@@ -199,7 +210,10 @@ export const parseSkillMarkdown = (content: string): SkillFormValues => {
 		throw new SkillMarkdownError("Skill body is required.");
 	}
 
-	return { name, description, body };
+	// Claude Code marks skills that only users may invoke this way.
+	return parsed.attributes["disable-model-invocation"] === true
+		? { name, description, body, modelInvocable: false }
+		: { name, description, body };
 };
 
 export const tryParseSkillMarkdown = (
@@ -233,6 +247,8 @@ export const skillFormValuesFromSkill = (
 			name: skill.name,
 			description: skill.description,
 			body: parsed.values.body,
+			action: skill.action,
+			modelInvocable: skill.model_invocable,
 		},
 	};
 };

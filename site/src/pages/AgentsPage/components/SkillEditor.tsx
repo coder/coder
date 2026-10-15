@@ -17,6 +17,7 @@ import {
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import { formatKiB } from "#/utils/fileSize";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
@@ -59,6 +60,8 @@ type SkillEditorFormProps = {
 	isSubmitting: boolean;
 	nameHint?: string;
 	bodyPlaceholder?: string;
+	/** Shows the action and automatic-use switches of a project skill. */
+	showProjectSettings?: boolean;
 	/** Rendered inside the form, above the scrollable fields. */
 	header: (state: SkillEditorFormState) => React.ReactNode;
 	/** Rendered inside the form, below the fields, so it can hold Submit. */
@@ -68,7 +71,7 @@ type SkillEditorFormProps = {
 
 type SkillEditorProps = Omit<
 	SkillEditorFormProps,
-	"header" | "footer" | "nameHint" | "bodyPlaceholder"
+	"header" | "footer" | "nameHint" | "bodyPlaceholder" | "showProjectSettings"
 > & {
 	open: boolean;
 	noun: string;
@@ -99,6 +102,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 	isSubmitting,
 	nameHint = "Use lowercase letters, numbers, and hyphens. Names cannot be changed after creation.",
 	bodyPlaceholder = "Describe when and how agents should use this skill.",
+	showProjectSettings = false,
 	header,
 	footer,
 	onSubmit,
@@ -161,6 +165,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		// before the caller's isSubmitting turns on.
 		onSubmit: (values, { setSubmitting }) => {
 			const normalizedValues = {
+				...values,
 				name: values.name.trim(),
 				description: values.description.trim(),
 				body: values.body.trim(),
@@ -193,7 +198,7 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 		}
 
 		if (isCreate) {
-			await form.setValues(result.values);
+			await form.setValues({ ...form.values, ...result.values });
 			await form.setTouched(
 				{ name: true, description: true, body: true },
 				false,
@@ -483,10 +488,69 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						{`${formatKiB(sizeBytes)} of ${formatKiB(SKILL_MAX_SIZE_BYTES)} used.`}
 					</p>
 				</div>
+
+				{showProjectSettings && (
+					<>
+						<SkillSettingSwitch
+							label="Show as action on the project page"
+							description="Adds a button above the composer in this project's chats that inserts the skill."
+							checked={form.values.action ?? false}
+							disabled={readOnly || isBusy}
+							onCheckedChange={(checked) =>
+								void form.setFieldValue("action", checked)
+							}
+						/>
+						<SkillSettingSwitch
+							label="Agents can use it automatically"
+							description="When off, agents use the skill only when someone invokes it."
+							checked={form.values.modelInvocable ?? true}
+							disabled={readOnly || isBusy}
+							onCheckedChange={(checked) =>
+								void form.setFieldValue("modelInvocable", checked)
+							}
+						/>
+					</>
+				)}
 			</div>
 
 			{footer(formState)}
 		</form>
+	);
+};
+
+type SkillSettingSwitchProps = {
+	label: string;
+	description: string;
+	checked: boolean;
+	disabled: boolean;
+	onCheckedChange: (checked: boolean) => void;
+};
+
+const SkillSettingSwitch: React.FC<SkillSettingSwitchProps> = ({
+	label,
+	description,
+	checked,
+	disabled,
+	onCheckedChange,
+}) => {
+	const switchId = useId();
+	const descriptionId = useId();
+	return (
+		<div className="flex items-start justify-between gap-4">
+			<div className="flex flex-col gap-1">
+				<Label htmlFor={switchId}>{label}</Label>
+				<p id={descriptionId} className="m-0 text-xs text-content-secondary">
+					{description}
+				</p>
+			</div>
+			<Switch
+				id={switchId}
+				aria-describedby={descriptionId}
+				checked={checked}
+				disabled={disabled}
+				onCheckedChange={onCheckedChange}
+			/>
+		</div>
 	);
 };
 

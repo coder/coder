@@ -69,11 +69,18 @@ describe("ProjectSkillsDialog", () => {
 			screen.getByRole("textbox", { name: "Body" }),
 			"Plan the work.",
 		);
+		await user.click(
+			screen.getByRole("switch", {
+				name: "Show as action on the project page",
+			}),
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(createSkill).toHaveBeenCalledWith(orgId, projectId, {
 				content: "---\nname: planner\n---\nPlan the work.\n",
+				action: true,
+				model_invocable: true,
 			}),
 		);
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
@@ -123,7 +130,7 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() => expect(createSkill).toHaveBeenCalledTimes(2));
 	});
 
-	it("fills a new skill from pasted SKILL.md content", async () => {
+	it("fills a new skill and its automatic use from pasted SKILL.md content", async () => {
 		const createSkill = vi
 			.spyOn(API.experimental, "createChatProjectSkill")
 			.mockResolvedValue({ ...mockReviewerSkill, name: "planner" });
@@ -134,7 +141,7 @@ describe("ProjectSkillsDialog", () => {
 			screen.getByRole("textbox", { name: "Import from SKILL.md" }),
 		);
 		await user.paste(
-			"---\nname: planner\ndescription: Plans work.\n---\nPlan the work.",
+			"---\nname: planner\ndescription: Plans work.\ndisable-model-invocation: true\n---\nPlan the work.",
 		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -142,6 +149,8 @@ describe("ProjectSkillsDialog", () => {
 			expect(createSkill).toHaveBeenCalledWith(orgId, projectId, {
 				content:
 					'---\nname: planner\ndescription: "Plans work."\n---\nPlan the work.\n',
+				action: false,
+				model_invocable: false,
 			}),
 		);
 	});
@@ -163,6 +172,33 @@ describe("ProjectSkillsDialog", () => {
 			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
 				content:
 					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
+				action: false,
+				model_invocable: true,
+			}),
+		);
+	});
+
+	it("saves a change to only a skill's automatic use", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Agents can use it automatically",
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content:
+					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview the diff.\n',
+				action: false,
+				model_invocable: false,
 			}),
 		);
 	});
@@ -202,9 +238,14 @@ describe("ProjectSkillsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
-			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
-				content: expect.stringContaining("Review carefully."),
-			}),
+			expect(updateSkill).toHaveBeenCalledWith(
+				orgId,
+				projectId,
+				"reviewer",
+				expect.objectContaining({
+					content: expect.stringContaining("Review carefully."),
+				}),
+			),
 		);
 	});
 
@@ -253,10 +294,14 @@ describe("ProjectSkillsDialog", () => {
 
 		expect(onOpenChange).not.toHaveBeenCalled();
 		await waitFor(() =>
-			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
-				content:
-					'---\nname: reviewer\ndescription: "Review changed files and suggest fixes."\n---\nReview carefully.\n',
-			}),
+			expect(updateSkill).toHaveBeenCalledWith(
+				orgId,
+				projectId,
+				"reviewer",
+				expect.objectContaining({
+					content: expect.stringContaining("Review carefully."),
+				}),
+			),
 		);
 	});
 

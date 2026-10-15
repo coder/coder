@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -35,7 +36,7 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
-	emptySkillFormValues,
+	emptyProjectSkillFormValues,
 	projectSkillsScope,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
@@ -43,7 +44,11 @@ import {
 	skillFormValuesFromSkill,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
-import { SkillEditorForm, type SkillErrorDisplay } from "../SkillEditor";
+import {
+	SkillEditorForm,
+	type SkillErrorDisplay,
+	type SkillSubmitHandler,
+} from "../SkillEditor";
 import { SkillEnabledSwitch } from "../SkillEnabledSwitch";
 import { downloadSkillFile, skillError } from "../SkillsTable";
 import { DeleteSkillDialog } from "../SkillsTableView";
@@ -173,7 +178,12 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
-						onSubmit={(content, onSettled) => {
+						onSubmit={(values, content, onSettled) => {
+							const req = {
+								content,
+								action: values.action,
+								model_invocable: values.modelInvocable,
+							};
 							const onSuccess = () => {
 								closeEditor();
 								toast.success(
@@ -181,10 +191,10 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								);
 							};
 							if (editor.type === "create") {
-								createMutation.mutate({ content }, { onSuccess, onSettled });
+								createMutation.mutate(req, { onSuccess, onSettled });
 							} else {
 								updateMutation.mutate(
-									{ name: editor.name, req: { content } },
+									{ name: editor.name, req },
 									{ onSuccess, onSettled },
 								);
 							}
@@ -334,7 +344,7 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: (content: string, onSettled: () => void) => void;
+	readonly onSubmit: SkillSubmitHandler;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
@@ -360,7 +370,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 		skillQuery.error.response?.status === 404;
 	let loaded: ReturnType<typeof skillFormValuesFromSkill> | undefined;
 	if (view.type === "create") {
-		loaded = { ok: true, values: emptySkillFormValues };
+		loaded = { ok: true, values: emptyProjectSkillFormValues };
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
 	}
@@ -430,6 +440,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				isSubmitting={isSubmitting}
 				nameHint="Lowercase letters, numbers, and hyphens."
 				bodyPlaceholder="Describe when and how the agent should use this skill."
+				showProjectSettings
 				header={({ isDirty }) => (
 					<ProjectSkillEditorHeader
 						title={title}
@@ -448,7 +459,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 						</DialogFooter>
 					)
 				}
-				onSubmit={(_values, content, onSettled) => onSubmit(content, onSettled)}
+				onSubmit={onSubmit}
 			/>
 			<ConfirmDialog
 				open={isDiscardOpen}
@@ -530,8 +541,12 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 }) => (
 	<TableRow>
 		<TableCell className="w-full max-w-0">
-			<div className="truncate font-medium text-content-primary">
-				{skill.name}
+			<div className="flex min-w-0 items-center gap-1.5">
+				<span className="truncate font-medium text-content-primary">
+					{skill.name}
+				</span>
+				{skill.action && <Badge size="xs">Action</Badge>}
+				{!skill.model_invocable && <Badge size="xs">Manual only</Badge>}
 			</div>
 			<div
 				className="truncate text-xs text-content-secondary"
