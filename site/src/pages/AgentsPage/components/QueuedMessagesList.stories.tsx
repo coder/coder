@@ -116,7 +116,6 @@ export const MultiLineTextTruncation: Story = {
 	},
 };
 
-// Invoked skills render as chips in document order.
 export const WithSkillChips: Story = {
 	args: {
 		messages: [
