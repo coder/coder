@@ -870,6 +870,11 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 					t.Fatal(ctx.Err())
 				}
 				polls++
+				// The histogram sample is the only signal that the collector
+				// finished this cycle. The phases asserting unchanged counts rely
+				// on AgentStats recording it after committing the gauges. See
+				// "Wait for Full Completion before Asserting" in
+				// .claude/docs/TESTING.md.
 				require.Eventually(t, func() bool {
 					executions := promhelp.MetricValue(t, registry,
 						"coderd_prometheusmetrics_agentstats_execution_seconds", prometheus.Labels{})
