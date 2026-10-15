@@ -17,6 +17,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
@@ -101,7 +102,8 @@ export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 						) : error ? (
 							<TableEmpty message="Failed to fetch AI Gateway keys" />
 						) : keys.length === 0 ? (
-							<TableEmpty
+							<TableEmptyState
+								variant="create"
 								message="No AI Gateway keys"
 								description="Create a key to authenticate a standalone AI Gateway replica."
 								cta={
