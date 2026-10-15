@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspacesecrets"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -143,9 +144,9 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
-	secretFilePathPolicy := userSecretFilePathAllowed
+	secretFilePathPolicy := workspacesecrets.FilePathAllowed
 	if a.DisableUserSecretFilePath {
-		secretFilePathPolicy = userSecretFilePathBlocked
+		secretFilePathPolicy = workspacesecrets.FilePathBlocked
 	}
 
 	return &agentproto.Manifest{
@@ -153,6 +154,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		AgentName:                workspaceAgent.Name,
 		OwnerUsername:            workspace.OwnerUsername,
 		WorkspaceId:              workspace.ID[:],
+		WorkspaceBuildId:         a.WorkspaceBuildID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     envs,
@@ -335,54 +337,45 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 	return ret
 }
 
-// userSecretFilePathPolicy is a named type rather than a bool parameter to
-// satisfy revive's flag-parameter rule.
-type userSecretFilePathPolicy int
-
-const (
-	userSecretFilePathAllowed userSecretFilePathPolicy = iota
-	userSecretFilePathBlocked
-)
-
-func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []database.WorkspaceSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
-	// Workspace secrets are appended after user secrets. The agent applies
-	// env vars in order, so a workspace secret overrides a user secret that
-	// targets the same environment variable.
-	ret := make([]*agentproto.WorkspaceSecret, 0, len(userSecrets)+len(workspaceSecrets))
+// dbSecretsToProto builds the manifest secrets from the user's and the
+// agent build's secrets, delivering each on the targets Resolve assigns.
+func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []database.WorkspaceSecret, policy workspacesecrets.FilePathPolicy) []*agentproto.WorkspaceSecret {
+	user := make([]workspacesecrets.Secret, 0, len(userSecrets))
 	for _, s := range userSecrets {
-		// Skip disabled secrets so they are not injected as env vars or
-		// written to secret files. The API guarantees every enabled
-		// secret has at least one of env_name or file_path set, so we
-		// don't need to filter both-empty rows separately here.
-		if !s.Enabled {
-			continue
-		}
-		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value, policy)
+		user = append(user, workspacesecrets.Secret{
+			ID:       s.ID,
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Enabled:  s.Enabled,
+			Value:    s.Value,
+		})
 	}
+	build := make([]workspacesecrets.Secret, 0, len(workspaceSecrets))
 	for _, s := range workspaceSecrets {
 		// ListActiveWorkspaceSecrets only returns rows that still hold a
 		// value; the check guards against a cleared row slipping through.
 		if !s.Value.Valid {
 			continue
 		}
-		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value.String, policy)
+		build = append(build, workspacesecrets.Secret{
+			ID:       s.ID,
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Value:    s.Value.String,
+		})
+	}
+
+	resolvedUser, resolvedBuild := workspacesecrets.Resolve(user, build, policy)
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(user)+len(build))
+	for _, r := range append(resolvedUser, resolvedBuild...) {
+		if !r.Delivered() {
+			continue
+		}
+		ret = append(ret, &agentproto.WorkspaceSecret{
+			EnvName:  r.DeliveredEnvName,
+			FilePath: r.DeliveredFilePath,
+			Value:    []byte(r.Value),
+		})
 	}
 	return ret
-}
-
-// appendSecretProto appends one manifest secret, applying the deployment's
-// file path delivery policy. A secret that only targets a file is dropped
-// entirely when file delivery is blocked.
-func appendSecretProto(ret []*agentproto.WorkspaceSecret, envName, filePath, value string, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
-	if policy == userSecretFilePathBlocked {
-		if envName == "" {
-			return ret
-		}
-		filePath = ""
-	}
-	return append(ret, &agentproto.WorkspaceSecret{
-		EnvName:  envName,
-		FilePath: filePath,
-		Value:    []byte(value),
-	})
 }
