@@ -333,6 +333,22 @@ export const MockAttachedFileMessages: TypesGen.ChatMessage[] = [
 ];
 
 /**
+ * A history page that starts at MockAttachedFileMessages' file, then runs a
+ * shell step from 5s to 13s and answers at 14s.
+ */
+export const MockPageFromAttachedFileMessages: TypesGen.ChatMessage[] = [
+	...MockAttachedFileMessages.slice(2),
+	...workingStepMessages(5, "verify", 5, 13),
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "The inspection report is attached." }],
+	},
+];
+
+/**
  * A turn without tools whose answer narrates, then searches the web from 1s to
  * 3s before writing its text, with no reasoning.
  */

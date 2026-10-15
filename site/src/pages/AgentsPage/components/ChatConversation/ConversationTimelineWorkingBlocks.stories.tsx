@@ -14,6 +14,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockPageFromAttachedFileMessages,
 	MockQuestionCallMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
@@ -224,6 +225,24 @@ export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages.slice(3)),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for at least 8s (1 step or more)",
+			}),
+		);
+	},
+};
+
+// The page's block may continue from older history, so it renders above the
+// attached file, where it stays once that history loads.
+export const PaginatedFromAttachedFile: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockPageFromAttachedFileMessages,
+		),
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

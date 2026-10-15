@@ -706,13 +706,45 @@ describe("groupWorkingBlocks", () => {
 		expect(complete.blocks[0].key).toBe(newest.blocks[0].key);
 	});
 
-	it("does not mark a block partial when the loaded history starts at its prompt", () => {
-		const prompt = user("Go");
-		const steps = step("a", 1, 2);
-		const { blocks } = group([prompt, ...steps], { hasMoreMessages: true });
+	it("renders a partial block above the attached files that start the loaded history", () => {
+		const prompt = user("Report");
+		const [attachCall, files, attachResult] = attachStep("a", 1, 2);
+		const steps = step("b", 3, 4);
+		const answer = message("assistant", [text("Done.")], at(5));
+		const all = [prompt, attachCall, files, attachResult, ...steps, answer];
 
-		expect(blocks[0].isPartial).toBe(false);
+		const newest = group(all.slice(2), { hasMoreMessages: true });
+		expect(layoutOf(newest)).toEqual([
+			[`${steps[0].id}`],
+			`${files.id}`,
+			`${answer.id}`,
+		]);
+		expect(newest.blocks[0]).toMatchObject({ isPartial: true, stepCount: 1 });
+
+		expect(layoutOf(group(all))).toEqual([
+			`${prompt.id}`,
+			[`${attachCall.id}`, `${steps[0].id}`],
+			`${files.id}`,
+			`${answer.id}`,
+		]);
 	});
+
+	it.each([
+		{ name: "its prompt", opening: () => user("Go") },
+		{
+			name: "an assistant text row",
+			opening: () => message("assistant", [text("Next, the tests.")]),
+		},
+	])(
+		"does not mark a block partial when the loaded history starts at $name",
+		({ opening }) => {
+			const { blocks } = group([opening(), ...step("a", 1, 2)], {
+				hasMoreMessages: true,
+			});
+
+			expect(blocks[0].isPartial).toBe(false);
+		},
+	);
 
 	describe("live turns", () => {
 		const groupLive = (
