@@ -1994,6 +1994,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 			nil,
+			nil,
 		),
 		"",
 		"",
@@ -2016,6 +2017,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 			Description: "Personal deployment process",
 			Source:      skillspkg.SourcePersonal,
 		}},
+		nil,
 		nil,
 		[]chattool.SkillMeta{{
 			Name:        "deploy",

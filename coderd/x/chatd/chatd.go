@@ -2716,12 +2716,14 @@ func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skills
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
 	organizationSkills []skillspkg.Skill,
+	projectSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
 	return skillspkg.MergeSkills(
-		personalSkills,
-		organizationSkills,
-		workspaceSkillsForResolution(workspaceSkills),
+		skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: personalSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceOrganization, Skills: organizationSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceProject, Skills: projectSkills},
+		skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: workspaceSkillsForResolution(workspaceSkills)},
 	)
 }
 
@@ -2965,6 +2967,78 @@ func (p *Server) loadOrganizationSkillBody(
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse organization skill body: %w", err)
 	}
 	parsed.Source = skillspkg.SourceOrganization
+	return parsed, nil
+}
+
+// fetchProjectSkillMetadata lists the enabled skills of a chat project. Reads
+// run as the chat owner, so they follow the owner's access to the project.
+func (p *Server) fetchProjectSkillMetadata(
+	ctx context.Context,
+	owner rbac.Subject,
+	projectID uuid.UUID,
+) ([]skillspkg.Skill, error) {
+	//nolint:gocritic // Project access is evaluated against the chat owner.
+	rows, err := p.db.ListProjectSkillMetadataByProjectID(dbauthz.As(ctx, owner), projectID)
+	if err != nil {
+		return nil, xerrors.Errorf("list project skill metadata: %w", err)
+	}
+
+	projectSkills := make([]skillspkg.Skill, 0, len(rows))
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		projectSkills = append(projectSkills, skillspkg.Skill{
+			Name:        row.Name,
+			Description: row.Description,
+			Source:      skillspkg.SourceProject,
+		})
+	}
+	return projectSkills, nil
+}
+
+// loadProjectSkillBody loads the current body of a chat project skill as the
+// chat owner. It returns skillspkg.ErrSkillNotFound when the skill is gone,
+// disabled, or the owner can no longer read the project.
+func (p *Server) loadProjectSkillBody(
+	ctx context.Context,
+	owner rbac.Subject,
+	projectID uuid.UUID,
+	name string,
+) (skillspkg.ParsedSkill, error) {
+	//nolint:gocritic // Project access is evaluated against the chat owner.
+	row, err := p.db.GetProjectSkillByProjectIDAndName(
+		dbauthz.As(ctx, owner),
+		database.GetProjectSkillByProjectIDAndNameParams{
+			ProjectID: projectID,
+			Name:      name,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+		}
+		p.logger.Error(ctx, "load project skill body failed",
+			slog.F("project_id", projectID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load project skill body: %w", err)
+	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+
+	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
+	if err != nil {
+		p.logger.Error(ctx, "parse project skill body failed",
+			slog.F("project_id", projectID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse project skill body: %w", err)
+	}
+	parsed.Source = skillspkg.SourceProject
 	return parsed, nil
 }
 
