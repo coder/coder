@@ -75,9 +75,8 @@ func pendingDynamicToolCallIDs(ctx context.Context, store database.Store, chat d
 }
 
 // outstandingToolCalls returns, in assistant-part order, the tool calls
-// on the chat's last assistant message that do not yet have a matching
-// tool result in the active history after it. dynamicOnly limits the
-// result to the chat's dynamic tools.
+// on the chat's last assistant message that have no matching tool
+// result in that message or in a tool message after it.
 //
 //nolint:revive // dynamicOnly is a domain flag, not a control flag.
 func outstandingToolCalls(ctx context.Context, store database.Store, chat database.Chat, dynamicOnly bool) ([]codersdk.ChatMessagePart, error) {

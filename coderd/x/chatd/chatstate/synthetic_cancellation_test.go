@@ -130,8 +130,12 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	}
 	providerExecuted := call("provider-executed")
 	providerExecuted.ProviderExecuted = true
-	unparsable := chatMessage(t, f.Model.ID, database.ChatMessageRoleTool)
-	unparsable.Content = pqtype.NullRawMessage{RawMessage: json.RawMessage(`{}`), Valid: true}
+	unparsable := chatstate.Message{
+		Role:           database.ChatMessageRoleTool,
+		Content:        pqtype.NullRawMessage{RawMessage: json.RawMessage(`{}`), Valid: true},
+		Visibility:     database.ChatMessageVisibilityBoth,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
 	commitAssistantToolCall(t, f, m,
 		chatMessage(t, f.Model.ID, database.ChatMessageRoleAssistant,
 			call("outstanding-1"), providerExecuted,

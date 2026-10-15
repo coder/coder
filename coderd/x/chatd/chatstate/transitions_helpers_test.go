@@ -75,7 +75,6 @@ func mixedAssistantToolCallMessage(t *testing.T, modelID uuid.UUID, dynamicTool,
 		codersdk.ChatMessageToolCall(nonDynCallID, "non_dynamic_tool", json.RawMessage(`{}`)))
 }
 
-// chatMessage builds a chatstate.Message with the given role and parts.
 func chatMessage(t *testing.T, modelID uuid.UUID, role database.ChatMessageRole, parts ...codersdk.ChatMessagePart) chatstate.Message {
 	t.Helper()
 	return chatstate.Message{
@@ -462,7 +461,8 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 // seedA1WithMixedOutstandingToolCalls seeds A1 with one queued message
 // and one assistant message carrying both a dynamic and non-dynamic
 // outstanding tool call. It is used by PromoteQueuedMessage(A1) to
-// prove all tool calls are closed before inserting the promoted user.
+// prove all tool calls are closed before inserting the promoted user,
+// and by CancelRequiresAction(A1) to prove only the dynamic one is.
 func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExtras int, namePrefix string) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
