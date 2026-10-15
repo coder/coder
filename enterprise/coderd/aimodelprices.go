@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
@@ -98,15 +101,25 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxAIModelPricesBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeAIModelPricesBodyReadError(ctx, rw, err)
+		return
+	}
 	var req codersdk.UpsertAIModelPricesRequest
-	rawPrices, ok := readAIModelPricesBody(rw, r, &req)
-	if !ok {
+	priceKeys, err := decodeAIModelPricesBody(body, &req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be valid JSON.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
 	// Validate the whole request before writing anything, so a single bad
-	// entry cannot leave the table half-updated.
-	validations := validateAIModelPrices(req.Prices, rawPrices)
+	// price cannot leave the table half-updated.
+	validations := validateAIModelPrices(req.Prices, priceKeys)
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI model prices.",
@@ -152,50 +165,40 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// readAIModelPricesBody decodes a model price upsert body into req, along with
-// the raw keys of each entry in its prices array. On failure it writes the
-// response and returns false.
-func readAIModelPricesBody(rw http.ResponseWriter, r *http.Request, req any) ([]map[string]json.RawMessage, bool) {
-	ctx := r.Context()
-
-	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxAIModelPricesBytes)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Request body too large.",
-				Detail:  maxBytesErr.Error(),
-			})
-			return nil, false
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
+// writeAIModelPricesBodyReadError writes the response for a request body that
+// could not be read: 413 when it is over the size limit, 400 otherwise.
+func writeAIModelPricesBodyReadError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Request body too large.",
+			Detail:  maxBytesErr.Error(),
 		})
-		return nil, false
+		return
 	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Failed to read request body.",
+		Detail:  err.Error(),
+	})
+}
 
-	// Decoding a price into *int64 loses whether its key was there at all, so
-	// decode the entries as raw keys too. An absent key is not the same as an
-	// explicit null.
-	var rawReq struct {
-		Prices []map[string]json.RawMessage `json:"prices"`
-	}
-	if err := json.Unmarshal(body, &rawReq); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Request body must be valid JSON.",
-			Detail:  err.Error(),
-		})
-		return nil, false
-	}
+// aiModelPriceKeys holds the JSON keys present in one model price, so that
+// validation can tell {"input_price": null} (price unknown) apart from {}
+// (price left out). Decoding into *int64 gives nil for both.
+type aiModelPriceKeys map[string]json.RawMessage
+
+// decodeAIModelPricesBody decodes a site-wide upsert body into req, and returns
+// the keys present in each element of its prices array, in the same order.
+func decodeAIModelPricesBody(body []byte, req *codersdk.UpsertAIModelPricesRequest) ([]aiModelPriceKeys, error) {
 	if err := json.Unmarshal(body, req); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Request body must be valid JSON.",
-			Detail:  err.Error(),
-		})
-		return nil, false
+		return nil, xerrors.Errorf("decode prices: %w", err)
 	}
-	return rawReq.Prices, true
+	var keys struct {
+		Prices []aiModelPriceKeys `json:"prices"`
+	}
+	if err := json.Unmarshal(body, &keys); err != nil {
+		return nil, xerrors.Errorf("decode price keys: %w", err)
+	}
+	return keys.Prices, nil
 }
 
 // modelKey identifies a priced model.
@@ -207,7 +210,7 @@ type modelKey struct {
 // validateAIModelPrices reports every problem with the requested prices: a
 // supported provider, a model, all four price keys, non-negative prices with
 // at least one set, and no repeated model.
-func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
+func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiModelPriceKeys) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
 			Field:  "prices",
@@ -241,7 +244,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Detail: "Model is required.",
 			})
 		}
-		validations = append(validations, validateAIModelPriceValues(field, rawEntryAt(raw, i),
+		validations = append(validations, validateAIModelPriceValues(field, keysAt(keys, i),
 			price.InputPrice, price.OutputPrice, price.CacheReadPrice, price.CacheWritePrice)...)
 
 		key := modelKey{provider: price.Provider, model: price.Model}
@@ -257,19 +260,21 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 	return validations
 }
 
-// rawEntryAt returns the raw keys of the i-th requested price. raw and the
-// typed prices are decoded from the same body, so the index always exists.
-// It is bounds-checked anyway rather than risk a panic.
-func rawEntryAt(raw []map[string]json.RawMessage, i int) map[string]json.RawMessage {
-	if i < len(raw) {
-		return raw[i]
+// keysAt returns the keys present in the i-th requested price. Both are
+// decoded from the same body, so the index always exists. It is
+// bounds-checked anyway rather than risk a panic.
+func keysAt(keys []aiModelPriceKeys, i int) aiModelPriceKeys {
+	if i < len(keys) {
+		return keys[i]
 	}
 	return nil
 }
 
-// validateAIModelPriceValues reports problems with one entry's prices: all
-// four price keys, non-negative prices, and at least one set.
-func validateAIModelPriceValues(field string, rawEntry map[string]json.RawMessage, input, output, cacheRead, cacheWrite *int64) []codersdk.ValidationError {
+// validateAIModelPriceValues reports problems with the four prices of one
+// model price: every price key present, no negative price, and at least one
+// price set. field is where the model price sits in the request, such as
+// "prices[0]", and prefixes each reported field.
+func validateAIModelPriceValues(field string, keys aiModelPriceKeys, input, output, cacheRead, cacheWrite *int64) []codersdk.ValidationError {
 	named := []struct {
 		name  string
 		value *int64
@@ -283,7 +288,7 @@ func validateAIModelPriceValues(field string, rawEntry map[string]json.RawMessag
 	var validations []codersdk.ValidationError
 	var present, populated int
 	for _, p := range named {
-		if _, ok := rawEntry[p.name]; ok {
+		if _, ok := keys[p.name]; ok {
 			present++
 		}
 		if p.value == nil {
@@ -298,11 +303,11 @@ func validateAIModelPriceValues(field string, rawEntry map[string]json.RawMessag
 		}
 	}
 
-	// An entry sets all four columns, so an absent key would clear that
+	// An upsert sets all four columns, so an absent key would clear that
 	// price rather than leave it alone.
 	if present > 0 && present < len(named) {
 		for _, p := range named {
-			if _, ok := rawEntry[p.name]; ok {
+			if _, ok := keys[p.name]; ok {
 				continue
 			}
 			validations = append(validations, codersdk.ValidationError{
@@ -312,7 +317,7 @@ func validateAIModelPriceValues(field string, rawEntry map[string]json.RawMessag
 		}
 	}
 
-	// An all-null entry creates a row that computes zero cost, so the model
+	// An all-null price creates a row that computes zero cost, so the model
 	// stops counting as unpriced without being priced. The price book skips
 	// such models rather than seeding a row for them.
 	if populated == 0 {
