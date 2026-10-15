@@ -10,13 +10,13 @@ type SkillEnabledSwitchProps = {
 	scope: SkillsScope;
 	skill: SkillMetadata;
 	/** Shows whether the skill is enabled without a control to change it. */
-	readOnly?: boolean;
+	readOnly: boolean;
 };
 
 export const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	scope,
 	skill,
-	readOnly = false,
+	readOnly,
 }) => {
 	const queryClient = useQueryClient();
 	const toggleMutation = useMutation({
