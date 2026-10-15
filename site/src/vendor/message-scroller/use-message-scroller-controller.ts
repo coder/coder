@@ -70,11 +70,14 @@ function nudgeScroll(viewport: HTMLElement) {
   }
 }
 
+// LOCAL CHANGE: how long after a reveal's last scroll its row's growth still
+// scrolls the row's end back into view.
+const REVEAL_GROWTH_WINDOW_MS = 2000
+
 // LOCAL CHANGE
-function endsBelowView(element: Element, viewport: HTMLElement) {
+function endsBelowView(rect: DOMRect, viewport: HTMLElement) {
   return (
-    element.getBoundingClientRect().bottom -
-      viewport.getBoundingClientRect().bottom >
+    rect.bottom - viewport.getBoundingClientRect().bottom >
     SCROLL_POSITION_EPSILON
   )
 }
@@ -545,11 +548,13 @@ function useMessageScrollerController({
   // LOCAL CHANGE: scrollToElement clears revealedItemRef, so the row is
   // recorded after the scroll.
   const scrollToItemEnd = React.useCallback(
-    (item: HTMLElement) => {
+    (item: HTMLElement, rect: DOMRect) => {
       scrollToElement(item, { align: "end", behavior: "smooth" })
       revealedItemRef.current = {
         element: item,
-        height: item.getBoundingClientRect().height,
+        expiresAt: performance.now() + REVEAL_GROWTH_WINDOW_MS,
+        height: rect.height,
+        width: rect.width,
       }
     },
     [scrollToElement]
@@ -596,20 +601,28 @@ function useMessageScrollerController({
       return
     }
 
-    // LOCAL CHANGE: a revealed row that grows its end out of view (a step's
-    // image loading) scrolls it back into view, until the reader scrolls or
-    // toggles a row, or another scroll command runs.
+    // LOCAL CHANGE: a revealed row that grows its end out of view scrolls it
+    // back into view, until the reader scrolls or toggles a row, another scroll
+    // command runs, the window ends, or the row changes width.
     const revealed = revealedItemRef.current
 
-    if (
+    if (revealed !== null && performance.now() > revealed.expiresAt) {
+      revealedItemRef.current = null
+    } else if (
       modeRef.current === "settling-jump" &&
       revealed !== null &&
-      viewport !== null &&
-      revealed.element.getBoundingClientRect().height - revealed.height >
-        SCROLL_POSITION_EPSILON &&
-      endsBelowView(revealed.element, viewport)
+      viewport !== null
     ) {
-      scrollToItemEnd(revealed.element)
+      const rect = revealed.element.getBoundingClientRect()
+
+      if (Math.abs(rect.width - revealed.width) > SCROLL_POSITION_EPSILON) {
+        revealedItemRef.current = null
+      } else if (
+        rect.height - revealed.height > SCROLL_POSITION_EPSILON &&
+        endsBelowView(rect, viewport)
+      ) {
+        scrollToItemEnd(revealed.element, rect)
+      }
     }
 
     scheduleStateCommit()
@@ -752,45 +765,51 @@ function useMessageScrollerController({
     }
   }, [])
 
-  // LOCAL CHANGE
+  // LOCAL CHANGE: returns whether it scrolled.
   const revealItemEnd = React.useCallback(
     (target: Element) => {
       const content = contentRef.current
       const viewport = viewportRef.current
 
       if (!content || !viewport) {
-        return
+        return false
       }
 
       const items = getMessageScrollerItems(content, spacerRef.current)
       const item = items.find((element) => element.contains(target))
 
       if (!item) {
-        return
+        return false
       }
+
+      const rect = item.getBoundingClientRect()
+      const endsBelow = endsBelowView(rect, viewport)
 
       if (item === items[items.length - 1]) {
         // The anchor hold hands off to following when the reply uses up the
         // tail spacer, so leave it in place only while some spacer is left.
         if (
-          !endsBelowView(item, viewport) &&
+          !endsBelow &&
           modeRef.current === "anchored-to-message" &&
           spacerHeightRef.current > 0
         ) {
           followSuppressedRef.current = false
-          return
+          return false
         }
 
         // Following pins the end with instant scrolls, which would cut a
         // smooth one short.
         scrollToEnd({ behavior: "auto" })
-        return
+        return true
       }
 
-      if (endsBelowView(item, viewport)) {
-        followSuppressedRef.current = false
-        scrollToItemEnd(item)
+      if (!endsBelow) {
+        return false
       }
+
+      followSuppressedRef.current = false
+      scrollToItemEnd(item, rect)
+      return true
     },
     [scrollToEnd, scrollToItemEnd]
   )
@@ -835,7 +854,6 @@ function useMessageScrollerController({
             // Only the toggle's commit. Later commits wait for the resize
             // observers, as they do with no toggle.
             observer.disconnect()
-            handleResize()
 
             // A removed node can clamp scrollTop. Reset now: output that lands
             // before the resize observers run would scroll the view back down.
@@ -843,8 +861,12 @@ function useMessageScrollerController({
               resetBrowserScrollAnchor()
             }
 
-            if (options.revealEnd) {
-              revealItemEnd(target)
+            // A reveal that scrolls places the row and the tail spacer
+            // itself, so handleResize would only force another layout.
+            const scrolled = options.revealEnd && revealItemEnd(target)
+
+            if (!scrolled) {
+              handleResize()
             }
           }
         )
