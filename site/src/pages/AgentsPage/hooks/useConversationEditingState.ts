@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
-import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
@@ -172,9 +171,6 @@ export function useConversationEditingState(deps: {
 	// Ends a successful send. The composer was cleared at submit, so its
 	// content now was typed during the request; it stays and becomes the draft.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
 		const draft = serializedEditorStateRef.current;
 		if (inputValueRef.current.trim() && draft) {
 			try {

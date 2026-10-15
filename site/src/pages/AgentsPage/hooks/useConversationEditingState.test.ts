@@ -37,10 +37,6 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 			focus,
 			getValue,
 			addFileReference: vi.fn(),
-			insertSkill: vi.fn(),
-			removeSkills: vi.fn(),
-			getEditorState: vi.fn(() => ""),
-			restoreEditorState: vi.fn(),
 			getContentParts: vi.fn(() => []),
 		},
 		setValue,
@@ -181,28 +177,14 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("seeds the composer with the edited message's editor state", () => {
-		const { result, unmount } = renderEditing();
-		const editorState = JSON.stringify({ root: { type: "root" } });
-
-		act(() => {
-			result.current.handleEditUserMessage(7, "", undefined, editorState);
-		});
-
-		expect(result.current.initialEditorState).toBe(editorState);
-		unmount();
-	});
-
 	it("does not force focus when replacing input values on mobile", () => {
 		setMobileViewport(true);
 		const { result, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("draft before edit");
 		result.current.chatInputRef.current = mockInput.handle;
 
-		// Edit/cancel now drive the editor via editorInitialValue +
-		// remountKey, so focus is never called on the mock during
-		// edit and cancel flows. handleSendFromInput is the only
-		// path that calls focus and it skips on mobile viewports.
+		// Edit and cancel drive the editor through editorInitialValue and
+		// remountKey, so they never call focus.
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
 		});
@@ -497,46 +479,7 @@ describe("useConversationEditingState", () => {
 			editedMessageID: undefined,
 		});
 		expect(mockInput.clear).toHaveBeenCalled();
-		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
-		unmount();
-	});
-
-	it("calls focus on the input ref after a successful send", async () => {
-		const { result, onSend, unmount } = renderEditing();
-
-		// Attach a mock ChatMessageInputRef to the chatInputRef
-		const mockFocus = vi.fn();
-		const mockClear = vi.fn();
-		const mockInputRef = {
-			focus: mockFocus,
-			clear: mockClear,
-			setValue: vi.fn(),
-			insertText: vi.fn(),
-			getValue: vi.fn().mockReturnValue(""),
-			addFileReference: vi.fn(),
-			insertSkill: vi.fn(),
-			removeSkills: vi.fn(),
-			getEditorState: vi.fn(() => ""),
-			restoreEditorState: vi.fn(),
-			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef, so assign the mock to it.
-		result.current.chatInputRef.current = mockInputRef;
-
-		await act(async () => {
-			result.current.handleSendFromInput({ message: "hello" });
-			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith({
-					message: "hello",
-					attachments: undefined,
-					workspaceUploads: undefined,
-					editedMessageID: undefined,
-				});
-			});
-		});
-
-		expect(mockClear).toHaveBeenCalled();
-		expect(mockFocus).toHaveBeenCalled();
 		unmount();
 	});
 
