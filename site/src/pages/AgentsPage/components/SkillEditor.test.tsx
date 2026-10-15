@@ -69,6 +69,7 @@ describe("SkillEditor file import", () => {
 						body: "Use imported instructions.",
 					},
 					`---\nname: ${name}\ndescription: "Imported guidance."\n---\nUse imported instructions.\n`,
+					expect.any(Function),
 				),
 			);
 		},
@@ -105,6 +106,7 @@ describe("SkillEditor file import", () => {
 					body: "Unsaved instructions.",
 				},
 				'---\nname: existing-skill\ndescription: "Existing guidance."\n---\nUnsaved instructions.\n',
+				expect.any(Function),
 			),
 		);
 	});
@@ -130,6 +132,7 @@ describe("SkillEditor file import", () => {
 					body: "Use imported instructions.",
 				},
 				'---\nname: imported-skill\ndescription: "Imported guidance."\n---\nUse imported instructions.\n',
+				expect.any(Function),
 			),
 		);
 	});
