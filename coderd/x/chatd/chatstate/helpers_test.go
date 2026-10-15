@@ -47,9 +47,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 }
 
 // sendInterruptMessage seeds one queued user message via SendMessage
-// with BusyBehaviorInterrupt on an owned chat. From R0/R1 this
-// transitions the chat to `interrupting` and appends the new user
-// message to the queue tail.
+// with BusyBehaviorInterrupt on an owned chat.
 func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID, body string) chatstate.SendMessageResult {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)

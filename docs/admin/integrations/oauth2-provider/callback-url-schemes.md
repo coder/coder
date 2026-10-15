@@ -9,11 +9,13 @@ The OS routes the redirect back to the registered application without requiring 
 A private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`.
 The bare form `com.example.app:callback` is rejected.
 
-The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect. No other URN is accepted.
+The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect.
+No other URN is accepted.
 
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
 
-Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
+Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client.
+Confidential clients are not subject to this restriction.
 
 A cleartext `http://` redirect URI is accepted only for a local host.
 A confidential client may use `localhost`, `127.0.0.1`, `[::1]`, or a `.localhost` subdomain such as `http://app.localhost/callback`.

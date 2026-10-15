@@ -380,6 +380,7 @@ func TestGoogleSupportedThinkingLevels(t *testing.T) {
 		{modelID: "gemini-flash-lite-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-preview", want: []fantasygoogle.ThinkingLevel{low, high}},
 		{modelID: "gemini-3.1-pro-preview", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-4-argon", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-10.5-pro", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-pro-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-image-preview", want: []fantasygoogle.ThinkingLevel{high}},
