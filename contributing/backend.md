@@ -187,8 +187,11 @@ changes before its final check. GitHub atomically rejects an author push using
 already-started commit.
 
 Repository maintainers must require the `migration-numbering` status in addition
-to `required` and enable strict up-to-date branch protection for the final merge
-race. Check that the repository's Actions event policy permits this trusted
+to `required`, without strict up-to-date branch protection. When a migration
+lands on main, the workflow refreshes the status of open PRs that change
+migrations. A PR can still merge between a migration landing on main and the
+refresh posting a failure. A manual workflow run reconciles a missing status.
+Check that the repository's Actions event policy permits this trusted
 `pull_request_target` workflow before requiring its status. See
 [GitHub's event-policy guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
 Reuse `BACKPORT_APP_ID` and `BACKPORT_APP_PRIVATE_KEY`; the installation
