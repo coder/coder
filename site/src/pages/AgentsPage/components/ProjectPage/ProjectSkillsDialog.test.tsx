@@ -1,13 +1,17 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { saveAs } from "file-saver";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkill } from "#/api/queries/chatProjectSkills";
 import type { Skill } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
+
+vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 
 const { organization_id: orgId, id: projectId } = MockChatProject;
 
@@ -16,7 +20,10 @@ const mockReviewerSkill: Skill = {
 	content: "---\nname: reviewer\n---\nReview the diff.\n",
 };
 
-const renderDialog = ({ canEdit = true } = {}) => {
+const renderDialog = ({
+	canEdit = true,
+	queryClient = createTestQueryClient(),
+} = {}) => {
 	const onOpenChange = vi.fn();
 	const getSkills = vi
 		.spyOn(API.experimental, "getChatProjectSkills")
@@ -25,7 +32,7 @@ const renderDialog = ({ canEdit = true } = {}) => {
 		.spyOn(API.experimental, "getChatProjectSkill")
 		.mockResolvedValue(mockReviewerSkill);
 	render(
-		<QueryClientProvider client={createTestQueryClient()}>
+		<QueryClientProvider client={queryClient}>
 			<ProjectSkillsDialog
 				project={MockChatProject}
 				open
@@ -159,6 +166,73 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
+	it("keeps edits made over cached content when a refetch differs", async () => {
+		// Unlike the test client, keep the seeded detail cached while unobserved.
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		queryClient.setQueryData(
+			chatProjectSkill(orgId, projectId, "reviewer").queryKey,
+			mockReviewerSkill,
+		);
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue(mockReviewerSkill);
+		const { user, getSkill } = renderDialog({ queryClient });
+		let resolveRefetch: (skill: Skill) => void = () => {};
+		getSkill.mockReturnValue(
+			new Promise((resolve) => {
+				resolveRefetch = resolve;
+			}),
+		);
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		const body = await screen.findByRole("textbox", { name: "Body" });
+		await user.clear(body);
+		await user.type(body, "Review carefully.");
+		await waitFor(() => expect(getSkill).toHaveBeenCalled());
+		await act(async () => {
+			resolveRefetch({
+				...mockReviewerSkill,
+				content: "---\nname: reviewer\n---\nRefreshed elsewhere.\n",
+			});
+		});
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				content: expect.stringContaining("Review carefully."),
+			}),
+		);
+	});
+
+	it("returns to a refreshed list when the edited skill was deleted", async () => {
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		queryClient.setQueryData(
+			chatProjectSkill(orgId, projectId, "reviewer").queryKey,
+			mockReviewerSkill,
+		);
+		const { user, getSkill, getSkills, onOpenChange } = renderDialog({
+			queryClient,
+		});
+		const notFound = mockApiError({ message: "Skill not found." });
+		getSkill.mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+
+		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+		// Escape closes the dialog from the list, while the editor keeps it open.
+		await user.keyboard("{Escape}");
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
 	it("asks before Escape discards unsaved edits", async () => {
 		const updateSkill = vi
 			.spyOn(API.experimental, "updateChatProjectSkill")
@@ -185,6 +259,23 @@ describe("ProjectSkillsDialog", () => {
 		);
 	});
 
+	it("turns a skill off from the list", async () => {
+		const updateSkill = vi
+			.spyOn(API.experimental, "updateChatProjectSkill")
+			.mockResolvedValue({ ...mockReviewerSkill, enabled: false });
+		const { user } = renderDialog();
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable reviewer" }),
+		);
+
+		await waitFor(() =>
+			expect(updateSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer", {
+				enabled: false,
+			}),
+		);
+	});
+
 	it("deletes a skill after confirmation", async () => {
 		const deleteSkill = vi
 			.spyOn(API.experimental, "deleteChatProjectSkill")
@@ -201,6 +292,19 @@ describe("ProjectSkillsDialog", () => {
 			expect(deleteSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer"),
 		);
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
+	});
+
+	it("downloads a skill's SKILL.md content", async () => {
+		const { user, getSkill } = renderDialog();
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+
+		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
+		expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer");
+		const [file, fileName] = vi.mocked(saveAs).mock.calls[0];
+		expect(fileName).toBe("reviewer.md");
+		expect(await (file as Blob).text()).toBe(mockReviewerSkill.content);
 	});
 
 	it("opens skills for viewing without update access", async () => {
