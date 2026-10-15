@@ -187,8 +187,8 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	// Only the owner can update a project today, including its templates.
-	// Project editor roles will extend this check.
+	// Update covers the template list and defaults, so anyone allowed to edit
+	// the project, including through its ACL, can change them.
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return

@@ -449,7 +449,7 @@ Replace with the specific condition, or remove the qualifier and accept the stat
 
 > The Coder agent reconnects within 30 seconds of a network drop.
 >
-> The [Coder benchmarks](../../about/why-coder.md) show a 40% reduction in onboarding time for new developers.
+> The Coder benchmarks show a 40% reduction in onboarding time for new developers.
 >
 > The provisioner runs `terraform plan` before `terraform apply`.
 

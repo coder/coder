@@ -72,6 +72,8 @@ func TestMain(m *testing.M) {
 	}
 	// Report multi-second pauses of the whole process, see coder/internal#1365.
 	testutil.StartStallDetector(5 * time.Second)
+	// Fail with a heap profile before a runaway allocation pushes the runner into swap.
+	testutil.StartMemoryGuardFromEnv()
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
@@ -131,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC213WithRole(context.Context, string) (
-	proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC214WithRole(context.Context, string) (
+	proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
