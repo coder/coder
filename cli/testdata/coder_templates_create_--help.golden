@@ -56,10 +56,7 @@ OPTIONS:
 
       --require-active-version bool (default: false)
           Requires workspace builds to use the active template version. This
-          setting does not apply to template admins. This is an enterprise-only
-          feature. See
-          https://coder.com/docs/admin/templates/managing-templates#require-automatic-updates-enterprise
-          for more details.
+          setting does not apply to template admins. This is a Premium feature.
 
       --var string-array
           Alias of --variable.

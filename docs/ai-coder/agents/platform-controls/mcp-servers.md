@@ -257,8 +257,8 @@ can open **Server actions** > **Manage permissions** to remove the Everyone
 entry and grant specific groups or users instead. They can also manage the ACL
 through the API
 (`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
-ACL management is available in all editions and does not require an enterprise
-entitlement. ACL changes are recorded in the audit log.
+ACL management is available in all editions and does not require a Premium
+license. ACL changes are recorded in the audit log.
 
 Revoking access stops a member from newly selecting the server in any chat,
 but chats that already have the server selected keep using it, the same way

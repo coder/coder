@@ -17,7 +17,7 @@ import (
 
 func (r *RootCmd) features() *serpent.Command {
 	cmd := &serpent.Command{
-		Short:   "List Enterprise features",
+		Short:   "List Premium features",
 		Use:     "features",
 		Aliases: []string{"feature"},
 		Handler: func(inv *serpent.Invocation) error {

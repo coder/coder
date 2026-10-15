@@ -175,10 +175,10 @@ type CreateTemplateRequest struct {
 	// workspaces created from this template. Defaults to 0 (disabled).
 	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostartRequirement *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.

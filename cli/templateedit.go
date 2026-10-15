@@ -311,19 +311,19 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		},
 		{
 			Flag:        "allow-user-autostart",
-			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.",
+			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled with a Premium license.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&allowUserAutostart),
 		},
 		{
 			Flag:        "allow-user-autostop",
-			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
+			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled with a Premium license.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&allowUserAutostop),
 		},
 		{
 			Flag:        "require-active-version",
-			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature. See https://coder.com/docs/admin/templates/managing-templates#require-automatic-updates-enterprise for more details.",
+			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is a Premium feature.",
 			Value:       serpent.BoolOf(&requireActiveVersion),
 			Default:     "false",
 		},

@@ -109,7 +109,7 @@
 	},
 	{
 		"title": "`features`",
-		"description": "List Enterprise features",
+		"description": "List Premium features",
 		"path": "reference/cli/features/index.md",
 		"children": [
 			{
