@@ -772,11 +772,16 @@ func TestServer_Metrics(t *testing.T) {
 			t.Fatal("timed out waiting for forward attempt")
 		}
 
-		// The metric is incremented after ReportBoundaryLogs returns, so we
-		// need to poll briefly.
+		// The metrics are updated after ReportBoundaryLogs returns, each one
+		// separately, so the poll waits for every metric asserted below. See
+		// "Waiting on One Value and Asserting Another" in
+		// .claude/docs/TESTING.md.
 		require.Eventually(t, func() bool {
-			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") >= 1
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") > 0 &&
+				getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed") > 0
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, float64(1),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed"))
 		require.Equal(t, float64(2),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed"))
 
