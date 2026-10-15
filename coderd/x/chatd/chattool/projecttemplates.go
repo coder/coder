@@ -67,9 +67,9 @@ func (p *projectTemplates) isDefault(templateID uuid.UUID) bool {
 }
 
 // applyProjectDefaults fills in the project's default preset and parameter
-// values that the model did not pass. A default preset that no longer
-// belongs to the template's active version is skipped so the build does
-// not fail on it.
+// values that the model did not pass. The default preset is skipped when it
+// no longer belongs to the template's active version, or when it sets a
+// parameter the model passed, since preset values override build values.
 func applyProjectDefaults(
 	ctx context.Context,
 	logger slog.Logger,
@@ -85,6 +85,9 @@ func applyProjectDefaults(
 		case err != nil:
 			logger.Warn(ctx, "failed to load presets for project default preset", slog.Error(err))
 		case slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool { return p.ID == project.defaultPresetID.UUID }):
+			if presetSetsParameter(ctx, logger, db, activeVersionID, project.defaultPresetID.UUID, args.Parameters) {
+				break
+			}
 			req.TemplateVersionPresetID = project.defaultPresetID.UUID
 		default:
 			logger.Warn(ctx, "project default preset is not in the template's active version",
@@ -102,4 +105,28 @@ func applyProjectDefaults(
 			Value: project.defaultParameters[name],
 		})
 	}
+}
+
+// presetSetsParameter reports whether the preset sets any of the given
+// parameters. It also reports true when the preset's parameters cannot be
+// loaded, so an explicit value is never silently overridden.
+func presetSetsParameter(
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	versionID, presetID uuid.UUID,
+	parameters map[string]string,
+) bool {
+	if len(parameters) == 0 {
+		return false
+	}
+	presetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, versionID)
+	if err != nil {
+		logger.Warn(ctx, "failed to load project default preset parameters", slog.Error(err))
+		return true
+	}
+	return slices.ContainsFunc(presetParameters, func(p database.TemplateVersionPresetParameter) bool {
+		_, ok := parameters[p.Name]
+		return p.TemplateVersionPresetID == presetID && ok
+	})
 }
