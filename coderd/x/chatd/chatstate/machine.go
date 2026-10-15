@@ -52,14 +52,26 @@ func NewChatMachine(
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
-// and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
-// from the database on entry, so a bundle of transitions inside one
-// Update callback always validates against the latest committed state.
+// the chat ID, and the row returned by the transition lock.
+//
+// The locked row is safe to reuse because the lock blocks every other
+// writer of the chat until commit. Transitions write the chat, so the
+// first loadState consumes the locked row and later reads go to the
+// database. Writes a callback makes through the raw store are not
+// reflected in the locked row.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+
+	locked *lockedRow
+}
+
+// lockedRow is the chat row returned by the transition lock plus the
+// queue state read right after it.
+type lockedRow struct {
+	chat      database.Chat
+	hasQueued bool
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -81,11 +93,31 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
-// active transaction, classifies the execution state, and returns the
-// inputs every transition method needs. Returns ErrChatNotFound if
-// the chat row was deleted in this transaction (or never existed).
+// loadState returns the chat row and execution state for a transition
+// to validate against. The locked row is returned at most once because
+// the transition that reads it is about to write the chat.
 func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
+	if l := tx.locked; l != nil {
+		tx.locked = nil
+		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
+	}
+	return tx.readState()
+}
+
+// Current returns the chat row and execution state, reusing the locked
+// row without consuming it when no transition has run yet.
+func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
+	if l := tx.locked; l != nil {
+		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
+	}
+	return tx.readState()
+}
+
+// readState reads the current chat row and queue cardinality from the
+// active transaction and classifies the execution state. Returns
+// ErrChatNotFound if the chat row was deleted in this transaction (or
+// never existed).
+func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -148,35 +180,57 @@ func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
 ) error {
+	_, err := m.UpdateReturning(ctx, fn)
+	return err
+}
+
+// UpdateReturning is [ChatMachine.Update] that also returns the chat row
+// Update reads after fn for publication, so callers do not read it again
+// under the lock. The row is zero if fn or that read failed. It is still
+// set when the commit or publication fails afterwards, so treat it as
+// committed only when err is nil.
+func (m *ChatMachine) UpdateReturning(
+	ctx context.Context,
+	fn func(*Tx, database.Store) error,
+) (database.Chat, error) {
 	if m.store == nil {
-		return xerrors.New("chatstate: ChatMachine has nil store")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	if m.publisher == nil {
-		return xerrors.New("chatstate: ChatMachine has nil publisher")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
 
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
+	var updated database.Chat
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		locked, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
+		queued, err := store.CountChatQueuedMessages(ctx, m.chatID)
+		if err != nil {
+			return xerrors.Errorf("count queued messages: %w", err)
+		}
 		tx := &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
+			locked: &lockedRow{chat: locked, hasQueued: queued > 0},
 		}
 		if err := fn(tx, store); err != nil {
 			return err
 		}
-		chat, state, err := tx.loadState()
+		// The callback may have written the chat, so publish a fresh read.
+		chat, state, err := tx.readState()
 		if err != nil {
 			return err
 		}
+		updated = chat
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),
 			buildChatUpdateMessage(chat),
@@ -200,9 +254,9 @@ func (m *ChatMachine) Update(
 		return nil
 	}, nil)
 	if err != nil {
-		return err
+		return updated, err
 	}
-	return buffer.Flush()
+	return updated, buffer.Flush()
 }
 
 // Lock locks the chat row with FOR UPDATE and runs fn in a
