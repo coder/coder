@@ -20007,7 +20007,12 @@ const docTemplate = `{
                 "workspace_proxy:create",
                 "workspace_proxy:delete",
                 "workspace_proxy:read",
-                "workspace_proxy:update"
+                "workspace_proxy:update",
+                "workspace_secret:*",
+                "workspace_secret:create",
+                "workspace_secret:read",
+                "workspace_secret:read_secret",
+                "workspace_secret:update"
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
@@ -20270,7 +20275,12 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceProxyCreate",
                 "APIKeyScopeWorkspaceProxyDelete",
                 "APIKeyScopeWorkspaceProxyRead",
-                "APIKeyScopeWorkspaceProxyUpdate"
+                "APIKeyScopeWorkspaceProxyUpdate",
+                "APIKeyScopeWorkspaceSecretAll",
+                "APIKeyScopeWorkspaceSecretCreate",
+                "APIKeyScopeWorkspaceSecretRead",
+                "APIKeyScopeWorkspaceSecretReadSecret",
+                "APIKeyScopeWorkspaceSecretUpdate"
             ]
         },
         "codersdk.AddLicenseRequest": {
@@ -29468,6 +29478,7 @@ const docTemplate = `{
                 "delete_agent",
                 "read",
                 "read_personal",
+                "read_secret",
                 "ssh",
                 "share",
                 "unassign",
@@ -29488,6 +29499,7 @@ const docTemplate = `{
                 "ActionDeleteAgent",
                 "ActionRead",
                 "ActionReadPersonal",
+                "ActionReadSecret",
                 "ActionSSH",
                 "ActionShare",
                 "ActionUnassign",
@@ -29557,7 +29569,8 @@ const docTemplate = `{
                 "workspace_agent_resource_monitor",
                 "workspace_build_orchestration",
                 "workspace_dormant",
-                "workspace_proxy"
+                "workspace_proxy",
+                "workspace_secret"
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
@@ -29614,7 +29627,8 @@ const docTemplate = `{
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceBuildOrchestration",
                 "ResourceWorkspaceDormant",
-                "ResourceWorkspaceProxy"
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceSecret"
             ]
         },
         "codersdk.RateLimitConfig": {
