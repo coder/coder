@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
@@ -15,7 +21,7 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
@@ -959,11 +965,9 @@ describe("AgentCreateForm project picker", () => {
 			organizationSkillsKey(MockDefaultOrganization.id),
 			[{ ...MockSkill, name: "review" }],
 		);
-		queryClient.setQueryData(
-			chatProjectSkills(MockDefaultOrganization.id, MockChatProject.id)
-				.queryKey,
-			[{ ...MockSkill, name: "triage" }],
-		);
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage" },
+		]);
 		const { onCreateChat } = renderForm({}, { queryClient });
 		const insertSkills = async (names: string[]) => {
 			await user().click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -999,6 +1003,33 @@ describe("AgentCreateForm project picker", () => {
 		expect(skillParts).toEqual([
 			{ type: "skill-invocation", source: "personal", name: "notes" },
 		]);
+	});
+
+	it("drops project skill chips when a refetch removes the picked project", async () => {
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(userSkillsKey(), []);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /triage/ }));
+		act(() =>
+			queryClient.setQueryData(chatProjectsKey, [otherOrganizationProject]),
+		);
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("the project is gone");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).not.toContainEqual(
+			expect.objectContaining({ type: "skill-invocation" }),
+		);
 	});
 
 	it("clears the picked project when the organization changes", async () => {

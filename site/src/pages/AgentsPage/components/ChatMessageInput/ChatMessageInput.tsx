@@ -577,7 +577,6 @@ export type ChatMessageInputRef = {
 	 * editor is not added again.
 	 */
 	insertSkill: (source: SkillSource, name: string) => void;
-	/** Remove the skill chips whose source is one of `sources`. */
 	removeSkills: (sources: readonly SkillSource[]) => void;
 	/**
 	 * Walk the Lexical tree in document order and return interleaved

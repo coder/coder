@@ -667,19 +667,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Organization and project skill chips would be sent with the new scope,
-	// so they are removed when the scope changes.
+	// Organization skill chips would be sent with the new organization, so
+	// they are removed when it changes.
 	const selectOrganization = (organization: TypesGen.Organization) => {
-		chatInputRef.current?.removeSkills(["org", "project"]);
+		chatInputRef.current?.removeSkills(["org"]);
 		setUserMCPServerIds(null);
 		setPickedProject(null);
 		setSelectedOrg(organization);
-	};
-	const selectProject = (nextProject: TypesGen.ChatProject | null) => {
-		if (nextProject?.id !== selectedProject?.id) {
-			chatInputRef.current?.removeSkills(["project"]);
-		}
-		setPickedProject(nextProject);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -763,6 +757,16 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		);
 
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// Project skill chips would be sent with another project, so the editor,
+	// which lives outside React state, drops them whenever the project
+	// changes, including when a refetch removes the picked project.
+	const lastChatProjectIdRef = useRef(chatProjectId);
+	useEffect(() => {
+		if (lastChatProjectIdRef.current !== chatProjectId) {
+			lastChatProjectIdRef.current = chatProjectId;
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
@@ -1020,7 +1024,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							<CompactProjectSelector
 								value={selectedProject}
 								options={organizationProjects}
-								onChange={selectProject}
+								onChange={setPickedProject}
 								onCreateProject={openCreateProjectDialog}
 								isLoading={projectsQuery.isLoading}
 								// A failed background refetch keeps the cached list usable.
@@ -1172,7 +1176,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 												? projects
 												: projects && [...projects, chatProject],
 									);
-									selectProject(chatProject);
+									setPickedProject(chatProject);
 									setIsCreateProjectOpen(false);
 								},
 							},
