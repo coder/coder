@@ -4,6 +4,7 @@ type LiveBlockIdentity = {
 	itemKey: string;
 	firstPieceKey: string | undefined;
 	liveWorkOrdinal: number | undefined;
+	startedAt: number | undefined;
 	streamStartedAt: string | undefined;
 };
 
@@ -34,7 +35,9 @@ const continuesLiveBlock = (
 	// A live-only block's first persisted step keeps its streamed part
 	// timestamps, even when the stream clears in the same render.
 	return (
-		block.isLive && block.startedAt === Date.parse(identity.streamStartedAt)
+		block.isLive &&
+		identity.startedAt !== undefined &&
+		block.startedAt === identity.startedAt
 	);
 };
 
@@ -96,12 +99,14 @@ export const reconcileLiveBlockKeys = (
 			(nextIdentity?.itemKey !== itemKey ||
 				nextIdentity.firstPieceKey !== firstPieceKey ||
 				nextIdentity.liveWorkOrdinal !== block.liveWorkOrdinal ||
+				nextIdentity.startedAt !== block.startedAt ||
 				nextIdentity.streamStartedAt !== streamStartedAt)
 		) {
 			nextIdentity = {
 				itemKey,
 				firstPieceKey,
 				liveWorkOrdinal: block.liveWorkOrdinal,
+				startedAt: block.startedAt,
 				streamStartedAt,
 			};
 		}
