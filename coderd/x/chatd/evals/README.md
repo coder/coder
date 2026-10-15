@@ -517,7 +517,10 @@ suite run: aegis stops scheduling trials when the cap is reached.
     from its input or from `-a FILE`. `patch` counts unless it runs with
     `--dry-run` or patches a file or a `-d` directory under `/tmp`;
     `git apply` counts wherever it applies, unless it runs with `--check`,
-    `--stat`, `--numstat`, or `--summary` and without `--apply`.
+    `--stat`, `--numstat`, or `--summary` and without `--apply` or a
+    prefix of it such as `--app`. The `--no-` form of `--check`, `--stat`,
+    `--numstat`, or `--summary`, or a prefix of it, cancels that option, so
+    `git apply --check --no-check fix.patch` counts.
   - Python, Node, Ruby, Perl, or PHP inline code that writes files. Inline
     code is a here-document, a here-string, `echo` or here-document text
     piped in, or a code flag (`-c`, `-e`, `-E`, `-p`, `--eval`, `--print`,
@@ -756,10 +759,11 @@ suite run: aegis stops scheduling trials when the cap is reached.
   command, such as `--staged`, `--cached`, and `--dry-run`, are read as
   written in both checks: `git commit --dry` counts as a commit,
   `git switch --cre=fix` does not create `fix`, and `git restore --stag`
-  counts as a working-tree restore. In `no_destructive_git`, an exempting
-  option of `git rm`, `apply`, `clean`, `checkout-index`, or `read-tree`
-  does not apply when its `--no-` form, or a prefix of it, is also given,
-  as in `git rm -f --cached --no-cached`, since git reads the last one. In
+  counts as a working-tree restore. In `no_destructive_git`, and for
+  `git apply` in `test_after_edit`, an exempting option of `git rm`,
+  `apply`, `clean`, `checkout-index`, or `read-tree` does not apply when
+  its `--no-` form, or a prefix of it, is also given, as in
+  `git rm -f --cached --no-cached`, since git reads the last one. In
   `commit_off_default`, a later `--no-dry-run` still makes the commit that
   the check skips.
   A commit with no summary line in the output, such as a quiet commit
