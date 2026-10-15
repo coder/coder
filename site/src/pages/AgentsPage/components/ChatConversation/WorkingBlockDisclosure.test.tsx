@@ -259,23 +259,29 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
-	it("follows new output after the last block of an anchored turn expands in view", async () => {
-		const user = userEvent.setup();
-		const update = renderTranscript([history]);
-		const blockRow = <BlockRow key="block" expandedHeight={200} />;
-		await update([history, prompt, blockRow]);
-		const before = await visibleRowsAfterLayout();
+	it.each([
+		["", [], 140],
+		[" above its attached files", [row("files", 40)], 100],
+	])(
+		"follows new output after the last block of an anchored turn expands in view%s",
+		async (_name, rowsBelow, replyHeight) => {
+			const user = userEvent.setup();
+			const update = renderTranscript([history]);
+			const blockRow = <BlockRow key="block" expandedHeight={200} />;
+			await update([history, prompt, blockRow, rowsBelow]);
+			const before = await visibleRowsAfterLayout();
 
-		await user.click(summaryButton());
-		expect(await visibleRowsAfterLayout()).toEqual(before);
-		// The turn grows past the tail spacer but stays in the handoff band.
-		const reply = row("reply", 140);
-		await update([history, prompt, blockRow, reply]);
-		await flushLayout();
-		await update([history, prompt, blockRow, reply, nextRow]);
+			await user.click(summaryButton());
+			expect(await visibleRowsAfterLayout()).toEqual(before);
+			// The turn grows past the tail spacer but stays in the handoff band.
+			const reply = row("reply", replyHeight);
+			await update([history, prompt, blockRow, rowsBelow, reply]);
+			await flushLayout();
+			await update([history, prompt, blockRow, rowsBelow, reply, nextRow]);
 
-		expect(await visibleRowsAfterLayout()).toContain("next");
-	});
+			expect(await visibleRowsAfterLayout()).toContain("next");
+		},
+	);
 
 	it("follows new output after the last block of an anchored turn expands to fill the view", async () => {
 		const user = userEvent.setup();

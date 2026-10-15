@@ -785,18 +785,19 @@ function useMessageScrollerController({
       const rect = item.getBoundingClientRect()
       const endsBelow = endsBelowView(rect, viewport)
 
-      if (item === items[items.length - 1]) {
-        // The anchor hold hands off to following when the reply uses up the
-        // tail spacer, so leave it in place only while some spacer is left.
-        if (
-          !endsBelow &&
-          modeRef.current === "anchored-to-message" &&
-          spacerHeightRef.current > 0
-        ) {
-          followSuppressedRef.current = false
-          return false
-        }
+      // The anchor hold hands off to following when the reply uses up the
+      // tail spacer, so leave it in place only while some spacer is left.
+      // A toggle above the turn ends the hold, so a held row is in the turn.
+      if (
+        !endsBelow &&
+        modeRef.current === "anchored-to-message" &&
+        spacerHeightRef.current > 0
+      ) {
+        followSuppressedRef.current = false
+        return false
+      }
 
+      if (item === items[items.length - 1]) {
         // Following pins the end with instant scrolls, which would cut a
         // smooth one short.
         scrollToEnd({ behavior: "auto" })
