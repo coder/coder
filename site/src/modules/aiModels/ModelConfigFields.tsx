@@ -750,8 +750,7 @@ export const PricingEstimateFields: React.FC<{
 	if (
 		!livePriceLoading &&
 		(costs === undefined ||
-			(visibleFields.every(([, key]) => costs[key] === undefined) &&
-				!livePrice?.tiers.length))
+			priceEstimateFields.every(([, key]) => costs[key] === undefined))
 	) {
 		return (
 			<p className="m-0 text-xs text-content-secondary sm:col-span-full">
