@@ -27,6 +27,11 @@ func TestPoolDrain(t *testing.T) {
 
 	const firstEvent = "data: partial\n\n"
 	const lastEvent = "data: [DONE]\n\n"
+	// Allow for Ristretto's unexported expiration bucket and cleanup ticker
+	// intervals, which together add up to 7.5 seconds of cleanup lag:
+	// https://github.com/dgraph-io/ristretto/blob/v2.4.0/ttl.go#L13-L25
+	// https://github.com/dgraph-io/ristretto/blob/v2.4.0/cache.go#L219-L233
+	const cacheCleanupAllowance = 10 * time.Second
 	tests := []struct {
 		name         string
 		expireBridge bool
@@ -44,23 +49,25 @@ func TestPoolDrain(t *testing.T) {
 		{
 			name:         "DrainTimeout",
 			expireBridge: true,
-			aliveFor:     9 * time.Minute,
-			cancelWithin: time.Minute,
+			// Cleanup may start the drain anywhere within the allowance.
+			// Check just before the earliest and just after the latest deadline.
+			aliveFor:     aibridged.BridgeDrainTimeout - cacheCleanupAllowance - time.Millisecond,
+			cancelWithin: cacheCleanupAllowance + 2*time.Millisecond,
 			wantBody:     firstEvent,
 		},
 		{
 			name:         "ShutdownRetired",
 			expireBridge: true,
 			shutdownPool: true,
-			aliveFor:     4 * time.Second,
-			cancelWithin: time.Second,
+			aliveFor:     aibridged.PoolShutdownTimeout - time.Millisecond,
+			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},
 		{
 			name:         "ShutdownCached",
 			shutdownPool: true,
-			aliveFor:     4 * time.Second,
-			cancelWithin: time.Second,
+			aliveFor:     aibridged.PoolShutdownTimeout - time.Millisecond,
+			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},
 		{
@@ -68,8 +75,8 @@ func TestPoolDrain(t *testing.T) {
 			expireBridge: true,
 			shutdownPool: true,
 			blockAcquire: true,
-			aliveFor:     4 * time.Second,
-			cancelWithin: time.Second,
+			aliveFor:     aibridged.PoolShutdownTimeout - time.Millisecond,
+			cancelWithin: 2 * time.Millisecond,
 			wantBody:     firstEvent,
 		},
 	}
@@ -146,9 +153,9 @@ func TestPoolDrain(t *testing.T) {
 				synctest.Wait()
 
 				if tt.expireBridge {
-					// Exceed the TTL, cleanup lag, and the previous five-second
-					// drain. The original stream must still be running.
-					<-time.After(20 * time.Second)
+					// Wait for TTL cleanup before checking that the retired
+					// bridge's stream remains active.
+					<-time.After(opts.TTL + cacheCleanupAllowance)
 					synctest.Wait()
 					require.NoError(t, requestCtx.Err())
 					select {
