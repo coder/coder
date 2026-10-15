@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -139,5 +140,30 @@ func TestResolveSkillInvocations(t *testing.T) {
 			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "missing"),
 		})
 		requireUnavailable(t, err, "Skill workspace/missing is not available.")
+	})
+
+	t.Run("RepeatedSkillLoadsOnce", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), database.GetUserSkillByUserIDAndNameParams{UserID: chat.OwnerID, Name: "notes"}).
+			Return(database.Skill{Enabled: true, Content: "---\nname: notes\ndescription: Notes\n---\n\nTake notes.\n"}, nil).
+			Times(1)
+		server := newPinServer(t, db)
+		invocation := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourcePersonal, "notes")
+
+		resolved, err := server.resolveSkillInvocations(context.Background(), chat,
+			slices.Repeat([]codersdk.ChatMessagePart{invocation}, MaxSkillInvocationsPerMessage))
+		require.NoError(t, err)
+		for _, part := range resolved {
+			require.Equal(t, "Take notes.", part.SkillBody)
+		}
+
+		// One invocation over the cap is rejected before any skill loads.
+		_, err = server.resolveSkillInvocations(context.Background(), chat,
+			slices.Repeat([]codersdk.ChatMessagePart{invocation}, MaxSkillInvocationsPerMessage+1))
+		require.ErrorIs(t, err, ErrTooManySkillInvocations)
 	})
 }
