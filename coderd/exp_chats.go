@@ -2780,7 +2780,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	// The move is the last write, so a refused move keeps the earlier
 	// writes of the request, as a refused archive does.
-	if projectUpdate != nil && *projectUpdate != chat.ProjectID {
+	if projectUpdate != nil {
 		err := api.chatDaemon.MoveChatToProject(ctx, chat, *projectUpdate)
 		if err != nil {
 			if writeChatInvalidState(ctx, rw, err) {

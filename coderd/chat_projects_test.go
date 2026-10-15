@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -336,6 +339,58 @@ func TestPatchChatProject(t *testing.T) {
 		requireChatProjectID(ctx, t, client, child.ID, nil)
 	})
 
+	t.Run("MoveBackWaitsForAPendingMove", func(t *testing.T) {
+		t.Parallel()
+
+		// A move back to the current project compares with the locked row,
+		// so it cannot succeed while an earlier move commits after it.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, api := newChatProjectClientWithAPI(t, func(options *coderdtest.Options) {
+			options.Database = db
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		projectA := createChatProject(t, client, firstUser.OrganizationID, "Project A")
+		projectB := createChatProject(t, client, firstUser.OrganizationID, "Project B")
+		chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectA.ID}))
+
+		pendingMove, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := pendingMove.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Errorf("roll back the pending move: %v", err)
+			}
+		})
+		_, err = pendingMove.ExecContext(ctx, `UPDATE chats SET project_id = $1 WHERE id = $2`, projectB.ID, chat.ID)
+		require.NoError(t, err)
+
+		moveBack := make(chan error, 1)
+		go func() {
+			moveBack <- client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &projectA.ID})
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			if len(moveBack) > 0 {
+				return true
+			}
+			var waiting int
+			err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: GetChatByIDForUpdate%'
+`).Scan(&waiting)
+			return err == nil && waiting == 1
+		}, testutil.IntervalFast, "the move back must answer or wait for the chat row")
+		require.NoError(t, pendingMove.Commit())
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, moveBack))
+		requireChatProjectID(ctx, t, client, chat.ID, &projectA.ID)
+	})
+
 	t.Run("AnotherOwnersProject", func(t *testing.T) {
 		t.Parallel()
 
@@ -505,6 +560,11 @@ func TestPatchChatProject(t *testing.T) {
 				sdkErr := requireSDKError(t, err, http.StatusConflict)
 				require.Equal(t, "Cannot move an active chat. Interrupt or wait for the chat to finish first.", sdkErr.Message)
 				require.Equal(t, before, chatRowsOfFamily(ctx, t, api, chat.ID), "a refused move changes no row")
+
+				// The chat has no project, so removing it from its project
+				// moves nothing and is not refused.
+				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &uuid.Nil}))
+				require.Equal(t, before, chatRowsOfFamily(ctx, t, api, chat.ID), "a move to the current project changes no row")
 			})
 		}
 	})

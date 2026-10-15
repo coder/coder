@@ -359,6 +359,41 @@ func TestSetFamilyProjectLocksRootFirst(t *testing.T) {
 	require.False(t, unchanged.ProjectID.Valid, "subagent chats use the root's project")
 }
 
+// TestSetFamilyProjectKeepsTheCurrentProject moves a running root chat to
+// the project it is already in, which changes and publishes nothing.
+func TestSetFamilyProjectKeepsTheCurrentProject(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusRunning,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+	before, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+
+	publisher := newRecordingPubsub()
+	chats, err := chatstate.SetFamilyProject(ctx, db, publisher, chatstate.SetFamilyProjectInput{
+		RootID:    root.ID,
+		ProjectID: root.ProjectID,
+	})
+	require.NoError(t, err)
+	require.Empty(t, chats)
+	require.Empty(t, publisher.channels)
+	after, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+	require.Equal(t, before, after)
+}
+
 // waitForLockWaiter waits until exactly one other session waits on a row
 // lock while it runs the named sqlc query.
 func waitForLockWaiter(ctx context.Context, t *testing.T, sqlDB *sql.DB, queryName string) {

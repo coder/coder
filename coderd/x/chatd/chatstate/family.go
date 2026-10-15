@@ -173,7 +173,9 @@ type SetFamilyProjectInput struct {
 // Like [SetFamilyArchived], it locks the root first and then each
 // member in GetChatFamilyIDsByRootID order, and it publishes only after
 // the commit. On success it returns one [database.Chat] per family
-// member, root first.
+// member, root first. A root already in the project changes nothing and
+// returns no chats; the check reads the locked row, so a move back to
+// the current project waits for a move still in flight.
 func SetFamilyProject(
 	ctx context.Context,
 	store database.Store,
@@ -203,6 +205,9 @@ func SetFamilyProject(
 		}
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
+		}
+		if root.ProjectID == input.ProjectID {
+			return nil
 		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
