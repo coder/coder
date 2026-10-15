@@ -66,10 +66,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		validateOnBlur: true,
 	});
 
+	// Users who must stay on the active version can still edit parameters
+	// when the form targets the active version, since submitting it is the
+	// update the template requires.
 	const disabled =
 		workspace.outdated &&
 		workspace.template_require_active_version &&
-		!canChangeVersions;
+		!canChangeVersions &&
+		templateVersionId !== workspace.template_active_version_id;
 
 	const handleChange = async (
 		parameter: PreviewParameter,
