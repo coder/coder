@@ -175,6 +175,18 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("seeds the composer with the edited message's editor state", () => {
+		const { result, unmount } = renderEditing();
+		const editorState = JSON.stringify({ root: { type: "root" } });
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "", undefined, editorState);
+		});
+
+		expect(result.current.initialEditorState).toBe(editorState);
+		unmount();
+	});
+
 	it("does not force focus when replacing input values on mobile", () => {
 		setMobileViewport(true);
 		const { result, unmount } = renderEditing();

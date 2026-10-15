@@ -12,11 +12,13 @@ import type {
 	ChatSkillSource,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
+import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -554,6 +556,31 @@ describe("ChatMessageInput", () => {
 			});
 			// Restoring chips must not make React log a flushSync error.
 			expect(errorSpy).not.toHaveBeenCalled();
+		});
+
+		it("reopens an edited message with its skill chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{ type: "text", text: "Use " },
+				mockSkillPart("project", "triage"),
+				{ type: "text", text: " on\nthe diff" },
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
+			});
 		});
 	});
 });

@@ -21,6 +21,17 @@ const SkillChipLabel: React.FC<{ alias: string }> = ({ alias }) => (
 	</>
 );
 
+/** A skill invoked by a sent message. */
+export const SkillChip: React.FC<SkillChipProps> = ({
+	source,
+	name,
+	className,
+}) => (
+	<span className={cn(fileReferenceChipVariants(), className)}>
+		<SkillChipLabel alias={getSkillAlias(source, name)} />
+	</span>
+);
+
 /** A skill attached to the message being composed. */
 export const EditableSkillChip: React.FC<
 	SkillChipProps & { onRemove: () => void }

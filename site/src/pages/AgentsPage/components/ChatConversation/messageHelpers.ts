@@ -10,7 +10,8 @@ import type {
 
 export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
-	| Extract<RenderBlock, { type: "file-reference" }>;
+	| Extract<RenderBlock, { type: "file-reference" }>
+	| Extract<RenderBlock, { type: "skill-invocation" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 type WorkspaceFileReferenceBlock = Extract<
@@ -44,7 +45,9 @@ type HiddenTimelineEntryReason =
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
-	block.type === "response" || block.type === "file-reference";
+	block.type === "response" ||
+	block.type === "file-reference" ||
+	block.type === "skill-invocation";
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";

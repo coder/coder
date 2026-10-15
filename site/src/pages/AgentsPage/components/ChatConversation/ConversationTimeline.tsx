@@ -120,6 +120,7 @@ const ChatMessageItem = memo<{
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
@@ -343,9 +344,14 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const { text, fileBlocks } =
+												const { text, fileBlocks, editorState } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(messageId, text, fileBlocks);
+												onEditUserMessage?.(
+													messageId,
+													text,
+													fileBlocks,
+													editorState,
+												);
 											}}
 										>
 											<PencilIcon />
@@ -451,6 +457,7 @@ type ConversationTimelineProps = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
