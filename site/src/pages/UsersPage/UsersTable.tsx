@@ -15,7 +15,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -45,6 +45,8 @@ export type UsersTableProps = {
 	/** User roles cannot be edited if OIDC Role Sync is enabled. */
 	oidcRoleSyncEnabled?: boolean;
 	onAction: (action: UserAdminAction) => void;
+	filterUsed: boolean;
+	onResetFilters: () => void;
 };
 
 export const UsersTable: React.FC<UsersTableProps> = (props) => {
@@ -85,13 +87,24 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	canViewActivity,
 	oidcRoleSyncEnabled,
 	onAction,
+	filterUsed,
+	onResetFilters,
 }) => {
 	if (isLoading) {
 		return <UsersTableSkeleton canEditUsers={canEditUsers} />;
 	}
 
 	if (!users || users.length === 0) {
-		return <TableEmpty message="No users found" />;
+		if (filterUsed) {
+			return (
+				<TableEmptyState
+					variant="search"
+					message="No users match your search"
+					onResetFilters={onResetFilters}
+				/>
+			);
+		}
+		return <TableEmptyState variant="default" message="No users found" />;
 	}
 
 	return users.map((user) => (

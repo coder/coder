@@ -16,7 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
 
@@ -116,7 +116,8 @@ export const AnnouncementBannerSettings: React.FC<
 					</TableHeader>
 					<TableBody>
 						{!isEntitled || banners.length < 1 ? (
-							<TableEmpty
+							<TableEmptyState
+								variant="create"
 								message="No announcement banners"
 								description="Create a banner to display a message to all users."
 								cta={
