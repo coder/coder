@@ -200,10 +200,7 @@ export const SkillsTriggerMenu = ({
 		skillGroups.push({ heading, skills, startIndex });
 		startIndex += skills.length;
 	}
-	const allSkills = [
-		...commands,
-		...skillGroups.flatMap((group) => group.skills),
-	];
+	const itemCount = startIndex;
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
@@ -228,7 +225,7 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
+	const shouldShowEmpty = itemCount === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
 	const consumePointerHighlight = () => {
@@ -242,7 +239,7 @@ export const SkillsTriggerMenu = ({
 		if (
 			Number.isInteger(nextIndex) &&
 			nextIndex >= 0 &&
-			nextIndex < allSkills.length &&
+			nextIndex < itemCount &&
 			nextIndex !== selectedIndex
 		) {
 			pointerHighlightRef.current = true;

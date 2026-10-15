@@ -634,19 +634,19 @@ const isSameSkillsTrigger = (
  */
 const useStoredSkillSource = (
 	queryOptions: SkillsScope["list"],
-	hasSource: boolean,
-	hasSkillsTrigger: boolean,
+	{ hasSource, isMenuOpen }: { hasSource: boolean; isMenuOpen: boolean },
 ) => {
-	const queryEnabled = hasSkillsTrigger && hasSource;
+	const queryEnabled = isMenuOpen && hasSource;
 	const query = useQuery({
 		...queryOptions,
 		enabled: queryEnabled,
 		staleTime: 60_000,
 	});
+	const skills = hasSource ? query.data?.filter((skill) => skill.enabled) : [];
 	const isUnresolved = queryEnabled && query.data === undefined;
 	return {
-		skills: hasSource ? query.data?.filter((skill) => skill.enabled) : [],
-		isFetching: query.isFetching,
+		skills,
+		isResolvedEmpty: skills?.length === 0 && !query.isFetching,
 		isLoading: isUnresolved && query.isFetching,
 		isError: isUnresolved && query.isError,
 	};
@@ -715,14 +715,12 @@ const ChatMessageInput = ({
 	});
 	const organizationSource = useStoredSkillSource(
 		organizationSkills(organizationId ?? ""),
-		Boolean(organizationId),
-		hasSkillsTrigger,
+		{ hasSource: Boolean(organizationId), isMenuOpen: hasSkillsTrigger },
 	);
 	const hasProject = Boolean(organizationId && projectId);
 	const projectSource = useStoredSkillSource(
 		chatProjectSkills(organizationId ?? "", projectId ?? ""),
-		hasProject,
-		hasSkillsTrigger,
+		{ hasSource: hasProject, isMenuOpen: hasSkillsTrigger },
 	);
 	// chatd skips disabled skills, so they never offer or collide.
 	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
@@ -750,10 +748,8 @@ const ChatMessageInput = ({
 	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
-		organizationSource.skills?.length === 0 &&
-		!organizationSource.isFetching &&
-		projectSource.skills?.length === 0 &&
-		!projectSource.isFetching &&
+		organizationSource.isResolvedEmpty &&
+		projectSource.isResolvedEmpty &&
 		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,

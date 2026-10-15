@@ -330,9 +330,10 @@ const AgentChatPage: React.FC = () => {
 	const chatProjectId = experiments.includes("chat-projects")
 		? chatQuery.data?.project_id
 		: undefined;
+	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
-		enabled: Boolean(chatOrganizationId && chatProjectId),
+		enabled: hasChatProject,
 		staleTime: 60_000,
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
@@ -646,7 +647,7 @@ const AgentChatPage: React.FC = () => {
 		organizationSkills: organizationSkillsQuery.data?.filter(
 			(skill) => skill.enabled,
 		),
-		projectSkills: chatProjectId
+		projectSkills: hasChatProject
 			? projectSkillsQuery.data?.filter((skill) => skill.enabled)
 			: [],
 		workspaceSkills: chatWorkspaceSkills,
