@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectSkill } from "#/api/queries/chatProjectSkills";
-import type { Skill } from "#/api/typesGenerated";
+import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
@@ -23,11 +23,12 @@ const mockReviewerSkill: Skill = {
 const renderDialog = ({
 	canEdit = true,
 	queryClient = createTestQueryClient(),
+	skills = [mockReviewerSkill] as SkillMetadata[],
 } = {}) => {
 	const onOpenChange = vi.fn();
 	const getSkills = vi
 		.spyOn(API.experimental, "getChatProjectSkills")
-		.mockResolvedValue([mockReviewerSkill]);
+		.mockResolvedValue(skills);
 	const getSkill = vi
 		.spyOn(API.experimental, "getChatProjectSkill")
 		.mockResolvedValue(mockReviewerSkill);
@@ -331,6 +332,58 @@ describe("ProjectSkillsDialog", () => {
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 		expect(saveAs).not.toHaveBeenCalled();
+	});
+
+	it("keeps the saved content when an older detail fetch finishes later", async () => {
+		// Unlike the test client, keep the seeded detail cached while unobserved.
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		const detailKey = chatProjectSkill(orgId, projectId, "reviewer").queryKey;
+		queryClient.setQueryData(detailKey, mockReviewerSkill);
+		const savedSkill = {
+			...mockReviewerSkill,
+			content: "---\nname: reviewer\n---\nSaved.\n",
+		};
+		vi.spyOn(API.experimental, "updateChatProjectSkill").mockResolvedValue(
+			savedSkill,
+		);
+		const { user, getSkill } = renderDialog({ queryClient });
+		let resolveOlderFetch: (skill: Skill) => void = () => {};
+		getSkill.mockReturnValue(
+			new Promise((resolve) => {
+				resolveOlderFetch = resolve;
+			}),
+		);
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		const body = await screen.findByRole("textbox", { name: "Body" });
+		await waitFor(() => expect(getSkill).toHaveBeenCalled());
+		await user.clear(body);
+		await user.type(body, "Saved.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(queryClient.getQueryData(detailKey)).toEqual(savedSkill),
+		);
+		await act(async () => resolveOlderFetch(mockReviewerSkill));
+
+		expect(queryClient.getQueryData(detailKey)).toEqual(savedSkill);
+	});
+
+	it("keeps New from opening the editor at the project skill cap", async () => {
+		const skills = Array.from({ length: 100 }, (_, index) => ({
+			...MockSkills[0],
+			id: `skill-${index}`,
+			name: `skill-${index}`,
+		}));
+		const { user, onOpenChange } = renderDialog({ skills });
+
+		await screen.findByRole("button", { name: "Open menu for skill-0" });
+		await user.click(screen.getByRole("button", { name: "New" }));
+		// Escape closes the dialog from the list, while the editor keeps it open.
+		await user.keyboard("{Escape}");
+		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
 	it("downloads a skill's SKILL.md content", async () => {

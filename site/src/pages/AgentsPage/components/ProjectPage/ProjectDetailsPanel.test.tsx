@@ -552,6 +552,36 @@ describe("ProjectDetailsPanel", () => {
 		expect(toastError).toHaveBeenCalledTimes(1);
 	});
 
+	it("waits for a pending skill access check before opening the skills", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		let rejectCheck: (error: unknown) => void = () => {};
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockReturnValue(
+				new Promise((_resolve, reject) => {
+					rejectCheck = reject;
+				}),
+			);
+		const toastError = vi.spyOn(toast, "error");
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Skills: None" }),
+		);
+		await act(async () =>
+			rejectCheck(mockApiError({ message: "Authorization failed." })),
+		);
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(1);
+	});
+
 	it("returns focus to the Skills row when the skills dialog closes", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
