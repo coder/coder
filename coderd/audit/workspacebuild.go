@@ -22,11 +22,16 @@ type WorkspaceBuildSecret struct {
 	Source    database.WorkspaceSecretSource `json:"source"`
 }
 
+// WorkspaceSecretsUnavailable is the AdditionalFields.WorkspaceSecretsError
+// value for an entry whose secrets could not be listed. It is a fixed marker
+// so database error text never lands in the audit log.
+const WorkspaceSecretsUnavailable = "unavailable"
+
 // WorkspaceBuildFields returns the additional fields for a workspace build
 // audit entry, including the full set of secrets linked to the build.
 // Removed secrets have no row, so they are absent from the set. If the
 // secrets cannot be listed, the other fields are still returned with the
-// error.
+// error and WorkspaceSecretsError is set.
 func WorkspaceBuildFields(ctx context.Context, db database.Store, workspace database.Workspace, build database.WorkspaceBuild) (AdditionalFields, error) {
 	fields := AdditionalFields{
 		WorkspaceName: workspace.Name,
@@ -41,6 +46,7 @@ func WorkspaceBuildFields(ctx context.Context, db database.Store, workspace data
 		WorkspaceBuildID: build.ID,
 	})
 	if err != nil {
+		fields.WorkspaceSecretsError = WorkspaceSecretsUnavailable
 		return fields, xerrors.Errorf("list workspace build secrets: %w", err)
 	}
 	for _, row := range rows {

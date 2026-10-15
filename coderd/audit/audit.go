@@ -25,6 +25,10 @@ type AdditionalFields struct {
 	// WorkspaceSecrets lists the secrets linked to a workspace build. Set
 	// only on workspace build entries.
 	WorkspaceSecrets []WorkspaceBuildSecret `json:"workspace_secrets,omitempty"`
+	// WorkspaceSecretsError is WorkspaceSecretsUnavailable when the build's
+	// secrets could not be listed, so the entry is not mistaken for a build
+	// without secrets.
+	WorkspaceSecretsError string `json:"workspace_secrets_error,omitempty"`
 }
 
 func NewNop() Auditor {
