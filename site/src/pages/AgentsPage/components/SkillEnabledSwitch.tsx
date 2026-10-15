@@ -9,7 +9,6 @@ import type { SkillsScope } from "../utils/skills";
 type SkillEnabledSwitchProps = {
 	scope: SkillsScope;
 	skill: SkillMetadata;
-	/** Shows whether the skill is enabled without a control to change it. */
 	readOnly: boolean;
 };
 
