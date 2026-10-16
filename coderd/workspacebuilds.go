@@ -386,6 +386,9 @@ func (api *API) postWorkspaceBuildsInternal(
 	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
+	if err := api.validateWorkspaceSecretInputs(createBuild.Secrets); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
 
 	var childParameterValuesJSON json.RawMessage
 	if createBuild.OnSuccess != nil {
@@ -411,6 +414,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
+		Secrets(createBuild.Secrets).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
@@ -591,13 +595,11 @@ func (api *API) postWorkspaceBuildsInternal(
 				slog.F("workspace_build_id", workspaceBuild.ID),
 				slog.F("provisioner_job_id", provisionerJob.ID),
 			)
-			buildResourceInfo := audit.AdditionalFields{
-				WorkspaceName:  workspace.Name,
-				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
-				BuildReason:    workspaceBuild.Reason,
-				WorkspaceID:    workspace.ID,
-				WorkspaceOwner: workspace.OwnerName,
+			buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, api.Database, workspace, *workspaceBuild)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to list workspace build secrets for audit", slog.Error(err))
 			}
+			buildResourceInfo.WorkspaceOwner = workspace.OwnerName
 			briBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))

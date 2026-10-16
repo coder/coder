@@ -854,6 +854,18 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		summary, err := r.collectScriptOrderSummary(ctx)
+		if err != nil {
+			// A script-order collection failure should not prevent
+			// the rest of the telemetry snapshot from being sent,
+			// as some collectors reset counters during collection.
+			r.options.Logger.Warn(ctx, "collect script order summary", slog.Error(err))
+			return nil
+		}
+		snapshot.ScriptOrderSummary = summary
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -1024,6 +1036,35 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 		SecretsPerUserP50: row.SecretsPerUserP50,
 		SecretsPerUserP75: row.SecretsPerUserP75,
 		SecretsPerUserP90: row.SecretsPerUserP90,
+	}, nil
+}
+
+// collectScriptOrderSummary collects deployment-wide adoption counts from active,
+// successfully imported versions of non-deleted templates. It elects one replica
+// per snapshot period to avoid overrepresenting multi-replica deployments and
+// returns (nil, nil) if the period's telemetry lock is already claimed.
+func (r *remoteReporter) collectScriptOrderSummary(ctx context.Context) (*ScriptOrderSummary, error) {
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "script_order_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "script order telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // Another replica reports this period's summary.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert script order telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetScriptOrderTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get script order telemetry summary: %w", err)
+	}
+	return &ScriptOrderSummary{
+		TemplatesWithScriptOrder: row.TemplatesWithScriptOrder,
+		DataSourceCount:          row.DataSourceCount,
+		RuleCount:                row.RuleCount,
 	}, nil
 }
 
@@ -1478,6 +1519,7 @@ type Snapshot struct {
 	Licenses                             []License                             `json:"licenses"`
 	ProvisionerJobs                      []ProvisionerJob                      `json:"provisioner_jobs"`
 	TemplateVersions                     []TemplateVersion                     `json:"template_versions"`
+	ScriptOrderSummary                   *ScriptOrderSummary                   `json:"script_order_summary"`
 	Templates                            []Template                            `json:"templates"`
 	Users                                []User                                `json:"users"`
 	Groups                               []Group                               `json:"groups"`
@@ -2481,6 +2523,15 @@ type UserSecretsSummary struct {
 	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
 	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
 	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
+}
+
+// ScriptOrderSummary contains deployment-wide counts from active,
+// successfully imported versions of non-deleted templates, without
+// template identifiers or rule contents.
+type ScriptOrderSummary struct {
+	TemplatesWithScriptOrder int64 `json:"templates_with_script_order"`
+	DataSourceCount          int64 `json:"data_source_count"`
+	RuleCount                int64 `json:"rule_count"`
 }
 
 // TemplateBuilderSession tracks a single event in the template builder
