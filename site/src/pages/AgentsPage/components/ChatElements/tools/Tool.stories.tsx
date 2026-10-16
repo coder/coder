@@ -7,6 +7,12 @@ import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import {
+	MockACPSession,
+	MockACPSessionArgs,
+	MockACPSpawnArgs,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatAutomation } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
@@ -21,6 +27,7 @@ import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
+import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
@@ -69,6 +76,29 @@ type ToolShowcaseItem = {
 };
 
 const allToolShowcaseItems: ToolShowcaseItem[] = [
+	{
+		name: ACPToolNames.SpawnAgent,
+		args: MockACPSpawnArgs,
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.WaitAgent,
+		args: MockACPSessionArgs,
+		result: MockACPWaitResult,
+	},
+	{
+		name: ACPToolNames.MessageAgent,
+		args: {
+			...MockACPSessionArgs,
+			message: "Check error handling.",
+		},
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.InterruptAgent,
+		args: MockACPSessionArgs,
+		result: { ...MockACPSessionArgs, ...MockACPSession, interrupted: true },
+	},
 	{
 		name: "execute",
 		args: { command: "pnpm check" },

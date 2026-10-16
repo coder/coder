@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	BotIcon,
 	FileIcon,
 	FolderIcon,
 	PlugIcon,
@@ -83,6 +84,7 @@ const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	skill: "skill",
 	mcp_config: "MCP config",
 	mcp_server: "MCP server",
+	acp_harness: "ACP harness",
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -336,6 +338,15 @@ export const ContextUsageIndicator: React.FC<{
 		// a blank row.
 		.filter((server) => server.name.trim().length > 0);
 	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
+	const harnessItems = (pinnedResources ?? [])
+		.filter(
+			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			slug: resource.source,
+			dir: resource.source_path ?? "",
+		}))
+		.filter((harness) => harness.slug.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
 	// visible rather than a silent omission.
@@ -356,6 +367,7 @@ export const ContextUsageIndicator: React.FC<{
 		fileItems.length > 0 ||
 		skillItems.length > 0 ||
 		hasMcp ||
+		harnessItems.length > 0 ||
 		issueItems.length > 0;
 
 	const hasResourceIssues = issueItems.length > 0;
@@ -378,6 +390,7 @@ export const ContextUsageIndicator: React.FC<{
 	// keeping resources pulled from different directories distinguishable.
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
+	const harnessGroups = groupByDirectory(harnessItems);
 
 	const statusNotes = [
 		hasContextError ? "Context error." : "",
@@ -555,6 +568,29 @@ export const ContextUsageIndicator: React.FC<{
 									</div>
 								))}
 							</TooltipProvider>
+						</div>
+					)}
+					{harnessGroups.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">ACP</span>
+							{harnessGroups.map((group) => (
+								<div key={group.dir} className="flex flex-col gap-1">
+									{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+									<div className="ml-3.5 flex flex-col gap-0.5">
+										{group.items.map((harness) => (
+											<div
+												key={harness.slug}
+												className="flex items-center gap-1.5"
+											>
+												<BotIcon className="size-3 shrink-0" />
+												<span className="truncate" title={harness.slug}>
+													{harness.slug}
+												</span>
+											</div>
+										))}
+									</div>
+								</div>
+							))}
 						</div>
 					)}
 					{issueItems.length > 0 && (
