@@ -469,8 +469,9 @@ func (s *taskStarter) syncMemoryIndex(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	chat database.Chat,
+	history []database.ChatMessage,
 ) (sessionStartResult, error) {
-	message, ok, err := s.server.memoryIndexMessage(ctx, chat)
+	message, ok, err := s.server.memoryIndexMessage(ctx, chat, history)
 	if err != nil {
 		// Memory is optional context; a lookup failure must not fail the turn.
 		s.server.logger.Warn(ctx, "failed to sync project memory index", slog.F("chat_id", chat.ID), slog.Error(err))
@@ -644,7 +645,7 @@ func (s *taskStarter) runGenerationStep(
 			return input, true, nil
 		}
 	}
-	if synced, err := s.syncMemoryIndex(ctx, machine, input, chat); err != nil {
+	if synced, err := s.syncMemoryIndex(ctx, machine, input, chat, messages); err != nil {
 		return input, false, err
 	} else if synced.Chat.ID != uuid.Nil {
 		input.HistoryVersion = synced.Chat.HistoryVersion
