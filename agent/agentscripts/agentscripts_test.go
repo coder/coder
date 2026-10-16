@@ -581,6 +581,48 @@ func TestCloseWaitsForCanceledStartReports(t *testing.T) {
 	})
 }
 
+// The agent calls Execute and then StartCron from one goroutine while Close
+// runs on another, so StartCron can land after Close has started waiting
+// for Execute. Close must still return.
+func TestStartCronDuringCloseDoesNotBlockClose(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep")
+	}
+	ctx := testutil.Context(t, testutil.WaitShort)
+	execCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	fLogger := newFakeScriptLogger()
+	runner := setup(t, func(uuid.UUID) agentscripts.ScriptLogger { return fLogger })
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+	script := codersdk.WorkspaceAgentScript{
+		ID: uuid.New(), LogSourceID: uuid.New(),
+		Script: "echo started && exec sleep 30", RunOnStart: true,
+	}
+	require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
+
+	done := make(chan error, 1)
+	go func() {
+		err := runner.Execute(execCtx, agentscripts.ExecuteStartScripts)
+		runner.StartCron()
+		done <- err
+	}()
+	require.Equal(t, "started", testutil.RequireReceive(ctx, t, fLogger.logs).Output)
+
+	closed := make(chan error, 1)
+	go func() { closed <- runner.Close() }()
+	// There are no stop scripts, so this probe runs nothing. It fails only
+	// once Close has begun and is waiting for the start script.
+	require.Eventually(t, func() bool {
+		return runner.Execute(ctx, agentscripts.ExecuteStopScripts) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	cancel()
+	require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
+	require.NoError(t, testutil.RequireReceive(ctx, t, closed))
+}
+
 // recordingScriptLogs keeps every line per log source so a test can read a
 // script's output and its dependency lines together.
 type recordingScriptLogs struct {

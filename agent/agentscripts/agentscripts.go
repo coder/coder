@@ -174,29 +174,19 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 	return nil
 }
 
-// StartCron starts the cron scheduler.
-// This is done async to allow for the caller to execute scripts prior.
+// StartCron starts the cron scheduler. It does nothing once Close has
+// begun.
 func (r *Runner) StartCron() {
-	// cron.Start() and cron.Stop() does not guarantee that the cron goroutine
-	// has exited by the time the `cron.Stop()` context returns, so we need to
-	// track it manually.
-	err := r.trackCommandGoroutine(func() {
-		// Since this is run async, in quick unit tests, it is possible the
-		// Close() function gets called before we even start the cron.
-		// In these cases, the Run() will never end.
-		// So if we are closed, we just return, and skip the Run() entirely.
-		select {
-		case <-r.cronCtx.Done():
-			// The cronCtx is canceled before cron.Close() happens. So if the ctx is
-			// canceled, then Close() will be called, or it is about to be called.
-			// So do nothing!
-		default:
-			r.cron.Run()
-		}
-	})
-	if err != nil {
-		r.Logger.Warn(context.Background(), "start cron failed", slog.Error(err))
+	r.closeMutex.Lock()
+	defer r.closeMutex.Unlock()
+	if r.closing {
+		return
 	}
+	// cron.Stop does nothing unless the scheduler is already running, so
+	// the scheduler must be started under the same lock that Close holds
+	// when it calls Stop. Otherwise a start that lands between the two
+	// leaves a loop that nothing ever stops.
+	r.cron.Start()
 }
 
 // ExecuteOption describes what scripts we want to execute.
@@ -556,15 +546,18 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	return err
 }
 
+// Close waits for in-flight Execute calls to return, then stops the cron
+// scheduler and the tracked goroutines. Cancel the contexts passed to
+// Execute first, otherwise Close blocks until those scripts exit. Once Close
+// has begun, Execute fails and StartCron does nothing.
 func (r *Runner) Close() error {
 	r.closeMutex.Lock()
 	r.closing = true
 	r.closeMutex.Unlock()
 
-	// The agent cancels the start execution and calls Close without
-	// waiting for Execute to return, so the CANCELED timings are still
-	// being sent. They go through trackCommandGoroutine, which refuses
-	// once closed is closed, so wait for Execute with the mutex released.
+	// In-flight Execute calls still report their timings through
+	// trackCommandGoroutine, which takes closeMutex and refuses once
+	// closed is closed, so this wait runs with the mutex released.
 	r.executeWait.Wait()
 
 	r.closeMutex.Lock()
