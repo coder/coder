@@ -887,6 +887,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					require.False(t, loaded[name], name)
 				}
 			}
+			// chatloop offers every registered tool when the active list is
+			// empty, so an Explore child must not register a tool it hides.
+			if tt.child && tt.mode == explore {
+				var hidden []string
+				for _, tool := range env.Tools {
+					if name := tool.Info().Name; !slices.Contains(offered, name) {
+						hidden = append(hidden, name)
+					}
+				}
+				require.Empty(t, hidden)
+			}
 
 			var system strings.Builder
 			for _, message := range env.Prompt {
