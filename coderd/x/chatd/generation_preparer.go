@@ -371,7 +371,10 @@ func (server *Server) prepareGeneration(
 		// the bound agent has changed, so this is a cheap metadata
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
-		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+		agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
+		if agentErr != nil {
+			logger.Debug(ctx, "workspace agent lookup failed, instruction header stays undecorated", slog.Error(agentErr))
+		}
 
 		// API-created chats bind their agent lazily here, after
 		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
