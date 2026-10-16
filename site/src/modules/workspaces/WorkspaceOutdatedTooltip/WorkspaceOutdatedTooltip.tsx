@@ -117,7 +117,7 @@ const WorkspaceOutdatedTooltipContent: React.FC<TooltipContentProps> = ({
 									target="_blank"
 									rel="noreferrer"
 									size="sm"
-									className="p-0"
+									className="pl-0"
 									showExternalIcon={false}
 								>
 									{activeVersion.name}

@@ -59,7 +59,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 					{example.description}{" "}
 					<Link
 						size="sm"
-						className="inline-block mt-1 p-0"
+						className="inline-block mt-0 pl-0"
 						asChild
 						showExternalIcon={false}
 					>

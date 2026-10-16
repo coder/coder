@@ -76,7 +76,7 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 								target="_blank"
 								rel="noreferrer"
 								href={troubleshootingURL}
-								className="p-0 mt-2"
+								className="pl-0 mt-1"
 								showExternalIcon={false}
 							>
 								Troubleshoot
