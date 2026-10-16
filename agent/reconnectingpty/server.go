@@ -93,20 +93,25 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			ClientSessionID: clientSessionID,
 		})
 		closed := make(chan struct{})
+		// The handler and the forced shutdown below can both finish a
+		// connection, so only the first one logs and reports its close.
+		var reportClose sync.Once
 		go func() {
 			defer wg.Done()
 			select {
 			case <-closed:
 			case <-hardCtx.Done():
-				clog.Info(hardCtx, "reconnecting pty closed",
-					codersdk.ConnectionDirectionAgentToClient.SlogField(),
-					codersdk.DisconnectReasonServerShutdown.SlogField(),
-					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
-					codersdk.DisconnectInitiatorAgent.SlogField(),
-				)
-				connReporter.Disconnect(proto.DisconnectEvent{
-					Code:   1,
-					Reason: string(codersdk.DisconnectReasonServerShutdown),
+				reportClose.Do(func() {
+					clog.Info(hardCtx, "reconnecting pty closed",
+						codersdk.ConnectionDirectionAgentToClient.SlogField(),
+						codersdk.DisconnectReasonServerShutdown.SlogField(),
+						codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+						codersdk.DisconnectInitiatorAgent.SlogField(),
+					)
+					connReporter.Disconnect(proto.DisconnectEvent{
+						Code:   1,
+						Reason: string(codersdk.DisconnectReasonServerShutdown),
+					})
 				})
 				_ = conn.Close()
 			}
@@ -135,15 +140,17 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			default:
 				reason = codersdk.DisconnectReasonGraceful
 			}
-			clog.Info(ctx, "reconnecting pty closed", append(fields,
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				codersdk.SlogDisconnectDetail(detail),
-				slog.F("exit_code", code),
-			)...)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:   code,
-				Reason: string(reason),
+			reportClose.Do(func() {
+				clog.Info(ctx, "reconnecting pty closed", append(fields,
+					reason.SlogField(),
+					reason.SlogExpectedField(),
+					codersdk.SlogDisconnectDetail(detail),
+					slog.F("exit_code", code),
+				)...)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:   code,
+					Reason: string(reason),
+				})
 			})
 		}()
 	}

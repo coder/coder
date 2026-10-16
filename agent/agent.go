@@ -2362,6 +2362,14 @@ lifecycleWaitLoop:
 		a.logger.Warn(context.Background(), "timed out waiting for all logs to be sent", slog.Error(err))
 	}
 
+	// Wait for the connections closed by this shutdown to report their
+	// disconnects, and for those reports to be sent, so coderd can record why
+	// each connection closed.
+	err = a.connectionReporter.waitUntilReported(a.hardCtx)
+	if err != nil {
+		a.logger.Warn(context.Background(), "timed out waiting for all connection reports to be sent", slog.Error(err))
+	}
+
 	a.hardCancel()
 	if network != nil {
 		_ = network.Close()
