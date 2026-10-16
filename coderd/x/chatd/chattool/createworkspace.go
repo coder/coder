@@ -17,12 +17,18 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+// presetNotInTemplateMessage tells the model that preset_id does not belong
+// to the template's active version.
+const presetNotInTemplateMessage = "preset_id does not belong to the template's active version; " +
+	"use read_template to find the template's presets"
 
 const (
 	// buildPollInterval is how often we check if the workspace
@@ -230,6 +236,18 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					return fantasy.NewTextErrorResponse(
 						xerrors.Errorf("invalid preset_id: %w", err).Error(),
 					), nil
+				}
+				// Workspace creation claims prebuilds by preset ID alone,
+				// so a preset from another template would bypass the
+				// template checks above.
+				preset, err := db.GetPresetByID(ctx, presetID)
+				if err != nil && !httpapi.Is404Error(err) {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("look up preset: %w", err).Error(),
+					), nil
+				}
+				if err != nil || preset.TemplateVersionID != tmpl.ActiveVersionID {
+					return fantasy.NewTextErrorResponse(presetNotInTemplateMessage), nil
 				}
 				createReq.TemplateVersionPresetID = presetID
 			}
