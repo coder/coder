@@ -1,16 +1,17 @@
 ---
-title: "Reference architecture: up to 1,000 users"
+title: "Reference architecture: up to 600 concurrent workspaces"
 ---
 
-The 1,000 users architecture is designed to cover a wide range of workflows.
-Examples of subjects that might utilize this architecture include medium-sized tech startups, educational units, or small to mid-sized enterprises.
+This architecture supports up to 600 concurrent running workspaces, which is about 1,000 users.
+It covers a wide range of workflows, for example at medium-sized tech startups, educational units, or small to mid-sized enterprises.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./2k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./1200-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 1000  | 600                           | 60                |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                           600 |                          60 |           1,000 |
 
 ## Hardware recommendations
 

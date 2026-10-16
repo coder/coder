@@ -1,15 +1,17 @@
 ---
-title: "Reference architecture: up to 3,000 users"
+title: "Reference architecture: up to 10,000 concurrent workspaces"
 ---
 
-The 3,000 users architecture targets large-scale enterprises, possibly with on-premises network and cloud deployments.
+This architecture supports up to 10,000 concurrent running workspaces, which is about 16,000 users.
+It targets enterprises with a very large global workforce, or applications that run many workspaces at the same time, such as AI agents.
 
 The recommendations on this page apply to deployments with up to the following limits.
-If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./10k-users.md).
+If your needs exceed any of these limits, consider increasing deployment resources or moving to the [next-higher architectural tier](./20000-workspaces.md).
+To learn what each limit measures, refer to [Node sizing](./index.md#node-sizing).
 
-| Users | Concurrent Running Workspaces | Concurrent Builds |
-|-------|-------------------------------|-------------------|
-| 3000  | 1800                          | 180               |
+| Concurrent running workspaces | Concurrent workspace builds | Estimated users |
+|------------------------------:|----------------------------:|----------------:|
+|                        10,000 |                       1,020 |          16,000 |
 
 **Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
@@ -20,14 +22,14 @@ This allows operators to respond quickly to incidents and continuously improve t
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 4        |
+| 8    | 16&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
+  - Set CPU request and limit to `8000m`
+  - Set Memory request and limit to `16Gi`
 - `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
 - `coderd` instances should be deployed in the same region as the database.
 
@@ -37,21 +39,21 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory     | Replicas |
 |------|------------|----------|
-| 4    | 12&nbsp;GB | 4        |
+| 8    | 16&nbsp;GB | 10       |
 
 **Notes**:
 
 - "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
 - If deploying on Kubernetes:
-  - Set CPU request and limit to `4000m`
-  - Set Memory request and limit to `12Gi`
+  - Set CPU request and limit to `8000m`
+  - Set Memory request and limit to `16Gi`
 - Workspace Proxies do not typically benefit from high performance disks like SSDs.
 
 ### Provisioners
 
 | vCPU | Memory    | Replicas |
 |------|-----------|----------|
-| 1    | 1&nbsp;GB | 180      |
+| 1    | 1&nbsp;GB | 1,020    |
 
 **Notes**:
 
@@ -68,7 +70,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision [Wo
 
 | vCPU | Memory      | Replicas |
 |------|-------------|----------|
-| 32   | 120&nbsp;GB | 1        |
+| 64   | 240&nbsp;GB | 1        |
 
 **Notes**:
 
