@@ -495,8 +495,8 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 		{address: "coder_script.c", option: ExecuteStartScripts, status: proto.Timing_CANCELED},
 	}, reports.all(), "only the scripts that never started report from the executor")
 	require.Equal(t, []string{canceledRunningLine}, logs.outputs(a.LogSourceID))
-	require.Equal(t, []string{canceledWaitingLine}, logs.outputs(b.LogSourceID))
-	require.Equal(t, []string{canceledWaitingLine}, logs.outputs(c.LogSourceID))
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(b.LogSourceID))
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(c.LogSourceID))
 	require.Empty(t, logs.outputs(d.LogSourceID), "a finished script gets no line")
 
 	for address, want := range map[string]unit.Outcome{
@@ -509,6 +509,35 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, want, u.Outcome(), address)
 	}
+}
+
+func TestLifecycleExecutorRootScriptCanceledBeforeStarting(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	cancel()
+
+	runs := newScriptOrderRuns()
+	logs := newScriptOrderTestLogs()
+	reports := newScriptOrderReports()
+	executor := newTestExecutor(t, runs, logs)
+	executor.reportUnstarted = reports.record
+
+	root := scriptOrderTestScript("coder_script.root")
+	scripts := []codersdk.WorkspaceAgentScript{root}
+
+	manager, byAddress, err := lifecycleManager(scripts)
+	require.NoError(t, err)
+	require.ErrorIs(t, executor.executeWith(ctx, manager, byAddress, scripts, ExecuteStartScripts), context.Canceled)
+
+	require.Empty(t, runs.allStarted())
+	require.Equal(t, []scriptOrderReport{
+		{address: "coder_script.root", option: ExecuteStartScripts, status: proto.Timing_CANCELED},
+	}, reports.all())
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(root.LogSourceID))
+
+	u, err := manager.Unit(unit.ID("coder_script.root"))
+	require.NoError(t, err)
+	require.Equal(t, unit.OutcomeCanceled, u.Outcome())
 }
 
 func TestLifecycleExecutorStopScripts(t *testing.T) {

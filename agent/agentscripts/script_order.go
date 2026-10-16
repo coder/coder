@@ -24,8 +24,8 @@ import (
 const dependencyLogInterval = 30 * time.Second
 
 const (
-	canceledWaitingLine = "Canceled while waiting for dependencies."
-	canceledRunningLine = "Canceled while running."
+	canceledBeforeStartLine = "Canceled before starting."
+	canceledRunningLine     = "Canceled while running."
 )
 
 // lifecycleExecutor runs one start or stop execution whose scripts carry
@@ -181,7 +181,7 @@ func (e lifecycleExecutor) executeScript(
 	}
 	if err != nil {
 		if ctx.Err() != nil {
-			e.logCanceled(ctx, script, canceledWaitingLine)
+			e.logCanceled(ctx, script, canceledBeforeStartLine)
 			e.report(ctx, script, option, proto.Timing_CANCELED)
 			return errors.Join(err, record(unit.OutcomeCanceled))
 		}
