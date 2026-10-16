@@ -74,6 +74,7 @@ endif
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
+	site/src/theme/emojiDescriptionsGenerated.json \
 	examples/examples.gen.json \
 	docs/manifest.json \
 	docs/manifest/generated/cli.json \
@@ -615,7 +616,8 @@ SITE_GEN_FILES := \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
-	site/src/theme/icons.json
+	site/src/theme/icons.json \
+	site/src/theme/emojiDescriptionsGenerated.json
 
 site/out/index.html: \
 	site/node_modules/.installed \
@@ -1234,6 +1236,7 @@ gen/mark-fresh:
 		docs/manifest/generated/rest-api.json \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
+		site/src/theme/emojiDescriptionsGenerated.json \
 		examples/examples.gen.json \
 		scripts/metricsdocgen/generated_metrics \
 		$(TAILNETTEST_MOCKS) \
@@ -1385,6 +1388,9 @@ site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
+
+site/src/theme/emojiDescriptionsGenerated.json: site/node_modules/.installed site/scripts/generateEmojiDescriptions.mjs site/pnpm-lock.yaml | _gen
+	$(call atomic_write,node site/scripts/generateEmojiDescriptions.mjs,./scripts/biome_format.sh)
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen _gen/bin/gensite
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \

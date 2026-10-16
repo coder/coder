@@ -10,6 +10,7 @@ import type {
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
+import { getBuiltinImageDescription } from "#/theme/builtinImages";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
 type AutocompleteOption = OrganizationMember | Group;
@@ -119,6 +120,11 @@ export const UserOrGroupAutocomplete: React.FC<
 						}
 						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
 						src={option.avatar_url}
+						alt={
+							isGroup(option)
+								? (getBuiltinImageDescription(option.avatar_url) ?? "")
+								: ""
+						}
 					/>
 					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>

@@ -1,0 +1,656 @@
+[
+	{
+		"name": "Aider",
+		"description": "Aider logo",
+		"sources": ["/icon/aider.svg"]
+	},
+	{
+		"name": "Apache Airflow",
+		"description": "Apache Airflow logo",
+		"sources": ["/icon/airflow.svg"]
+	},
+	{
+		"name": "AlmaLinux",
+		"description": "AlmaLinux logo",
+		"sources": ["/icon/almalinux.svg"]
+	},
+	{
+		"name": "Amazon Q",
+		"description": "Amazon Q logo",
+		"sources": ["/icon/amazon-q.svg"]
+	},
+	{
+		"name": "Amp",
+		"description": "Amp logo",
+		"sources": ["/icon/amp.svg", "/icon/sourcegraph-amp.svg"]
+	},
+	{
+		"name": "Android Studio",
+		"description": "Android Studio logo",
+		"sources": ["/icon/android-studio.svg"]
+	},
+	{
+		"name": "Ansible",
+		"description": "Ansible logo",
+		"sources": ["/icon/ansible.svg"]
+	},
+	{
+		"name": "Anthropic",
+		"description": "Anthropic logo",
+		"sources": ["/icon/anthropic.svg"]
+	},
+	{
+		"name": "Antigravity",
+		"description": "Antigravity logo",
+		"sources": ["/icon/antigravity.svg"]
+	},
+	{
+		"name": "Apache Guacamole",
+		"description": "Apache Guacamole logo",
+		"sources": ["/icon/apache-guacamole.svg"]
+	},
+	{
+		"name": "Apple",
+		"description": "Apple logo",
+		"sources": [
+			"/icon/apple.svg",
+			"/icon/apple-black.svg",
+			"/icon/apple-grey.svg"
+		]
+	},
+	{
+		"name": "Argo Workflows",
+		"description": "Argo Workflows logo",
+		"sources": ["/icon/argo-workflows.svg"]
+	},
+	{
+		"name": "Auggie",
+		"description": "Auggie logo",
+		"sources": ["/icon/auggie.svg"]
+	},
+	{
+		"name": "Auto Dev Server",
+		"description": "Auto Dev Server icon",
+		"sources": ["/icon/auto-dev-server.svg"]
+	},
+	{
+		"name": "AWS",
+		"description": "Amazon Web Services logo",
+		"sources": [
+			"/icon/aws.svg",
+			"/icon/aws-dark.svg",
+			"/icon/aws-light.svg",
+			"/icon/aws-monochrome.svg",
+			"/icon/aws.png"
+		]
+	},
+	{
+		"name": "Azure DevOps",
+		"description": "Azure DevOps logo",
+		"sources": ["/icon/azure-devops.svg"]
+	},
+	{
+		"name": "Microsoft Azure",
+		"description": "Microsoft Azure logo",
+		"sources": ["/icon/azure.svg", "/icon/azure.png"]
+	},
+	{
+		"name": "Bitbucket",
+		"description": "Bitbucket logo",
+		"sources": ["/icon/bitbucket.svg"]
+	},
+	{
+		"name": "CentOS",
+		"description": "CentOS logo",
+		"sources": ["/icon/centos.svg"]
+	},
+	{
+		"name": "Charm Crush",
+		"description": "Charm Crush logo",
+		"sources": ["/icon/charm-crush.svg"]
+	},
+	{
+		"name": "Claude",
+		"description": "Claude logo",
+		"sources": ["/icon/claude.svg"]
+	},
+	{
+		"name": "CLion",
+		"description": "CLion logo",
+		"sources": ["/icon/clion.svg"]
+	},
+	{
+		"name": "Visual Studio Code Insiders",
+		"description": "Visual Studio Code Insiders logo",
+		"sources": ["/icon/code-insiders.svg"]
+	},
+	{
+		"name": "Visual Studio Code",
+		"description": "Visual Studio Code logo",
+		"sources": ["/icon/code.svg"]
+	},
+	{
+		"name": "Coder",
+		"description": "Coder logo",
+		"sources": ["/icon/coder.svg"]
+	},
+	{
+		"name": "Conda",
+		"description": "Conda logo",
+		"sources": ["/icon/conda.svg"]
+	},
+	{
+		"name": "Confluence",
+		"description": "Confluence logo",
+		"sources": ["/icon/confluence.svg"]
+	},
+	{
+		"name": "Container",
+		"description": "Container icon",
+		"sources": ["/icon/container.svg"]
+	},
+	{
+		"name": "copyparty",
+		"description": "copyparty logo",
+		"sources": ["/icon/copyparty.svg"]
+	},
+	{ "name": "C++", "description": "C++ logo", "sources": ["/icon/cpp.svg"] },
+	{
+		"name": "Cursor",
+		"description": "Cursor logo",
+		"sources": ["/icon/cursor.svg"]
+	},
+	{
+		"name": "Database",
+		"description": "Database icon",
+		"sources": ["/icon/database.svg"]
+	},
+	{
+		"name": "DataGrip",
+		"description": "DataGrip logo",
+		"sources": ["/icon/datagrip.svg"]
+	},
+	{
+		"name": "DataSpell",
+		"description": "DataSpell logo",
+		"sources": ["/icon/dataspell.svg"]
+	},
+	{
+		"name": "NICE DCV",
+		"description": "NICE DCV logo",
+		"sources": ["/icon/dcv.svg"]
+	},
+	{
+		"name": "Debian",
+		"description": "Debian logo",
+		"sources": ["/icon/debian.svg"]
+	},
+	{
+		"name": "Delta",
+		"description": "Delta logo",
+		"sources": ["/icon/delta.svg"]
+	},
+	{
+		"name": "Desktop",
+		"description": "Desktop icon",
+		"sources": ["/icon/desktop.svg"]
+	},
+	{
+		"name": "Dev Containers",
+		"description": "Dev Containers logo",
+		"sources": ["/icon/devcontainers.svg"]
+	},
+	{
+		"name": "Devin",
+		"description": "Devin logo",
+		"sources": ["/icon/devin.svg"]
+	},
+	{
+		"name": "Discord",
+		"description": "Discord logo",
+		"sources": ["/icon/discord.svg"]
+	},
+	{
+		"name": "DigitalOcean",
+		"description": "DigitalOcean logo",
+		"sources": ["/icon/do.svg", "/icon/do.png"]
+	},
+	{
+		"name": "Docker",
+		"description": "Docker logo",
+		"sources": [
+			"/icon/docker.svg",
+			"/icon/docker-white.svg",
+			"/icon/docker.png"
+		]
+	},
+	{
+		"name": "Dotfiles",
+		"description": "Dotfiles icon",
+		"sources": ["/icon/dotfiles.svg"]
+	},
+	{
+		"name": ".NET",
+		"description": ".NET logo",
+		"sources": ["/icon/dotnet.svg"]
+	},
+	{
+		"name": "Elixir",
+		"description": "Elixir logo",
+		"sources": ["/icon/elixir.svg"]
+	},
+	{
+		"name": "Fedora",
+		"description": "Fedora logo",
+		"sources": ["/icon/fedora.svg"]
+	},
+	{
+		"name": "File Browser",
+		"description": "File Browser logo",
+		"sources": ["/icon/filebrowser.svg"]
+	},
+	{
+		"name": "Fly.io",
+		"description": "Fly.io logo",
+		"sources": ["/icon/fly.io.svg"]
+	},
+	{
+		"name": "Folder",
+		"description": "Folder icon",
+		"sources": ["/icon/folder.svg"]
+	},
+	{
+		"name": "Gateway",
+		"description": "Gateway icon",
+		"sources": ["/icon/gateway.svg"]
+	},
+	{
+		"name": "Google Cloud",
+		"description": "Google Cloud logo",
+		"sources": ["/icon/gcp.svg", "/icon/gcp.png"]
+	},
+	{
+		"name": "Gemini",
+		"description": "Gemini logo",
+		"sources": ["/icon/gemini.svg", "/icon/gemini-monochrome.svg"]
+	},
+	{ "name": "Git", "description": "Git logo", "sources": ["/icon/git.svg"] },
+	{
+		"name": "Gitea",
+		"description": "Gitea logo",
+		"sources": ["/icon/gitea.svg"]
+	},
+	{
+		"name": "GitHub Copilot",
+		"description": "GitHub Copilot logo",
+		"sources": ["/icon/github-copilot.svg"]
+	},
+	{
+		"name": "GitHub",
+		"description": "GitHub logo",
+		"sources": ["/icon/github.svg"]
+	},
+	{
+		"name": "GitLab",
+		"description": "GitLab logo",
+		"sources": ["/icon/gitlab.svg"]
+	},
+	{ "name": "Go", "description": "Go logo", "sources": ["/icon/go.svg"] },
+	{
+		"name": "GoLand",
+		"description": "GoLand logo",
+		"sources": ["/icon/goland.svg"]
+	},
+	{
+		"name": "Google",
+		"description": "Google logo",
+		"sources": ["/icon/google.svg"]
+	},
+	{
+		"name": "Goose",
+		"description": "Goose logo",
+		"sources": ["/icon/goose.svg"]
+	},
+	{
+		"name": "Image",
+		"description": "Image icon",
+		"sources": ["/icon/image.svg"]
+	},
+	{
+		"name": "IntelliJ IDEA",
+		"description": "IntelliJ IDEA logo",
+		"sources": ["/icon/intellij.svg"]
+	},
+	{ "name": "Java", "description": "Java logo", "sources": ["/icon/java.svg"] },
+	{
+		"name": "JavaScript",
+		"description": "JavaScript logo",
+		"sources": ["/icon/javascript.svg"]
+	},
+	{ "name": "JAX", "description": "JAX logo", "sources": ["/icon/jax.svg"] },
+	{
+		"name": "JetBrains Toolbox",
+		"description": "JetBrains Toolbox logo",
+		"sources": ["/icon/jetbrains-toolbox.svg"]
+	},
+	{
+		"name": "JetBrains",
+		"description": "JetBrains logo",
+		"sources": ["/icon/jetbrains.svg"]
+	},
+	{
+		"name": "JFrog",
+		"description": "JFrog logo",
+		"sources": ["/icon/jfrog.svg"]
+	},
+	{
+		"name": "Junie",
+		"description": "Junie logo",
+		"sources": ["/icon/junie.svg"]
+	},
+	{
+		"name": "Jupyter",
+		"description": "Jupyter logo",
+		"sources": ["/icon/jupyter.svg"]
+	},
+	{
+		"name": "Kubernetes",
+		"description": "Kubernetes logo",
+		"sources": ["/icon/k8s.svg", "/icon/k8s.png"]
+	},
+	{
+		"name": "KasmVNC",
+		"description": "KasmVNC logo",
+		"sources": ["/icon/kasmvnc.svg"]
+	},
+	{
+		"name": "Keycloak",
+		"description": "Keycloak logo",
+		"sources": ["/icon/keycloak.svg"]
+	},
+	{
+		"name": "Kilo Code",
+		"description": "Kilo Code logo",
+		"sources": ["/icon/kilo-code.svg"]
+	},
+	{ "name": "Kiro", "description": "Kiro logo", "sources": ["/icon/kiro.svg"] },
+	{
+		"name": "Kotlin",
+		"description": "Kotlin logo",
+		"sources": ["/icon/kotlin.svg"]
+	},
+	{
+		"name": "lakeFS",
+		"description": "lakeFS logo",
+		"sources": ["/icon/lakefs.svg"]
+	},
+	{
+		"name": "Linear",
+		"description": "Linear logo",
+		"sources": ["/icon/linear.svg"]
+	},
+	{ "name": "LXC", "description": "LXC logo", "sources": ["/icon/lxc.svg"] },
+	{
+		"name": "MATLAB",
+		"description": "MATLAB logo",
+		"sources": ["/icon/matlab.svg"]
+	},
+	{
+		"name": "Memory",
+		"description": "Memory icon",
+		"sources": ["/icon/memory.svg"]
+	},
+	{
+		"name": "Microsoft Teams",
+		"description": "Microsoft Teams logo",
+		"sources": ["/icon/microsoft-teams.svg"]
+	},
+	{
+		"name": "Microsoft",
+		"description": "Microsoft logo",
+		"sources": ["/icon/microsoft.svg"]
+	},
+	{
+		"name": "MLflow",
+		"description": "MLflow logo",
+		"sources": ["/icon/mlflow.svg"]
+	},
+	{
+		"name": "Nextflow",
+		"description": "Nextflow logo",
+		"sources": ["/icon/nextflow.svg"]
+	},
+	{
+		"name": "Nexus Repository",
+		"description": "Nexus Repository logo",
+		"sources": ["/icon/nexus-repository.svg"]
+	},
+	{ "name": "Nix", "description": "Nix logo", "sources": ["/icon/nix.svg"] },
+	{
+		"name": "Node.js",
+		"description": "Node.js logo",
+		"sources": ["/icon/nodejs.svg", "/icon/node.svg"]
+	},
+	{
+		"name": "Nomad",
+		"description": "Nomad logo",
+		"sources": ["/icon/nomad.svg"]
+	},
+	{
+		"name": "noVNC",
+		"description": "noVNC logo",
+		"sources": ["/icon/novnc.svg"]
+	},
+	{ "name": "Okta", "description": "Okta logo", "sources": ["/icon/okta.svg"] },
+	{
+		"name": "Omnigent",
+		"description": "Omnigent logo",
+		"sources": ["/icon/omnigent.svg"]
+	},
+	{
+		"name": "OpenAI Codex",
+		"description": "OpenAI Codex logo",
+		"sources": ["/icon/openai-codex.svg"]
+	},
+	{
+		"name": "OpenAI",
+		"description": "OpenAI logo",
+		"sources": ["/icon/openai.svg"]
+	},
+	{
+		"name": "OpenCode",
+		"description": "OpenCode logo",
+		"sources": ["/icon/opencode.svg"]
+	},
+	{
+		"name": "OpenRouter",
+		"description": "OpenRouter logo",
+		"sources": ["/icon/openrouter.svg"]
+	},
+	{
+		"name": "Open WebUI",
+		"description": "Open WebUI logo",
+		"sources": ["/icon/openwebui.svg"]
+	},
+	{
+		"name": "Personalize",
+		"description": "Personalize icon",
+		"sources": ["/icon/personalize.svg"]
+	},
+	{ "name": "PHP", "description": "PHP logo", "sources": ["/icon/php.svg"] },
+	{
+		"name": "PhpStorm",
+		"description": "PhpStorm logo",
+		"sources": ["/icon/phpstorm.svg"]
+	},
+	{ "name": "Pi", "description": "Pi logo", "sources": ["/icon/pi.svg"] },
+	{
+		"name": "Positron",
+		"description": "Positron logo",
+		"sources": ["/icon/positron.svg"]
+	},
+	{
+		"name": "PostgreSQL",
+		"description": "PostgreSQL logo",
+		"sources": ["/icon/postgres.svg"]
+	},
+	{
+		"name": "Projector",
+		"description": "Projector icon",
+		"sources": ["/icon/projector.svg"]
+	},
+	{
+		"name": "PyCharm",
+		"description": "PyCharm logo",
+		"sources": ["/icon/pycharm.svg"]
+	},
+	{
+		"name": "Python",
+		"description": "Python logo",
+		"sources": ["/icon/python.svg"]
+	},
+	{
+		"name": "PyTorch",
+		"description": "PyTorch logo",
+		"sources": ["/icon/pytorch.svg"]
+	},
+	{
+		"name": "Remote Desktop",
+		"description": "Remote Desktop icon",
+		"sources": ["/icon/rdp.svg"]
+	},
+	{
+		"name": "Rider",
+		"description": "Rider logo",
+		"sources": ["/icon/rider.svg"]
+	},
+	{
+		"name": "Rocky Linux",
+		"description": "Rocky Linux logo",
+		"sources": ["/icon/rockylinux.svg"]
+	},
+	{
+		"name": "Roo Code",
+		"description": "Roo Code logo",
+		"sources": ["/icon/roo-code.svg"]
+	},
+	{ "name": "R", "description": "R logo", "sources": ["/icon/rproject.svg"] },
+	{
+		"name": "RStudio",
+		"description": "RStudio logo",
+		"sources": ["/icon/rstudio.svg"]
+	},
+	{
+		"name": "Ruby",
+		"description": "Ruby logo",
+		"sources": ["/icon/ruby.svg", "/icon/ruby.png"]
+	},
+	{
+		"name": "RubyMine",
+		"description": "RubyMine logo",
+		"sources": ["/icon/rubymine.svg"]
+	},
+	{ "name": "Rust", "description": "Rust logo", "sources": ["/icon/rust.svg"] },
+	{
+		"name": "RustDesk",
+		"description": "RustDesk logo",
+		"sources": ["/icon/rustdesk.svg"]
+	},
+	{
+		"name": "RustRover",
+		"description": "RustRover logo",
+		"sources": ["/icon/rustrover.svg"]
+	},
+	{
+		"name": "Slack",
+		"description": "Slack logo",
+		"sources": ["/icon/slack.svg"]
+	},
+	{
+		"name": "Supabase",
+		"description": "Supabase logo",
+		"sources": ["/icon/supabase.svg"]
+	},
+	{
+		"name": "Swift",
+		"description": "Swift logo",
+		"sources": ["/icon/swift.svg"]
+	},
+	{
+		"name": "Tasks",
+		"description": "Tasks icon",
+		"sources": ["/icon/tasks.svg"]
+	},
+	{
+		"name": "TensorFlow",
+		"description": "TensorFlow logo",
+		"sources": ["/icon/tensorflow.svg"]
+	},
+	{
+		"name": "Terminal",
+		"description": "Terminal icon",
+		"sources": ["/icon/terminal.svg"]
+	},
+	{
+		"name": "TeX Live",
+		"description": "TeX Live logo",
+		"sources": ["/icon/texlive.svg"]
+	},
+	{
+		"name": "Eclipse Theia",
+		"description": "Eclipse Theia logo",
+		"sources": ["/icon/theia.svg"]
+	},
+	{ "name": "tmux", "description": "tmux logo", "sources": ["/icon/tmux.svg"] },
+	{
+		"name": "TypeScript",
+		"description": "TypeScript logo",
+		"sources": ["/icon/typescript.svg"]
+	},
+	{
+		"name": "Ubuntu",
+		"description": "Ubuntu logo",
+		"sources": ["/icon/ubuntu.svg"]
+	},
+	{
+		"name": "HashiCorp Vault",
+		"description": "HashiCorp Vault logo",
+		"sources": ["/icon/vault.svg"]
+	},
+	{
+		"name": "Vercel",
+		"description": "Vercel logo",
+		"sources": ["/icon/vercel.svg"]
+	},
+	{
+		"name": "VMware vSphere",
+		"description": "VMware vSphere logo",
+		"sources": ["/icon/vsphere.svg"]
+	},
+	{
+		"name": "WebStorm",
+		"description": "WebStorm logo",
+		"sources": ["/icon/webstorm.svg"]
+	},
+	{
+		"name": "Widgets",
+		"description": "Widgets icon",
+		"sources": ["/icon/widgets.svg"]
+	},
+	{
+		"name": "Windows",
+		"description": "Windows logo",
+		"sources": ["/icon/windows.svg"]
+	},
+	{
+		"name": "Windsurf",
+		"description": "Windsurf logo",
+		"sources": ["/icon/windsurf.svg"]
+	},
+	{
+		"name": "Xum",
+		"description": "Xum logo",
+		"sources": ["/icon/xum.svg", "/icon/mux.svg"]
+	},
+	{ "name": "Zed", "description": "Zed logo", "sources": ["/icon/zed.svg"] }
+]
