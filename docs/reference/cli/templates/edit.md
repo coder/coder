@@ -156,7 +156,7 @@ Allow users to cancel in-progress workspace jobs.
 | Type    | <code>bool</code> |
 | Default | <code>true</code> |
 
-Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.
+Allow users to configure autostart for workspaces on this template. This can only be disabled with a Premium license.
 
 ### --allow-user-autostop
 
@@ -165,7 +165,7 @@ Allow users to configure autostart for workspaces on this template. This can onl
 | Type    | <code>bool</code> |
 | Default | <code>true</code> |
 
-Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.
+Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled with a Premium license.
 
 ### --require-active-version
 
@@ -174,7 +174,7 @@ Allow users to customize the autostop TTL for workspaces on this template. This 
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature. See https://coder.com/docs/admin/templates/managing-templates#require-automatic-updates-enterprise for more details.
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is a Premium feature. See https://coder.com/docs/admin/templates/managing-templates#template-update-policies for more details.
 
 ### --private
 

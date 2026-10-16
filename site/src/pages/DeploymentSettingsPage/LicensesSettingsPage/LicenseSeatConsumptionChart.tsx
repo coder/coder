@@ -14,6 +14,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import {
 	Collapsible,
@@ -139,6 +140,13 @@ export const LicenseSeatConsumptionChart: React.FC<
 							>
 								<AreaChart
 									accessibilityLayer
+									role="group"
+									aria-roledescription="chart"
+									title="License seat consumption"
+									desc={getDailyChartDescription(
+										"Daily license seats used",
+										data.map((d) => d.date),
+									)}
 									data={data}
 									margin={{
 										top: 5,
