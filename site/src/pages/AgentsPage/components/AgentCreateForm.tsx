@@ -754,6 +754,17 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		);
 
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// The editor lives outside React state, so drop chips whose scope changed.
+	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
+	useEffect(() => {
+		const last = lastChipScopeRef.current;
+		lastChipScopeRef.current = { organizationId, chatProjectId };
+		if (last.organizationId && last.organizationId !== organizationId) {
+			chatInputRef.current?.removeSkills(["org", "project"]);
+		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [organizationId, chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
