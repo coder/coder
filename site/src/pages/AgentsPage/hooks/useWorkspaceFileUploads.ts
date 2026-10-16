@@ -5,22 +5,25 @@ import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { renameChatFileForUpload } from "../utils/chatAttachments";
 import { formatAgentAttachmentUploadError } from "../utils/fileAttachmentLimits";
 
-type WorkspaceFileUploadStatus =
-	| "deferred"
-	| "queued"
-	| "uploading"
-	| "uploaded"
-	| "error";
+type WorkspaceFileUploadState =
+	| {
+			status: "deferred" | "queued" | "uploading";
+			error?: never;
+			response?: never;
+	  }
+	| {
+			status: "uploaded";
+			// Carries the final path, name, size, and media type reported
+			// by the workspace agent.
+			response: UploadChatWorkspaceFileResponse;
+			error?: never;
+	  }
+	| { status: "error"; error: string; response?: never };
 
 export type WorkspaceFileUpload = {
 	id: string;
 	file: File;
-	status: WorkspaceFileUploadStatus;
-	error?: string;
-	// Set once status is "uploaded". Carries the final path, name,
-	// size, and media type reported by the workspace agent.
-	response?: UploadChatWorkspaceFileResponse;
-};
+} & WorkspaceFileUploadState;
 
 export const isWorkspaceUploadInProgress = (
 	upload: WorkspaceFileUpload,
@@ -184,14 +187,15 @@ export function useWorkspaceFileUploads(
 		resetForScope();
 	}, [scopeKey]);
 
-	const setUploadResult = (
-		id: string,
-		result: Partial<WorkspaceFileUpload>,
-	) => {
+	const setUploadResult = (id: string, result: WorkspaceFileUploadState) => {
 		updateUploads((current) =>
-			current.map((upload) =>
-				upload.id === id ? { ...upload, ...result } : upload,
-			),
+			current.map((upload) => {
+				if (upload.id !== id) {
+					return upload;
+				}
+
+				return { id: upload.id, file: upload.file, ...result };
+			}),
 		);
 	};
 

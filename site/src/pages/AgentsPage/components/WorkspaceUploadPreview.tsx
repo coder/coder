@@ -22,11 +22,9 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 		case "uploading":
 			return "Uploading to workspace...";
 		case "uploaded":
-			return upload.response
-				? `${prettyBytes(upload.response.size)} in workspace`
-				: "In workspace";
+			return `${prettyBytes(upload.response.size)} in workspace`;
 		case "error":
-			return upload.error ?? "Upload failed";
+			return upload.error;
 	}
 };
 
@@ -46,7 +44,11 @@ export const WorkspaceUploadPreview: React.FC<{
 	return (
 		<div className="flex flex-wrap gap-2 px-3 pt-3">
 			{uploads.map((upload) => {
-				const name = upload.response?.name ?? upload.file.name;
+				let name = upload.file.name;
+				if (upload.status === "uploaded") {
+					name = upload.response.name;
+				}
+
 				return (
 					<div
 						key={upload.id}
