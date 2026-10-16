@@ -301,7 +301,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'organization_skill:update',
     'organization_skill:delete',
     'organization_skill:share',
-    'chat_project:share'
+    'chat_project:share',
+    'workspace_secret:*',
+    'workspace_secret:create',
+    'workspace_secret:read',
+    'workspace_secret:read_secret',
+    'workspace_secret:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -756,6 +761,11 @@ CREATE TYPE workspace_app_status_state AS ENUM (
     'idle'
 );
 
+CREATE TYPE workspace_secret_source AS ENUM (
+    'request',
+    'carry_forward'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -1173,6 +1183,65 @@ BEGIN
             new_env_bytes, env_bytes_limit
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_workspace_secrets_per_build_limits() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    existing_count       int;
+    existing_total_bytes bigint;
+    existing_env_bytes   bigint;
+
+    new_count       int;
+    new_total_bytes bigint;
+    new_env_bytes   bigint;
+
+    count_limit       constant int    := 50;
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
+    env_bytes_limit   constant bigint := 24576;    -- 24 KiB
+BEGIN
+    -- Serialize cap checks per build so concurrent inserts cannot all
+    -- observe the same pre-insert aggregates and exceed the cap.
+    PERFORM 1 FROM workspace_builds WHERE id = NEW.workspace_build_id FOR UPDATE;
+
+    SELECT
+        count(*),
+        coalesce(sum(octet_length(value)), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE env_name <> ''), 0)
+    INTO existing_count, existing_total_bytes, existing_env_bytes
+    FROM workspace_secrets
+    WHERE workspace_build_id = NEW.workspace_build_id
+      AND cleared_at IS NULL;
+
+    new_count       := existing_count + 1;
+    new_total_bytes := existing_total_bytes + octet_length(NEW.value);
+    new_env_bytes   := existing_env_bytes
+                       + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
+
+    IF new_count > count_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets count limit (% > %)',
+            new_count, count_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_count_limit';
+    END IF;
+
+    IF new_total_bytes > total_bytes_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets total value bytes limit (% > %)',
+            new_total_bytes, total_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_total_bytes_limit';
+    END IF;
+
+    IF new_env_bytes > env_bytes_limit THEN
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets env value bytes limit (% > %)',
+            new_env_bytes, env_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'workspace_secrets_per_build_env_bytes_limit';
     END IF;
 
     RETURN NEW;
@@ -2518,6 +2587,8 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    rx_bytes bigint,
+    tx_bytes bigint,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2538,6 +2609,10 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.rx_bytes IS 'Total bytes received by the agent on this connection. Null for web events and non-disconnect events.';
+
+COMMENT ON COLUMN connection_logs.tx_bytes IS 'Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -3235,7 +3310,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text])))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text, 'script_order_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3422,12 +3497,20 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_external_agent boolean
+    has_external_agent boolean,
+    script_order_data_source_count integer DEFAULT 0 NOT NULL,
+    script_order_rule_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT template_versions_script_order_data_source_count_check CHECK ((script_order_data_source_count >= 0)),
+    CONSTRAINT template_versions_script_order_rule_count_check CHECK ((script_order_rule_count >= 0))
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
+
+COMMENT ON COLUMN template_versions.script_order_data_source_count IS 'Number of coder_script_order data source declarations in the template configuration.';
+
+COMMENT ON COLUMN template_versions.script_order_rule_count IS 'Number of rule blocks across coder_script_order declarations in the template configuration.';
 
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
@@ -3444,6 +3527,8 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     template_versions.has_external_agent,
+    template_versions.script_order_data_source_count,
+    template_versions.script_order_rule_count,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name
@@ -4350,6 +4435,23 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
 
+CREATE TABLE workspace_secrets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid NOT NULL,
+    workspace_build_id uuid NOT NULL,
+    name text NOT NULL,
+    value text,
+    value_key_id text,
+    env_name text DEFAULT ''::text NOT NULL,
+    file_path text DEFAULT ''::text NOT NULL,
+    ephemeral boolean DEFAULT false NOT NULL,
+    source workspace_secret_source NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    cleared_at timestamp with time zone,
+    CONSTRAINT workspace_secrets_requires_target CHECK (((env_name <> ''::text) OR (file_path <> ''::text))),
+    CONSTRAINT workspace_secrets_value_cleared CHECK (((value IS NULL) = (cleared_at IS NOT NULL)))
+);
+
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
     workspaces.created_at,
@@ -4858,6 +4960,9 @@ ALTER TABLE ONLY workspace_resource_metadata
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
@@ -5197,6 +5302,14 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
+CREATE UNIQUE INDEX workspace_secrets_build_env_name_idx ON workspace_secrets USING btree (workspace_build_id, env_name) WHERE (env_name <> ''::text);
+
+CREATE UNIQUE INDEX workspace_secrets_build_file_path_idx ON workspace_secrets USING btree (workspace_build_id, file_path) WHERE (file_path <> ''::text);
+
+CREATE UNIQUE INDEX workspace_secrets_build_name_idx ON workspace_secrets USING btree (workspace_build_id, name);
+
+CREATE INDEX workspace_secrets_workspace_live_idx ON workspace_secrets USING btree (workspace_id) WHERE (cleared_at IS NULL);
+
 CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
@@ -5312,6 +5425,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+
+CREATE TRIGGER trigger_workspace_secrets_per_build_limits BEFORE INSERT ON workspace_secrets FOR EACH ROW EXECUTE FUNCTION enforce_workspace_secrets_per_build_limits();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -5820,6 +5935,15 @@ ALTER TABLE ONLY workspace_resource_metadata
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_build_workspace_fkey FOREIGN KEY (workspace_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY workspace_secrets
+    ADD CONSTRAINT workspace_secrets_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;

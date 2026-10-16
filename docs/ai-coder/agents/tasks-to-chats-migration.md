@@ -6,13 +6,9 @@ title: Migrate from the Tasks API to the Chats API
 > Coder Tasks was deprecated in Coder v2.34 and has been removed, including the Tasks API (`/api/v2/tasks`).
 > To read about Coder Tasks, use a previous version of the Coder documentation, from a release before v2.36.
 
-The Tasks API (`/api/v2/tasks`) and the
-[Chats API](../../reference/api/chats.md) (`/api/v2/chats`) serve similar
-goals (programmatic access to AI-powered coding agents) but they differ
-significantly in architecture, capabilities, and usage patterns.
+The Tasks API (`/api/v2/tasks`) and the [Chats API](../../reference/api/chats.md) (`/api/v2/chats`) serve similar goals (programmatic access to AI-powered coding agents) but they differ significantly in architecture, capabilities, and usage patterns.
 
-This guide walks you through updating your integrations from the Tasks API
-to the Chats API.
+This guide walks you through updating your integrations from the Tasks API to the Chats API.
 
 ## When to migrate
 
@@ -22,9 +18,8 @@ Coder Tasks has been removed, so requests to the Tasks API fail.
 If your integrations still call the Tasks API, migrate to the Chats API and [Coder Agents](./index.md).
 Coder Agents runs the agent loop in the Coder control plane rather than inside the workspace, and is the supported path going forward.
 
-The two systems are not interchangeable. Tasks and Chats are separate
-resources with separate APIs, so plan to update your integrations rather
-than expecting a drop-in replacement.
+The two systems are not interchangeable.
+Tasks and Chats are separate resources with separate APIs, so plan to update your integrations rather than expecting a drop-in replacement.
 
 ## Key architectural differences
 
@@ -65,23 +60,22 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 
 ### 1. Configure an LLM provider
 
-With Tasks, LLM credentials are injected into the workspace as environment
-variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
-configured once in the control plane:
+With Tasks, LLM credentials are injected into the workspace as environment variables (e.g. `ANTHROPIC_API_KEY`).
+With Coder Agents, credentials are configured once in the control plane:
 
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
-1. Add or update a provider with its credentials and upstream endpoint, then
-   save it.
+1. Add or update a provider with its credentials and upstream endpoint, then save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select the correct organization.
 1. Add at least one model, and set it as the default.
 
-You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
+You no longer pass API keys in template variables or workspace environment.
+See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 
 ### 2. Update task creation calls
 
-**Tasks API**. You specify the user, template version, and a prompt
-string:
+**Tasks API**.
+You specify the user, template version, and a prompt string:
 
 ```sh
 # Tasks API: create a task
@@ -94,8 +88,9 @@ curl -X POST https://coder.example.com/api/v2/tasks/me \
   }'
 ```
 
-**Chats API**. You send structured content parts. No template or user
-path segment is required:
+**Chats API**.
+You send structured content parts.
+No template or user path segment is required:
 
 ```sh
 # Chats API: create a chat
@@ -112,24 +107,22 @@ curl -X POST https://coder.example.com/api/v2/chats \
 
 Key differences:
 
-- The `{user}` path parameter is removed. The authenticated user is
-  inferred from the session token.
-- `organization_id` is required in the request body. The caller must be a
-  member of that organization.
-- The prompt is now an array of `ChatInputPart` objects (supporting `text`,
-  `file`, and `file-reference` types) instead of a plain string.
-- `template_version_id` and `template_version_preset_id` are removed. The
-  agent selects a template automatically based on the prompt and available
-  template descriptions. To pin to a specific workspace, pass
-  `workspace_id` instead.
-- Optionally pass `model_config_id` to override the default model, or
-  `mcp_server_ids` to attach MCP servers.
+- The `{user}` path parameter is removed.
+  The authenticated user is inferred from the session token.
+- `organization_id` is required in the request body.
+  The caller must be a member of that organization.
+- The prompt is now an array of `ChatInputPart` objects (supporting `text`, `file`, and `file-reference` types) instead of a plain string.
+- `template_version_id` and `template_version_preset_id` are removed.
+  The agent selects a template automatically based on the prompt and available template descriptions.
+  To pin to a specific workspace, pass `workspace_id` instead.
+- Optionally pass `model_config_id` to override the default model, or `mcp_server_ids` to attach MCP servers.
 - Optionally pass `title` to set the chat's title.
   A title you set is kept; automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
-**Tasks API**. Follow-ups use the send endpoint with a plain string:
+**Tasks API**.
+Follow-ups use the send endpoint with a plain string:
 
 ```sh
 # Tasks API: send input
@@ -139,7 +132,8 @@ curl -X POST https://coder.example.com/api/v2/tasks/me/my-task/send \
   -d '{"input": "Now also update the integration tests"}'
 ```
 
-**Chats API**. Follow-ups use the messages endpoint with content parts:
+**Chats API**.
+Follow-ups use the messages endpoint with content parts:
 
 ```sh
 # Chats API: send a message
@@ -154,14 +148,14 @@ curl -X POST \
   }'
 ```
 
-The Chats API supports message queuing. If the agent is busy, the message
-is queued automatically and delivered when the agent finishes its current
-step. The response includes a `queued` field indicating whether the message
-was delivered immediately or queued.
+The Chats API supports message queuing.
+If the agent is busy, the message is queued automatically and delivered when the agent finishes its current step.
+The response includes a `queued` field indicating whether the message was delivered immediately or queued.
 
 ### 4. Switch from log polling to WebSocket streaming
 
-**Tasks API**. You poll for logs:
+**Tasks API**.
+You poll for logs:
 
 ```sh
 # Tasks API: get logs
@@ -169,14 +163,15 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
-**Chats API**. You open a one-way WebSocket connection:
+**Chats API**.
+You open a one-way WebSocket connection:
 
 ```txt
 GET wss://coder.example.com/api/v2/chats/{chat}/stream
 ```
 
-The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
-`"data"`, or `"error"`). Data envelopes contain batches of events:
+The WebSocket sends JSON envelopes with a `type` field (`"ping"`, `"data"`, or `"error"`).
+Data envelopes contain batches of events:
 
 | Event type     | Description                                             |
 |----------------|---------------------------------------------------------|
@@ -187,13 +182,12 @@ The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
 | `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
-Use `after_id` as a query parameter when reconnecting to skip messages the
-client already has.
+Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 
 ### 5. Update status handling
 
-Task and chat statuses use different values. The Chats API status set is
-defined in `codersdk.ChatStatus`:
+Task and chat statuses use different values.
+The Chats API status set is defined in `codersdk.ChatStatus`:
 
 | Tasks API status | Chats API status  | Notes                                                                                                               |
 |------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
@@ -206,14 +200,12 @@ defined in `codersdk.ChatStatus`:
 | n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                           |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
-A chat enters `waiting` when it is first created (before any message is
-queued) and again whenever a run finishes or is interrupted, so treat
-`waiting` as "the agent is not currently working" rather than only "the
-agent just finished."
+A chat enters `waiting` when it is first created (before any message is queued) and again whenever a run finishes or is interrupted, so treat `waiting` as "the agent is not currently working" rather than only "the agent just finished."
 
 ### 6. Replace delete with archive
 
-The Tasks API uses `DELETE` to remove a task. The Chats API uses archiving:
+The Tasks API uses `DELETE` to remove a task.
+The Chats API uses archiving:
 
 ```diff
 - curl -X DELETE https://coder.example.com/api/v2/tasks/me/my-task \
@@ -229,7 +221,8 @@ Archived chats can be restored by setting `archived` to `false`.
 
 ### 7. Replace pause/resume with interrupt and messaging
 
-**Tasks API**. Pause and resume stop and start the workspace:
+**Tasks API**.
+Pause and resume stop and start the workspace:
 
 ```sh
 # Tasks API
@@ -242,8 +235,9 @@ curl -X POST \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
-**Chats API**. Interrupt stops the current agent loop. Sending a new
-message resumes processing:
+**Chats API**.
+Interrupt stops the current agent loop.
+Sending a new message resumes processing:
 
 ```sh
 # Chats API: interrupt
@@ -263,25 +257,16 @@ curl -X POST \
   }'
 ```
 
-In the Tasks API, pausing stops the workspace and frees compute. In the
-Chats API, interrupt stops the agent loop in the control plane; the
-workspace may remain running. The workspace lifecycle is managed
-independently.
+In the Tasks API, pausing stops the workspace and frees compute.
+In the Chats API, interrupt stops the agent loop in the control plane; the workspace may remain running.
+The workspace lifecycle is managed independently.
 
 ### 8. Update GitHub Actions integrations
 
-If you use the
-[Create Task Action](https://github.com/coder/create-task-action) GitHub
-Action, replace it with the dedicated
-[`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action).
-It handles the API call, the GitHub user lookup, and the optional issue
-comment, so most existing workflows can swap one `uses:` line and rename
-a few inputs.
+If you use the [Create Task Action](https://github.com/coder/create-task-action) GitHub Action, replace it with the dedicated [`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action).
+It handles the API call, the GitHub user lookup, and the optional issue comment, so most existing workflows can swap one `uses:` line and rename a few inputs.
 
-We are actively shipping new features for `create-agent-chat-action`, so
-pin to a major version (for example `@v0`) and watch the
-[releases](https://github.com/coder/create-agent-chat-action/releases) for
-updates.
+We are actively shipping new features for `create-agent-chat-action`, so pin to a major version (for example `@v0`) and watch the [releases](https://github.com/coder/create-agent-chat-action/releases) for updates.
 
 ```diff
 # .github/workflows/triage-bug.yaml
@@ -322,18 +307,14 @@ jobs:
 
 Key differences from the Tasks GHA:
 
-- No `coder-template-name` or `coder-task-name-prefix`. The agent
-  auto-provisions a workspace; pass `workspace-id` if you want to pin to
-  an existing workspace instead.
+- No `coder-template-name` or `coder-task-name-prefix`.
+  The agent auto-provisions a workspace; pass `workspace-id` if you want to pin to an existing workspace instead.
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
-- LLM credentials are no longer passed through the template. They are
-  configured in the Coder control plane.
+- LLM credentials are no longer passed through the template.
+  They are configured in the Coder control plane.
 - No user mapping: the Tasks GHA's `github-user-id` input has no equivalent, because the chat is always owned by the user the `coder-token` belongs to and the Chats API has no owner override.
 
-See the
-[action README](https://github.com/coder/create-agent-chat-action#inputs)
-for the full input and output reference, including the `existing-chat-id`
-input for sending follow-up messages on a previous chat.
+See the [action README](https://github.com/coder/create-agent-chat-action#inputs) for the full input and output reference, including the `existing-chat-id` input for sending follow-up messages on a previous chat.
 
 ## Template recommendations
 
@@ -342,62 +323,55 @@ input for sending follow-up messages on a previous chat.
      these against their own deployment patterns before adopting them. -->
 
 > [!NOTE]
-> This section contains recommendations that may evolve as Coder Agents
-> matures. Review these against your deployment requirements.
+> This section contains recommendations that may evolve as Coder Agents matures.
+> Review these against your deployment requirements.
 
-With Coder Tasks, every task-capable template requires specific Terraform
-resources (`coder_ai_task`, `coder_task`, agent modules, and LLM API
-keys). With Coder Agents, templates no longer need any of these. The
-agent runs in the control plane and treats the workspace as plain compute.
+With Coder Tasks, every task-capable template requires specific Terraform resources (`coder_ai_task`, `coder_task`, agent modules, and LLM API keys).
+With Coder Agents, templates no longer need any of these.
+The agent runs in the control plane and treats the workspace as plain compute.
 
-However, **we still recommend creating dedicated templates for agent
-workloads** rather than reusing your standard developer templates
-unchanged. The reasons are different from Tasks, but the principle holds:
+However, **we still recommend creating dedicated templates for agent workloads** rather than reusing your standard developer templates unchanged.
+The reasons are different from Tasks, but the principle holds:
 
 ### Why dedicated agent templates still matter
 
-- **Network boundaries.** Agent workspaces inherit whatever network access
-  the template allows. Because the agent does not need outbound access to
-  LLM providers (that happens in the control plane), you can lock down
-  agent templates to only reach the Coder control plane and your git
-  provider. Standard developer templates typically allow broader access.
-- **No IDE tooling overhead.** The agent connects via the workspace
-  daemon's HTTP API, not through VS Code or JetBrains. Removing IDE
-  extensions, desktop environments, and similar tooling from agent
-  templates reduces image size and startup time.
-- **Scoped credentials.** Agent workloads may warrant more restrictive
-  credentials than interactive developer sessions. A dedicated template
-  lets you provide a separate, narrower-scoped git token or service
-  account without affecting your developers' workflow.
-- **Cost control.** Agent workspaces can often use smaller compute
-  resources than developer workspaces since they don't need to run IDEs,
-  language servers, or other interactive tooling. A dedicated template lets
-  you right-size the infrastructure.
+- **Network boundaries.**
+  Agent workspaces inherit whatever network access the template allows.
+  Because the agent does not need outbound access to LLM providers (that happens in the control plane), you can lock down agent templates to only reach the Coder control plane and your git provider.
+  Standard developer templates typically allow broader access.
+- **No IDE tooling overhead.**
+  The agent connects via the workspace daemon's HTTP API, not through VS Code or JetBrains.
+  Removing IDE extensions, desktop environments, and similar tooling from agent templates reduces image size and startup time.
+- **Scoped credentials.**
+  Agent workloads may warrant more restrictive credentials than interactive developer sessions.
+  A dedicated template lets you provide a separate, narrower-scoped git token or service account without affecting your developers' workflow.
+- **Cost control.**
+  Agent workspaces can often use smaller compute resources than developer workspaces since they don't need to run IDEs, language servers, or other interactive tooling.
+  A dedicated template lets you right-size the infrastructure.
 
 ### What to include in agent templates
 
 <!-- TODO: Expand this section with concrete Terraform examples once
      template patterns stabilize. -->
 
-- **Clear descriptions.** The agent selects templates by reading names and
-  descriptions. Include the target language, framework, repository, and
-  type of work. For example: *"Python backend services for the payments
-  repo. Includes Poetry, Python 3.12, and PostgreSQL."*
-- **Pre-installed dependencies.** Language runtimes, build tools, `git`,
-  and project-specific dependencies should be baked into the image. Time
-  the agent spends installing tools is time not spent on the task.
-- **Git configuration.** Ensure `git` is configured with credentials and
-  author information so the agent can commit and push without additional
-  setup.
-- **Minimal parameters.** Use sensible defaults so the agent can provision
-  workspaces without guessing. Avoid required parameters with opaque
-  identifiers.
+- **Clear descriptions.**
+  The agent selects templates by reading names and descriptions.
+  Include the target language, framework, repository, and type of work.
+  For example: *"Python backend services for the payments repo.
+  Includes Poetry, Python 3.12, and PostgreSQL."*
+- **Pre-installed dependencies.**
+  Language runtimes, build tools, `git`, and project-specific dependencies should be baked into the image.
+  Time the agent spends installing tools is time not spent on the task.
+- **Git configuration.**
+  Ensure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
+- **Minimal parameters.**
+  Use sensible defaults so the agent can provision workspaces without guessing.
+  Avoid required parameters with opaque identifiers.
 
 ### What to remove from migrated task templates
 
-If you are converting an existing task template for use with Coder Agents,
-you can safely remove the Tasks-specific Terraform resources. They are
-unused when the chat is driven by the Chats API:
+If you are converting an existing task template for use with Coder Agents, you can safely remove the Tasks-specific Terraform resources.
+They are unused when the chat is driven by the Chats API:
 
 ```diff
   terraform {
@@ -442,15 +416,12 @@ unused when the chat is driven by the Chats API:
 > Remove the Tasks-specific Terraform when you upgrade.
 > Tasks and Chats can no longer run side by side: Coder no longer injects `CODER_TASK_ID` or `CODER_TASK_PROMPT`, so builds of a template that keeps the `coder_task` data source can no longer populate it.
 
-See
-[Template Optimization](./platform-controls/template-optimization.md)
-for the full guide on writing discoverable descriptions, configuring
-network boundaries, scoping credentials, and pre-installing dependencies.
+See [Template Optimization](./platform-controls/template-optimization.md) for the full guide on writing discoverable descriptions, configuring network boundaries, scoping credentials, and pre-installing dependencies.
 
 ### Pre-creating a workspace for deterministic results
 
-Letting the agent pick a template and provision a workspace works well
-for exploratory chats. If your workflow requires deterministic results like:
+Letting the agent pick a template and provision a workspace works well for exploratory chats.
+If your workflow requires deterministic results like:
 
 - Automations
 - Recurring processes
@@ -460,12 +431,10 @@ pre-create the workspace yourself and attach it when you create the chat.
 
 The pattern is two API calls:
 
-1. Create a workspace from a specific template via
-   [`POST /api/v2/users/{user}/workspaces`](../../reference/api/workspaces.md#create-user-workspace).
+1. Create a workspace from a specific template via [`POST /api/v2/users/{user}/workspaces`](../../reference/api/workspaces.md#create-user-workspace).
    You control the template, the version, and any rich parameters.
-2. Create the chat with `workspace_id` set to the workspace you just
-   created. The agent runs against that workspace instead of selecting
-   one heuristically.
+2. Create the chat with `workspace_id` set to the workspace you just created.
+   The agent runs against that workspace instead of selecting one heuristically.
 
 ```sh
 # 1. Provision the workspace from the exact template you want.
@@ -491,17 +460,12 @@ curl -s -X POST https://coder.example.com/api/v2/chats \
   }"
 ```
 
-This pattern is the closest analogue to the Tasks API behavior of
-`template_version_id` plus `coder-template-name`: you decide which
-template runs, the agent decides what to do inside it. The same approach
-works from the
-[`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action)
-GHA, which exposes the same pin via its `workspace-id` input.
+This pattern is the closest analogue to the Tasks API behavior of `template_version_id` plus `coder-template-name`: you decide which template runs, the agent decides what to do inside it.
+The same approach works from the [`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action) GHA, which exposes the same pin via its `workspace-id` input.
 
 ## How to test your migration
 
-After completing the migration steps above, walk through these checks to
-confirm the Chats API integration is working end-to-end.
+After completing the migration steps above, walk through these checks to confirm the Chats API integration is working end-to-end.
 
 ### 1. Confirm LLM provider connectivity
 
@@ -512,8 +476,7 @@ curl -s https://coder.example.com/api/v2/organizations/$CODER_ORGANIZATION/chats
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.models[].display_name'
 ```
 
-If this returns an empty list or an error, revisit
-[Step 1: Configure an LLM provider](#1-configure-an-llm-provider).
+If this returns an empty list or an error, revisit [Step 1: Configure an LLM provider](#1-configure-an-llm-provider).
 
 ### 2. Create a chat and confirm the response
 
@@ -528,23 +491,21 @@ curl -s -X POST https://coder.example.com/api/v2/chats \
   }' | jq '{id, status, title}'
 ```
 
-You should receive a `Chat` object with `status` set to `"running"`,
-since new chats begin processing immediately. Save the `id` for
-subsequent steps.
+You should receive a `Chat` object with `status` set to `"running"`, since new chats begin processing immediately.
+Save the `id` for subsequent steps.
 
 ### 3. Stream the response
 
-Open a WebSocket connection to verify the agent processes the prompt and
-returns a response. Using [websocat](https://github.com/vi/websocat):
+Open a WebSocket connection to verify the agent processes the prompt and returns a response.
+Using [websocat](https://github.com/vi/websocat):
 
 ```sh
 websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
-You should see JSON envelopes with `"type": "data"` containing
-`message_part` and `status` events. The chat should eventually reach
-`"waiting"` status, indicating the agent completed its response.
+You should see JSON envelopes with `"type": "data"` containing `message_part` and `status` events.
+The chat should eventually reach `"waiting"` status, indicating the agent completed its response.
 
 ### 4. Send a follow-up message
 
@@ -560,36 +521,28 @@ curl -s -X POST \
   }' | jq '{queued}'
 ```
 
-The response should include `"queued": false` (delivered immediately) or
-`"queued": true` (agent was busy. The message is queued and will be
-processed next).
+The response should include `"queued": false` (delivered immediately) or `"queued": true` (agent was busy.
+The message is queued and will be processed next).
 
 ### 5. Test workspace provisioning
 
-Create a workspace from your converted agent template through the
-standard Coder UI, then attach it to a new chat from the chat composer:
+Create a workspace from your converted agent template through the standard Coder UI, then attach it to a new chat from the chat composer:
 
-1. In the Coder dashboard, create a workspace from the agent template
-   you migrated.
+1. In the Coder dashboard, create a workspace from the agent template you migrated.
 2. Open **Agents** and start a new chat.
-3. In the composer, use the workspace picker to attach the workspace you
-   just created.
-4. Send a prompt that exercises the workspace, for example: *"List the
-   files in the root directory of this workspace."*
+3. In the composer, use the workspace picker to attach the workspace you just created.
+4. Send a prompt that exercises the workspace, for example: *"List the files in the root directory of this workspace."*
 
-The response stream should show the agent invoking workspace tools (such
-as `execute`) against the attached workspace. After the chat finishes,
-verify the chat is bound to the workspace via the API:
+The response stream should show the agent invoking workspace tools (such as `execute`) against the attached workspace.
+After the chat finishes, verify the chat is bound to the workspace via the API:
 
 ```sh
 curl -s "https://coder.example.com/api/v2/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '{workspace_id, status}'
 ```
 
-A `workspace_id` matching the workspace you attached confirms the chat
-is driving that workspace end-to-end. Auto-provisioning from the chat
-flow is also supported but is easier to verify once the manual-attach
-path is working.
+A `workspace_id` matching the workspace you attached confirms the chat is driving that workspace end-to-end.
+Auto-provisioning from the chat flow is also supported but is easier to verify once the manual-attach path is working.
 
 ### 6. Verify interrupt works
 
@@ -640,16 +593,14 @@ Use this list to confirm each part of your integration:
 - `POST /chats` creates a chat and returns a valid `Chat` object
 - WebSocket stream at `/chats/{chat}/stream` delivers events
 - Follow-up messages via `/chats/{chat}/messages` are accepted
-- Chat attached to a workspace from the converted template runs
-  tools against that workspace
+- Chat attached to a workspace from the converted template runs tools against that workspace
 - `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
 - Archive and restore via `PATCH /chats/{chat}` works
 - (If applicable) GitHub Actions workflow creates chats successfully
 
 ## Features available only in the Chats API
 
-The Chats API includes capabilities that have no equivalent in the Tasks
-API:
+The Chats API includes capabilities that have no equivalent in the Tasks API:
 
 | Feature                              | Description                                                                                           |
 |--------------------------------------|-------------------------------------------------------------------------------------------------------|
@@ -669,8 +620,8 @@ API:
 
 ## Response schema changes
 
-The Tasks API returns a `Task` object with workspace-centric fields. The
-Chats API returns a `Chat` object with conversation-centric fields:
+The Tasks API returns a `Task` object with workspace-centric fields.
+The Chats API returns a `Chat` object with conversation-centric fields:
 
 | Tasks API field    | Chats API equivalent                          | Notes                                                            |
 |--------------------|-----------------------------------------------|------------------------------------------------------------------|

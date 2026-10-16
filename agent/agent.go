@@ -422,6 +422,7 @@ func (a *agent) init() {
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
+		Clock:       a.clock,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
@@ -1550,6 +1551,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	// using its basepath to construct a path based port proxy.
 	if manifest.VSCodePortProxyURI != "" {
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
+	}
+
+	// Older servers do not send the build ID.
+	if manifest.WorkspaceBuildID != uuid.Nil {
+		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
 	}
 
 	// Allow any of the current env to override what we defined above.

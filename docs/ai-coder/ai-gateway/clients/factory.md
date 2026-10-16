@@ -3,8 +3,7 @@ title: Factory
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Factort's Droid agent can be configured to use AI Gateway by setting up custom models for OpenAI and Anthropic.
 
@@ -75,4 +74,5 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
 }
 ```
 
-**References:** [Factory BYOK OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)
+**References:**
+[Factory BYOK OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)
