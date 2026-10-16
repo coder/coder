@@ -1746,6 +1746,41 @@ func TestAPI(t *testing.T) {
 				},
 			},
 			{
+				name: "Running container preferred over stale container with same workspace folder",
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						// Newest first, matching docker ps ordering.
+						Containers: []codersdk.WorkspaceAgentContainer{
+							{
+								ID:           "new-running-container",
+								FriendlyName: "new-running-container",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/project/.devcontainer/devcontainer.json",
+								},
+							},
+							{
+								ID:           "old-stopped-container",
+								FriendlyName: "old-stopped-container",
+								Running:      false,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+								},
+							},
+						},
+					},
+				},
+				wantStatus: http.StatusOK,
+				wantCount:  1,
+				verify: func(t *testing.T, devcontainers []codersdk.WorkspaceAgentDevcontainer) {
+					dc := devcontainers[0]
+					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Status)
+					require.NotNil(t, dc.Container)
+					assert.Equal(t, "new-running-container", dc.Container.ID)
+				},
+			},
+			{
 				name: "Config path update",
 				lister: &fakeContainerCLI{
 					containers: codersdk.WorkspaceAgentListContainersResponse{
