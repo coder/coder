@@ -278,7 +278,7 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 ### External authentication
 
 In-workspace OAuth to Git providers, artifact registries, and similar services, configured with `CODER_EXTERNAL_AUTH_*` variables.
-Refer to [External authentication](../admin/external-auth/index.md).
+Refer to [External authentication](../admin/external-auth.md).
 
 ### External provisioner
 
@@ -418,7 +418,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid enterprise tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics
@@ -540,7 +540,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Claude Desktop](../user-guides/workspace-access/claude-desktop.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
 
 ### Swagger
 

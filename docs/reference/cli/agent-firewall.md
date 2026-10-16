@@ -169,4 +169,4 @@ Enable session correlation header injection. When no inject targets are configur
 | Type        | <code>string</code>                             |
 | Environment | <code>$BOUNDARY_SESSION_ID_INJECT_TARGET</code> |
 
-Inject target for session correlation headers. Repeat the flag once per target; each value describes exactly one target. Format: "domain=<host> [path=<glob>]". Example: --session-id-inject-target "domain=prod.coder.com path=/api/v2/aibridge/*".
+Inject target for session correlation headers. Repeat the flag once per target; each value describes exactly one target. Format: `domain=<host> [path=<glob>]`. Example: `--session-id-inject-target "domain=prod.coder.com path=/api/v2/aibridge/*"`.

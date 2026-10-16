@@ -1,5 +1,5 @@
 ---
-title: Groups and roles (Premium)
+title: Groups and roles
 ---
 
 Groups and roles can be manually assigned in Coder. For production deployments,

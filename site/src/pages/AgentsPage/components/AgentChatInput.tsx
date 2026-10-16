@@ -5,6 +5,7 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	InfoIcon,
 	LockIcon,
 	MicIcon,
 	MonitorIcon,
@@ -21,7 +22,6 @@ import type React from "react";
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
@@ -49,6 +49,7 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -59,6 +60,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
@@ -142,14 +144,14 @@ type AgentChatInputProps = {
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
-	initialValue?: string;
+	initialValue: string;
 	// Serialized Lexical editor state for restoring drafts with
 	// file-reference chips. Takes precedence over initialValue.
 	initialEditorState?: string;
 	// Monotonic counter to force editor remount.
 	remountKey?: number;
 	// Called on every content change inside the editor.
-	onContentChange?: (
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -162,9 +164,9 @@ type AgentChatInputProps = {
 	hasModelOptions: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -188,6 +190,8 @@ type AgentChatInputProps = {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
+	// When set, also hides the editor and every control (view-only mode).
+	readOnlyNotice?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -195,9 +199,9 @@ type AgentChatInputProps = {
 	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
+	contextUsage?: AgentContextUsage;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
@@ -213,7 +217,7 @@ type AgentChatInputProps = {
 	onTextPreview?: (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -237,6 +241,7 @@ type AgentChatInputProps = {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+	fillWidth?: boolean;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -313,7 +318,7 @@ const BadgeDismissButton: React.FC<{
 type MCPGroupBadgeProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
 	onRemoveMcp?: (serverId: string) => void;
-	isDisabled?: boolean;
+	isDisabled: boolean;
 	className: string;
 };
 
@@ -363,7 +368,7 @@ const ToolBadge: React.FC<{
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
-	isDisabled?: boolean;
+	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
 	disableTooltip?: boolean;
@@ -511,9 +516,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	hasModelOptions,
 	reasoningEffort,
 	onReasoningEffortChange,
-	planModeEnabled = false,
+	planModeEnabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -526,6 +531,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	warning,
+	readOnlyNotice,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -557,6 +563,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
+	fillWidth = false,
 }) => {
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -642,7 +649,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		previousRemountKeyRef.current = remountKey;
 		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
 		// would force it into the dep array; the React Compiler stabilises
-		// callbacks but biome's react-hooks lint does not.
+		// callbacks but the exhaustive-deps lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
 		cycleHistorySnapshotRef.current = null;
@@ -780,19 +787,25 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const visibleCount = Math.max(0, allBadges.length - overflowCount);
 	const overflowBadges = allBadges.slice(visibleCount);
 
-	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
-	const removeWorkspaceHandler = onWorkspaceChange
-		? handleRemoveWorkspace
+	const isReadOnlyView = readOnlyNotice !== undefined;
+	const readOnlyModel = isReadOnlyView
+		? modelOptions.find((option) => option.id === selectedModel)
 		: undefined;
-	const handleRemoveMcp = (serverId: string) =>
-		handleMcpToggle(serverId, false);
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const removeWorkspaceHandler =
+		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
+	const handleRemoveMcp = isReadOnlyView
+		? undefined
+		: (serverId: string) => handleMcpToggle(serverId, false);
 
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisablePlanMode = isReadOnlyView
+		? undefined
+		: () => onPlanModeToggle(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -1018,14 +1031,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleTextPreview = (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => {
 		if (onTextPreview) {
 			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
-			setPreviewTextMediaType(mediaType ?? null);
+			setPreviewTextMediaType(mediaType);
 		}
 	};
 
@@ -1055,11 +1068,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// Track whether the editor has content so we can gate the
 	// send button without a controlled value prop.
 	const [hasContent, setHasContent] = useState(() =>
-		Boolean(initialValue?.trim()),
+		Boolean(initialValue.trim()),
 	);
 
 	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
-		countInvisibleCharacters(initialValue ?? ""),
+		countInvisibleCharacters(initialValue),
 	);
 
 	const handleContentChange = (
@@ -1080,7 +1093,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content, serializedEditorState, hasRefs);
+		onContentChange(content, serializedEditorState, hasRefs);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -1296,11 +1309,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasSendableContent || hasActiveUploads || speech.isRecording;
 	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
 	const showStopButton =
+		!isReadOnlyView &&
 		isStreaming &&
 		onInterrupt !== undefined &&
 		(!draftOccupiesSlot || editingHoldsStop);
 	const showSendButton =
-		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
+		!isReadOnlyView &&
+		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
 	// Mobile viewports advertise no send shortcut.
 	const sendShortcutLabel = isMobile
 		? undefined
@@ -1319,8 +1334,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
+				"mx-auto w-full",
+				fillWidth
+					? "max-w-full"
+					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
@@ -1334,9 +1351,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
-					{(aiGatewayDisabled ||
-						(providerCount !== undefined && modelCount !== undefined)) &&
-					canConfigureAgentSetup ? (
+					{canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
 							providerCount={providerCount ?? 0}
@@ -1366,6 +1381,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingHistoryMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+					isReadOnlyView && "border border-solid border-border",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
@@ -1375,14 +1391,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
 				)}
 				{isEditingHistoryMessage && (
-					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
@@ -1419,29 +1435,39 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onRemove={workspaceUploads.onRemove}
 					/>
 				)}
-				<ChatMessageInput
-					ref={internalRef}
-					onFilePaste={onAttach ? handleFilePaste : undefined}
-					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
-					onPaste={resetPromptCycle}
-					aria-label="Chat message"
-					aria-describedby={warning ? warningId : undefined}
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-					placeholder={placeholder}
-					initialValue={initialValue}
-					initialEditorState={initialEditorState}
-					remountKey={remountKey}
-					onChange={handleContentChange}
-					onKeyDown={handleEditorKeyDown}
-					onEnter={handleSubmit}
-					sendShortcut={sendShortcut}
-					disabled={isReadOnly || isLoading}
-					hasWorkspace={hasSkillsWorkspace}
-					workspaceSkills={workspaceSkills}
-					autoFocus
-					slashCommands={slashCommands}
-					skillsMenuAnchor={composerElement}
-				/>
+				{isReadOnlyView ? (
+					<div
+						role="status"
+						className="flex items-center gap-2 px-3 py-2 text-[13px] text-content-primary"
+					>
+						<InfoIcon className="size-4 shrink-0 text-content-link" />
+						{readOnlyNotice}
+					</div>
+				) : (
+					<ChatMessageInput
+						ref={internalRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
+						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
+						onPaste={resetPromptCycle}
+						aria-label="Chat message"
+						aria-describedby={warning ? warningId : undefined}
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder={placeholder}
+						initialValue={initialValue}
+						initialEditorState={initialEditorState}
+						remountKey={remountKey}
+						onChange={handleContentChange}
+						onKeyDown={handleEditorKeyDown}
+						onEnter={handleSubmit}
+						sendShortcut={sendShortcut}
+						disabled={isReadOnly || isLoading}
+						hasWorkspace={hasSkillsWorkspace}
+						organizationId={chatOrganizationId}
+						workspaceSkills={workspaceSkills}
+						slashCommands={slashCommands}
+						skillsMenuAnchor={composerElement}
+					/>
+				)}
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
@@ -1497,7 +1523,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
+									className={cn(
+										"size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0",
+										isReadOnlyView && "hidden",
+									)}
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1550,22 +1579,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
+										<button
+											type="button"
+											role="menuitemcheckbox"
+											aria-checked={planModeEnabled}
+											onClick={handlePlanModeToggle}
+											disabled={isDisabled}
+											className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<PencilIcon className="size-3.5 shrink-0" />
+											<span>Plan first</span>
+											{planModeEnabled && (
+												<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+											)}
+										</button>
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
@@ -1718,6 +1745,19 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</Popover>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
+						) : isReadOnlyView ? (
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								{readOnlyModel && (
+									<ProviderIcon
+										provider={readOnlyModel.provider}
+										icon={readOnlyModel.providerIcon}
+										className="size-3 shrink-0"
+									/>
+								)}
+								<span className="truncate">
+									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
+								</span>
+							</span>
 						) : (
 							<ModelSelector
 								value={selectedModel}
@@ -1740,7 +1780,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							>
 								<PencilIcon className="size-3" />
 								Planning
-								{onPlanModeToggle && (
+								{handleDisablePlanMode && (
 									<BadgeDismissButton
 										onClick={handleDisablePlanMode}
 										ariaLabel="Disable plan mode"
@@ -1790,9 +1830,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
-										onRemovePlanning={
-											onPlanModeToggle ? handleDisablePlanMode : undefined
-										}
+										onRemovePlanning={handleDisablePlanMode}
 										isDisabled={isDisabled}
 										className={isOverflow ? "hidden" : undefined}
 									/>
@@ -1863,9 +1901,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
-												onRemovePlanning={
-													onPlanModeToggle ? handleDisablePlanMode : undefined
-												}
+												onRemovePlanning={handleDisablePlanMode}
 												isDisabled={isDisabled}
 												disableTooltip
 											/>
@@ -1876,7 +1912,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && (
+						{speech.isSupported && !isReadOnlyView && (
 							<>
 								<Button
 									type="button"

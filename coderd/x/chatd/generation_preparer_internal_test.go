@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -405,6 +406,99 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		}
 	}
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
+}
+
+func TestPrepareGenerationMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		project            bool
+		subagent           bool
+		experimentsEnabled bool
+		wantMemoryBlock    bool
+		wantMemoryTools    bool
+		intro              string
+	}{
+		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject", experimentsEnabled: true},
+		{name: "ExperimentDisabled"},
+		{name: "Subagent", experimentsEnabled: true, subagent: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+
+			projectID := uuid.NullUUID{}
+			if tt.project {
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "platform"})
+				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
+			}
+
+			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}
+			if tt.subagent {
+				parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
+				parentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+				rootChatID = parentChatID
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, ProjectID: projectID, ParentChatID: parentChatID, RootChatID: rootChatID,
+				LastModelConfigID: modelConfig.ID, Title: "memory preparation", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "inspect the release process"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+
+			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
+			if !tt.experimentsEnabled {
+				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
+			}
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var systemPrompt strings.Builder
+			for _, message := range prepared.Prompt {
+				if message.Role != fantasy.MessageRoleSystem {
+					continue
+				}
+				for _, part := range message.Content {
+					if text, ok := part.(fantasy.TextPart); ok {
+						systemPrompt.WriteString(text.Text)
+						systemPrompt.WriteString("\n")
+					}
+				}
+			}
+			gotSystemPrompt := systemPrompt.String()
+			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<memory>"))
+			// The index travels as conversation messages, never in the
+			// system prompt or tools, so the cached prefix survives writes.
+			require.NotContains(t, gotSystemPrompt, "- release_notes: Durable release process")
+			if tt.wantMemoryBlock {
+				require.Contains(t, gotSystemPrompt, tt.intro)
+			}
+
+			toolDescriptions := make(map[string]string, len(prepared.Tools))
+			for _, tool := range prepared.Tools {
+				toolDescriptions[tool.Info().Name] = tool.Info().Description
+			}
+			for _, name := range []string{chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName} {
+				description, ok := toolDescriptions[name]
+				require.Equal(t, tt.wantMemoryTools, ok, name)
+				require.NotContains(t, description, "release_notes", name)
+			}
+		})
+	}
 }
 
 func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
@@ -806,6 +900,82 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 			fantasy.Usage{TotalTokens: 211000},
 			contextLimit, 80))
 	})
+}
+
+func TestBindingCompactionTriggerSource(t *testing.T) {
+	t.Parallel()
+
+	// Rows must match the binding tests in
+	// site/src/pages/AgentsPage/compactionTriggers.test.ts.
+
+	trigger := func(threshold int32, limit int64) compactionTrigger {
+		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
+	}
+	override := func(limit int64) compactionTrigger {
+		return trigger(compactionOverrideWindowPercent, limit)
+	}
+
+	cases := []struct {
+		name     string
+		chat     compactionTrigger
+		override compactionTrigger
+		want     compactionTriggerSource
+	}{
+		{
+			name:     "lower override point wins",
+			chat:     trigger(70, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "lower chat point wins over higher override point",
+			chat:     trigger(70, 80_000),
+			override: override(80_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "tie prefers the chat trigger",
+			chat:     trigger(80, 100_000),
+			override: override(100_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat trigger disabled by threshold 100 yields override",
+			chat:     trigger(100, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "chat trigger disabled by zero limit yields override",
+			chat:     trigger(70, 0),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "override disabled by zero limit yields chat",
+			chat:     trigger(70, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "both disabled yields chat",
+			chat:     trigger(100, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat threshold zero fires immediately and wins",
+			chat:     trigger(0, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceChat,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, bindingCompactionTriggerSource(tc.chat, tc.override))
+		})
+	}
 }
 
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {

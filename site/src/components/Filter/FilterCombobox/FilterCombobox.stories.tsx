@@ -92,7 +92,6 @@ const categories: FilterCategory[] = [
 	{
 		key: "owner",
 		label: "Owner",
-		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
@@ -220,10 +219,86 @@ export const SearchableHoverFlyout: Story = {
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
 };
 
+const longOptionCategory = (key: string, label: string): FilterCategory => ({
+	key,
+	label,
+	getOptions: async () => [
+		{
+			label: `A ${key} name long enough to overflow the flyout width`,
+			value: "long",
+		},
+		{ label: "short", value: "short" },
+	],
+});
+
+const LongOptionLabelsHarness = () => (
+	<FilterComboboxHarness
+		initialQuery=""
+		categories={[
+			longOptionCategory("template", "Template"),
+			longOptionCategory("organization", "Organization"),
+		]}
+	/>
+);
+
+const openOrganizationOptions = async (
+	canvasElement: HTMLElement,
+	open: (row: HTMLElement) => Promise<void>,
+) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		}),
+	);
+	await open(await body.findByRole("option", { name: "Organization" }));
+	await body.findByText(/A organization name/);
+};
+
+export const LongFlyoutOptionLabels: Story = {
+	render: () => <LongOptionLabelsHarness />,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.hover(row)),
+};
+
+export const LongOptionLabelsMobile: Story = {
+	render: () => <LongOptionLabelsHarness />,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () =>
+		setupMatchMedia({
+			[mobileViewportMediaQuery]: true,
+		}).restore,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.click(row)),
+};
+
 // The search field stays in the flyout when nothing matches.
 export const SearchableHoverFlyoutNoMatches: Story = {
 	...SearchableHoverFlyout,
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "nobody"),
+};
+
+export const FlyoutNearRightEdge: Story = {
+	render: () => (
+		<div className="ml-auto w-72">
+			<FilterComboboxHarness initialQuery="" />
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
+		);
+		await body.findByRole("button", { name: "kubernetes" });
+	},
 };
 
 // Inside a category, the filter toggle returns to the category list instead of
@@ -281,6 +356,12 @@ export const WrappedChipsKeepIconsOnFirstRow: Story = {
 		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 		await expect(canvas.getByText(chip("outdated"))).toBeVisible();
 	},
+};
+
+export const LongChipValue: Story = {
+	render: () => (
+		<FilterComboboxHarness initialQuery="owner:me template:a-template-name-long-enough-to-overflow-the-search-field-width-on-desktop-viewports" />
+	),
 };
 
 // Backspace with an empty input removes the last committed chip.
@@ -563,7 +644,6 @@ export const CrossCategoryValueSuggestions: Story = {
 				{
 					key: "owner",
 					label: "Owner",
-					aliases: ["user"],
 					icon: <UserIcon />,
 					getOptions: async (query) =>
 						filterOptions(
@@ -619,11 +699,101 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			widenedKey: "user",
+			pillLabel: "include shared",
+			pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+			searchPhrase: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
+export const ScopeToggle: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+export const ScopeToggleTypedMatch: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+export const ScopeToggleWithSecondOwner: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice owner:bob"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: ScopeToggle.play,
+};
+
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("include shared"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const ClearAll: Story = {
 	render: () => (
 		<FilterComboboxHarness
-			initialQuery="owner:me template:docker status:running outdated:true"
-			categories={categoriesWithAttributes}
+			initialQuery="user:me template:docker status:running outdated:true"
+			categories={categoriesWithAttributes.map((category) =>
+				category.key === "owner" ? scopedOwnerCategories[0] : category,
+			)}
 		/>
 	),
 };

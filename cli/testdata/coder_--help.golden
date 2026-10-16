@@ -46,6 +46,7 @@ SUBCOMMANDS:
     schedule           Schedule automated start and stop times for workspaces
     secret             Manage secrets
     server             Start a Coder server
+    sharing            Commands for managing shared workspaces
     show               Display details of a workspace's resources and agents
     speedtest          Run upload and download tests from your machine to a
                        workspace
@@ -97,6 +98,10 @@ variables or flags.
           server. If telemetry is also enabled on the server, it may be sent to
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
+
+      --flight-recorder-size int, $CODER_FLIGHT_RECORDER_SIZE (default: 10)
+          Number of log entries below the current log level to keep in memory
+          and emit on errors. Set to 0 to disable the flight recorder.
 
       --force-tty bool, $CODER_FORCE_TTY
           Force the use of a TTY.

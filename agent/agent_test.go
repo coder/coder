@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -70,6 +72,8 @@ func TestMain(m *testing.M) {
 	}
 	// Report multi-second pauses of the whole process, see coder/internal#1365.
 	testutil.StartStallDetector(5 * time.Second)
+	// Fail with a heap profile before a runaway allocation pushes the runner into swap.
+	testutil.StartMemoryGuardFromEnv()
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
@@ -123,6 +127,85 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// eofClient forces the agent's RPC connection to fail with io.EOF so runLoop
+// takes the disconnect path.
+type eofClient struct {
+	*agenttest.Client
+}
+
+func (*eofClient) ConnectRPC214WithRole(context.Context, string) (
+	proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
+) {
+	return nil, nil, io.EOF
+}
+
+// flushTestSink is a concurrency-safe slog.Sink that records entry messages.
+type flushTestSink struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (s *flushTestSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, e.Message)
+}
+
+func (*flushTestSink) Sync() {}
+
+func (s *flushTestSink) contains(msg string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.messages, msg)
+}
+
+// TestAgent_FlushFlightRecorderOnDisconnect verifies the agent emits its recorded
+// debug history when it loses the connection to coderd, so the detail leading
+// up to the disconnect is available even though the agent runs at Info.
+func TestAgent_FlushFlightRecorderOnDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	sink := &flushTestSink{}
+	logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1000)
+
+	// The debug entry is held by the flight recorder, not emitted, during normal
+	// operation at Info.
+	const sentinel = "recorded debug sentinel"
+	logger.Debug(ctx, sentinel)
+	require.False(t, sink.contains(sentinel), "debug entry should be recorded, not emitted")
+
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	baseClient := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(baseClient.Close)
+
+	agentUnderTest := agent.New(agent.Options{
+		Client:     &eofClient{Client: baseClient},
+		Filesystem: afero.NewMemMapFs(),
+		Logger:     logger.Named("agent"),
+	})
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// Losing the connection to coderd flushes the recorded debug history to the
+	// sink.
+	require.Eventually(t, func() bool {
+		return sink.contains(sentinel)
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
 // NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
 //             Writing "exit 0" to stdin before closing fixed the issue for me.
 
@@ -161,9 +244,14 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			err = session.Wait()
 			require.NoError(t, err, "waiting for session to exit")
 
-			assertConnectionReport(t, agentClient, connectionReport{
-				connectionType: proto.Connection_SSH,
-			})
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: 17,            // echo + exit
+					TxBytes: wantSomeBytes, // echo output + prompts
+				},
+			)
 		})
 	}
 
@@ -371,9 +459,14 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		err = session.Wait()
 		require.NoError(t, err)
 
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_VSCODE,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyVSCode)},
+			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
+				RxBytes: 7,               // exit command
+				TxBytes: wantIgnoreBytes, // might get a prompt
+			},
+		)
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -432,7 +525,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 
 		// Kill the server and connection after checking for the echo.
-		requireEcho(t, tunneledConn)
+		written := requireEcho(t, tunneledConn)
 		_ = echoServerCmd.Process.Kill()
 		_ = tunneledConn.Close()
 
@@ -446,9 +539,14 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			"never saw stats after conn closes",
 		)
 
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_JETBRAINS,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+			proto.DisconnectEvent{
+				Reason:  "normal close",
+				RxBytes: int64(written),
+				TxBytes: int64(written),
+			},
+		)
 	})
 }
 
@@ -1149,7 +1247,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPRemoteForwarding(t *testing.T) {
@@ -1182,7 +1280,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
@@ -1337,7 +1435,7 @@ func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -1388,7 +1486,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("unix", remoteSocketPath)
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -1431,9 +1529,13 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_SSH,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
+		)
 	})
 
 	t.Run("CustomWorkingDirectory", func(t *testing.T) {
@@ -1466,9 +1568,13 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_SSH,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
+		)
 	})
 
 	t.Run("MissingWorkingDirectory", func(t *testing.T) {
@@ -1523,9 +1629,14 @@ func TestAgent_SCP(t *testing.T) {
 
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
-	assertConnectionReport(t, agentClient, connectionReport{
-		connectionType: proto.Connection_SSH,
-	})
+	assertConnectionReport(t, agentClient,
+		proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+		proto.DisconnectEvent{
+			Reason:  string(codersdk.DisconnectReasonGraceful),
+			RxBytes: wantSomeBytes,
+			TxBytes: wantSomeBytes,
+		},
+	)
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -1560,10 +1671,13 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_SSH,
-			status:         agentssh.BlockedFileTransferErrorCode,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				Code:   agentssh.BlockedFileTransferErrorCode,
+				Reason: "file transfer blocked",
+			},
+		)
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1587,10 +1701,14 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, connectionReport{
-			connectionType: proto.Connection_SSH,
-			status:         agentssh.BlockedFileTransferErrorCode,
-		})
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				Code:    agentssh.BlockedFileTransferErrorCode,
+				Reason:  "file transfer blocked",
+				TxBytes: wantSomeBytes,
+			},
+		)
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1627,10 +1745,14 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
 
-				assertConnectionReport(t, agentClient, connectionReport{
-					connectionType: proto.Connection_SSH,
-					status:         agentssh.BlockedFileTransferErrorCode,
-				})
+				assertConnectionReport(t, agentClient,
+					proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+					proto.DisconnectEvent{
+						Code:    agentssh.BlockedFileTransferErrorCode,
+						Reason:  "file transfer blocked",
+						TxBytes: wantSomeBytes,
+					},
+				)
 			})
 		}
 	})
@@ -1693,6 +1815,54 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 			require.NotEmpty(t, strings.TrimSpace(string(output)))
 		})
 	}
+}
+
+func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
+	t.Parallel()
+
+	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
+	}
+
+	buildID := uuid.New()
+	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
+
+	// A manifest from a server that predates the build ID leaves it unset
+	// rather than exporting the nil UUID.
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("uses POSIX parameter expansion")
+		}
+		// The agent inherits the runner's environment, so hide any build ID the
+		// runner itself exports.
+		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
+		})
+		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
+		require.NoError(t, err)
+		require.Equal(t, "unset", strings.TrimSpace(string(output)))
+	})
+}
+
+// withoutEnvInfo is the system environment without one variable.
+type withoutEnvInfo struct {
+	usershell.SystemEnvInfo
+	exclude string
+}
+
+func (e withoutEnvInfo) Environ() []string {
+	var environ []string
+	for _, kv := range e.SystemEnvInfo.Environ() {
+		if !strings.HasPrefix(kv, e.exclude+"=") {
+			environ = append(environ, kv)
+		}
+	}
+	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
@@ -2331,14 +2501,21 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			idConnectionReport := uuid.New()
 			id := uuid.New()
 
-			// Test that the connection is reported. This must be tested in the
-			// first connection because we care about verifying all of these.
+			// Test that the connection is reported when closed. This must be tested
+			// in the first connection because we care about verifying all of these.
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
-			assertConnectionReport(t, agentClient, connectionReport{
-				connectionType: proto.Connection_RECONNECTING_PTY,
-			})
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Method: proto.Connection_METHOD_RECONNECTING_PTY},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: wantSomeBytes, // should get bytes from the init message
+					// Depending on close timing, the prompt may not send in time, so skip
+					// checking the sent bytes.
+					TxBytes: wantIgnoreBytes,
+				},
+			)
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
@@ -4441,25 +4618,31 @@ func echoOnce(t *testing.T, ll net.Listener) {
 	}
 }
 
-// requireEcho sends 4 bytes and requires the read response to match what was sent.
-func requireEcho(t *testing.T, conn net.Conn) {
+// requireEcho sends 4 bytes and requires the read response to match what was
+// sent.  Returns the number of bytes written.
+func requireEcho(t *testing.T, conn net.Conn) int {
 	t.Helper()
-	_, err := conn.Write([]byte("test"))
+	written, err := conn.Write([]byte("test"))
 	require.NoError(t, err)
-	b := make([]byte, 4)
+	b := make([]byte, written)
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+	return written
 }
 
-type connectionReport struct {
-	connectionType  proto.Connection_Type
-	status          int
-	reason          string
-	clientSessionID string
-}
+const (
+	wantSomeBytes   int64 = -1
+	wantIgnoreBytes int64 = -2
+)
 
-func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, report connectionReport) {
+// assertConnectionReport expects the provided connect and disconnect events
+// have been reported.  If the disconnection bytes are wantSomeBytes, assert the
+// bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
+// they match exactly.
+func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
+	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
+) {
 	t.Helper()
 
 	var reports []*proto.ReportConnectionRequest
@@ -4474,20 +4657,245 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, report 
 
 	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
 	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
-	assert.Equal(t, report.connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", report.connectionType)
-	assert.Equal(t, report.connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", report.connectionType)
+	assert.Equal(t, connect.Method, reports[0].GetConnection().GetConnectionMethod(), "connect method should be %s", connect.Method)
+	assert.Equal(t, connect.Method, reports[1].GetConnection().GetConnectionMethod(), "disconnect method should be %s", connect.Method)
+	assert.Equal(t, connect.AppName, reports[0].GetConnection().GetAppName(), "connect app name should be %s", connect.AppName)
+	assert.Equal(t, connect.AppName, reports[1].GetConnection().GetAppName(), "disconnect app name should be %s", connect.AppName)
+	assert.Equal(t, reports[0].GetConnection().GetId(), reports[1].GetConnection().GetId(), "disconnect id should match connect id")
 	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
 	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
 	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	assert.Equal(t, report.status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", report.status)
+	assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
-	if report.reason != "" {
-		assert.Contains(t, reports[1].GetConnection().GetReason(), report.reason, "disconnect reason should contain %s", report.reason)
+	if disconnect.Reason != "" {
+		assert.Contains(t, reports[1].GetConnection().GetReason(), disconnect.Reason, "disconnect reason should contain %s", disconnect.Reason)
 	} else {
-		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
+		assert.Equal(t, "", reports[1].GetConnection().GetReason(), "disconnect reason should be empty")
 	}
-	assert.Equal(t, report.clientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect reason should be %s", report.clientSessionID)
+	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
+	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetRxBytes(), "connect rxbytes should be 0")
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetTxBytes(), "connect txbytes should be 0")
+	assertBytes(t, disconnect.RxBytes, reports[1].GetConnection().GetRxBytes(), "rx")
+	assertBytes(t, disconnect.TxBytes, reports[1].GetConnection().GetTxBytes(), "tx")
+}
+
+func assertBytes(t testing.TB, expectedBytes, gotBytes int64, label string) {
+	t.Helper()
+	if expectedBytes == wantSomeBytes {
+		assert.Greater(t, gotBytes, int64(0), "disconnect %s bytes should be greater than zero", label)
+	} else if expectedBytes != wantIgnoreBytes {
+		assert.Equal(t, expectedBytes, gotBytes, "disconnect %s bytes should be %d", label, expectedBytes)
+	}
+}
+
+func TestAgent_ToolCall(t *testing.T) {
+	t.Skip("flaky until PLAT-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
+	t.Parallel()
+	//nolint:dogsled
+	conn, _, _, agentFS, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	// Every call uses the tool call context, as chatd does, so a method
+	// that wrongly sent the tool call ID would get a saved response.
+	tests := []struct {
+		name  string
+		fs    afero.Fs
+		act   func(ctx context.Context, path string) (any, error)
+		saved func(workspacesdk.CancelToolCallResponse) (any, error)
+	}{
+		{
+			name: "StartProcess",
+			fs:   afero.NewOsFs(),
+			act: func(ctx context.Context, path string) (any, error) {
+				resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
+					Command: "printf run > " + filepath.Base(path),
+					WorkDir: filepath.Dir(path),
+				})
+				if err != nil {
+					return nil, err
+				}
+				out, err := conn.ProcessOutput(ctx, resp.ID, &workspacesdk.ProcessOutputOptions{Wait: true})
+				if err != nil {
+					return nil, err
+				}
+				if out.ExitCode == nil {
+					return nil, xerrors.Errorf("process output reports no exit: %+v", out)
+				}
+				return resp, nil
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.StartProcessResult() },
+		},
+		{
+			name: "WriteFile",
+			fs:   agentFS,
+			act: func(ctx context.Context, path string) (any, error) {
+				return nil, conn.WriteFile(ctx, path, strings.NewReader("run"))
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return nil, r.WriteFileResult() },
+		},
+		{
+			name: "EditFiles",
+			fs:   agentFS,
+			act: func(ctx context.Context, path string) (any, error) {
+				return conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+					Files:       []workspacesdk.FileEdits{{Path: path, Edits: []workspacesdk.FileEdit{{OldText: "reset", NewText: "run"}}}},
+					IncludeDiff: true,
+				})
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.EditFilesResult() },
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			path := filepath.Join(t.TempDir(), "tool-call.txt")
+			reset := func() { require.NoError(t, afero.WriteFile(tc.fs, path, []byte("reset"), 0o600)) }
+			requireContent := func(want string) {
+				t.Helper()
+				content, err := afero.ReadFile(tc.fs, path)
+				require.NoError(t, err)
+				require.Equal(t, want, string(content))
+			}
+			id := uuid.New()
+			toolCtx := workspacesdk.WithToolCallID(ctx, id)
+
+			reset()
+			first, err := tc.act(toolCtx, path)
+			require.NoError(t, err)
+			requireContent("run")
+			reset()
+			repeat, err := tc.act(toolCtx, path)
+			require.NoError(t, err)
+			require.Equal(t, first, repeat)
+			requireContent("reset")
+
+			canceled, err := conn.CancelToolCall(toolCtx, id)
+			require.NoError(t, err)
+			require.True(t, canceled.Received)
+			saved, err := tc.saved(canceled)
+			require.NoError(t, err)
+			require.Equal(t, first, saved)
+
+			_, err = tc.act(toolCtx, path)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		})
+	}
+}
+
+// TestAgent_ToolCallOtherChat checks that two chats using the same tool
+// call ID get separate processes and cancels.
+func TestAgent_ToolCallOtherChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agentID := uuid.New()
+	//nolint:dogsled
+	connA, _, _, _, _ := setupAgent(t, agentsdk.Manifest{AgentID: agentID}, 0)
+	connA.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+	// connB shares connA's tailnet connection, which setupAgent closes.
+	connB := workspacesdk.NewAgentConn(connA.TailnetConn(), workspacesdk.AgentConnOptions{AgentID: agentID})
+	connB.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	id := uuid.New()
+	toolCtx := workspacesdk.WithToolCallID(ctx, id)
+	_, err := connA.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300"})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := connA.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+		assert.NoError(t, err)
+	})
+
+	_, err = connB.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "printf b"})
+	require.NoError(t, err)
+	outB, err := connB.ProcessOutput(toolCtx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
+	require.NoError(t, err)
+	require.Equal(t, "printf b", outB.Command)
+	require.Equal(t, "b", outB.Output)
+
+	_, err = connB.CancelToolCall(toolCtx, id)
+	require.NoError(t, err)
+	// CancelToolCall marks the process canceled before returning, so a
+	// wrong cancel shows here without waiting.
+	outA, err := connA.ProcessOutput(toolCtx, id.String(), nil)
+	require.NoError(t, err)
+	require.Equal(t, "sleep 300", outA.Command)
+	require.False(t, outA.Canceled)
+}
+
+func TestAgent_ProcessOutputTimeoutFromStartProcess(t *testing.T) {
+	t.Parallel()
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	// A 1 ms timeout has passed before any wait uses it and one hour cannot
+	// pass during the test, so no case depends on timing.
+	tests := []struct {
+		name      string
+		timeoutMs int64
+		opts      workspacesdk.ProcessOutputOptions
+		cancel    bool
+		want      workspacesdk.ProcessOutputResponse
+	}{
+		{
+			name:      "TimeoutFromStartProcess",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromStartProcess: true},
+			want:      workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
+		},
+		{
+			name:      "PlainWait",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true},
+			cancel:    true,
+			want:      workspacesdk.ProcessOutputResponse{Canceled: true},
+		},
+		{
+			name:      "BeforeTimeout",
+			timeoutMs: time.Hour.Milliseconds(),
+			want:      workspacesdk.ProcessOutputResponse{Running: true},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			id := uuid.New()
+			toolCtx := workspacesdk.WithToolCallID(ctx, id)
+			_, err := conn.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300", TimeoutMs: tc.timeoutMs})
+			require.NoError(t, err)
+			// Cancel the tool call so the agent does not wait for its process
+			// on close.
+			t.Cleanup(func() {
+				_, err := conn.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+				assert.NoError(t, err)
+			})
+
+			type result struct {
+				resp workspacesdk.ProcessOutputResponse
+				err  error
+			}
+			waited := make(chan result, 1)
+			go func() {
+				resp, err := conn.ProcessOutput(toolCtx, id.String(), &tc.opts)
+				waited <- result{resp, err}
+			}()
+			if tc.cancel {
+				_, err := conn.CancelToolCall(toolCtx, id)
+				require.NoError(t, err)
+			}
+
+			got := testutil.RequireReceive(ctx, t, waited)
+			require.NoError(t, got.err)
+			require.Equal(t, tc.want.Running, got.resp.Running)
+			require.Equal(t, tc.want.TimedOut, got.resp.TimedOut)
+			require.Equal(t, tc.want.Canceled, got.resp.Canceled)
+		})
+	}
 }

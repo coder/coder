@@ -51,7 +51,7 @@ type Bedrock struct {
 }
 
 // NewBedrock constructs a Bedrock provider. cfg supplies the shared
-// provider-level fields (Name, BaseURL, APIDumpDir, SendActorHeaders,
+// provider-level fields (Name, BaseURL, APIDumpDir, ActorHeaderNames,
 // CircuitBreaker); bedrockCfg supplies the Bedrock-specific runtime config and
 // resolves the AWS credentials provider once at construction.
 func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (*Bedrock, error) {
@@ -174,9 +174,9 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -201,7 +201,7 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -230,7 +230,7 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -264,16 +264,18 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 		ProviderName:     p.Name(),
 		BaseURL:          p.runtime.Cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 }
 
-// resolveCredential determines the upstream credential for a request. Bedrock
+// ResolveCredential determines the upstream credential for a request. Bedrock
 // authenticates via AWS signing, so when no BYOK header is present it returns
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
-func (p *Bedrock) resolveCredential(r *http.Request) (credential.Credential, error) {
+// Coder authentication credentials must already have been removed from the
+// request.
+func (p *Bedrock) ResolveCredential(r *http.Request) (credential.Credential, error) {
 	if apiKey := r.Header.Get(aibheaders.AuthHeaderXAPIKey); apiKey != "" {
 		return credential.BYOK{Secret: apiKey, Header: aibheaders.AuthHeaderXAPIKey}, nil
 	}

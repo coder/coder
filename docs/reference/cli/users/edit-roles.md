@@ -14,6 +14,15 @@ Edit a user's roles by username or id
 coder users edit-roles [flags] <username|user_id>
 ```
 
+## Description
+
+```console
+  - --roles replaces the user's full set of site roles; any role not listed is
+removed:
+
+     $ coder users edit-roles example_user --roles owner user-admin
+```
+
 ## Options
 
 ### -y, --yes
@@ -30,4 +39,4 @@ Bypass confirmation prompts.
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-A list of roles to give to the user. This removes any existing roles the user may have.
+Replaces the user's full set of site roles with this list. Any existing role not included here is removed.

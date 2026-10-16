@@ -1395,7 +1395,8 @@ func TestCreateWithPreset(t *testing.T) {
 
 	// This test verifies that when a template has presets but no default preset,
 	// and the user does not provide the `--preset` flag,
-	// the CLI prompts the user to select a preset.
+	// the CLI prompts the user to select a preset, offering "None" first.
+	// Selecting "None" behaves like `--preset none`.
 	t.Run("NoDefaultPresetPromptUser", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
@@ -1436,17 +1437,12 @@ func TestCreateWithPreset(t *testing.T) {
 		// Should: prompt the user for the preset
 		stdout.ExpectMatch(ctx, "Select a preset below:")
 		// We don't actually have to respond to the selector, since we hardcode the cliui.Select to return the
-		// first option in test scenarios (c.f. cliui/select.go)
-		stdout.ExpectMatch(ctx, "Preset 'preset-test' applied")
+		// first option in test scenarios (c.f. cliui/select.go). The first option is "None".
+		stdout.ExpectMatch(ctx, "No preset applied.")
 		stdout.ExpectMatch(ctx, "Confirm create?")
 		stdin.WriteLine("yes")
 
 		<-doneChan
-
-		// Verify if the new workspace uses expected parameters.
-		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
-		require.NoError(t, err)
-		require.Len(t, tvPresets, 1)
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: workspaceName,
@@ -1454,14 +1450,15 @@ func TestCreateWithPreset(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
 
-		// Should: create a workspace using the expected template version and the preset-defined parameters
+		// Should: create a workspace using the expected template version, no preset,
+		// and the parameters from the command line flags
 		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
 		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
-		require.Equal(t, tvPresets[0].ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		require.Nil(t, workspaceLatestBuild.TemplateVersionPresetID)
 		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
 		require.NoError(t, err)
 		require.Len(t, buildParameters, 2)
-		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstOptionalParameterValue})
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 

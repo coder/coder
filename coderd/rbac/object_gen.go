@@ -65,7 +65,7 @@ var (
 	//  - "ActionCreate" :: create an api key
 	//  - "ActionDelete" :: delete an api key
 	//  - "ActionRead" :: read api key details (secrets are not stored)
-	//  - "ActionUpdate" :: update an api key, eg expires
+	//  - "ActionUpdate" :: update an api key, for example its expiry
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
@@ -137,6 +137,26 @@ var (
 	//  - "ActionUpdate" :: update a chat model config
 	ResourceChatModelConfig = Object{
 		Type: "chat_model_config",
+	}
+
+	// ResourceChatProject
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat project
+	//  - "ActionDelete" :: delete a chat project
+	//  - "ActionRead" :: read chat projects
+	//  - "ActionShare" :: share a chat project with other users or groups
+	//  - "ActionUpdate" :: update a chat project
+	ResourceChatProject = Object{
+		Type: "chat_project",
+	}
+
+	// ResourceChatProjectMemory
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat project memory
+	//  - "ActionDelete" :: delete a chat project memory
+	//  - "ActionRead" :: read chat project memories
+	ResourceChatProjectMemory = Object{
+		Type: "chat_project_memory",
 	}
 
 	// ResourceConnectionLog
@@ -316,6 +336,17 @@ var (
 		Type: "organization_member",
 	}
 
+	// ResourceOrganizationSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create an organization skill
+	//  - "ActionDelete" :: delete an organization skill
+	//  - "ActionRead" :: read organization skill metadata and content
+	//  - "ActionShare" :: share an organization skill with other users or groups
+	//  - "ActionUpdate" :: update an organization skill
+	ResourceOrganizationSkill = Object{
+		Type: "organization_skill",
+	}
+
 	// ResourcePrebuiltWorkspace
 	// Valid Actions
 	//  - "ActionDelete" :: delete prebuilt workspace
@@ -445,8 +476,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspace = Object{
@@ -489,8 +520,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspaceDormant = Object{
@@ -505,6 +536,17 @@ var (
 	//  - "ActionUpdate" :: update a workspace proxy
 	ResourceWorkspaceProxy = Object{
 		Type: "workspace_proxy",
+	}
+
+	// ResourceWorkspaceSecret
+	// Valid Actions
+	//  - "ActionCreate" :: set a workspace secret on a workspace build
+	//  - "ActionRead" :: read workspace secret metadata, never the value
+	//  - "ActionReadSecret" :: read decrypted workspace secret values, granted only to the workspace secret manager actor
+	//  - "ActionUpdate" :: clear or re-encrypt workspace secret values
+	// Workspace secrets are write-only for users. No built-in user role is granted read_secret.
+	ResourceWorkspaceSecret = Object{
+		Type: "workspace_secret",
 	}
 )
 
@@ -524,6 +566,8 @@ func AllResources() []Objecter {
 		ResourceBoundaryUsage,
 		ResourceChat,
 		ResourceChatModelConfig,
+		ResourceChatProject,
+		ResourceChatProjectMemory,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
@@ -544,6 +588,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourceOrganizationSkill,
 		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
@@ -562,6 +607,7 @@ func AllResources() []Objecter {
 		ResourceWorkspaceBuildOrchestration,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
+		ResourceWorkspaceSecret,
 	}
 }
 
@@ -575,6 +621,7 @@ func AllActions() []policy.Action {
 		policy.ActionDeleteAgent,
 		policy.ActionRead,
 		policy.ActionReadPersonal,
+		policy.ActionReadSecret,
 		policy.ActionSSH,
 		policy.ActionShare,
 		policy.ActionUnassign,

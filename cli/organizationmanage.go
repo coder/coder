@@ -22,7 +22,7 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Options: serpent.OptionSet{
-			cliui.SkipPromptOption(),
+			cliui.HiddenSkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)

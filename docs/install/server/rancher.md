@@ -2,8 +2,7 @@
 title: Deploy Coder on Rancher
 ---
 
-You can deploy Coder on Rancher as a
-[Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
+You can deploy Coder on Rancher as a [Workload](https://ranchermanager.docs.rancher.com/getting-started/quick-start-guides/deploy-workloads/workload-ingress).
 
 ## Requirements
 
@@ -22,7 +21,8 @@ Installing Coder on Rancher involves four key steps:
 
 ## Create a namespace
 
-Create a namespace for the Coder control plane. In this tutorial, we call it `coder`:
+Create a namespace for the Coder control plane.
+In this tutorial, we call it `coder`:
 
 ```sh
 kubectl create namespace coder
@@ -71,8 +71,7 @@ After installation, the cluster-internal database URL will be:
 postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
-For more advanced PostgreSQL management, consider using the
-[Postgres operator](https://github.com/zalando/postgres-operator).
+For more advanced PostgreSQL management, consider using the [Postgres operator](https://github.com/zalando/postgres-operator).
 
 </div>
 
@@ -129,8 +128,7 @@ kubectl create secret generic coder-db-url -n coder \
      #    - my-tls-secret-name
    ```
 
-   For available configuration options, refer to the [Helm chart documentation](../../../helm)
-   or [values.yaml file](../../../helm/coder/values.yaml).
+   For available configuration options, refer to the [Helm chart documentation](../../../helm) or [values.yaml file](../../../helm/coder/values.yaml).
 
    </details>
 

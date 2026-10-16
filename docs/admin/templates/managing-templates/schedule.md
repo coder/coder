@@ -1,5 +1,5 @@
 ---
-title: Workspace Scheduling
+title: Workspace scheduling
 ---
 
 You can configure a template to control how workspaces are started and stopped.

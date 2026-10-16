@@ -11,7 +11,7 @@ export const ToolResultImage: React.FC<{
 
 	return (
 		<>
-			<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border-default">
+			<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border">
 				<button
 					type="button"
 					className="cursor-pointer bg-transparent p-0 border-none"

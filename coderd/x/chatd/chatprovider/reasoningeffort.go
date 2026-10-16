@@ -178,10 +178,10 @@ func applyReasoningEffort(
 }
 
 // openAIReasoningEffort maps the global reasoning effort scale onto what an
-// OpenAI model accepts. GPT-6 Astra rejects none with HTTP 400 and does not
-// list minimal; OpenAI's migration guidance for both is to start at low.
+// OpenAI model accepts. GPT-6 Astra and GPT-6.1 Sol reject none with HTTP 400
+// and do not list minimal, so both start at low, the lowest effort they accept.
 func openAIReasoningEffort(modelID, effort string) string {
-	if !chatopenai.IsGPT6Astra(modelID) {
+	if !chatopenai.IsGPT6Astra(modelID) && !chatopenai.IsGPT61Sol(modelID) {
 		return effort
 	}
 	switch effort {
@@ -192,12 +192,15 @@ func openAIReasoningEffort(modelID, effort string) string {
 }
 
 // anthropicReasoningEffort maps the global reasoning effort scale onto what an
-// Anthropic model accepts. Claude Opus 5.5 always runs adaptive thinking and
-// rejects the thinking: {type: "disabled"} that fantasy sends for none with
-// HTTP 400, so none starts at low.
+// Anthropic model accepts. Claude Opus 5.5 and Sonnet 5.5 always run adaptive
+// thinking and reject the thinking: {type: "disabled"} that fantasy sends for
+// none with HTTP 400, so none starts at low.
 func anthropicReasoningEffort(modelID, effort string) string {
-	if effort == codersdk.ChatModelReasoningEffortNone &&
-		strings.Contains(strings.ToLower(modelID), "claude-opus-5-5") {
+	if effort != codersdk.ChatModelReasoningEffortNone {
+		return effort
+	}
+	id := strings.ToLower(modelID)
+	if strings.Contains(id, "claude-opus-5-5") || strings.Contains(id, "claude-sonnet-5-5") {
 		return codersdk.ChatModelReasoningEffortLow
 	}
 	return effort
@@ -255,8 +258,9 @@ var googleThinkingLevelsAscending = []fantasygoogle.ThinkingLevel{
 // but 3.7 dropped MINIMAL, and image models accept only HIGH (plus MINIMAL
 // for flash). Versionless "-latest" aliases track the newest release of their
 // family, which has been Gemini 3+ since the aliases were introduced.
-// Only the Pro and Flash chat families qualify; specialized variants such
-// as live, TTS, and audio models reject thinking_level or generateContent
+// Gemini 4 Argon accepts the same levels as 3.1 Pro (live-verified 2026-10-14).
+// Only the Pro, Argon, and Flash chat families qualify; specialized variants
+// such as live, TTS, and audio models reject thinking_level or generateContent
 // entirely (verified live), so unrecognized name tokens fail closed and
 // keep the previous request shape, matching googleSupportsThinkingBudget.
 func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel {
@@ -283,7 +287,7 @@ func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel
 	isPro, isFlash, isImage := false, false, false
 	for _, segment := range family {
 		switch segment {
-		case "pro":
+		case "pro", "argon":
 			isPro = true
 		case "flash":
 			isFlash = true

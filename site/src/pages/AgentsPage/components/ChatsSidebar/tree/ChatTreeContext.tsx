@@ -13,22 +13,10 @@ export type ChatTreeContextValue = {
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
 	readonly currentUserId: string;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
-	readonly onArchiveAgent: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onMarkChatRead: (chatId: string) => void;
-	readonly onMarkChatUnread: (chatId: string) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
-	/** Extra content under the age in a row's right column. Absent unless an experiment supplies it. */
-	readonly renderTrailing?: (chat: Chat) => React.ReactNode;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);

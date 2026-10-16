@@ -3,7 +3,7 @@ title: About
 markdown_url: /docs.md
 ---
 
-<!-- Warning for docs contributors: The first route in manifest.json must be titled "About" for the static landing page to work correctly. -->
+<!-- Warning for docs contributors: The first section in docs/manifest/index.yml must be titled "About" for the static landing page to work correctly. -->
 
 Coder is a self-hosted platform for running AI coding agents and cloud
 development environments on infrastructure you control. It works with any

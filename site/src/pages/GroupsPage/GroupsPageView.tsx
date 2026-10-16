@@ -138,7 +138,10 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 				<div className="flex flex-col gap-4">
 					<GroupsFilter {...filterProps} />
 
-					<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+					<PaginationContainer
+						query={groupsQuery}
+						paginationUnitLabel={{ singular: "group", plural: "groups" }}
+					>
 						<Table aria-label="Groups">
 							<TableHeader>
 								<TableRow>
@@ -290,7 +293,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						/>
 					}
 					title={group.display_name || group.name}
-					subtitle={`${group.total_member_count} members`}
+					subtitle={`${group.total_member_count.toLocaleString("en-US")} ${group.total_member_count === 1 ? "member" : "members"}`}
 				/>
 			</TableCell>
 
@@ -314,7 +317,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						))}
 						{remainingAvatars > 0 && (
 							<Badge className="h-(--avatar-default)">
-								+{remainingAvatars}
+								+{remainingAvatars.toLocaleString("en-US")}
 							</Badge>
 						)}
 					</div>

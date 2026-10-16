@@ -250,6 +250,20 @@ describe("parseMessageContent", () => {
 		});
 	});
 
+	it("keeps whitespace-only parts between text parts", () => {
+		// Interrupted turns are saved with one part per streamed delta.
+		const result = parseMessageContent([
+			{ type: "text", text: "\n" },
+			{ type: "text", text: "writing." },
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Like this" },
+		]);
+		expect(result.markdown).toBe("writing.\n\nLike this");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "writing.\n\nLike this" },
+		]);
+	});
+
 	it("parses a reasoning block", () => {
 		const result = parseMessageContent([
 			{ type: "reasoning", text: "Let me think..." },
@@ -971,6 +985,37 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
+	});
+
+	it.each([
+		{
+			name: "annotates an execute result the user canceled as killed",
+			result: {
+				success: false,
+				output: "partial",
+				exit_code: -1,
+				error: "canceled by the user",
+				canceled: true,
+			},
+			want: "kill",
+		},
+		{
+			name: "does not annotate a failed execute result that was not canceled",
+			result: { success: false, output: "partial", exit_code: 1 },
+			want: undefined,
+		},
+	])("$name", ({ result, want }) => {
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "sleep 300" }),
+			]),
+			msg(2, "assistant", [toolResult("tc1", "execute", result)]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.killedBySignal).toBe(want);
 	});
 });
 

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/sdk2db"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -41,16 +42,28 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	connectionType, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(req.GetConnection().GetType())
+	method, appName, err := sdk2db.ConnectionLogFromAgentConnection(req.GetConnection())
 	if err != nil {
 		return nil, err
 	}
 
-	var code sql.NullInt32
+	var (
+		code    sql.NullInt32
+		rxBytes sql.NullInt64
+		txBytes sql.NullInt64
+	)
 	if action == database.ConnectionStatusDisconnected {
 		code = sql.NullInt32{
 			Int32: req.GetConnection().GetStatusCode(),
 			Valid: true,
+		}
+		rxBytes = sql.NullInt64{
+			Int64: req.GetConnection().GetRxBytes(),
+			Valid: req.GetConnection().RxBytes != nil,
+		}
+		txBytes = sql.NullInt64{
+			Int64: req.GetConnection().GetTxBytes(),
+			Valid: req.GetConnection().TxBytes != nil,
 		}
 	}
 
@@ -88,7 +101,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
 		AgentName:        a.AgentName,
-		Type:             connectionType,
+		ConnectionMethod: method,
+		AppNameOrPort:    sql.NullString{String: appName, Valid: appName != ""},
 		Code:             code,
 		IP:               logIP,
 		ConnectionID: uuid.NullUUID{
@@ -116,8 +130,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		},
 		// N/A
 		UserAgent: sql.NullString{},
-		// N/A
-		SlugOrPort: sql.NullString{},
+		RxBytes:   rxBytes,
+		TxBytes:   txBytes,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)

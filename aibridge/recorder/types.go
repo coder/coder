@@ -119,8 +119,12 @@ type InterceptionRecordEnded struct {
 }
 
 type TokenUsageRecord struct {
-	InterceptionID        string
-	MsgID                 string
+	InterceptionID string
+	MsgID          string
+	// ProviderModel is the model reported by the upstream response, which
+	// may differ from the requested model when the provider resolves an
+	// alias. Empty when the response does not report one.
+	ProviderModel         string
 	Input                 int64
 	Output                int64
 	CacheReadInputTokens  int64

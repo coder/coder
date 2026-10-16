@@ -1,0 +1,19 @@
+title: Monitoring
+description: Monitor your Coder deployment with logs, metrics, health checks, and alerting best practices.
+path: ./admin/monitoring/index.md
+icon_path: ./images/icons/speed.svg
+children:
+  - title: Logs
+    description: Learn how Coder services write logs to standard output and how to collect them.
+    path: ./admin/monitoring/logs.md
+  - title: Metrics
+    description: Learn about the deployment metrics Coder exposes and how to use them to monitor health.
+    path: ./admin/monitoring/metrics.md
+  - title: Deployment health
+    description: Use Coder's deployment health page to monitor your control plane and its dependencies.
+    path: ./admin/monitoring/health-check.md
+  - title: Connection logs
+    description: Monitor SSH, app, and agent connections to your workspaces with the connection log.
+    path: ./admin/monitoring/connection-logs.md
+    state: [premium]
+  - include: admin/monitoring/notifications.yml

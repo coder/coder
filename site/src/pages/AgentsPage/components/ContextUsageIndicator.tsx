@@ -30,6 +30,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
+import {
+	compactionThresholdLabel,
+	type ResolvedCompactionThreshold,
+} from "../compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -41,9 +45,9 @@ export type AgentContextUsage = {
 	readonly outputTokens?: number;
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
+	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -170,7 +174,7 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 21.5;
+const RING_SIZE = 22;
 const RING_STROKE = 2.25;
 
 const GLYPH_HEIGHT = 11;
@@ -222,7 +226,7 @@ const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 );
 
 export const ContextUsageIndicator: React.FC<{
-	usage: AgentContextUsage | null;
+	usage: AgentContextUsage;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
@@ -249,10 +253,10 @@ export const ContextUsageIndicator: React.FC<{
 		setOpen(true);
 	};
 
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
+	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
+	const contextLimitTokens = hasFiniteTokenValue(usage.contextLimitTokens)
 		? usage.contextLimitTokens
 		: undefined;
 	const percentUsed =
@@ -265,21 +269,25 @@ export const ContextUsageIndicator: React.FC<{
 	// Providers may report usage without token counts. Only a chat with no
 	// reported usage at all should promise numbers after the next message.
 	const hasReportedUsage = [
-		usage?.usedTokens,
-		usage?.contextLimitTokens,
-		usage?.inputTokens,
-		usage?.outputTokens,
-		usage?.cacheReadTokens,
-		usage?.cacheCreationTokens,
-		usage?.reasoningTokens,
+		usage.usedTokens,
+		usage.contextLimitTokens,
+		usage.inputTokens,
+		usage.outputTokens,
+		usage.cacheReadTokens,
+		usage.cacheCreationTokens,
+		usage.reasoningTokens,
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	const compactionLabel =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
+			: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
 
-	const context = usage?.context;
+	const context = usage.context;
 	const isDirty = context?.dirty ?? false;
 	const contextError = context?.error ?? "";
 	const hasContextError = contextError !== "";
@@ -386,9 +394,7 @@ export const ContextUsageIndicator: React.FC<{
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	let ariaLabel = "Context usage";
 	if (hasPercent) {
-		const label = usage?.estimated
-			? "Estimated context usage"
-			: "Context usage";
+		const label = usage.estimated ? "Estimated context usage" : "Context usage";
 		ariaLabel = `${label} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`;
 	} else if (statusNote !== "") {
 		ariaLabel = `Context usage.${statusNote}`;
@@ -396,7 +402,7 @@ export const ContextUsageIndicator: React.FC<{
 
 	let usageLabel = "Context usage will appear after sending a message.";
 	if (hasPercent) {
-		const prefix = usage?.estimated ? "Estimated: " : "";
+		const prefix = usage.estimated ? "Estimated: " : "";
 		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
 	} else if (hasReportedUsage) {
 		usageLabel = "Context usage unavailable";
@@ -405,19 +411,15 @@ export const ContextUsageIndicator: React.FC<{
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{usageLabel}
-			{hasPercent && usage?.estimated && (
+			{hasPercent && usage.estimated && (
 				<div className="mt-1 max-w-64 text-content-secondary">
 					Based on the compacted summary only, excluding other prompt content
 					and tools. Replaced by measured usage after the next response.
 				</div>
 			)}
-			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && compactionLabel !== undefined && (
+				<div className="mt-1 text-content-secondary">{compactionLabel}</div>
+			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (
@@ -588,7 +590,7 @@ export const ContextUsageIndicator: React.FC<{
 				</div>
 			)}
 			{(isDirty || hasContextError) && (
-				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border-default pt-2">
+				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border pt-2">
 					{hasContextError ? (
 						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
 							<TriangleAlertIcon className="size-3 shrink-0" />
@@ -671,15 +673,13 @@ export const ContextUsageIndicator: React.FC<{
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<div
-					className="flex"
-					onMouseEnter={handleMouseEnter}
-					onMouseLeave={scheduleClose}
-				>
-					{triggerButton}
-				</div>
-			</PopoverTrigger>
+			<div
+				className="flex"
+				onMouseEnter={handleMouseEnter}
+				onMouseLeave={scheduleClose}
+			>
+				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+			</div>
 			<PopoverContent
 				side="top"
 				className="w-auto max-w-72 px-3 py-2"

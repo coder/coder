@@ -74,6 +74,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -751,6 +752,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -956,10 +958,12 @@ func New(options *Options) *API {
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				RenderTemplateParameters:       api.chatRenderTemplateParameters,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
@@ -1103,7 +1107,7 @@ func New(options *Options) *API {
 	// and in the build info response and the AI bridge config, so a runtime
 	// toggle would have to update all three.
 	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
-	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+	apiKeyConfig := httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
@@ -1114,7 +1118,8 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
 		AccessURL:                     options.AccessURL,
-	})
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(apiKeyConfig)
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1367,16 +1372,67 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
+			})
+		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			api.registerExperimentalOrganizationChatRoutes(r)
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
 			// Providers pin the redirect URI when a session is established,
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
-			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					cfg := apiKeyConfig
+					cfg.ResourceURI = options.AccessURL.JoinPath(mcp.MCPEndpoint).String()
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint).String()
+					canonical := httpmw.ExtractAPIKeyMW(cfg)(next)
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint+"/").String()
+					trailingSlash := httpmw.ExtractAPIKeyMW(cfg)(next)
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						// Routing normalizes slashes, but OAuth resource identity
+						// must not admit aliases or arbitrary descendant paths.
+						switch r.URL.EscapedPath() {
+						case mcp.MCPEndpoint:
+							canonical.ServeHTTP(rw, r)
+						case mcp.MCPEndpoint + "/":
+							trailingSlash.ServeHTTP(rw, r)
+						default:
+							httpapi.RouteNotFound(rw)
+						}
+					})
+				})
 				r.Use(
 					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
@@ -1420,7 +1476,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
@@ -1701,7 +1756,6 @@ func New(options *Options) *API {
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
 						r.Get("/", api.userByName)
-						r.Get("/autofill-parameters", api.userAutofillParameters)
 						r.Get("/login-type", api.userLoginType)
 						r.Put("/profile", api.putUserProfile)
 						r.Route("/status", func(r chi.Router) {
@@ -1886,6 +1940,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)

@@ -21,6 +21,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -174,6 +176,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	renderTemplateParametersFn     chattool.RenderTemplateParametersFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	hooks                          *chathooks.Trigger
@@ -193,6 +196,7 @@ type Server struct {
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
+	stages               *chatloop.StageTracer
 	chatWorker           *chatWorker
 	messagePartBuffer    *messagepartbuffer.Buffer
 	streamSyncPoller     *streamSyncPoller
@@ -211,15 +215,6 @@ type Server struct {
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
 	chatLimits             Limits
-}
-
-func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
-	cfg, err := p.configCache.AdvisorConfig(ctx)
-	if err != nil {
-		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
-		return advisorRuntimeConfig{}
-	}
-	return cfg
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
@@ -256,12 +251,10 @@ func (p *Server) resolveAdvisorModelOverride(
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         advisorOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeSoft,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeHard,
+		context:             advisorOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfNoProviderKey: true,
 	})
 	if err != nil {
 		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -370,27 +363,6 @@ func (p *Server) newAdvisorRuntime(
 		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
 	return rt, nil
-}
-
-// resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
-// the chat's pinned context snapshot (chat_context_resources). The agent
-// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
-// rows, or one whose workspace advertises no MCP servers, contributes no
-// workspace MCP tools. A read failure is logged and yields no tools rather
-// than aborting the turn.
-func (p *Server) resolveWorkspaceMCPTools(
-	ctx context.Context,
-	logger slog.Logger,
-	chat database.Chat,
-	workspaceCtx *turnWorkspaceContext,
-) []fantasy.AgentTool {
-	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
-	if err != nil {
-		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil
-	}
-	return tools
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
@@ -1087,20 +1059,22 @@ type CreateOptions struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
 	// CreatedBy attributes the initial user message; defaults to OwnerID.
-	CreatedBy               uuid.UUID
-	WorkspaceID             uuid.NullUUID
-	BuildID                 uuid.NullUUID
-	AgentID                 uuid.NullUUID
-	ParentChatID            uuid.NullUUID
-	RootChatID              uuid.NullUUID
-	Title                   string
-	TitleDerivedFromContent bool
-	ModelConfigID           uuid.UUID
-	ReasoningEffort         *string
-	ChatMode                database.NullChatMode
-	PlanMode                database.NullChatPlanMode
-	ClientType              database.ChatClientType
-	SystemPrompt            string
+	CreatedBy    uuid.UUID
+	ProjectID    uuid.NullUUID
+	WorkspaceID  uuid.NullUUID
+	BuildID      uuid.NullUUID
+	AgentID      uuid.NullUUID
+	ParentChatID uuid.NullUUID
+	RootChatID   uuid.NullUUID
+	Title        string
+	// TitleSource defaults to fallback.
+	TitleSource     database.ChatTitleSource
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	ChatMode        database.NullChatMode
+	PlanMode        database.NullChatPlanMode
+	ClientType      database.ChatClientType
+	SystemPrompt    string
 	// InitialUserContent is the first user message. When empty, the
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
@@ -1117,10 +1091,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt queues the message and
-	// interrupts the active run. The queued message is
-	// auto-promoted after the interrupted assistant response is
-	// persisted, ensuring correct message ordering.
+	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
+	// the partial response before this message runs ahead of queued messages.
+	// Further messages join the queue tail while the interruption is pending.
 	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
 )
 
@@ -1284,6 +1257,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
+	opts.TitleSource = cmp.Or(opts.TitleSource, database.ChatTitleSourceFallback)
 	initialStatus := database.ChatStatusWaiting
 	if len(opts.InitialUserContent) > 0 {
 		initialStatus = database.ChatStatusRunning
@@ -1312,7 +1286,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	deploymentPrompt, err := p.resolveDeploymentSystemPrompt(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1354,7 +1335,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		contentParts = composed
 		// Avoid deriving titles from the prompt that policy replaced.
-		if overridden && opts.TitleDerivedFromContent {
+		if overridden && opts.TitleSource == database.ChatTitleSourceFallback {
 			opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 		}
 	}
@@ -1380,6 +1361,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		initialMessages = append(initialMessages, systemMessage(deploymentContent, opts.ModelConfigID))
 	}
+	if organizationPrompt != "" {
+		organizationContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(organizationPrompt),
+		})
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal organization system prompt: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, systemMessage(organizationContent, opts.ModelConfigID))
+	}
 	if userPrompt != "" {
 		userPromptContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(userPrompt),
@@ -1401,6 +1391,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
+		ProjectID:         opts.ProjectID,
 		WorkspaceID:       opts.WorkspaceID,
 		BuildID:           opts.BuildID,
 		AgentID:           opts.AgentID,
@@ -1408,6 +1399,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		RootChatID:        opts.RootChatID,
 		LastModelConfigID: opts.ModelConfigID,
 		Title:             opts.Title,
+		TitleSource:       opts.TitleSource,
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
@@ -1444,209 +1436,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// by that agent's next push.
 	p.hydrateChatContextOnCreate(ctx, chat)
 	return chat, nil
-}
-
-// SendMessage admits a user message through the chatstate.SendMessage
-// transition. Pre-transition admission policy (usage limit, plan-mode
-// metadata update, MCP server ID update, model-config resolution, queue
-// cap) runs inside the same chatstate transaction via the transactional
-// store so everything commits or rolls back together.
-func (p *Server) SendMessage(
-	ctx context.Context,
-	opts SendMessageOptions,
-) (SendMessageResult, error) {
-	if opts.ChatID == uuid.Nil {
-		return SendMessageResult{}, xerrors.New("chat_id is required")
-	}
-	if len(opts.Content) == 0 {
-		return SendMessageResult{}, xerrors.New("content is required")
-	}
-
-	busyBehavior := opts.BusyBehavior
-	if busyBehavior == "" {
-		busyBehavior = SendMessageBusyBehaviorQueue
-	}
-	switch busyBehavior {
-	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorInterrupt:
-	default:
-		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
-	}
-
-	contentParts := opts.Content
-	if p.hooks.Enabled() {
-		turnID := uuid.New()
-		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
-		}
-		// Repeat these admission checks under the transaction lock.
-		if chat.Archived {
-			return SendMessageResult{}, ErrChatArchived
-		}
-		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
-			return SendMessageResult{}, err
-		}
-		// Check queue capacity before dispatch; the transaction
-		// rechecks it under lock.
-		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
-		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
-		}
-		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
-		}
-		promptMessage, err := chathooks.UserPromptMessage(contentParts)
-		if err != nil {
-			return SendMessageResult{}, err
-		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
-		if err != nil {
-			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
-		}
-		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
-		if err != nil {
-			return SendMessageResult{}, err
-		}
-	}
-
-	content, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
-	}
-
-	requestedPlanMode := opts.PlanMode
-	requestedMCPServerIDs := opts.MCPServerIDs
-
-	var result SendMessageResult
-	machine := p.newChatMachine(opts.ChatID)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-
-		if lockedChat.Archived {
-			return ErrChatArchived
-		}
-
-		if requestedPlanMode != nil {
-			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
-				PlanMode: *requestedPlanMode,
-				ID:       opts.ChatID,
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat plan mode: %w", err)
-			}
-		}
-
-		modelConfigID, err := resolveSendMessageModelConfigID(
-			ctx,
-			store,
-			lockedChat,
-			opts.ModelConfigID,
-		)
-		if err != nil {
-			return err
-		}
-
-		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, requestedMCPServerIDs)
-		if err != nil {
-			return err
-		}
-
-		if opts.InlineMCPServers != nil {
-			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
-				return xerrors.Errorf("replace inline MCP servers: %w", err)
-			}
-		}
-
-		messageCreatedBy := opts.CreatedBy
-		if messageCreatedBy == uuid.Nil {
-			messageCreatedBy = lockedChat.OwnerID
-		}
-
-		firstUserTurn := false
-		if lockedChat.Title == chatprompt.DefaultChatTitle {
-			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
-				ChatID:   opts.ChatID,
-				LimitVal: 1,
-			})
-			if err != nil {
-				return xerrors.Errorf("probe visible chat messages: %w", err)
-			}
-			firstUserTurn = len(visible) == 0
-		}
-
-		// Queue capacity is enforced inside tx.SendMessage; this
-		// wrapper only propagates the typed error.
-		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
-		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
-			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
-		})
-		if err != nil {
-			return err
-		}
-
-		if sendResult.QueuedMessage != nil {
-			result.Queued = true
-			result.QueuedMessage = sendResult.QueuedMessage
-		} else if len(sendResult.InsertedMessages) > 0 {
-			// The state machine prepends synthetic tool-result
-			// cancellation messages; the user message is always
-			// last in the inserted slice.
-			result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
-		}
-		// A queued send on an errored chat can also promote the
-		// previous queue head into history; report those inserts so
-		// clients can update their caches.
-		result.InsertedMessages = sendResult.InsertedMessages
-
-		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
-			return err
-		}
-		if firstUserTurn && !result.Queued {
-			result.FirstUserTurn = true
-			// Persist the fallback title with the message so a failed
-			// async title call cannot leave the placeholder forever.
-			firstMessage := []database.ChatMessage{result.Message}
-			pasteText, err := titlePasteText(ctx, store, firstMessage)
-			if err != nil {
-				return err
-			}
-			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
-				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-					ID:    opts.ChatID,
-					Title: chatprompt.FallbackTitle(titleText),
-				}); err != nil {
-					return xerrors.Errorf("update fallback chat title: %w", err)
-				}
-			}
-		}
-		// Capture the post-transition chat inside the same
-		// transaction so the returned chat and the watch event
-		// reflect the snapshot bump and status change produced by
-		// the transition itself.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after send: %w", err)
-		}
-		result.Chat = refreshed
-		return nil
-	})
-	if updateErr != nil {
-		return SendMessageResult{}, updateErr
-	}
-
-	// Sidebar watch event keeps the chat list in sync. Stream side
-	// effects are handled by chat:update consumers.
-	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
-	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
-		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
-	}
-	return result, nil
 }
 
 func (p *Server) callerModelConfigContext(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
@@ -1789,23 +1578,6 @@ func validateModelConfigOverride(
 	return uuid.NullUUID{UUID: requested, Valid: true}, nil
 }
 
-func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
-	target, err := store.GetChatMessageByID(ctx, messageID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrEditedMessageNotFound
-		}
-		return xerrors.Errorf("get edited message: %w", err)
-	}
-	if target.ChatID != chatID || target.Deleted {
-		return ErrEditedMessageNotFound
-	}
-	if target.Role != database.ChatMessageRoleUser {
-		return ErrEditedMessageNotUser
-	}
-	return nil
-}
-
 func loadEffectiveChatModelConfigs(
 	ctx context.Context,
 	store database.Store,
@@ -1846,376 +1618,6 @@ func enabledChatModelConfigsForOrganization(
 	return effective.Configs, nil
 }
 
-// EditMessage replaces an earlier user message and discards the
-// active-history suffix through chatstate.EditMessage. Model-config
-// override validation and usage-limit admission run in the same
-// transaction as the state-machine transition.
-func (p *Server) EditMessage(
-	ctx context.Context,
-	opts EditMessageOptions,
-) (EditMessageResult, error) {
-	if opts.ChatID == uuid.Nil {
-		return EditMessageResult{}, xerrors.New("chat_id is required")
-	}
-	if opts.EditedMessageID <= 0 {
-		return EditMessageResult{}, xerrors.New("edited_message_id is required")
-	}
-	if len(opts.Content) == 0 {
-		return EditMessageResult{}, xerrors.New("content is required")
-	}
-
-	contentParts := opts.Content
-	var sessionStartHookResult *chathooks.Result
-	if p.hooks.Enabled() {
-		turnID := uuid.New()
-		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
-		}
-		// Repeat these admission checks under the transaction lock.
-		if chat.Archived {
-			return EditMessageResult{}, ErrChatArchived
-		}
-		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
-			return EditMessageResult{}, err
-		}
-		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
-			return EditMessageResult{}, err
-		}
-		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
-		if err != nil {
-			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
-		}
-		promptMessage, err := chathooks.UserPromptMessage(contentParts)
-		if err != nil {
-			return EditMessageResult{}, err
-		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
-		if err != nil {
-			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
-		}
-		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
-		if err != nil {
-			return EditMessageResult{}, err
-		}
-	}
-
-	content, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
-	}
-	var (
-		result        EditMessageResult
-		editedMsg     database.ChatMessage
-		editedCutoffT time.Time
-	)
-	machine := p.newChatMachine(opts.ChatID)
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if lockedChat.Archived {
-			return ErrChatArchived
-		}
-		// Capture the target message for the post-commit debug
-		// cleanup hook below. The transition itself revalidates
-		// chat ownership and user-message constraints.
-		target, err := store.GetChatMessageByID(ctx, opts.EditedMessageID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrEditedMessageNotFound
-			}
-			return xerrors.Errorf("get edited message: %w", err)
-		}
-		if target.ChatID != opts.ChatID {
-			return ErrEditedMessageNotFound
-		}
-		if target.Deleted {
-			return ErrEditedMessageNotFound
-		}
-		if target.Role != database.ChatMessageRoleUser {
-			return ErrEditedMessageNotUser
-		}
-		editedMsg = target
-
-		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
-		if err != nil {
-			return err
-		}
-
-		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
-		if err != nil {
-			return err
-		}
-		if !modelOverride.Valid {
-			// Without an explicit override the transition preserves
-			// the edited message's original model, which may have been
-			// disabled since; resolve it like a normal message send.
-			preserved := uuid.Nil
-			if target.ModelConfigID.Valid {
-				preserved = target.ModelConfigID.UUID
-			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat, preserved)
-			if err != nil {
-				return err
-			}
-			if resolved != preserved {
-				modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
-			}
-		}
-
-		modelConfigID := target.ModelConfigID.UUID
-		if modelOverride.Valid {
-			modelConfigID = modelOverride.UUID
-		}
-		// The prompt response already rides in the replacement content;
-		// only the session_start(clear) response needs transcript rows.
-		// They insert after the replacement so a later edit's suffix
-		// truncation cleans them up.
-		suffixMessages, err := chathooks.EventMessages(sessionStartHookResult, modelConfigID)
-		if err != nil {
-			return err
-		}
-
-		var reasoningEffortOverride database.NullChatReasoningEffort
-		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
-			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
-		}
-
-		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
-			MessageID:               opts.EditedMessageID,
-			SuffixMessages:          suffixMessages,
-			CreatedBy:               opts.CreatedBy,
-			Content:                 content,
-			ModelConfigIDOverride:   modelOverride,
-			ReasoningEffortOverride: reasoningEffortOverride,
-		})
-		if err != nil {
-			if errors.Is(err, chatstate.ErrEditedMessageNotUser) {
-				return ErrEditedMessageNotUser
-			}
-			return err
-		}
-		result.Message = editResult.ReplacementMessage
-		inserted := make([]database.ChatMessage, 0, len(editResult.CancellationMessages)+len(editResult.SuffixMessages)+1)
-		inserted = append(inserted, editResult.CancellationMessages...)
-		inserted = append(inserted, editResult.ReplacementMessage)
-		inserted = append(inserted, editResult.SuffixMessages...)
-		result.InsertedMessages = inserted
-		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
-			return err
-		}
-		// Capture the post-edit chat inside the same transaction so
-		// the returned chat and the debug-cleanup cutoff use the
-		// snapshot bump and updated_at stamped by the transition.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after edit: %w", err)
-		}
-		result.Chat = refreshed
-		editedCutoffT = refreshed.UpdatedAt
-		return nil
-	})
-	if err != nil {
-		return EditMessageResult{}, err
-	}
-
-	// Sidebar watch event keeps the chat list responsive. Stream
-	// side effects are handled by chat:update consumers.
-	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
-
-	// Editing can race with an interrupted worker still flushing its
-	// final debug writes. Run a short bounded retry loop so we converge
-	// quickly without relying on the much longer stale-finalization
-	// sweep. Source editCutoff from the DB-stamped updated_at returned
-	// by the post-edit chat row so the filter uses the same clock that
-	// stamps replacement-turn debug rows; subtract
-	// debugCleanupClockSkew so replica clock drift cannot let the retry
-	// delete a replacement turn's debug rows.
-	editCutoff := editedCutoffT.Add(-debugCleanupClockSkew)
-	p.scheduleDebugCleanup(
-		ctx,
-		"failed to delete chat debug rows after edit",
-		[]slog.Field{
-			slog.F("chat_id", opts.ChatID),
-			slog.F("edited_message_id", editedMsg.ID),
-		},
-		func(cleanupCtx context.Context, debugSvc *chatdebug.Service) error {
-			_, err := debugSvc.DeleteAfterMessageID(cleanupCtx, opts.ChatID, editedMsg.ID-1, editCutoff)
-			return err
-		},
-	)
-
-	return result, nil
-}
-
-// ErrArchiveRequiresRootChat is returned by [Server.ArchiveChat] and
-// [Server.UnarchiveChat] when the supplied chat is a child chat.
-// Archive state changes must always target the root chat so the
-// whole family flips together.
-var ErrArchiveRequiresRootChat = xerrors.New(
-	"chat archive state can only be changed on the root chat",
-)
-
-// ArchiveChat archives a root chat and every child in its family
-// through the chatstate state machine. The transition is atomic over
-// the whole family: either every member is archived or none is. The
-// state machine only permits archive from the idle / error execution
-// states (W, E0, E1); active members cause a state conflict that the
-// HTTP handler maps to a client error.
-//
-// Child chats must not be archived independently. ArchiveChat
-// rejects them with [ErrArchiveRequiresRootChat] so callers cannot
-// silently break the parent-implies-child archive invariant.
-//
-//nolint:staticcheck // Receiver name matches the other Server methods in this file.
-func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
-	if chat.ID == uuid.Nil {
-		return xerrors.New("chat_id is required")
-	}
-	if chat.ParentChatID.Valid {
-		return ErrArchiveRequiresRootChat
-	}
-	return p.setChatFamilyArchived(ctx, chat, true, codersdk.ChatWatchEventKindDeleted)
-}
-
-// UnarchiveChat unarchives a root chat and every child in its family
-// through the chatstate state machine. Like ArchiveChat the cascade
-// is atomic; ChildChat unarchive attempts are rejected with
-// [ErrArchiveRequiresRootChat].
-func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
-	if chat.ID == uuid.Nil {
-		return xerrors.New("chat_id is required")
-	}
-	if chat.ParentChatID.Valid {
-		return ErrArchiveRequiresRootChat
-	}
-	return p.setChatFamilyArchived(ctx, chat, false, codersdk.ChatWatchEventKindCreated)
-}
-
-// setChatFamilyArchived applies SetArchived(archived) to every chat
-// in chat's family through chatstate. The transaction-captured
-// family rows feed the post-commit debug cleanup and sidebar watch
-// events. Callers must only invoke this for root chats.
-//
-//nolint:revive // Existing API takes the target archive state as a boolean.
-func (p *Server) setChatFamilyArchived(
-	ctx context.Context,
-	chat database.Chat,
-	archived bool,
-	watchKind codersdk.ChatWatchEventKind,
-) error {
-	if chat.ID == uuid.Nil {
-		return xerrors.New("chat_id is required")
-	}
-	if chat.ParentChatID.Valid {
-		return ErrArchiveRequiresRootChat
-	}
-
-	familyChats, err := chatstate.SetFamilyArchived(
-		ctx,
-		p.db,
-		p.pubsub,
-		chatstate.SetFamilyArchivedInput{
-			RootID:   chat.ID,
-			Archived: archived,
-		},
-	)
-	if err != nil {
-		return err
-	}
-
-	if archived {
-		p.scheduleArchiveDebugCleanup(ctx, familyChats)
-	}
-
-	p.publishChatPubsubEvents(familyChats, watchKind)
-	return nil
-}
-
-// DeleteQueued removes a queued user message through the chatstate
-// state machine. Stream side effects are handled by chat:update
-// consumers.
-func (p *Server) DeleteQueued(
-	ctx context.Context,
-	chatID uuid.UUID,
-	queuedMessageID int64,
-) error {
-	if chatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
-	}
-
-	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
-			QueuedMessageID: queuedMessageID,
-		})
-		return err
-	})
-	return err
-}
-
-// PromoteQueued promotes a queued message through the chatstate state
-// machine. From running / interrupting states the state machine
-// transitions the chat to `interrupting` so the worker can drain the
-// in-flight generation before promoting; from idle / error / requires
-// action states it inserts the user message into history
-// synchronously.
-func (p *Server) PromoteQueued(
-	ctx context.Context,
-	opts PromoteQueuedOptions,
-) (PromoteQueuedResult, error) {
-	if opts.ChatID == uuid.Nil {
-		return PromoteQueuedResult{}, xerrors.New("chat_id is required")
-	}
-
-	var (
-		result      PromoteQueuedResult
-		refreshChat database.Chat
-		refreshedOK bool
-	)
-	machine := p.newChatMachine(opts.ChatID)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if lockedChat.Archived {
-			return ErrChatArchived
-		}
-
-		promoteResult, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
-			QueuedMessageID: opts.QueuedMessageID,
-		})
-		if err != nil {
-			return err
-		}
-		if promoteResult.InsertedMessage != nil {
-			result.PromotedMessage = *promoteResult.InsertedMessage
-		}
-		// Capture the chat inside the transaction so the watch event
-		// published below uses the snapshot bump and status change
-		// produced by the transition itself.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after promote: %w", err)
-		}
-		refreshChat = refreshed
-		refreshedOK = true
-		return nil
-	})
-	if updateErr != nil {
-		return PromoteQueuedResult{}, updateErr
-	}
-
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
-	return result, nil
-}
-
 // SubmitToolResultsOptions controls tool result submission.
 type SubmitToolResultsOptions struct {
 	ChatID        uuid.UUID
@@ -2250,343 +1652,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 		"chat status is %q, expected %q",
 		e.ActualStatus, database.ChatStatusRequiresAction,
 	)
-}
-
-// SubmitToolResults dispatches hooks before completing the
-// requires_action transition.
-func (p *Server) SubmitToolResults(
-	ctx context.Context,
-	opts SubmitToolResultsOptions,
-) error {
-	machine := p.newChatMachine(opts.ChatID)
-	var hookSuffix []chatstate.Message
-	if p.hooks.Enabled() {
-		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
-		if err != nil {
-			return err
-		}
-		for _, result := range opts.Results {
-			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse, dispatch.CapacityClassGeneration)
-			if err != nil {
-				// Leave pending calls intact so the client can resubmit after recovery.
-				return chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
-			}
-			responseMessages, err := chathooks.EventMessages(response, state.modelConfigID)
-			if err != nil {
-				return err
-			}
-			hookSuffix = append(hookSuffix, responseMessages...)
-		}
-	}
-
-	var (
-		statusConflict *ToolResultStatusConflictError
-		refreshChat    database.Chat
-		refreshedOK    bool
-	)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if locked.Archived {
-			return ErrChatArchived
-		}
-
-		toolResults := make([]chatstate.ToolResultInput, 0, len(opts.Results))
-		for _, result := range opts.Results {
-			toolResults = append(toolResults, chatstate.ToolResultInput{
-				ToolCallID: result.ToolCallID,
-				Output:     result.Output,
-				IsError:    result.IsError,
-			})
-		}
-		modelConfigID := opts.ModelConfigID
-		if modelConfigID == uuid.Nil {
-			modelConfigID = locked.LastModelConfigID
-		}
-		if _, err := tx.CompleteRequiresAction(chatstate.CompleteRequiresActionInput{
-			CreatedBy:      opts.UserID,
-			ModelConfigID:  modelConfigID,
-			Results:        toolResults,
-			SuffixMessages: hookSuffix,
-		}); err != nil {
-			if !errors.Is(err, chatstate.ErrInvalidState) &&
-				locked.Status != database.ChatStatusRequiresAction &&
-				errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				statusConflict = &ToolResultStatusConflictError{
-					ActualStatus: locked.Status,
-				}
-				return statusConflict
-			}
-			return xerrors.Errorf("complete requires action: %w", err)
-		}
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after tool results: %w", err)
-		}
-		refreshChat = refreshed
-		refreshedOK = true
-		return nil
-	})
-	if updateErr != nil {
-		if statusConflict != nil {
-			return statusConflict
-		}
-		return translateToolResultValidationError(updateErr)
-	}
-
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
-	return nil
-}
-
-// translateToolResultValidationError converts a chatstate tool-result
-// validation error into the legacy chatd.ToolResultValidationError
-// shape so HTTP handlers preserve their existing response detail. If
-// err is not a tool-result validation error, it is returned
-// unchanged.
-func translateToolResultValidationError(err error) error {
-	var v *chatstate.ToolResultValidationError
-	if !errors.As(err, &v) {
-		return err
-	}
-	switch {
-	case xerrors.Is(v, chatstate.ErrToolResultDuplicate):
-		return &ToolResultValidationError{
-			Message: "Duplicate tool_call_id in results.",
-			Detail:  fmt.Sprintf("Duplicate tool call ID %q.", v.ToolCallID),
-		}
-	case xerrors.Is(v, chatstate.ErrToolResultMissing):
-		return &ToolResultValidationError{
-			Message: "Missing tool result.",
-			Detail:  fmt.Sprintf("Missing result for tool call %q.", v.ToolCallID),
-		}
-	case xerrors.Is(v, chatstate.ErrToolResultUnexpected):
-		return &ToolResultValidationError{
-			Message: "Unexpected tool result.",
-			Detail:  fmt.Sprintf("No pending tool call with ID %q.", v.ToolCallID),
-		}
-	case xerrors.Is(v, chatstate.ErrToolResultInvalidJSON):
-		return &ToolResultValidationError{
-			Message: "Tool result output must be valid JSON.",
-			Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", v.ToolCallID),
-		}
-	default:
-		return err
-	}
-}
-
-// InterruptChat interrupts execution through the chatstate.Interrupt
-// transition. Active runs land in `interrupting`; requires-action
-// chats synthesize cancellation messages and return to running.
-//
-// Returns the post-transition chat and an error so callers can map
-// state conflicts deliberately. Idle chats return a
-// chatstate.ErrTransitionNotAllowed wrapper.
-func (p *Server) InterruptChat(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	if chat.ID == uuid.Nil {
-		return chat, xerrors.New("chat_id is required")
-	}
-
-	var refreshed database.Chat
-	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.Interrupt(chatstate.InterruptInput{
-			Reason: "Tool execution interrupted by user",
-		}); err != nil {
-			return err
-		}
-		// Capture the post-interrupt chat inside the transaction so
-		// the returned chat and the watch event reflect the snapshot
-		// bump and status change produced by the transition itself.
-		latest, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after interrupt: %w", err)
-		}
-		refreshed = latest
-		return nil
-	})
-	if err != nil {
-		return chat, err
-	}
-
-	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
-	return refreshed, nil
-}
-
-// CompactChat records a manual compaction request through the
-// chatstate.RequestCompaction transition and wakes workers. The chat
-// must be idle (waiting) or errored; the request clears any stored
-// error. The worker then generates and commits the compaction summary
-// through the normal generation loop, bypassing the usage threshold,
-// and the chat returns to waiting with no assistant follow-up unless
-// queued messages remain or a post_compact hook commits a
-// user-visible message.
-//
-// Returns the post-transition chat and an error so callers can map
-// state conflicts deliberately: archived chats return ErrChatArchived,
-// generating chats return a chatstate.ErrTransitionNotAllowed wrapper,
-// and chats with no compactable conversation return
-// ErrNothingToCompact.
-func (p *Server) CompactChat(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	if chat.ID == uuid.Nil {
-		return chat, xerrors.New("chat_id is required")
-	}
-
-	var refreshed database.Chat
-	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if lockedChat.Archived {
-			return ErrChatArchived
-		}
-		// Run the transition before content and usage validation so busy
-		// chats surface the state conflict first.
-		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
-		if err != nil {
-			return err
-		}
-		// Reject requests with nothing to compact inside the same
-		// transaction (rolling back the transition) so no LLM call
-		// is ever started for an empty or already-compacted chat.
-		// This also covers a double-/compact.
-		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
-		}
-		boundary := latestContextBoundaryIndex(messages)
-		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
-			return ErrNothingToCompact
-		}
-		refreshed = result.Chat
-		return nil
-	})
-	if err != nil {
-		return chat, err
-	}
-
-	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
-	return refreshed, nil
-}
-
-// ClearChat commits a manual context reset through the
-// chatstate.ClearContext transition. Unlike CompactChat it is fully
-// synchronous: the boundary rows commit in this transaction with no
-// model call, the transcript is preserved, and any stored error is
-// cleared. Archived chats return ErrChatArchived, busy chats return a
-// chatstate.ErrTransitionNotAllowed wrapper, and chats with nothing
-// after the latest context boundary return ErrNothingToClear.
-func (p *Server) ClearChat(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	if chat.ID == uuid.Nil {
-		return chat, xerrors.New("chat_id is required")
-	}
-
-	var refreshed database.Chat
-	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if lockedChat.Archived {
-			return ErrChatArchived
-		}
-		// Read the pre-clear history before the transition inserts the
-		// boundary rows; eligibility is evaluated afterwards so busy
-		// chats surface the state conflict first.
-		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
-		}
-		clearMessages, err := buildClearMessages(buildClearMessagesInput{
-			modelConfigID: lockedChat.LastModelConfigID,
-			toolCallID:    "chat_cleared_" + uuid.NewString(),
-		})
-		if err != nil {
-			return xerrors.Errorf("build clear messages: %w", err)
-		}
-		result, err := tx.ClearContext(chatstate.ClearContextInput{Messages: clearMessages})
-		if err != nil {
-			return err
-		}
-		// Reject no-op clears inside the same transaction so an empty
-		// or already-cleared chat never gains a duplicate boundary.
-		boundary := latestContextBoundaryIndex(messages)
-		if !hasClearableMessageAfter(messages, boundary) {
-			return ErrNothingToClear
-		}
-		refreshed = result.Chat
-		return nil
-	})
-	if err != nil {
-		return chat, err
-	}
-
-	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
-	return refreshed, nil
-}
-
-// ReconcileInvalidStateChat recovers a chat stuck in an invalid
-// execution-state combination by running the
-// chatstate.ReconcileInvalidState transition. The chat lands in an
-// error state (E0/E1); queued messages are preserved and pending
-// dynamic-tool calls are closed with synthetic cancellations.
-//
-// Returns the post-transition chat. When the chat is not actually in an
-// invalid state the transition returns a wrapped
-// chatstate.ErrTransitionNotAllowed; a missing chat returns
-// chatstate.ErrChatNotFound. Callers map these to deliberate HTTP
-// responses.
-func (p *Server) ReconcileInvalidStateChat(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	if chat.ID == uuid.Nil {
-		return chat, xerrors.New("chat_id is required")
-	}
-
-	var refreshed database.Chat
-	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{}); err != nil {
-			return err
-		}
-		// Capture the post-reconcile chat inside the transaction so
-		// the returned chat and the watch event reflect the snapshot
-		// bump and status change produced by the transition itself.
-		latest, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after reconcile: %w", err)
-		}
-		refreshed = latest
-		return nil
-	})
-	if err != nil {
-		return chat, err
-	}
-
-	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
-	return refreshed, nil
 }
 
 const manualTitleMessageWindowLimit = 50
@@ -2624,23 +1689,25 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RenameChatTitle persists a user-supplied chat title.
+// RenameChatTitle persists a user-supplied chat title. An unchanged
+// title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
-	chat database.Chat,
+	chatID uuid.UUID,
 	newTitle string,
 ) (updated database.Chat, wrote bool, err error) {
-	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+	currentChat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
 	}
-	if newTitle == currentChat.Title {
+	if newTitle == currentChat.Title && currentChat.TitleSource == database.ChatTitleSourceUser {
 		return currentChat, false, nil
 	}
 
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: newTitle,
+		ID:          chatID,
+		Title:       newTitle,
+		TitleSource: database.ChatTitleSourceUser,
 	})
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("update chat title: %w", err)
@@ -2907,6 +1974,7 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
+	RenderTemplateParameters       chattool.RenderTemplateParametersFn
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
@@ -2922,6 +1990,7 @@ type Config struct {
 	// owner. It is required.
 	ExperimentEvaluator *experiments.Evaluator
 	PrometheusRegistry  prometheus.Registerer
+	TracerProvider      trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3019,6 +2088,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
+		renderTemplateParametersFn:     cfg.RenderTemplateParameters,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
@@ -3053,7 +2123,9 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
-		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		p.metrics = chatloop.NewMetricsWithOptions(cfg.PrometheusRegistry, chatloop.MetricsOptions{
+			StageMetrics: cfg.Experiments.Enabled(codersdk.ExperimentChatStageMetrics),
+		})
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "chat_auto_archive",
@@ -3064,6 +2136,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics, chatloop.WithClock(clk))
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
@@ -3206,18 +2279,23 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
 	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
+}
+
+// publishChatEvent publishes one chat watch event.
+func (p *Server) publishChatEvent(ownerID, chatID uuid.UUID, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
+			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(ownerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("chat_id", chatID),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
@@ -3245,22 +2323,47 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for
-// the given chat so that watching clients know to re-fetch the diff
-// status. This is called from the HTTP layer after the diff status
-// is updated in the database.
-func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
+// the given chat. changed_diff_status names the one ref that changed.
+// The embedded chat's diff_status carries the primary.
+func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, ref codersdk.DiffStatusRef) error {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	dbStatus, err := p.db.GetChatDiffStatusByChatID(ctx, chatID)
+	dbStatuses, err := p.db.GetChatDiffStatusesByChatID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat diff status: %w", err)
 	}
 
-	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
+	var changed *codersdk.ChatDiffStatus
+	var primary *codersdk.ChatDiffStatus
+	for i := range dbStatuses {
+		row := &dbStatuses[i]
+		if row.GitRemoteOrigin == ref.RemoteOrigin && row.GitBranch == ref.GitBranch {
+			sdk := db2sdk.ChatDiffStatus(chatID, row)
+			changed = &sdk
+			break
+		}
+	}
+	if primaryRow := db2sdk.PrimaryChatDiffStatus(dbStatuses); primaryRow != nil {
+		sdk := db2sdk.ChatDiffStatus(chatID, primaryRow)
+		primary = &sdk
+	}
+	if changed == nil {
+		// The ref has no row (its PR was cleared). The event still
+		// tells clients to re-fetch the chat.
+		changed = &codersdk.ChatDiffStatus{ChatID: chatID}
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
+		Chat: chatWatchEventSDKChat(chat, primary),
+		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
+			Ref:    ref,
+			Status: changed,
+		},
+	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
 	return nil
 }
 
@@ -3434,7 +2537,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
-		"ask_user_question", "attach_file":
+		"ask_user_question", "attach_file",
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3611,22 +2715,28 @@ func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skills
 
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
+	organizationSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
 	return skillspkg.MergeSkills(
 		personalSkills,
+		organizationSkills,
 		workspaceSkillsForResolution(workspaceSkills),
 	)
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, user prompt,
-// then mode overlay prompts.
+// order: subagent instruction, chat instruction, skill index, memory index,
+// project instructions, user prompt, then mode overlay prompts. Project
+// instructions precede the user prompt so personal instructions keep the
+// last word.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
 	resolvedSkills []skillspkg.ResolvedSkill,
+	memoryIndex string,
+	projectInstructions string,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -3638,6 +2748,12 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if memoryIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if projectInstructions != "" {
+		prompt = chatprompt.InsertSystem(prompt, projectInstructions)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
@@ -3673,10 +2789,9 @@ type rootChatToolsOptions struct {
 func (p *Server) loadPlanModeInstructions(
 	ctx context.Context,
 	mode database.NullChatPlanMode,
-	logger slog.Logger,
-) string {
+) (string, error) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return ""
+		return "", nil
 	}
 
 	// Plan-mode instructions live in deployment config, but chat workers do
@@ -3685,14 +2800,9 @@ func (p *Server) loadPlanModeInstructions(
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
-		logger.Warn(ctx,
-			"failed to fetch plan mode instructions",
-			slog.Error(err),
-		)
-		return ""
+		return "", xerrors.Errorf("get plan mode instructions: %w", err)
 	}
-
-	return fetched
+	return fetched, nil
 }
 
 func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
@@ -3716,29 +2826,24 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 func (p *Server) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
-	logger slog.Logger,
-) []skillspkg.Skill {
+) ([]skillspkg.Skill, error) {
 	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
-	// See package coderd/x/skills (doc.go) for why metadata fetch failures
-	// intentionally degrade to an empty personal-skill list instead of
-	// failing the chat turn.
 	if err != nil {
-		logger.Warn(ctx, "failed to load personal skill metadata",
-			slog.F("owner_id", userID),
-			slog.Error(err),
-		)
-		return nil
+		return nil, xerrors.Errorf("list personal skill metadata: %w", err)
 	}
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
 		personalSkills = append(personalSkills, skillspkg.Skill{
 			Name:        row.Name,
 			Description: row.Description,
 			Source:      skillspkg.SourcePersonal,
 		})
 	}
-	return personalSkills
+	return personalSkills, nil
 }
 
 func (p *Server) loadPersonalSkillBody(
@@ -3764,6 +2869,9 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
 	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
 
 	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
 	if err != nil {
@@ -3774,6 +2882,89 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse personal skill body: %w", err)
 	}
+	return parsed, nil
+}
+
+// chatOwnerSubject returns the chat owner's real RBAC subject, with their
+// roles and groups, so organization skill reads honor per-skill ACLs.
+// userSkillContext has no organization membership, so no grant matches it.
+func (p *Server) chatOwnerSubject(ctx context.Context, ownerID uuid.UUID) (rbac.Subject, error) {
+	ownerCtx, err := p.callerModelConfigContext(ctx, ownerID)
+	if err != nil {
+		return rbac.Subject{}, xerrors.Errorf("load chat owner subject: %w", err)
+	}
+	actor, ok := dbauthz.ActorFromContext(ownerCtx)
+	if !ok || actor.Type != rbac.SubjectTypeUser || actor.ID != ownerID.String() {
+		return rbac.Subject{}, xerrors.New("chat owner subject is unavailable")
+	}
+	return actor, nil
+}
+
+func (p *Server) fetchOrganizationSkillMetadata(
+	ctx context.Context,
+	owner rbac.Subject,
+	organizationID uuid.UUID,
+) ([]skillspkg.Skill, error) {
+	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
+	if err != nil {
+		return nil, xerrors.Errorf("list organization skill metadata: %w", err)
+	}
+
+	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		organizationSkills = append(organizationSkills, skillspkg.Skill{
+			Name:        row.Name,
+			Description: row.Description,
+			Source:      skillspkg.SourceOrganization,
+		})
+	}
+	return organizationSkills, nil
+}
+
+func (p *Server) loadOrganizationSkillBody(
+	ctx context.Context,
+	owner rbac.Subject,
+	organizationID uuid.UUID,
+	name string,
+) (skillspkg.ParsedSkill, error) {
+	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
+		dbauthz.As(ctx, owner),
+		database.GetOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: organizationID,
+			Name:           name,
+		},
+	)
+	if err != nil {
+		// A skill that is no longer shared with the owner is not authorized.
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+		}
+		p.logger.Error(ctx, "load organization skill body failed",
+			slog.F("organization_id", organizationID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
+	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+
+	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
+	if err != nil {
+		p.logger.Error(ctx, "parse organization skill body failed",
+			slog.F("organization_id", organizationID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse organization skill body: %w", err)
+	}
+	parsed.Source = skillspkg.SourceOrganization
 	return parsed, nil
 }
 
@@ -3796,7 +2987,9 @@ func (p *Server) appendRootChatTools(
 			Clock:   p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID: opts.chat.OwnerID,
+			OwnerID:          opts.chat.OwnerID,
+			RenderParameters: p.renderTemplateParametersFn,
+			Logger:           p.logger,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
@@ -4234,41 +3427,33 @@ func refreshChatWorkspaceSnapshot(
 // resolveUserCompactionThreshold looks up the user's per-model
 // compaction threshold override. Returns the override value and
 // true if one exists and is valid, or 0 and false otherwise.
-func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
+func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool, error) {
 	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
 		UserID: userID,
 		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false
+		return 0, false, nil
 	}
 	if err != nil {
-		p.logger.Warn(ctx, "failed to fetch compaction threshold override",
-			slog.F("user_id", userID),
-			slog.F("model_config_id", modelConfigID),
-			slog.Error(err),
-		)
-		return 0, false
+		return 0, false, xerrors.Errorf("get user compaction threshold: %w", err)
 	}
 	// Range 0..100 must stay in sync with handler validation in
 	// coderd/chats.go.
 	val, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || val < 0 || val > 100 {
-		return 0, false
+		return 0, false, nil
 	}
-	return int32(val), true
+	return int32(val), true, nil
 }
 
 // resolveDeploymentSystemPrompt builds the deployment-level system
 // prompt from the built-in default and the admin-configured custom
 // prompt stored in site_configs.
-func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
+func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) (string, error) {
 	config, err := p.db.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		// Fail open: use the built-in default so chats always have
-		// some system guidance.
-		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
-		return DefaultSystemPrompt
+		return "", xerrors.Errorf("get chat system prompt config: %w", err)
 	}
 
 	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
@@ -4287,23 +3472,36 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 	if result == "" {
 		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
 	}
-	return result
+	return result, nil
+}
+
+// resolveOrganizationSystemPrompt returns the sanitized system prompt
+// configured for the organization, or an empty string when none is set.
+func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	//nolint:gocritic // Chat creators cannot read organization config, so chatd reads it.
+	row, err := p.db.GetChatOrganizationSystemPrompt(dbauthz.AsChatd(ctx), organizationID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get organization chat system prompt: %w", err)
+	}
+	return codersdk.SanitizePromptText(row.SystemPrompt), nil
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the
 // database and wraps it in <user-instructions> tags. Returns empty
 // string if no prompt is set.
-func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
+func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
 	raw, err := p.configCache.UserPrompt(ctx, userID)
 	if err != nil {
-		// sql.ErrNoRows is the normal "not set" case.
-		return ""
+		return "", xerrors.Errorf("get user chat prompt: %w", err)
 	}
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
-	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>", nil
 }
 
 // renderPlanPathPrompt fills the plan-path placeholder when it is
@@ -4472,7 +3670,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	finalizeCtx, stopFinalizeCtx := p.inflightContext(ctx)
+	finalizeCtx, stopFinalizeCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopFinalizeCtx()
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
@@ -4559,7 +3757,7 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
-	updateCtx, stopUpdateCtx := p.inflightContext(ctx)
+	updateCtx, stopUpdateCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopUpdateCtx()
 		p.updateLastTurnSummary(updateCtx, chat, chat.HistoryVersion, summary, logger)
@@ -4579,7 +3777,7 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	clearCtx, stopClearCtx := p.inflightContext(ctx)
+	clearCtx, stopClearCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopClearCtx()
 		p.updateLastTurnSummary(clearCtx, chat, chat.HistoryVersion, "", logger)
@@ -4674,7 +3872,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	ctx, cancel := p.inflightContext(ctx)
+	ctx, cancel := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer cancel()
 		p.generateAndStoreChatSummary(ctx, logger, chat)
@@ -4855,7 +4053,7 @@ func (p *Server) storeSubagentReportSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	summaryCtx, stopSummaryCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopSummaryCtx()
 		p.storeSubagentReportSummary(summaryCtx, chat, logger)
@@ -4951,12 +4149,47 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	// Inflight work outlives the caller, so its spans must not be
+	// children of the caller's span.
+	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
+	detached = chatloop.ContextWithScope(detached, chatloop.ScopeBackground)
+	ctx, cancel := context.WithCancel(detached)
 	stop := context.AfterFunc(p.ctx, cancel)
 	return ctx, func() {
 		stop()
 		cancel()
 	}
+}
+
+// recordQueueWait records queue_wait as a trace root. Call it after the
+// promoting transition commits; a zero queuedAt records nothing.
+func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt time.Time) {
+	if queuedAt.IsZero() {
+		return
+	}
+	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
+		queuedAt, p.stages.Now(), nil,
+		attribute.String(chatloop.AttrChatID, chat.ID.String()),
+	)
+}
+
+func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
+	ctx, stop := p.inflightContext(reqCtx)
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+}
+
+func chatKind(chat database.Chat) chatloop.ChatKind {
+	if chat.ParentChatID.Valid {
+		return chatloop.ChatKindSubagent
+	}
+	return chatloop.ChatKindRoot
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+	ctx = chatloop.ContextWithScope(ctx, scope)
+	return chatloop.ContextWithChatKind(ctx, kind)
 }
 
 func (p *Server) goInflight(f func()) error {

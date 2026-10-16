@@ -22,10 +22,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-// newPassthroughRouter returns a simple reverse-proxy implementation which will be used when a route is not handled specifically
-// by a [intercept.Provider].
-// A single reverse proxy is created per provider and reused across all requests.
-func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+// NewPassthroughHandler returns a reverse proxy handler that should be mounted
+// on provider's PassthroughRoutes endpoints. Proxy is built once and reused
+// by returned HandlerFunc.
+func NewPassthroughHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	provBaseURL, err := url.Parse(prov.BaseURL())
 	if err != nil {
 		return newInvalidBaseURLHandler(prov, logger, m, tracer, err)

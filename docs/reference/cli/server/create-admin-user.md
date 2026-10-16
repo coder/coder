@@ -72,6 +72,15 @@ The email of the new user. If not specified, you will be prompted via stdin.
 
 The password of the new user. If not specified, you will be prompted via stdin.
 
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.
+
 ### --raw-url
 
 |      |                   |

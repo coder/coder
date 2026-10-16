@@ -1,5 +1,5 @@
 ---
-title: Creating Templates
+title: Creating templates
 ---
 
 Users with the `Template Administrator` role or above can create templates

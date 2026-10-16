@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"flag"
+	"html"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/util/maps"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
@@ -93,16 +94,17 @@ func readAuditDoc() ([]byte, error) {
 	return doc, nil
 }
 
-// Writes a markdown table of audit log resources to a buffer
+// Replaces the generated section of the audit doc with one section per
+// audit log resource.
 func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]byte, error) {
-	// We must sort the resources to ensure table ordering
-	sortedResourceNames := maps.SortedKeys(auditableResourcesMap)
-
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
 		return nil, xerrors.New("generator prefix tag not found")
 	}
-	tableStartIndex := i + len(generatorPrefix) + 1
+	tableStartIndex := i + len(generatorPrefix)
+	if tableStartIndex < len(doc) && doc[tableStartIndex] == '\n' {
+		tableStartIndex++
+	}
 
 	j := bytes.Index(doc[tableStartIndex:], generatorSuffix)
 	if j < 0 {
@@ -113,11 +115,26 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	var buffer bytes.Buffer
 	_, _ = buffer.Write(doc[:tableStartIndex])
 	_ = buffer.WriteByte('\n')
+	writeResourceSections(&buffer, auditableResourcesMap, audit.AuditActionMap)
+	_, _ = buffer.Write(doc[tableEndIndex:])
+	return buffer.Bytes(), nil
+}
 
-	_, _ = buffer.WriteString("|<b>Resource</b>||\n")
-	_, _ = buffer.WriteString("|--|-----------------|\n")
+// fieldsTableHeader opens every resource's fields table. Markdown tables size
+// columns to their content, which puts the Tracked column at a different
+// position in each table. HTML width attributes give every table the same
+// column widths; they are used instead of inline styles or <colgroup> because
+// both GitHub and the docs site sanitizer strip those.
+const fieldsTableHeader = `<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+`
 
-	for _, resourceName := range sortedResourceNames {
+// writeResourceSections writes one section per resource: a heading, the
+// audited actions, and a two-column table of fields and whether each is
+// tracked. Each heading gives the resource a linkable anchor.
+func writeResourceSections(buffer *bytes.Buffer, auditableResourcesMap AuditableResourcesMap, actionMap map[string][]codersdk.AuditAction) {
+	for _, resourceName := range maps.SortedKeys(auditableResourcesMap) {
 		readableResourceName := resourceName
 		// AuditableGroup is really a combination of Group and GroupMember resources
 		// but we use the label 'Group' in our docs to avoid confusion.
@@ -125,29 +142,27 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 			readableResourceName = "Group"
 		}
 
-		// Create a string of audit actions for each resource
+		_, _ = buffer.WriteString("### " + readableResourceName + "\n\n")
+
 		var auditActions []string
-		for _, action := range audit.AuditActionMap[readableResourceName] {
-			auditActions = append(auditActions, string(action))
+		for _, action := range actionMap[readableResourceName] {
+			auditActions = append(auditActions, "`"+string(action)+"`")
 		}
-		auditActionsString := strings.Join(auditActions, ", ")
-
-		_, _ = buffer.WriteString("|" + readableResourceName + "<br><i>" + auditActionsString + "</i>|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>" + "|")
-
-		// We must sort the field names to ensure sub-table ordering
-		sortedFieldNames := maps.SortedKeys(auditableResourcesMap[resourceName])
-
-		for _, fieldName := range sortedFieldNames {
-			isTracked := auditableResourcesMap[resourceName][fieldName]
-			_, _ = buffer.WriteString("<tr><td>" + fieldName + "</td><td>" + strconv.FormatBool(isTracked) + "</td></tr>")
+		if len(auditActions) > 0 {
+			_, _ = buffer.WriteString("Actions: " + strings.Join(auditActions, ", ") + "\n\n")
 		}
 
-		_, _ = buffer.WriteString("</tbody></table>\n")
+		_, _ = buffer.WriteString(fieldsTableHeader)
+		fields := auditableResourcesMap[resourceName]
+		for _, fieldName := range maps.SortedKeys(fields) {
+			tracked := "No"
+			if fields[fieldName] {
+				tracked = "Yes"
+			}
+			_, _ = buffer.WriteString("<tr><td><code>" + html.EscapeString(fieldName) + "</code></td><td>" + tracked + "</td></tr>\n")
+		}
+		_, _ = buffer.WriteString("</tbody>\n</table>\n\n")
 	}
-
-	_, _ = buffer.WriteString("\n")
-	_, _ = buffer.Write(doc[tableEndIndex:])
-	return buffer.Bytes(), nil
 }
 
 func writeAuditDoc(doc []byte) error {

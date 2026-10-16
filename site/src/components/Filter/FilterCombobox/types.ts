@@ -9,7 +9,7 @@ export type FilterOption = {
 	 * Explicit chip token committed when this option is selected, overriding the
 	 * default `${categoryKey}:${value}`. Used by categories that group several
 	 * query keys, e.g. an "Attributes" category whose options commit
-	 * `outdated:true`, `dormant:true`, or `shared:true`.
+	 * `outdated:true` or `dormant:true`.
 	 */
 	token?: string;
 };
@@ -19,13 +19,13 @@ export type FilterCategory = {
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
 	icon?: React.ReactNode;
-	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
+	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
-	 * category that commits several distinct boolean keys (e.g. Attributes
-	 * committing `outdated`, `dormant`, `shared`) lists them all so the query
-	 * round-trips them as chips instead of free text.
+	 * category that commits distinct boolean keys (e.g. Attributes committing
+	 * `outdated` and `dormant`) lists them all so the query round-trips them as
+	 * chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
 	/** Render this category's options as top-level toggle rows instead of a submenu. */
@@ -49,4 +49,36 @@ export type FilterCategory = {
 	 * returns at most one option. Does not apply to inline categories.
 	 */
 	hideWhenSingleOption?: boolean;
+	/**
+	 * Switch below a submenu category's options. While on, options commit
+	 * under `widenedKey` instead of the category key, e.g. Owner committing
+	 * `user:alice` (owned by or shared with alice). The applied chip sets the
+	 * switch, and a typed key prefix overrides it for that pick. Typed values
+	 * no option lists commit under the category key unless `widenedKey` was
+	 * typed, since a backend may reject the widened key for them.
+	 */
+	scopeToggle?: {
+		/** Switch label for the category's applied value, if there is one. */
+		label: (value: string | undefined) => string;
+		widenedKey: string;
+		/** Pill text, e.g. `include shared`. */
+		pillLabel: string;
+		/** Accessible name of the pill's remove button for the applied value. */
+		pillRemoveLabel: (value: string) => string;
+		/**
+		 * A 3+ character prefix of this phrase lists the category and opens its
+		 * flyout.
+		 */
+		searchPhrase: string;
+	};
 };
+
+/** Query keys the category owns, including its scope toggle's widened key. */
+export const categoryChipKeys = (
+	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
+): readonly string[] => [
+	...new Set([
+		...(category.chipKeys ?? [category.key]),
+		...(category.scopeToggle ? [category.scopeToggle.widenedKey] : []),
+	]),
+];

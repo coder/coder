@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"cdr.dev/slog/v3"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -40,23 +41,22 @@ const (
 // most records. This is suboptimal, but a requirement for backwards compatibility.
 type LogRecorder struct {
 	logger     slog.Logger
-	apiKeyID   string
 	structured bool
 	wrapped    Recorder
 }
 
 // NewLogRecorder creates a [LogRecorder] which logs each record and then
 // delegates it to wrapped. wrapped may be nil, in which case records are only
-// logged.
-func NewLogRecorder(logger slog.Logger, apiKeyID string, structured bool, wrapped Recorder) *LogRecorder {
-	return &LogRecorder{logger: logger, apiKeyID: apiKeyID, structured: structured, wrapped: wrapped}
+// logged. Interception identity is read from each call's actor context.
+func NewLogRecorder(logger slog.Logger, structured bool, wrapped Recorder) *LogRecorder {
+	return &LogRecorder{logger: logger, structured: structured, wrapped: wrapped}
 }
 
 // WithLogging returns a [Middleware] which wraps a [Recorder] in a
 // [LogRecorder], for composition by [ChainMiddleware].
-func WithLogging(logger slog.Logger, apiKeyID string, structured bool) Middleware {
+func WithLogging(logger slog.Logger, structured bool) Middleware {
 	return func(next Recorder) Recorder {
-		return NewLogRecorder(logger, apiKeyID, structured, next)
+		return NewLogRecorder(logger, structured, next)
 	}
 }
 
@@ -99,6 +99,10 @@ func (r *LogRecorder) marshalToolArgs(ctx context.Context, args ToolArgs) string
 }
 
 func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	apiKeyID, err := aibcontext.APIKeyIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	// thread_parent_id and thread_root_id are deliberately absent: they are
 	// resolved from recorded tool usages by a database lookup which only
 	// coderd can perform. An absent key fails a consumer loudly; a nil UUID
@@ -106,7 +110,7 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 	r.logStructured(ctx, RecordTypeInterceptionStart,
 		slog.F("interception_id", req.ID),
 		slog.F("initiator_id", req.InitiatorID),
-		slog.F("api_key_id", r.apiKeyID),
+		slog.F("api_key_id", apiKeyID),
 		slog.F("provider", req.Provider),
 		slog.F("model", req.Model),
 		slog.F("client", req.Client),
@@ -116,7 +120,6 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 		slog.F("correlating_tool_call_id", ptr.NilToEmpty(req.CorrelatingToolCallID)),
 	)
 
-	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordInterception(ctx, req)
 	}
@@ -222,6 +225,7 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
+			slog.F("provider_model", req.ProviderModel),
 			slog.F("input_tokens", req.Input),
 			slog.F("output_tokens", req.Output),
 			slog.F("cache_read_input_tokens", req.CacheReadInputTokens),

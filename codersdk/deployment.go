@@ -20,6 +20,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
@@ -2068,11 +2069,42 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "api_dump_dir",
 	}
+	aiGatewayActorHeaderID := serpent.Option{
+		Name:        "AI Gateway Actor Header ID",
+		Description: "Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-id",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_ID",
+		Value:       &c.AI.BridgeConfig.ActorHeaderID,
+		Default:     "X-AI-Bridge-Actor-ID",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_id",
+	}
+	aiGatewayActorHeaderUsername := serpent.Option{
+		Name:        "AI Gateway Actor Header Username",
+		Description: "Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-username",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME",
+		Value:       &c.AI.BridgeConfig.ActorHeaderUsername,
+		Default:     "X-AI-Bridge-Actor-Metadata-Username",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_username",
+	}
+	aiGatewayActorHeaderEmail := serpent.Option{
+		Name:        "AI Gateway Actor Header Email",
+		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.",
+		Flag:        "ai-gateway-actor-header-email",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
+		Value:       &c.AI.BridgeConfig.ActorHeaderEmail,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_email",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
-		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
-			"This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. " +
-			"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+		Description: "Add configured headers identifying the authenticated user to intercepted upstream requests. " +
+			"Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. " +
+			"When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. " +
+			"Client headers starting with X-AI-Bridge-Actor are always removed.",
 		Flag:    "ai-gateway-send-actor-headers",
 		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:   &c.AI.BridgeConfig.SendActorHeaders,
@@ -3799,7 +3831,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: "Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.",
+			Description: "Disable chat and chat project sharing. Existing shares stop granting access and new shares are rejected. Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.",
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
 
@@ -3856,7 +3888,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Password Authentication",
-			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. This applies to all users, including owners. Ensure an owner can sign in through your identity provider before enabling this. To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.",
 			Flag:        "disable-password-auth",
 			Env:         "CODER_DISABLE_PASSWORD_AUTH",
 
@@ -4629,6 +4661,9 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayActorHeaderID,
+		aiGatewayActorHeaderUsername,
+		aiGatewayActorHeaderEmail,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -4980,9 +5015,12 @@ type AIBridgeConfig struct {
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	// StructuredLoggingSource selects which process emits the records that
 	// StructuredLogging enables. See AIStructuredLoggingSource.
-	StructuredLoggingSource string       `json:"structured_logging_source,omitempty" typescript:",notnull"`
-	SendActorHeaders        serpent.Bool `json:"send_actor_headers" typescript:",notnull"`
-	AllowBYOK               serpent.Bool `json:"allow_byok" typescript:",notnull"`
+	StructuredLoggingSource string         `json:"structured_logging_source,omitempty" typescript:",notnull"`
+	SendActorHeaders        serpent.Bool   `json:"send_actor_headers" typescript:",notnull"`
+	ActorHeaderID           serpent.String `json:"actor_header_id" typescript:",notnull"`
+	ActorHeaderUsername     serpent.String `json:"actor_header_username" typescript:",notnull"`
+	ActorHeaderEmail        serpent.String `json:"actor_header_email" typescript:",notnull"`
+	AllowBYOK               serpent.Bool   `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
@@ -5112,9 +5150,56 @@ type LinkConfig struct {
 	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
+// ValidateActorHeaderNames checks the configurable destinations for trusted
+// actor identity before any upstream requests can be sent.
+func (c AIBridgeConfig) ValidateActorHeaderNames() error {
+	headers := []struct {
+		env      string
+		name     string
+		standard string
+	}{
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", c.ActorHeaderEmail.Value(), "X-AI-Bridge-Actor-Metadata-Email"},
+	}
+	seen := make(map[string]string, len(headers))
+	for _, header := range headers {
+		if header.name == "" {
+			continue
+		}
+		if !httpguts.ValidHeaderFieldName(header.name) {
+			return xerrors.Errorf("invalid AI Gateway actor header name %q for %s", header.name, header.env)
+		}
+		canonical := http.CanonicalHeaderKey(header.name)
+		if prior, ok := seen[canonical]; ok {
+			return xerrors.Errorf("duplicate AI Gateway actor header name %q for %s and %s", header.name, prior, header.env)
+		}
+		seen[canonical] = header.env
+		if strings.EqualFold(header.name, header.standard) {
+			continue
+		}
+		switch canonical {
+		case "Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number":
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+		if strings.HasPrefix(canonical, "X-Ai-Bridge-Actor") {
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+	}
+	return nil
+}
+
 // Validate checks cross-field constraints for deployment values.
 // It must be called after all values are loaded from flags/env/YAML.
 func (c *DeploymentValues) Validate() error {
+	if err := c.AI.BridgeConfig.ValidateActorHeaderNames(); err != nil {
+		return err
+	}
 	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
 	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
 	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).
@@ -5414,7 +5499,6 @@ type Experiment string
 const (
 	// Add new experiments here!
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
-	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
@@ -5424,25 +5508,27 @@ const (
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
+	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
+	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 )
 
 func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:
 		return "Example Experiment"
-	case ExperimentAutoFillParameters:
-		return "Auto-fill Template Parameters"
 	case ExperimentNotifications:
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentMCPToolSearch:
+		return "MCP Tool Search"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNoNATSPubsub:
@@ -5453,6 +5539,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayReverseProxy:
 		return "AI Gateway Reverse Proxy"
+	case ExperimentChatProjects:
+		return "Chat Projects"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5474,7 +5562,6 @@ func (e Experiment) DisplayName() string {
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
 	ExperimentExample,
-	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
@@ -5484,18 +5571,22 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
+	ExperimentChatProjects,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
+	ExperimentChatStageMetrics,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentChatStageMetrics,
+}
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules
 // evaluated per user. Experiments not listed here are read only from the

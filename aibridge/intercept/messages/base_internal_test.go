@@ -331,7 +331,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				require.Equal(t, tt.payload, string(payload))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
 			})
@@ -948,6 +951,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config.format"},
 		},
 		{
+			name:               "global_sonnet_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "global.anthropic.claude-sonnet-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
 			name:               "opus_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "anthropic.claude-opus-5-5",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
@@ -959,6 +968,62 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"}}`,
 			expectThinkingType: "adaptive",
 			expectEffort:       "low",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "opus_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-opus-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_opus_5_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-opus-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "medium",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "haiku_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-haiku-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "regional_haiku_5_5_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "us.anthropic.claude-haiku-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "low",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "fable_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-fable-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_fable_5_1_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-fable-5-1",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "mythos_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-mythos-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_mythos_5_1_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-mythos-5-1",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
 			expectKeptFields:   []string{"output_config"},
 		},
 		{
@@ -1580,14 +1645,16 @@ func TestRecordTokenUsage(t *testing.T) {
 
 	id := uuid.New()
 	tests := []struct {
-		name     string
-		msgID    string
-		usage    anthropic.Usage
-		expected *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel anthropic.Model
+		usage         anthropic.Usage
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:  "without service tier or extra tokens",
-			msgID: "msg_basic",
+			name:          "without service tier or extra tokens",
+			msgID:         "msg_basic",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              10,
 				OutputTokens:             20,
@@ -1598,6 +1665,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_basic",
+				ProviderModel:         "provider-model",
 				Input:                 10,
 				Output:                20,
 				CacheReadInputTokens:  3,
@@ -1606,8 +1674,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "with service tier and all extra tokens",
-			msgID: "msg_full",
+			name:          "with service tier and all extra tokens",
+			msgID:         "msg_full",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              100,
 				OutputTokens:             200,
@@ -1625,6 +1694,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_full",
+				ProviderModel:         "provider-model",
 				Input:                 100,
 				Output:                200,
 				CacheReadInputTokens:  30,
@@ -1640,7 +1710,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "omits zero extra tokens and service tier",
+			name:  "omits zero extra tokens, service tier and provider model",
 			msgID: "msg_partial_extra",
 			usage: anthropic.Usage{
 				ServerToolUse: anthropic.ServerToolUsage{
@@ -1666,7 +1736,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				id:       id,
 				recorder: rec,
 			}
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage)
 
 			usages := rec.RecordedTokenUsages()
 			require.Len(t, usages, 1)

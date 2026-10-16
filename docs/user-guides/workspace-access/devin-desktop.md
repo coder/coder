@@ -1,4 +1,6 @@
-# Devin Desktop
+---
+title: Devin Desktop
+---
 
 [Devin Desktop](https://devin.ai/desktop) is Cognition's AI-powered code editor designed for AI-assisted development.
 Cognition, the maker of the Devin autonomous coding agent, rebranded the Windsurf Editor (formerly Codeium) as Devin Desktop on June 2, 2026.
@@ -41,8 +43,7 @@ Devin Desktop can connect to your Coder workspaces via SSH:
 
       Alternatively:
 
-      1. Open the Command Palette
-         (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and search for `vsix`.
+      1. Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and search for `vsix`.
 
       1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
 
@@ -50,8 +51,7 @@ Devin Desktop can connect to your Coder workspaces via SSH:
 
 ## Open a workspace in Devin Desktop
 
-1. From the Devin Desktop Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>),
-   enter `coder` and select **Coder: Login**.
+1. From the Devin Desktop Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>), enter `coder` and select **Coder: Login**.
 
 1. Follow the prompts to login and copy your session token.
 

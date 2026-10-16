@@ -1,18 +1,20 @@
 import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
+import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -27,7 +29,7 @@ import {
 } from "../utils/chatAttachments";
 import {
 	getProviderForModelOption,
-	resolveCompactionThreshold,
+	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -109,7 +111,7 @@ export const workspaceSkillsFromChat = (
 };
 
 type ChatPageTimelineProps = {
-	organizationId: string | undefined;
+	organizationId: string;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
@@ -127,8 +129,8 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
 };
 
@@ -224,6 +226,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
+					hasMoreMessages={hasMoreMessages}
+					chatStatus={chatStatus}
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
 					chatFiles={chatFiles}
@@ -284,13 +288,14 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
-	isReadOnly?: boolean;
+	isReadOnly: boolean;
+	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -300,21 +305,21 @@ type ChatPageInputProps = {
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialValue?: string;
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
+	initialValue: string;
 	initialEditorState?: string;
-	remountKey?: number;
-	onContentChange?: (
+	remountKey: number;
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -323,14 +328,14 @@ type ChatPageInputProps = {
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
 	// MCP server picker state.
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds?: readonly string[];
-	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds: readonly string[];
+	onMCPSelectionChange: (ids: string[]) => void;
+	onMCPAuthComplete: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	sshCommand?: string;
@@ -341,13 +346,14 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
-	isReadOnly = false,
+	isReadOnly,
+	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -364,7 +370,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -378,7 +384,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
 	sshCommand,
@@ -399,11 +405,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
 	);
+	const compactionThreshold = modelOverridesQuery.isPending
+		? undefined
+		: resolveChatCompactionThreshold(
+				chat.last_model_config_id,
+				thresholdsQuery.data?.thresholds,
+				modelCatalog?.models,
+				providerInfoByIDFromDescriptors(modelCatalog?.providers),
+				modelOverridesQuery,
+			);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -424,7 +437,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		})
 		.filter(isChatMessage);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
-	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
@@ -432,25 +445,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		messages,
 		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
 	);
-	const latestContextUsage =
-		rawUsage || chatContext
-			? {
-					...(rawUsage ?? {}),
-					compressionThreshold,
-					context: chatContext,
-				}
-			: rawUsage;
+	const latestContextUsage = {
+		...rawUsage,
+		compactionThreshold,
+		context: chatContext,
+	};
 	const queryClient = useQueryClient();
 	const refreshContextMutation = useMutation(
-		refreshChatContext(queryClient, chatId ?? ""),
+		refreshChatContext(queryClient, chatId),
 	);
-	const handleRefreshContext = chatId
-		? () =>
-				refreshContextMutation.mutate(undefined, {
-					onSuccess: () => toast.success("Context refreshed."),
-					onError: () => toast.error("Failed to refresh context."),
-				})
-		: undefined;
+	const handleRefreshContext = () =>
+		refreshContextMutation.mutate(undefined, {
+			onSuccess: () => toast.success("Context refreshed."),
+			onError: () => toast.error("Failed to refresh context."),
+		});
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -529,7 +537,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		if (!isEditing) {
 			return;
 		}
-		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
 			setEditPreviewUrls(new Map());
@@ -815,6 +823,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}
+			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}

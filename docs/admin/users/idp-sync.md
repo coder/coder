@@ -1,5 +1,5 @@
 ---
-title: IdP Sync
+title: IdP sync
 ---
 
 <!-- markdownlint-disable MD024 -->

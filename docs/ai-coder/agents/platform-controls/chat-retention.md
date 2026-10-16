@@ -2,16 +2,15 @@
 title: Conversation data retention
 ---
 
-Coder Agents automatically cleans up old conversation data to manage database
-growth. Archived conversations and their associated files are periodically
-purged based on a configurable retention period.
+Coder Agents automatically cleans up old conversation data to manage database growth.
+Archived conversations and their associated files are periodically purged based on a configurable retention period.
 
-Conversations become eligible for purging only after they are archived. Old
-conversations can be archived manually, or automatically. See
-[Auto-Archive](./chat-auto-archive.md) for how the two controls interact.
+Conversations become eligible for purging only after they are archived.
+Old conversations can be archived manually, or automatically.
+See [Auto-Archive](./chat-auto-archive.md) for how the two controls interact.
 
-Debug run and step cleanup is controlled separately. See
-[Chat Debug Data Retention](./chat-debug-retention.md).
+Debug run and step cleanup is controlled separately.
+See [Chat Debug Data Retention](./chat-debug-retention.md).
 
 ## How it works
 

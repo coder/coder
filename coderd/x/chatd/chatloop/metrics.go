@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,6 +25,50 @@ const (
 	CompactionResultTimeout = "timeout"
 )
 
+// StageAnomaly is the `reason` label value of stageAnomaliesTotal.
+type StageAnomaly string
+
+// StageAnomaly values. FutureStart and StaleAnchor samples are clamped;
+// the others are dropped.
+const (
+	StageAnomalyNegativeElapsed  StageAnomaly = "negative_elapsed"
+	StageAnomalyInvertedWindow   StageAnomaly = "inverted_window"
+	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
+	StageAnomalyFutureStart      StageAnomaly = "future_start"
+	StageAnomalyStaleAnchor      StageAnomaly = "stale_anchor"
+)
+
+// observedStages get histogram samples; other stages are span-only.
+// The stage_duration_seconds help text must list the same set.
+var observedStages = map[Stage]struct{}{
+	StageChatTurn:         {},
+	StageQueueWait:        {},
+	StageAcquisition:      {},
+	StageMCPConnect:       {},
+	StageStream:           {},
+	StageTimeToFirstToken: {},
+	StageProviderAttempt:  {},
+	StageToolCall:         {},
+	StageCommit:           {},
+	StageRetryBackoff:     {},
+}
+
+// modelStages measure provider work on a model. Per-model TTFT is
+// TTFTSeconds.
+var modelStages = map[Stage]struct{}{
+	StageStream:          {},
+	StageProviderAttempt: {},
+}
+
+var stageDurationBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 1800, 3600}
+
+// MetricsOptions configures optional metric families.
+type MetricsOptions struct {
+	// StageMetrics registers the stage families. When false they are
+	// built unregistered so recorders still work.
+	StageMetrics bool
+}
+
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
 	Chats                     *prometheus.GaugeVec
@@ -33,6 +78,10 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
+	stageDurationSeconds      *prometheus.HistogramVec
+	modelStageDurationSeconds *prometheus.HistogramVec
+	TurnOutcomesTotal         *prometheus.CounterVec
+	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -43,9 +92,19 @@ type Metrics struct {
 }
 
 // NewMetrics creates a new Metrics instance registered with the
-// given registerer.
+// given registerer, with the optional metric families disabled.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
+	return NewMetricsWithOptions(reg, MetricsOptions{})
+}
+
+// NewMetricsWithOptions creates a new Metrics instance registered with
+// the given registerer.
+func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metrics {
 	factory := promauto.With(reg)
+	stageFactory := factory
+	if !opts.StageMetrics {
+		stageFactory = promauto.With(nil)
+	}
 	return &Metrics{
 		Chats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
@@ -90,9 +149,35 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
-			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
+			Help:      "Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
+		stageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_duration_seconds",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Failed windows are observed, except time_to_first_token, which observes only windows closed by an output part, and chat_turn, which observes only completed turns. chat_turn runs from its trigger (the prompt, a submitted client tool result, or a compaction request) to the end of its turn, includes acquisition, and excludes queue_wait and time waiting in requires_action, so a prompt that waits in requires_action is observed once per segment. Registered only with the chat-stage-metrics experiment.",
+			Buckets:   stageDurationBuckets,
+		}, []string{"stage", "scope", "chat_kind"}),
+		modelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "model_stage_duration_seconds",
+			Help:      "Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Failed stream and provider_attempt windows are observed. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
+			Buckets:   stageDurationBuckets,
+		}, []string{"stage", "provider_type", "chat_kind", "model"}),
+		TurnOutcomesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_outcomes_total",
+			Help:      "Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"outcome", "chat_kind"}),
+		stageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_anomalies_total",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.",
+		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -143,6 +228,42 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
+}
+
+func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
+	if m == nil {
+		return
+	}
+	if _, ok := observedStages[stage]; !ok {
+		return
+	}
+	if elapsed < 0 {
+		m.recordStageAnomaly(StageAnomalyNegativeElapsed)
+		return
+	}
+	seconds := elapsed.Seconds()
+	m.stageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
+	if scope != ScopeTurn || model.Model == "" {
+		return
+	}
+	if _, modelStage := modelStages[stage]; modelStage {
+		m.modelStageDurationSeconds.WithLabelValues(string(stage), model.ProviderType, string(chatKind), model.Model).Observe(seconds)
+	}
+}
+
+func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
+	if m == nil {
+		return
+	}
+	m.stageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
+}
+
+// RecordTurnOutcome counts a closed turn by outcome.
+func (m *Metrics) RecordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
+	if m == nil {
+		return
+	}
+	m.TurnOutcomesTotal.WithLabelValues(string(outcome), string(chatKind)).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.

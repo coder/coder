@@ -10,11 +10,13 @@ import {
 	spyOn,
 	userEvent,
 	waitFor,
+	waitForElementToBeRemoved,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
@@ -32,6 +34,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspace,
 	MockOrganization2,
@@ -55,6 +58,7 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -262,7 +266,14 @@ const defaultQueries = [
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
-	decorators: [withDashboardProvider],
+	decorators: [
+		(Story) => (
+			<AgentCreateFormFrame>
+				<Story />
+			</AgentCreateFormFrame>
+		),
+		withDashboardProvider,
+	],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,
@@ -328,6 +339,56 @@ const mockPermittedOrganizations = (
 };
 
 export const Default: Story = {};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+};
+
+export const ProjectComposerUnlistedOrganizationDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		project: { ...MockChatProject, organization_id: "unlisted-organization" },
+	},
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: () => {
+		mockPermittedOrganizations({ [MockDefaultOrganization.id]: true });
+	},
+};
+
+export const ProjectComposerProductDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		...ProjectComposerOrganizationDenied.args,
+		canCreateChat: false,
+	},
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: ProjectComposerOrganizationDenied.beforeEach,
+};
+
+export const ProjectComposerNoOrganizationPermitted: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: ProjectComposerOrganizationDenied.args,
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: false,
+		});
+	},
+};
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const canvas = within(canvasElement);
@@ -1744,12 +1805,15 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
-		await canvas.findByRole("button", {
+		const revokedPicker = await canvas.findByRole("button", {
 			name: "Organization: My Organization 2",
 		});
 
 		revocablePermissions[MockOrganization2.id] = false;
-		await revocableQueryClient?.invalidateQueries();
+		void revocableQueryClient?.invalidateQueries();
+		// One permitted org hides the picker. Wait for it to unmount so the
+		// re-permit cannot arrive before the revoked selection is cleared.
+		await waitForElementToBeRemoved(revokedPicker);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -1970,6 +2034,55 @@ export const OrgPickerTightSpacing: Story = {
 				data: [MockDefaultOrganization, MockOrganization2],
 			},
 		],
+	},
+};
+
+const pickerProjects: TypesGen.ChatProject[] = [
+	{ ...MockChatProject, icon: "/emojis/1f680.png" },
+	{
+		...MockChatProject,
+		id: "chat-project-incidents",
+		name: "Incident response",
+		icon: "/emojis/1f525.png",
+	},
+	{
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Organization 2 project",
+	},
+];
+
+export const WithProjectPicker: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			...defaultQueries,
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+};
+
+export const WithOrganizationAndProjectPickers: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /^Project:/ }),
+		);
+		await screen.findByRole("button", { name: "New project" });
 	},
 };
 

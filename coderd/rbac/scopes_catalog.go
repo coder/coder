@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"maps"
 	"sort"
 	"strings"
 
@@ -46,6 +47,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
+	// Inbox notifications. No wildcard: it would grant create, which stays internal.
+	"inbox_notification:read":   {},
+	"inbox_notification:update": {},
+
 	// Users
 	"user:read":            {},
 	"user:read_personal":   {},
@@ -65,6 +70,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_skill:update": {},
 	"user_skill:delete": {},
 	"user_skill:*":      {},
+
+	// Organization skills
+	"organization_skill:read":   {},
+	"organization_skill:create": {},
+	"organization_skill:update": {},
+	"organization_skill:delete": {},
+	"organization_skill:share":  {},
+	"organization_skill:*":      {},
 
 	// Organizations
 	"organization:read":   {},
@@ -116,6 +129,12 @@ func IsExternalScope(name ScopeName) bool {
 	}
 
 	return false
+}
+
+// ScopeAliases returns the backward-compatibility aliases and their canonical
+// scope names. The returned map is a copy and may be modified by the caller.
+func ScopeAliases() map[ScopeName]ScopeName {
+	return maps.Clone(scopeAliases)
 }
 
 // CanonicalScopeName maps the backward-compatibility aliases IsExternalScope

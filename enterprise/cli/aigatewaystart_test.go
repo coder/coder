@@ -225,13 +225,25 @@ func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key stri
 	return "http://" + matches[1], waiter
 }
 
-// aiGatewayStatus probes probeURL and reports transport errors.
-func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
+// newAIGatewayTestClient returns an HTTP client with its own transport.
+// Parallel CLI tests call http.DefaultClient.CloseIdleConnections() during
+// command cleanup, which breaks in-flight requests on the shared default
+// transport, so requests to the gateway must not use http.DefaultClient.
+func newAIGatewayTestClient(t *testing.T) *http.Client {
+	t.Helper()
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	t.Cleanup(transport.CloseIdleConnections)
+	return &http.Client{Transport: transport}
+}
+
+// aiGatewayStatus probes probeURL with client and reports transport errors.
+func aiGatewayStatus(ctx context.Context, client *http.Client, probeURL string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -243,7 +255,7 @@ func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
 func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
-	got, err := aiGatewayStatus(ctx, probeURL)
+	got, err := aiGatewayStatus(ctx, newAIGatewayTestClient(t), probeURL)
 	require.NoError(t, err)
 	require.Equal(t, want, got, "unexpected status for %s", probeURL)
 }
@@ -253,8 +265,9 @@ func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, 
 func requireEventualAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
+	client := newAIGatewayTestClient(t)
 	require.Eventuallyf(t, func() bool {
-		got, err := aiGatewayStatus(ctx, probeURL)
+		got, err := aiGatewayStatus(ctx, client, probeURL)
 		return err == nil && got == want
 	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", probeURL, want)
 }
@@ -293,7 +306,7 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a user sends an LLM request to the gateway.
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: the upstream's response reaches the caller.
@@ -315,8 +328,8 @@ func TestAIGatewayStartE2E(t *testing.T) {
 // TestAIGatewayStartE2E_ReverseProxyExperiment covers the startup mode
 // selection of the standalone gateway. The gateway process reads the
 // experiment from its own environment, and the selected mode decides which
-// handler serves LLM traffic: the reverse proxy router, whose provider routes
-// are not registered yet, or the interception pool.
+// handler serves LLM traffic: the reverse proxy router, whose bridged routes
+// return 404, or the interception pool.
 func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -331,12 +344,11 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 		wantSessions       int
 	}{
 		{
-			// Proxy mode is selected, and an enabled provider has no routes
-			// yet, so its requests fall through to the router's catch-all.
+			// Proxy mode validates bridged requests but does not forward them.
 			name:               "ProxyModeWithoutMCP",
 			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
-			wantStatus:         http.StatusNotFound,
-			wantBody:           "route not supported",
+			wantStatus:         http.StatusNotImplemented,
+			wantBody:           "bridged routes are not yet implemented in proxy mode",
 			wantUpstreamHits:   0,
 			wantSessions:       0,
 		},
@@ -398,7 +410,7 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 			requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 			// When: a user sends an LLM request to the gateway.
-			result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+			result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 				dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 			// Then: the selected handler serves it.
@@ -581,11 +593,11 @@ type aiGatewayResponse struct {
 	err    error
 }
 
-// postChatCompletion sends an LLM request and returns the response with its body
-// unread. The caller owns the body.
+// postChatCompletion sends an LLM request with client and returns the response
+// with its body unread. The caller owns the body.
 //
 //nolint:bodyclose // The caller owns and closes the body.
-func postChatCompletion(ctx context.Context, endpoint, token, requestBody string) (*http.Response, error) {
+func postChatCompletion(ctx context.Context, client *http.Client, endpoint, token, requestBody string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -593,13 +605,13 @@ func postChatCompletion(ctx context.Context, endpoint, token, requestBody string
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }
 
-// postChatCompletionAndRead sends an LLM request, reads the whole response, and
-// reports transport errors.
-func postChatCompletionAndRead(ctx context.Context, endpoint, token, requestBody string) aiGatewayResponse {
-	resp, err := postChatCompletion(ctx, endpoint, token, requestBody)
+// postChatCompletionAndRead sends an LLM request with client, reads the whole
+// response, and reports transport errors.
+func postChatCompletionAndRead(ctx context.Context, client *http.Client, endpoint, token, requestBody string) aiGatewayResponse {
+	resp, err := postChatCompletion(ctx, client, endpoint, token, requestBody)
 	if err != nil {
 		return aiGatewayResponse{err: err}
 	}
@@ -650,7 +662,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a request arrives while coderd is reachable.
-	before := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	before := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: it is served and recorded.
@@ -672,7 +684,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 
 	// Then: a new request is served and both interceptions are recorded, so the
 	// provider cache and the recorder recovered with the connection.
-	after := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	after := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	require.NoError(t, after.err)
 	require.Equal(t, http.StatusOK, after.status, "body: %s", after.body)
@@ -701,8 +713,9 @@ func TestAIGatewayStartE2E_RequestWhileDisconnected(t *testing.T) {
 
 	// When: a request arrives while the gateway has no connection to coderd.
 	responses := make(chan aiGatewayResponse, 1)
+	client := newAIGatewayTestClient(t)
 	go func() {
-		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+		responses <- postChatCompletionAndRead(ctx, client, baseURL+aiGatewayChatCompletionPath,
 			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	}()
 
@@ -796,7 +809,7 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 
 	req, err := sjson.Set(aiGatewayChatCompletionRequest, "stream", true)
 	require.NoError(t, err)
-	resp, err := postChatCompletion(ctx, baseURL+aiGatewayChatCompletionPath,
+	resp, err := postChatCompletion(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -830,7 +843,8 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 	coderURL := startUnreachableCoderd(t)
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n",
+		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n"+
+			"ai_gateway:\n  actor_header_email: Authorization\n",
 	), 0o600)
 	require.NoError(t, err)
 
@@ -841,8 +855,13 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 		"--key", "test-key",
 		"--http-address", "127.0.0.1:0",
 		"--config", configFile,
+		"--ai-gateway-actor-header-email", "",
 	)
 	inv = inv.WithContext(ctx)
+	inv.Environ = append(inv.Environ, serpent.EnvVar{
+		Name:  "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
+		Value: "Content-Type",
+	})
 	pty := ptytest.New(t).Attach(inv)
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -863,20 +882,23 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 	t.Parallel()
 
-	configFile := filepath.Join(t.TempDir(), "config.yaml")
-	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    unknown_field: true\n",
-	), 0o600)
-	require.NoError(t, err)
-
-	inv, _ := newCLI(t,
-		"ai-gateway", "start",
-		"--key", "test-key",
-		"--config", configFile,
-	)
-
-	err = inv.Run()
-	require.ErrorContains(t, err, `unknown option "introspection.prometheus.unknown_field"`)
+	for _, tc := range []struct {
+		name    string
+		config  string
+		wantErr string
+	}{
+		{"unknown option", "introspection:\n  prometheus:\n    unknown_field: true\n", `unknown option "introspection.prometheus.unknown_field"`},
+		{"reserved actor header", "ai_gateway:\n  actor_header_id: Authorization\n", "reserved AI Gateway actor header name"},
+		{"reserved actor email header", "ai_gateway:\n  actor_header_email: User-Agent\n", "reserved AI Gateway actor header name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			configFile := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configFile, []byte(tc.config), 0o600))
+			inv, _ := newCLI(t, "ai-gateway", "start", "--key", "test-key", "--config", configFile)
+			require.ErrorContains(t, inv.Run(), tc.wantErr)
+		})
+	}
 }
 
 // aiGatewayRecordLog is one structured interception record read from the
@@ -965,7 +987,7 @@ func TestAIGatewayStartE2E_DisableContentRecording(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a user sends an LLM request through the gateway.
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: the request is served as usual.

@@ -161,7 +161,7 @@ func TestExperimentRules(t *testing.T) {
 		} {
 			requireStatus(t, put(codersdk.ExperimentExample, req), http.StatusBadRequest)
 		}
-		for _, ex := range []codersdk.Experiment{codersdk.ExperimentAutoFillParameters, "not-an-experiment"} {
+		for _, ex := range []codersdk.Experiment{codersdk.ExperimentWorkspaceUsage, "not-an-experiment"} {
 			requireStatus(t, put(ex, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn}), http.StatusBadRequest)
 		}
 
@@ -221,10 +221,10 @@ func TestExperimentRules(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		for ex, value := range map[codersdk.Experiment]string{
-			"not-an-experiment":                   `{"mode":"on","revision":1}`,
-			codersdk.ExperimentAutoFillParameters: `{"mode":"off","revision":4}`,
-			codersdk.ExperimentExample:            `{"mode":"percent","revision":2}`,
-			codersdk.ExperimentMCPToolSearch:      `{not json`,
+			"not-an-experiment":               `{"mode":"on","revision":1}`,
+			codersdk.ExperimentWorkspaceUsage: `{"mode":"off","revision":4}`,
+			codersdk.ExperimentExample:        `{"mode":"percent","revision":2}`,
+			codersdk.ExperimentMCPToolSearch:  `{not json`,
 		} {
 			require.NoError(t, db.UpsertExperimentRule(sysCtx, database.UpsertExperimentRuleParams{Experiment: string(ex), Value: value}))
 		}
@@ -235,8 +235,8 @@ func TestExperimentRules(t *testing.T) {
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &codersdk.ExperimentRule{Revision: 2}},
 			{Experiment: string(codersdk.ExperimentMCPToolSearch), Rule: &codersdk.ExperimentRule{}},
-			{Experiment: string(codersdk.ExperimentAutoFillParameters), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
 			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOn), Revision: 1}, Ignored: true},
+			{Experiment: string(codersdk.ExperimentWorkspaceUsage), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
 		}, entries)
 
 		rule, err := client.PutExperimentRule(ctx, codersdk.ExperimentExample, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 2})

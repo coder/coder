@@ -1,0 +1,32 @@
+title: User guides
+description: Guides for Coder end users on accessing, managing, and personalizing their workspaces.
+path: ./user-guides/index.md
+icon_path: ./images/icons/users.svg
+children:
+  - include: user-guides/workspace-access.yml
+  - include: user-guides/desktop.yml
+  - title: Manage workspaces
+    description: Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.
+    path: ./user-guides/workspace-management.md
+    icon_path: ./images/icons/generic.svg
+  - title: Shared workspaces
+    description: Let multiple users securely connect to a single Coder workspace to program and debug together.
+    path: ./user-guides/shared-workspaces.md
+    icon_path: ./images/icons/generic.svg
+  - title: Manage workspace schedules
+    description: Control cloud costs by scheduling when your Coder workspaces automatically start and stop.
+    path: ./user-guides/workspace-scheduling.md
+    icon_path: ./images/icons/stopwatch.svg
+  - title: Workspace lifecycle
+    description: A guide to the workspace lifecycle, from creation and status through stopping and deletion.
+    path: ./user-guides/workspace-lifecycle.md
+    icon_path: ./images/icons/circle-dot.svg
+  - include: user-guides/devcontainers.yml
+  - title: Dotfiles
+    description: Personalize your Coder workspaces by applying your dotfiles repository with the coder dotfiles command.
+    path: ./user-guides/workspace-dotfiles.md
+    icon_path: ./images/icons/art-pad.svg
+  - title: User secrets
+    description: Store secret values in Coder and automatically inject them into workspaces
+    path: ./user-guides/user-secrets.md
+    icon_path: ./images/icons/secrets.svg

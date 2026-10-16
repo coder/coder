@@ -2,16 +2,14 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { organizationSkills } from "#/api/queries/organizationSkills";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
 import type { SkillMetadata } from "./SkillsTriggerMenu";
-import {
-	expectNoVisibleText,
-	findVisibleText,
-	MockSkill,
-	MockSkills,
-} from "./storyHelpers";
+import { expectNoVisibleText, findVisibleText } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
 const mockWorkspaceSkills: SkillMetadata[] = [
@@ -31,6 +29,10 @@ const meta: Meta<typeof ChatMessageInput> = {
 	args: {
 		"aria-label": "Chat message input",
 		placeholder: "Message the agent",
+		initialValue: "",
+		sendShortcut: DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+		disabled: false,
+		hasWorkspace: false,
 		personalSkillsOverride: MockSkills,
 		onChange: fn(),
 		onEnter: fn(),
@@ -157,7 +159,7 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 
 // Enough skills to overflow the menu's max height so arrow-key
 // navigation has to scroll the list.
-const manyPersonalSkills: TypesGen.UserSkillMetadata[] = Array.from(
+const manyPersonalSkills: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 15 },
 	(_, index) => ({
 		...MockSkill,
@@ -209,6 +211,40 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
 		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+	},
+};
+
+const mockOrganizationId = "organization-skills-story";
+
+export const OpensWithAllSkillSources: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationSkills(mockOrganizationId).queryKey,
+				data: [
+					{
+						...MockSkill,
+						id: "skill-release-notes",
+						name: "release-notes",
+						description: "Write release notes in the organization style.",
+					},
+					{
+						...MockSkill,
+						id: "skill-org-reviewer",
+						name: "reviewer",
+						description: "Organization review checklist.",
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
 	},
 };
 
@@ -472,7 +508,7 @@ const mockMobileMatchMedia = (): (() => void) => {
 	};
 };
 
-const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
+const longSkillList: TypesGen.SkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
 		...MockSkill,

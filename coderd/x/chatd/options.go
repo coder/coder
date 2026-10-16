@@ -65,6 +65,8 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	TurnSpan                 *runnerTurnSpan
+	TurnToken                turnToken
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
@@ -242,15 +244,22 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval        time.Duration
-	CapacityMetricsInterval    time.Duration
-	AcquisitionBatchSize       int32
-	ArchiveInterval            time.Duration
-	ArchiveBatchSize           int32
-	RunnerSyncInterval         time.Duration
-	HeartbeatInterval          time.Duration
-	HeartbeatCleanupInterval   time.Duration
-	HeartbeatStaleSeconds      int32
+	AcquisitionInterval      time.Duration
+	CapacityMetricsInterval  time.Duration
+	AcquisitionBatchSize     int32
+	ArchiveInterval          time.Duration
+	ArchiveBatchSize         int32
+	RunnerSyncInterval       time.Duration
+	HeartbeatInterval        time.Duration
+	HeartbeatCleanupInterval time.Duration
+	HeartbeatStaleSeconds    int32
+	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
+	// stay well below the stale threshold so a slow tick fails and
+	// retries instead of letting every lease go stale.
+	HeartbeatRenewalTimeout time.Duration
+	// HeartbeatLockTimeout bounds the renewal's wait for the capacity
+	// admission lock.
+	HeartbeatLockTimeout       time.Duration
 	StateChannelSize           int
 	RunnerManagerChannelSize   int
 	AcquisitionWakeChannelSize int
@@ -303,6 +312,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.HeartbeatStaleSeconds <= 0 {
 		o.HeartbeatStaleSeconds = int32(DefaultInFlightChatStaleAfter / time.Second)
+	}
+	if o.HeartbeatRenewalTimeout <= 0 {
+		o.HeartbeatRenewalTimeout = time.Duration(o.HeartbeatStaleSeconds) * time.Second / 3
+	}
+	if o.HeartbeatLockTimeout <= 0 {
+		o.HeartbeatLockTimeout = o.HeartbeatRenewalTimeout / 2
 	}
 	if o.AgentCapacityLimiter == nil {
 		o.AgentCapacityLimiter = newAgentCapacityLimiter(nil, o.HeartbeatStaleSeconds)

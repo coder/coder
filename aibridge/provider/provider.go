@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -30,9 +31,8 @@ type PassthroughTransportWrapper interface {
 	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
 }
 
-// ErrNoCredential is returned when a request resolves to centralized
-// authentication but the provider has no centralized keys configured (and the
-// request is not BYOK), so it cannot be authenticated.
+// ErrNoCredential is returned when a request has no usable BYOK credential
+// and the provider has no configured alternative for upstream authentication.
 var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
 
 // Provider defines routes (bridged and passed through) for given provider.
@@ -82,6 +82,11 @@ type Provider interface {
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+
+	// ResolveCredential determines the upstream credential for a request.
+	// Coder authentication credentials must already have been removed from it.
+	// Remaining provider authentication headers are interpreted as BYOK credentials.
+	ResolveCredential(*http.Request) (credential.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.

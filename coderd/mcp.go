@@ -3,12 +3,15 @@ package coderd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -330,6 +333,10 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !validateMCPOAuth2ResourceRequest(ctx, rw, req.OAuth2Resource) {
+		return
+	}
+
 	configID := uuid.New()
 
 	// Validate auth-type-dependent fields.
@@ -414,6 +421,9 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			req.OAuth2AuthURL = result.authURL
 			req.OAuth2TokenURL = result.tokenURL
 			req.OAuth2RevocationURL = oauth2RevocationURL
+			if strings.TrimSpace(req.OAuth2Resource) == "" {
+				req.OAuth2Resource = result.resource
+			}
 			req.OAuth2Scopes = oauth2Scopes
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
@@ -423,7 +433,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "api_key":
-		if req.APIKeyHeader == "" || req.APIKeyValue == "" {
+		if strings.TrimSpace(req.APIKeyHeader) == "" || strings.TrimSpace(req.APIKeyValue) == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
@@ -463,6 +473,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
 		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
 		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
+		OAuth2Resource:          strings.TrimSpace(req.OAuth2Resource),
 		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
 		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
@@ -575,6 +586,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
 
+var errAPIKeyAuthRequiresHeaderAndValue = xerrors.New("api_key auth type requires api_key_header and api_key_value")
+
 var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
 
 // authorizeUserOIDCMCPServerConfig requires deployment-level permission because
@@ -662,6 +675,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	if req.OAuth2Resource != nil && !validateMCPOAuth2ResourceRequest(ctx, rw, *req.OAuth2Resource) {
+		return
 	}
 
 	// Pre-validate custom headers before entering the transaction.
@@ -760,6 +777,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			oauth2RevocationURL = strings.TrimSpace(*req.OAuth2RevocationURL)
 		}
 
+		oauth2Resource := existing.OAuth2Resource
+		if req.OAuth2Resource != nil {
+			oauth2Resource = strings.TrimSpace(*req.OAuth2Resource)
+		}
+
 		oauth2Scopes := existing.OAuth2Scopes
 		if req.OAuth2Scopes != nil {
 			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
@@ -839,6 +861,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -858,6 +881,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
@@ -868,6 +892,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -882,6 +907,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
 				oauth2RevocationURL = ""
+				oauth2Resource = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -891,12 +917,17 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
+			return errAPIKeyAuthRequiresHeaderAndValue
+		}
+
 		// User grants are bound to the destination, auth flow, token and revocation
-		// endpoints, and OAuth client. Invalidate them when any of these change so
-		// stored tokens cannot be sent to another endpoint or client.
+		// endpoints, OAuth client, and resource indicator. Invalidate them when any
+		// of these change so stored tokens cannot be sent to another endpoint,
+		// client, or resource.
 		if serverURL != existing.Url || authType != existing.AuthType ||
 			oauth2TokenURL != existing.OAuth2TokenURL || oauth2RevocationURL != existing.OAuth2RevocationURL ||
-			oauth2ClientID != existing.OAuth2ClientID {
+			oauth2ClientID != existing.OAuth2ClientID || oauth2Resource != existing.OAuth2Resource {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}
@@ -916,6 +947,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			OAuth2AuthURL:           oauth2AuthURL,
 			OAuth2TokenURL:          oauth2TokenURL,
 			OAuth2RevocationURL:     oauth2RevocationURL,
+			OAuth2Resource:          oauth2Resource,
 			OAuth2Scopes:            oauth2Scopes,
 			APIKeyHeader:            apiKeyHeader,
 			APIKeyValue:             apiKeyValue,
@@ -945,6 +977,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, errUserOIDCRequiresDeploymentPerms):
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
+			})
+			return
+		case errors.Is(err, errAPIKeyAuthRequiresHeaderAndValue):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
 			return
 		case httpapi.Is404Error(err):
@@ -1103,6 +1140,16 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	}))
+	// Always overwrite the binding so a cookie left by an abandoned flow
+	// cannot fail this one.
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_resource_" + config.ID.String(),
+		Value:    mcpOAuth2ResourceBinding(config.OAuth2Resource),
+		Path:     callbackPath,
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
 
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.OAuth2ClientID,
@@ -1118,7 +1165,11 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
 	oauth2Config.Scopes = scopes
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	authOpts := []oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier)}
+	if config.OAuth2Resource != "" {
+		authOpts = append(authOpts, oauth2.SetAuthURLParam("resource", config.OAuth2Resource))
+	}
+	authURL := oauth2Config.AuthCodeURL(state, authOpts...)
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -1229,6 +1280,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if verifierCookie, err := r.Cookie("mcp_oauth2_verifier_" + config.ID.String()); err == nil {
 		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifierCookie.Value))
 	}
+	if config.OAuth2Resource != "" {
+		exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("resource", config.OAuth2Resource))
+	}
 	// Clear the verifier cookie regardless of whether it was present.
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
@@ -1238,6 +1292,27 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	}))
+
+	// RFC 8707 binds the code to the resource named in the authorization
+	// request. When an admin changed the resource since connect, fail before
+	// the exchange so the code is never redeemed for a resource the user did
+	// not authorize.
+	resourceBinding := ""
+	if resourceCookie, err := r.Cookie("mcp_oauth2_resource_" + config.ID.String()); err == nil {
+		resourceBinding = resourceCookie.Value
+	}
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_resource_" + config.ID.String(),
+		Value:    "",
+		Path:     callbackPath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+	if resourceBinding != mcpOAuth2ResourceBinding(config.OAuth2Resource) {
+		writeMCPConfigSupersededDuringAuth(ctx, rw)
+		return
+	}
 
 	// Exchange the authorization code for tokens.
 	oauth2Config := &oauth2.Config{
@@ -1291,7 +1366,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		}
 		if current.Url != config.Url || current.AuthType != config.AuthType ||
 			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2RevocationURL != config.OAuth2RevocationURL ||
-			current.OAuth2ClientID != config.OAuth2ClientID {
+			current.OAuth2ClientID != config.OAuth2ClientID || current.OAuth2Resource != config.OAuth2Resource {
 			return errMCPConfigSupersededDuringAuth
 		}
 		_, err = tx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
@@ -1307,10 +1382,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return err
 	}, nil)
 	if errors.Is(err, errMCPConfigSupersededDuringAuth) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "MCP server configuration changed during authorization.",
-			Detail:  "The server's destination or OAuth settings were updated while the connection was in progress. Reconnect to authorize against the current configuration.",
-		})
+		writeMCPConfigSupersededDuringAuth(ctx, rw)
 		return
 	}
 	if err != nil {
@@ -1333,6 +1405,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			document.body.innerText = "Authentication successful. You may close this window.";
 		}
 	</script></body></html>`))
+}
+
+func writeMCPConfigSupersededDuringAuth(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "MCP server configuration changed during authorization.",
+		Detail:  "The server's destination or OAuth settings were updated while the connection was in progress. Reconnect to authorize against the current configuration.",
+	})
 }
 
 // Removes the user's stored OAuth2 token for an MCP server.
@@ -1618,6 +1697,7 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		OAuth2AuthURL:       config.OAuth2AuthURL,
 		OAuth2TokenURL:      config.OAuth2TokenURL,
 		OAuth2RevocationURL: config.OAuth2RevocationURL,
+		OAuth2Resource:      config.OAuth2Resource,
 		OAuth2Scopes:        config.OAuth2Scopes,
 
 		APIKeyHeader: config.APIKeyHeader,
@@ -1655,6 +1735,7 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2AuthURL = ""
 	c.OAuth2TokenURL = ""
 	c.OAuth2RevocationURL = ""
+	c.OAuth2Resource = ""
 	c.OAuth2Scopes = ""
 	c.APIKeyHeader = ""
 	return c
@@ -1698,6 +1779,254 @@ func coalesceStringSlice(ss []string) []string {
 	return ss
 }
 
+// parseMCPOAuth2Resource parses an RFC 8707 resource indicator, which
+// must be an absolute URI without a fragment (RFC 8707 section 2).
+func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
+	if strings.Contains(resource, "#") {
+		return nil, xerrors.New("oauth2_resource must not contain a fragment")
+	}
+	if !isURIText(resource) {
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
+	}
+	parsed, err := url.Parse(resource)
+	if err != nil {
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
+	}
+	// url.Parse validates an IP literal host, but it also accepts "[" and
+	// "]" elsewhere and a zone identifier in an IP literal, neither of
+	// which RFC 3986 allows.
+	ipLiteral := strings.HasPrefix(parsed.Host, "[")
+	if strings.ContainsAny(parsed.Opaque+parsed.EscapedPath()+parsed.RawQuery, "[]") ||
+		(!ipLiteral && strings.ContainsAny(parsed.Host, "[]")) ||
+		(ipLiteral && strings.Contains(parsed.Host, "%")) {
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
+	}
+	if !parsed.IsAbs() {
+		return nil, xerrors.New("oauth2_resource must be an absolute URI")
+	}
+	// A resource indicator names a resource for the authorization server,
+	// so it must not carry credentials.
+	if parsed.User != nil {
+		return nil, xerrors.New("oauth2_resource must not contain user information")
+	}
+	return parsed, nil
+}
+
+// isURIText reports whether s contains only characters RFC 3986 allows
+// in a URI, with every "%" starting a percent-encoded octet. url.Parse
+// alone accepts spaces and other characters a URI cannot contain.
+func isURIText(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '%':
+			if i+2 >= len(s) || !isHexDigit(s[i+1]) || !isHexDigit(s[i+2]) {
+				return false
+			}
+			i += 2
+		case !isUnreserved(c) && strings.IndexByte(":/?#[]@!$&'()*+,;=", c) < 0:
+			return false
+		}
+	}
+	return true
+}
+
+// normalizePercentEncoding decodes percent-encoded unreserved characters
+// and uppercases the hex digits of the remaining percent-encodings (RFC
+// 3986 sections 6.2.2.1 and 6.2.2.2). Invalid escapes are left as they are.
+func normalizePercentEncoding(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) && isHexDigit(s[i+1]) && isHexDigit(s[i+2]) {
+			if c := unhex(s[i+1])<<4 | unhex(s[i+2]); isUnreserved(c) {
+				out = append(out, c)
+			} else {
+				out = append(out, strings.ToUpper(s[i:i+3])...)
+			}
+			i += 2
+			continue
+		}
+		out = append(out, s[i])
+	}
+	return string(out)
+}
+
+func isUnreserved(c byte) bool {
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') ||
+		c == '-' || c == '.' || c == '_' || c == '~'
+}
+
+func isHexDigit(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+// unhex returns the value of a hex digit that isHexDigit accepted.
+func unhex(c byte) byte {
+	switch {
+	case c >= 'a':
+		return c - 'a' + 10
+	case c >= 'A':
+		return c - 'A' + 10
+	default:
+		return c - '0'
+	}
+}
+
+// validateMCPOAuth2ResourceRequest writes a 400 response and returns
+// false when a non-empty oauth2_resource is invalid. An empty value is
+// valid because it means no resource parameter is sent.
+func validateMCPOAuth2ResourceRequest(ctx context.Context, rw http.ResponseWriter, resource string) bool {
+	trimmed := strings.TrimSpace(resource)
+	if trimmed == "" {
+		return true
+	}
+	if _, err := parseMCPOAuth2Resource(trimmed); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid OAuth2 resource.",
+			Detail:  err.Error(),
+		})
+		return false
+	}
+	return true
+}
+
+// mcpOAuth2ResourceBinding returns the callback cookie value that ties an
+// authorization flow to the resource indicator it requested. A digest keeps
+// the cookie short and cookie-safe for any URI. No resource maps to an empty
+// value, which a missing cookie also matches.
+func mcpOAuth2ResourceBinding(resource string) string {
+	if resource == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(resource))
+	return hex.EncodeToString(sum[:])
+}
+
+// mcpOAuth2ResourceIndicator picks the RFC 8707 resource indicator for
+// an MCP server: the most specific advertised Protected Resource
+// Metadata resource that covers the server URL, stored verbatim, else
+// the server URL in canonical form, or "" when that is not a valid
+// resource indicator. As in the MCP SDKs, a resource covers URLs on its
+// origin at or under its path, so "/mcp" covers "/mcp/" but "/mcp/" does
+// not cover "/mcp". Paths and queries compare in RFC 3986 normal form,
+// where "%2F" does not end a segment, and IP addresses compare by value.
+// Unlike the SDKs, a resource with a query, even an empty one, covers
+// only URLs with the same query, which can select a tenant.
+func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
+	serverPath := comparableURIPath(serverURL)
+	serverQuery, serverHasQuery := comparableURIQuery(serverURL)
+	best := ""
+	bestPathLen := -1
+	bestHasQuery := false
+	for _, raw := range advertised {
+		candidate := strings.TrimSpace(raw)
+		parsed, err := parseMCPOAuth2Resource(candidate)
+		if err != nil {
+			continue
+		}
+		if !sameOrigin(parsed, serverURL) {
+			continue
+		}
+		query, hasQuery := comparableURIQuery(parsed)
+		if hasQuery && (!serverHasQuery || query != serverQuery) {
+			continue
+		}
+		entryPath := comparableURIPath(parsed)
+		if entryPath != serverPath && !strings.HasPrefix(serverPath, withTrailingSlash(entryPath)) {
+			continue
+		}
+		if len(entryPath) > bestPathLen || (len(entryPath) == bestPathLen && hasQuery && !bestHasQuery) {
+			best = candidate
+			bestPathLen = len(entryPath)
+			bestHasQuery = hasQuery
+		}
+	}
+	if best != "" {
+		return best
+	}
+
+	canonical := *serverURL
+	canonical.Scheme = strings.ToLower(canonical.Scheme)
+	canonical.Host = strings.ToLower(canonical.Host)
+	canonical.User = nil
+	canonical.Fragment = ""
+	canonical.RawFragment = ""
+	fallback := canonical.String()
+	// url.Parse accepts server URLs that are not valid resource
+	// indicators, and sending none beats sending an invalid one.
+	if _, err := parseMCPOAuth2Resource(fallback); err != nil {
+		return ""
+	}
+	return fallback
+}
+
+// comparableURIPath returns u's escaped path with percent-encodings
+// normalized and then dot segments removed, so "%2E%2E" is a dot segment.
+// An empty path after an authority is "/" (RFC 3986 section 6.2.3).
+func comparableURIPath(u *url.URL) string {
+	normalized := *u
+	// Normalizing escapes leaves the unescaped Path unchanged, so this
+	// RawPath stays a valid encoding of it.
+	normalized.RawPath = normalizePercentEncoding(u.EscapedPath())
+	// Resolving a URL against itself removes dot segments and keeps escapes.
+	path := normalized.ResolveReference(&normalized).EscapedPath()
+	if path == "" && u.Host != "" {
+		return "/"
+	}
+	return path
+}
+
+// comparableURIQuery returns u's query with percent-encodings normalized
+// and whether u has a query. A trailing "?" is an empty query, which RFC
+// 3986 distinguishes from no query.
+func comparableURIQuery(u *url.URL) (string, bool) {
+	return normalizePercentEncoding(u.RawQuery), u.RawQuery != "" || u.ForceQuery
+}
+
+// sameOrigin reports whether two URLs have the same scheme, host, and
+// port, where an omitted port is the scheme's default.
+func sameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		sameHost(a.Hostname(), b.Hostname()) &&
+		portOrDefault(a) == portOrDefault(b)
+}
+
+// sameHost compares IP addresses by value, so "::1" equals
+// "0:0:0:0:0:0:0:1", and other hosts case-insensitively.
+func sameHost(a, b string) bool {
+	addrA, errA := netip.ParseAddr(a)
+	addrB, errB := netip.ParseAddr(b)
+	if errA == nil && errB == nil {
+		return addrA == addrB
+	}
+	return strings.EqualFold(a, b)
+}
+
+func portOrDefault(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		// An origin's port has no leading zeros (RFC 9110 section 4.3.1).
+		if trimmed := strings.TrimLeft(port, "0"); trimmed != "" {
+			return trimmed
+		}
+		return "0"
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
+}
+
+func withTrailingSlash(path string) string {
+	if strings.HasSuffix(path, "/") {
+		return path
+	}
+	return path + "/"
+}
+
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
 // and Dynamic Client Registration.
 type mcpOAuth2Discovery struct {
@@ -1706,6 +2035,7 @@ type mcpOAuth2Discovery struct {
 	authURL       string
 	tokenURL      string
 	revocationURL string
+	resource      string // RFC 8707 resource indicator
 	scopes        string // space-separated
 }
 
@@ -2070,6 +2400,7 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 		authURL:       asMeta.AuthorizationEndpoint,
 		tokenURL:      asMeta.TokenEndpoint,
 		revocationURL: asMeta.RevocationEndpoint,
+		resource:      mcpOAuth2ResourceIndicator(parsed, prm.Resource),
 		scopes:        scopes,
 	}, nil
 }

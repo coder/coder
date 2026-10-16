@@ -150,7 +150,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			prompt = nil
 		}
 
-		i.recordTokenUsage(ctx, resp.ID, resp.Usage)
+		i.recordTokenUsage(ctx, resp.ID, resp.Model, resp.Usage)
 
 		accumulateUsage(&cumulativeUsage, resp.Usage)
 

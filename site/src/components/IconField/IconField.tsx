@@ -145,7 +145,7 @@ export const IconField: React.FC<IconFieldProps> = ({
       - Except we don't do it when running tests, because it would make them
       slower anyway. */}
 			{process.env.NODE_ENV !== "test" && (
-				<div className="sr-only" aria-hidden="true">
+				<div className="sr-only" aria-hidden="true" inert>
 					<Suspense>
 						<EmojiPicker onEmojiSelect={() => {}} />
 					</Suspense>

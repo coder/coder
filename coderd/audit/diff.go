@@ -38,14 +38,19 @@ type Auditable interface {
 		database.AIProviderKey |
 		database.AIGatewayKey |
 		database.Chat |
+		database.ChatProject |
+		database.ChatProjectMemory |
+		database.AuditableChatProjectInstructions |
 		database.ChatModelConfig |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
-		database.UserSkill |
+		database.Skill |
+		database.AuditableOrganizationSkill |
 		database.ChatInstructionSettings |
 		database.ChatOperationalSettings |
+		database.ChatOrganizationSystemPrompt |
 		database.ExperimentRule
 }
 

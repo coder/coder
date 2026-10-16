@@ -1,5 +1,5 @@
 ---
-title: Template Dependencies
+title: Template dependencies
 ---
 
 When creating Coder templates, it is unlikely that you will just be using
