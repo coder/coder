@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func TestConnectionLog(t *testing.T) {
@@ -45,6 +46,8 @@ func TestConnectionLog(t *testing.T) {
 		id              uuid.UUID
 		action          *agentproto.Connection_Action
 		typ             *agentproto.Connection_Type
+		reqMethod       agentproto.Connection_Method
+		reqAppName      string
 		method          database.ConnectionLogMethod
 		appName         string
 		time            time.Time
@@ -52,6 +55,8 @@ func TestConnectionLog(t *testing.T) {
 		status          int32
 		reason          string
 		clientSessionID string
+		rxBytes         *int64
+		txBytes         *int64
 	}{
 		{
 			name:            "SSH Connect",
@@ -130,6 +135,37 @@ func TestConnectionLog(t *testing.T) {
 			appName: "vscode",
 			time:    dbtime.Now(),
 		},
+		{
+			name:       "Method And App Connect",
+			id:         uuid.New(),
+			action:     agentproto.Connection_CONNECT.Enum(),
+			typ:        agentproto.Connection_TYPE_UNSPECIFIED.Enum(),
+			reqMethod:  agentproto.Connection_METHOD_SSH,
+			reqAppName: "Some-IDE",
+			method:     database.ConnectionLogMethodSSH,
+			appName:    "some_ide",
+			time:       dbtime.Now(),
+		},
+		{
+			name:    "Bytes Transferred Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			method:  database.ConnectionLogMethodSSH,
+			time:    dbtime.Now(),
+			rxBytes: new(int64(10)),
+			txBytes: new(int64(50)),
+		},
+		{
+			name:    "Zero Bytes Transferred Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			method:  database.ConnectionLogMethodSSH,
+			time:    dbtime.Now(),
+			rxBytes: new(int64(0)),
+			txBytes: new(int64(0)),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,14 +185,18 @@ func TestConnectionLog(t *testing.T) {
 			}
 			_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
-					Id:              tt.id[:],
-					Action:          *tt.action,
-					Type:            *tt.typ,
-					Timestamp:       timestamppb.New(tt.time),
-					Ip:              tt.ip,
-					StatusCode:      tt.status,
-					Reason:          &tt.reason,
-					ClientSessionId: tt.clientSessionID,
+					Id:               tt.id[:],
+					Action:           *tt.action,
+					Type:             *tt.typ,
+					Timestamp:        timestamppb.New(tt.time),
+					Ip:               tt.ip,
+					StatusCode:       tt.status,
+					Reason:           &tt.reason,
+					ClientSessionId:  tt.clientSessionID,
+					AppName:          tt.reqAppName,
+					ConnectionMethod: tt.reqMethod,
+					RxBytes:          tt.rxBytes,
+					TxBytes:          tt.txBytes,
 				},
 			})
 			require.NoError(t, err)
@@ -188,7 +228,6 @@ func TestConnectionLog(t *testing.T) {
 					Valid: false,
 				},
 				ConnectionStatus: agentProtoConnectionActionToConnectionLog(t, *tt.action),
-
 				Code:             expectedCode,
 				IP:               expectedIP,
 				ConnectionMethod: tt.method,
@@ -204,6 +243,14 @@ func TestConnectionLog(t *testing.T) {
 				ClientSessionID: sql.NullString{
 					String: tt.clientSessionID,
 					Valid:  tt.clientSessionID != "",
+				},
+				RxBytes: sql.NullInt64{
+					Int64: ptr.NilToEmpty(tt.rxBytes),
+					Valid: tt.rxBytes != nil,
+				},
+				TxBytes: sql.NullInt64{
+					Int64: ptr.NilToEmpty(tt.txBytes),
+					Valid: tt.txBytes != nil,
 				},
 			}, logs[0])
 		})
