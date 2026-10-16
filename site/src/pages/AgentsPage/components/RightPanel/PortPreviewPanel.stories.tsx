@@ -1,8 +1,7 @@
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import { ComposerContext } from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -63,12 +62,6 @@ export const InvalidWildcardHost: Story = {
 	parameters: { pixel: { exclude: false } },
 };
 
-const withComposer: Decorator = (Story) => (
-	<ComposerContext value={{ send: () => Promise.resolve("sent") }}>
-		<Story />
-	</ComposerContext>
-);
-
 // What the overlay inside the preview would post to the dashboard.
 function postFromPreview(
 	canvasElement: HTMLElement,
@@ -86,13 +79,11 @@ function postFromPreview(
 }
 
 export const CanAnnotate: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 };
 
 export const AnnotatePicking: Story = {
-	args: { canAnnotate: true },
-	decorators: [withComposer],
+	args: { canAnnotate: true, onSendToolMessage: async () => "sent" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -107,8 +98,11 @@ export const AnnotatePicking: Story = {
 };
 
 export const AnnotateUnavailable: Story = {
-	args: { canAnnotate: true, annotatorReadyTimeoutMs: 0 },
-	decorators: [withComposer],
+	args: {
+		canAnnotate: true,
+		annotatorReadyTimeoutMs: 0,
+		onSendToolMessage: async () => "sent",
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(

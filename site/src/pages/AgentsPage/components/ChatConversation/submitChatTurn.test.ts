@@ -138,14 +138,30 @@ describe("submitChatTurn", () => {
 		vi.clearAllMocks();
 	});
 
-	it("returns without sending when content, models, or a pending submit block it", async () => {
+	it("reports why content, models, or a pending submit block a send", async () => {
 		const sendMessage = vi.fn();
-		await submitChatTurn(buildParams({ message: "   ", sendMessage }));
-		await submitChatTurn(buildParams({ hasModelOptions: false, sendMessage }));
-		await submitChatTurn(
-			buildParams({ isSubmissionPending: true, sendMessage }),
-		);
+		const editMessage = vi.fn();
+		for (const { overrides, result } of [
+			{ overrides: { message: "   " }, result: "unavailable" },
+			{ overrides: { hasModelOptions: false }, result: "unavailable" },
+			{ overrides: { isSubmissionPending: true }, result: "busy" },
+			{
+				overrides: { hasModelOptions: false, isSubmissionPending: true },
+				result: "unavailable",
+			},
+			{
+				overrides: { message: "   ", isSubmissionPending: true },
+				result: "unavailable",
+			},
+		]) {
+			expect(
+				await submitChatTurn(
+					buildParams({ ...overrides, sendMessage, editMessage }),
+				),
+			).toBe(result);
+		}
 		expect(sendMessage).not.toHaveBeenCalled();
+		expect(editMessage).not.toHaveBeenCalled();
 	});
 
 	it("throws BuiltInCommandPendingError while slash-command skills are unresolved", async () => {
@@ -166,6 +182,19 @@ describe("submitChatTurn", () => {
 			"Checking whether /compact is available. Try again in a moment.",
 		);
 		expect(compact).not.toHaveBeenCalled();
+		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
+	it("runs a built-in command without sending a message", async () => {
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const sendMessage = vi.fn();
+
+		expect(
+			await submitChatTurn(
+				buildParams({ message: "/compact", compact, sendMessage }),
+			),
+		).toBe("sent");
+		expect(compact).toHaveBeenCalledTimes(1);
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
@@ -204,16 +233,18 @@ describe("submitChatTurn", () => {
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
-		await submitChatTurn(
-			buildParams({
-				message: "new text",
-				editedMessageID: 5,
-				chatMessages: [originalMessage],
-				editMessage,
-				scrollToEnd,
-				sendMessage,
-			}),
-		);
+		expect(
+			await submitChatTurn(
+				buildParams({
+					message: "new text",
+					editedMessageID: 5,
+					chatMessages: [originalMessage],
+					editMessage,
+					scrollToEnd,
+					sendMessage,
+				}),
+			),
+		).toBe("sent");
 
 		expect(editMessage).toHaveBeenCalledWith({
 			messageId: 5,
@@ -290,13 +321,15 @@ describe("submitChatTurn", () => {
 		});
 		const upsertCacheMessages = vi.fn();
 
-		await submitChatTurn(
-			buildParams({
-				store,
-				sendMessage,
-				upsertCacheMessages,
-			}),
-		);
+		expect(
+			await submitChatTurn(
+				buildParams({
+					store,
+					sendMessage,
+					upsertCacheMessages,
+				}),
+			),
+		).toBe("sent");
 
 		expect(sendMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -330,14 +363,17 @@ describe("submitChatTurn", () => {
 		});
 		const setCacheQueuedMessages = vi.fn();
 
-		await submitChatTurn(
-			buildParams({
-				store,
-				sendMessage,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-			}),
-		);
+		expect(
+			await submitChatTurn(
+				buildParams({
+					store,
+					sendMessage,
+					setCacheQueuedMessages,
+					fetchQueueConvergence,
+				}),
+			),
+		).toBe("sent");
+		expect(sendMessage).toHaveBeenCalledTimes(1);
 
 		expect(setCacheQueuedMessages).toHaveBeenCalled();
 		await vi.waitFor(() => {

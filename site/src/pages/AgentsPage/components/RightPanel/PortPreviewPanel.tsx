@@ -17,7 +17,7 @@ import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
 } from "#/annotator/protocol";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -27,12 +27,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
-import {
-	type ComposerSendResult,
-	useComposer,
-} from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 
 const sendRetries = 6;
 const sendRetryMs = 500;
@@ -53,20 +50,30 @@ const overlayUnavailableReason =
 async function deliver(queue: SendQueue, message: string): Promise<boolean> {
 	try {
 		for (let attempt = 0; attempt < sendRetries; attempt++) {
-			if ((await queue.send?.(message)) === "sent") {
+			const result = await queue.send?.(message);
+			if (result === "sent") {
 				return true;
+			}
+			if (result !== "busy") {
+				toast.error(
+					"Sending messages is unavailable; the UI annotation was not sent.",
+				);
+				return false;
 			}
 			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
 		}
 		toast.error("The chat is busy; the UI annotation was not sent.");
 	} catch (error) {
-		toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+		// API failures are already displayed by the chat's request error handler.
+		if (!isApiError(error)) {
+			toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+		}
 	}
 	return false;
 }
 
 type SendQueue = {
-	send?: (message: string) => Promise<ComposerSendResult> | undefined;
+	send?: (message: string) => Promise<SubmitChatTurnResult> | undefined;
 	chain: Promise<void>;
 	// Accepted and not yet finished, including the one being sent.
 	pending: number;
@@ -119,6 +126,7 @@ export const PortPreviewPanel: React.FC<{
 	// Shows the annotate control. Requires the chat-ui-annotations
 	// experiment so the app proxy injects the overlay.
 	canAnnotate?: boolean;
+	onSendToolMessage?: (message: string) => Promise<SubmitChatTurnResult>;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -126,6 +134,7 @@ export const PortPreviewPanel: React.FC<{
 	host,
 	tab,
 	canAnnotate = false,
+	onSendToolMessage,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -138,8 +147,9 @@ export const PortPreviewPanel: React.FC<{
 	);
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const composer = useComposer();
-	const send = useEffectEvent((message: string) => composer?.send(message));
+	const send = useEffectEvent((message: string) =>
+		onSendToolMessage?.(message),
+	);
 	const sendQueueRef = useRef(newSendQueue());
 	useLayoutEffect(() => {
 		const queue = sendQueueRef.current;
@@ -158,7 +168,10 @@ export const PortPreviewPanel: React.FC<{
 
 	// Each saved comment goes straight to the agent as its own message.
 	const handleSubmit = (submission: AnnotationSubmission) => {
-		if (!composer) {
+		if (!onSendToolMessage) {
+			toast.error(
+				"Sending messages is unavailable; the UI annotation was not sent.",
+			);
 			return;
 		}
 		const message = formatAnnotations(submission);
@@ -190,6 +203,20 @@ export const PortPreviewPanel: React.FC<{
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
+	const canSendMessage = onSendToolMessage !== undefined;
+	const stopAnnotating = useEffectEvent(() => {
+		if (bridge.requested) {
+			bridge.setPicking(false);
+			toast.error(
+				"Annotation mode stopped because sending messages is unavailable.",
+			);
+		}
+	});
+	useLayoutEffect(() => {
+		if (!canSendMessage) {
+			stopAnnotating();
+		}
+	}, [canSendMessage]);
 
 	// The overlay is requested at most once per attempt: while it is still
 	// loading, further clicks only toggle the desired picking state instead
@@ -224,8 +251,7 @@ export const PortPreviewPanel: React.FC<{
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [bridge.requested, bridge.setPicking]);
 
-	const showAnnotate =
-		canAnnotate && composer !== undefined && frameUrl !== undefined;
+	const showAnnotate = canAnnotate && canSendMessage && frameUrl !== undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">

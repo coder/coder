@@ -73,7 +73,6 @@ import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watc
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import type { ComposerSendResult } from "./context/ComposerContext";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -684,18 +683,11 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	// Right-panel tools (port preview annotations) send through here. The
 	// composer's own draft is left alone, and the caller learns whether a
 	// concurrent submission made this one a no-op.
-	const handleSendToolMessage = async (
-		message: string,
-	): Promise<ComposerSendResult> => {
-		if (isSubmissionPending || !hasModelOptions) {
-			return "busy";
-		}
-		await submitChatTurn({
+	const handleSendToolMessage = (message: string) =>
+		submitChatTurn({
 			...chatTurnDeps,
 			message,
 		});
-		return "sent";
-	};
 
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
