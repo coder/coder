@@ -2,22 +2,19 @@
 title: Getting started
 ---
 
-This guide walks platform teams and administrators through setting up Coder
-Agents, preparing your deployment, and running your first Coder Agent.
+This guide walks platform teams and administrators through setting up Coder Agents, preparing your deployment, and running your first Coder Agent.
 
 ## Prerequisites
 
 Before you begin, confirm the following:
 
 - **Coder deployment** running the latest release.
-- **LLM provider credentials** — an API key for at least one
-  [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI,
-  AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
-- **Network access** from the control plane to your LLM provider. Workspaces
-  do not need LLM access — only the control plane does.
-- **At least one template** with a
-  [descriptive name and description](./platform-controls/template-optimization.md)
-  for the agent to select when provisioning workspaces.
+- **LLM provider credentials**:
+  an API key for at least one [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI, AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
+- **Network access** from the control plane to your LLM provider.
+  Workspaces do not need LLM access.
+  Only the control plane does.
+- **At least one template** with a [descriptive name and description](./platform-controls/template-optimization.md) for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
 - **Access to configure models** in each organization where you configure models.
   The **Organization Admin** role and the **Owner** role include this access.
@@ -42,8 +39,7 @@ Before you begin, confirm the following:
 To configure Coder Agents:
 
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
-1. Add or update a provider with its credentials and upstream endpoint, then
-   save it.
+1. Add or update a provider with its credentials and upstream endpoint, then save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select the correct organization.
    Coder shows the organization picker when you can access more than 1 organization.
@@ -56,12 +52,10 @@ Each organization has its own model list and its own default model.
 Repeat the model steps in every organization that uses Coder Agents.
 Refer to [Organization scope](./platform-controls/organizations.md) for the settings that stay deployment-wide.
 
-Detailed instructions for each provider and model option are in the
-[Models](./models.md) documentation.
+Detailed instructions for each provider and model option are in the [Models](./models.md) documentation.
 
 > [!TIP]
-> Start with a single frontier model to validate your setup before adding
-> additional providers.
+> Start with a single frontier model to validate your setup before adding additional providers.
 
 ## Step 2: Start your first Coder Agent
 
@@ -105,8 +99,8 @@ Keep the following behavior in mind:
 ## Optimize your templates
 
 The agent selects templates based on their **name, description, and README**.
-It does not read Terraform. Clear, specific descriptions are the most important
-factor in whether the agent picks the right template.
+It does not read Terraform.
+Clear, specific descriptions are the most important factor in whether the agent picks the right template.
 
 Update your template descriptions to include:
 
@@ -114,14 +108,9 @@ Update your template descriptions to include:
 - Which repository or service it is for, if applicable.
 - What type of work it supports (backend, frontend, data pipeline, etc.).
 
-When 128 characters is not enough, put the most important routing context near
-the top of the template's
-[`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
-The chat agent's template listing includes a bounded README excerpt (roughly the
-first 1,000 characters), and template detail includes the README (up to roughly
-8,000 characters). Both are reduced to plain text: frontmatter is stripped,
-link text is kept while link URLs are dropped, images and badges are dropped
-entirely, and code blocks and tables are preserved as text.
+When 128 characters is not enough, put the most important routing context near the top of the template's [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
+The chat agent's template listing includes a bounded README excerpt (roughly the first 1,000 characters), and template detail includes the README (up to roughly 8,000 characters).
+Both are reduced to plain text: frontmatter is stripped, link text is kept while link URLs are dropped, images and badges are dropped entirely, and code blocks and tables are preserved as text.
 
 **Good examples:**
 
@@ -139,9 +128,7 @@ entirely, and code blocks and tables are preserved as text.
 | Dev environment    | Too generic to distinguish from other templates |
 | Default            | Tells the agent nothing                         |
 
-See [Template Optimization](./platform-controls/template-optimization.md) for
-the full guide, including dedicated agent templates, network boundaries,
-credential scoping, and pre-installing dependencies.
+See [Template Optimization](./platform-controls/template-optimization.md) for the full guide, including dedicated agent templates, network boundaries, credential scoping, and pre-installing dependencies.
 
 ## Things to know before you start
 
@@ -153,20 +140,17 @@ As always, you should review [release notes](https://github.com/coder/coder/rele
 
 ### Use HTTPS for push notifications
 
-Coder Agents use browser push notifications to alert you when a task
-completes or needs attention. Most browsers require a secure (HTTPS)
-origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
-to work. If your access URL uses plain HTTP,
-push notifications may not function.
+Coder Agents use browser push notifications to alert you when a task completes or needs attention.
+Most browsers require a secure (HTTPS) origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API) to work.
+If your access URL uses plain HTTP, push notifications may not function.
 
-This does not affect agents themselves — only the browser notification
-delivery. If you terminate TLS at a reverse proxy, ensure the
-[access URL](../../admin/setup/index.md) is configured with an `https://` scheme.
+This does not affect agents themselves, only the browser notification delivery.
+If you terminate TLS at a reverse proxy, ensure the [access URL](../../admin/setup/index.md) is configured with an `https://` scheme.
 
 ### Set a deployment-wide system prompt
 
-Administrators can set a system prompt that applies to all Coder Agents across the
-deployment. Use this to encode organizational conventions:
+Administrators can set a system prompt that applies to all Coder Agents across the deployment.
+Use this to encode organizational conventions:
 
 - Coding standards and style guidelines.
 - Commit message formats.
@@ -174,8 +158,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
-or via the API at `PUT /api/v2/chats/config/system-prompt`.
+Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions** or via the API at `PUT /api/v2/chats/config/system-prompt`.
 
 In a deployment with several organizations, organization administrators can also add organization instructions under **Admin settings** > **AI** > **Coder Agents** > **Instructions**.
 Coder adds them after the deployment system prompt for new chats in that organization.
@@ -183,27 +166,27 @@ Refer to [Platform Controls](./platform-controls/index.md#system-prompt) for det
 
 ### Understand the security model
 
-The agent runs in the control plane, not inside workspaces. This means:
+The agent runs in the control plane, not inside workspaces.
+This means:
 
-- **No LLM API keys in workspaces.** Credentials stay in the control plane.
-- **No agent software in workspaces.** No supply chain risk from
-  third-party agent tools.
-- **User identity is always attached.** Every action is tied to the user
-  who submitted the prompt — no shared bot accounts.
-- **No privilege escalation.** The agent has exactly the same permissions
-  as the prompting user.
+- **No LLM API keys in workspaces.**
+  Credentials stay in the control plane.
+- **No agent software in workspaces.**
+  No supply chain risk from third-party agent tools.
+- **User identity is always attached.**
+  Every action is tied to the user who submitted the prompt, with no shared bot accounts.
+- **No privilege escalation.**
+  The agent has exactly the same permissions as the prompting user.
 
-Agent workspaces inherit the same network access as any manually created
-workspace. If your templates don't restrict egress, the agent has full
-internet access from the workspace. Consider
-[creating dedicated agent templates](./platform-controls/template-optimization.md#create-dedicated-agent-templates)
-with tighter network policies.
+Agent workspaces inherit the same network access as any manually created workspace.
+If your templates don't restrict egress, the agent has full internet access from the workspace.
+Consider [creating dedicated agent templates](./platform-controls/template-optimization.md#create-dedicated-agent-templates) with tighter network policies.
 
 ### Plan for LLM costs
 
-Every conversation turn sends tokens to your LLM provider. Long-running tasks,
-sub-agent delegation, and complex multi-step work can consume significant
-token volume. Consider:
+Every conversation turn sends tokens to your LLM provider.
+Long-running tasks, sub-agent delegation, and complex multi-step work can consume significant token volume.
+Consider:
 
 - Starting with a single model to establish a cost baseline.
 - Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
@@ -223,12 +206,12 @@ Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for
 Identify 3–5 developers and a few concrete use cases for the initial rollout.
 Good starting points:
 
-- **Low-risk, high-visibility tasks** — generating unit tests, writing inline
-  documentation, small refactors.
-- **Investigation and triage** — exploring unfamiliar code, triaging bugs,
-  understanding legacy systems.
-- **Prototyping** — building proof-of-concept implementations, simple
-  dashboards, internal tools.
+- **Low-risk, high-visibility tasks**:
+  generating unit tests, writing inline documentation, small refactors.
+- **Investigation and triage**:
+  exploring unfamiliar code, triaging bugs, understanding legacy systems.
+- **Prototyping**:
+  building proof-of-concept implementations, simple dashboards, internal tools.
 
 To limit Coder Agents to the pilot group, see [Control who can use Coder Agents](#control-who-can-use-coder-agents).
 
@@ -265,10 +248,8 @@ Stream updates in real time by connecting to the WebSocket endpoint:
 GET /api/v2/chats/{chat}/stream
 ```
 
-For service-to-service automation, use
-[API keys](../../admin/users/sessions-tokens.md)
-rather than developer session tokens. Keep automation credentials
-narrowly scoped.
+For service-to-service automation, use [API keys](../../admin/users/sessions-tokens.md) rather than developer session tokens.
+Keep automation credentials narrowly scoped.
 
 ### Link to a new chat with a prompt
 
@@ -291,10 +272,8 @@ URLs end up in browser history and server logs.
 
 ### Add workspace context with AGENTS.md
 
-Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
-the workspace agent's working directory to provide persistent context to the
-agent. This file is automatically read and included in the system prompt
-for every conversation with a Coder Agent that uses that workspace.
+Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or the workspace agent's working directory to provide persistent context to the agent.
+This file is automatically read and included in the system prompt for every conversation with a Coder Agent that uses that workspace.
 
 Use it for:
 
@@ -305,12 +284,9 @@ Use it for:
 
 ### Consider prebuilt workspaces for faster startup
 
-Workspace provisioning is the main source of latency when the agent starts a
-task. If your templates take more than a minute to provision, consider
-configuring
-[prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md)
-to maintain a pool of ready-to-use workspaces. The agent gets assigned an
-already-running workspace instead of provisioning from scratch.
+Workspace provisioning is the main source of latency when the agent starts a task.
+If your templates take more than a minute to provision, consider configuring [prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md) to maintain a pool of ready-to-use workspaces.
+The agent gets assigned an already-running workspace instead of provisioning from scratch.
 
 <a id="providing-feedback"></a>
 
@@ -321,20 +297,19 @@ For deployment-specific problems, such as provider configuration or performance 
 
 Good reports include:
 
-- **What you tried**: the prompt, the template, and the model.
-- **What happened**: the agent's behavior, any errors, and unexpected results.
-- **What you expected**: the outcome you were looking for.
-- **Context**: screenshots, `chat_id` values, or links to the Agents page help
-  the team investigate quickly.
+- **What you tried**:
+  the prompt, the template, and the model.
+- **What happened**:
+  the agent's behavior, any errors, and unexpected results.
+- **What you expected**:
+  the outcome you were looking for.
+- **Context**:
+  screenshots, `chat_id` values, or links to the Agents page help the team investigate quickly.
 
 ## Next steps
 
-- [Architecture](./architecture.md) — how the control plane, LLM providers,
-  and workspaces interact.
+- [Architecture](./architecture.md): how the control plane, LLM providers, and workspaces interact.
 - [Models](./models.md) — configure additional providers and models.
-- [Platform Controls](./platform-controls/index.md) — system prompts,
-  template routing, and admin-level configuration.
-- [Template Optimization](./platform-controls/template-optimization.md) —
-  create agent-friendly templates with network boundaries and scoped
-  credentials.
+- [Platform Controls](./platform-controls/index.md): system prompts, template routing, and admin-level configuration.
+- [Template Optimization](./platform-controls/template-optimization.md): create agent-friendly templates with network boundaries and scoped credentials.
 - [Chats API](../../reference/api/chats.md): build programmatic integrations.
