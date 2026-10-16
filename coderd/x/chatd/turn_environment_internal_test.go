@@ -1,18 +1,26 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -21,8 +29,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/safedial"
 )
 
 func mustMarshalText(t *testing.T, parts ...string) pqtype.NullRawMessage {
@@ -186,6 +196,65 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	require.NotNil(t, summaryCall.MaxOutputTokens)
 	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+}
+
+func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	message := func(role database.ChatMessageRole, text string) chatstate.Message {
+		return chatstate.Message{
+			Role:           role,
+			Content:        mustMarshalText(t, text),
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}
+	}
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "pending user rows",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			message(database.ChatMessageRoleUser, "first"),
+			message(database.ChatMessageRoleAssistant, "answered"),
+			message(database.ChatMessageRoleUser, "unanswered"),
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(env.Close)
+
+	require.Len(t, env.Compaction.PendingUserRows, 1)
+	require.Equal(t, created.InitialMessages[2].ID, env.Compaction.PendingUserRows[0].ID)
+	// The unanswered tail is replayed verbatim after the compaction
+	// boundary, so the summarizer input must stop before it.
+	require.Equal(t, fantasy.MessageRoleUser, env.Prompt[len(env.Prompt)-1].Role)
+	require.Equal(t, env.Prompt[:len(env.Prompt)-1], env.Compaction.Options.Messages)
 }
 
 func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
@@ -443,6 +512,8 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "platform"})
 				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
+				_, err := db.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{ProjectID: project.ID, UpdatedBy: user.ID, Instructions: "Ship on Tuesdays."})
+				require.NoError(t, err)
 			}
 
 			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}
@@ -481,6 +552,7 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 			}
 			gotSystemPrompt := systemPrompt.String()
 			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<memory>"))
+			require.Equal(t, tt.project, strings.Contains(gotSystemPrompt, "Ship on Tuesdays."))
 			// The index travels as conversation messages, never in the
 			// system prompt or tools, so the cached prefix survives writes.
 			require.NotContains(t, gotSystemPrompt, "- release_notes: Durable release process")
@@ -569,6 +641,309 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+}
+
+// TestBuildTurnEnvironmentToolPolicy checks the tools and system overlays each
+// chat shape sends to the model. Every chat selects the same MCP servers and
+// binds the same workspace, so only the turn policy differs between cases.
+func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
+	t.Parallel()
+
+	newMCPServerURL := func(name string, tools ...string) string {
+		srv := mcp.NewServer(&mcp.Implementation{Name: name, Version: "1.0.0"}, nil)
+		for _, tool := range tools {
+			srv.AddTool(&mcp.Tool{Name: tool, InputSchema: map[string]any{"type": "object"}},
+				func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return &mcp.CallToolResult{}, nil
+				})
+		}
+		ts := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+			return srv
+		}, &mcp.StreamableHTTPOptions{Stateless: true}))
+		t.Cleanup(ts.Close)
+		return ts.URL
+	}
+	echoURL := newMCPServerURL("echo", "echo")
+	filteredURL := newMCPServerURL("filtered", "visible", "hidden")
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+	modelOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{WebSearchEnabled: new(true)},
+		},
+	})
+	require.NoError(t, err)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		Options:        modelOptions,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	mcpConfig := func(seed database.MCPServerConfig) uuid.UUID {
+		seed.OrganizationID = org.ID
+		seed.CreatedBy = uuid.NullUUID{UUID: user.ID, Valid: true}
+		return dbgen.MCPServerConfig(t, db, seed).ID
+	}
+	selectedMCP := []uuid.UUID{
+		mcpConfig(database.MCPServerConfig{Slug: "approved", Url: echoURL, AllowInPlanMode: true}),
+		mcpConfig(database.MCPServerConfig{Slug: "blocked", Url: echoURL}),
+		mcpConfig(database.MCPServerConfig{Slug: "filtered", Url: filteredURL, AllowInPlanMode: true, ToolAllowList: []string{"visible"}}),
+	}
+	mcpConfig(database.MCPServerConfig{Slug: "forced", Url: echoURL, Availability: "force_on"})
+	unselectedMCP := mcpConfig(database.MCPServerConfig{Slug: "unselected", Url: echoURL})
+
+	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
+	workspaceMCPBody, err := protojson.Marshal(&agentproto.MCPServerBody{
+		ServerName: "workspace",
+		Tools:      []*agentproto.MCPTool{{Name: "echo"}},
+	})
+	require.NoError(t, err)
+	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
+		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
+	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
+	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
+	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}),
+	)
+	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+
+	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
+	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	const (
+		exploreOverlay   = "You are in Explore Mode as a delegated sub-agent."
+		planRootOverlay  = "You are in Plan Mode."
+		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
+		proposePlan      = "When the plan is ready, call propose_plan"
+	)
+	tests := []struct {
+		name     string
+		mode     database.NullChatMode
+		planMode database.NullChatPlanMode
+		child    bool
+		// spawn delegates to a general sub-agent, which must keep the
+		// parent's plan mode.
+		spawn bool
+		// replaceMCP sends a follow-up message that asks to replace the
+		// MCP selection before the next turn is prepared.
+		replaceMCP bool
+		// prompt lists the instructions the system prompt must contain;
+		// the others in the set must be absent.
+		prompt   []string
+		want     []string
+		dontWant []string
+	}{
+		{
+			name: "Root",
+			want: []string{
+				"write_file", "edit_files", "spawn_agent", "approved__echo", "blocked__echo", "filtered__visible",
+				"forced__echo", "inline__echo", "workspace__echo", "web_search",
+			},
+			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question"},
+		},
+		{
+			name:     "PlanRoot",
+			planMode: plan,
+			spawn:    true,
+			prompt:   []string{planRootOverlay, proposePlan},
+			want: []string{
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "spawn_agent",
+				"approved__echo", "filtered__visible", "inline__echo",
+			},
+			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
+		},
+		{
+			name:     "PlanChild",
+			planMode: plan,
+			child:    true,
+			prompt:   []string{planChildOverlay},
+			want:     []string{"read_file", "execute", "process_output"},
+			dontWant: []string{
+				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
+				"workspace__echo", "web_search",
+			},
+		},
+		{
+			name:   "ExploreRoot",
+			mode:   explore,
+			prompt: []string{exploreOverlay},
+			want:   []string{"read_file", "execute", "process_output"},
+			dontWant: []string{
+				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
+				"workspace__echo", "web_search",
+			},
+		},
+		{
+			name:   "ExploreChild",
+			mode:   explore,
+			child:  true,
+			prompt: []string{exploreOverlay},
+			want: []string{
+				"read_file", "execute", "process_output", "approved__echo", "blocked__echo", "filtered__visible",
+				"web_search",
+			},
+			dontWant: []string{
+				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
+				"inline__echo", "workspace__echo",
+			},
+		},
+		{
+			name:       "ExploreChildAfterMCPReplacement",
+			mode:       explore,
+			child:      true,
+			replaceMCP: true,
+			prompt:     []string{exploreOverlay},
+			want:       []string{"approved__echo", "blocked__echo", "filtered__visible"},
+			dontWant:   []string{"unselected__echo"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := chatdTestContext(t)
+			input := chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+				AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+				LastModelConfigID: modelConfig.ID,
+				Title:             tt.name,
+				Mode:              tt.mode,
+				PlanMode:          tt.planMode,
+				MCPServerIDs:      selectedMCP,
+				ClientType:        database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{
+					Role:           database.ChatMessageRoleUser,
+					Content:        mustMarshalText(t, "list your tools"),
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+					ContentVersion: chatprompt.CurrentContentVersion,
+				}},
+			}
+			if tt.child {
+				input.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+				input.RootChatID = input.ParentChatID
+			}
+			if tt.replaceMCP {
+				// A waiting chat appends the follow-up message to the
+				// history instead of queueing it.
+				input.InitialStatus = database.ChatStatusWaiting
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, input)
+			require.NoError(t, err)
+			if !tt.child {
+				dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
+			}
+
+			chat, messages := created.Chat, created.InitialMessages
+			if tt.replaceMCP {
+				_, err = server.SendMessage(ctx, SendMessageOptions{
+					ChatID:       chat.ID,
+					CreatedBy:    user.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("use the other server")},
+					MCPServerIDs: &[]uuid.UUID{unselectedMCP},
+				})
+				require.NoError(t, err)
+				chat, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.ElementsMatch(t, selectedMCP, chat.MCPServerIDs)
+				messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+				require.NoError(t, err)
+				require.Len(t, messages, len(created.InitialMessages)+1)
+			}
+
+			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:            chat,
+				Messages:        messages,
+				TurnExperiments: &turnExperimentDecisions{},
+			})
+			require.NoError(t, err)
+			t.Cleanup(env.Close)
+
+			var offered []string
+			for _, definition := range chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools) {
+				offered = append(offered, definition.GetName())
+			}
+			loaded := make(map[string]bool, len(env.Tools))
+			for _, tool := range env.Tools {
+				loaded[tool.Info().Name] = true
+			}
+			require.Subset(t, offered, tt.want)
+			for _, name := range tt.dontWant {
+				require.NotContains(t, offered, name)
+				// Excluded MCP tools must be absent from the toolset, not only from the offered definitions.
+				if strings.Contains(name, "__") {
+					require.False(t, loaded[name], name)
+				}
+			}
+
+			var system strings.Builder
+			for _, message := range env.Prompt {
+				for _, part := range message.Content {
+					if text, ok := part.(fantasy.TextPart); ok && message.Role == fantasy.MessageRoleSystem {
+						system.WriteString(text.Text)
+					}
+				}
+			}
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
+			}
+
+			if tt.spawn {
+				tool := findToolByName(env.Tools, spawnAgentToolName)
+				require.NotNil(t, tool)
+				response, err := tool.Run(ctx, fantasy.ToolCall{
+					ID:    uuid.NewString(),
+					Name:  spawnAgentToolName,
+					Input: `{"type":"general","prompt":"inspect the codebase","title":"sub"}`,
+				})
+				require.NoError(t, err)
+				childID := requireSpawnAgentChildChatID(t, response)
+				child, err := db.GetChatByID(ctx, childID)
+				require.NoError(t, err)
+				require.Equal(t, chat.PlanMode, child.PlanMode)
+			}
+		})
+	}
+}
+
+func TestCreateExploreChatPreservesMCPSelection(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "root-explore",
+		ModelConfigID:      model.ID,
+		ChatMode:           database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+		MCPServerIDs:       []uuid.UUID{config.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase")},
+	})
+	require.NoError(t, err)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{config.ID}, storedChat.MCPServerIDs)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
