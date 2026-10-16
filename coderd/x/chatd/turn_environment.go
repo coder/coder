@@ -32,14 +32,14 @@ import (
 // owner-readable Force On configs at generation time, so stored lists
 // predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
 // Explore chats keep their immutable spawn-time snapshot instead.
-func (server *Server) effectiveMCPServerConfigs(
+func (p *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	chat database.Chat,
 ) ([]database.MCPServerConfig, error) {
 	var configs []database.MCPServerConfig
 	if len(chat.MCPServerIDs) > 0 {
 		var err error
-		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
+		configs, err = enabledMCPServerConfigsForChatOrg(ctx, p.db, chat.OrganizationID, chat.MCPServerIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +47,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
+	forced, err := forcedMCPServerConfigsForOwner(ctx, p.db, chat.OrganizationID, chat.OwnerID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
@@ -65,19 +65,19 @@ func (server *Server) effectiveMCPServerConfigs(
 	return configs, nil
 }
 
-func (server *Server) buildTurnEnvironment(
+func (p *Server) buildTurnEnvironment(
 	ctx context.Context,
 	input generationPrepareInput,
 ) (env turnEnvironment, err error) {
 	chat := input.Chat
-	logger := server.logger.With(
+	logger := p.logger.With(
 		slog.F("chat_id", chat.ID),
 		slog.F("owner_id", chat.OwnerID),
 	)
 
-	prepStart := server.clock.Now()
+	prepStart := p.clock.Now()
 	defer func() {
-		if prepDuration := server.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
+		if prepDuration := p.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
 			logger.Warn(ctx, "slow generation preparation",
 				slog.F("duration", prepDuration),
 			)
@@ -98,7 +98,7 @@ func (server *Server) buildTurnEnvironment(
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
-		promptRows, err = server.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		promptRows, err = p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat messages for prompt: %w", err)
 		}
@@ -106,13 +106,13 @@ func (server *Server) buildTurnEnvironment(
 	})
 	g.Go(func() error {
 		var err error
-		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, chat)
+		mcpConfigs, err = p.effectiveMCPServerConfigs(ctx, chat)
 		return err
 	})
-	if server.inlineMCPServersEnabled() {
+	if p.inlineMCPServersEnabled() {
 		g.Go(func() error {
 			var err error
-			inlineMCPServers, mcpLoadFailures, err = server.loadInlineMCPServers(ctx, chat)
+			inlineMCPServers, mcpLoadFailures, err = p.loadInlineMCPServers(ctx, chat)
 			return err
 		})
 	}
@@ -120,14 +120,14 @@ func (server *Server) buildTurnEnvironment(
 		return turnEnvironment{}, err
 	}
 
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		return turnEnvironment{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
 	requestedEffort := chatRequestedEffort(chat)
-	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "standard_turn",
 		chat:            chat,
 		requestedEffort: requestedEffort,
@@ -149,11 +149,11 @@ func (server *Server) buildTurnEnvironment(
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
 		var cuModelProvider, cuModelName string
-		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
+		computerUseProvider, cuModelProvider, cuModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
 		if err != nil {
 			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
-		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
+		cuResolved, cuErr := p.resolveModelCall(ctx, modelCallSpec{
 			purpose: "computer_use",
 			chat:    chat,
 			fixedModel: &fixedModelCall{
@@ -210,19 +210,19 @@ func (server *Server) buildTurnEnvironment(
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
-	planModeInstructions, err := server.loadPlanModeInstructions(ctx, currentPlanMode)
+	planModeInstructions, err := p.loadPlanModeInstructions(ctx, currentPlanMode)
 	if err != nil {
 		return turnEnvironment{}, err
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if server.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
-		advisorCfg, cfgErr := server.configCache.AdvisorConfig(ctx)
+	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
 		var advisorErr error
-		advisorRuntime, advisorErr = server.newAdvisorRuntime(
+		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
@@ -247,12 +247,12 @@ func (server *Server) buildTurnEnvironment(
 
 	currentChat := chat
 	loadChatSnapshot := func(loadCtx context.Context, chatID uuid.UUID) (database.Chat, error) {
-		return server.db.GetChatByID(loadCtx, chatID)
+		return p.db.GetChatByID(loadCtx, chatID)
 	}
 	var chatStateMu sync.Mutex
 	var workspaceMu sync.Mutex
 	workspaceCtx := turnWorkspaceContext{
-		server:           server,
+		server:           p,
 		chatStateMu:      &chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
@@ -356,7 +356,7 @@ func (server *Server) buildTurnEnvironment(
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
 	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], reasoningSource)
-	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
+	sanitizedHead, err := p.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
 	if err != nil {
 		return turnEnvironment{}, err
 	}
@@ -382,10 +382,10 @@ func (server *Server) buildTurnEnvironment(
 		// first turn reads workspace context instead of waiting for the
 		// agent's next push. Idempotent and snapshot-gated; runs before the
 		// pinned context is read below.
-		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
+		p.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+		instruction, workspaceSkills, resolveErr = p.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
 			return turnEnvironment{}, resolveErr
 		}
@@ -395,7 +395,7 @@ func (server *Server) buildTurnEnvironment(
 	// outcomes can be recorded with run-creation context even when a
 	// later preparation step fails.
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
-	debugSvc := server.existingDebugService()
+	debugSvc := p.existingDebugService()
 	var debug *generationDebug
 	if resolved.debugEnabled {
 		if debugSvc == nil {
@@ -424,13 +424,13 @@ func (server *Server) buildTurnEnvironment(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
 		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
@@ -439,35 +439,35 @@ func (server *Server) buildTurnEnvironment(
 	})
 	g2.Go(func() error {
 		var err error
-		personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
+		personalSkills, err = p.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
 		return err
 	})
 	g2.Go(func() error {
 		var err error
-		orgSkillReader, err = server.chatOwnerSubject(ctx, chat.OwnerID)
+		orgSkillReader, err = p.chatOwnerSubject(ctx, chat.OwnerID)
 		if err != nil {
 			return err
 		}
-		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
 		return err
 	})
 	g2.Go(func() error {
 		var err error
-		resolvedUserPrompt, err = server.resolveUserPrompt(ctx, chat.OwnerID)
+		resolvedUserPrompt, err = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return err
 	})
 	g2.Go(func() error {
-		projectInstructions = server.resolveProjectInstructions(ctx, logger, chat)
+		projectInstructions = p.resolveProjectInstructions(ctx, logger, chat)
 		return nil
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
 			var err error
-			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			mcpTokens, err = p.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
-			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
@@ -488,16 +488,16 @@ func (server *Server) buildTurnEnvironment(
 				}
 				mcpServers = append(mcpServers, srv)
 			}
-			connectCtx, connectSpan := server.stages.Start(ctx, chatloop.StageMCPConnect)
+			connectCtx, connectSpan := p.stages.Start(ctx, chatloop.StageMCPConnect)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				connectCtx,
 				logger,
 				mcpServers,
 				mcpTokens,
 				chat.OwnerID,
-				server.oidcTokenSource,
+				p.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
-				server.mcpHTTPClient,
+				p.mcpHTTPClient,
 			)
 			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
@@ -516,7 +516,7 @@ func (server *Server) buildTurnEnvironment(
 				logger,
 				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
-				server.mcpHTTPClient,
+				p.mcpHTTPClient,
 			)
 			return nil
 		})
@@ -524,7 +524,7 @@ func (server *Server) buildTurnEnvironment(
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			var err error
-			workspaceMCPTools, err = server.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+			workspaceMCPTools, err = p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
 			return err
 		})
 	}
@@ -573,7 +573,7 @@ func (server *Server) buildTurnEnvironment(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
-	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
+	memoryStore, memoryProjectName, hasMemory := p.resolveProjectMemory(ctx, chat)
 	memoryIndex := ""
 	if hasMemory {
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
@@ -611,7 +611,7 @@ func (server *Server) buildTurnEnvironment(
 	}
 	setAdvisorPromptSnapshot(prompt)
 
-	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
+	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -640,7 +640,7 @@ func (server *Server) buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -659,9 +659,9 @@ func (server *Server) buildTurnEnvironment(
 		ResolveAlias: resolveSkillAlias,
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			if skill.Source == skillspkg.SourceOrganization {
-				return server.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
 			}
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
+			return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
@@ -736,7 +736,7 @@ func (server *Server) buildTurnEnvironment(
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
 	var dynamicToolNames map[string]bool
-	if server.disableCallerSuppliedTools {
+	if p.disableCallerSuppliedTools {
 		if chat.DynamicTools.Valid {
 			logger.Debug(ctx, "skipping dynamic tools: caller-supplied tools are disabled on this deployment")
 		}
@@ -768,8 +768,8 @@ func (server *Server) buildTurnEnvironment(
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			storeFile:        storeChatAttachment,
-			clock:            server.clock,
-			logger:           server.logger.Named("computer_use"),
+			clock:            p.clock,
+			logger:           p.logger.Named("computer_use"),
 		})
 		if err != nil {
 			return turnEnvironment{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
@@ -798,7 +798,7 @@ func (server *Server) buildTurnEnvironment(
 	toolSearchEnabled := false
 	if len(deferredCandidates) > 0 {
 		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
-			return server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
+			return p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
 		})
 	}
 	if decideMCPToolSearch(mcpToolSearchInput{
@@ -816,10 +816,10 @@ func (server *Server) buildTurnEnvironment(
 			// only calls that reach the handler or its decode.
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
 				if call.Rejection == "" {
-					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
-					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+					p.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+					p.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
 					if call.MatchCount == 0 {
-						server.metrics.FindToolsEmptyTotal.Inc()
+						p.metrics.FindToolsEmptyTotal.Inc()
 					}
 				}
 				// Queries and names are model output that can echo
@@ -856,7 +856,7 @@ func (server *Server) buildTurnEnvironment(
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	effectiveThreshold := modelConfig.CompressionThreshold
-	thresholdOverride, ok, err := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
+	thresholdOverride, ok, err := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
 	if err != nil {
 		return turnEnvironment{}, err
 	}
@@ -867,7 +867,7 @@ func (server *Server) buildTurnEnvironment(
 		thresholdPercent: effectiveThreshold,
 		contextLimit:     modelConfig.ContextLimit,
 	}
-	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
+	resolvedCompactionOverride, err := p.resolveModelOverride(ctx, modelOverrideSpec{
 		context:        compactionOverrideContext,
 		ownerID:        chat.OwnerID,
 		organizationID: chat.OrganizationID,
@@ -947,7 +947,7 @@ func (server *Server) buildTurnEnvironment(
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
+		MaxSteps:             p.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			TriggerSource:   bindingSource,
@@ -1066,42 +1066,42 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	return total
 }
 
-func (server *Server) afterInterruptionOutcome(
+func (p *Server) afterInterruptionOutcome(
 	ctx context.Context,
 	outcome interruptionOutcome,
 ) error {
 	chat := outcome.Chat
-	logger := server.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
+	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
 	if outcome.Kind == runnerActionKindFinishInterruption && !chat.ParentChatID.Valid {
-		server.clearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
+		p.clearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
 	}
 	return nil
 }
 
-func (server *Server) afterGenerationOutcome(
+func (p *Server) afterGenerationOutcome(
 	ctx context.Context,
 	outcome generationOutcome,
 ) error {
 	chat := outcome.Chat
-	logger := server.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
+	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
 	switch outcome.Kind {
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
-		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
-		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
+		runResult := p.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
+		p.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
 	case runnerActionKindFinishError:
-		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
+		p.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:
-		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, "", runChatResult{}, logger)
+		p.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, "", runChatResult{}, logger)
 	}
 	return nil
 }
 
 // deriveFinalTurnRunResult rebuilds the inputs needed to generate the
 // end-of-turn status label directly from persisted state.
-func (server *Server) deriveFinalTurnRunResult(
+func (p *Server) deriveFinalTurnRunResult(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
@@ -1113,7 +1113,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	promptRows, err := server.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	promptRows, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: load prompt rows", slog.Error(err))
 		return runChatResult{}
@@ -1124,13 +1124,13 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	resolved, err := server.resolveQuickgenModel(ctx, "turn_status_label", chat, modelOpts)
+	resolved, err := p.resolveQuickgenModel(ctx, "turn_status_label", chat, modelOpts)
 	if err != nil {
 		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
