@@ -708,6 +708,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
 		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
+	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
+	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
@@ -791,7 +793,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 			dontWant: []string{
 				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
-				"workspace__echo",
+				"inline__echo", "workspace__echo",
 			},
 		},
 		{
@@ -840,7 +842,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 			created, err := chatstate.CreateChat(ctx, db, ps, input)
 			require.NoError(t, err)
-			dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
+			if !tt.child {
+				dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
+			}
 
 			chat, messages := created.Chat, created.InitialMessages
 			if tt.replaceMCP {
