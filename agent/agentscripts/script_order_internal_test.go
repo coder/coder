@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -197,6 +199,72 @@ func TestLifecycleExecutorPropagatesSkippedOutcomes(t *testing.T) {
 	require.Equal(t, []string{`Skipping script: dependency "coder_script.a" failed.`}, logs.outputs(b.LogSourceID))
 	require.Empty(t, logs.outputs(c.LogSourceID))
 	require.Equal(t, []string{`Skipping script: dependency "coder_script.b" was skipped.`}, logs.outputs(d.LogSourceID))
+}
+
+func TestLifecycleExecutorReportsSkippedWithoutRunning(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	runs := newScriptOrderRuns()
+	runs.result("coder_script.clone", xerrors.New("exit status 128"))
+	logs := newScriptOrderTestLogs()
+	reports := newScriptOrderReports()
+	executor := newTestExecutor(t, runs, logs)
+	executor.reportUnstarted = func(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption, status proto.Timing_Status) {
+		assert.NotEmpty(t, logs.outputs(script.LogSourceID), "the skip line is written before the timing is sent")
+		reports.record(ctx, script, option, status)
+	}
+
+	clone := scriptOrderTestScript("coder_script.clone")
+	clone.DisplayName = "Clone"
+	install := scriptOrderTestScript("coder_script.install", scriptOrderTestDependency("coder_script.clone", requireSuccess))
+
+	err := executor.execute(ctx, []codersdk.WorkspaceAgentScript{clone, install}, ExecuteStartScripts)
+	require.Error(t, err)
+	require.Equal(t, []string{"coder_script.clone"}, runs.allStarted())
+	require.Equal(t, []scriptOrderReport{
+		{address: "coder_script.install", option: ExecuteStartScripts, status: proto.Timing_SKIPPED},
+	}, reports.all())
+	require.Equal(t, []string{`Skipping script: dependency "Clone" failed.`}, logs.outputs(install.LogSourceID))
+}
+
+func TestLifecycleExecutorNilReporter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Skipped", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		runs := newScriptOrderRuns()
+		runs.result("coder_script.clone", xerrors.New("exit status 128"))
+		executor := newTestExecutor(t, runs, newScriptOrderTestLogs())
+
+		clone := scriptOrderTestScript("coder_script.clone")
+		install := scriptOrderTestScript("coder_script.install", scriptOrderTestDependency("coder_script.clone", requireSuccess))
+
+		require.Error(t, executor.execute(ctx, []codersdk.WorkspaceAgentScript{clone, install}, ExecuteStartScripts))
+		require.False(t, runs.started("coder_script.install"))
+	})
+
+	t.Run("Canceled", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
+
+		runs := newScriptOrderRuns()
+		runs.hold("coder_script.clone")
+		executor := newTestExecutor(t, runs, newScriptOrderTestLogs())
+
+		clone := scriptOrderTestScript("coder_script.clone")
+		install := scriptOrderTestScript("coder_script.install", scriptOrderTestDependency("coder_script.clone", requireSuccess))
+
+		done := runExecute(ctx, executor, clone, install)
+		runs.waitStarted(ctx, t, "coder_script.clone")
+		cancel()
+		waitCtx := testutil.Context(t, testutil.WaitShort)
+		require.ErrorIs(t, testutil.RequireReceive(waitCtx, t, done), context.Canceled)
+		require.False(t, runs.started("coder_script.install"))
+	})
 }
 
 func TestLifecycleExecutorMixedRequirements(t *testing.T) {
@@ -397,7 +465,9 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 	runs := newScriptOrderRuns()
 	runs.hold("coder_script.a")
 	logs := newScriptOrderTestLogs()
+	reports := newScriptOrderReports()
 	executor := newTestExecutor(t, runs, logs)
+	executor.reportUnstarted = reports.record
 
 	a := scriptOrderTestScript("coder_script.a")
 	b := scriptOrderTestScript("coder_script.b", scriptOrderTestDependency("coder_script.a", requireSuccess))
@@ -419,8 +489,15 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 	require.ErrorIs(t, testutil.RequireReceive(waitCtx, t, done), context.Canceled)
 
 	require.ElementsMatch(t, []string{"coder_script.a", "coder_script.d"}, runs.allStarted())
-	require.Empty(t, logs.outputs(b.LogSourceID))
-	require.Empty(t, logs.outputs(c.LogSourceID))
+	// a's own timing comes from run, which the fake does not model.
+	require.ElementsMatch(t, []scriptOrderReport{
+		{address: "coder_script.b", option: ExecuteStartScripts, status: proto.Timing_CANCELED},
+		{address: "coder_script.c", option: ExecuteStartScripts, status: proto.Timing_CANCELED},
+	}, reports.all(), "only the scripts that never started report from the executor")
+	require.Equal(t, []string{canceledRunningLine}, logs.outputs(a.LogSourceID))
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(b.LogSourceID))
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(c.LogSourceID))
+	require.Empty(t, logs.outputs(d.LogSourceID), "a finished script gets no line")
 
 	for address, want := range map[string]unit.Outcome{
 		"coder_script.a": unit.OutcomeCanceled,
@@ -434,6 +511,35 @@ func TestLifecycleExecutorCancellation(t *testing.T) {
 	}
 }
 
+func TestLifecycleExecutorRootScriptCanceledBeforeStarting(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	cancel()
+
+	runs := newScriptOrderRuns()
+	logs := newScriptOrderTestLogs()
+	reports := newScriptOrderReports()
+	executor := newTestExecutor(t, runs, logs)
+	executor.reportUnstarted = reports.record
+
+	root := scriptOrderTestScript("coder_script.root")
+	scripts := []codersdk.WorkspaceAgentScript{root}
+
+	manager, byAddress, err := lifecycleManager(scripts)
+	require.NoError(t, err)
+	require.ErrorIs(t, executor.executeWith(ctx, manager, byAddress, scripts, ExecuteStartScripts), context.Canceled)
+
+	require.Empty(t, runs.allStarted())
+	require.Equal(t, []scriptOrderReport{
+		{address: "coder_script.root", option: ExecuteStartScripts, status: proto.Timing_CANCELED},
+	}, reports.all())
+	require.Equal(t, []string{canceledBeforeStartLine}, logs.outputs(root.LogSourceID))
+
+	u, err := manager.Unit(unit.ID("coder_script.root"))
+	require.NoError(t, err)
+	require.Equal(t, unit.OutcomeCanceled, u.Outcome())
+}
+
 func TestLifecycleExecutorStopScripts(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -442,7 +548,9 @@ func TestLifecycleExecutorStopScripts(t *testing.T) {
 	runs := newScriptOrderRuns()
 	runs.result("coder_script.save_state", saveErr)
 	logs := newScriptOrderTestLogs()
+	reports := newScriptOrderReports()
 	executor := newTestExecutor(t, runs, logs)
+	executor.reportUnstarted = reports.record
 
 	save := scriptOrderTestScript("coder_script.save_state")
 	save.DisplayName = "Save state"
@@ -454,6 +562,11 @@ func TestLifecycleExecutorStopScripts(t *testing.T) {
 	require.ElementsMatch(t, []string{"coder_script.save_state", "coder_script.report_stop"}, runs.allStarted())
 	require.Equal(t, []string{`Skipping script: dependency "Save state" failed.`}, logs.outputs(stopDB.LogSourceID))
 	require.Equal(t, ExecuteStopScripts, runs.option("coder_script.report_stop"))
+	// The executor passes the option through; Runner.reportUnstarted is
+	// what drops stop reports (TestRunnerReportsUnstartedTiming).
+	require.Equal(t, []scriptOrderReport{
+		{address: "coder_script.stop_db", option: ExecuteStopScripts, status: proto.Timing_SKIPPED},
+	}, reports.all())
 }
 
 func TestLifecycleExecutorFreshManagerPerExecution(t *testing.T) {
@@ -684,7 +797,9 @@ func TestLifecycleExecutorManyWaiters(t *testing.T) {
 
 		runs := newScriptOrderRuns()
 		runs.hold("coder_script.clone")
+		reports := newScriptOrderReports()
 		executor := newTestExecutor(t, runs, newScriptOrderTestLogs())
+		executor.reportUnstarted = reports.record
 		all := scripts()
 
 		manager, byAddress, err := lifecycleManager(all)
@@ -702,6 +817,12 @@ func TestLifecycleExecutorManyWaiters(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, unit.OutcomeCanceled, u.Outcome(), script.ResourceAddress)
 		}
+
+		var want []scriptOrderReport
+		for _, script := range all[1:] {
+			want = append(want, scriptOrderReport{address: script.ResourceAddress, option: ExecuteStartScripts, status: proto.Timing_CANCELED})
+		}
+		require.ElementsMatch(t, want, reports.all(), "one report per waiting script, none for the running one")
 	})
 }
 
@@ -871,6 +992,34 @@ func (r *scriptOrderRuns) option(key string) ExecuteOption {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.options[key]
+}
+
+// scriptOrderReports is a fake reportUnstarted that records each call.
+type scriptOrderReports struct {
+	mu      sync.Mutex
+	records []scriptOrderReport
+}
+
+type scriptOrderReport struct {
+	address string
+	option  ExecuteOption
+	status  proto.Timing_Status
+}
+
+func newScriptOrderReports() *scriptOrderReports {
+	return &scriptOrderReports{}
+}
+
+func (r *scriptOrderReports) record(_ context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption, status proto.Timing_Status) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.records = append(r.records, scriptOrderReport{address: script.ResourceAddress, option: option, status: status})
+}
+
+func (r *scriptOrderReports) all() []scriptOrderReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]scriptOrderReport(nil), r.records...)
 }
 
 // scriptOrderTestLogs records every line sent to each script's log source.

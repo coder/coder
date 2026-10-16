@@ -2,17 +2,14 @@
 title: Parameters
 ---
 
-A template can prompt the user for additional information when creating
-workspaces with
-[_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
+A template can prompt the user for additional information when creating workspaces with [_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
 
 ![Parameters in Create Workspace screen](../../../images/parameters.png)
 
 The user can set parameters in the dashboard UI and CLI.
 
-You'll likely want to hardcode certain template properties for workspaces, such
-as security group. But you can let developers specify other properties with
-parameters like instance size, geographical location, repository URL, etc.
+You'll likely want to hardcode certain template properties for workspaces, such as security group.
+But you can let developers specify other properties with parameters like instance size, geographical location, repository URL, etc.
 
 This example lets a developer choose a Docker host for the workspace:
 
@@ -61,10 +58,8 @@ A Coder parameter can have one of these types:
 - `number`
 - `list(string)`
 
-To specify a default value for a parameter with the `list(string)` type, use a
-JSON array and the Terraform
-[jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
-function. For example:
+To specify a default value for a parameter with the `list(string)` type, use a JSON array and the Terraform [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode) function.
+For example:
 
 ```tf
 data "coder_parameter" "security_groups" {
@@ -87,19 +82,17 @@ data "coder_parameter" "security_groups" {
 > - `--parameter "parameter_name=parameter_value"` is parsed as CSV.
 > - `parameter_value` is parsed as JSON.
 >
-> So, to properly specify a `list(string)` with the `--parameter` CLI argument,
-> you will need to take care of both CSV quoting and shell quoting.
+> So, to properly specify a `list(string)` with the `--parameter` CLI argument, you will need to take care of both CSV quoting and shell quoting.
 >
-> For the above example, to override the default values of the `security_groups`
-> parameter, you will need to pass the following argument to `coder create`:
+> For the above example, to override the default values of the `security_groups` parameter, you will need to pass the following argument to `coder create`:
 >
 > ```shell
 > --parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
 > ```
 >
-> Alternatively, you can use `--rich-parameter-file` to work around the above
-> issues. This allows you to specify parameters as YAML. An equivalent parameter
-> file for the above `--parameter` is provided below:
+> Alternatively, you can use `--rich-parameter-file` to work around the above issues.
+> This allows you to specify parameters as YAML.
+> An equivalent parameter file for the above `--parameter` is provided below:
 >
 > ```yaml
 > security_groups:
@@ -140,38 +133,28 @@ data "coder_parameter" "docker_host" {
 
 ### Incompatibility in Parameter Options for Workspace Builds
 
-When creating Coder templates, authors have the flexibility to modify parameter
-options associated with rich parameters. Such modifications can involve adding,
-substituting, or removing a parameter option. It's important to note that making
-these changes can lead to discrepancies in parameter values utilized by ongoing
-workspace builds.
+When creating Coder templates, authors have the flexibility to modify parameter options associated with rich parameters.
+Such modifications can involve adding, substituting, or removing a parameter option.
+It's important to note that making these changes can lead to discrepancies in parameter values utilized by ongoing workspace builds.
 
-Consequently, workspace users will be prompted to select the new value from a
-pop-up window or by using the command-line interface. While this additional
-interactive step might seem like an interruption, it serves a crucial purpose.
-It prevents workspace users from becoming trapped with outdated template
-versions, ensuring they can smoothly update their workspace without any
-hindrances.
+Consequently, workspace users will be prompted to select the new value from a pop-up window or by using the command-line interface.
+While this additional interactive step might seem like an interruption, it serves a crucial purpose.
+It prevents workspace users from becoming trapped with outdated template versions, ensuring they can smoothly update their workspace without any hindrances.
 
 Example:
 
-- Bob creates a workspace using the `python-dev` template. This template has a
-  parameter `image_tag`, and Bob selects `1.12`.
-- Later, the template author Alice is notified of a critical vulnerability in a
-  package installed in the `python-dev` template, which affects the image tag
-  `1.12`.
-- Alice remediates this vulnerability, and pushes an updated template version
-  that replaces option `1.12` with `1.13` for the `image_tag` parameter. She
-  then notifies all users of that template to update their workspace
-  immediately.
-- Bob saves their work, and selects the `Update` option in the UI. As their
-  workspace uses the now-invalid option `1.12`, for the `image_tag` parameter,
-  they are prompted to select a new value for `image_tag`.
+- Bob creates a workspace using the `python-dev` template.
+  This template has a parameter `image_tag`, and Bob selects `1.12`.
+- Later, the template author Alice is notified of a critical vulnerability in a package installed in the `python-dev` template, which affects the image tag `1.12`.
+- Alice remediates this vulnerability, and pushes an updated template version that replaces option `1.12` with `1.13` for the `image_tag` parameter.
+  She then notifies all users of that template to update their workspace immediately.
+- Bob saves their work, and selects the `Update` option in the UI.
+  As their workspace uses the now-invalid option `1.12`, for the `image_tag` parameter, they are prompted to select a new value for `image_tag`.
 
 ## Required and optional parameters
 
-A parameter is _required_ if it doesn't have the `default` property. The user
-**must** provide a value to this parameter before creating a workspace:
+A parameter is _required_ if it doesn't have the `default` property.
+The user **must** provide a value to this parameter before creating a workspace:
 
 ```tf
 data "coder_parameter" "account_name" {
@@ -181,8 +164,7 @@ data "coder_parameter" "account_name" {
 }
 ```
 
-If a parameter contains the `default` property, Coder will use this value if the
-user does not specify any:
+If a parameter contains the `default` property, Coder will use this value if the user does not specify any:
 
 ```tf
 data "coder_parameter" "base_image" {
@@ -192,8 +174,7 @@ data "coder_parameter" "base_image" {
 }
 ```
 
-Admins can also set the `default` property to an empty value so that the
-parameter field can remain empty:
+Admins can also set the `default` property to an empty value so that the parameter field can remain empty:
 
 ```tf
 data "coder_parameter" "dotfiles_url" {
@@ -212,8 +193,7 @@ Immutable parameters can only be set in these situations:
 - Updating a workspace to a new template version.
   This sets the initial value for required parameters.
 
-The idea is to prevent users from modifying fragile or persistent workspace
-resources like volumes, regions, and so on.
+The idea is to prevent users from modifying fragile or persistent workspace resources like volumes, regions, and so on.
 
 Example:
 
@@ -226,19 +206,14 @@ data "coder_parameter" "region" {
 }
 ```
 
-If a required parameter is empty or if the workspace creation page detects an incompatibility between selected
-parameters, the **Create workspace** button is disabled until the issues are resolved.
+If a required parameter is empty or if the workspace creation page detects an incompatibility between selected parameters, the **Create workspace** button is disabled until the issues are resolved.
 
 ## Ephemeral parameters
 
-Ephemeral parameters are introduced to users in order to model specific
-behaviors in a Coder workspace, such as reverting to a previous image, restoring
-from a volume snapshot, or building a project without using cache. These
-parameters are settable when creating, starting, updating, or restarting a workspace
-but do not persist after the workspace is stopped.
+Ephemeral parameters are introduced to users in order to model specific behaviors in a Coder workspace, such as reverting to a previous image, restoring from a volume snapshot, or building a project without using cache.
+These parameters are settable when creating, starting, updating, or restarting a workspace but do not persist after the workspace is stopped.
 
-Since these parameters are ephemeral in nature, subsequent builds proceed in the
-standard manner:
+Since these parameters are ephemeral in nature, subsequent builds proceed in the standard manner:
 
 ```tf
 data "coder_parameter" "force_rebuild" {
@@ -255,16 +230,14 @@ data "coder_parameter" "force_rebuild" {
 
 ## Validate parameters
 
-Coder supports parameters with multiple validation modes: min, max,
-monotonic numbers, and regular expressions.
+Coder supports parameters with multiple validation modes: min, max, monotonic numbers, and regular expressions.
 
 ### Number
 
 You can limit a `number` parameter to `min` and `max` boundaries.
 
-You can also specify its monotonicity as `increasing` or `decreasing` to verify
-the current and new values. Use the `monotonic` attribute for resources that
-can't be shrunk or grown without implications, like disk volume size.
+You can also specify its monotonicity as `increasing` or `decreasing` to verify the current and new values.
+Use the `monotonic` attribute for resources that can't be shrunk or grown without implications, like disk volume size.
 
 ```tf
 data "coder_parameter" "instances" {
@@ -279,9 +252,8 @@ data "coder_parameter" "instances" {
 }
 ```
 
-It is possible to override the default `error` message for a `number` parameter,
-along with its associated `min` and/or `max` properties. The following message
-placeholders are available `{min}`, `{max}`, and `{value}`.
+It is possible to override the default `error` message for a `number` parameter, along with its associated `min` and/or `max` properties.
+The following message placeholders are available `{min}`, `{max}`, and `{value}`.
 
 ```tf
 data "coder_parameter" "instances" {
@@ -297,15 +269,12 @@ data "coder_parameter" "instances" {
 ```
 
 > [!NOTE]
-> As of
-> [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
-> `options` can be specified in `number` parameters; this also works with
-> validations such as `monotonic`.
+> As of [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs), `options` can be specified in `number` parameters; this also works with validations such as `monotonic`.
 
 ### String
 
-You can validate a `string` parameter to match a regular expression. The `regex`
-property requires a corresponding `error` property.
+You can validate a `string` parameter to match a regular expression.
+The `regex` property requires a corresponding `error` property.
 
 ```tf
 data "coder_parameter" "project_id" {
@@ -320,31 +289,25 @@ data "coder_parameter" "project_id" {
 
 ## Workspace presets
 
-Workspace presets allow you to configure commonly used combinations of parameters
-into a single option, which makes it easier for developers to pick one that fits
-their needs.
+Workspace presets allow you to configure commonly used combinations of parameters into a single option, which makes it easier for developers to pick one that fits their needs.
 
 ![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
 
-Use the
-[`coder_workspace_preset`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset)
-data source to define the preset parameters. After you save the template file,
-the presets will be available for all new workspace deployments.
+Use the [`coder_workspace_preset`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset) data source to define the preset parameters.
+After you save the template file, the presets will be available for all new workspace deployments.
 
 ### Optional preset fields
 
-In addition to the required `name` and `parameters` fields, you can enhance your
-workspace presets with optional `description` and `icon` fields:
+In addition to the required `name` and `parameters` fields, you can enhance your workspace presets with optional `description` and `icon` fields:
 
-- **description**: A helpful text description that provides additional context
-  about the preset. This helps users understand what the preset is for and when
-  to use it.
-- **icon**: A visual icon displayed alongside the preset name in the UI. Use
-  emoji icons with the format `/emojis/{code}.png` (e.g.,
-  `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+- **description**:
+  A helpful text description that provides additional context about the preset.
+  This helps users understand what the preset is for and when to use it.
+- **icon**:
+  A visual icon displayed alongside the preset name in the UI.
+  Use emoji icons with the format `/emojis/{code}.png` (e.g., `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
 
-For a complete list of all available fields, see the
-[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
+For a complete list of all available fields, see the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
 
 <details><summary>Expand for an example</summary>
 
@@ -411,17 +374,13 @@ data "coder_parameter" "region" {
 
 ## Create Autofill
 
-When the template doesn't specify default values, Coder will look for URL query
-parameters with form `param.<name>=<value>` to autofill parameters.
+When the template doesn't specify default values, Coder will look for URL query parameters with form `param.<name>=<value>` to autofill parameters.
 
 This feature enables platform teams to create pre-filled template creation links.
 
 ## Dynamic Parameters
 
-Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with
-conditional form controls, enriched input types, and user identity awareness.
-This feature allows template authors to create interactive workspace creation forms, meaning more environment
-customization and fewer templates to maintain.
+Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with conditional form controls, enriched input types, and user identity awareness.
+This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
 
-You can read more in the [Dynamic Parameters documentation](./dynamic-parameters.md) and try it out in the
-[Parameters Playground](https://playground.coder.app/parameters).
+You can read more in the [Dynamic Parameters documentation](./dynamic-parameters.md) and try it out in the [Parameters Playground](https://playground.coder.app/parameters).

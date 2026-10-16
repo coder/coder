@@ -4517,7 +4517,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
-// What the exit status of the script is.
+// The terminal outcome of a script execution.
 type WorkspaceAgentScriptTimingStatus string
 
 const (
@@ -4525,6 +4525,8 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
+	WorkspaceAgentScriptTimingStatusCanceled      WorkspaceAgentScriptTimingStatus = "canceled"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4567,7 +4569,9 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled:
 		return true
 	}
 	return false
@@ -4579,6 +4583,8 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled,
 	}
 }
 
