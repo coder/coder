@@ -526,6 +526,22 @@ describe("ProjectDetailsPanel templates", () => {
 		);
 	});
 
+	it("sends one templates update when Save is double clicked", async () => {
+		const { user, updateProject } = setup();
+		updateProject.mockReturnValue(new Promise(() => {}));
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(updateProject).toHaveBeenCalled());
+		expect(updateProject).toHaveBeenCalledTimes(1);
+	});
+
 	it("starts the editor from the saved templates", async () => {
 		const { user, updateProject, rerenderWithProject } = setup();
 		rerenderWithProject({

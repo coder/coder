@@ -18,9 +18,7 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
-	/** The number of templates the project's chats may use. */
 	readonly templateCount: number;
-	/** Opens the editor for the project's templates. */
 	readonly onEditTemplates: () => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;

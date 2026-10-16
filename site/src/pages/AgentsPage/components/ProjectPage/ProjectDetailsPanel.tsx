@@ -68,6 +68,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const resetErrors = () => {
 		updateMutation.reset();
 		deleteMutation.reset();
+		updateTemplatesMutation.reset();
 	};
 
 	const openEditor = () => {
@@ -110,9 +111,11 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				isSaving={updateTemplatesMutation.isPending}
 				error={updateTemplatesMutation.error}
 				onSave={(templates) =>
-					updateTemplatesMutation.mutate(
-						{ project, request: { templates } },
-						{ onSuccess: () => setIsTemplatesEditorOpen(false) },
+					runMutation((onSettled) =>
+						updateTemplatesMutation.mutate(
+							{ project, request: { templates } },
+							{ onSuccess: () => setIsTemplatesEditorOpen(false), onSettled },
+						),
 					)
 				}
 			/>

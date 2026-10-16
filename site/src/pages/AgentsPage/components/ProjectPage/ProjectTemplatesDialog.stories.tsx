@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, spyOn } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	agentTemplates,
 	richParametersKey,
@@ -54,10 +55,6 @@ const projectWithDefaultParameters: ChatProject = {
 		default_parameters: { [MockTemplateVersionParameter1.name]: "custom" },
 	},
 };
-const templatesQuery = {
-	key: agentTemplates(MockChatProject.organization_id).queryKey,
-	data: [dockerTemplate, kubernetesTemplate],
-};
 
 const meta: Meta<typeof ProjectTemplatesDialog> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectTemplatesDialog",
@@ -71,7 +68,12 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 		onSave: fn(),
 	},
 	parameters: {
-		queries: [templatesQuery],
+		queries: [
+			{
+				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				data: [dockerTemplate, kubernetesTemplate],
+			},
+		],
 	},
 };
 
@@ -80,11 +82,21 @@ type Story = StoryObj<typeof ProjectTemplatesDialog>;
 
 export const NoTemplates: Story = {};
 
+export const Loading: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockReturnValue(new Promise(() => {}));
+	},
+};
+
 export const DefaultPreset: Story = {
 	args: { project: projectWithDefaultPreset },
 	parameters: {
 		queries: [
-			templatesQuery,
+			{
+				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				data: [dockerTemplate, kubernetesTemplate],
+			},
 			{
 				key: templateVersionPresetsKey(dockerTemplate.active_version_id),
 				data: [smallPreset],
@@ -97,7 +109,10 @@ export const DefaultParameters: Story = {
 	args: { project: projectWithDefaultParameters },
 	parameters: {
 		queries: [
-			templatesQuery,
+			{
+				key: agentTemplates(MockChatProject.organization_id).queryKey,
+				data: [dockerTemplate, kubernetesTemplate],
+			},
 			{
 				key: richParametersKey(dockerTemplate.active_version_id),
 				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
