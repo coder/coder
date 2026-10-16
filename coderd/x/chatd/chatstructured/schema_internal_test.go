@@ -3,6 +3,7 @@ package chatstructured
 import (
 	"errors"
 	"maps"
+	"regexp/syntax"
 	"slices"
 	"strconv"
 	"strings"
@@ -71,6 +72,39 @@ func repeatJoin(n int, format string) string {
 	}
 	return strings.Join(parts, ",")
 }
+
+// exactInsts counts the program regexp.Compile builds for p, independently
+// of the preflight's estimate.
+func exactInsts(t testing.TB, p string) int {
+	t.Helper()
+	re, err := syntax.Parse(p, syntax.Perl)
+	require.NoError(t, err, p)
+	prog, err := syntax.Compile(re.Simplify())
+	require.NoError(t, err, p)
+	return len(prog.Inst)
+}
+
+func estimate(t testing.TB, p string) int {
+	t.Helper()
+	re, err := syntax.Parse(p, syntax.Perl)
+	require.NoError(t, err, p)
+	return estimateInsts(re)
+}
+
+// capSchema sits at every schema cap: 256 nodes, 8 branches, nesting 4, and
+// 4 patternProperties patterns, with 128-instruction patterns throughout.
+func capSchema() string {
+	return `{"not":{"not":{"not":{"not":{}}}},"anyOf":[{},{},{},{}],` +
+		`"patternProperties":{"a{126}":{},"b{126}":{},"c{126}":{},"d{126}":{}},"properties":{` +
+		repeatJoin(243, `"p@":{"pattern":"a{126}"}`) + `}}`
+}
+
+// literalOnly holds keyword-shaped literal data and property names that
+// would exceed every limit if they were counted.
+var literalOnly = `{"enum":[` + repeatJoin(300, `{"allOf":[@],"patternProperties":{"(":1}}`) + `],` +
+	`"const":{"anyOf":[{},{},{},{},{},{},{},{},{}]},"examples":[{"patternProperties":{"a{1000}":{}}}],` +
+	`"default":{"not":{"not":{"not":{"not":{"not":{"pattern":"a{1000}"}}}}}},` +
+	`"properties":{"allOf":{},"patternProperties":{},"not":{}},"required":["patternProperties"]}`
 
 // walkSchemas calls visit on every schema object at a schema position of v,
 // children before parents, independently of the preflight's walker.
@@ -144,8 +178,8 @@ func preflightCases() []preflightCase {
 		{name: "Annotations", input: annotated, want: `{}`},
 		{name: "Draft07", input: `{"$schema":"` + draft07 + `","type":"string"}`, want: `{"type":"string"}`},
 		{name: "Draft07NoFragment", input: `{"$schema":"http://json-schema.org/draft-07/schema"}`, want: `{}`},
-		// Patterns are copied as strings, never compiled.
-		{name: "UncompiledPattern", input: `{"pattern":"a{1000}"}`},
+		// Counted repetitions expand when compiled.
+		{name: "ExpandingPattern", input: `{"pattern":"a{1000}"}`, wantErr: ErrSchemaTooComplex},
 		// Property names and literal data are never screened.
 		{name: "KeywordPropertyNames", input: `{"properties":{"$ref":{},"$id":{},"definitions":{},"$schema":{}},` +
 			`"patternProperties":{"$ref":{}},"required":["$ref","$schema"],"dependencies":{"$id":["$ref"],"definitions":{}}}`},
@@ -271,13 +305,210 @@ func TestPreflightSchemaSanitizedCopy(t *testing.T) {
 	require.Equal(t, fresh, got.document)
 }
 
+func TestPreflightSchemaLimits(t *testing.T) {
+	t.Parallel()
+
+	// Each pair trips only the intended limit; expectations are literal.
+	check := func(input string, wantErr error) {
+		t.Helper()
+		_, err := preflightSchema([]byte(input))
+		if wantErr == nil {
+			require.NoError(t, err, input)
+			return
+		}
+		require.ErrorIs(t, err, wantErr, input)
+		require.Equal(t, wantErr.Error(), err.Error())
+	}
+	tooComplex := ErrSchemaTooComplex
+	check(capSchema(), nil)
+	check(literalOnly, nil)
+
+	// The root plus n object or boolean schemas.
+	check(`{"properties":{`+repeatJoin(255, `"p@":{}`)+`}}`, nil)
+	check(`{"properties":{`+repeatJoin(256, `"p@":{}`)+`}}`, tooComplex)
+	check(`{"items":[`+repeatJoin(255, `true`)+`]}`, nil)
+	check(`{"items":[`+repeatJoin(256, `false`)+`]}`, tooComplex)
+
+	anyOf := func(n int, elem string) string { return `{"anyOf":[` + repeatJoin(n, elem) + `]}` }
+	check(anyOf(8, `{}`), nil)
+	check(anyOf(9, `{}`), tooComplex)
+	// Malformed branches count but are not walked.
+	check(anyOf(8, `1`), nil)
+	check(anyOf(9, `1`), tooComplex)
+	// Array-form dependencies are literal data and do not count.
+	mixed := `{"allOf":[{},{}],"oneOf":[true],"not":{},"if":{},"then":{},"else":false,"dependencies":{"a":{},"b":["a"]`
+	check(mixed+`}}`, nil)
+	check(mixed+`,"c":true}}`, tooComplex)
+
+	notChain := func(n int) string { return strings.Repeat(`{"not":`, n) + `{}` + strings.Repeat(`}`, n) }
+	check(notChain(4), nil)
+	check(notChain(5), tooComplex)
+	// Other keywords keep the level.
+	check(strings.Replace(notChain(4), `{}`, `{"properties":{"a":{"items":[{"additionalProperties":{}}]}}}`, 1), nil)
+	// allOf, dependencies, if and anyOf add one level; properties keeps it.
+	chain := `{"allOf":[{"dependencies":{"a":{"if":{"properties":{"p":{"anyOf":[@]}}}}}}]}`
+	check(strings.Replace(chain, "@", `{}`, 1), nil)
+	check(strings.Replace(chain, "@", `{"not":{}}`, 1), tooComplex)
+
+	// A class compiles to one instruction, so only the length trips.
+	class := func(body string) string { return `[` + body + `]` }
+	require.Len(t, class(strings.Repeat("é", 127)), 256)
+	for _, p := range []string{class(strings.Repeat("a", 254)), class(strings.Repeat("é", 127))} {
+		check(`{"pattern":"`+p+`"}`, nil)
+		check(`{"patternProperties":{"`+p+`":{}}}`, nil)
+	}
+	for _, p := range []string{class(strings.Repeat("a", 255)), class("a" + strings.Repeat("é", 127))} {
+		require.Len(t, p, 257)
+		check(`{"pattern":"`+p+`"}`, tooComplex)
+		check(`{"patternProperties":{"`+p+`":{}}}`, tooComplex)
+	}
+
+	require.Equal(t, 128, exactInsts(t, "a{126}"))
+	require.Equal(t, 129, exactInsts(t, "a{127}"))
+	// The estimate admits both, so the exact count decides.
+	require.LessOrEqual(t, estimate(t, "a{127}"), 1024)
+	check(`{"pattern":"a{126}"}`, nil)
+	check(`{"pattern":"a{127}"}`, tooComplex)
+	check(`{"patternProperties":{"a{126}":{}}}`, nil)
+	check(`{"patternProperties":{"a{127}":{}}}`, tooComplex)
+	// The estimate rejects before compiling.
+	require.Greater(t, estimate(t, "(a{1000})"), 1024)
+	check(`{"pattern":"(a{1000})"}`, tooComplex)
+	check(`{"patternProperties":{"(a{1000})":{}}}`, tooComplex)
+
+	check(`{"pattern":"("}`, ErrInvalidSchema)
+	check(`{"patternProperties":{"(":{}}}`, ErrInvalidSchema)
+	check(`{"pattern":"((a{1000}){1000}){1000}"}`, ErrInvalidSchema)
+
+	pp := `{"patternProperties":{"^a":{"patternProperties":{"^b":{}}}},"properties":{"x":{"patternProperties":{"^c":{}}}},` +
+		`"anyOf":[{"patternProperties":{"^d":{}}}]`
+	check(pp+`}`, nil)
+	check(pp+`,"items":{"patternProperties":{"^e":{}}}}`, tooComplex)
+}
+
+func TestPreflightSchemaPatternPropertiesFlag(t *testing.T) {
+	t.Parallel()
+
+	for input, want := range map[string]bool{
+		`{}`:                       false,
+		`{"patternProperties":{}}`: true,
+		`{"items":{"patternProperties":{"^a":{}}}}`:                                          true,
+		`{"items":[{},{"patternProperties":{}}]}`:                                            true,
+		`{"allOf":[{"not":{"patternProperties":{}}}]}`:                                       true,
+		`{"dependencies":{"a":{"patternProperties":{}}}}`:                                    true,
+		`{"properties":{"patternProperties":{}},"dependencies":{"patternProperties":["a"]}}`: false,
+		literalOnly: false,
+	} {
+		got, err := preflightSchema([]byte(input))
+		require.NoError(t, err, input)
+		require.Equal(t, want, got.patternProperties, input)
+	}
+}
+
+func TestEstimateInsts(t *testing.T) {
+	t.Parallel()
+
+	for _, p := range []string{`^[a-z0-9_-]{1,40}$`, `^\d{3}-\d{4}$`, `^x-[a-z]+$`, `^[A-Z]{2}$`, `^\S+@\S+$`} {
+		require.NoError(t, checkPattern(p), p)
+	}
+	corpus := []string{
+		"", "a", `\bfoo\B`, "(?i)héllo|wörld", "日本{3,5}", `[^\p{Greek}]+?`, "(a|bc|d)*", "(a*)*", "(|a)+",
+		"(a?){3,}", "a{0}", "a{0,}", "a{1000}", "(?:(?:x|yz){1,3}z){2}", "((a{2}){3}){4}", "(?:(a)|b){2,7}?",
+		"^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$", "(?s).{2,}(?m)^$",
+	}
+	quantifiers := []string{"", "*", "+?", "?", "{3}", "{2,}", "{1,4}", "{0,2}", "{0}"}
+	for _, atom := range []string{"a", "[ab]", "(x|yz)", "(?:)", "é", "(a*)", "^"} {
+		for _, q1 := range quantifiers {
+			for _, q2 := range quantifiers {
+				corpus = append(corpus, "(?:"+atom+q1+"b)"+q2, "("+atom+q1+"|c)"+q2+"$")
+			}
+		}
+	}
+	checked := 0
+	for _, p := range corpus {
+		if est := estimate(t, p); est <= 1024 {
+			require.GreaterOrEqual(t, est, exactInsts(t, p), p)
+			checked++
+		}
+	}
+	require.Greater(t, checked, len(corpus)/2)
+}
+
+// recount recounts limits over a sanitized copy independently of the
+// preflight's walker. schema reports whether v is a schema.
+type recount struct {
+	nodes, branches, nesting, patterns int
+	patternProperties                  bool
+}
+
+func (c *recount) schema(t *testing.T, v any, level int) bool {
+	obj, isObject := v.(map[string]any)
+	if _, isBool := v.(bool); !isObject && !isBool {
+		return false
+	}
+	c.nodes++
+	c.nesting = max(c.nesting, level)
+	for key, val := range obj {
+		// subs holds the values at schema positions below key; every one
+		// counts when branch is 1.
+		subs, branch := []any{}, 0
+		switch key {
+		case "pattern":
+			if p, ok := val.(string); ok {
+				c.pattern(t, p)
+			}
+		case "not", "if", "then", "else":
+			subs, branch = []any{val}, 1
+		case "allOf", "anyOf", "oneOf":
+			subs, _ = val.([]any)
+			branch = 1
+		case "items", "additionalItems", "additionalProperties", "contains", "propertyNames":
+			if list, ok := val.([]any); ok && key == "items" {
+				subs = list
+			} else {
+				subs = []any{val}
+			}
+		case "properties", "patternProperties", "dependencies":
+			c.patternProperties = c.patternProperties || key == "patternProperties"
+			members, _ := val.(map[string]any)
+			for name, sub := range members {
+				if key == "patternProperties" {
+					c.patterns++
+					c.pattern(t, name)
+				}
+				if key != "dependencies" {
+					subs = append(subs, sub)
+				} else if c.schema(t, sub, level+1) {
+					c.branches++ // Only schema-form dependencies branch.
+				}
+			}
+		}
+		c.branches += branch * len(subs)
+		for _, sub := range subs {
+			c.schema(t, sub, level+branch)
+		}
+	}
+	return true
+}
+
+func (*recount) pattern(t *testing.T, p string) {
+	require.LessOrEqual(t, len(p), 256)
+	require.LessOrEqual(t, exactInsts(t, p), 128)
+}
+
 func FuzzPreflightSchema(f *testing.F) {
 	for _, tt := range preflightCases() {
 		f.Add([]byte(tt.input))
 	}
-	f.Add([]byte(`{"properties":{"$ref":` + annotated + `},"allOf":[{"not":{"dependencies":{"a":{"$ref":"#"},"b":["$id"]}}}]}`))
+	for _, seed := range []string{
+		`{"properties":{"$ref":` + annotated + `},"allOf":[{"not":{"dependencies":{"a":{"$ref":"#"},"b":["$id"]}}}]}`,
+		capSchema(), literalOnly, `{"pattern":"a{127}"}`, `{"pattern":"((a{2}){3}|[\\p{L}]+?){1,4}"}`, `{"pattern":"(a{1000})"}`,
+		`{"patternProperties":{"(?i)^x-[a-z]{1,40}$":{"not":{"dependencies":{"a":{"items":[true,{"pattern":"^\\d+$"}]}}}}}}`,
+	} {
+		f.Add([]byte(seed))
+	}
 	sentinels := []error{
-		ErrInvalidSchema, ErrUnsupportedDialect, ErrUnsupportedKeyword, ErrUnsupportedFormat,
+		ErrInvalidSchema, ErrUnsupportedDialect, ErrUnsupportedKeyword, ErrUnsupportedFormat, ErrSchemaTooComplex,
 		ErrTooLarge, ErrInvalidUTF8, ErrMalformed, ErrTrailingData, ErrTooDeep, ErrTooManyNodes, ErrArrayTooLong,
 		ErrDuplicateKey, ErrNullCharacter, ErrUnpairedSurrogate, ErrNumberTooLong, ErrExponentTooLarge,
 	}
@@ -304,6 +535,13 @@ func FuzzPreflightSchema(f *testing.F) {
 			}
 		})
 		require.Equal(t, want, got.sanitized)
+		var c recount
+		c.schema(t, got.sanitized, 0)
+		require.LessOrEqual(t, c.nodes, 256)
+		require.LessOrEqual(t, c.branches, 8)
+		require.LessOrEqual(t, c.nesting, 4)
+		require.LessOrEqual(t, c.patterns, 4)
+		require.Equal(t, c.patternProperties, got.patternProperties)
 		scribble(got.sanitized)
 		fresh, err := ParseSchemaDocument(raw)
 		require.NoError(t, err)
@@ -312,20 +550,36 @@ func FuzzPreflightSchema(f *testing.F) {
 }
 
 // BenchmarkPreflightSchema measures an accepted schema near the 16 KiB cap
-// that mixes every keyword kind, annotations and literal data.
+// that mixes every keyword kind, annotations and literal data, the accepted
+// schema at every cap, a maximal pattern that the estimate rejects before
+// compiling, and a pattern that the exact count rejects after compiling.
 func BenchmarkPreflightSchema(b *testing.B) {
-	member := `"p@":{` + annotationMembers + `,` + everyKeyword[1:]
-	build := func(n int) []byte { return []byte(`{"properties":{` + repeatJoin(n, member) + `}}`) }
+	build := func(n int) string {
+		return `{"properties":{"k":` + everyKeyword + `,` + repeatJoin(n, `"p@":`+annotated) + `}}`
+	}
 	n := 1
 	for len(build(n+1)) <= 16<<10 {
 		n++
 	}
-	raw := build(n)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(raw)))
-	for b.Loop() {
-		if _, err := preflightSchema(raw); err != nil {
-			b.Fatal(err)
-		}
+	for _, bc := range []struct {
+		name  string
+		input string
+		want  error
+	}{
+		{name: "Vocabulary", input: build(n)},
+		{name: "AtCaps", input: capSchema()},
+		{name: "EstimateRejection", input: `{"pattern":"(?:` + strings.Repeat("[a-z]", 49) + `){1000}"}`, want: ErrSchemaTooComplex},
+		{name: "CompileRejection", input: `{"pattern":"a{500}"}`, want: ErrSchemaTooComplex},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			raw := []byte(bc.input)
+			b.ReportAllocs()
+			b.SetBytes(int64(len(raw)))
+			for b.Loop() {
+				if _, err := preflightSchema(raw); !errors.Is(err, bc.want) {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
