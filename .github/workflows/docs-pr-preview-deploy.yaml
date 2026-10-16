@@ -1,0 +1,348 @@
+# Builds a pull request's docs/ tree with docs-engine's offline export and
+# publishes it as its own site on the Coder-owned domain in the repository
+# variable DOCS_PREVIEW_DOMAIN:
+#
+#   coder-docs-pr-<number>.<domain>             the PR head, re-aliased per build
+#   coder-docs-pr-<number>-<sha:0:9>.<domain>   one per built commit
+#
+# After a deploy succeeds, the comment job runs docs-preview.yaml, which links
+# each changed page to the first; the deploy job's own comment lists the
+# second for every commit built. docs-pr-preview-cleanup.yaml deletes them
+# when the PR closes.
+#
+# Only PRs from a branch in this repository build. Fork PRs get no preview:
+# their build would share the base branch's Actions cache scope and the
+# private engine source.
+#
+# Compiling Markdown runs the engine's plugins over it, so PR content never
+# shares a job with a secret:
+#   engine  mints a docs-engine read token and packs the engine source; never
+#           sees PR content.
+#   build   no secrets. Builds the export from the engine and the PR's docs/.
+#   deploy  holds the Vercel token. Takes only the static files from build,
+#           lays them out with the engine's own script (checked against the
+#           engine job's digest), adds noindex, and deploys them prebuilt.
+#
+# Each job hands the next an artifact; a job's outputs cannot be rewritten by
+# a later job, so the engine digest travels as an output.
+name: docs-pr-preview-deploy
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "docs/**"
+      - "!docs/.style/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  engine:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
+      domain: ${{ steps.domain.outputs.domain }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # Checked first so a missing domain fails before the build. A vercel.app
+      # name is first-come across every Vercel account, so anyone could claim
+      # a preview's name before the deploy or after cleanup frees it.
+      - name: Check the preview domain
+        id: domain
+        env:
+          DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
+        run: |
+          set -euo pipefail
+          domain=$(printf '%s' "$DOCS_PREVIEW_DOMAIN" | tr '[:upper:]' '[:lower:]')
+          if [ -z "$domain" ] || [[ "$domain" =~ (^|\.)vercel\.app\.?$ ]] || ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Set the repository variable DOCS_PREVIEW_DOMAIN to a Coder-owned domain (not vercel.app)." >&2
+            exit 1
+          fi
+          echo "domain=${domain}" >> "$GITHUB_OUTPUT"
+
+      # A PR may move the pin and preview the result; one branched before the
+      # pin existed uses the base branch's.
+      - name: Read the pinned docs-engine commit
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PIN_SOURCE: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          read_pin() { gh api -H "Accept: application/vnd.github.raw" "repos/${REPO}/contents/docs/.engine-ref?ref=$1" | tr -d '[:space:]'; }
+          ref=$(read_pin "$PIN_SOURCE" || read_pin "$BASE_SHA")
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || { echo "docs/.engine-ref must hold one full 40-hex commit SHA" >&2; exit 1; }
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Mint a docs-engine read token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.DOCS_ENGINE_APP_ID }}
+          private-key: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: docs-engine
+          permission-contents: read
+
+      - name: Check out docs-engine
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: coder/docs-engine
+          ref: ${{ steps.ref.outputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: engine
+          persist-credentials: false
+
+      - name: Pack the engine source
+        id: pack
+        run: |
+          set -euo pipefail
+          tar -C engine --exclude=.git -czf engine.tgz .
+          echo "digest=$(sha256sum engine.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the engine source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-engine-source
+          path: engine.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  build:
+    needs: engine
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Download the engine source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-engine-source
+          path: ${{ runner.temp }}/engine-artifact
+
+      - name: Verify and unpack the engine source
+        env:
+          DIGEST: ${{ needs.engine.outputs.digest }}
+          ARTIFACT_DIR: ${{ runner.temp }}/engine-artifact
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${ARTIFACT_DIR}/engine.tgz" | sha256sum -c -
+          mkdir engine
+          tar -C engine -xzf "${ARTIFACT_DIR}/engine.tgz"
+
+      - name: Check out the pull request's docs/ tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: content
+          sparse-checkout: docs
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: engine/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install the engine's dependencies
+        working-directory: engine
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the static export
+        working-directory: engine
+        env:
+          DOCS_ROOT: ${{ github.workspace }}/content/docs
+        run: pnpm turbo run build --filter=@coder/offlinedocs
+
+      - name: Upload the static export
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-preview-site
+          path: engine/apps/offlinedocs/out
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    needs: [engine, build]
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: docs-preview
+    permissions:
+      pull-requests: write
+    env:
+      VERCEL_CLI_VERSION: 59.3.0
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      DOMAIN: ${{ needs.engine.outputs.domain }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Download the engine source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-engine-source
+          path: ${{ runner.temp }}/engine-artifact
+
+      # The build job could have replaced the artifact, so only the engine
+      # job's digest decides whether this code may run here.
+      - name: Verify and unpack the engine source
+        env:
+          DIGEST: ${{ needs.engine.outputs.digest }}
+          ARTIFACT_DIR: ${{ runner.temp }}/engine-artifact
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${ARTIFACT_DIR}/engine.tgz" | sha256sum -c -
+          mkdir engine
+          tar -C engine -xzf "${ARTIFACT_DIR}/engine.tgz"
+
+      - name: Download the static export
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-preview-site
+          path: engine/apps/offlinedocs/out
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # build-output.mjs uses only Node built-ins and writes the routes and
+      # security headers (including the CSP) from the engine's vercel.json.
+      - name: Lay out the Build Output API directory with noindex
+        working-directory: engine/apps/offlinedocs
+        run: |
+          set -euo pipefail
+          node scripts/build-output.mjs
+          config=.vercel/output/config.json
+          jq '.routes = [{src: "^/(.*)$", headers: {"X-Robots-Tag": "noindex"}, continue: true}] + .routes' \
+            "$config" > "${config}.tmp"
+          mv "${config}.tmp" "$config"
+          jq -e '.routes[0].headers["X-Robots-Tag"] == "noindex"' "$config" >/dev/null
+
+      - name: Deploy and alias the preview
+        id: deploy
+        working-directory: engine/apps/offlinedocs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          short_sha="${SHA:0:9}"
+          head_alias="coder-docs-pr-${PR_NUMBER}.${DOMAIN}"
+          commit_alias="coder-docs-pr-${PR_NUMBER}-${short_sha}.${DOMAIN}"
+
+          vc() { npx --yes "vercel@${VERCEL_CLI_VERSION}" "$@" --token="$VERCEL_TOKEN"; }
+          vercel_api() {
+            curl --fail-with-body -sS --retry 3 \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" "$@"
+          }
+          set_alias() {
+            vercel_api -X POST "https://api.vercel.com/v2/deployments/${deployment_id}/aliases?teamId=${VERCEL_ORG_ID}" \
+              --data "$(jq -cn --arg alias "$1" '{alias: $alias}')" >/dev/null
+            echo "Aliased https://$1"
+          }
+
+          vc pull --yes --environment=preview
+          url=$(vc deploy --prebuilt --archive=tgz --yes \
+            --meta pr="$PR_NUMBER" \
+            --meta sha="$SHA")
+          deployment_id=$(vercel_api "https://api.vercel.com/v13/deployments/${url#https://}?teamId=${VERCEL_ORG_ID}" | jq -er '.id')
+
+          set_alias "$commit_alias"
+          # A slower build of an older commit must not take the head alias back.
+          current_head=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          if [ "$current_head" = "$SHA" ]; then
+            set_alias "$head_alias"
+          else
+            echo "::notice::The PR head moved to ${current_head} during this build; ${head_alias} is left for that build."
+          fi
+
+          {
+            echo "head_url=https://${head_alias}"
+            echo "commit_url=https://${commit_alias}"
+            echo "short_sha=${short_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update the preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_URL: ${{ steps.deploy.outputs.head_url }}
+          COMMIT_URL: ${{ steps.deploy.outputs.commit_url }}
+          SHORT_SHA: ${{ steps.deploy.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          marker='<!-- docs-pr-preview-deploy -->'
+          # Fail on a list error rather than fall through to a duplicate POST.
+          ids=$(gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${marker}\")) | .id")
+          existing_id=$(printf '%s\n' "$ids" | head -n 1) || true
+
+          # Carry the earlier commits' lines forward, newest first, capped so
+          # a long-lived PR stays well under the comment size limit.
+          earlier=""
+          if [ -n "$existing_id" ]; then
+            earlier=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' \
+              | grep -E "^- \`[0-9a-f]{9}\` https://coder-docs-pr-${PR_NUMBER}-[0-9a-f]{9}\.${DOMAIN//./\\.}$" \
+              | grep -vF "\`${SHORT_SHA}\`" || true)
+          fi
+          # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+          commits=$(printf -- '- `%s` %s\n%s\n' "$SHORT_SHA" "$COMMIT_URL" "$earlier" | sed '/^$/d' | head -n 100)
+
+          body=$(printf '## Docs preview deployment\n\nThis pull request'"'"'s head: %s\n\nEvery built commit keeps its own preview, newest first:\n\n%s\n\nPreviews are not indexed by search engines and are deleted when this pull request is merged or closed.\n\n%s' \
+            "$HEAD_URL" "$commits" "$marker")
+
+          if [ -n "$existing_id" ]; then
+            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" --raw-field body="$body" >/dev/null
+            echo "Updated comment ${existing_id}."
+          else
+            gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" --raw-field body="$body" >/dev/null
+            echo "Created the preview comment."
+          fi
+
+  # Runs after a successful deploy, so its per-page links never point at a
+  # preview that does not exist yet.
+  comment:
+    needs: deploy
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/docs-preview.yaml
