@@ -312,6 +312,22 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	start := time.Now()
+	r0 := m.s.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsBeforeBuild").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsBeforeBuild").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsByWorkspaceID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -3144,6 +3160,14 @@ func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (st
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetScriptOrderTelemetrySummary(ctx)
+	m.queryLatencies.WithLabelValues("GetScriptOrderTelemetrySummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetScriptOrderTelemetrySummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
@@ -4160,6 +4184,22 @@ func (m queryMetricsStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceSecrets(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceSecrets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSecrets").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceSecretsHistory(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceSecretsHistory").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSecretsHistory").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
@@ -4936,6 +4976,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.IsChatHeartbeatStale(ctx, arg)
@@ -5045,6 +5093,14 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	r0, r1 := m.s.ListAIGatewayKeys(ctx)
 	m.queryLatencies.WithLabelValues("ListAIGatewayKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIGatewayKeys").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
+	m.queryLatencies.WithLabelValues("ListActiveWorkspaceSecrets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListActiveWorkspaceSecrets").Inc()
 	return r0, r1
 }
 
@@ -5737,6 +5793,14 @@ func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedWorkspaceSecretValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedWorkspaceSecretValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedWorkspaceSecretValue").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateExternalAuthLink(ctx, arg)
@@ -6054,6 +6118,14 @@ func (m queryMetricsStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context
 	r0 := m.s.UpdateTemplateVersionFlagsByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionFlagsByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionFlagsByJobID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionScriptOrderUsageByJobID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionScriptOrderUsageByJobID").Inc()
 	return r0
 }
 

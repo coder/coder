@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "react-query";
 import { useLocation } from "react-router";
 import {
 	expect,
@@ -28,6 +29,7 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -2936,10 +2938,18 @@ export const ProjectsSectionCollapsed: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Projects" }),
-		);
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+};
+
+export const ProjectsEmpty: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [] }],
 	},
 };
 
@@ -3035,6 +3045,31 @@ export const ProjectsLoadError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+export const ProjectsEmptyRefetchError: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to refresh projects." }),
+		);
+	},
+	render: function ProjectsEmptyRefetchErrorRender(args) {
+		const queryClient = useQueryClient();
+		// Seeded data never goes stale in Storybook, so refetch explicitly
+		// to fail on top of the cached empty list.
+		useEffect(() => {
+			void queryClient.refetchQueries({ queryKey: chatProjectsKey });
+		}, [queryClient]);
+		return <ChatsSidebar {...args} />;
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", { name: "Retry" });
 	},
 };
 
