@@ -124,22 +124,15 @@ func (c *Resources) appendPaths(paths []string, base string) []string {
 }
 
 type Agents struct {
-	Apps       *Apps // latest_build.resources.agents.apps
-	Scripts    bool  // latest_build.resources.agents.scripts
-	LogSources bool  // latest_build.resources.agents.log_sources
-}
-
-func (c *Agents) ensureApps() *Apps {
-	if c.Apps == nil {
-		c.Apps = &Apps{}
-	}
-	return c.Apps
+	Apps       bool // latest_build.resources.agents.apps
+	Scripts    bool // latest_build.resources.agents.scripts
+	LogSources bool // latest_build.resources.agents.log_sources
 }
 
 func (c *Agents) appendPaths(paths []string, base string) []string {
 	before := len(paths)
-	if c.Apps != nil {
-		paths = c.Apps.appendPaths(paths, base+".apps")
+	if c.Apps {
+		paths = append(paths, base+".apps")
 	}
 	if c.Scripts {
 		paths = append(paths, base+".scripts")
@@ -151,12 +144,6 @@ func (c *Agents) appendPaths(paths []string, base string) []string {
 		paths = append(paths, base)
 	}
 	return paths
-}
-
-type Apps struct{}
-
-func (*Apps) appendPaths(paths []string, base string) []string {
-	return append(paths, base)
 }
 
 // All returns a selection that loads every related object. It reproduces the
@@ -176,7 +163,7 @@ func AllLatestBuild() LatestBuild {
 		Resources: &Resources{
 			Metadata: true,
 			Agents: &Agents{
-				Apps:       &Apps{},
+				Apps:       true,
 				Scripts:    true,
 				LogSources: true,
 			},

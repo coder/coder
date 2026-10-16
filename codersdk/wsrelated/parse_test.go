@@ -63,7 +63,7 @@ func TestParse(t *testing.T) {
 			input: "latest_build.resources.agents.*",
 			want: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
 				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{
-					Apps:       &wsrelated.Apps{},
+					Apps:       true,
 					Scripts:    true,
 					LogSources: true,
 				}},
@@ -120,7 +120,7 @@ func TestParse(t *testing.T) {
 				Resources: &wsrelated.Resources{
 					Metadata: true,
 					Agents: &wsrelated.Agents{
-						Apps:       &wsrelated.Apps{},
+						Apps:       true,
 						Scripts:    true,
 						LogSources: true,
 					},
