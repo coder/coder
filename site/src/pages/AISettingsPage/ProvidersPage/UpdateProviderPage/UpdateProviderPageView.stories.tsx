@@ -42,6 +42,14 @@ export const OpenAI: Story = {
 		),
 		...seed(MockAIProviderOpenAI),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", { name: "Model settings" });
+		expect(link).toHaveAttribute(
+			"href",
+			`/ai/settings/models?provider=${MockAIProviderOpenAI.id}`,
+		);
+	},
 };
 
 export const Anthropic: Story = {
