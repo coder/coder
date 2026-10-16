@@ -16,6 +16,9 @@ The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
 A page doesn't jump from H2 to H4.
+Raw HTML headings, such as the `<h3>` headings in the generated API reference, sit in the same outline and follow the same rule.
+Every heading has text.
+An empty heading still appears in the outline a screen reader offers, as an entry with no name.
 
 Each heading is followed by at least one paragraph (or other content block) before the next heading.
 A bare H2 followed immediately by an H3 with no prose in between reads as a broken document outline, and SEO crawlers flag the pattern as a potential site error.
@@ -67,7 +70,7 @@ The second H1 creates two competing page titles.
 The H1 to H4 jump skips H2 and H3.
 Even if the levels were correct, the first H1 has no paragraph before the next heading, which also fails the rule.
 
-*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1).
+*Enforced by `markdownlint` rules `MD001` (heading-increment) and `MD025` (single-h1), and by `Coder.HeadingOrder` and `Coder.EmptyHeading`.
 The "content between headings" rule is documentation-only.*
 
 ## Inclusive pronouns
@@ -107,6 +110,9 @@ Link text describes what the reader gets at the destination.
 Generic phrases like "click here" and "this link" tell the reader nothing if they scan the link out of context.
 Screen readers announce link text out of context too, which is the [WCAG 2.1 Level A](https://www.w3.org/TR/WCAG21/#link-purpose-in-context) requirement the rule supports.
 
+Every link has text.
+A link with none, such as `[](url)`, an empty `<a href>`, or a link whose only content is an image with empty alt text, is announced as its URL or not at all.
+
 **Do**:
 
 > Refer to the [Coder CLI reference](../../reference/cli/index.md) for the full command list.
@@ -117,7 +123,7 @@ Screen readers announce link text out of context too, which is the [WCAG 2.1 Lev
 >
 > [Click here](../../reference/cli/index.md) for the full command list.
 
-*Enforced by `Coder.LinkText` (planned).*
+*Enforced by `Coder.LinkName` for links with no text, and by `Coder.LinkText` (planned) for generic phrases.*
 
 ## Alt text for images
 
