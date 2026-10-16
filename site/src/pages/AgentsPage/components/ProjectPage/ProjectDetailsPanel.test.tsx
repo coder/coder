@@ -550,6 +550,41 @@ describe("ProjectDetailsPanel", () => {
 		expect(toastError).toHaveBeenCalledTimes(1);
 	});
 
+	it("waits for a background skill access refetch before opening the skills", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ updateProject: true });
+		const toastError = vi.spyOn(toast, "error");
+		const { user, queryClient } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(1));
+
+		let rejectCheck: (error: unknown) => void = () => {};
+		checkAuthorization.mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectCheck = reject;
+			}),
+		);
+		void queryClient.refetchQueries({ type: "active" });
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(2));
+		await user.click(skillsButton);
+		await act(async () =>
+			rejectCheck(mockApiError({ message: "Authorization failed." })),
+		);
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(2);
+	});
+
 	it("waits for a pending skill access check before opening the skills", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);

@@ -649,7 +649,6 @@ describe("ChatMessageInput", () => {
 					mockSkillPart("org", "release-notes"),
 				]);
 			});
-			// Restoring chips must not make React log a flushSync error.
 			expect(errorSpy).not.toHaveBeenCalled();
 		});
 
