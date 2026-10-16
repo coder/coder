@@ -1,10 +1,16 @@
 import { isAxiosError } from "axios";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { Link } from "../Link/Link";
-import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
+import {
+	Alert,
+	AlertDescription,
+	type AlertDetail,
+	type AlertProps,
+	AlertTitle,
+} from "./Alert";
 
 type ErrorAlertProps = Readonly<
-	Omit<AlertProps, "severity" | "children"> & {
+	Omit<AlertProps, "severity" | "children" | "details"> & {
 		error: unknown;
 		showDebugDetail?: boolean;
 	}
@@ -23,11 +29,14 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 	// not make sense in the FE to showing them duplicated. However, we should always
 	// display the detail if its a 403 Forbidden response.
 	const shouldDisplayDetail = status === 403 || message !== detail;
-	const shouldDisplayResponseData = isAxiosError(error) && error.response?.data;
-	const shouldDisplayStackTrace = error instanceof Error;
 
 	return (
-		<Alert severity="error" prominent {...alertProps}>
+		<Alert
+			severity="error"
+			prominent
+			details={showDebugDetail ? getTechnicalDetails(error) : undefined}
+			{...alertProps}
+		>
 			<AlertTitle>{message}</AlertTitle>
 			<AlertDescription>
 				{shouldDisplayDetail && detail}
@@ -39,34 +48,63 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 					</Link>
 				)}
 			</AlertDescription>
-			{(shouldDisplayResponseData || shouldDisplayStackTrace) &&
-				showDebugDetail && (
-					<div className="mt-2 min-w-0">
-						{shouldDisplayResponseData && (
-							<details className="max-w-full">
-								<summary>Response data</summary>
-								<div className="mt-2 max-w-full overflow-x-auto">
-									<pre className="m-0 w-max min-w-full">
-										{JSON.stringify(error.response?.data, null, 2)}
-									</pre>
-								</div>
-							</details>
-						)}
-						{/*
-						 * Error.isError() is not reliably available in all browsers
-						 * so we fallback to `instanceof Error`. In future we should use
-						 * it is more reliable.
-						 */}
-						{shouldDisplayStackTrace && (
-							<details className="max-w-full">
-								<summary>Stack Trace</summary>
-								<div className="mt-2 max-w-full overflow-x-auto">
-									<pre className="m-0 w-max min-w-full">{error.stack}</pre>
-								</div>
-							</details>
-						)}
-					</div>
-				)}
 		</Alert>
 	);
+};
+
+const headerString = (value: unknown): string | undefined =>
+	typeof value === "string" && value !== "" ? value : undefined;
+
+// Response fields other than message and detail, which the alert already shows.
+const extraResponseData = (data: unknown): string | undefined => {
+	if (typeof data !== "object" || data === null) {
+		return undefined;
+	}
+	const extras = Object.entries(data).filter(
+		([key, value]) =>
+			key !== "message" &&
+			key !== "detail" &&
+			value !== undefined &&
+			value !== null,
+	);
+	return extras.length > 0
+		? JSON.stringify(Object.fromEntries(extras), null, 2)
+		: undefined;
+};
+
+const getTechnicalDetails = (error: unknown): AlertDetail[] => {
+	const rows: AlertDetail[] = [];
+
+	if (isAxiosError(error)) {
+		const { config, response } = error;
+		const requestId = headerString(response?.headers?.["x-coder-request-id"]);
+		const time = headerString(response?.headers?.date);
+		const responseData = extraResponseData(response?.data);
+		if (requestId) {
+			rows.push({ label: "Request ID", value: requestId });
+		}
+		if (response?.status) {
+			rows.push({
+				label: "Status",
+				value: `${response.status} ${response.statusText ?? ""}`.trim(),
+			});
+		}
+		if (config?.url) {
+			rows.push({
+				label: "Request",
+				value: `${config.method?.toUpperCase() ?? ""} ${config.url}`.trim(),
+			});
+		}
+		if (time) {
+			rows.push({ label: "Time", value: time });
+		}
+		if (responseData) {
+			rows.push({ label: "Response", value: responseData });
+		}
+	} else if (error instanceof Error && error.stack) {
+		// A stack trace only helps when the interface itself failed, not a request.
+		rows.push({ label: "Stack", value: error.stack });
+	}
+
+	return rows;
 };
