@@ -26,7 +26,8 @@ import {
 	savePersistedProjectsSectionExpanded,
 } from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
+import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
@@ -56,6 +57,7 @@ type ProjectFoldersProps = {
 	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
+	readonly draggedChat: Chat | undefined;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
@@ -72,6 +74,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	isLoadError,
 	onRetry,
 	emptyMessage,
+	draggedChat,
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
@@ -153,6 +156,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
 									onDelete={() => onDelete(project)}
 									emptyMessage={emptyMessage}
+									draggedChat={draggedChat}
 								/>
 							))}
 						</div>
@@ -173,6 +177,7 @@ type ProjectFolderProps = {
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
 	readonly emptyMessage: string;
+	readonly draggedChat: Chat | undefined;
 };
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
@@ -185,6 +190,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onEdit,
 	onDelete,
 	emptyMessage,
+	draggedChat,
 }) => {
 	const projectPath: To = {
 		pathname: buildAgentProjectPath({ projectId: project.id }),
@@ -194,10 +200,18 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	return (
-		<div>
+		<ChatDropArea
+			target={{
+				kind: "project",
+				projectId: project.id,
+				organizationId: project.organization_id,
+				label: projectLabel,
+			}}
+			draggedChat={draggedChat}
+		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 						<Button
 							variant="subtle"
 							size="icon"
@@ -222,11 +236,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								className="size-4"
 							/>
 							<span className="flex-1 truncate">{project.name}</span>
-							{organizationLabel && (
-								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
-									{organizationLabel}
-								</span>
-							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -296,10 +305,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							{emptyMessage}
 						</p>
 					) : (
-						chats.map((chat) => <ChatTreeNode key={chat.id} chat={chat} />)
+						chats.map((chat) => (
+							<DraggableChatTreeNode key={chat.id} chat={chat} />
+						))
 					)}
 				</div>
 			)}
-		</div>
+		</ChatDropArea>
 	);
 };

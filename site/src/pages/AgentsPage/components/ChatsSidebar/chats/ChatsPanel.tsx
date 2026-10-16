@@ -1,7 +1,7 @@
 import {
-	closestCenter,
 	DndContext,
 	type DragEndEvent,
+	DragOverlay,
 	KeyboardSensor,
 	MouseSensor,
 	TouchSensor,
@@ -10,8 +10,8 @@ import {
 } from "@dnd-kit/core";
 import {
 	arrayMove,
+	hasSortableData,
 	SortableContext,
-	sortableKeyboardCoordinates,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "cn";
@@ -22,6 +22,7 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -53,6 +54,7 @@ import {
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
+import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -66,8 +68,13 @@ import {
 	type ChatTree,
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
+import {
+	ChatDragPreview,
+	DraggableChatTreeNode,
+} from "../tree/DraggableChatTreeNode";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
 import { getChatStatusDisplay } from "../tree/statusConfig";
+import { ChatDropArea } from "./ChatDropArea";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
@@ -79,6 +86,13 @@ import {
 	type OpenProjectDialog,
 	ProjectFolders,
 } from "./ProjectFolders";
+import {
+	chatDragAnnouncements,
+	collideByDragKind,
+	draggedChatOf,
+	dragKeyboardCoordinates,
+	projectIdForDrop,
+} from "./projectDrag";
 import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
@@ -198,8 +212,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => !canManageChat(chat, currentUserId),
 	);
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
-	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
-		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	const {
+		chatsByProjectId,
+		unfiledChats: unfiledOwnedChats,
+		folderProjectIds,
+	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -241,11 +258,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 	const lastDragEndedAtRef = useRef(0);
-	const pinnedContainerRef = useRef<HTMLDivElement | null>(null);
+	const dragAreaRef = useRef<HTMLDivElement | null>(null);
+	const [draggedChat, setDraggedChat] = useState<Chat>();
+	const moveMutation = useMoveChatToProject();
 
 	useEffect(() => {
 		const handler = (e: MouseEvent) => {
-			const container = pinnedContainerRef.current;
+			const container = dragAreaRef.current;
 			const target = e.target;
 			if (
 				container &&
@@ -268,26 +287,44 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			activationConstraint: { delay: 200, tolerance: 5 },
 		}),
 		useSensor(KeyboardSensor, {
-			coordinateGetter: sortableKeyboardCoordinates,
+			coordinateGetter: dragKeyboardCoordinates,
 		}),
 	);
 
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
+		lastDragEndedAtRef.current = performance.now();
+		setDraggedChat(undefined);
+		const chat = draggedChatOf(active);
+		if (chat) {
+			const projectId = projectIdForDrop(chat, over);
+			if (projectId === undefined) {
+				return;
+			}
+			if (projectId) {
+				// Open the folder so the user sees the chat arrive.
+				setProjectFolderOverrides((prev) => ({ ...prev, [projectId]: true }));
+			}
+			moveMutation.mutate({ chatId: chat.id, projectId });
+			return;
+		}
 
 		if (disablePinnedReordering) {
 			return;
 		}
 
-		lastDragEndedAtRef.current = performance.now();
-		if (!over || active.id === over.id) return;
+		if (!over || active.id === over.id || !hasSortableData(active)) return;
+		// The pin order comes from the drag, not from pinnedChatIds, which the
+		// React Compiler cannot memoize; reading it would rebuild the DndContext
+		// on every render.
+		const pinnedIds = active.data.current.sortable.items.map(String);
 		const activeId = String(active.id);
 		const overId = String(over.id);
-		const oldIndex = pinnedChatIds.indexOf(activeId);
-		const newIndex = pinnedChatIds.indexOf(overId);
+		const oldIndex = pinnedIds.indexOf(activeId);
+		const newIndex = pinnedIds.indexOf(overId);
 		if (oldIndex === -1 || newIndex === -1) return;
 
-		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
+		const reordered = arrayMove(pinnedIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
 		reorderMutation.mutate({ chatId: activeId, pinOrder: newIndex + 1 });
 	};
@@ -567,190 +604,240 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
-					{/* Projects share the chat list's scroll area, so expanding a folder
+					<DndContext
+						sensors={sensors}
+						accessibility={{ announcements: chatDragAnnouncements }}
+						collisionDetection={collideByDragKind}
+						modifiers={[
+							// Restrict the drag to the y-axis only
+							({ transform }) => ({
+								...transform,
+								x: 0,
+							}),
+						]}
+						onDragStart={({ active }) => setDraggedChat(draggedChatOf(active))}
+						onDragCancel={() => setDraggedChat(undefined)}
+						onDragEnd={handleDragEnd}
+					>
+						<div ref={dragAreaRef}>
+							{/* Projects share the chat list's scroll area, so expanding a folder
 					    pushes the Chats section down instead of scrolling on its own. */}
-					{chatProjectsEnabled && (
-						<ChatTreeContext value={chatTreeCtx}>
-							<ProjectFolders
-								currentUserId={currentUserId}
-								projects={projects}
-								organizations={organizations}
-								chatsByProjectId={chatsByProjectId}
-								expandedProjectIds={Object.fromEntries(
-									projects.map((project) => [
-										project.id,
-										projectFolderOverrides[project.id] ??
-											project.id === activeProjectId,
-									]),
+							{chatProjectsEnabled && (
+								<ChatTreeContext value={chatTreeCtx}>
+									<ProjectFolders
+										currentUserId={currentUserId}
+										projects={projects}
+										organizations={organizations}
+										chatsByProjectId={chatsByProjectId}
+										expandedProjectIds={Object.fromEntries(
+											projects.map((project) => [
+												project.id,
+												projectFolderOverrides[project.id] ??
+													project.id === activeProjectId,
+											]),
+										)}
+										onToggle={toggleProject}
+										onOpenProjectDialog={onOpenProjectDialog}
+										onDelete={onDeleteProject}
+										isLoading={isProjectsLoading}
+										error={projectsError}
+										isLoadError={isProjectsLoadError}
+										onRetry={onRetryProjects}
+										emptyMessage={emptyStateMessage}
+										draggedChat={draggedChat}
+									/>
+								</ChatTreeContext>
+							)}
+							<ChatDropArea
+								target={{ kind: "unfiled", folderProjectIds }}
+								draggedChat={draggedChat}
+							>
+								{chatProjectsEnabled && (
+									<div className="group-data-[drop=unavailable]/drop:opacity-50">
+										{chatsHeader}
+									</div>
 								)}
-								onToggle={toggleProject}
-								onOpenProjectDialog={onOpenProjectDialog}
-								onDelete={onDeleteProject}
-								isLoading={isProjectsLoading}
-								error={projectsError}
-								isLoadError={isProjectsLoadError}
-								onRetry={onRetryProjects}
-								emptyMessage={emptyStateMessage}
-							/>
-						</ChatTreeContext>
-					)}
-					{chatProjectsEnabled && chatsHeader}
-					<div className="flex flex-col gap-2 px-2 pb-3">
-						{loadError ? (
-							<div className="space-y-3 px-1">
-								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
-							</div>
-						) : isLoading ? (
-							<>
-								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
-									{Array.from({ length: 6 }, (_, i) => (
-										<div
-											key={i}
-											className="flex items-start gap-2 rounded-md px-2 py-1"
-										>
-											<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
-											<div className="min-w-0 flex-1 space-y-1.5">
-												<Skeleton
-													className="h-3.5"
-													style={{ width: `${55 + ((i * 17) % 35)}%` }}
-												/>
-												<Skeleton className="h-3 w-20" />
-											</div>
-										</div>
-									))}
-								</div>
-							</>
-						) : (
-							<ChatTreeContext value={chatTreeCtx}>
-								<div className="pb-2">
-									{isShowingEmptyState ? (
-										<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">{emptyStateMessage}</p>
-											{hasAppliedResultFilters && (
-												<button
-													type="button"
-													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-													onClick={clearResultFilters}
+								<div className="flex flex-col gap-2 px-2 pb-3">
+									{loadError ? (
+										<div className="space-y-3 px-1">
+											<ErrorAlert error={loadError} />
+											{onRetryLoad && (
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={onRetryLoad}
 												>
-													Clear filters
-												</button>
+													Retry
+												</Button>
 											)}
 										</div>
-									) : (
+									) : isLoading ? (
 										<>
-											{pinnedChats.length > 0 && (
-												<div className="not-first:mt-3">
-													<ChatSectionHeader
-														label={PINNED_SECTION_KEY}
-														count={pinnedChats.length}
-														expanded={!collapsedSections[PINNED_SECTION_KEY]}
-														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
-														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
-													/>
-													{!collapsedSections[PINNED_SECTION_KEY] &&
-														(disablePinnedReordering ? (
-															<div className="flex flex-col gap-0.5">
-																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
-																))}
-															</div>
-														) : (
-															<DndContext
-																sensors={sensors}
-																collisionDetection={closestCenter}
-																modifiers={[
-																	// Restrict the drag to the y-axis only
-																	({ transform }) => ({
-																		...transform,
-																		x: 0,
-																	}),
-																]}
-																onDragEnd={handleDragEnd}
-															>
-																<SortableContext
-																	items={pinnedChatIds}
-																	strategy={verticalListSortingStrategy}
-																>
-																	<div
-																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
-																	>
-																		{sortedPinnedChats.map((chat) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																			/>
-																		))}
-																	</div>
-																</SortableContext>
-															</DndContext>
-														))}
-												</div>
-											)}
-											{sharedWithYouChats.length > 0 && (
-												<div className="not-first:mt-3">
-													<ChatSectionHeader
-														label={SHARED_WITH_YOU_SECTION_KEY}
-														count={sharedWithYouChats.length}
-														expanded={
-															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
-														}
-														onToggle={() =>
-															toggleSection(SHARED_WITH_YOU_SECTION_KEY)
-														}
-														testId={getSectionToggleTestId(
-															SHARED_WITH_YOU_SECTION_KEY,
-														)}
-													/>
-													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
-														<div className="flex flex-col gap-0.5">
-															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode key={chat.id} chat={chat} />
-															))}
+											<Skeleton className="ml-2.5 h-3.5 w-16" />
+											<div className="flex flex-col gap-0.5">
+												{Array.from({ length: 6 }, (_, i) => (
+													<div
+														key={i}
+														className="flex items-start gap-2 rounded-md px-2 py-1"
+													>
+														<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
+														<div className="min-w-0 flex-1 space-y-1.5">
+															<Skeleton
+																className="h-3.5"
+																style={{ width: `${55 + ((i * 17) % 35)}%` }}
+															/>
+															<Skeleton className="h-3 w-20" />
 														</div>
-													)}
-												</div>
-											)}
-											{chatSections.map((section) => {
-												const isSectionExpanded =
-													!collapsedSections[section.key];
-												return (
-													<div key={section.key} className="not-first:mt-3">
-														<ChatSectionHeader
-															label={section.label}
-															count={section.chats.length}
-															expanded={isSectionExpanded}
-															onToggle={() => toggleSection(section.key)}
-															testId={getSectionToggleTestId(section.key)}
-														/>
-														{isSectionExpanded && (
-															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
-																))}
-															</div>
+													</div>
+												))}
+											</div>
+										</>
+									) : (
+										<ChatTreeContext value={chatTreeCtx}>
+											<div className="pb-2">
+												{isShowingEmptyState ? (
+													<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+														<p className="m-0">{emptyStateMessage}</p>
+														{hasAppliedResultFilters && (
+															<button
+																type="button"
+																className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+																onClick={clearResultFilters}
+															>
+																Clear filters
+															</button>
 														)}
 													</div>
-												);
-											})}
-										</>
+												) : (
+													<>
+														{pinnedChats.length > 0 && (
+															<div className="not-first:mt-3">
+																<ChatSectionHeader
+																	label={PINNED_SECTION_KEY}
+																	count={pinnedChats.length}
+																	expanded={
+																		!collapsedSections[PINNED_SECTION_KEY]
+																	}
+																	onToggle={() =>
+																		toggleSection(PINNED_SECTION_KEY)
+																	}
+																	testId={getSectionToggleTestId(
+																		PINNED_SECTION_KEY,
+																	)}
+																/>
+																{!collapsedSections[PINNED_SECTION_KEY] &&
+																	(disablePinnedReordering ? (
+																		<div className="flex flex-col gap-0.5">
+																			{sortedPinnedChats.map((chat) => (
+																				<ChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			))}
+																		</div>
+																	) : (
+																		<SortableContext
+																			items={pinnedChatIds}
+																			strategy={verticalListSortingStrategy}
+																		>
+																			<div className="flex flex-col gap-0.5">
+																				{sortedPinnedChats.map((chat) => (
+																					<SortableChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																					/>
+																				))}
+																			</div>
+																		</SortableContext>
+																	))}
+															</div>
+														)}
+														{sharedWithYouChats.length > 0 && (
+															<div className="not-first:mt-3">
+																<ChatSectionHeader
+																	label={SHARED_WITH_YOU_SECTION_KEY}
+																	count={sharedWithYouChats.length}
+																	expanded={
+																		!collapsedSections[
+																			SHARED_WITH_YOU_SECTION_KEY
+																		]
+																	}
+																	onToggle={() =>
+																		toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+																	}
+																	testId={getSectionToggleTestId(
+																		SHARED_WITH_YOU_SECTION_KEY,
+																	)}
+																/>
+																{!collapsedSections[
+																	SHARED_WITH_YOU_SECTION_KEY
+																] && (
+																	<div className="flex flex-col gap-0.5">
+																		{sharedWithYouChats.map((chat) => (
+																			<ChatTreeNode key={chat.id} chat={chat} />
+																		))}
+																	</div>
+																)}
+															</div>
+														)}
+														{chatSections.map((section) => {
+															const isSectionExpanded =
+																!collapsedSections[section.key];
+															return (
+																<div
+																	key={section.key}
+																	className="not-first:mt-3"
+																>
+																	<ChatSectionHeader
+																		label={section.label}
+																		count={section.chats.length}
+																		expanded={isSectionExpanded}
+																		onToggle={() => toggleSection(section.key)}
+																		testId={getSectionToggleTestId(section.key)}
+																	/>
+																	{isSectionExpanded && (
+																		<div className="flex flex-col gap-0.5">
+																			{section.chats.map((chat) =>
+																				chatProjectsEnabled ? (
+																					<DraggableChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																					/>
+																				) : (
+																					<ChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																					/>
+																				),
+																			)}
+																		</div>
+																	)}
+																</div>
+															);
+														})}
+													</>
+												)}
+											</div>
+											{(hasNextPage || isFetchingNextPage) && (
+												<LoadMoreSentinel
+													onLoadMore={onLoadMore}
+													isFetchingNextPage={isFetchingNextPage}
+												/>
+											)}
+										</ChatTreeContext>
 									)}
 								</div>
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
-								)}
-							</ChatTreeContext>
-						)}
-					</div>
+							</ChatDropArea>
+						</div>
+						{draggedChat &&
+							// ScrollArea clips its content, so the copy renders outside it.
+							createPortal(
+								<DragOverlay>
+									<ChatDragPreview chat={draggedChat} />
+								</DragOverlay>,
+								document.body,
+							)}
+					</DndContext>
 				</ScrollArea>
 			</div>
 			<UserSidebarFooter />

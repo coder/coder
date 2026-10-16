@@ -42,6 +42,11 @@ import { getChatDisplayConfig } from "./statusConfig";
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
+	/**
+	 * Drag handle props for this row only. Subagent rows render outside the
+	 * handle, so pressing on one does not drag its root chat.
+	 */
+	readonly dragHandleProps?: React.ComponentProps<"div">;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -49,6 +54,7 @@ const CHILD_INDENT_PX = 26;
 export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
+	dragHandleProps,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -244,6 +250,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 				contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
 			>
 				<div
+					{...dragHandleProps}
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
 						"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",

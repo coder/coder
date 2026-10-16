@@ -26,7 +26,7 @@ import { ChatProjectIcon } from "./ChatProjectIcon";
  * Moves a chat and reports a failure. The error handling is a mutation
  * option, so the rollback and the toast still run after the menu unmounts.
  */
-const useMoveChatToProject = () => {
+export const useMoveChatToProject = () => {
 	const queryClient = useQueryClient();
 	const options = moveChatToProject(queryClient);
 	return useMutation({

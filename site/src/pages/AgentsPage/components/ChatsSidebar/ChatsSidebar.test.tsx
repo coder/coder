@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -827,6 +828,8 @@ describe("ChatsSidebar pin actions", () => {
 	);
 });
 
+const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
+
 describe("ChatsSidebar move to project", () => {
 	const mockBillingProject = {
 		...MockChatProject,
@@ -971,8 +974,323 @@ describe("ChatsSidebar move to project", () => {
 	});
 });
 
+describe("ChatsSidebar project drops", () => {
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing",
+		name: "Billing",
+	};
+	const mockOpsProject = {
+		...mockBillingProject,
+		id: "ops",
+		name: "Ops",
+		organization_id: "other-org",
+	};
+
+	const renderSidebar = (chats: Chat[], projects: TypesGen.ChatProject[]) => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(projects),
+			),
+		);
+		return render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+	};
+
+	const box = (y: number, height: number) =>
+		DOMRect.fromRect({ x: 0, y, width: 300, height });
+
+	// jsdom has no layout, so dnd-kit measures zero rects. Only a node that
+	// holds exactly one landmark gets a box, and the DragOverlay copy, which
+	// holds none, gets the row box.
+	const layoutDropTargets = (row: string, rowTop: number) => {
+		const landmarks = [
+			{
+				node: screen.getByRole("link", { name: new RegExp(row) }),
+				box: box(rowTop, 40),
+			},
+			{ node: screen.getByRole("link", { name: "Billing" }), box: box(0, 80) },
+			{ node: screen.getByRole("link", { name: "Ops" }), box: box(100, 40) },
+			{
+				node: screen.getByRole("heading", { name: "Chats" }),
+				box: box(200, 300),
+			},
+		];
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				const held = landmarks.filter(({ node }) => this.contains(node));
+				if (held.length === 1) {
+					return held[0].box;
+				}
+				return this.textContent === row ? landmarks[0].box : box(0, 0);
+			},
+		);
+	};
+
+	// user-event's pointer API leaves dnd-kit's updates outside act, and its
+	// drop sends no request, so the gesture uses fireEvent.
+	const mouseDragRow = async (row: string, dropY: number) => {
+		fireEvent.mouseDown(screen.getByRole("link", { name: new RegExp(row) }), {
+			clientX: 10,
+			clientY: 250,
+		});
+		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
+		fireEvent.mouseMove(document, { clientX: 10, clientY: dropY });
+		fireEvent.mouseUp(document, { clientX: 10, clientY: dropY });
+		// The request goes out after the mutation's async onMutate.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+	};
+
+	const dragRowOntoBilling = async (row: string) => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		layoutDropTargets(row, 240);
+		await mouseDragRow(row, 40);
+		return update.mock.calls;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each<{ outcome: string; row: string; chat: Partial<Chat>; body?: string }>(
+		[
+			{
+				outcome: "moves",
+				row: "Free chat",
+				chat: {},
+				body: mockBillingProject.id,
+			},
+			{
+				outcome: "moves nothing",
+				row: "Pinned chat",
+				// A pinned row drags only to reorder the pins.
+				chat: { pin_order: 1 },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Shared chat",
+				chat: { owner_id: "sharing-user-id", shared: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Busy chat",
+				chat: { status: "running" },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Archived chat",
+				chat: { archived: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Parent chat",
+				// A running subagent blocks the move, as it blocks archiving.
+				chat: {
+					children: [
+						buildChat({ id: "c2", parent_chat_id: "c1", status: "running" }),
+					],
+				},
+			},
+		],
+	)("$outcome on a mouse drag of $row", async ({ row, chat, body }) => {
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: row,
+					organization_id: mockBillingProject.organization_id,
+					...chat,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+
+	// A failed projects request shows project chats under Chats, where a drop
+	// would remove them from their project.
+	it("moves nothing on a mouse drag into Chats of a chat whose project did not load", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "Projects unavailable" }, { status: 500 }),
+			),
+		);
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("button", { name: "Retry" });
+		const chatLink = screen.getByRole("link", { name: /Fix invoice dates/ });
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+		// Chats holds the row here and needs its own box, and the folder links
+		// that layoutDropTargets needs do not render.
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				if (this.contains(chatsHeading)) {
+					return box(200, 300);
+				}
+				return this.contains(chatLink) ? box(240, 40) : box(0, 0);
+			},
+		);
+
+		// The drop lands in the Chats box, and the announcement proves that it
+		// ran, so the no-request check cannot pass without reaching the rule.
+		await mouseDragRow("Fix invoice dates", 270);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(/was dropped/),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("keeps a row mounted when its chat starts running", async () => {
+		const user = userEvent.setup();
+		const chat = buildChat({ id: "c1", title: "Fix invoice dates" });
+		const StatusChange: React.FC = () => {
+			const [status, setStatus] = useState<TypesGen.ChatStatus>("waiting");
+			return (
+				<>
+					<button type="button" onClick={() => setStatus("running")}>
+						Start
+					</button>
+					<ChatsSidebar {...defaultProps} chats={[{ ...chat, status }]} />
+				</>
+			);
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<StatusChange />
+			</Wrapper>,
+		);
+		const link = await screen.findByRole("link", { name: /Fix invoice dates/ });
+
+		await user.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(screen.getByRole("link", { name: /Fix invoice dates/ })).toBe(link);
+	});
+
+	// Ops sits between Billing and Chats but belongs to another organization,
+	// so each key must skip it.
+	it.each([
+		{
+			rowTop: 240,
+			key: "[ArrowUp]",
+			projectId: undefined,
+			body: mockBillingProject.id,
+			to: "project Billing",
+		},
+		{
+			rowTop: 40,
+			key: "[ArrowDown]",
+			projectId: mockBillingProject.id,
+			body: NIL_UUID,
+			to: "Chats",
+		},
+	])("drops a chat with $key", async ({ rowTop, key, projectId, body, to }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: projectId,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		layoutDropTargets("Fix invoice dates", rowTop);
+
+		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard(key);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates is over ${to}.`,
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
+		);
+		expect(update).toHaveBeenCalledTimes(1);
+		expect(screen.getByRole("status")).toHaveTextContent(
+			`Chat Fix invoice dates was dropped on ${to}.`,
+		);
+	});
+
+	// Subagent chats follow their root's project, so only the root row drags.
+	it.each([
+		{
+			row: "Spawner chat",
+			outcome: "moves",
+			body: mockBillingProject.id,
+		},
+		{
+			row: "Simple task",
+			outcome: "moves nothing",
+			body: undefined,
+		},
+	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			title: "Simple task",
+			parent_chat_id: "c1",
+			organization_id: mockBillingProject.organization_id,
+		});
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Spawner chat",
+					organization_id: mockBillingProject.organization_id,
+					children: [child],
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(await screen.findByRole("button", { name: "Expand" }));
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+});
+
 describe("ChatsSidebar pinned reordering", () => {
-	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;
 
 	// dnd-kit's keyboard sensor picks the drop target from measured
@@ -980,7 +1298,7 @@ describe("ChatsSidebar pinned reordering", () => {
 	// vertically in document order so ArrowDown resolves to the next row.
 	const layoutSortableRows = () => {
 		const rows = screen.getAllByRole("button", {
-			description: SORTABLE_INSTRUCTIONS,
+			description: DRAG_INSTRUCTIONS,
 		});
 		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
 			function (this: Element) {
