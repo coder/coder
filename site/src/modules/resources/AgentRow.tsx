@@ -59,7 +59,6 @@ import {
 	getAgentScriptIssues,
 } from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
-import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
@@ -459,13 +458,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			</header>
 
 			<div className="flex flex-col gap-8 p-8">
-				{workspace.latest_app_status?.agent_id === agent.id && (
-					<section>
-						<h3 className="sr-only">App statuses</h3>
-						<AppStatuses workspace={workspace} agent={agent} />
-					</section>
-				)}
-
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
 
 				{shouldDisplayAppsSection && (

@@ -34,7 +34,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
@@ -294,14 +293,6 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 
 			{(showSubAgentApps || showSubAgentAppsPlaceholders) && (
 				<div className="flex flex-col gap-8 px-8 pt-4">
-					{subAgent &&
-						workspace.latest_app_status?.agent_id === subAgent.id && (
-							<section>
-								<h3 className="sr-only">App statuses</h3>
-								<AppStatuses workspace={workspace} agent={subAgent} />
-							</section>
-						)}
-
 					{showSubAgentApps && (
 						<section className={appsClasses}>
 							{showVSCode && (
