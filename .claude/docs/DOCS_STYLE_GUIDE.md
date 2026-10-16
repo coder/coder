@@ -361,7 +361,8 @@ When renaming or moving documentation pages, redirects must be added to prevent 
 
 Redirects are configured in `docs/redirects.json` in this repository. The coder.com website runs on Vercel with Next.js, reads the file at build time, and rebuilds when it changes.
 
-- **Redirect configuration**: `docs/redirects.json`, a JSON array of `{"source", "destination", "permanent"}` rules. Both paths are full `/docs/...` paths, `permanent` is optional and defaults to `true`, and a destination may be an external URL. A source is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
+- **Redirect configuration**: `docs/redirects.json`, a JSON array of `{"source", "destination", "permanent"}` rules. Both paths are routes relative to the docs root with no leading slash and no `/docs` prefix (`admin/old-page`), `/` as a destination is the docs root, `permanent` is optional and defaults to `true`, and a destination may be an `https://github.com/coder/` or `https://coder.com/` URL. A source is an exact route or a route ending in `/*`, and a destination ending in `/*` carries the matched part over.
+- **Redirect check**: `make lint/docs-redirects` fails when a route that worked on the base branch or on the live site for the target branch no longer resolves. It prints a rule to paste. Use `-offline` locally when the network is unavailable.
 - **Do NOT create** a `docs/_redirects` file - this format (used by Netlify/Cloudflare Pages) is not processed by coder.com
 
 When you rename or move a doc page, add the rule to `docs/redirects.json` in the same PR. Each release branch has its own copy, and the unversioned docs are served from the mainline release branch, so backport the move and its redirect together.
