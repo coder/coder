@@ -309,6 +309,33 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
+	it("loads project actions only once a pending send settles", async () => {
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([]);
+		const queryClient = createTestQueryClient();
+		const renderInput = (isLoading: boolean) => (
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					isLoading={isLoading}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+					showProjectActions
+				/>
+			</AppProviders>
+		);
+
+		const { rerender } = render(renderInput(true));
+		await screen.findByRole("textbox", { name: "Chat message" });
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
+
+		rerender(renderInput(false));
+		await waitFor(() =>
+			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1"),
+		);
+	});
+
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
