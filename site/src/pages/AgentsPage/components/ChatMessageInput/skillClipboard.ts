@@ -29,7 +29,9 @@ export const getClipboardNodes = (
 	}
 	try {
 		const { namespace: payloadNamespace, nodes } = JSON.parse(payload);
-		return payloadNamespace === namespace && Array.isArray(nodes)
+		return payloadNamespace === namespace &&
+			Array.isArray(nodes) &&
+			nodes.every((node) => typeof node?.type === "string")
 			? nodes
 			: null;
 	} catch {
@@ -40,13 +42,20 @@ export const getClipboardNodes = (
 /**
  * Pastes copied composer nodes at the selection. A skill chip that is
  * already in the editor is dropped, and one the composer cannot invoke
- * becomes its plain-text alias.
+ * becomes its plain-text alias. Returns false, changing nothing, when a
+ * node cannot be parsed, so the caller can paste the plain text instead.
  */
 export const $insertClipboardNodes = (
 	selection: RangeSelection,
 	serializedNodes: readonly SerializedLexicalNode[],
 	isSkillAvailable: (source: SkillSource, name: string) => boolean,
-) => {
+): boolean => {
+	let nodes: LexicalNode[];
+	try {
+		nodes = serializedNodes.map((node) => $parseSerializedNode(node));
+	} catch {
+		return false;
+	}
 	// Chips the paste replaces must not count as already in the editor.
 	selection.removeText();
 	const pastedAliases = new Set<string>();
@@ -74,10 +83,9 @@ export const $insertClipboardNodes = (
 		return node;
 	};
 	selection.insertNodes(
-		serializedNodes
-			.map((node) => $resolveNode($parseSerializedNode(node)))
-			.filter((node) => node !== null),
+		nodes.map((node) => $resolveNode(node)).filter((node) => node !== null),
 	);
+	return true;
 };
 
 const getSerializedNodeText = (node: SerializedLexicalNode): string => {

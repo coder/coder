@@ -272,6 +272,21 @@ const PasteSanitizationPlugin: React.FC<{
 						// pastes.
 					}
 
+					// Composer content keeps its chips even when its text is long.
+					// Listeners run inside an update, so the paste applies here.
+					const composerNodes = isPlainTextPaste
+						? null
+						: getClipboardNodes(dataTransfer, EDITOR_NAMESPACE);
+					const selection = $getSelection();
+					if (
+						composerNodes &&
+						$isRangeSelection(selection) &&
+						$insertClipboardNodes(selection, composerNodes, isSkillAvailable)
+					) {
+						event.preventDefault();
+						return true;
+					}
+
 					const text = getPastedPlainText(event, dataTransfer);
 					if (!text) return false;
 
@@ -286,24 +301,6 @@ const PasteSanitizationPlugin: React.FC<{
 					) {
 						event.preventDefault();
 						onFilePaste(createPasteFile(text));
-						return true;
-					}
-
-					const composerNodes = isPlainTextPaste
-						? null
-						: getClipboardNodes(dataTransfer, EDITOR_NAMESPACE);
-					if (composerNodes) {
-						event.preventDefault();
-						editor.update(() => {
-							const selection = $getSelection();
-							if ($isRangeSelection(selection)) {
-								$insertClipboardNodes(
-									selection,
-									composerNodes,
-									isSkillAvailable,
-								);
-							}
-						});
 						return true;
 					}
 
