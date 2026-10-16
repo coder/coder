@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -169,13 +171,15 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
-			// Generate SSH traffic so the connstats window sees the session.
+			// Generate SSH traffic so the connstats window sees the session and to
+			// get a non-zero value for transferred bytes.
 			_, err = stdin.Write([]byte("echo test\n"))
 			require.NoError(t, err)
 
 			assertSSHStats(t, stats)
 			reason := codersdk.DisconnectReasonGraceful
 			code := 0
+			rxBytes := int64(17) // send "echo test\nexit 0\n"
 			if tc.shutdown {
 				// The client's end of the tunnel may not notice the shutdown, so
 				// only the agent's report is checked.
@@ -183,6 +187,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 				reason = codersdk.DisconnectReasonServerShutdown
 				// The killed shell's exit code differs between platforms.
 				code = -1
+				rxBytes = 10 // send "echo test\n"
 			} else {
 				_, err = stdin.Write([]byte("exit 0\n"))
 				require.NoError(t, err, "writing exit to stdin")
@@ -196,7 +201,12 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 					Method:          proto.Connection_METHOD_SSH,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Code: code, Reason: string(reason)},
+				proto.DisconnectEvent{
+					Code:    code,
+					Reason:  string(reason),
+					RxBytes: rxBytes,
+					TxBytes: wantSomeBytes, // echo output + prompts
+				},
 			)
 			requireDisconnectLog(t, sink, "ssh session closed", tc.expect, reason)
 		})
@@ -253,29 +263,64 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 				})
 			}
 
-			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash")
+			id := uuid.New()
+			ptyConn, err := conn.ReconnectingPTY(ctx, id, 128, 128, "bash")
 			require.NoError(t, err)
 			defer ptyConn.Close()
 
+			type copyResult struct {
+				written int64
+				err     error
+			}
+			copied := make(chan copyResult, 1)
+			output := make(chan struct{})
+			go func() {
+				written, err := io.Copy(&firstWriteNotifier{notify: output}, ptyConn)
+				copied <- copyResult{written: written, err: err}
+			}()
+
+			input := "echo test\rexit\r"
+			if tc.shutdown {
+				// Keep the shell running so the agent shutdown closes it.
+				input = "echo test\r"
+			}
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
+				Data: input,
 			})
 			require.NoError(t, err)
 			_, err = ptyConn.Write(data)
 			require.NoError(t, err)
 
+			initData, err := json.Marshal(workspacesdk.AgentReconnectingPTYInit{
+				ID:      id,
+				Height:  128,
+				Width:   128,
+				Command: "bash",
+			})
+			require.NoError(t, err)
+
 			reason := codersdk.DisconnectReasonGraceful
 			code := 0
+			rxBytes := int64(len(data) + len(initData) + 2)
+			var txBytes int64
 			if tc.shutdown {
-				// Wait until the PTY is attached, so the shutdown closes a live
+				// Output means the PTY is attached, so the shutdown closes a live
 				// connection rather than one still being set up.
-				require.NoError(t, testutil.NewTerminalReader(t, ptyConn).ReadUntilString(ctx, "test"))
+				testutil.TryReceive(ctx, t, output)
 				require.NoError(t, agnt.Close())
 				reason = codersdk.DisconnectReasonServerShutdown
 				code = 1
+				// The agent may not have read all the input before the shutdown,
+				// and the client may not notice the close, so any bytes will do.
+				rxBytes = wantSomeBytes
+				txBytes = wantSomeBytes
 			} else {
-				err = ptyConn.Close()
-				require.NoError(t, err)
+				// Should get at least the commands, resulting output, and newlines,
+				// but there will be more because of the prompts.
+				result := testutil.TryReceive(ctx, t, copied)
+				require.NoError(t, result.err)
+				txBytes = result.written
+				require.Greater(t, txBytes, int64(20))
 			}
 
 			assertConnectionReport(t, client,
@@ -283,11 +328,27 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 					Method:          proto.Connection_METHOD_RECONNECTING_PTY,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Code: code, Reason: string(reason)},
+				proto.DisconnectEvent{
+					Code:    code,
+					Reason:  string(reason),
+					RxBytes: rxBytes,
+					TxBytes: txBytes,
+				},
 			)
 			requireDisconnectLog(t, sink, "reconnecting pty closed", tc.expect, reason)
 		})
 	}
+}
+
+// firstWriteNotifier discards writes and closes notify on the first one.
+type firstWriteNotifier struct {
+	notify chan struct{}
+	once   sync.Once
+}
+
+func (w *firstWriteNotifier) Write(p []byte) (int, error) {
+	w.once.Do(func() { close(w.notify) })
+	return len(p), nil
 }
 
 // requireDisconnectLog requires exactly one agent log line with the given

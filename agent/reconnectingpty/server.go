@@ -63,13 +63,14 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
 	var wg sync.WaitGroup
 	for ctx.Err() == nil {
-		conn, err := l.Accept()
+		netConn, err := l.Accept()
 		if err != nil {
 			s.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 			retErr = err
 			break
 		}
-		clientSessionID := agentssh.ClientSessionIDFromConn(conn)
+		clientSessionID := agentssh.ClientSessionIDFromConn(netConn)
+		conn := &connTracker{Conn: netConn}
 		clog := s.logger.With(
 			slog.F("remote", conn.RemoteAddr()),
 			slog.F("local", conn.LocalAddr()),
@@ -109,8 +110,10 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 						codersdk.DisconnectInitiatorAgent.SlogField(),
 					)
 					connReporter.Disconnect(proto.DisconnectEvent{
-						Code:   1,
-						Reason: string(codersdk.DisconnectReasonServerShutdown),
+						Code:    1,
+						Reason:  string(codersdk.DisconnectReasonServerShutdown),
+						RxBytes: conn.RxBytes(),
+						TxBytes: conn.TxBytes(),
 					})
 				})
 				_ = conn.Close()
@@ -148,8 +151,10 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 					slog.F("exit_code", code),
 				)...)
 				connReporter.Disconnect(proto.DisconnectEvent{
-					Code:   code,
-					Reason: string(reason),
+					Code:    code,
+					Reason:  string(reason),
+					RxBytes: conn.RxBytes(),
+					TxBytes: conn.TxBytes(),
 				})
 			})
 		}()
@@ -282,4 +287,30 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		sendConnected <- rpty
 	}
 	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
+}
+
+// connTracker is a wrapper around net.Conn that tracks the transferred bytes.
+type connTracker struct {
+	net.Conn
+	rxBytes atomic.Int64
+	txBytes atomic.Int64
+}
+
+func (s *connTracker) RxBytes() int64 { return s.rxBytes.Load() }
+func (s *connTracker) TxBytes() int64 { return s.txBytes.Load() }
+
+func (s *connTracker) Read(p []byte) (int, error) {
+	n, err := s.Conn.Read(p)
+	if n > 0 {
+		s.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *connTracker) Write(p []byte) (int, error) {
+	n, err := s.Conn.Write(p)
+	if n > 0 {
+		s.txBytes.Add(int64(n))
+	}
+	return n, err
 }
