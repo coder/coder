@@ -42,6 +42,7 @@ import {
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
+	withDisabledModelInvocation,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
 import {
@@ -117,7 +118,11 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			downloadSkillFile(name, (skillName) =>
 				queryClient
 					.fetchQuery(scope.detail(skillName))
-					.then((skill) => skill.content),
+					.then((skill) =>
+						skill.model_invocable
+							? skill.content
+							: withDisabledModelInvocation(skill.content),
+					),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {

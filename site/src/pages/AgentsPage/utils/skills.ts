@@ -283,6 +283,22 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
 
+/**
+ * Adds `disable-model-invocation: true` to SKILL.md frontmatter that lacks
+ * it, so a downloaded manual-only skill keeps that setting when re-imported.
+ */
+export const withDisabledModelInvocation = (content: string): string => {
+	const frontmatterEnd = content.indexOf("\n---", 3);
+	if (!content.startsWith("---\n") || frontmatterEnd === -1) {
+		return content;
+	}
+	const frontmatter = content.slice(0, frontmatterEnd);
+	if (/^disable-model-invocation:/m.test(frontmatter)) {
+		return content;
+	}
+	return `---\ndisable-model-invocation: true\n${content.slice(4)}`;
+};
+
 export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;
 

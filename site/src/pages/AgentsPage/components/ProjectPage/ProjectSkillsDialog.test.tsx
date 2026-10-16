@@ -9,6 +9,7 @@ import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkills } from "#/testHelpers/skills";
+import { parseSkillMarkdown } from "../../utils/skills";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 
 vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
@@ -473,6 +474,24 @@ describe("ProjectSkillsDialog", () => {
 		}
 		expect(fileName).toBe("reviewer.md");
 		expect(await file.text()).toBe(mockReviewerSkill.content);
+	});
+
+	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
+		const { user, getSkill } = renderDialog();
+		getSkill.mockResolvedValue({
+			...mockReviewerSkill,
+			model_invocable: false,
+		});
+
+		await openSkillMenu(user);
+		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+
+		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
+		const [file] = vi.mocked(saveAs).mock.calls[0];
+		if (!(file instanceof Blob)) {
+			throw new Error("Expected the download to be a Blob.");
+		}
+		expect(parseSkillMarkdown(await file.text()).modelInvocable).toBe(false);
 	});
 
 	it("opens skills for viewing without update access", async () => {
