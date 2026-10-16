@@ -206,7 +206,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 
-	const [selected, setSelected] = useState<Option[]>(arrayDefaultOptions ?? []);
+	const [selected, setSelected] = useState<Option[]>(
+		value ?? arrayDefaultOptions ?? [],
+	);
 	const [options, setOptions] = useState<GroupOption>(
 		transitionToGroupOption(arrayDefaultOptions, groupBy),
 	);

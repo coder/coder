@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { useQuery } from "react-query";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiValidationError } from "#/api/errors";
 import {
 	richParameters,
 	templateVersionPresets,
@@ -73,6 +73,18 @@ export const chatProjectTemplatesRequest = (
 			Object.keys(parameters).length > 0 ? parameters : undefined,
 	};
 };
+
+/**
+ * Returns the server's rejection of the templates in a save error. Forms
+ * have no field named after these validations, so the templates fields show
+ * it through `saveError`.
+ */
+export const templatesValidationDetail = (error: unknown) =>
+	isApiValidationError(error)
+		? error.response.data.validations?.find((validation) =>
+				validation.field.startsWith("templates."),
+			)?.detail
+		: undefined;
 
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;

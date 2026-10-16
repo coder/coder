@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
+	updateChatProject,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
 import { user } from "#/api/queries/users";
@@ -11,12 +12,13 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
+import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and edits its instructions. */
+/** Loads a project's details and edits its templates and instructions. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -56,7 +58,9 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const deleteMutation = useMutation(
 		deleteChatProjectInstructions(queryClient, project),
 	);
+	const updateTemplatesMutation = useMutation(updateChatProject(queryClient));
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
+	const [isTemplatesEditorOpen, setIsTemplatesEditorOpen] = useState(false);
 	// isPending reaches the dialog only after a render, so a fast double
 	// click could otherwise submit the same change twice.
 	const isMutationInFlight = useRef(false);
@@ -89,10 +93,28 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				ownerLabel={ownerLabel}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
+				templateCount={project.templates.template_ids.length}
+				onEditTemplates={() => {
+					updateTemplatesMutation.reset();
+					setIsTemplatesEditorOpen(true);
+				}}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
 				onEditInstructions={openEditor}
+			/>
+			<ProjectTemplatesDialog
+				project={project}
+				open={isTemplatesEditorOpen}
+				onOpenChange={setIsTemplatesEditorOpen}
+				isSaving={updateTemplatesMutation.isPending}
+				error={updateTemplatesMutation.error}
+				onSave={(templates) =>
+					updateTemplatesMutation.mutate(
+						{ project, request: { templates } },
+						{ onSuccess: () => setIsTemplatesEditorOpen(false) },
+					)
+				}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}

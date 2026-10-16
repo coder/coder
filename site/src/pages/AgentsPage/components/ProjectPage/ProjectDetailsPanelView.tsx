@@ -3,6 +3,7 @@ import { useId } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
@@ -17,6 +18,10 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/** The number of templates the project's chats may use. */
+	readonly templateCount: number;
+	/** Opens the editor for the project's templates. */
+	readonly onEditTemplates: () => void;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;
 	readonly error: unknown;
@@ -32,6 +37,8 @@ export const ProjectDetailsPanelView: React.FC<
 	ownerLabel,
 	createdAt,
 	organizationLabel,
+	templateCount,
+	onEditTemplates,
 	instructions,
 	error,
 	onRetry,
@@ -87,6 +94,21 @@ export const ProjectDetailsPanelView: React.FC<
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">{organizationLabel}</DetailRow>
 					)}
+					<DetailRow label="Templates">
+						<Link asChild showExternalIcon={false}>
+							<button
+								type="button"
+								className="cursor-pointer border-0 bg-transparent p-0 font-sans"
+								onClick={onEditTemplates}
+							>
+								<span className="sr-only">Edit templates:</span>{" "}
+								{templateCount === 1
+									? "1 template"
+									: `${templateCount} templates`}
+								<PenIcon />
+							</button>
+						</Link>
+					</DetailRow>
 				</dl>
 				<section
 					aria-labelledby={instructionsHeadingId}
