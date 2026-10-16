@@ -19,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -81,6 +82,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
+	}
+	quotaLimit, err := quotaAdmissionLimit(
+		int(options.DeploymentValues.PostgresConnMaxOpen.Value()),
+		options.DeploymentValues.QuotaMaxConcurrentCommits.Value(),
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("invalid quota max concurrent commits: %w", err)
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
@@ -228,6 +236,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
+	// Created once, so committers replaced on entitlement changes share it.
+	api.quotaAdmission = semaphore.NewWeighted(quotaLimit)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
@@ -932,6 +942,8 @@ type API struct {
 
 	aibridgeproxydHandler http.Handler
 	aiSeatTracker         *aiseats.SeatTracker
+	// quotaAdmission limits concurrent quota transactions on this replica.
+	quotaAdmission *semaphore.Weighted
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -1055,8 +1067,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				committer := committer{
-					Log:      api.Logger.Named("quota_committer"),
-					Database: api.Database,
+					Log:       api.Logger.Named("quota_committer"),
+					Database:  api.Database,
+					admission: api.quotaAdmission,
+					clock:     quartz.NewReal(),
 				}
 				qcPtr := proto.QuotaCommitter(&committer)
 				api.AGPL.QuotaCommitter.Store(&qcPtr)

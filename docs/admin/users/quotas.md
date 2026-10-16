@@ -108,6 +108,24 @@ Form will never get held up by quota enforcement.
 
 ![build-log](../../images/admin/quota-buildlog.png)
 
+Coder checks quota for one build at a time for each user in each organization.
+Builds that start together, such as several autostarts, are each checked against the credits that earlier checks consumed.
+Only the quota check takes turns, so builds don't wait for each other to finish.
+
+Each control plane replica limits concurrent quota checks so they leave database connections available for other work.
+The automatic limit is one quarter of `CODER_PG_CONN_MAX_OPEN`, rounded down, with a minimum of 1 and a maximum of 8.
+With the default pool of 10 connections, each replica allows two quota transactions.
+
+To change the limit without resizing the connection pool, set `CODER_QUOTA_MAX_CONCURRENT_COMMITS` to a positive value smaller than `CODER_PG_CONN_MAX_OPEN`.
+Set it to `0` to use the automatic limit.
+If the pool has only one connection, the only positive limit is one.
+The control plane rejects invalid limits at startup.
+
+Quota transactions have a waiting budget of 30&nbsp;seconds for earlier checks, a transaction connection, or a retry.
+This budget doesn't interrupt a quota check that's already running.
+If the budget expires before the next attempt starts, the build fails with a `Failed to commit quota` error.
+You can start or stop the workspace again.
+
 ## Up next
 
 - [Group Sync](./idp-sync.md)
