@@ -37,14 +37,18 @@ const (
 	DefaultMaxResources = 500
 )
 
+// maxChildProjects bounds how many working-directory children contribute
+// instruction files and inotify watches.
+const maxChildProjects = 64
+
 // File-name conventions recognized by the v1 resolver.
 var (
 	// instructionFileNames are picked up from the top level of a
-	// scan root. Matching is case-sensitive on the basename,
-	// mirroring codex: it keys on the exact name "AGENTS.md" and
-	// never case-folds, so a lower-case agents.md (for example a
-	// generated API reference doc) is not mistaken for an
-	// instruction file.
+	// scan root and of its child projects. Matching is
+	// case-sensitive on the basename, mirroring codex: it keys on
+	// the exact name "AGENTS.md" and never case-folds, so a
+	// lower-case agents.md (for example a generated API reference
+	// doc) is not mistaken for an instruction file.
 	instructionFileNames = []string{
 		"AGENTS.md",
 		"CLAUDE.md",
@@ -136,6 +140,11 @@ type ScanRoot struct {
 	// declared, when this root came from a user-added Source.
 	// Empty for built-in roots.
 	UserSource string
+	// ChildProjects also reads instruction files from the
+	// immediate, non-hidden child directories, so a repository
+	// cloned below the working directory is discovered without a
+	// declared source. Set only for the working-directory root.
+	ChildProjects bool
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -226,23 +235,26 @@ func (r *Resolver) normalize() *Resolver {
 // Discovery is deliberately shallow. For each scan root the
 // resolver inspects only that directory's top level (instruction
 // files and .mcp.json) plus a fixed set of skill-container
-// locations under it. It never descends into subdirectories and
-// never climbs to a parent directory; additional directories must
-// be added explicitly as scan roots.
+// locations under it. It never climbs to a parent directory, and
+// it descends exactly one level only for ChildProjects roots, where
+// it reads the instruction files of immediate child directories;
+// other directories must be added explicitly as scan roots.
 func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
 	// Dedup roots by canonical path. The first occurrence
 	// wins so user-added roots that overlap with a built-in
-	// root attribute resources to the built-in.
-	seenRoot := make(map[string]struct{}, len(roots))
+	// root attribute resources to the built-in, but child
+	// discovery requested by any occurrence is kept.
+	seenRoot := make(map[string]int, len(roots))
 	dedup := make([]ScanRoot, 0, len(roots))
 	for _, root := range roots {
 		if root.Path == "" {
 			continue
 		}
-		if _, ok := seenRoot[root.Path]; ok {
+		if previous, ok := seenRoot[root.Path]; ok {
+			dedup[previous].ChildProjects = dedup[previous].ChildProjects || root.ChildProjects
 			continue
 		}
-		seenRoot[root.Path] = struct{}{}
+		seenRoot[root.Path] = len(dedup)
 		dedup = append(dedup, root)
 	}
 
@@ -285,7 +297,9 @@ func deduplicateSkills(resources []Resource) []Resource {
 // discoverIn inspects a single scan root. A root that points at a
 // file is classified directly. A directory root contributes its
 // top-level instruction files and .mcp.json plus skills from the
-// fixed container locations under it. The walk goes no deeper.
+// fixed container locations under it, and for ChildProjects roots
+// the instruction files of its immediate child directories. The
+// walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
 	info, err := os.Stat(root.Path)
 	if err != nil {
@@ -301,6 +315,9 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 		return
 	}
 	r.discoverTopLevelFiles(root, out, seenID)
+	if root.ChildProjects {
+		r.discoverChildProjectInstructionFiles(root, out, seenID)
+	}
 	for _, container := range skillContainersFor(root.Path) {
 		r.emitSkillsFromContainer(container, root, out, seenID)
 	}
@@ -340,6 +357,91 @@ func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID 
 		}
 		appendResource(out, seenID, res)
 	}
+}
+
+// discoverChildProjectInstructionFiles reads the instruction files
+// of root's immediate, non-hidden child directories. Each child is
+// its own containment root for symlink checks, and only instruction
+// files are read: skills and .mcp.json inside a child would widen
+// the execution surface from an untrusted checkout. ReadDir returns
+// entries sorted by name, so the maxChildProjects cap is
+// deterministic.
+func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Resource, seenID map[string]int) {
+	entries, err := os.ReadDir(root.Path)
+	if err != nil {
+		return
+	}
+	projects := 0
+	for _, e := range entries {
+		// e.IsDir is false for symlinked children, which are skipped.
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		child := filepath.Join(root.Path, e.Name())
+		if r.readInstructionFilesIn(child, out, seenID) {
+			projects++
+			if projects == maxChildProjects {
+				break
+			}
+		}
+	}
+}
+
+// instructionFileEntry is a recognized instruction file that
+// lstatInstructionFiles found directly in a directory.
+type instructionFileEntry struct {
+	path string
+	info fs.FileInfo
+}
+
+// lstatInstructionFiles returns the recognized instruction files that sit
+// directly in dir, probed by fixed name. Such a probe also hits a
+// differently cased file on a case-insensitive file system, so a hit is
+// confirmed against the directory listing, which keeps the exact-name rule
+// the scan roots follow; the listing is read only on a hit, so a large
+// non-project directory still costs a few stats.
+func lstatInstructionFiles(dir string) []instructionFileEntry {
+	var (
+		found []instructionFileEntry
+		names map[string]struct{}
+	)
+	for _, name := range instructionFileNames {
+		path := filepath.Join(dir, name)
+		info, err := os.Lstat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if names == nil {
+			names = directoryEntryNames(dir)
+		}
+		if _, exact := names[name]; exact {
+			found = append(found, instructionFileEntry{path: path, info: info})
+		}
+	}
+	return found
+}
+
+// readInstructionFilesIn appends the recognized instruction files that sit
+// directly in dir, with dir as the containment root, and reports whether
+// any was found.
+func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
+	files := lstatInstructionFiles(dir)
+	for _, f := range files {
+		appendResource(out, seenID, r.readInstructionFile(dir, f.path, f.info, ""))
+	}
+	return len(files) > 0
+}
+
+func directoryEntryNames(dir string) map[string]struct{} {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return map[string]struct{}{}
+	}
+	names := make(map[string]struct{}, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = struct{}{}
+	}
+	return names
 }
 
 // appendResource adds res to out unless an earlier resource already claimed
