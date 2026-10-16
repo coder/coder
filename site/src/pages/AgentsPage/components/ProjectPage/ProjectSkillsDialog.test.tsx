@@ -346,12 +346,12 @@ describe("ProjectSkillsDialog", () => {
 		});
 		const detailKey = chatProjectSkillKey(projectId, "reviewer");
 		queryClient.setQueryData(detailKey, mockReviewerSkill);
-		const savedSkill = {
+		const mockSavedSkill = {
 			...mockReviewerSkill,
 			content: "---\nname: reviewer\n---\nSaved.\n",
 		};
 		vi.spyOn(API.experimental, "updateChatProjectSkill").mockResolvedValue(
-			savedSkill,
+			mockSavedSkill,
 		);
 		const { user, getSkill } = renderDialog({ queryClient });
 		let resolveOlderFetch: (skill: Skill) => void = () => {};
@@ -369,20 +369,22 @@ describe("ProjectSkillsDialog", () => {
 		await user.type(body, "Saved.");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() =>
-			expect(queryClient.getQueryData(detailKey)).toEqual(savedSkill),
+			expect(queryClient.getQueryData(detailKey)).toEqual(mockSavedSkill),
 		);
 		await act(async () => resolveOlderFetch(mockReviewerSkill));
 
-		expect(queryClient.getQueryData(detailKey)).toEqual(savedSkill);
+		expect(queryClient.getQueryData(detailKey)).toEqual(mockSavedSkill);
 	});
 
 	it("keeps New from opening the editor at the project skill cap", async () => {
-		const skills = Array.from({ length: 100 }, (_, index) => ({
+		const mockSkillsAtCapacity = Array.from({ length: 100 }, (_, index) => ({
 			...MockSkills[0],
 			id: `skill-${index}`,
 			name: `skill-${index}`,
 		}));
-		const { user, onOpenChange } = renderDialog({ skills });
+		const { user, onOpenChange } = renderDialog({
+			skills: mockSkillsAtCapacity,
+		});
 
 		await screen.findByRole("button", { name: "Open menu for skill-0" });
 		await user.click(screen.getByRole("button", { name: "New" }));
