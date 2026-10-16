@@ -28,6 +28,7 @@ import {
 	MockEntitlements,
 	MockOrganization2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -36,6 +37,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { NIL_UUID } from "../../utils/modelOptions";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -825,6 +827,125 @@ describe("ChatsSidebar pin actions", () => {
 	);
 });
 
+describe("ChatsSidebar move to project", () => {
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing-project",
+		name: "Billing",
+	};
+
+	const renderSidebar = (chats: Chat[]) =>
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+
+	let projectRequests = 0;
+	beforeEach(() => {
+		projectRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				projectRequests += 1;
+				return HttpResponse.json([MockChatProject, mockBillingProject]);
+			}),
+		);
+	});
+
+	afterEach(() => vi.restoreAllMocks());
+
+	const selectMoveTarget = async (user: MenuUser, target: string) => {
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await selectSubmenuItem(user, "Move to project", "menuitem", target);
+	};
+
+	it.each([
+		{ target: "Billing", projectId: mockBillingProject.id },
+		{ target: "Remove from project", projectId: NIL_UUID },
+	])("moves a chat with $target", async ({ target, projectId }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		// Folders start closed, and MockChatProject is the Launch folder.
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, target);
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
+		);
+		expect(projectRequests).toBe(1);
+	});
+
+	it("shows the server message when the server refuses a move", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		let refuseMove: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise((_, reject) => {
+				refuseMove = reject;
+			}),
+		);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+		// The menu closed on select, so the toast must outlive it.
+		refuseMove(mockApiError({ message: "Cannot move an active chat." }));
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
+		);
+	});
+
+	it("sends no request for the current project", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, "Launch");
+		await selectMoveTarget(user, "Billing");
+
+		// A request from Launch would come first and fail the exact call list.
+		await waitFor(() => expect(update).toHaveBeenCalled());
+		expect(update.mock.calls).toEqual([
+			["c1", { project_id: mockBillingProject.id }],
+		]);
+	});
+});
+
 describe("ChatsSidebar pinned reordering", () => {
 	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;
@@ -931,16 +1052,25 @@ const focusMenuItem = async (
 	expect(item).toHaveFocus();
 };
 
+const selectSubmenuItem = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	role: "menuitem" | "menuitemcheckbox",
+	name: string,
+) => {
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, role, name);
+	await user.keyboard("{Enter}");
+};
+
 const toggleSubmenuOption = async (
 	user: MenuUser,
 	submenu: string | RegExp,
 	name: string,
 ) => {
 	await openFilterMenu(user);
-	await focusMenuItem(user, "menuitem", submenu);
-	await user.keyboard("{ArrowRight}");
-	await focusMenuItem(user, "menuitemcheckbox", name);
-	await user.keyboard("{Enter}");
+	await selectSubmenuItem(user, submenu, "menuitemcheckbox", name);
 	await user.keyboard("{Escape}{Escape}");
 };
 
