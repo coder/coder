@@ -624,6 +624,55 @@ describe("AgentChatInput", () => {
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
 
+	it("keeps skill chips through a voice recording and its cancellation", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const speech = { isRecording: false, transcript: "" };
+		mockedUseSpeechRecognition.mockImplementation(() => ({
+			isSupported: true,
+			error: null,
+			...speech,
+			start: vi.fn(),
+			stop: vi.fn(),
+			cancel: vi.fn(),
+		}));
+		const input = () => (
+			<AppProviders>
+				<AgentChatInput {...inputProps} inputRef={inputRef} />
+			</AppProviders>
+		);
+		const { rerender } = render(input());
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		const chip = {
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		};
+
+		await user.click(screen.getByRole("button", { name: "Voice input" }));
+		Object.assign(speech, { isRecording: true, transcript: "check this" });
+		rerender(input());
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toEqual([
+				chip,
+				{ type: "text", text: " check this" },
+			]),
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Cancel voice input" }),
+		);
+		Object.assign(speech, { isRecording: false, transcript: "" });
+		rerender(input());
+
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toEqual([
+				chip,
+				{ type: "text", text: " " },
+			]),
+		);
+	});
+
 	it("lets a recording start while a turn is streaming", async () => {
 		const user = userEvent.setup();
 		const start = vi.fn();
