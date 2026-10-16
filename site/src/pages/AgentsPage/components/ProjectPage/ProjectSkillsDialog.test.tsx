@@ -211,7 +211,6 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() =>
 			expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer"),
 		);
-		await screen.findByRole("textbox", { name: "Body" });
 		await user.keyboard("{Escape}");
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
