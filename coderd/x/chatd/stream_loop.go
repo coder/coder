@@ -208,12 +208,12 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 }
 
 // historyResetRequired reports whether changed contains a deleted message the
-// client may still display. On the initial sync with an after_id, the client
-// holds history up to the revision of message after_id, so only a deletion
-// above that revision, or the deletion or absence of message after_id itself,
-// requires a reset. Revisions increase monotonically per chat. This relies on
-// visible messages never being updated in place except to set deleted, so the
-// revision of message after_id is the revision at which the client loaded it.
+// client may still display. Messages are only deleted as a suffix of the chat:
+// an edit deletes the edited message and every later one. While message
+// after_id is live, a deleted message below it was deleted before message
+// after_id was written, and the client does not hold one above it. After the
+// initial sync, changed holds only rows written since the previous sync, so
+// message after_id is absent unless deleted and any deletion requires a reset.
 func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 	hasDeleted := slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
 		return msg.Deleted
@@ -221,20 +221,14 @@ func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 	if !hasDeleted {
 		return false
 	}
-	if l.state.initialMessageSyncDone || l.state.afterMessageID <= 0 {
+	if l.state.afterMessageID <= 0 {
 		return true
 	}
 
 	idx := slices.IndexFunc(changed, func(msg database.ChatMessage) bool {
 		return msg.ID == l.state.afterMessageID
 	})
-	if idx < 0 || changed[idx].Deleted {
-		return true
-	}
-	horizon := changed[idx].Revision
-	return slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
-		return msg.Deleted && msg.Revision > horizon
-	})
+	return idx < 0 || changed[idx].Deleted
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
@@ -376,7 +370,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
-		// Deleted rows are not sent as message events.
+		// Without a reset, deleted rows are ones the client does not hold.
 		if msg.Deleted {
 			continue
 		}
