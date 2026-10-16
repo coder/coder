@@ -1811,6 +1811,54 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 	}
 }
 
+func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
+	t.Parallel()
+
+	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
+	}
+
+	buildID := uuid.New()
+	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
+
+	// A manifest from a server that predates the build ID leaves it unset
+	// rather than exporting the nil UUID.
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("uses POSIX parameter expansion")
+		}
+		// The agent inherits the runner's environment, so hide any build ID the
+		// runner itself exports.
+		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
+		})
+		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
+		require.NoError(t, err)
+		require.Equal(t, "unset", strings.TrimSpace(string(output)))
+	})
+}
+
+// withoutEnvInfo is the system environment without one variable.
+type withoutEnvInfo struct {
+	usershell.SystemEnvInfo
+	exclude string
+}
+
+func (e withoutEnvInfo) Environ() []string {
+	var environ []string
+	for _, kv := range e.SystemEnvInfo.Environ() {
+		if !strings.HasPrefix(kv, e.exclude+"=") {
+			environ = append(environ, kv)
+		}
+	}
+	return environ
+}
+
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 	t.Parallel()
 

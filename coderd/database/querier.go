@@ -886,6 +886,9 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
+	// Count only the active, successfully imported version of each non-deleted
+	// template, so repeated imports do not inflate adoption.
+	GetScriptOrderTelemetrySummary(ctx context.Context) (GetScriptOrderTelemetrySummaryRow, error)
 	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
 	//   2. requires_action chats past the timeout threshold (client
@@ -1163,8 +1166,8 @@ type sqlcQuerier interface {
 	// Returns metadata for every workspace secret row of a workspace, including
 	// cleared rows, so the secrets each build received can be inspected. Values
 	// are never selected. The workspace owner and organization are included for
-	// authorization.
-	GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error)
+	// authorization. A non-nil workspace_build_id limits the rows to that build.
+	GetWorkspaceSecretsHistory(ctx context.Context, arg GetWorkspaceSecretsHistoryParams) ([]GetWorkspaceSecretsHistoryRow, error)
 	GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error)
 	// build_params is used to filter by build parameters if present.
 	// It has to be a CTE because the set returning function 'unnest' cannot
@@ -1720,6 +1723,7 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error
+	UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg UpdateTemplateVersionScriptOrderUsageByJobIDParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)

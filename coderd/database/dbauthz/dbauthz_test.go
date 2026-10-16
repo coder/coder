@@ -3143,6 +3143,10 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateVersionsCreatedAfter(gomock.Any(), now.Add(-time.Hour)).Return([]database.TemplateVersion{}, nil).AnyTimes()
 		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
+	s.Run("GetScriptOrderTelemetrySummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetScriptOrderTelemetrySummary(gomock.Any()).Return(database.GetScriptOrderTelemetrySummaryRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
+	}))
 	s.Run("GetTemplatesWithFilter", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.Template{})
 		arg := database.GetTemplatesWithFilterParams{}
@@ -3210,6 +3214,27 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
 		dbm.EXPECT().UpdateTemplateVersionFlagsByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(t, policy.ActionUpdate)
+	}))
+	s.Run("UpdateTemplateVersionScriptOrderUsageByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		template := testutil.Fake(s.T(), faker, database.Template{})
+		version := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
+		arg := database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+			JobID:                      version.JobID,
+			ScriptOrderDataSourceCount: 2,
+			ScriptOrderRuleCount:       3,
+		}
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), version.JobID).Return(version, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), template.ID).Return(template, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionScriptOrderUsageByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(template, policy.ActionUpdate)
+	}))
+	s.Run("WithoutTemplate/UpdateTemplateVersionScriptOrderUsageByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		version := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		version.TemplateID = uuid.NullUUID{}
+		arg := database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{JobID: version.JobID}
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), version.JobID).Return(version, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionScriptOrderUsageByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate.InOrg(version.OrganizationID), policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
@@ -6978,8 +7003,9 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 			WorkspaceOwnerID:        ws.OwnerID,
 			WorkspaceOrganizationID: ws.OrganizationID,
 		})
-		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), ws.ID).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
-		check.Args(ws.ID).
+		arg := database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID}
+		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), arg).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
+		check.Args(arg).
 			Asserts(row, policy.ActionRead).
 			Returns([]database.GetWorkspaceSecretsHistoryRow{row})
 	}))
