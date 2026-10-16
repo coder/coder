@@ -11,8 +11,6 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
-var legacyWorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
 type InvalidAddressBitsError struct {
 	Bits int
 }
@@ -109,7 +107,7 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 }
 
 // authorizeNodePrefixes verifies that every prefix is a /128 address derived
-// from the agent's own UUID (or the legacy workspace agent IP).
+// from the agent's own UUID.
 func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
 	for _, prefixStr := range prefixes {
 		pre, err := netip.ParsePrefix(prefixStr)
@@ -122,8 +120,7 @@ func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
 		}
 
 		if TailscaleServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
-			CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
-			legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
+			CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 {
 			return InvalidNodeAddressError{pre.Addr().String()}
 		}
 	}
