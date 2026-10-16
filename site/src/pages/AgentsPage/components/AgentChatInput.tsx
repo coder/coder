@@ -185,6 +185,7 @@ type AgentChatInputProps = {
 	chatOrganizationId?: string;
 	// Project of the chat, whose skills the "/" menu offers.
 	chatProjectId?: string;
+	isChatProjectPending?: boolean;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -529,6 +530,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onWorkspaceChange,
 	chatOrganizationId,
 	chatProjectId,
+	isChatProjectPending,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -1468,6 +1470,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						organizationId={chatOrganizationId}
 						projectId={
 							experiments.includes("chat-projects") ? chatProjectId : undefined
+						}
+						isProjectPending={
+							experiments.includes("chat-projects") && isChatProjectPending
 						}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}

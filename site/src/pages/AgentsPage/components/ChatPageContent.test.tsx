@@ -1,9 +1,13 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { createRef } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
 
@@ -69,7 +73,88 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
+const mockRootChat: TypesGen.Chat = {
+	...MockChat,
+	id: "root-chat",
+	organization_id: "org-1",
+	project_id: "project-1",
+};
+const mockSubagentChat: TypesGen.Chat = {
+	...MockChat,
+	id: "subagent-chat",
+	organization_id: "org-1",
+	parent_chat_id: mockRootChat.id,
+	root_chat_id: mockRootChat.id,
+};
+
+const mockSkillRequests = () => {
+	vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
+	vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([
+		{ ...MockSkill, name: "compactor" },
+	]);
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+	return vi
+		.spyOn(API.experimental, "getChatProjectSkills")
+		.mockResolvedValue([]);
+};
+
+beforeEach(() => {
+	// jsdom lacks Range geometry, which the slash menu reads to anchor.
+	// The method does not exist to spy on, so add it per test and remove
+	// it afterwards.
+	Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 1, 16);
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+});
+
 describe("ChatPageInput", () => {
+	it("keeps a subagent chat's project skills unknown while its root chat loads", async () => {
+		const user = userEvent.setup();
+		const getChatProjectSkills = mockSkillRequests();
+		vi.spyOn(API.experimental, "getChat").mockReturnValue(
+			new Promise(() => {}),
+		);
+		const inputRef = createRef<ChatMessageInputRef>();
+
+		renderChatPageInput(createChatStore(), {
+			chat: mockSubagentChat,
+			inputRef,
+		});
+
+		await user.click(
+			await screen.findByRole("textbox", { name: "Chat message" }),
+		);
+		await user.paste("/comp");
+		// An inherited project skill may shadow /compact, so the command
+		// stays hidden and Enter picks the qualified personal skill.
+		await screen.findByRole("option", { name: /compactor/ });
+		await user.keyboard("{Enter}");
+		expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
+	});
+
+	it("loads the root chat's project skills for a subagent chat", async () => {
+		const user = userEvent.setup();
+		const getChatProjectSkills = mockSkillRequests();
+		const getChat = vi
+			.spyOn(API.experimental, "getChat")
+			.mockResolvedValue(mockRootChat);
+
+		renderChatPageInput(createChatStore(), { chat: mockSubagentChat });
+
+		await user.click(
+			await screen.findByRole("textbox", { name: "Chat message" }),
+		);
+		await user.paste("/");
+		await waitFor(() => {
+			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
+		});
+		expect(getChat).toHaveBeenCalledWith(mockRootChat.id, expect.anything());
+	});
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
