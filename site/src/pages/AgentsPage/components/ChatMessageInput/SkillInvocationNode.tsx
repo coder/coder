@@ -150,7 +150,7 @@ export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
 
 /**
  * Replaces the selection with a skill chip followed by a space. A skill
- * already in the editor is not added again; the selection is only removed.
+ * already in the editor, or one past the limit, only removes the selection.
  */
 export function $insertSkillInvocation(
 	selection: RangeSelection,
@@ -162,6 +162,7 @@ export function $insertSkillInvocation(
 		return;
 	}
 	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+		selection.removeText();
 		warnSkillLimit();
 		return;
 	}
@@ -175,10 +176,7 @@ export function $insertSkillInvocation(
 	chip.selectNext().insertText(" ");
 }
 
-/**
- * Serializes the text and skill-invocation parts of a sent message as a
- * composer draft, so editing the message keeps its skill chips in place.
- */
+/** Serializes a sent message's text and skill chips as a composer draft. */
 export const serializeMessageDraft = (
 	content: readonly ChatMessagePart[],
 ): string => {
