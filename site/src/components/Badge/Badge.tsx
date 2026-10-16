@@ -62,7 +62,7 @@ const badgeVariants = cva(
 			{
 				hover: true,
 				variant: "info",
-				class: "hover:bg-surface-info/20",
+				class: "hover:bg-highlight-sky/20",
 			},
 		],
 		defaultVariants: {
