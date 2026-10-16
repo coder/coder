@@ -34,6 +34,9 @@ func BuildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		if len(info.Required) > 0 {
 			inputSchema["required"] = info.Required
 		}
+		if custom, ok := tool.(interface{ ToolInputSchema() map[string]any }); ok {
+			inputSchema = custom.ToolInputSchema()
+		}
 		schema.Normalize(inputSchema)
 		prepared = append(prepared, fantasy.FunctionTool{
 			Name:            info.Name,

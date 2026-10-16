@@ -651,6 +651,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 		ssePart.CreatedAt = &completedAt
+		userResult, projectionErr := chattool.UserResultFromMetadata(tr.ClientMetadata)
+		if projectionErr != nil {
+			return PersistedStep{}, projectionErr
+		}
+		if len(userResult) > 0 {
+			ssePart.Result = userResult
+		}
 		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
