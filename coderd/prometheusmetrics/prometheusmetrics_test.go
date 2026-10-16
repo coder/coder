@@ -872,8 +872,9 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				polls++
 				// The histogram sample is the only signal that the collector
 				// finished this cycle. The phases asserting unchanged counts rely
-				// on AgentStats recording it after committing the gauges. See
-				// "Wait for Full Completion before Asserting" in
+				// on AgentStats recording it after committing the gauges. If that
+				// order changes, those phases still pass but no longer prove
+				// anything. See "Wait for Full Completion before Asserting" in
 				// .claude/docs/TESTING.md.
 				require.Eventually(t, func() bool {
 					executions := promhelp.MetricValue(t, registry,
@@ -882,6 +883,9 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				}, testutil.WaitShort, testutil.IntervalFast)
 			}
 			counts := func(t require.TestingT) map[string]float64 {
+				if h, ok := t.(interface{ Helper() }); ok {
+					h.Helper()
+				}
 				metrics, err := registry.Gather()
 				require.NoError(t, err)
 				result := map[string]float64{}

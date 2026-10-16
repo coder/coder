@@ -395,14 +395,12 @@ func TestMetadataBatcher(t *testing.T) {
 	capacityResetTrap.MustWait(ctx).MustRelease(ctx) // Wait for timer reset after capacity flush
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
 	// The flush updates each metric separately, so the poll waits for both.
-	// MetadataTotal already counts earlier flushes, so the poll waits for
-	// its final value instead of a change.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)) > 0 &&
-			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) == 507
-	}, testutil.IntervalFast)
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
-	require.Equal(t, float64(507), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
+	// MetadataTotal already counts the 7 entries from flushes 2 and 3, so the
+	// poll waits for final values instead of for changed ones.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, float64(1), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
+		assert.Equal(c, float64(7+defaultMetadataBatchSize), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published (across all chunks).
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -661,9 +659,8 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 			// Trigger scheduled flush
 			clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 
-			// Verify flush occurred with correct number of entries
-			// The flush updates each metric separately, so the poll waits for
-			// both.
+			// Verify flush occurred with correct number of entries. The flush
+			// updates each metric separately, so the poll waits for both.
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 					prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0
@@ -760,8 +757,8 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	}, testutil.IntervalFast)
 	psCap.requireContainsAll([]uuid.UUID{agent})
 
-	// Verify only 1 entry was flushed (newest timestamp wins)
-	// The flush updates each metric separately, so the poll waits for both.
+	// Verify only 1 entry was flushed (newest timestamp wins). The flush
+	// updates each metric separately, so the poll waits for both.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0
@@ -1014,8 +1011,8 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	}, testutil.IntervalFast)
 	psCap.requireContainsAll([]uuid.UUID{agentID})
 
-	// Verify exactly 3 unique keys were flushed
-	// The flush updates each metric separately, so the poll waits for both.
+	// Verify exactly 3 unique keys were flushed. The flush updates each metric
+	// separately, so the poll waits for both.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)) > 0 &&
 			prom_testutil.ToFloat64(b.Metrics.MetadataTotal) > 0
