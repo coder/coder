@@ -55,9 +55,7 @@ describe("UserDropdownContent", () => {
 	});
 
 	it("keeps focus on the version item when the pointer leaves it", async () => {
-		// Radix menus otherwise move focus to the menu on pointerleave, which
-		// closes the item's tooltip before the pointer can reach it. The modal
-		// menu disables pointer events on the body, which jsdom cannot hover.
+		// The modal menu sets pointer-events: none on the body.
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();

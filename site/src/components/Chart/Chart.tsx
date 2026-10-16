@@ -175,29 +175,19 @@ type ChartTooltipProps = Omit<
 	content: React.ReactElement;
 };
 
-type FrozenTooltipState = Pick<
-	ChartTooltipProps,
-	"label" | "payload" | "coordinate"
->;
-
 /**
- * Recharts tooltip that satisfies WCAG 1.4.13 (content on hover or focus).
- * It is centered above the active data point at the top of the plot, so the
- * pointer can move straight up onto it, and it keeps showing the same data
- * while the pointer is over it. Recharts dismisses it on Escape.
+ * Recharts tooltip that the pointer can reach (WCAG 1.4.13). It is centered
+ * above the active point at the top of the plot, and keeps that point while
+ * hovered. Recharts dismisses it on Escape.
  */
 export const ChartTooltip: React.FC<ChartTooltipProps> = ({
-	label,
-	payload,
 	coordinate,
 	viewBox,
 	content,
 	...props
 }) => {
-	const [frozen, setFrozen] = useState<FrozenTooltipState | null>(null);
 	const [width, setWidth] = useState(0);
-	// A stable callback ref keeps React from recreating the observer on every
-	// render.
+	// Stable so React does not recreate the observer on every render.
 	const measureContent = useCallback((node: HTMLDivElement | null) => {
 		if (!node) {
 			return;
@@ -212,66 +202,50 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
 		return () => observer.disconnect();
 	}, []);
 
-	const current = frozen ?? { label, payload, coordinate };
 	const plotX = viewBox?.x ?? 0;
-	const plotWidth = viewBox?.width ?? 0;
-	const centeredX = (current.coordinate?.x ?? 0) - width / 2;
-	const x = Math.max(
-		plotX,
-		Math.min(centeredX, plotX + Math.max(plotWidth - width, 0)),
-	);
+	const maxX = plotX + Math.max((viewBox?.width ?? 0) - width, 0);
+	const x = Math.max(plotX, Math.min((coordinate?.x ?? 0) - width / 2, maxX));
 
 	return (
 		<RechartsPrimitive.Tooltip
 			isAnimationActive={false}
 			{...props}
-			{...current}
-			active={frozen ? true : props.active}
+			coordinate={coordinate}
 			viewBox={viewBox}
 			position={{ x, y: viewBox?.y ?? 0 }}
 			content={
 				<HoverableTooltipContent
 					containerRef={measureContent}
 					innerContent={content}
-					onPointerEnter={() => setFrozen({ label, payload, coordinate })}
-					onPointerLeave={() => setFrozen(null)}
 				/>
 			}
 		/>
 	);
 };
-// Recharts locates the tooltip among chart children by display name.
+// Recharts finds the tooltip among chart children by display name.
 ChartTooltip.displayName = "Tooltip";
 
 type HoverableTooltipContentProps = Omit<ChartTooltipProps, "content"> & {
 	containerRef: React.Ref<HTMLDivElement>;
 	innerContent: React.ReactElement;
-	onPointerEnter: () => void;
-	onPointerLeave: () => void;
 };
 
-// Recharts clones this element with the tooltip props, so it must keep a
-// stable component type to avoid remounting under the pointer. Recharts keeps
-// the wrapper at pointer-events: none, so only the visible content is
-// hoverable and the empty wrapper never blocks the chart.
+// Recharts keeps its wrapper at pointer-events: none, so only the visible
+// content is hoverable. Stopping mousemove here keeps the chart from moving
+// the active point while the pointer is over the tooltip.
 const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
 	containerRef,
 	innerContent,
-	onPointerEnter,
-	onPointerLeave,
 	...props
-}) => {
-	return (
-		<div
-			ref={containerRef}
-			className="pointer-events-auto"
-			onPointerEnter={onPointerEnter}
-			onPointerLeave={onPointerLeave}
-		>
-			{cloneElement(innerContent, props)}
-		</div>
-	);
-};
+}) => (
+	<div
+		ref={containerRef}
+		className="pointer-events-auto"
+		onMouseMove={(event) => event.stopPropagation()}
+	>
+		{cloneElement(innerContent, props)}
+	</div>
+);
 
 type ChartTooltipContentProps = React.ComponentProps<
 	typeof RechartsPrimitive.Tooltip

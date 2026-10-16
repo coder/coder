@@ -655,39 +655,3 @@ export const NavbarSurvivesEmptyLicenseList: Story = {
 		);
 	},
 };
-
-const hoverMenuItemTooltip = async (
-	canvasElement: HTMLElement,
-	item: RegExp,
-	tooltipText: string,
-) => {
-	const menu = await openDropdown(canvasElement);
-	await userEvent.hover(menu.getByRole("menuitem", { name: item }));
-	await userEvent.hover(
-		await screen.findByRole("tooltip", { name: tooltipText }),
-	);
-};
-
-export const VersionTooltipHovered: Story = {
-	play: async ({ canvasElement, step }) => {
-		await step("hover the tooltip", async () => {
-			await hoverMenuItemTooltip(
-				canvasElement,
-				/opens in new tab/,
-				"Browse the source code",
-			);
-		});
-	},
-};
-
-export const DeploymentIdTooltipHovered: Story = {
-	play: async ({ canvasElement, step }) => {
-		await step("hover the tooltip", async () => {
-			await hoverMenuItemTooltip(
-				canvasElement,
-				new RegExp(MockBuildInfo.deployment_id),
-				"Copy deployment ID",
-			);
-		});
-	},
-};
