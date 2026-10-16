@@ -247,11 +247,14 @@ var chatDaemonUnavailableResponse = codersdk.Response{
 // config. Operations that depend on it (creating, mutating, or streaming a
 // chat) must call this; pure reads (e.g. getChat) do not.
 func (api *API) requireChatDaemon(ctx context.Context, rw http.ResponseWriter) bool {
+	return !maybeWriteChatError(ctx, rw, api.chatDaemonError())
+}
+
+func (api *API) chatDaemonError() error {
 	if api.chatDaemon != nil {
-		return true
+		return nil
 	}
-	httpapi.Write(ctx, rw, http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
-	return false
+	return httperror.NewResponseError(http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
 }
 
 // ChatDaemon returns the configured chat daemon, or nil if none is configured.
@@ -1621,8 +1624,8 @@ func (api *API) createChat(
 // ctx does not need an RBAC actor. Errors implement httperror.Responder;
 // lifecycle hook errors also unwrap to their denial or dispatch error.
 func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req codersdk.CreateChatRequest) (codersdk.Chat, error) {
-	if api.chatDaemon == nil {
-		return codersdk.Chat{}, httperror.NewResponseError(http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
+	if err := api.chatDaemonError(); err != nil {
+		return codersdk.Chat{}, err
 	}
 	ctx, err := api.actAsUser(ctx, userID)
 	if err != nil {
@@ -1632,6 +1635,42 @@ func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req code
 	chat, sdkChat, err := api.createChat(ctx, userID, req)
 	api.auditChatAsUser(ctx, userID, database.AuditActionCreate, database.Chat{}, chat, http.StatusCreated, err)
 	return sdkChat, err
+}
+
+// SendChatMessageAsUser sends a message to a chat as userID with the checks
+// and the errors of POST /api/v2/chats/{chat}/messages. See CreateChatAsUser.
+func (api *API) SendChatMessageAsUser(ctx context.Context, userID, chatID uuid.UUID, req codersdk.CreateChatMessageRequest) (codersdk.CreateChatMessageResponse, error) {
+	ctx, chat, err := api.actAsUserOnChat(ctx, userID, chatID)
+	if err != nil {
+		return codersdk.CreateChatMessageResponse{}, err
+	}
+	if err := api.checkSendChatMessage(ctx, userID, chat); err != nil {
+		return codersdk.CreateChatMessageResponse{}, err
+	}
+	return api.sendChatMessage(ctx, userID, chat, req)
+}
+
+// InterruptChatAsUser interrupts a chat as userID with the checks and the
+// errors of POST /api/v2/chats/{chat}/interrupt. See CreateChatAsUser.
+func (api *API) InterruptChatAsUser(ctx context.Context, userID, chatID uuid.UUID) (codersdk.Chat, error) {
+	ctx, chat, err := api.actAsUserOnChat(ctx, userID, chatID)
+	if err != nil {
+		return codersdk.Chat{}, err
+	}
+	return api.interruptChat(ctx, chat)
+}
+
+// Errors implement httperror.Responder.
+func (api *API) actAsUserOnChat(ctx context.Context, userID, chatID uuid.UUID) (context.Context, database.Chat, error) {
+	ctx, err := api.actAsUser(ctx, userID)
+	if err != nil {
+		return nil, database.Chat{}, err
+	}
+	chat, err := httpmw.FetchChat(ctx, api.Database, chatID)
+	if err != nil {
+		return nil, database.Chat{}, err
+	}
+	return ctx, chat, nil
 }
 
 // Match API key authentication so in-process activity counts toward
@@ -2937,8 +2976,15 @@ func noLocalChatModelResponse() *codersdk.Response {
 	}
 }
 
+func noLocalChatModelError(err error) error {
+	if !errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
+		return nil
+	}
+	return httperror.WrapResponseError(http.StatusBadRequest, *noLocalChatModelResponse(), err)
+}
+
 func writeNoLocalChatModelResponse(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, *noLocalChatModelResponse())
+	writeChatError(ctx, rw, noLocalChatModelError(chatd.ErrNoDefaultChatModelConfig))
 }
 
 func commonChatMutationError(err error, archivedMessage string) error {
@@ -2976,36 +3022,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
-	chatID := chat.ID
 
-	if !api.requireChatDaemon(ctx, rw) {
-		return
-	}
-
-	// Sending a message triggers LLM inference, requiring update
-	// permission on the org-scoped chat resource.
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Only the chat owner may send messages. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but chat
-	// processing forwards the *owner's* credentials (OIDC tokens,
-	// provider API keys) to external services. Allowing a
-	// non-owner to trigger processing would leak the owner's
-	// tokens to MCP servers the caller controls.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may send messages.",
-		})
-		return
-	}
-
-	if chat.Archived {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot send messages to an archived chat.",
-		})
+	if maybeWriteChatError(ctx, rw, api.checkSendChatMessage(ctx, apiKey.UserID, chat)) {
 		return
 	}
 
@@ -3014,19 +3032,65 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response, err := api.sendChatMessage(ctx, apiKey.UserID, chat, req)
+	if err != nil {
+		writeChatError(ctx, rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// ctx must carry callerID's RBAC actor. Errors implement httperror.Responder.
+func (api *API) checkSendChatMessage(ctx context.Context, callerID uuid.UUID, chat database.Chat) error {
+	if err := api.chatDaemonError(); err != nil {
+		return err
+	}
+
+	// Sending a message triggers LLM inference, requiring update
+	// permission on the org-scoped chat resource.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUpdate, chat.RBACObject()) {
+		return httperror.ErrResourceNotFound
+	}
+
+	// Only the chat owner may send messages. Org admins pass the
+	// RBAC check above (org-level ActionUpdate), but chat
+	// processing forwards the *owner's* credentials (OIDC tokens,
+	// provider API keys) to external services. Allowing a
+	// non-owner to trigger processing would leak the owner's
+	// tokens to MCP servers the caller controls.
+	if callerID != chat.OwnerID {
+		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may send messages.",
+		})
+	}
+
+	if chat.Archived {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot send messages to an archived chat.",
+		})
+	}
+	return nil
+}
+
+// The caller must first pass checkSendChatMessage. ctx must carry callerID's
+// RBAC actor. Errors implement httperror.Responder.
+func (api *API) sendChatMessage(
+	ctx context.Context,
+	callerID uuid.UUID,
+	chat database.Chat,
+	req codersdk.CreateChatMessageRequest,
+) (codersdk.CreateChatMessageResponse, error) {
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
 	if inputError != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
 			Detail:  inputError.Detail,
 		})
-		return
 	}
 
 	normalizedMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
 	if mcpResp != nil {
-		httpapi.Write(ctx, rw, status, *mcpResp)
-		return
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(status, *mcpResp)
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
 
@@ -3036,33 +3100,28 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		// non-empty declarations: [] is the detach path and must keep
 		// working when the feature is turned off.
 		if chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 				Message: "inline_mcp_servers can only be declared on a root chat.",
 			})
-			return
 		}
 		if len(*req.InlineMCPServers) > 0 {
 			if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
-				writeChatCallerSuppliedToolsDisabled(ctx, rw)
-				return
+				return codersdk.CreateChatMessageResponse{}, chatCallerSuppliedToolsDisabledError()
 			}
 			if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
-				writeInlineMCPServersExperimentRequired(ctx, rw)
-				return
+				return codersdk.CreateChatMessageResponse{}, inlineMCPServersExperimentRequiredError()
 			}
 			if validations := validateInlineMCPServers(*req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
-				writeInlineMCPServersInvalid(ctx, rw, validations)
-				return
+				return codersdk.CreateChatMessageResponse{}, inlineMCPServersInvalidError(validations)
 			}
 		}
 	}
 
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid plan_mode value.",
 			})
-			return
 		}
 	}
 
@@ -3079,26 +3138,23 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	case codersdk.ChatBusyBehaviorQueue, "":
 		// Default to queue.
 	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
 			Detail:  `Must be "queue" or "interrupt".`,
 		})
-		return
 	}
 
 	modelConfigID := uuid.Nil
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, modelConfigID); resp != nil {
-		httpapi.Write(ctx, rw, status, *resp)
-		return
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, callerID, chat.OrganizationID, modelConfigID); resp != nil {
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(status, *resp)
 	}
 
 	reasoningEffort := req.ReasoningEffort
 	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
-		return
+		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
 	}
 
 	// Chats created without an initial message have no stored effort,
@@ -3106,11 +3162,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if reasoningEffort == nil && !chat.LastReasoningEffort.Valid {
 		overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, chat.OwnerID, chat.OrganizationID)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return codersdk.CreateChatMessageResponse{}, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to resolve chat model config.",
 				Detail:  err.Error(),
-			})
-			return
+			}, err)
 		}
 		if overrideEffort != nil &&
 			overrideModelConfigID == cmp.Or(modelConfigID, chat.LastModelConfigID) &&
@@ -3122,8 +3177,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:           chatID,
-			CreatedBy:        apiKey.UserID,
+			ChatID:           chat.ID,
+			CreatedBy:        callerID,
 			Content:          contentBlocks,
 			ModelConfigID:    modelConfigID,
 			ReasoningEffort:  reasoningEffort,
@@ -3134,59 +3189,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
-		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
-			return
-		}
-		if api.writeChatFileError(ctx, rw, sendErr) {
-			return
-		}
-		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot send messages to an archived chat.",
-			})
-			return
-		}
-		if xerrors.Is(sendErr, chatstate.ErrMessageQueueFull) {
-			var queueFull *chatstate.MessageQueueFullError
-			detail := ""
-			if errors.As(sendErr, &queueFull) {
-				detail = fmt.Sprintf("Maximum %d messages can be queued.", queueFull.Max)
-			}
-			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
-				Message: "Message queue is full.",
-				Detail:  detail,
-			})
-			return
-		}
-		if xerrors.Is(sendErr, chatd.ErrInvalidModelConfigID) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid model config ID.",
-			})
-			return
-		}
-		if xerrors.Is(sendErr, chatd.ErrNoDefaultChatModelConfig) {
-			writeNoLocalChatModelResponse(ctx, rw)
-			return
-		}
-		if errors.Is(sendErr, chatstate.ErrChatNotFound) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if writeChatInvalidState(ctx, rw, sendErr) {
-			return
-		}
-		if errors.Is(sendErr, chatstate.ErrTransitionNotAllowed) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat is not in a state that accepts new messages.",
-				Detail:  sendErr.Error(),
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat message.",
-			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
-		})
-		return
+		return codersdk.CreateChatMessageResponse{}, api.sendChatMessageError(sendErr)
 	}
 
 	// Pass the inserted message as the snapshot: SendMessage published
@@ -3217,8 +3220,56 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
+	return response, nil
+}
 
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+func (api *API) sendChatMessageError(err error) error {
+	if hookErr := chatHookError(err, "Chat message denied by lifecycle hook."); hookErr != nil {
+		return hookErr
+	}
+	if fileErr := api.chatFileError(err); fileErr != nil {
+		return fileErr
+	}
+	if xerrors.Is(err, chatd.ErrChatArchived) {
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot send messages to an archived chat.",
+		}, err)
+	}
+	if xerrors.Is(err, chatstate.ErrMessageQueueFull) {
+		var queueFull *chatstate.MessageQueueFullError
+		detail := ""
+		if errors.As(err, &queueFull) {
+			detail = fmt.Sprintf("Maximum %d messages can be queued.", queueFull.Max)
+		}
+		return httperror.WrapResponseError(http.StatusTooManyRequests, codersdk.Response{
+			Message: "Message queue is full.",
+			Detail:  detail,
+		}, err)
+	}
+	if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+		return httperror.WrapResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model config ID.",
+		}, err)
+	}
+	if noModelErr := noLocalChatModelError(err); noModelErr != nil {
+		return noModelErr
+	}
+	if errors.Is(err, chatstate.ErrChatNotFound) {
+		return httperror.WrapResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse, err)
+	}
+	if invalidStateErr := chatInvalidStateError(err); invalidStateErr != nil {
+		return invalidStateErr
+	}
+	if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
+		return httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
+			Message: "Chat is not in a state that accepts new messages.",
+			Detail:  err.Error(),
+		}, err)
+	}
+	return httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to create chat message.",
+		Detail:  chaterror.FormatDiagnosticDetail(err),
+	}, err)
 }
 
 // @Summary Edit chat message
@@ -3725,44 +3776,44 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
-func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
-	chatID := chat.ID
-	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
-
-	if !api.requireChatDaemon(ctx, rw) {
+	chat, err := api.interruptChat(ctx, httpmw.ChatParam(r))
+	if err != nil {
+		writeChatError(ctx, rw, err)
 		return
 	}
+	httpapi.Write(ctx, rw, http.StatusOK, chat)
+}
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
+// ctx must carry the caller's RBAC actor. Errors implement httperror.Responder.
+func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk.Chat, error) {
+	if err := api.chatDaemonError(); err != nil {
+		return codersdk.Chat{}, err
+	}
+
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUpdate, chat.RBACObject()) {
+		return codersdk.Chat{}, httperror.ErrResourceNotFound
 	}
 
 	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
 	if err != nil {
-		if writeCommonChatMutationError(ctx, rw, err, "Cannot interrupt an archived chat.") {
-			return
+		if mutationErr := commonChatMutationError(err, "Cannot interrupt an archived chat."); mutationErr != nil {
+			return codersdk.Chat{}, mutationErr
 		}
-		switch {
-		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
+			return codersdk.Chat{}, httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
 				Message: "Chat is not in an interruptible state.",
 				Detail:  err.Error(),
-			})
-		default:
-			logger.Error(ctx, "failed to interrupt chat", slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to interrupt chat.",
-				Detail:  err.Error(),
-			})
+			}, err)
 		}
-		return
+		api.Logger.Named("chat_interrupt").Error(ctx, "failed to interrupt chat", slog.F("chat_id", chat.ID), slog.Error(err))
+		return codersdk.Chat{}, httperror.WrapResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to interrupt chat.",
+			Detail:  err.Error(),
+		}, err)
 	}
-	chat = updated
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+	return db2sdk.Chat(updated, nil, nil), nil
 }
 
 // @Summary Compact chat
