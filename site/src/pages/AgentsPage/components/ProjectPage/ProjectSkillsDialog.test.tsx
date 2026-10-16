@@ -76,11 +76,7 @@ describe("ProjectSkillsDialog", () => {
 			screen.getByRole("textbox", { name: "Body" }),
 			"Plan the work.",
 		);
-		await user.click(
-			screen.getByRole("switch", {
-				name: "Show as action on the project page",
-			}),
-		);
+		await user.click(screen.getByRole("switch", { name: "Show as action" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>

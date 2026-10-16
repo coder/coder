@@ -457,6 +457,29 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 					)}
 				</div>
 
+				{showProjectSettings && (
+					<>
+						<SkillSettingSwitch
+							label="Show as action"
+							description="Adds a button above the composer in this project's chats that inserts the skill."
+							checked={form.values.action ?? false}
+							disabled={readOnly || isBusy}
+							onCheckedChange={(checked) =>
+								void form.setFieldValue("action", checked)
+							}
+						/>
+						<SkillSettingSwitch
+							label="Agents can use it automatically"
+							description="When off, agents use the skill only when someone invokes it."
+							checked={form.values.modelInvocable ?? true}
+							disabled={readOnly || isBusy}
+							onCheckedChange={(checked) =>
+								void form.setFieldValue("modelInvocable", checked)
+							}
+						/>
+					</>
+				)}
+
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={bodyId}>Body</Label>
 					<TextareaAutosize
@@ -495,29 +518,6 @@ export const SkillEditorForm: React.FC<SkillEditorFormProps> = ({
 						{`${formatKiB(sizeBytes)} of ${formatKiB(SKILL_MAX_SIZE_BYTES)} used.`}
 					</p>
 				</div>
-
-				{showProjectSettings && (
-					<>
-						<SkillSettingSwitch
-							label="Show as action on the project page"
-							description="Adds a button above the composer in this project's chats that inserts the skill."
-							checked={form.values.action ?? false}
-							disabled={readOnly || isBusy}
-							onCheckedChange={(checked) =>
-								void form.setFieldValue("action", checked)
-							}
-						/>
-						<SkillSettingSwitch
-							label="Agents can use it automatically"
-							description="When off, agents use the skill only when someone invokes it."
-							checked={form.values.modelInvocable ?? true}
-							disabled={readOnly || isBusy}
-							onCheckedChange={(checked) =>
-								void form.setFieldValue("modelInvocable", checked)
-							}
-						/>
-					</>
-				)}
 			</div>
 
 			{footer(formState)}
