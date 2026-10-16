@@ -2475,14 +2475,6 @@ type runChatResult struct {
 	HistoryTipMessageID int64
 }
 
-func allToolNames(allTools []fantasy.AgentTool) []string {
-	toolNames := make([]string, 0, len(allTools))
-	for _, tool := range allTools {
-		toolNames = append(toolNames, tool.Info().Name)
-	}
-	return toolNames
-}
-
 func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
@@ -2649,19 +2641,6 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		}
 	}
 	return toolNames
-}
-
-// allowedBehaviorToolNames runs only on non-plan turns because
-// appendDynamicTools returns early for plan mode. Within that boundary,
-// Explore mode wins over the default behavior that allows all tools.
-func allowedBehaviorToolNames(
-	allTools []fantasy.AgentTool,
-	chatMode database.NullChatMode,
-) []string {
-	if isExploreSubagentMode(chatMode) {
-		return allowedExploreToolNames(allTools)
-	}
-	return allToolNames(allTools)
 }
 
 func stopAfterPlanTools(
@@ -3057,15 +3036,8 @@ func appendDynamicTools(
 		}
 	}
 
-	activeToolNames := make(map[string]struct{}, len(tools))
-	for _, name := range allowedBehaviorToolNames(tools, chatMode) {
-		activeToolNames[name] = struct{}{}
-	}
 	for _, t := range tools {
 		info := t.Info()
-		if _, active := activeToolNames[info.Name]; !active {
-			continue
-		}
 		if dynamicToolNames[info.Name] {
 			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
 				slog.F("tool_name", info.Name))
