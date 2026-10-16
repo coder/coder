@@ -4,6 +4,7 @@ import advancedFormat from "dayjs/plugin/advancedFormat";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { action } from "storybook/actions";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	defaultSchedule,
 	emptySchedule,
@@ -80,6 +81,34 @@ export const Autostart: Story = {
 			...mockTemplate,
 			allow_user_autostop: false,
 		},
+	},
+};
+
+export const TimezoneSearch: Story = {
+	args: {
+		initialValues: {
+			...defaultInitialValues,
+			startTime: "09:30",
+			timezone: "Australia/Sydney",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByLabelText("Timezone"));
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search timezones" }),
+			"australia",
+		);
+	},
+};
+
+export const TimezoneSearchEmpty: Story = {
+	args: TimezoneSearch.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByLabelText("Timezone"));
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search timezones" }),
+			"not a timezone",
+		);
 	},
 };
 
