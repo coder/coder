@@ -532,10 +532,11 @@ const (
 	// outcome it needed. Start and end are both the moment of the skip
 	// and exit_code is 0.
 	Timing_SKIPPED Timing_Status = 4
-	// The workspace stopped before the script finished. A script that
-	// was running keeps its real interval and the exit code its process
-	// returned; one that never started has start equal to end at the
-	// moment of cancellation and exit_code 0.
+	// The agent shut down before the script finished, usually because
+	// the workspace stopped. A script that was running keeps its real
+	// interval and the exit code its process returned; one that never
+	// started has start equal to end at the moment of cancellation and
+	// exit_code 0.
 	Timing_CANCELED Timing_Status = 5
 )
 

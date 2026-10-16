@@ -142,7 +142,7 @@ export const CanceledScript: Story = {
 		const bar = await canvas.findByLabelText("Post setup: canceled");
 		await user.hover(bar);
 		await body.findByText(
-			"Script was canceled because the workspace stopped before it finished.",
+			"Script was canceled because the agent shut down before it finished.",
 		);
 	},
 };

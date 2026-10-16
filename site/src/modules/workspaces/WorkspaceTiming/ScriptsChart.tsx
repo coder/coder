@@ -152,7 +152,7 @@ function tooltipContent(t: ScriptTiming): React.ReactNode {
 		case "skipped":
 			return "Script was skipped because a prerequisite did not reach the required outcome.";
 		case "canceled":
-			return "Script was canceled because the workspace stopped before it finished.";
+			return "Script was canceled because the agent shut down before it finished.";
 		default:
 			return (
 				<>
@@ -203,11 +203,13 @@ function getLegendsByStatus(
 				stroke: theme.roles.inactive.outline,
 			},
 		},
+		// The notice role rather than info: info and inactive share the same
+		// fill in both themes, so canceled and skipped bars would look alike.
 		canceled: {
 			label: "canceled",
 			colors: {
-				fill: theme.roles.info.background,
-				stroke: theme.roles.info.outline,
+				fill: theme.roles.notice.background,
+				stroke: theme.roles.notice.outline,
 			},
 		},
 	};

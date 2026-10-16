@@ -68,7 +68,7 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 	default:
 		// Without this the empty value reaches Postgres and fails with an
 		// enum error that does not say where it came from.
-		return nil, xerrors.Errorf("unknown script timing status %q: the agent is newer than coderd", req.Timing.Status.String())
+		return nil, xerrors.Errorf("unknown script timing status %q: the agent may be newer than coderd", req.Timing.Status.String())
 	}
 
 	//nolint:gocritic // We need permissions to write to the DB here and we are in the context of the agent.
