@@ -5132,6 +5132,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5171,6 +5175,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5195,6 +5203,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5207,6 +5219,8 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
 		require.Equal(t, "test disconnect", row.DisconnectReason.String)
 		require.Equal(t, int32(1), row.Code.Int32)
+		require.Equal(t, int64(10), row.RxBytes.Int64)
+		require.Equal(t, int64(20), row.TxBytes.Int64)
 	})
 
 	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
@@ -5237,6 +5251,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			}
 		}
 
@@ -5297,6 +5315,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5320,6 +5342,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5338,7 +5364,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connID := uuid.New()
 		disconnectTime := dbtime.Now()
 
-		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
+		mkDisconnect := func(reason string, code int32, rxBytes, txBytes int64) database.BatchUpsertConnectionLogsParams {
 			return database.BatchUpsertConnectionLogsParams{
 				ID:               []uuid.UUID{uuid.New()},
 				ConnectTime:      []time.Time{disconnectTime},
@@ -5358,14 +5384,18 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{rxBytes},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{txBytes},
+				TxBytesValid:     []bool{true},
 			}
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
+		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1, 33, 44))
 		require.NoError(t, err)
 
-		// Second disconnect with different reason and code.
-		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
+		// Second disconnect with different reason, code, and bytes.
+		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2, 55, 66))
 		require.NoError(t, err)
 
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
@@ -5376,6 +5406,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
 			"code should not be overwritten")
+		require.Equal(t, int64(33), row.RxBytes.Int64,
+			"rx bytes should not be overwritten")
+		require.Equal(t, int64(44), row.TxBytes.Int64,
+			"tx bytes should not be overwritten")
 	})
 
 	// A later report for the same connection, such as its disconnect, cannot
@@ -5447,6 +5481,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			})
 			require.NoError(t, err)
 		}
@@ -5482,84 +5520,103 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{"invalid"},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "violates check constraint")
 	})
 
-	t.Run("CodeZeroPreserved", func(t *testing.T) {
+	// Test that nullable fields can properly differentiate between a value, the
+	// empty value, and null.  For null tests, specifically set a non-empty value,
+	// just as a sanity check that it properly comes back as {empty value, false}
+	// rather than {original value, false} somehow.
+	t.Run("NullableFields", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"normal"},
-			DisconnectTime:   []time.Time{now},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
-		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
-			"code=0 should be preserved, not treated as NULL")
-	})
-
-	t.Run("CodeNullWhenInvalid", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
-
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{99},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.False(t, rows[0].ConnectionLog.Code.Valid,
-			"code should be NULL when code_valid is false")
+		tests := []struct {
+			name string
+			seed func(*database.UpsertConnectionLogParams)
+		}{
+			{
+				name: "CodeNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 10, Valid: false}
+				},
+			},
+			{
+				name: "CodeZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 0, Valid: true}
+				},
+			},
+			{
+				name: "RxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 20, Valid: false}
+				},
+			},
+			{
+				name: "RxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+			{
+				name: "TxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 30, Valid: false}
+				},
+			},
+			{
+				name: "TxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ws := createWorkspace(t, db)
+				connID := uuid.New()
+				// Base seed has non-null and > 0 values for every field.
+				seed := database.UpsertConnectionLogParams{
+					OrganizationID:   ws.OrganizationID,
+					WorkspaceOwnerID: ws.OwnerID,
+					WorkspaceID:      ws.ID,
+					WorkspaceName:    ws.Name,
+					AgentName:        "agent",
+					ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+					UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+					UserID:           uuid.NullUUID{UUID: uuid.Nil, Valid: true},
+					ConnectionMethod: database.ConnectionLogMethodSSH,
+					AppNameOrPort:    sql.NullString{String: "test", Valid: true},
+					ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
+					DisconnectReason: sql.NullString{String: "test", Valid: true},
+					Code:             sql.NullInt32{Int32: 10, Valid: true},
+					RxBytes:          sql.NullInt64{Int64: 20, Valid: true},
+					TxBytes:          sql.NullInt64{Int64: 30, Valid: true},
+				}
+				tc.seed(&seed)
+				log := dbgen.ConnectionLog(t, db, seed)
+				if !seed.Code.Valid {
+					seed.Code.Int32 = 0
+				}
+				require.Equal(t, seed.Code, log.Code)
+				if !seed.RxBytes.Valid {
+					seed.RxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.RxBytes, log.RxBytes)
+				if !seed.TxBytes.Valid {
+					seed.TxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.TxBytes, log.TxBytes)
+			})
+		}
 	})
 
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
@@ -5591,6 +5648,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{true},
 			})
 			require.NoError(t, err)
 		}
@@ -5627,6 +5688,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
 		clientSessionIDs := make([]string, n)
+		rxBytes := make([]int64, n)
+		rxBytesValids := make([]bool, n)
+		txBytes := make([]int64, n)
+		txBytesValids := make([]bool, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5647,6 +5712,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
 			clientSessionIDs[i] = ""
+			rxBytes[i] = 0
+			rxBytesValids[i] = false
+			txBytes[i] = 0
+			txBytesValids[i] = false
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5668,6 +5737,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
 			ClientSessionID:  clientSessionIDs,
+			RxBytes:          rxBytes,
+			RxBytesValid:     rxBytesValids,
+			TxBytes:          txBytes,
+			TxBytesValid:     txBytesValids,
 		})
 		require.NoError(t, err)
 
@@ -20137,4 +20210,295 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// Then: the page is empty.
 		require.Empty(t, outOfRange)
 	})
+}
+
+func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Do()
+	ws := first.Workspace
+	build1 := first.Build
+	build2 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+	build3 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 3}).Do().Build
+
+	for _, b := range []database.WorkspaceBuild{build1, build2, build3} {
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: b.ID,
+			Name:             "api-key",
+		})
+	}
+
+	live := func(buildID uuid.UUID) int {
+		rows, err := db.ListActiveWorkspaceSecrets(ctx, buildID)
+		require.NoError(t, err)
+		return len(rows)
+	}
+
+	// A cutoff build from another workspace must clear nothing, even though
+	// its build number is higher than every build of this workspace.
+	otherBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Seed(database.WorkspaceBuild{BuildNumber: 10}).Do().Build
+	err := db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: otherBuild.ID,
+	})
+	require.NoError(t, err)
+	for _, b := range []database.WorkspaceBuild{build1, build2, build3} {
+		require.Equal(t, 1, live(b.ID), "another workspace's build clears nothing")
+	}
+
+	// Build 2 clearing late must not touch build 3, which is newer.
+	err = db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: build2.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, live(build1.ID), "earlier build is cleared")
+	require.Equal(t, 1, live(build2.ID), "the clearing build keeps its own secrets")
+	require.Equal(t, 1, live(build3.ID), "a later build is untouched")
+
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID})
+	require.NoError(t, err)
+	require.Len(t, history, 3, "cleared rows are kept as history")
+	for _, row := range history {
+		require.Equal(t, row.WorkspaceBuildID == build1.ID, row.ClearedAt.Valid,
+			"only build 1's row is cleared")
+	}
+
+	// Filtering by build includes that build's cleared rows.
+	build1History, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID, WorkspaceBuildID: build1.ID})
+	require.NoError(t, err)
+	require.Len(t, build1History, 1)
+	require.Equal(t, build1.ID, build1History[0].WorkspaceBuildID)
+	require.True(t, build1History[0].ClearedAt.Valid)
+}
+
+// TestInsertWorkspaceSecretBuildMismatch checks that a secret cannot name a
+// build of another workspace. Inserts are authorized by workspace_id while
+// reads select by workspace_build_id, so the pair must come from one build.
+func TestInsertWorkspaceSecretBuildMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+	}
+	first := newWorkspace()
+	second := newWorkspace()
+
+	_, err := db.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
+		ID:               uuid.New(),
+		WorkspaceID:      first.Workspace.ID,
+		WorkspaceBuildID: second.Build.ID,
+		Name:             "api-key",
+		Value:            sql.NullString{String: "secret", Valid: true},
+		EnvName:          "API_KEY",
+		Source:           database.WorkspaceSecretSourceRequest,
+	})
+	require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyWorkspaceSecretsBuildWorkspace), err)
+}
+
+// TestWorkspaceSecretLimits exercises the per-build caps enforced by
+// enforce_workspace_secrets_per_build_limits: the accepted value at each cap,
+// the first rejected value past it, and that a second build of the same
+// workspace has its own budget.
+func TestWorkspaceSecretLimits(t *testing.T) {
+	t.Parallel()
+
+	const (
+		countLimit      = 50
+		totalBytesLimit = 204800
+		envBytesLimit   = 24576
+	)
+
+	setup := func(t *testing.T) (database.Store, context.Context, dbfake.WorkspaceResponse) {
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			OwnerID:        dbgen.User(t, db, database.User{}).ID,
+		}).Do()
+		return db, ctx, first
+	}
+	insert := func(ctx context.Context, db database.Store, ws database.WorkspaceTable, build database.WorkspaceBuild, name string, valueBytes int, env bool) error {
+		params := database.InsertWorkspaceSecretParams{
+			ID:               uuid.New(),
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: build.ID,
+			Name:             name,
+			Value:            sql.NullString{String: strings.Repeat("a", valueBytes), Valid: true},
+			Source:           database.WorkspaceSecretSourceRequest,
+		}
+		if env {
+			params.EnvName = strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+		} else {
+			params.FilePath = "/tmp/" + name
+		}
+		_, err := db.InsertWorkspaceSecret(ctx, params)
+		return err
+	}
+	requireLimit := func(t *testing.T, err error, constraint string) {
+		t.Helper()
+		require.True(t, database.IsCheckViolation(err, database.CheckConstraint(constraint)), err)
+	}
+
+	t.Run("Count", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		for i := range countLimit {
+			require.NoError(t, insert(ctx, db, ws, build, fmt.Sprintf("count-%02d", i), 1, true))
+		}
+		err := insert(ctx, db, ws, build, "count-over", 1, true)
+		requireLimit(t, err, "workspace_secrets_per_build_count_limit")
+
+		// The budget is per build.
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "count-next-build", 1, true))
+	})
+
+	t.Run("TotalBytes", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		// File secrets do not count toward the env budget, so the total
+		// budget can be filled exactly.
+		require.NoError(t, insert(ctx, db, ws, build, "total-a", totalBytesLimit-1, false))
+		require.NoError(t, insert(ctx, db, ws, build, "total-b", 1, false))
+		err := insert(ctx, db, ws, build, "total-over", 1, false)
+		requireLimit(t, err, "workspace_secrets_per_build_total_bytes_limit")
+
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "total-next-build", totalBytesLimit, false))
+	})
+
+	t.Run("EnvBytes", func(t *testing.T) {
+		t.Parallel()
+		db, ctx, first := setup(t)
+		ws, build := first.Workspace, first.Build
+
+		require.NoError(t, insert(ctx, db, ws, build, "env-a", envBytesLimit-1, true))
+		require.NoError(t, insert(ctx, db, ws, build, "env-b", 1, true))
+		err := insert(ctx, db, ws, build, "env-over", 1, true)
+		requireLimit(t, err, "workspace_secrets_per_build_env_bytes_limit")
+		// The env budget is full, but the total budget is not.
+		require.NoError(t, insert(ctx, db, ws, build, "env-full-file", 1, false))
+
+		second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+		require.NoError(t, insert(ctx, db, ws, second, "env-next-build", envBytesLimit, true))
+	})
+}
+
+func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      resp.Workspace.ID,
+			WorkspaceBuildID: resp.Build.ID,
+		})
+		return resp
+	}
+	deleted := newWorkspace()
+	other := newWorkspace()
+
+	require.NoError(t, db.ClearWorkspaceSecretsByWorkspaceID(ctx, deleted.Workspace.ID))
+
+	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
+	require.NoError(t, err)
+	require.Empty(t, live, "the workspace's secrets are cleared")
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: deleted.Workspace.ID})
+	require.NoError(t, err)
+	require.Len(t, history, 1, "cleared rows are kept as history")
+	require.True(t, history[0].ClearedAt.Valid)
+
+	live, err = db.ListActiveWorkspaceSecrets(ctx, other.Build.ID)
+	require.NoError(t, err)
+	require.Len(t, live, 1, "other workspaces are untouched")
+}
+
+func TestGetWorkspaceSecretsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+		OwnerID:        dbgen.User(t, db, database.User{}).ID,
+	}).Do()
+	ws := first.Workspace
+	second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+
+	// Build 1's secret is cleared below and must not be listed.
+	dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: first.Build.ID,
+		Name:             "cleared",
+	})
+	var want []uuid.UUID
+	for i := range 5 {
+		secret := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: second.ID,
+			Name:             fmt.Sprintf("secret-%d", i),
+			EnvName:          fmt.Sprintf("SECRET_%d", i),
+		})
+		want = append(want, secret.ID)
+	}
+	require.NoError(t, db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: second.ID,
+	}))
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, secret := range page {
+			got = append(got, secret.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every live secret is listed once, in id order")
+	require.Equal(t, 3, pages)
 }

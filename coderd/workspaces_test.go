@@ -629,6 +629,20 @@ func TestWorkspace(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Contains(t, apiError.Detail, "unable to create a workspace in this organization")
+
+		// Then: A member creating on behalf of another user is told so
+		_, err = goodClient.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "random2",
+		})
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, "You can't create workspaces for other users in this organization.", apiError.Message)
+		require.Contains(t, apiError.Detail, fmt.Sprintf("Creating a workspace for %q needs permission", user.Username))
+		org, err := owner.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Contains(t, apiError.Detail, fmt.Sprintf("organization %q", org.Name))
 
 		// When: workspace-ban use has a workspace
 		wrk, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
@@ -6633,4 +6647,542 @@ func TestWorkspaceByOwnerAndNameIncludeRelated(t *testing.T) {
 		_, code := get(ctx, t, "bogus")
 		require.Equal(t, http.StatusBadRequest, code)
 	})
+}
+
+func TestWorkspaceSecrets(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	listSecrets := func(ctx context.Context, t *testing.T, buildID uuid.UUID) map[string]database.WorkspaceSecret {
+		t.Helper()
+		//nolint:gocritic // Only the workspace secret manager reads values.
+		rows, err := db.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), buildID)
+		require.NoError(t, err)
+		byName := make(map[string]database.WorkspaceSecret, len(rows))
+		for _, row := range rows {
+			byName[row.Name] = row
+		}
+		return byName
+	}
+	clearedRows := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID) map[uuid.UUID]map[string]database.GetWorkspaceSecretsHistoryRow {
+		t.Helper()
+		//nolint:gocritic // Test-only read of every row's metadata.
+		rows, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), database.GetWorkspaceSecretsHistoryParams{WorkspaceID: workspaceID})
+		require.NoError(t, err)
+		out := map[uuid.UUID]map[string]database.GetWorkspaceSecretsHistoryRow{}
+		for _, row := range rows {
+			if !row.ClearedAt.Valid {
+				continue
+			}
+			if out[row.WorkspaceBuildID] == nil {
+				out[row.WorkspaceBuildID] = map[string]database.GetWorkspaceSecretsHistoryRow{}
+			}
+			out[row.WorkspaceBuildID][row.Name] = row
+		}
+		return out
+	}
+
+	t.Run("CarryForwardEphemeralAndHistory", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: new("first-value"), EnvName: "API_KEY"},
+				{Name: "cert", Value: new("cert-value"), FilePath: "/home/coder/.cert"},
+				{Name: "one-shot", Value: new("jwt"), EnvName: "ONE_SHOT", Ephemeral: true},
+			}
+		})
+		build1 := workspace.LatestBuild
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build1.ID)
+
+		secrets := listSecrets(ctx, t, build1.ID)
+		require.Len(t, secrets, 3)
+		require.Equal(t, "first-value", secrets["api-key"].Value.String)
+		require.Equal(t, "API_KEY", secrets["api-key"].EnvName)
+		require.Equal(t, build1.ID, secrets["api-key"].WorkspaceBuildID)
+		require.True(t, secrets["one-shot"].Ephemeral)
+		require.Equal(t, database.WorkspaceSecretSourceRequest, secrets["api-key"].Source)
+		require.Empty(t, clearedRows(ctx, t, workspace.ID))
+
+		// Secrets never become build parameters.
+		params, err := client.WorkspaceBuildParameters(ctx, build1.ID)
+		require.NoError(t, err)
+		require.Empty(t, params)
+
+		// A build that does not mention secrets drops the ephemeral one.
+		build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+		secrets = listSecrets(ctx, t, build2.ID)
+		require.Empty(t, listSecrets(ctx, t, build1.ID), "superseded build must have no live secrets")
+		require.Len(t, secrets, 2)
+		require.Equal(t, build2.ID, secrets["api-key"].WorkspaceBuildID)
+		require.Equal(t, "first-value", secrets["api-key"].Value.String)
+		require.Equal(t, build2.ID, secrets["cert"].WorkspaceBuildID)
+		require.Equal(t, database.WorkspaceSecretSourceCarryForward, secrets["api-key"].Source)
+		require.NotContains(t, secrets, "one-shot", "ephemeral secret must not carry forward")
+
+		cleared := clearedRows(ctx, t, workspace.ID)
+		require.Len(t, cleared, 1)
+		require.Len(t, cleared[build1.ID], 3, "build 1 keeps a cleared row per secret it received")
+		require.True(t, cleared[build1.ID]["one-shot"].Ephemeral)
+
+		// Replacing by name and removing with a null value.
+		build3, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+			Secrets: []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: new("second-value"), EnvName: "API_KEY"},
+				{Name: "cert", Value: nil},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build3.ID)
+		secrets = listSecrets(ctx, t, build3.ID)
+		require.Len(t, secrets, 1)
+		require.Equal(t, "second-value", secrets["api-key"].Value.String)
+		require.Equal(t, build3.ID, secrets["api-key"].WorkspaceBuildID)
+		require.Equal(t, database.WorkspaceSecretSourceRequest, secrets["api-key"].Source, "a replaced secret comes from the request")
+
+		cleared = clearedRows(ctx, t, workspace.ID)
+		require.Len(t, cleared, 2)
+		require.Len(t, cleared[build2.ID], 2)
+	})
+
+	t.Run("TargetTakeoverAndEmptyValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "old-env", Value: new("a"), EnvName: "TOKEN"},
+				{Name: "old-file", Value: new("b"), FilePath: "/home/coder/.token"},
+				{Name: "kept", Value: new("c"), EnvName: "KEPT"},
+				{Name: "both", Value: new("e"), EnvName: "BOTH", FilePath: "/home/coder/.both"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// New secrets under different names take over the previous secrets'
+		// env var and file path, so those are not copied forward. Taking over
+		// one target of a secret drops the whole secret. An empty string is
+		// stored as a value, not treated as a removal.
+		build2, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+			Secrets: []codersdk.WorkspaceSecretInput{
+				{Name: "new-env", Value: new(""), EnvName: "TOKEN"},
+				{Name: "new-file", Value: new("d"), FilePath: "/home/coder/.token"},
+				{Name: "new-both", Value: new("f"), EnvName: "BOTH"},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+
+		secrets := listSecrets(ctx, t, build2.ID)
+		require.Len(t, secrets, 4)
+		require.Contains(t, secrets, "kept")
+		require.NotContains(t, secrets, "old-env")
+		require.NotContains(t, secrets, "old-file")
+		require.NotContains(t, secrets, "both", "a partial takeover drops the whole secret")
+		require.True(t, secrets["new-env"].Value.Valid)
+		require.Empty(t, secrets["new-env"].Value.String)
+		require.Equal(t, "d", secrets["new-file"].Value.String)
+	})
+
+	t.Run("BuildSecrets", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		overridden, err := member.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name: "user-token", Value: "u", EnvName: "TOKEN", FilePath: "/home/coder/.user-token",
+		})
+		require.NoError(t, err)
+		_, err = member.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name: "disabled", Value: "d", EnvName: "OTHER", Enabled: new(false),
+		})
+		require.NoError(t, err)
+
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "build-token", Value: new("b"), EnvName: "TOKEN"},
+				{Name: "build-file", Value: new("f"), FilePath: "/home/coder/.user-token"},
+				{Name: "build-other", Value: new("o"), EnvName: "OTHER"},
+				{Name: "build-once", Value: new("e"), EnvName: "ONCE", Ephemeral: true},
+			}
+		})
+		build1 := workspace.LatestBuild
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build1.ID)
+
+		listBuild := func(client *codersdk.Client, buildID uuid.UUID) map[string]codersdk.WorkspaceSecret {
+			t.Helper()
+			secrets, err := client.WorkspaceBuildSecrets(ctx, buildID)
+			require.NoError(t, err)
+			out := make(map[string]codersdk.WorkspaceSecret, len(secrets))
+			for _, s := range secrets {
+				out[s.Name] = s
+			}
+			return out
+		}
+
+		got := listBuild(member, build1.ID)
+		require.Len(t, got, 4)
+		for _, s := range got {
+			require.Equal(t, build1.ID, s.WorkspaceBuildID)
+			require.Nil(t, s.ClearedAt)
+		}
+		require.True(t, got["build-once"].Ephemeral)
+		require.False(t, got["build-token"].Ephemeral)
+		require.Equal(t, &overridden.ID, got["build-token"].EnvReplaces)
+		require.Nil(t, got["build-token"].FileReplaces)
+		require.Equal(t, &overridden.ID, got["build-file"].FileReplaces)
+		require.Nil(t, got["build-file"].EnvReplaces)
+		require.Nil(t, got["build-other"].EnvReplaces, "disabled user secrets are never replaced")
+
+		// A site owner can list the member's live build, but the replaced user
+		// secrets are the member's, so their IDs are omitted.
+		asOwner := listBuild(client, build1.ID)
+		require.Len(t, asOwner, 4)
+		require.Nil(t, asOwner["build-token"].EnvReplaces, "the member sees this replacement, the owner must not")
+		require.Nil(t, asOwner["build-file"].FileReplaces, "the member sees this replacement, the owner must not")
+
+		// After another build, the old build's secrets are still listed, but
+		// they are cleared and replace nothing.
+		build2 := coderdtest.CreateWorkspaceBuild(t, member, coderdtest.MustWorkspace(t, member, workspace.ID), database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build2.ID)
+		got = listBuild(member, build1.ID)
+		require.Len(t, got, 4)
+		for name, s := range got {
+			require.NotNil(t, s.ClearedAt, "%s must be cleared", name)
+			require.Nil(t, s.EnvReplaces, name)
+			require.Nil(t, s.FileReplaces, name)
+		}
+		require.Len(t, listBuild(member, build2.ID), 3, "the ephemeral secret is not carried forward")
+		require.Len(t, listBuild(client, build2.ID), 3, "an owner can list another user's build")
+
+		// A build the caller cannot read is not found.
+		ownerBuild := coderdtest.CreateWorkspace(t, client, template.ID).LatestBuild
+		_, err = member.WorkspaceBuildSecrets(ctx, ownerBuild.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		cases := []struct {
+			name    string
+			secrets []codersdk.WorkspaceSecretInput
+			field   string
+		}{
+			{
+				name:    "MissingTarget",
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "no-target", Value: new("v")}},
+				field:   "secrets[0].env_name",
+			},
+			{
+				name:    "InvalidEnvName",
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "bad-env", Value: new("v"), EnvName: "1BAD"}},
+				field:   "secrets[0].env_name",
+			},
+			{
+				name: "Duplicate",
+				secrets: []codersdk.WorkspaceSecretInput{
+					{Name: "dup", Value: new("v"), EnvName: "DUP_A"},
+					{Name: "dup", Value: new("v"), EnvName: "DUP_B"},
+				},
+				field: "secrets[1].name",
+			},
+			{
+				name: "DuplicateEnvName",
+				secrets: []codersdk.WorkspaceSecretInput{
+					{Name: "a", Value: new("v"), EnvName: "SHARED"},
+					{Name: "b", Value: new("v"), EnvName: "SHARED"},
+				},
+				field: "secrets[1].env_name",
+			},
+			{
+				name: "DuplicateFilePath",
+				secrets: []codersdk.WorkspaceSecretInput{
+					{Name: "a", Value: new("v"), FilePath: "/home/coder/.shared"},
+					{Name: "b", Value: new("v"), FilePath: "/home/coder/.shared"},
+				},
+				field: "secrets[1].file_path",
+			},
+			{
+				name:    "RemovalWithTarget",
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "missing-value", EnvName: "API_KEY"}},
+				field:   "secrets[0].value",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+					Transition: codersdk.WorkspaceTransitionStart,
+					Secrets:    tc.secrets,
+				})
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+				require.Len(t, apiErr.Validations, 1)
+				require.Equal(t, tc.field, apiErr.Validations[0].Field)
+			})
+		}
+
+		t.Run("CreateWorkspace", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       "invalid-secrets",
+				Secrets:    []codersdk.WorkspaceSecretInput{{Name: "no-target", Value: new("v")}},
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, "secrets[0].env_name", apiErr.Validations[0].Field)
+			_, err = client.WorkspaceByOwnerAndName(ctx, codersdk.Me, "invalid-secrets", codersdk.WorkspaceOptions{})
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode(), "the workspace must not be created")
+		})
+
+		t.Run("CountLimit", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			secrets := make([]codersdk.WorkspaceSecretInput, 0, codersdk.MaxUserSecretsPerUserCount+1)
+			for i := range codersdk.MaxUserSecretsPerUserCount + 1 {
+				secrets = append(secrets, codersdk.WorkspaceSecretInput{
+					Name:    fmt.Sprintf("secret-%d", i),
+					Value:   new("v"),
+					EnvName: fmt.Sprintf("SECRET_%d", i),
+				})
+			}
+			_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				Secrets:    secrets,
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "exceeds a per-build limit")
+			//nolint:gocritic // Test-only read of every row's metadata.
+			history, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), database.GetWorkspaceSecretsHistoryParams{WorkspaceID: workspace.ID})
+			require.NoError(t, err)
+			require.Empty(t, history, "failed build must not persist any secret")
+		})
+	})
+
+	t.Run("RemovalRequiresUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		ownerClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		workspace := coderdtest.CreateWorkspace(t, ownerClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: new("v"), EnvName: "API_KEY"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, ownerClient, workspace.LatestBuild.ID)
+		require.NoError(t, ownerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		}))
+
+		_, err := sharedClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+			Secrets:    []codersdk.WorkspaceSecretInput{{Name: "api-key"}},
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, `Not authorized to remove workspace secret "api-key"`)
+		require.Len(t, listSecrets(ctx, t, workspace.LatestBuild.ID), 1, "the secret must survive")
+
+		// A build without secrets needs no secret permission.
+		build, err := sharedClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, ownerClient, build.ID)
+		require.Len(t, listSecrets(ctx, t, build.ID), 1)
+	})
+
+	t.Run("DeleteClearsSecrets", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: new("v"), EnvName: "API_KEY"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionDelete)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		require.Empty(t, listSecrets(ctx, t, build.ID), "a deleted workspace keeps no secret values")
+		cleared := clearedRows(ctx, t, workspace.ID)
+		require.Len(t, cleared[build.ID], 1, "the delete build's row is kept as history")
+	})
+}
+
+// TestWorkspaceSecretsClearedOnCompletion checks that the previous build's
+// secrets stay live until the new build's job completes, since the previous
+// build's agent can keep running until then.
+func TestWorkspaceSecretsClearedOnCompletion(t *testing.T) {
+	t.Parallel()
+
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("first-value"), EnvName: "API_KEY"},
+		}
+	})
+	build1 := workspace.LatestBuild
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build1.ID)
+
+	live := func(buildID uuid.UUID) []database.WorkspaceSecret {
+		//nolint:gocritic // Only the workspace secret manager reads values.
+		rows, err := api.Database.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), buildID)
+		require.NoError(t, err)
+		return rows
+	}
+
+	// With no provisioner, the stop build stays pending and build 1's secret
+	// is still live alongside the carried-forward copy.
+	closeDaemon.Close()
+	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	require.Len(t, live(build1.ID), 1, "the previous build's secret is live while the new build is pending")
+	require.Len(t, live(build2.ID), 1)
+
+	coderdtest.NewProvisionerDaemon(t, api)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+	require.Empty(t, live(build1.ID), "the previous build's secret is cleared once the new build completes")
+	require.Len(t, live(build2.ID), 1)
+}
+
+func TestWorkspaceBuildSecretsFilePathBlocked(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.DisableUserSecretFilePath = true
+	})
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps, DeploymentValues: dv})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// The API rejects file paths under this policy, so seed rows that were
+	// written before it was enabled.
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        owner.UserID,
+	}).Do()
+	userSecret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID: owner.UserID, EnvName: "TOKEN", FilePath: "~/.token",
+	})
+	buildEnv := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID: ws.Workspace.ID, WorkspaceBuildID: ws.Build.ID, Name: "build-env", EnvName: "TOKEN",
+	})
+	buildFile := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID: ws.Workspace.ID, WorkspaceBuildID: ws.Build.ID, Name: "build-file", EnvName: "OTHER", FilePath: "~/.token",
+	})
+
+	secrets, err := client.WorkspaceBuildSecrets(ctx, ws.Build.ID)
+	require.NoError(t, err)
+	byID := make(map[uuid.UUID]codersdk.WorkspaceSecret, len(secrets))
+	for _, s := range secrets {
+		byID[s.ID] = s
+	}
+	require.Len(t, byID, 2)
+	require.Equal(t, &userSecret.ID, byID[buildEnv.ID].EnvReplaces, "env targets are still delivered")
+	require.Nil(t, byID[buildFile.ID].FileReplaces, "no file is delivered, so none is replaced")
+
+	// A build ID that is not a UUID is rejected.
+	res, err := client.Request(ctx, http.MethodGet, "/api/v2/workspacebuilds/not-a-uuid/secrets", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+}
+
+func TestWorkspaceSecretsAudit(t *testing.T) {
+	t.Parallel()
+
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// buildSecrets returns the secrets listed on the audit entry for a build.
+	// The entry is written after the job completes, so wait for it.
+	buildSecrets := func(t *testing.T, buildID uuid.UUID) []audit.WorkspaceBuildSecret {
+		t.Helper()
+		var entry database.AuditLog
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			for _, log := range auditor.AuditLogs() {
+				if log.ResourceType == database.ResourceTypeWorkspaceBuild && log.ResourceID == buildID {
+					entry = log
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalFast, "audit entry for build %s", buildID)
+		require.NotContains(t, string(entry.AdditionalFields), "secret-value", "values must never be audited")
+		var fields audit.AdditionalFields
+		require.NoError(t, json.Unmarshal(entry.AdditionalFields, &fields))
+		return fields.WorkspaceSecrets
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("secret-value"), EnvName: "API_KEY"},
+			{Name: "cert", Value: new("secret-value"), FilePath: "/home/coder/.cert"},
+			{Name: "one-shot", Value: new("secret-value"), EnvName: "ONE_SHOT", Ephemeral: true},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.ElementsMatch(t, []audit.WorkspaceBuildSecret{
+		{Name: "api-key", EnvName: "API_KEY", Source: database.WorkspaceSecretSourceRequest},
+		{Name: "cert", FilePath: "/home/coder/.cert", Source: database.WorkspaceSecretSourceRequest},
+		{Name: "one-shot", EnvName: "ONE_SHOT", Ephemeral: true, Source: database.WorkspaceSecretSourceRequest},
+	}, buildSecrets(t, workspace.LatestBuild.ID))
+
+	// The entry lists the build's full set. Removed secrets are absent, and so
+	// is the ephemeral secret, which the previous entry marked as such.
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		Secrets: []codersdk.WorkspaceSecretInput{
+			{Name: "cert"},
+			{Name: "token", Value: new("secret-value"), EnvName: "TOKEN"},
+		},
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	require.ElementsMatch(t, []audit.WorkspaceBuildSecret{
+		{Name: "api-key", EnvName: "API_KEY", Source: database.WorkspaceSecretSourceCarryForward},
+		{Name: "token", EnvName: "TOKEN", Source: database.WorkspaceSecretSourceRequest},
+	}, buildSecrets(t, build.ID))
 }

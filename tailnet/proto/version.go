@@ -101,9 +101,8 @@ import (
 //     WorkspaceAgentScriptDependency message. They carry each script's
 //     Terraform address and its resolved coder_script_order prerequisites
 //     in the manifest. Both are empty for unordered scripts.
-//   - A v2.14 agent decodes these fields but does not yet enforce the
-//     ordering, so a version check alone does not tell coderd that an agent
-//     orders its scripts.
+//   - A v2.14 agent runs start and stop scripts in dependency order.
+//   - Added rx_bytes and tx_bytes to Connection on the agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 14
