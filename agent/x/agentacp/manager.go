@@ -253,3 +253,13 @@ func cloneHarness(h workspacesdk.ACPHarness) workspacesdk.ACPHarness {
 	}
 	return h
 }
+
+// Watch atomically returns a snapshot and a stream of subsequent events.
+// The stream stays open across turns. Callers must cancel ctx when finished.
+func (m *Manager) Watch(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, <-chan workspacesdk.ACPEvent, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSessionResponse{}, nil, err
+	}
+	return s.Watch(ctx, after)
+}
