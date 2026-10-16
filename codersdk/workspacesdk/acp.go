@@ -98,6 +98,10 @@ type ACPSession struct {
 	StopReason         string            `json:"stop_reason,omitempty"`
 	Error              string            `json:"error,omitempty"`
 	Cursor             ACPCursor         `json:"cursor"`
+	// HistoryComplete reports whether the transcript covers the session from
+	// its beginning. It becomes false when a message resets an existing
+	// transcript or restoration does not replay earlier messages.
+	HistoryComplete bool `json:"history_complete"`
 }
 
 // ACPEventKind identifies the content of an ACP transcript or stream event.
