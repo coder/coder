@@ -77,7 +77,8 @@ type DRPCAgentClient27 interface {
 //   - a SubagentId field to the WorkspaceAgentDevcontainer message
 //   - an Id field to the CreateSubAgentRequest message.
 //   - UpdateAppStatus RPC. Deprecated: coderd accepts and discards app status
-//     updates now that workspace app statuses have been removed.
+//     updates now that workspace app statuses have been removed. Remove in
+//     the next major Agent API version.
 //
 // Compatible with Coder v2.31+
 type DRPCAgentClient28 interface {

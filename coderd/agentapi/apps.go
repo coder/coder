@@ -101,8 +101,8 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 }
 
 // UpdateAppStatus accepts and discards app status updates. Coderd no longer
-// stores workspace app statuses, but the RPC stays on the Agent API so older
-// agents and CLIs that still report statuses do not fail.
+// stores workspace app statuses, but Agent API RPCs are only removed in a
+// major version, so the RPC stays for older agents that still call it.
 //
 // Deprecated: workspace app statuses have been removed.
 func (*AppsAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {

@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 )
 
@@ -192,15 +191,6 @@ func (s *DRPCAgentSocketService) SyncList(_ context.Context, _ *proto.SyncListRe
 	}
 
 	return &proto.SyncListResponse{Units: unitInfos}, nil
-}
-
-// UpdateAppStatus accepts and discards app status updates. Workspace app
-// statuses have been removed, but the RPC stays so older clients in the
-// workspace that still report statuses do not fail.
-//
-// Deprecated: workspace app statuses have been removed.
-func (*DRPCAgentSocketService) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
-	return new(agentproto.UpdateAppStatusResponse), nil
 }
 
 // ContextSources lists the workspace-context sources registered on the agent.
