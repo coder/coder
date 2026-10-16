@@ -30,7 +30,14 @@ const WorkspaceParametersPage: React.FC = () => {
 	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
+	const mustUseActiveVersion =
+		workspace.template_require_active_version &&
+		!permissions?.updateWorkspaceVersion;
+	const requestedVersionId = searchParams.get("templateVersionId") ?? undefined;
+	const templateVersionId = mustUseActiveVersion
+		? workspace.template_active_version_id
+		: requestedVersionId;
+	const permissionsLoaded = permissions !== undefined;
 
 	const [confirmingRestart, setConfirmingRestart] = useState<{
 		open: boolean;
@@ -119,6 +126,8 @@ const WorkspaceParametersPage: React.FC = () => {
 	}, [latestBuildParametersLoading]);
 
 	useEffect(() => {
+		// The target version depends on permissions.
+		if (!permissionsLoaded) return;
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
 			return;
 
@@ -168,6 +177,7 @@ const WorkspaceParametersPage: React.FC = () => {
 			socket.close();
 		};
 	}, [
+		permissionsLoaded,
 		templateVersionId,
 		workspace.latest_build.template_version_id,
 		workspace.owner_id,
