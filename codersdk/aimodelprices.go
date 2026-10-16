@@ -129,41 +129,18 @@ func (c *ExperimentalClient) UpsertAIModelPrices(ctx context.Context, req Upsert
 	return nil
 }
 
-// AIModelPriceScope is what a model price applies to, as seen from an
-// organization. In lookup order, most specific first.
-type AIModelPriceScope string
-
-const (
-	// AIModelPriceScopeOrganizationProvider is an organization's price for one
-	// configured provider.
-	AIModelPriceScopeOrganizationProvider AIModelPriceScope = "organization_provider"
-	// AIModelPriceScopeSite is a site-wide price for a provider type, from the
-	// price book or set through the site-wide API.
-	AIModelPriceScopeSite AIModelPriceScope = "site"
-)
-
-// OrganizationAIModelPrice is a model price that applies to an organization:
-// one of its own prices or a site-wide price. Prices follow the units of
-// AIModelPrice.
+// OrganizationAIModelPrice is an organization's price for one model on one
+// configured provider. Prices follow the units of AIModelPrice.
 type OrganizationAIModelPrice struct {
-	Scope AIModelPriceScope `json:"scope"`
-	// OrganizationID is set for the organization's own prices.
-	OrganizationID *uuid.UUID `json:"organization_id,omitempty" format:"uuid"`
-	// ProviderID and ProviderName are set for prices for one configured
-	// provider.
-	ProviderID   *uuid.UUID `json:"provider_id,omitempty" format:"uuid"`
-	ProviderName string     `json:"provider_name,omitempty"`
-	// Provider is the provider type the price applies to.
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
-	// Source is custom for the organization's own prices.
-	Source    AIModelPriceSource `json:"source"`
-	CreatedAt time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time          `json:"updated_at" format:"date-time"`
+	OrganizationID  uuid.UUID `json:"organization_id" format:"uuid"`
+	ProviderID      uuid.UUID `json:"provider_id" format:"uuid"`
+	Model           string    `json:"model"`
+	InputPrice      *int64    `json:"input_price"`
+	OutputPrice     *int64    `json:"output_price"`
+	CacheReadPrice  *int64    `json:"cache_read_price"`
+	CacheWritePrice *int64    `json:"cache_write_price"`
+	CreatedAt       time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 }
 
 // UpsertOrganizationAIModelPriceRequest sets an organization's price for one
@@ -198,27 +175,24 @@ func (k OrganizationAIModelPriceKey) asRequestOption() RequestOption {
 	}
 }
 
-// ListOrganizationAIModelPrices returns the model prices that apply to the
-// organization and match the filter. By default a custom site-wide price
-// hides the price book price it overrides, and each organization price for a
-// configured provider is listed alongside the site-wide price for its type.
-// AIModelPriceSourceFilterAll reports every row instead.
-func (c *ExperimentalClient) ListOrganizationAIModelPrices(ctx context.Context, organization uuid.UUID, filter AIModelPricesFilter) ([]OrganizationAIModelPrice, error) {
+// GetOrganizationAIModelPrice returns the organization's price for one model
+// on one configured provider.
+func (c *ExperimentalClient) GetOrganizationAIModelPrice(ctx context.Context, organization uuid.UUID, key OrganizationAIModelPriceKey) (OrganizationAIModelPrice, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),
 		nil,
-		filter.asRequestOption(),
+		key.asRequestOption(),
 	)
 	if err != nil {
-		return nil, err
+		return OrganizationAIModelPrice{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return OrganizationAIModelPrice{}, ReadBodyAsError(res)
 	}
 
-	var prices []OrganizationAIModelPrice
-	return prices, ReadBodyAsJSON(res, &prices)
+	var price OrganizationAIModelPrice
+	return price, ReadBodyAsJSON(res, &price)
 }
 
 // UpsertOrganizationAIModelPrice sets the organization's price for one model

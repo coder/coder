@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -27,65 +25,50 @@ import (
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary List organization AI model prices
-// @ID list-organization-ai-model-prices
+// @Summary Get organization AI model price
+// @ID get-organization-ai-model-price
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param provider query string false "Only return prices for this provider type"
-// @Param model query string false "Only return prices for this model"
-// @Param source query string false "Only return prices from this source, or all to return every price that applies" Enums(default,custom,all)
-// @Success 200 {array} codersdk.OrganizationAIModelPrice
+// @Param provider_id query string true "Configured provider of the price" format(uuid)
+// @Param model query string true "Model of the price"
+// @Success 200 {object} codersdk.OrganizationAIModelPrice
 // @Router /api/experimental/organizations/{organization}/ai/model-prices [get]
 // @x-apidocgen {"skip": true}
-func (api *API) listOrganizationAIModelPrices(rw http.ResponseWriter, r *http.Request) {
+func (api *API) organizationAIModelPrice(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	// Organization prices exist for openai-compat providers, so any provider
-	// type can be listed.
-	provider := r.URL.Query().Get("provider")
-	if provider != "" && !database.AIProviderType(provider).Valid() {
+	key, validations := parseOrganizationAIModelPriceKey(r)
+	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid AI model price provider.",
-			Validations: []codersdk.ValidationError{{
-				Field:  "provider",
-				Detail: fmt.Sprintf("Provider %q is not a known provider type.", provider),
-			}},
+			Message:     "Invalid AI model price key.",
+			Validations: validations,
 		})
 		return
 	}
 
-	source := r.URL.Query().Get("source")
-	if source != "" && !slices.Contains(aiModelPriceSources, source) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid AI model price source.",
-			Validations: []codersdk.ValidationError{{
-				Field:  "source",
-				Detail: fmt.Sprintf("Source %q is not supported. Supported sources: %s.", source, strings.Join(aiModelPriceSources, ", ")),
-			}},
-		})
-		return
-	}
-
-	dbPrices, err := api.Database.GetOrganizationAIModelPrices(ctx, database.GetOrganizationAIModelPricesParams{
+	price, err := api.Database.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
 		OrganizationID: org.ID,
-		Provider:       provider,
-		Model:          r.URL.Query().Get("model"),
-		Source:         source,
+		ProviderID:     key.ProviderID,
+		Model:          key.Model,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
-		api.Logger.Error(ctx, "list organization ai model prices", slog.Error(err),
+		api.Logger.Error(ctx, "get organization ai model price", slog.Error(err),
 			slog.F("organization_id", org.ID))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OrganizationAIModelPrices(dbPrices))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OrganizationAIModelPrice(price))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -195,25 +178,19 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	// Model names can contain slashes, so the key is read from the query
-	// rather than the path.
-	query := r.URL.Query()
-	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("provider_id", "model")
-	model := parser.String(query, "", "model")
-	providerID := parser.UUID(query, uuid.Nil, "provider_id")
-	parser.ErrorExcessParams(query)
-	if len(parser.Errors) > 0 {
+	key, validations := parseOrganizationAIModelPriceKey(r)
+	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI model price key.",
-			Validations: parser.Errors,
+			Validations: validations,
 		})
 		return
 	}
 
 	deleted, err := api.Database.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
 		OrganizationID: org.ID,
-		ProviderID:     providerID,
-		Model:          model,
+		ProviderID:     key.ProviderID,
+		Model:          key.Model,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -235,11 +212,25 @@ func (api *API) deleteOrganizationAIModelPrice(rw http.ResponseWriter, r *http.R
 	api.Logger.Info(ctx, "organization ai model price deleted",
 		slog.F("organization_id", org.ID),
 		slog.F("user_id", httpmw.APIKey(r).UserID),
-		slog.F("provider_id", providerID),
-		slog.F("model", model),
+		slog.F("provider_id", key.ProviderID),
+		slog.F("model", key.Model),
 	)
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// parseOrganizationAIModelPriceKey reads the provider and model that identify
+// one of the organization's prices. Model names can contain slashes, so the
+// key is read from the query rather than the path.
+func parseOrganizationAIModelPriceKey(r *http.Request) (codersdk.OrganizationAIModelPriceKey, []codersdk.ValidationError) {
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("provider_id", "model")
+	key := codersdk.OrganizationAIModelPriceKey{
+		Model:      parser.String(query, "", "model"),
+		ProviderID: parser.UUID(query, uuid.Nil, "provider_id"),
+	}
+	parser.ErrorExcessParams(query)
+	return key, parser.Errors
 }
 
 // decodeOrganizationAIModelPriceBody decodes an organization upsert body into
@@ -285,8 +276,12 @@ func validateOrganizationAIModelPrice(ctx context.Context, db database.Store, re
 			Detail: "Model is required.",
 		})
 	}
-	validations = append(validations, validateAIModelPriceValues("", keys,
-		req.InputPrice, req.OutputPrice, req.CacheReadPrice, req.CacheWritePrice)...)
+	validations = append(validations, validateAIModelPriceValues("", keys, aiModelTokenPrices{
+		Input:      req.InputPrice,
+		Output:     req.OutputPrice,
+		CacheRead:  req.CacheReadPrice,
+		CacheWrite: req.CacheWritePrice,
+	})...)
 
 	return validations, nil
 }

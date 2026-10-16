@@ -65,31 +65,29 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
+		anthropicKey := codersdk.OrganizationAIModelPriceKey{ProviderID: anthropic.ID, Model: "org-model"}
+		// The model name holds a slash, which the query string carries intact.
+		gatewayKey := codersdk.OrganizationAIModelPriceKey{ProviderID: gateway.ID, Model: "bedrock/claude-sonnet-4-5"}
 
 		// Given: organization prices for an anthropic provider and for an
 		// openai-compat gateway.
-		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(anthropic.ID, "org-model", 100)))
-		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(gateway.ID, "bedrock/claude-sonnet-4-5", 200)))
+		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(anthropicKey.ProviderID, anthropicKey.Model, 100)))
+		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(gatewayKey.ProviderID, gatewayKey.Model, 200)))
 
-		// Then: the organization lists both, scoped to it and its providers.
-		prices, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "org-model"})
+		// Then: the organization reads each by its key.
+		price, err := exp.GetOrganizationAIModelPrice(ctx, orgID, anthropicKey)
 		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProvider, prices[0].Scope)
-		require.Equal(t, &orgID, prices[0].OrganizationID)
-		require.Equal(t, &anthropic.ID, prices[0].ProviderID)
-		require.Equal(t, "anthropic", prices[0].Provider)
-		require.Equal(t, new(int64(100)), prices[0].InputPrice)
-		require.Equal(t, codersdk.AIModelPriceSourceCustom, prices[0].Source)
+		require.Equal(t, orgID, price.OrganizationID)
+		require.Equal(t, anthropic.ID, price.ProviderID)
+		require.Equal(t, "org-model", price.Model)
+		require.Equal(t, new(int64(100)), price.InputPrice)
+		require.Nil(t, price.OutputPrice)
 
-		prices, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Provider: "openai-compat"})
+		price, err = exp.GetOrganizationAIModelPrice(ctx, orgID, gatewayKey)
 		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProvider, prices[0].Scope)
-		require.Equal(t, &gateway.ID, prices[0].ProviderID)
-		require.Equal(t, gateway.Name, prices[0].ProviderName)
-		require.Equal(t, "bedrock/claude-sonnet-4-5", prices[0].Model)
-		require.Equal(t, new(int64(200)), prices[0].InputPrice)
+		require.Equal(t, gateway.ID, price.ProviderID)
+		require.Equal(t, "bedrock/claude-sonnet-4-5", price.Model)
+		require.Equal(t, new(int64(200)), price.InputPrice)
 
 		// And: the site-wide listing is unchanged.
 		//nolint:gocritic // Reading site-wide prices is owner-only.
@@ -97,76 +95,48 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, sitePrices)
 
-		// When: the org admin deletes both prices by their keys. The model
-		// name holds a slash, which the query string carries intact.
-		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: anthropic.ID, Model: "org-model",
-		}))
-		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: gateway.ID, Model: "bedrock/claude-sonnet-4-5",
-		}))
+		// When: the org admin deletes both prices by their keys.
+		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, anthropicKey))
+		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, gatewayKey))
 
 		// Then: they are gone, and deleting again finds nothing.
-		prices, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Source: codersdk.AIModelPriceSourceFilterCustom})
-		require.NoError(t, err)
-		require.Empty(t, prices)
-		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: anthropic.ID, Model: "org-model",
-		})
+		_, err = exp.GetOrganizationAIModelPrice(ctx, orgID, anthropicKey)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = exp.GetOrganizationAIModelPrice(ctx, orgID, gatewayKey)
+		requireSDKError(t, err, http.StatusNotFound)
+		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, anthropicKey)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("ListsProviderPriceWithSitePrice", func(t *testing.T) {
+	t.Run("DeleteLeavesSitePrice", func(t *testing.T) {
 		t.Parallel()
 
 		ownerClient, db, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
 		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
+		//nolint:gocritic // Site-wide prices are owner-only.
+		site := codersdk.NewExperimentalClient(ownerClient)
+		key := codersdk.OrganizationAIModelPriceKey{ProviderID: provider.ID, Model: "shared-model"}
 
 		// Given: a site-wide custom price for the provider type, and an
 		// organization price for one provider of that type.
-		//nolint:gocritic // Setting site-wide prices is owner-only.
-		require.NoError(t, codersdk.NewExperimentalClient(ownerClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+		require.NoError(t, site.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
 			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "shared-model", 1)},
 		}))
 		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(provider.ID, "shared-model", 2)))
 
-		// Then: both are listed, since other providers of the type still use
-		// the site-wide price.
-		prices, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "shared-model"})
+		// Then: the organization reads its own price, not the site-wide one.
+		price, err := exp.GetOrganizationAIModelPrice(ctx, orgID, key)
 		require.NoError(t, err)
-		require.Len(t, prices, 2)
-		require.Equal(t, codersdk.AIModelPriceScopeSite, prices[0].Scope)
-		require.Nil(t, prices[0].OrganizationID)
-		require.Equal(t, new(int64(1)), prices[0].InputPrice)
-		require.Equal(t, codersdk.AIModelPriceScopeOrganizationProvider, prices[1].Scope)
-		require.Equal(t, new(int64(2)), prices[1].InputPrice)
+		require.Equal(t, new(int64(2)), price.InputPrice)
 
 		// And: deleting the organization price leaves the site-wide price.
-		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: provider.ID, Model: "shared-model",
-		}))
-		prices, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "shared-model"})
+		require.NoError(t, exp.DeleteOrganizationAIModelPrice(ctx, orgID, key))
+		sitePrices, err := site.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{Model: "shared-model"})
 		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, codersdk.AIModelPriceScopeSite, prices[0].Scope)
-	})
-
-	t.Run("HidesPricesForDeletedProviders", func(t *testing.T) {
-		t.Parallel()
-
-		_, db, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
-		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		exp := codersdk.NewExperimentalClient(adminClient)
-
-		require.NoError(t, exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(provider.ID, "provider-model", 1)))
-		require.NoError(t, db.DeleteAIProviderByID(dbauthz.AsSystemRestricted(ctx), provider.ID))
-
-		prices, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Model: "provider-model"})
-		require.NoError(t, err)
-		require.Empty(t, prices)
+		require.Len(t, sitePrices, 1)
+		require.Equal(t, new(int64(1)), sitePrices[0].InputPrice)
 	})
 
 	t.Run("Forbidden", func(t *testing.T) {
@@ -177,15 +147,14 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, orgID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(memberClient)
+		key := codersdk.OrganizationAIModelPriceKey{ProviderID: uuid.New(), Model: "my-model"}
 
 		// Then: they can neither read nor change the organization's prices.
-		_, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{})
+		_, err := exp.GetOrganizationAIModelPrice(ctx, orgID, key)
 		requireSDKError(t, err, http.StatusForbidden)
-		err = exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(uuid.New(), "my-model", 1))
+		err = exp.UpsertOrganizationAIModelPrice(ctx, orgID, newOrganizationAIModelPrice(key.ProviderID, key.Model, 1))
 		requireSDKError(t, err, http.StatusForbidden)
-		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, codersdk.OrganizationAIModelPriceKey{
-			ProviderID: uuid.New(), Model: "my-model",
-		})
+		err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, key)
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
@@ -197,11 +166,12 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		other := dbgen.Organization(t, db, database.Organization{})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		exp := codersdk.NewExperimentalClient(adminClient)
+		key := codersdk.OrganizationAIModelPriceKey{ProviderID: uuid.New(), Model: "my-model"}
 
 		// Then: its prices are out of reach.
-		_, err := exp.ListOrganizationAIModelPrices(ctx, other.ID, codersdk.AIModelPricesFilter{})
+		_, err := exp.GetOrganizationAIModelPrice(ctx, other.ID, key)
 		requireSDKError(t, err, http.StatusNotFound)
-		err = exp.UpsertOrganizationAIModelPrice(ctx, other.ID, newOrganizationAIModelPrice(uuid.New(), "my-model", 1))
+		err = exp.UpsertOrganizationAIModelPrice(ctx, other.ID, newOrganizationAIModelPrice(key.ProviderID, key.Model, 1))
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
@@ -243,7 +213,7 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 		}
 	})
 
-	t.Run("RejectsInvalidDeleteKeys", func(t *testing.T) {
+	t.Run("RejectsInvalidKeys", func(t *testing.T) {
 		t.Parallel()
 
 		_, _, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
@@ -257,21 +227,10 @@ func TestOrganizationAIModelPrices(t *testing.T) {
 			// No provider ID.
 			{Model: "my-model"},
 		} {
-			err := exp.DeleteOrganizationAIModelPrice(ctx, orgID, key)
+			_, err := exp.GetOrganizationAIModelPrice(ctx, orgID, key)
+			requireSDKError(t, err, http.StatusBadRequest)
+			err = exp.DeleteOrganizationAIModelPrice(ctx, orgID, key)
 			requireSDKError(t, err, http.StatusBadRequest)
 		}
-	})
-
-	t.Run("RejectsAnUnknownListFilter", func(t *testing.T) {
-		t.Parallel()
-
-		_, _, orgID, adminClient := setupOrganizationAIModelPricesTest(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		exp := codersdk.NewExperimentalClient(adminClient)
-
-		_, err := exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Provider: "not-a-provider"})
-		requireSDKError(t, err, http.StatusBadRequest)
-		_, err = exp.ListOrganizationAIModelPrices(ctx, orgID, codersdk.AIModelPricesFilter{Source: "not-a-source"})
-		requireSDKError(t, err, http.StatusBadRequest)
 	})
 }
