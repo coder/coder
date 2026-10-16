@@ -66,8 +66,11 @@ const editorSubmitError = (
 			message: "This skill was deleted. Go back to see the current list.",
 		};
 	}
-	const action = view.type === "create" ? "create" : "save";
-	return skillError(error, `Failed to ${action} ${NOUN}.`, NOUN);
+	return skillError(
+		error,
+		`Failed to ${view.type === "create" ? "create" : "save"} ${NOUN}.`,
+		NOUN,
+	);
 };
 
 type ProjectSkillsDialogProps = {
@@ -364,9 +367,9 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
 	}
-	// Keep the first loaded values so a refetch cannot reset unsaved edits.
+	// Editing keeps the first loaded values so a refetch cannot reset edits.
 	const [openedValues, setOpenedValues] = useState<SkillFormValues>();
-	if (loaded?.ok && !openedValues) {
+	if (loaded?.ok && canEdit && !openedValues) {
 		setOpenedValues(loaded.values);
 	}
 	// Only the detail query learns that someone else deleted the skill.
@@ -529,7 +532,7 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 	onDelete,
 }) => (
 	<TableRow>
-		<TableCell className="w-full max-w-0">
+		<TableCell className="w-full max-w-0" title={skill.name}>
 			<div className="truncate font-medium text-content-primary">
 				{skill.name}
 			</div>
