@@ -78,3 +78,41 @@ SET
     updated_at = now()
 WHERE id = @id::uuid AND organization_id IS NOT NULL
 RETURNING *;
+
+-- name: InsertProjectSkill :one
+INSERT INTO skills (id, project_id, name, description, content)
+VALUES (@id::uuid, @project_id::uuid, @name::text, @description::text, @content::text)
+RETURNING *;
+
+-- name: GetProjectSkillByProjectIDAndName :one
+SELECT *
+FROM skills
+WHERE project_id = @project_id::uuid AND name = @name;
+
+-- name: ListProjectSkillMetadataByProjectID :many
+SELECT
+    id, project_id, name, description, enabled, created_at, updated_at
+FROM skills
+WHERE project_id = @project_id::uuid
+ORDER BY name ASC;
+
+-- name: UpdateProjectSkillByProjectIDAndName :one
+UPDATE skills
+SET
+    description = COALESCE(sqlc.narg('description')::text, description),
+    content     = COALESCE(sqlc.narg('content')::text, content),
+    enabled     = COALESCE(sqlc.narg('enabled')::boolean, enabled),
+    updated_at  = now()
+WHERE project_id = @project_id::uuid AND name = @name
+RETURNING *;
+
+-- name: DeleteProjectSkillByProjectIDAndName :one
+DELETE FROM skills
+WHERE project_id = @project_id::uuid AND name = @name
+RETURNING *;
+
+-- name: GetProjectSkillByIDForUpdate :one
+SELECT *
+FROM skills
+WHERE id = @id::uuid AND project_id IS NOT NULL
+FOR UPDATE;
