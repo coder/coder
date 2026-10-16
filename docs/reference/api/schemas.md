@@ -334,6 +334,8 @@ title: Schemas
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -505,6 +507,28 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgePricedModel
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                  |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                              |
+| `cache_write_price` | integer | false    |              |                                                                                              |
+| `input_price`       | integer | false    |              |                                                                                              |
+| `model`             | string  | false    |              | Model is the priced model, either the requested model or the model reported by the provider. |
+| `output_price`      | integer | false    |              |                                                                                              |
 
 ## codersdk.AIBridgeProvider
 
@@ -728,6 +752,8 @@ title: Schemas
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -764,12 +790,21 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -782,6 +817,8 @@ title: Schemas
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -820,6 +857,8 @@ title: Schemas
 {
   "cache_read_input_tokens": 0,
   "cache_write_input_tokens": 0,
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -831,14 +870,16 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                 |
+|----------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cache_read_input_tokens`  | integer | false    |              |                                                                                                                                                                                             |
+| `cache_write_input_tokens` | integer | false    |              |                                                                                                                                                                                             |
+| `cost_micros`              | integer | false    |              | Cost micros is the summed cost of the priced usage, in micro-units (1000000 is $1.00).                                                                                                      |
+| `has_unpriced_usage`       | boolean | false    |              | Has unpriced usage reports that some usage has no cost, so CostMicros is a lower bound. Usage is unpriced when the model had no price or when it was recorded before cost tracking existed. |
+| `input_tokens`             | integer | false    |              |                                                                                                                                                                                             |
+| `metadata`                 | object  | false    |              |                                                                                                                                                                                             |
+| » `[any property]`         | any     | false    |              |                                                                                                                                                                                             |
+| `output_tokens`            | integer | false    |              |                                                                                                                                                                                             |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
@@ -882,6 +923,8 @@ title: Schemas
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -918,12 +961,21 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "prompt": "string",
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -949,6 +1001,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used to compute the cost of the root interception. Nil when the root interception was not priced.                                                                                                    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |

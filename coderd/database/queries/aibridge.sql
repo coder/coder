@@ -478,6 +478,8 @@ SELECT
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
+	COALESCE(st.cost_micros, 0)::bigint AS cost_micros,
+	COALESCE(st.has_unpriced_usage, false)::boolean AS has_unpriced_usage,
 	COALESCE(slp.prompt, '') AS last_prompt,
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
@@ -506,7 +508,11 @@ LEFT JOIN LATERAL (
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
 		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+		-- A NULL cost means the usage was never priced, either because the
+		-- model had no price or because it predates cost tracking.
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		COALESCE(BOOL_OR(tu.cost_micros IS NULL), false) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
