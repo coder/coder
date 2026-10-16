@@ -31917,6 +31917,11 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "project_id": {
+                    "description": "ProjectID moves a root chat, and with it its subagent chats.\n- nil: no change.\n- uuid.Nil: remove the chat from its project.\n- other: move the chat into that project. The project must belong\n  to the chat's owner and organization.\nThe server returns 409 while the chat or a subagent chat is not idle.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "read": {
                     "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
                     "type": "boolean"
