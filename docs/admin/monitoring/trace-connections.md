@@ -9,7 +9,7 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
 
 ## Before you begin
 
-- Run Coder server and workspace agents on version 2.39 or later.
+- Update workspace agents to the same version as your Coder server.
   Agents from earlier versions keep working, but they don't record client session IDs, app names, or workspace shutdown reasons.
 - Collect `coderd` logs with a log management tool such as Splunk, Datadog, or Grafana Loki.
   JSON output is easiest to query.
@@ -180,7 +180,7 @@ With a session ID and the logs, rebuild the timeline of the session:
 1. Line up the client log with the server-side entries by time.
    The last client entries before a disconnect usually show the error the client hit.
 
-If the client log has the session ID but there are no `connection_log` entries for it, either the connection didn't reach the agent or the agent version is earlier than 2.39.
+If the client log has the session ID but there are no `connection_log` entries for it, either the connection didn't reach the agent or the agent is older than your Coder server.
 Check the `coderd` logs for the session ID, and filter the connection log with `method:tunnel` for the same workspace and time to find denied tunnel requests.
 
 If you start without a session ID, filter the connection log by `workspace_owner`, `workspace_id`, and time, then take `ClientSessionID` from the matching service log entries.
