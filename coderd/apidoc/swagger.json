@@ -18681,8 +18681,7 @@
 				"reconnecting_pty",
 				"port_forwarding",
 				"sftp",
-				"unknown",
-				"workspace_app"
+				"unknown"
 			],
 			"x-enum-varnames": [
 				"AppFamilyVSCode",
@@ -18691,8 +18690,7 @@
 				"AppFamilyReconnectingPTY",
 				"AppFamilyPortForwarding",
 				"AppFamilySFTP",
-				"AppFamilyUnknown",
-				"AppFamilyWorkspaceApp"
+				"AppFamilyUnknown"
 			]
 		},
 		"codersdk.AppHostResponse": {
@@ -28422,14 +28420,6 @@
 				"display_name": {
 					"type": "string",
 					"example": "VS Code"
-				},
-				"family": {
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.AppFamilyName"
-						}
-					],
-					"example": "vscode"
 				},
 				"icon": {
 					"type": "string"

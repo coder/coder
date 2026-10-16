@@ -17,8 +17,7 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 3600,
-        "times_used": 0,
-        "family": "ssh"
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -29,8 +28,7 @@
         "slug": "vscode",
         "icon": "/icon/code.svg",
         "seconds": 3600,
-        "times_used": 0,
-        "family": "vscode"
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -41,8 +39,7 @@
         "slug": "app1",
         "icon": "/icon1.png",
         "seconds": 25200,
-        "times_used": 2,
-        "family": "workspace_app"
+        "times_used": 2
       }
     ],
     "parameters_usage": []

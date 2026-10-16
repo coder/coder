@@ -20772,8 +20772,7 @@ const docTemplate = `{
                 "reconnecting_pty",
                 "port_forwarding",
                 "sftp",
-                "unknown",
-                "workspace_app"
+                "unknown"
             ],
             "x-enum-varnames": [
                 "AppFamilyVSCode",
@@ -20782,8 +20781,7 @@ const docTemplate = `{
                 "AppFamilyReconnectingPTY",
                 "AppFamilyPortForwarding",
                 "AppFamilySFTP",
-                "AppFamilyUnknown",
-                "AppFamilyWorkspaceApp"
+                "AppFamilyUnknown"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -30880,14 +30878,6 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string",
                     "example": "VS Code"
-                },
-                "family": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AppFamilyName"
-                        }
-                    ],
-                    "example": "vscode"
                 },
                 "icon": {
                     "type": "string"

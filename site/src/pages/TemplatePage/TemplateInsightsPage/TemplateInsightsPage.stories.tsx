@@ -111,7 +111,6 @@ export const Loaded: Story = {
 							icon: "/icon/code.svg",
 							seconds: 2513400,
 							times_used: 0,
-							family: "vscode",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -121,7 +120,6 @@ export const Loaded: Story = {
 							icon: "/icon/intellij.svg",
 							seconds: 2013400,
 							times_used: 20,
-							family: "jetbrains",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -131,7 +129,6 @@ export const Loaded: Story = {
 							icon: "/icon/terminal.svg",
 							seconds: 110400,
 							times_used: 0,
-							family: "reconnecting_pty",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -141,7 +138,6 @@ export const Loaded: Story = {
 							icon: "/icon/terminal.svg",
 							seconds: 1020900,
 							times_used: 0,
-							family: "ssh",
 						},
 					],
 					parameters_usage: [
@@ -980,7 +976,6 @@ export const AppUsageAccounting: Story = {
 							icon: "/icon/code.svg",
 							seconds: 252000,
 							times_used: 0,
-							family: "vscode",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -990,7 +985,6 @@ export const AppUsageAccounting: Story = {
 							icon: "/icon/cursor.svg",
 							seconds: 180000,
 							times_used: 0,
-							family: "vscode",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -1000,7 +994,6 @@ export const AppUsageAccounting: Story = {
 							icon: "",
 							seconds: 36000,
 							times_used: 0,
-							family: "unknown",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -1010,7 +1003,6 @@ export const AppUsageAccounting: Story = {
 							icon: "",
 							seconds: 7200,
 							times_used: 0,
-							family: "unknown",
 							seconds_is_upper_bound: true,
 						},
 						{
@@ -1021,7 +1013,6 @@ export const AppUsageAccounting: Story = {
 							icon: "",
 							seconds: 3600,
 							times_used: 0,
-							family: "unknown",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -1031,7 +1022,6 @@ export const AppUsageAccounting: Story = {
 							icon: "/icon/code.svg",
 							seconds: 90000,
 							times_used: 12,
-							family: "workspace_app",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -1041,7 +1031,6 @@ export const AppUsageAccounting: Story = {
 							icon: "",
 							seconds: 18000,
 							times_used: 3,
-							family: "workspace_app",
 						},
 					],
 				},

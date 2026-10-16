@@ -42,12 +42,12 @@ export const accountingRowDescription = (
 	}
 	switch (usage.slug) {
 		case "unknown":
-			return "Usage reported without an app name, or with a reserved name. This row does not identify an individual app.";
+			return "Includes all apps that did not report a name, or tried to use a reserved name.";
 		case AppNameOverflow: {
-			const folded = usage.seconds_is_upper_bound
-				? ` It also holds the unregistered apps past the ${TemplateInsightsMaxUnregisteredApps} busiest. Which minutes those apps shared is not recorded, so this is the most time they could have been open.`
+			const upperBoundNote = usage.seconds_is_upper_bound
+				? " Overlapping time isn't tracked, so this is the most time they could have been open."
 				: "";
-			return `Time when apps past a single report's app limit were open. This row does not identify an individual app.${folded}`;
+			return `Includes apps past the ${TemplateInsightsMaxUnregisteredApps} busiest.${upperBoundNote}`;
 		}
 		default:
 			return undefined;

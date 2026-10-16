@@ -1615,9 +1615,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                |
-|---------------------------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode`, `workspace_app` |
+| Value(s)                                                                               |
+|----------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
 
 ## codersdk.AppHostResponse
 
@@ -15115,7 +15115,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "display_name": "VS Code",
-  "family": "vscode",
   "icon": "string",
   "seconds": 80500,
   "seconds_is_upper_bound": false,
@@ -15133,7 +15132,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                     | Type                                                   | Required | Restrictions | Description                                                                                                                                  |
 |--------------------------|--------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `display_name`           | string                                                 | false    |              |                                                                                                                                              |
-| `family`                 | [codersdk.AppFamilyName](#codersdkappfamilyname)       | false    |              |                                                                                                                                              |
 | `icon`                   | string                                                 | false    |              |                                                                                                                                              |
 | `seconds`                | integer                                                | false    |              |                                                                                                                                              |
 | `seconds_is_upper_bound` | boolean                                                | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
@@ -15796,7 +15794,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "apps_usage": [
     {
       "display_name": "VS Code",
-      "family": "vscode",
       "icon": "string",
       "seconds": 80500,
       "seconds_is_upper_bound": false,
@@ -15874,7 +15871,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "apps_usage": [
       {
         "display_name": "VS Code",
-        "family": "vscode",
         "icon": "string",
         "seconds": 80500,
         "seconds_is_upper_bound": false,

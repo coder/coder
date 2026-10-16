@@ -19,8 +19,7 @@
         "slug": "jetbrains",
         "icon": "/icon/jetbrains.svg",
         "seconds": 120,
-        "times_used": 0,
-        "family": "jetbrains"
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -31,8 +30,7 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 4320,
-        "times_used": 0,
-        "family": "ssh"
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -43,8 +41,7 @@
         "slug": "vscode",
         "icon": "/icon/code.svg",
         "seconds": 3600,
-        "times_used": 0,
-        "family": "vscode"
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -56,8 +53,7 @@
         "slug": "app1",
         "icon": "/icon1.png",
         "seconds": 21720,
-        "times_used": 2,
-        "family": "workspace_app"
+        "times_used": 2
       },
       {
         "template_ids": [
@@ -68,8 +64,7 @@
         "slug": "app3",
         "icon": "/icon2.png",
         "seconds": 4320,
-        "times_used": 2,
-        "family": "workspace_app"
+        "times_used": 2
       },
       {
         "template_ids": [
@@ -80,8 +75,7 @@
         "slug": "otherapp1",
         "icon": "/icon1.png",
         "seconds": 300,
-        "times_used": 1,
-        "family": "workspace_app"
+        "times_used": 1
       }
     ],
     "parameters_usage": []
