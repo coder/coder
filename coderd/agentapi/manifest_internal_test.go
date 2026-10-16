@@ -11,6 +11,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspacesecrets"
 )
 
 func Test_dbSecretsToProto(t *testing.T) {
@@ -21,36 +22,42 @@ func Test_dbSecretsToProto(t *testing.T) {
 		{Name: "file-only", FilePath: "~/.ssh/id_rsa", Value: "file-val", Enabled: true},
 		{Name: "dual", EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: "dual-val", Enabled: true},
 		{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"},
+		// ws-shared takes this secret's env var; its file is still written.
+		{Name: "overridden", EnvName: "SHARED_ENV", FilePath: "/etc/overridden", Value: "user-val", Enabled: true},
 	}
 	workspaceSecrets := []database.WorkspaceSecret{
 		{Name: "ws-env", EnvName: "WS_ENV", Value: sql.NullString{String: "ws-val", Valid: true}},
 		{Name: "ws-file", FilePath: "/etc/ws", Value: sql.NullString{String: "ws-file-val", Valid: true}},
 		{Name: "ws-cleared", EnvName: "WS_CLEARED"},
+		{Name: "ws-shared", EnvName: "SHARED_ENV", Value: sql.NullString{String: "ws-shared-val", Valid: true}},
 	}
 
 	cases := []struct {
 		name     string
-		policy   userSecretFilePathPolicy
+		policy   workspacesecrets.FilePathPolicy
 		expected []*agentproto.WorkspaceSecret
 	}{
 		{
 			name:   "FilePathAllowed",
-			policy: userSecretFilePathAllowed,
+			policy: workspacesecrets.FilePathAllowed,
 			expected: []*agentproto.WorkspaceSecret{
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
 				{FilePath: "~/.ssh/id_rsa", Value: []byte("file-val")},
 				{EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: []byte("dual-val")},
+				{FilePath: "/etc/overridden", Value: []byte("user-val")},
 				{EnvName: "WS_ENV", Value: []byte("ws-val")},
 				{FilePath: "/etc/ws", Value: []byte("ws-file-val")},
+				{EnvName: "SHARED_ENV", Value: []byte("ws-shared-val")},
 			},
 		},
 		{
 			name:   "FilePathBlocked",
-			policy: userSecretFilePathBlocked,
+			policy: workspacesecrets.FilePathBlocked,
 			expected: []*agentproto.WorkspaceSecret{
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
 				{EnvName: "DUAL_ENV", Value: []byte("dual-val")},
 				{EnvName: "WS_ENV", Value: []byte("ws-val")},
+				{EnvName: "SHARED_ENV", Value: []byte("ws-shared-val")},
 			},
 		},
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -406,6 +407,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
+		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -4478,7 +4480,121 @@ func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
 	assertRows()
 }
 
-func TestMigration000625WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
+func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 625
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := database.New(sqlDB)
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	user := dbgen.User(t, db, database.User{})
+	// GIVEN: An existing template version and a user-secrets telemetry lock.
+	// (Avoid dbgen.TemplateVersion: its view query expects the new columns.)
+	legacyID := uuid.New()
+	err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		ID:             legacyID,
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          uuid.New(),
+		Name:           testutil.GetRandomName(t),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	// An existing event type's lock must survive both upgrade and rollback.
+	legacyLock := database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: dbtime.Now(),
+	}
+	require.NoError(t, db.InsertTelemetryLock(ctx, legacyLock))
+
+	// WHEN: The migration is applied.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// THEN: Script-order locks are accepted, existing and new versions default
+	// to zero counts, and only valid counts can be stored.
+	scriptOrderLock := database.InsertTelemetryLockParams{
+		EventType:      "script_order_summary",
+		PeriodEndingAt: legacyLock.PeriodEndingAt,
+	}
+	require.NoError(t, db.InsertTelemetryLock(ctx, scriptOrderLock))
+
+	legacyVersion, err := db.GetTemplateVersionByID(ctx, legacyID)
+	require.NoError(t, err)
+	require.Zero(t, legacyVersion.ScriptOrderDataSourceCount)
+	require.Zero(t, legacyVersion.ScriptOrderRuleCount)
+
+	// An older provisioner omits the counts, so new rows also default to zero.
+	newVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	require.Zero(t, newVersion.ScriptOrderDataSourceCount)
+	require.Zero(t, newVersion.ScriptOrderRuleCount)
+
+	for _, tt := range []struct {
+		query      string
+		constraint database.CheckConstraint
+	}{
+		{"UPDATE template_versions SET script_order_data_source_count = -1 WHERE id = $1", database.CheckTemplateVersionsScriptOrderDataSourceCountCheck},
+		{"UPDATE template_versions SET script_order_rule_count = -1 WHERE id = $1", database.CheckTemplateVersionsScriptOrderRuleCountCheck},
+	} {
+		_, err := sqlDB.ExecContext(ctx, tt.query, legacyVersion.ID)
+		require.True(t, database.IsCheckViolation(err, tt.constraint), "%s: %v", tt.query, err)
+	}
+
+	for _, query := range []string{
+		"UPDATE template_versions SET script_order_data_source_count = NULL WHERE id = $1",
+		"UPDATE template_versions SET script_order_rule_count = NULL WHERE id = $1",
+	} {
+		_, err := sqlDB.ExecContext(ctx, query, legacyVersion.ID)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr, "%s: %v", query, err)
+		require.Equal(t, "not_null_violation", pqErr.Code.Name(), "%s: %v", query, err)
+	}
+
+	err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+		JobID:                      legacyVersion.JobID,
+		ScriptOrderDataSourceCount: 2,
+		ScriptOrderRuleCount:       3,
+		UpdatedAt:                  dbtime.Now(),
+	})
+	require.NoError(t, err)
+	updated, err := db.GetTemplateVersionByID(ctx, legacyVersion.ID)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), updated.ScriptOrderDataSourceCount)
+	require.Equal(t, int32(3), updated.ScriptOrderRuleCount)
+
+	// Roll back the migration to verify script-order locks are rejected.
+	down, err := os.ReadFile("000625_template_version_script_order_usage.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(down))
+	require.NoError(t, err)
+	err = db.InsertTelemetryLock(ctx, scriptOrderLock)
+	require.True(t, database.IsCheckViolation(err, database.CheckTelemetryLockEventTypeConstraint), "unexpected error: %v", err)
+
+	// Reapply the migration to verify script-order locks are accepted again
+	// and the pre-existing lock survives rollback and reapplication.
+	up, err := os.ReadFile("000625_template_version_script_order_usage.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(up))
+	require.NoError(t, err)
+	require.NoError(t, db.InsertTelemetryLock(ctx, scriptOrderLock))
+	err = db.InsertTelemetryLock(ctx, legacyLock)
+	require.True(t, database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey), "unexpected error: %v", err)
+
+	updated, err = db.GetTemplateVersionByID(ctx, legacyVersion.ID)
+	require.NoError(t, err)
+	require.Equal(t, legacyVersion.Name, updated.Name)
+	require.Zero(t, updated.ScriptOrderDataSourceCount)
+	require.Zero(t, updated.ScriptOrderRuleCount)
+}
+
+func TestMigration000626WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -4519,7 +4635,7 @@ func TestMigration000625WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	skippedTiming := timingWith(database.WorkspaceAgentScriptTimingStatusSkipped, at.Add(time.Minute), 0)
 	canceledTiming := timingWith(database.WorkspaceAgentScriptTimingStatusCanceled, at.Add(2*time.Minute), -1)
 
-	downSQL, err := os.ReadFile("000625_workspace_agent_script_timing_skipped_canceled.down.sql")
+	downSQL, err := os.ReadFile("000626_workspace_agent_script_timing_skipped_canceled.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -4546,7 +4662,7 @@ func TestMigration000625WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	require.Equal(t, "exit_failure", status)
 	require.Equal(t, int32(255), exitCode)
 
-	upSQL, err := os.ReadFile("000625_workspace_agent_script_timing_skipped_canceled.up.sql")
+	upSQL, err := os.ReadFile("000626_workspace_agent_script_timing_skipped_canceled.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)

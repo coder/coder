@@ -1680,6 +1680,14 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
+		if orig.ScriptOrderDataSourceCount != 0 || orig.ScriptOrderRuleCount != 0 {
+			require.NoError(t, db.UpdateTemplateVersionScriptOrderUsageByJobID(genCtx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orig.ScriptOrderDataSourceCount,
+				ScriptOrderRuleCount:       orig.ScriptOrderRuleCount,
+				UpdatedAt:                  dbtime.Now(),
+			}))
+		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
 		if err != nil {

@@ -30617,7 +30617,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count
 				FROM
 					template_versions
 				WHERE
@@ -30718,7 +30718,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30757,6 +30757,8 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30764,9 +30766,40 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 	return i, err
 }
 
+const getScriptOrderTelemetrySummary = `-- name: GetScriptOrderTelemetrySummary :one
+SELECT
+	COUNT(*) AS templates_with_script_order,
+	COALESCE(SUM(tv.script_order_data_source_count), 0)::bigint AS data_source_count,
+	COALESCE(SUM(tv.script_order_rule_count), 0)::bigint AS rule_count
+FROM templates t
+JOIN template_versions tv ON tv.id = t.active_version_id
+JOIN provisioner_jobs pj ON pj.id = tv.job_id
+WHERE t.deleted = false
+	AND tv.script_order_data_source_count > 0
+	AND pj.type = 'template_version_import'
+	AND pj.completed_at IS NOT NULL
+	AND COALESCE(pj.error, '') = ''
+	AND pj.canceled_at IS NULL
+`
+
+type GetScriptOrderTelemetrySummaryRow struct {
+	TemplatesWithScriptOrder int64 `db:"templates_with_script_order" json:"templates_with_script_order"`
+	DataSourceCount          int64 `db:"data_source_count" json:"data_source_count"`
+	RuleCount                int64 `db:"rule_count" json:"rule_count"`
+}
+
+// Count only the active, successfully imported version of each non-deleted
+// template, so repeated imports do not inflate adoption.
+func (q *sqlQuerier) GetScriptOrderTelemetrySummary(ctx context.Context) (GetScriptOrderTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getScriptOrderTelemetrySummary)
+	var i GetScriptOrderTelemetrySummaryRow
+	err := row.Scan(&i.TemplatesWithScriptOrder, &i.DataSourceCount, &i.RuleCount)
+	return i, err
+}
+
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30791,6 +30824,8 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30800,7 +30835,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30825,6 +30860,8 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30834,7 +30871,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30865,6 +30902,8 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30874,7 +30913,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30905,6 +30944,8 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -30924,7 +30965,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -31002,6 +31043,8 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -31020,7 +31063,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -31047,6 +31090,8 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -31226,6 +31271,34 @@ type UpdateTemplateVersionFlagsByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionFlagsByJobID, arg.JobID, arg.HasExternalAgent, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionScriptOrderUsageByJobID = `-- name: UpdateTemplateVersionScriptOrderUsageByJobID :exec
+UPDATE
+	template_versions
+SET
+	script_order_data_source_count = $2,
+	script_order_rule_count = $3,
+	updated_at = $4
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionScriptOrderUsageByJobIDParams struct {
+	JobID                      uuid.UUID `db:"job_id" json:"job_id"`
+	ScriptOrderDataSourceCount int32     `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32     `db:"script_order_rule_count" json:"script_order_rule_count"`
+	UpdatedAt                  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionScriptOrderUsageByJobID,
+		arg.JobID,
+		arg.ScriptOrderDataSourceCount,
+		arg.ScriptOrderRuleCount,
+		arg.UpdatedAt,
+	)
 	return err
 }
 
@@ -34858,8 +34931,17 @@ SELECT
 FROM workspace_secrets ws
 JOIN workspaces w ON w.id = ws.workspace_id
 WHERE ws.workspace_id = $1
+    AND (
+        $2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR ws.workspace_build_id = $2
+    )
 ORDER BY ws.created_at ASC, ws.name ASC
 `
+
+type GetWorkspaceSecretsHistoryParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+}
 
 type GetWorkspaceSecretsHistoryRow struct {
 	ID                      uuid.UUID             `db:"id" json:"id"`
@@ -34879,9 +34961,9 @@ type GetWorkspaceSecretsHistoryRow struct {
 // Returns metadata for every workspace secret row of a workspace, including
 // cleared rows, so the secrets each build received can be inspected. Values
 // are never selected. The workspace owner and organization are included for
-// authorization.
-func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, workspaceID)
+// authorization. A non-nil workspace_build_id limits the rows to that build.
+func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, arg GetWorkspaceSecretsHistoryParams) ([]GetWorkspaceSecretsHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, arg.WorkspaceID, arg.WorkspaceBuildID)
 	if err != nil {
 		return nil, err
 	}
