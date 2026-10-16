@@ -27,6 +27,7 @@ import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
+	userChatPersonalModelOverridesKey,
 } from "#/api/queries/chats";
 import { organizationSkillsKey } from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
@@ -954,7 +955,7 @@ describe("AgentCreateForm project picker", () => {
 			mockModelCatalog,
 		);
 		queryClient.setQueryData(
-			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			userChatPersonalModelOverridesKey(MockOrganization2.id, "me"),
 			mockPersonalModelOverrides,
 		);
 		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
@@ -1017,7 +1018,7 @@ describe("AgentCreateForm project picker", () => {
 			mockModelCatalog,
 		);
 		queryClient.setQueryData(
-			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			userChatPersonalModelOverridesKey(MockOrganization2.id, "me"),
 			mockPersonalModelOverrides,
 		);
 		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
