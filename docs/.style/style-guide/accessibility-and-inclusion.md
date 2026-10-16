@@ -145,8 +145,11 @@ Mark images that carry no information beyond visual decoration with empty alt te
 Empty alt text tells the screen reader to skip the image rather than announce a meaningless filename.
 
 ```md
-![](../../images/decorative/divider.png)
+<img src="../../images/decorative/divider.png" alt="">
 ```
+
+Use a raw `<img>` with `alt=""` for a decorative image, not the Markdown `![](…)` form.
+markdownlint rejects a Markdown image with empty alt text, because it can't tell a decorative image from one whose alt text is missing.
 
 Decorative images are rare in the Coder docs.
 Most images shown to a reader are screenshots or diagrams that convey information, and those images need descriptive alt text.
