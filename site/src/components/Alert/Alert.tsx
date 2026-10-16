@@ -172,7 +172,7 @@ const AlertDetails: React.FC<{ details: readonly AlertDetail[] }> = ({
 				Technical details
 			</CollapsibleTrigger>
 			<CollapsibleContent className="relative rounded-sm bg-surface-primary p-2">
-				<dl className="m-0 flex flex-col gap-2 pr-6 font-mono font-medium text-content-secondary">
+				<dl className="m-0 flex flex-col pr-6 font-mono font-medium text-content-secondary">
 					{details.map(({ label, value }) => (
 						<div key={label} className="flex gap-2">
 							<dt className="w-18 shrink-0">{label}</dt>
