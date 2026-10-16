@@ -357,7 +357,6 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	/** isContentChanged is false when an edit changes only the settings. */
 	readonly onSubmit: (
 		...args: [...Parameters<SkillSubmitHandler>, isContentChanged: boolean]
 	) => void;
