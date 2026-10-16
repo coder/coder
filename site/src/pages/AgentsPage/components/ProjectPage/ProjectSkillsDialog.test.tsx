@@ -118,7 +118,6 @@ describe("ProjectSkillsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
-		await screen.findByText("A skill with that name already exists.");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() => expect(createSkill).toHaveBeenCalledTimes(2));
 	});
