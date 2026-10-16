@@ -697,6 +697,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		mcpConfig(database.MCPServerConfig{Slug: "filtered", Url: filteredURL, AllowInPlanMode: true, ToolAllowList: []string{"visible"}}),
 	}
 	mcpConfig(database.MCPServerConfig{Slug: "forced", Url: echoURL, Availability: "force_on"})
+	unselectedMCP := mcpConfig(database.MCPServerConfig{Slug: "unselected", Url: echoURL})
 
 	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
 	workspaceMCPBody, err := protojson.Marshal(&agentproto.MCPServerBody{
@@ -720,53 +721,83 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		exploreOverlay   = "You are in Explore Mode as a delegated sub-agent."
 		planRootOverlay  = "You are in Plan Mode."
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
+		proposePlan      = "When the plan is ready, call propose_plan"
 	)
 	tests := []struct {
 		name     string
 		mode     database.NullChatMode
 		planMode database.NullChatPlanMode
 		child    bool
-		overlay  string
+		// replaceMCP sends a follow-up message that asks to replace the
+		// MCP selection before the next turn is prepared.
+		replaceMCP bool
+		// prompt lists the instructions the system prompt must contain;
+		// the others in the set must be absent.
+		prompt   []string
 		want     []string
 		dontWant []string
 	}{
 		{
 			name: "Root",
 			want: []string{
-				"write_file", "spawn_agent", "approved__echo", "blocked__echo", "filtered__visible",
+				"write_file", "edit_files", "spawn_agent", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search",
 			},
-			dontWant: []string{"filtered__hidden", "ask_user_question"},
+			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question"},
 		},
 		{
 			name:     "PlanRoot",
 			planMode: plan,
-			overlay:  planRootOverlay,
-			want:     []string{"write_file", "ask_user_question", "approved__echo", "filtered__visible", "inline__echo"},
+			prompt:   []string{planRootOverlay, proposePlan},
+			want: []string{
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question",
+				"approved__echo", "filtered__visible", "inline__echo",
+			},
 			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
 		},
 		{
 			name:     "PlanChild",
 			planMode: plan,
 			child:    true,
-			overlay:  planChildOverlay,
+			prompt:   []string{planChildOverlay},
 			want:     []string{"read_file", "execute", "process_output"},
-			dontWant: []string{"write_file", "ask_user_question", "approved__echo", "inline__echo", "workspace__echo", "web_search"},
+			dontWant: []string{
+				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
+				"workspace__echo", "web_search",
+			},
 		},
 		{
-			name:     "ExploreRoot",
-			mode:     explore,
-			overlay:  exploreOverlay,
-			want:     []string{"read_file", "execute"},
-			dontWant: []string{"write_file", "approved__echo", "forced__echo", "inline__echo", "workspace__echo", "web_search"},
+			name:   "ExploreRoot",
+			mode:   explore,
+			prompt: []string{exploreOverlay},
+			want:   []string{"read_file", "execute", "process_output"},
+			dontWant: []string{
+				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
+				"workspace__echo", "web_search",
+			},
 		},
 		{
-			name:     "ExploreChild",
-			mode:     explore,
-			child:    true,
-			overlay:  exploreOverlay,
-			want:     []string{"read_file", "execute", "approved__echo", "filtered__visible", "web_search"},
-			dontWant: []string{"write_file", "spawn_agent", "forced__echo", "workspace__echo"},
+			name:   "ExploreChild",
+			mode:   explore,
+			child:  true,
+			prompt: []string{exploreOverlay},
+			want: []string{
+				"read_file", "execute", "process_output", "approved__echo", "blocked__echo", "filtered__visible",
+				"web_search",
+			},
+			dontWant: []string{
+				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
+				"workspace__echo",
+			},
+		},
+		{
+			name:       "ExploreChildAfterMCPReplacement",
+			mode:       explore,
+			child:      true,
+			replaceMCP: true,
+			prompt:     []string{exploreOverlay},
+			want:       []string{"approved__echo", "blocked__echo", "filtered__visible"},
+			dontWant:   []string{"unselected__echo"},
 		},
 	}
 	for _, tt := range tests {
@@ -798,13 +829,35 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				input.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 				input.RootChatID = input.ParentChatID
 			}
+			if tt.replaceMCP {
+				// A waiting chat appends the follow-up message to the
+				// history instead of queueing it.
+				input.InitialStatus = database.ChatStatusWaiting
+			}
 			created, err := chatstate.CreateChat(ctx, db, ps, input)
 			require.NoError(t, err)
 			dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
 
+			chat, messages := created.Chat, created.InitialMessages
+			if tt.replaceMCP {
+				_, err = server.SendMessage(ctx, SendMessageOptions{
+					ChatID:       chat.ID,
+					CreatedBy:    user.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("use the other server")},
+					MCPServerIDs: &[]uuid.UUID{unselectedMCP},
+				})
+				require.NoError(t, err)
+				chat, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.ElementsMatch(t, selectedMCP, chat.MCPServerIDs)
+				messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+				require.NoError(t, err)
+				require.Len(t, messages, len(created.InitialMessages)+1)
+			}
+
 			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
+				Chat:            chat,
+				Messages:        messages,
 				TurnExperiments: &turnExperimentDecisions{},
 			})
 			require.NoError(t, err)
@@ -827,16 +880,16 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				}
 			}
 
-			var overlays []string
+			var system strings.Builder
 			for _, message := range env.Prompt {
 				for _, part := range message.Content {
 					if text, ok := part.(fantasy.TextPart); ok && message.Role == fantasy.MessageRoleSystem {
-						overlays = append(overlays, strings.SplitN(text.Text, "\n", 2)[0])
+						system.WriteString(text.Text)
 					}
 				}
 			}
-			for _, overlay := range []string{exploreOverlay, planRootOverlay, planChildOverlay} {
-				require.Equal(t, overlay == tt.overlay, slices.Contains(overlays, overlay), overlay)
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 		})
 	}
