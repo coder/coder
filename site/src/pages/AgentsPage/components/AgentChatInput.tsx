@@ -1328,6 +1328,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isReadOnly &&
 		!isReadOnlyView &&
 		!isLoading &&
+		!isDisabled &&
 		hasModelOptions &&
 		!aiGatewayDisabled;
 	const showStopButton =

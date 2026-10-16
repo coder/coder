@@ -309,16 +309,19 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
-	it("loads project actions only once a pending send settles", async () => {
+	it.each([
+		["a pending send settles", { isLoading: true }],
+		["the composer is enabled", { isDisabled: true }],
+	])("loads project actions only once %s", async (_, blocked) => {
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([]);
 		const queryClient = createTestQueryClient();
-		const renderInput = (isLoading: boolean) => (
+		const renderInput = (isBlocked: boolean) => (
 			<AppProviders queryClient={queryClient}>
 				<AgentChatInput
 					{...inputProps}
-					isLoading={isLoading}
+					{...(isBlocked ? blocked : {})}
 					chatOrganizationId="org-1"
 					chatProjectId="project-1"
 					showProjectActions
