@@ -179,19 +179,6 @@ export const ProminentWithAction: Story = {
 	),
 };
 
-export const ProminentIgnoredForInfoAndSuccess: Story = {
-	render: () => (
-		<div className="flex flex-col gap-3">
-			<Alert severity="info" prominent>
-				Prominent info renders with the default style.
-			</Alert>
-			<Alert severity="success" prominent>
-				Prominent success renders with the default style.
-			</Alert>
-		</div>
-	),
-};
-
 export const Compact: Story = {
 	render: () => (
 		<div className="flex flex-col gap-3">
