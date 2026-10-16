@@ -244,8 +244,12 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiMod
 				Detail: "Model is required.",
 			})
 		}
-		validations = append(validations, validateAIModelPriceValues(field, keysAt(keys, i),
-			price.InputPrice, price.OutputPrice, price.CacheReadPrice, price.CacheWritePrice)...)
+		validations = append(validations, validateAIModelPriceValues(field, keysAt(keys, i), aiModelTokenPrices{
+			Input:      price.InputPrice,
+			Output:     price.OutputPrice,
+			CacheRead:  price.CacheReadPrice,
+			CacheWrite: price.CacheWritePrice,
+		})...)
 
 		key := modelKey{provider: price.Provider, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
@@ -270,19 +274,28 @@ func keysAt(keys []aiModelPriceKeys, i int) aiModelPriceKeys {
 	return nil
 }
 
+// aiModelTokenPrices holds the four token prices of one model price. Fields are
+// set by name, so prices cannot be passed in the wrong order.
+type aiModelTokenPrices struct {
+	Input      *int64
+	Output     *int64
+	CacheRead  *int64
+	CacheWrite *int64
+}
+
 // validateAIModelPriceValues reports problems with the four prices of one
 // model price: every price key present, no negative price, and at least one
 // price set. field is where the model price sits in the request, such as
 // "prices[0]", and prefixes each reported field.
-func validateAIModelPriceValues(field string, keys aiModelPriceKeys, input, output, cacheRead, cacheWrite *int64) []codersdk.ValidationError {
+func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiModelTokenPrices) []codersdk.ValidationError {
 	named := []struct {
 		name  string
 		value *int64
 	}{
-		{"input_price", input},
-		{"output_price", output},
-		{"cache_read_price", cacheRead},
-		{"cache_write_price", cacheWrite},
+		{"input_price", prices.Input},
+		{"output_price", prices.Output},
+		{"cache_read_price", prices.CacheRead},
+		{"cache_write_price", prices.CacheWrite},
 	}
 
 	var validations []codersdk.ValidationError
