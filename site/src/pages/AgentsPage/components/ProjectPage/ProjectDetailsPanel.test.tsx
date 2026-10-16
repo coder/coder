@@ -534,7 +534,6 @@ describe("ProjectDetailsPanel", () => {
 		});
 		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(1));
 
-		// A failed retry reports the error instead of opening read-only.
 		await user.click(skillsButton);
 		await waitFor(() =>
 			expect(toastError).toHaveBeenCalledWith(
@@ -544,7 +543,6 @@ describe("ProjectDetailsPanel", () => {
 		);
 		expect(checkAuthorization).toHaveBeenCalledTimes(2);
 
-		// A successful retry opens the skills with the user's access.
 		checkAuthorization.mockResolvedValue({ updateProject: true });
 		await user.click(skillsButton);
 		await user.click(await screen.findByRole("button", { name: "New" }));
