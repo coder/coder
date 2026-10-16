@@ -189,7 +189,12 @@ describe("PortPreviewPanel annotations", () => {
 		await act(async () => {
 			receive({ type: "coder-annotator:state", picking: true });
 		});
-		expect(focus).toHaveBeenCalled();
+		expect(focus).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(focus).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps a new request when the overlay acknowledges the stop before it late", async () => {
@@ -444,6 +449,7 @@ describe("PortPreviewPanel annotations", () => {
 		});
 		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
 
+		const focus = vi.spyOn(frame(), "focus");
 		// The page claims annotate mode is back on without the user asking.
 		await act(async () => {
 			receive({ type: "coder-annotator:state", picking: true });
@@ -453,6 +459,7 @@ describe("PortPreviewPanel annotations", () => {
 			frameOrigin,
 		);
 		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		expect(focus).not.toHaveBeenCalled();
 		receive(submission);
 		await settled();
 		expect(onSend).not.toHaveBeenCalled();

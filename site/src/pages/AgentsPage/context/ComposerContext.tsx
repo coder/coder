@@ -4,7 +4,7 @@ import { createContext, useContext } from "react";
 // caller decides whether to retry.
 export type ComposerSendResult = "sent" | "busy";
 
-export type ComposerHandle = {
+type ComposerHandle = {
 	// Sends a message on the user's behalf without touching their draft.
 	send: (message: string) => Promise<ComposerSendResult>;
 };

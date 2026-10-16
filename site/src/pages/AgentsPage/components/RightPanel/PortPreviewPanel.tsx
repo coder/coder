@@ -3,7 +3,14 @@ import {
 	MessageSquarePlusIcon,
 	NetworkIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+	useEffect,
+	useEffectEvent,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
@@ -21,7 +28,7 @@ import {
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import {
-	type ComposerHandle,
+	type ComposerSendResult,
 	useComposer,
 } from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
@@ -43,13 +50,10 @@ const overlayUnavailableReason =
 // message was accepted. Kept outside the component, with the queue below,
 // because the React Compiler does not yet handle loops in try/catch or
 // try/finally.
-async function deliver(
-	composerRef: React.RefObject<ComposerHandle | undefined>,
-	message: string,
-): Promise<boolean> {
+async function deliver(queue: SendQueue, message: string): Promise<boolean> {
 	try {
 		for (let attempt = 0; attempt < sendRetries; attempt++) {
-			if ((await composerRef.current?.send(message)) === "sent") {
+			if ((await queue.send?.(message)) === "sent") {
 				return true;
 			}
 			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
@@ -62,6 +66,7 @@ async function deliver(
 }
 
 type SendQueue = {
+	send?: (message: string) => Promise<ComposerSendResult> | undefined;
 	chain: Promise<void>;
 	// Accepted and not yet finished, including the one being sent.
 	pending: number;
@@ -77,11 +82,7 @@ function newSendQueue(): SendQueue {
 
 // Queues one message behind the others. Returns false when the queue is
 // full and the message was not accepted.
-function enqueueSend(
-	queue: SendQueue,
-	composerRef: React.RefObject<ComposerHandle | undefined>,
-	message: string,
-): boolean {
+function enqueueSend(queue: SendQueue, message: string): boolean {
 	if (queue.pending >= maxPendingSends) {
 		return false;
 	}
@@ -93,7 +94,7 @@ function enqueueSend(
 				return;
 			}
 			queue.sending = true;
-			await deliver(composerRef, message);
+			await deliver(queue, message);
 		} finally {
 			queue.sending = false;
 			queue.pending--;
@@ -138,15 +139,16 @@ export const PortPreviewPanel: React.FC<{
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const composer = useComposer();
-	// Queued retries must use the current committed send gate, not the
-	// composer captured when the annotation was accepted.
-	const composerRef = useRef(composer);
+	const send = useEffectEvent((message: string) => composer?.send(message));
+	const sendQueueRef = useRef(newSendQueue());
 	useLayoutEffect(() => {
-		composerRef.current = composer;
+		const queue = sendQueueRef.current;
+		// Retries read the latest sender; disconnect it when the panel unmounts.
+		queue.send = (message) => send(message);
 		return () => {
-			composerRef.current = undefined;
+			queue.send = undefined;
 		};
-	}, [composer]);
+	}, []);
 	const unavailableReasonId = useId();
 	// The proxy injects the overlay only on the request that carries the
 	// marker param, so each request reloads the frame. Client-side routing
@@ -155,13 +157,12 @@ export const PortPreviewPanel: React.FC<{
 	const [overlayRequests, setOverlayRequests] = useState(0);
 
 	// Each saved comment goes straight to the agent as its own message.
-	const sendQueueRef = useRef(newSendQueue());
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
 			return;
 		}
 		const message = formatAnnotations(submission);
-		if (!enqueueSend(sendQueueRef.current, composerRef, message)) {
+		if (!enqueueSend(sendQueueRef.current, message)) {
 			toast.error("Too many UI annotations at once; the latest was not sent.", {
 				id: "annotation-queue-full",
 			});
@@ -222,14 +223,6 @@ export const PortPreviewPanel: React.FC<{
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [bridge.requested, bridge.setPicking]);
-
-	// Focus normally stays in the dashboard when the button is clicked, so
-	// move it into the frame once the overlay confirms picking.
-	useEffect(() => {
-		if (bridge.picking) {
-			frameRef.current?.focus();
-		}
-	}, [bridge.picking]);
 
 	const showAnnotate =
 		canAnnotate && composer !== undefined && frameUrl !== undefined;
