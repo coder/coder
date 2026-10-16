@@ -20,11 +20,17 @@ const mockReviewerSkill: Skill = {
 	content: "---\nname: reviewer\n---\nReview the diff.\n",
 };
 
+type RenderDialogOptions = {
+	canEdit?: boolean;
+	queryClient?: QueryClient;
+	skills?: SkillMetadata[];
+};
+
 const renderDialog = ({
 	canEdit = true,
 	queryClient = createTestQueryClient(),
-	skills = [mockReviewerSkill] as SkillMetadata[],
-} = {}) => {
+	skills = [mockReviewerSkill],
+}: RenderDialogOptions = {}) => {
 	const onOpenChange = vi.fn();
 	const getSkills = vi
 		.spyOn(API.experimental, "getChatProjectSkills")
@@ -394,8 +400,11 @@ describe("ProjectSkillsDialog", () => {
 		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
 		expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer");
 		const [file, fileName] = vi.mocked(saveAs).mock.calls[0];
+		if (!(file instanceof Blob)) {
+			throw new Error("Expected the download to be a Blob.");
+		}
 		expect(fileName).toBe("reviewer.md");
-		expect(await (file as Blob).text()).toBe(mockReviewerSkill.content);
+		expect(await file.text()).toBe(mockReviewerSkill.content);
 	});
 
 	it("opens skills for viewing without update access", async () => {
