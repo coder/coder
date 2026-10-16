@@ -120,6 +120,9 @@ type Manifest struct {
 	OwnerName     string    `json:"owner_name"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
+	// WorkspaceBuildID is the build that created this agent. It is
+	// uuid.Nil when the server predates the field.
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.

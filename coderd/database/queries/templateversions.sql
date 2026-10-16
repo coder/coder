@@ -234,3 +234,30 @@ SET
 	updated_at = $3
 WHERE
 	job_id = $1;
+
+-- name: UpdateTemplateVersionScriptOrderUsageByJobID :exec
+UPDATE
+	template_versions
+SET
+	script_order_data_source_count = $2,
+	script_order_rule_count = $3,
+	updated_at = $4
+WHERE
+	job_id = $1;
+
+-- name: GetScriptOrderTelemetrySummary :one
+-- Count only the active, successfully imported version of each non-deleted
+-- template, so repeated imports do not inflate adoption.
+SELECT
+	COUNT(*) AS templates_with_script_order,
+	COALESCE(SUM(tv.script_order_data_source_count), 0)::bigint AS data_source_count,
+	COALESCE(SUM(tv.script_order_rule_count), 0)::bigint AS rule_count
+FROM templates t
+JOIN template_versions tv ON tv.id = t.active_version_id
+JOIN provisioner_jobs pj ON pj.id = tv.job_id
+WHERE t.deleted = false
+	AND tv.script_order_data_source_count > 0
+	AND pj.type = 'template_version_import'
+	AND pj.completed_at IS NOT NULL
+	AND COALESCE(pj.error, '') = ''
+	AND pj.canceled_at IS NULL;
