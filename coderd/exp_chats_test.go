@@ -836,7 +836,7 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: ptr.Ref(defaultConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("ThirdOrgExplicitModelRejected", func(t *testing.T) {
@@ -867,7 +867,7 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: ptr.Ref(thirdConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -1382,7 +1382,7 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: ptr.Ref(disabledConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config is disabled.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledModelConfigRejected", func(t *testing.T) {
@@ -1500,7 +1500,42 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: &privateConfig.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
+	})
+
+	t.Run("DeniedSameOrganizationDisabledModelIsNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		// A disabled config the caller cannot read must report "not found",
+		// not "disabled", so the error does not reveal that it exists.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+		privateDisabledConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "private-disabled-" + uuid.NewString(),
+			Enabled:        false,
+			OrganizationID: firstUser.OrganizationID,
+			GroupACL:       database.ChatACL{},
+		})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(
+			t,
+			client.Client,
+			firstUser.OrganizationID,
+		)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "do not reveal the private disabled model",
+			}},
+			ModelConfigID: &privateDisabledConfig.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("WithPerChatSystemPrompt", func(t *testing.T) {
@@ -2038,7 +2073,7 @@ func TestPostChats_OwnerID(t *testing.T) {
 		req.ModelConfigID = &privateConfig.ID
 		_, err := client.CreateChat(ctx, req)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("OrgAdminForbidden", func(t *testing.T) {
@@ -5074,7 +5109,7 @@ func TestUpdateChatModel(t *testing.T) {
 			ModelConfigID: &modelConfig.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config is disabled.", sdkErr.Message)
 	})
 
 	t.Run("ReEnableUpdatesCollectionDescriptor", func(t *testing.T) {
@@ -7637,7 +7672,7 @@ func TestPostChatMessages(t *testing.T) {
 			ModelConfigID: ptr.Ref(otherConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("HistoricalForeignModelFallsBackToLocalDefault", func(t *testing.T) {
@@ -9323,7 +9358,7 @@ func TestPatchChatMessage(t *testing.T) {
 			ModelConfigID: ptr.Ref(otherConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 
 		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -9939,7 +9974,7 @@ func TestPatchChatMessage(t *testing.T) {
 			ModelConfigID: &unknownID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledModelConfigID", func(t *testing.T) {
@@ -15457,11 +15492,19 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	})
 
 	t.Run("RejectsUnavailableModels", func(t *testing.T) {
-		for _, modelConfigID := range []string{uuid.NewString(), disabledModel.ID.String(), otherOrgModel.ID.String()} {
+		for _, tc := range []struct {
+			modelConfigID string
+			wantMessage   string
+		}{
+			{uuid.NewString(), "Invalid model_config_id: model config not found."},
+			{disabledModel.ID.String(), "Invalid model_config_id: model config is disabled."},
+			{otherOrgModel.ID.String(), "Invalid model_config_id: model config not found."},
+		} {
 			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.Me, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
-				Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: modelConfigID,
+				Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: tc.modelConfigID,
 			})
-			requireSDKError(t, err, http.StatusBadRequest)
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, tc.wantMessage, sdkErr.Message)
 		}
 	})
 
