@@ -69,6 +69,53 @@ func TestCheckTables(t *testing.T) {
 			src:  "```html\n<table><tr><th></th></tr></table>\n```\n",
 		},
 		{
+			name: "pipe header holding only a non-breaking space entity",
+			src:  "| &nbsp; | A |\n| --- | --- |\n| a | b |\n",
+			want: []want{{line: 1, first: "A"}},
+		},
+		{
+			name: "pipe header holding only a numeric non-breaking space entity",
+			src:  "| &#160; | A |\n| --- | --- |\n| a | b |\n",
+			want: []want{{line: 1, first: "A"}},
+		},
+		{
+			name: "html th whose Markdown between blocks is only a non-breaking space",
+			src:  "<table>\n<tr>\n<th>\n\n&nbsp;\n\n</th>\n<th>Name</th>\n</tr>\n</table>\n",
+			want: []want{{line: 3, first: "Name"}},
+		},
+		{
+			// A code span renders its content literally, so `&nbsp;` is the
+			// six visible characters, not a space.
+			name: "an entity inside a code span is text",
+			src:  "| `&nbsp;` | A |\n| --- | --- |\n| a | b |\n",
+		},
+		{
+			name: "html th holding only an image with alt text",
+			src:  "<table><tr><th><img alt=\"Logo\" src=\"x.png\"></th></tr></table>\n",
+		},
+		{
+			name: "html th holding only an image with empty alt text",
+			src:  "<table><tr><th><img alt=\"\" src=\"x.png\"></th><th>Name</th></tr></table>\n",
+			want: []want{{line: 1, first: "Name"}},
+		},
+		{
+			name: "pipe header holding only a raw image with alt text",
+			src:  "| <img alt=\"Logo\" src=\"x.png\"> | A |\n| --- | --- |\n| a | b |\n",
+		},
+		{
+			name: "pipe header holding only a raw image with empty alt text",
+			src:  "| <img alt=\"\" src=\"x.png\"> | A |\n| --- | --- |\n| a | b |\n",
+			want: []want{{line: 1, first: "A"}},
+		},
+		{
+			name: "html th whose Markdown between blocks is an autolink",
+			src:  "<table>\n<tr>\n<th>\n\n<https://coder.com>\n\n</th>\n</tr>\n</table>\n",
+		},
+		{
+			name: "html th whose Markdown between blocks is a fenced code block",
+			src:  "<table>\n<tr>\n<th>\n\n```sh\ncoder login\n```\n\n</th>\n</tr>\n</table>\n",
+		},
+		{
 			name: "every header empty names no first header",
 			src:  "<table><tr><th></th></tr></table>\n",
 			want: []want{{line: 1}},
