@@ -191,4 +191,24 @@ describe("getFirstLinePreview", () => {
 			isTruncated: true,
 		});
 	});
+
+	it("ends the first line at a line break between skill chips", () => {
+		const skillPart = (name: string) =>
+			({
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: name,
+			}) as const;
+		const { previewParts } = getQueuedMessageInfo(
+			buildMessage([
+				skillPart("triage"),
+				{ type: "text", text: "\n" },
+				skillPart("review"),
+			]),
+		);
+		expect(getFirstLinePreview(previewParts)).toEqual({
+			parts: [skillPart("triage")],
+			isTruncated: true,
+		});
+	});
 });
