@@ -143,9 +143,6 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 		}
 	};
 
-	const editorMutation =
-		editor?.type === "create" ? createMutation : updateMutation;
-
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
@@ -172,7 +169,11 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						existingNames={skills.map((skill) =>
 							skill.name.toLocaleLowerCase("en-US"),
 						)}
-						submitError={editorSubmitError(editor, editorMutation.error)}
+						submitError={editorSubmitError(
+							editor,
+							(editor.type === "create" ? createMutation : updateMutation)
+								.error,
+						)}
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
@@ -308,7 +309,6 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 										toast.success("Project skill deleted.");
 									},
 									onError: (error) => {
-										// Someone else deleted it, and the list refetch drops it.
 										if (isAxiosError(error) && error.response?.status === 404) {
 											setSkillToDelete(null);
 										}
@@ -372,15 +372,15 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 	if (loaded?.ok && canEdit && !openedValues) {
 		setOpenedValues(loaded.values);
 	}
-	// Only the detail query learns that someone else deleted the skill.
+	// A detail 404 does not refresh the separate list query, so invalidate it.
 	useEffect(() => {
 		if (!isSkillDeleted) {
 			return;
 		}
 		toast.info(`That ${NOUN} was deleted.`);
-		void queryClient.invalidateQueries({ queryKey: scope.list.queryKey });
+		void queryClient.invalidateQueries({ ...scope.list, exact: true });
 		onBack();
-	}, [isSkillDeleted, onBack, queryClient, scope.list.queryKey]);
+	}, [isSkillDeleted, onBack, queryClient, scope.list]);
 	if (isSkillDeleted) {
 		return null;
 	}
