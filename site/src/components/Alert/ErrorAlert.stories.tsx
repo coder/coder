@@ -106,3 +106,38 @@ export const WithResponseDataInTechnicalDetails: Story = {
 	},
 	play: expandDetails,
 };
+
+export const WithTitle: Story = {
+	args: {
+		title: "We couldn't create this workspace",
+		error: mockApiError({
+			message:
+				'Template "ubuntu-base" has been deprecated, and cannot be used to create a new workspace.',
+			detail:
+				"The ubuntu-base template is deprecated. Its admin says: \u201cUse ubuntu-24 instead. This template will be removed on June 30.\u201d",
+			request: {
+				method: "post",
+				url: "/api/v2/organizations/coder/members/me/workspaces",
+			},
+			status: 400,
+			statusText: "Bad Request",
+			headers: {
+				"x-coder-request-id": "3f9c2a1e-7b4d-4e8a-9c61-2d5f0b8e4a17",
+				date: "Tue, 06 Oct 2026 14:14:00 GMT",
+			},
+		}),
+	},
+	play: expandDetails,
+};
+
+export const WithTitleWithoutDetail: Story = {
+	args: {
+		title: "We couldn't create this workspace",
+		error: mockApiError({
+			message:
+				'Template "ubuntu-base" has been deprecated, and cannot be used to create a new workspace.',
+			...requestErrorFields,
+		}),
+	},
+	play: expandDetails,
+};

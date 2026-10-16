@@ -42,4 +42,51 @@ describe("ErrorAlert", () => {
 			].join("\n"),
 		);
 	});
+
+	it("keeps the API message in the technical details when a title is set", async () => {
+		const user = userEvent.setup();
+		const writeText = vi.spyOn(navigator.clipboard, "writeText");
+		const error = mockApiError({
+			message: "Template has been deprecated.",
+			detail: "Use ubuntu-24 instead.",
+			request: { method: "post", url: "/api/v2/workspaces" },
+			status: 400,
+			statusText: "Bad Request",
+		});
+		renderComponent(
+			<ErrorAlert title="We couldn't create this workspace" error={error} />,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Technical details" }));
+		await user.click(
+			screen.getByRole("button", { name: "Copy technical details" }),
+		);
+
+		expect(writeText).toHaveBeenCalledWith(
+			[
+				"Status: 400 Bad Request",
+				"Request: POST /api/v2/workspaces",
+				"Message: Template has been deprecated.",
+			].join("\n"),
+		);
+	});
+
+	it("leaves the message out of the technical details when it is the description", async () => {
+		const user = userEvent.setup();
+		const writeText = vi.spyOn(navigator.clipboard, "writeText");
+		const error = mockApiError({
+			message: "Template has been deprecated.",
+			request: { method: "post", url: "/api/v2/workspaces" },
+		});
+		renderComponent(
+			<ErrorAlert title="We couldn't create this workspace" error={error} />,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Technical details" }));
+		await user.click(
+			screen.getByRole("button", { name: "Copy technical details" }),
+		);
+
+		expect(writeText).toHaveBeenCalledWith("Request: POST /api/v2/workspaces");
+	});
 });

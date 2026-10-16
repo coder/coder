@@ -12,12 +12,19 @@ import {
 type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children" | "details"> & {
 		error: unknown;
+		/**
+		 * User-facing outcome, for example "We couldn't create this workspace".
+		 * The detail becomes the description, and the raw message moves to the
+		 * technical details unless there is no detail to replace it.
+		 */
+		title?: string;
 		showDebugDetail?: boolean;
 	}
 >;
 
 export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 	error,
+	title,
 	showDebugDetail = true,
 	...alertProps
 }) => {
@@ -29,17 +36,31 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 	// not make sense in the FE to showing them duplicated. However, we should always
 	// display the detail if its a 403 Forbidden response.
 	const shouldDisplayDetail = status === 403 || message !== detail;
+	let description: string | undefined;
+	if (title) {
+		description = detail ?? message;
+	} else if (shouldDisplayDetail) {
+		description = detail;
+	}
+	// A custom title hides the raw message, so keep it in the technical details
+	// unless the description already shows it. The display fallback above is
+	// not a raw message, so it never gets a row.
+	const rawMessage = getErrorMessage(error, "");
+	const detailsMessage =
+		title && description !== message && rawMessage ? rawMessage : undefined;
 
 	return (
 		<Alert
 			severity="error"
 			prominent
-			details={showDebugDetail ? getTechnicalDetails(error) : undefined}
+			details={
+				showDebugDetail ? getTechnicalDetails(error, detailsMessage) : undefined
+			}
 			{...alertProps}
 		>
-			<AlertTitle>{message}</AlertTitle>
+			<AlertTitle>{title || message}</AlertTitle>
 			<AlertDescription>
-				{shouldDisplayDetail && detail}
+				{description}
 				{status === 403 && (
 					// When the error is a Forbidden response we include a link for the user to
 					// go back to a known viewable page.
@@ -72,7 +93,10 @@ const extraResponseData = (data: unknown): string | undefined => {
 		: undefined;
 };
 
-const getTechnicalDetails = (error: unknown): AlertDetail[] => {
+const getTechnicalDetails = (
+	error: unknown,
+	message: string | undefined,
+): AlertDetail[] => {
 	const rows: AlertDetail[] = [];
 
 	if (isAxiosError(error)) {
@@ -95,15 +119,23 @@ const getTechnicalDetails = (error: unknown): AlertDetail[] => {
 				value: `${config.method?.toUpperCase() ?? ""} ${config.url}`.trim(),
 			});
 		}
+		if (message) {
+			rows.push({ label: "Message", value: message });
+		}
 		if (time) {
 			rows.push({ label: "Time", value: time });
 		}
 		if (responseData) {
 			rows.push({ label: "Response", value: responseData });
 		}
-	} else if (error instanceof Error && error.stack) {
+	} else {
+		if (message) {
+			rows.push({ label: "Message", value: message });
+		}
 		// A stack trace only helps when the interface itself failed, not a request.
-		rows.push({ label: "Stack", value: error.stack });
+		if (error instanceof Error && error.stack) {
+			rows.push({ label: "Stack", value: error.stack });
+		}
 	}
 
 	return rows;
