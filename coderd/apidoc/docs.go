@@ -20474,7 +20474,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
                 },
                 "workspace_agent_id": {
                     "type": "string"
@@ -34154,13 +34154,17 @@ const docTemplate = `{
                 "ok",
                 "exit_failure",
                 "timed_out",
-                "pipes_left_open"
+                "pipes_left_open",
+                "skipped",
+                "canceled"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentScriptStatusOK",
                 "WorkspaceAgentScriptStatusExitFailure",
                 "WorkspaceAgentScriptStatusTimedOut",
-                "WorkspaceAgentScriptStatusPipesLeftOpen"
+                "WorkspaceAgentScriptStatusPipesLeftOpen",
+                "WorkspaceAgentScriptStatusSkipped",
+                "WorkspaceAgentScriptStatusCanceled"
             ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {
