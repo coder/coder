@@ -679,6 +679,201 @@ func TestConnectAll_NilPropertiesBecomesEmptyMap(t *testing.T) {
 	assert.Equal(t, "{}", string(bs))
 }
 
+// refSchemaTool defines a tool whose inputSchema carries keys beyond
+// properties and required: $defs with a $ref property, a root
+// description, and additionalProperties.
+func refSchemaTool() testTool {
+	return testTool{
+		tool: &mcp.Tool{
+			Name:        "filtered_search",
+			Description: "Searches with a structured filter",
+			InputSchema: map[string]any{
+				"type":        "object",
+				"description": "A search request",
+				"properties": map[string]any{
+					"filter": map[string]any{"$ref": "#/$defs/Filter"},
+				},
+				"required":             []string{"filter"},
+				"additionalProperties": false,
+				"$defs": map[string]any{
+					"Filter": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"kind": map[string]any{"type": "string"},
+						},
+					},
+				},
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+}
+
+type fullSchemaTool interface {
+	FullInputSchema() map[string]any
+}
+
+// TestConnectAll_FullInputSchema verifies that the complete input
+// schema survives discovery, while Info() keeps carrying only the
+// flattened properties/required pair.
+func TestConnectAll_FullInputSchema(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, refSchemaTool())
+	cfg := makeConfig("srv", ts.URL)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok, "MCP tools should expose their full input schema")
+	schema := full.FullInputSchema()
+	require.NotNil(t, schema)
+	assert.Equal(t, false, schema["additionalProperties"])
+	assert.Equal(t, "A search request", schema["description"])
+	defs, ok := schema["$defs"].(map[string]any)
+	require.True(t, ok, "$defs should survive discovery")
+	assert.Contains(t, defs, "Filter")
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	filter, ok := properties["filter"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "#/$defs/Filter", filter["$ref"])
+
+	// Info() stays flattened: the properties map only, with derived
+	// required names.
+	info := tools[0].Info()
+	assert.Contains(t, info.Parameters, "filter")
+	assert.Len(t, info.Parameters, 1)
+	assert.Equal(t, []string{"filter"}, info.Required)
+}
+
+// TestConnectAll_FullInputSchema_ModelIntentHoistsDefs verifies that
+// the model_intent wrapper hoists $defs to the wrapped root so
+// "#/$defs/..." pointers keep resolving from the document root.
+func TestConnectAll_FullInputSchema_ModelIntentHoistsDefs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, refSchemaTool())
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := full.FullInputSchema()
+	require.NotNil(t, schema)
+
+	assert.Equal(t, []string{"model_intent", "properties"}, schema["required"])
+	defs, ok := schema["$defs"].(map[string]any)
+	require.True(t, ok, "$defs should be hoisted to the wrapped root")
+	assert.Contains(t, defs, "Filter")
+
+	wrapped, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, wrapped, "model_intent")
+	inner, ok := wrapped["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, inner, "$defs")
+	assert.Equal(t, false, inner["additionalProperties"])
+	innerProperties, ok := inner["properties"].(map[string]any)
+	require.True(t, ok)
+	filter, ok := innerProperties["filter"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "#/$defs/Filter", filter["$ref"])
+}
+
+// TestConnectAll_FullInputSchema_ModelIntentRebasesRefs verifies that
+// the model_intent wrapper keeps every local JSON pointer resolvable:
+// draft-07 "definitions" are hoisted like "$defs", and root-relative
+// pointers are rebased onto the nested schema.
+func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refTool := testTool{
+		tool: &mcp.Tool{
+			Name: "tree_search",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"kind":       map[string]any{"type": "string", "enum": []any{"a", "b"}},
+					"other_kind": map[string]any{"$ref": "#/properties/kind"},
+					"child":      map[string]any{"$ref": "#"},
+					"filter":     map[string]any{"$ref": "#/definitions/Filter"},
+					// A property named like a keyword is still a schema.
+					"enum": map[string]any{"$ref": "#/properties/kind"},
+				},
+				"definitions": map[string]any{
+					"Filter": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"kind": map[string]any{"$ref": "#/properties/kind"},
+						},
+					},
+				},
+				// Instance values are not schemas and stay untouched.
+				"default": map[string]any{"$ref": "#/properties/kind"},
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, refTool)
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := full.FullInputSchema()
+
+	rawDefinitions, err := json.Marshal(schema["definitions"])
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"Filter": {
+			"type": "object",
+			"properties": {"kind": {"$ref": "#/properties/properties/properties/kind"}}
+		}
+	}`, string(rawDefinitions))
+
+	wrapped, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	rawInner, err := json.Marshal(wrapped["properties"])
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"kind": {"type": "string", "enum": ["a", "b"]},
+			"other_kind": {"$ref": "#/properties/properties/properties/kind"},
+			"child": {"$ref": "#/properties/properties"},
+			"filter": {"$ref": "#/definitions/Filter"},
+			"enum": {"$ref": "#/properties/properties/properties/kind"}
+		},
+		"default": {"$ref": "#/properties/kind"}
+	}`, string(rawInner))
+
+	// Wrapping copies, so the tool's stored schema is not rewritten.
+	again, err := json.Marshal(full.FullInputSchema())
+	require.NoError(t, err)
+	first, err := json.Marshal(schema)
+	require.NoError(t, err)
+	require.JSONEq(t, string(first), string(again))
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {
