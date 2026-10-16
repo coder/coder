@@ -263,6 +263,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
+				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}

@@ -144,23 +144,25 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"allow_workspace_renames":           ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":                      ActionTrack,
-		"template_id":             ActionTrack,
-		"organization_id":         ActionIgnore, // Never changes.
-		"created_at":              ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":              ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":                    ActionTrack,
-		"message":                 ActionIgnore, // Never changes after creation.
-		"readme":                  ActionTrack,
-		"job_id":                  ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":              ActionTrack,
-		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
-		"created_by_avatar_url":   ActionIgnore,
-		"created_by_username":     ActionIgnore,
-		"created_by_name":         ActionIgnore,
-		"archived":                ActionTrack,
-		"source_example_id":       ActionIgnore, // Never changes.
-		"has_external_agent":      ActionIgnore, // Never changes.
+		"id":                             ActionTrack,
+		"template_id":                    ActionTrack,
+		"organization_id":                ActionIgnore, // Never changes.
+		"created_at":                     ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":                     ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":                           ActionTrack,
+		"message":                        ActionIgnore, // Never changes after creation.
+		"readme":                         ActionTrack,
+		"job_id":                         ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":                     ActionTrack,
+		"external_auth_providers":        ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"created_by_avatar_url":          ActionIgnore,
+		"created_by_username":            ActionIgnore,
+		"created_by_name":                ActionIgnore,
+		"archived":                       ActionTrack,
+		"source_example_id":              ActionIgnore, // Never changes.
+		"has_external_agent":             ActionIgnore, // Never changes.
+		"script_order_data_source_count": ActionIgnore, // Telemetry-only metadata.
+		"script_order_rule_count":        ActionIgnore, // Telemetry-only metadata.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
