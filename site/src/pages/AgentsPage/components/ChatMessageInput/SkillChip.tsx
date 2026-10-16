@@ -12,15 +12,6 @@ type SkillChipProps = {
 	className?: string;
 };
 
-const SkillChipLabel: React.FC<{ alias: string }> = ({ alias }) => (
-	<>
-		<ZapIcon className="ml-0.5 size-3.5 shrink-0 text-content-secondary" />
-		<span className="min-w-0 truncate" title={alias}>
-			{alias}
-		</span>
-	</>
-);
-
 /** A skill attached to the message being composed. */
 export const EditableSkillChip: React.FC<
 	SkillChipProps & { onRemove: () => void }
@@ -31,7 +22,10 @@ export const EditableSkillChip: React.FC<
 			className={cn(fileReferenceChipVariants({ editable: true }), className)}
 			contentEditable={false}
 		>
-			<SkillChipLabel alias={alias} />
+			<ZapIcon className="ml-0.5 size-3.5 shrink-0 text-content-secondary" />
+			<span className="min-w-0 truncate" title={alias}>
+				{alias}
+			</span>
 			<ChipRemoveButton label={`Remove skill ${alias}`} onRemove={onRemove} />
 		</span>
 	);
