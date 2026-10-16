@@ -365,8 +365,8 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "List organization AI model prices",
-                "operationId": "list-organization-ai-model-prices",
+                "summary": "Get organization AI model price",
+                "operationId": "get-organization-ai-model-price",
                 "parameters": [
                     {
                         "type": "string",
@@ -378,36 +378,25 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Only return prices for this provider type",
-                        "name": "provider",
-                        "in": "query"
+                        "format": "uuid",
+                        "description": "Configured provider of the price",
+                        "name": "provider_id",
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Only return prices for this model",
+                        "description": "Model of the price",
                         "name": "model",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "default",
-                            "custom",
-                            "all"
-                        ],
-                        "type": "string",
-                        "description": "Only return prices from this source, or all to return every price that applies",
-                        "name": "source",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.OrganizationAIModelPrice"
-                            }
+                            "$ref": "#/definitions/codersdk.OrganizationAIModelPrice"
                         }
                     }
                 },
@@ -20023,17 +20012,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIModelPriceScope": {
-            "type": "string",
-            "enum": [
-                "organization_provider",
-                "site"
-            ],
-            "x-enum-varnames": [
-                "AIModelPriceScopeOrganizationProvider",
-                "AIModelPriceScopeSite"
-            ]
-        },
         "codersdk.AIModelPriceSource": {
             "type": "string",
             "enum": [
@@ -28561,35 +28539,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "organization_id": {
-                    "description": "OrganizationID is set for the organization's own prices.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "output_price": {
                     "type": "integer"
                 },
-                "provider": {
-                    "description": "Provider is the provider type the price applies to.",
-                    "type": "string"
-                },
                 "provider_id": {
-                    "description": "ProviderID and ProviderName are set for prices for one configured\nprovider.",
                     "type": "string",
                     "format": "uuid"
-                },
-                "provider_name": {
-                    "type": "string"
-                },
-                "scope": {
-                    "$ref": "#/definitions/codersdk.AIModelPriceScope"
-                },
-                "source": {
-                    "description": "Source is custom for the organization's own prices.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIModelPriceSource"
-                        }
-                    ]
                 },
                 "updated_at": {
                     "type": "string",

@@ -1154,20 +1154,6 @@ title: Schemas
 | `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
 | `updated_at`        | string                                                     | false    |              |             |
 
-## codersdk.AIModelPriceScope
-
-```json
-"organization_provider"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                        |
-|---------------------------------|
-| `organization_provider`, `site` |
-
 ## codersdk.AIModelPriceSource
 
 ```json
@@ -12398,32 +12384,24 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "output_price": 0,
-  "provider": "string",
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
-  "provider_name": "string",
-  "scope": "organization_provider",
-  "source": "default",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                       | Required | Restrictions | Description                                                                  |
-|---------------------|------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------|
-| `cache_read_price`  | integer                                                    | false    |              |                                                                              |
-| `cache_write_price` | integer                                                    | false    |              |                                                                              |
-| `created_at`        | string                                                     | false    |              |                                                                              |
-| `input_price`       | integer                                                    | false    |              |                                                                              |
-| `model`             | string                                                     | false    |              |                                                                              |
-| `organization_id`   | string                                                     | false    |              | Organization ID is set for the organization's own prices.                    |
-| `output_price`      | integer                                                    | false    |              |                                                                              |
-| `provider`          | string                                                     | false    |              | Provider is the provider type the price applies to.                          |
-| `provider_id`       | string                                                     | false    |              | Provider ID and ProviderName are set for prices for one configured provider. |
-| `provider_name`     | string                                                     | false    |              |                                                                              |
-| `scope`             | [codersdk.AIModelPriceScope](#codersdkaimodelpricescope)   | false    |              |                                                                              |
-| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              | Source is custom for the organization's own prices.                          |
-| `updated_at`        | string                                                     | false    |              |                                                                              |
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `created_at`        | string  | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `organization_id`   | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider_id`       | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
 
 ## codersdk.OrganizationAISpendReport
 

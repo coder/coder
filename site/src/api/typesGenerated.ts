@@ -383,14 +383,6 @@ export interface AIModelPrice {
 }
 
 // From codersdk/aimodelprices.go
-export type AIModelPriceScope = "organization_provider" | "site";
-
-export const AIModelPriceScopes: AIModelPriceScope[] = [
-	"organization_provider",
-	"site",
-];
-
-// From codersdk/aimodelprices.go
 export type AIModelPriceSource = "custom" | "default";
 
 export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
@@ -7787,35 +7779,17 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aimodelprices.go
 /**
- * OrganizationAIModelPrice is a model price that applies to an organization:
- * one of its own prices or a site-wide price. Prices follow the units of
- * AIModelPrice.
+ * OrganizationAIModelPrice is an organization's price for one model on one
+ * configured provider. Prices follow the units of AIModelPrice.
  */
 export interface OrganizationAIModelPrice {
-	readonly scope: AIModelPriceScope;
-	/**
-	 * OrganizationID is set for the organization's own prices.
-	 */
-	readonly organization_id?: string;
-	/**
-	 * ProviderID and ProviderName are set for prices for one configured
-	 * provider.
-	 */
-	readonly provider_id?: string;
-	readonly provider_name?: string;
-	/**
-	 * Provider is the provider type the price applies to.
-	 */
-	readonly provider: string;
+	readonly organization_id: string;
+	readonly provider_id: string;
 	readonly model: string;
 	readonly input_price: number | null;
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
-	/**
-	 * Source is custom for the organization's own prices.
-	 */
-	readonly source: AIModelPriceSource;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

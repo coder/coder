@@ -1819,39 +1819,18 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	}
 }
 
-func OrganizationAIModelPrices(dbPrices []database.GetOrganizationAIModelPricesRow) []codersdk.OrganizationAIModelPrice {
-	out := make([]codersdk.OrganizationAIModelPrice, 0, len(dbPrices))
-	for _, dbPrice := range dbPrices {
-		out = append(out, OrganizationAIModelPrice(dbPrice))
-	}
-	return out
-}
-
-func OrganizationAIModelPrice(dbPrice database.GetOrganizationAIModelPricesRow) codersdk.OrganizationAIModelPrice {
+func OrganizationAIModelPrice(dbPrice database.AIModelConfig) codersdk.OrganizationAIModelPrice {
 	return codersdk.OrganizationAIModelPrice{
-		Scope:           aiModelPriceScope(dbPrice.ProviderID),
-		OrganizationID:  nullUUIDPtr(dbPrice.OrganizationID),
-		ProviderID:      nullUUIDPtr(dbPrice.ProviderID),
-		ProviderName:    dbPrice.ProviderName.String,
-		Provider:        dbPrice.Provider,
+		OrganizationID:  dbPrice.OrganizationID,
+		ProviderID:      dbPrice.ProviderID,
 		Model:           dbPrice.Model,
 		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
 		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
 		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
 		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
-		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
-}
-
-// aiModelPriceScope reports what a listed price applies to. Only an
-// organization's prices for a configured provider carry a provider ID.
-func aiModelPriceScope(providerID uuid.NullUUID) codersdk.AIModelPriceScope {
-	if providerID.Valid {
-		return codersdk.AIModelPriceScopeOrganizationProvider
-	}
-	return codersdk.AIModelPriceScopeSite
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
