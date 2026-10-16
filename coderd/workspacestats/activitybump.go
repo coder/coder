@@ -21,9 +21,6 @@ const (
 	// ActivityBumpReasonChatHeartbeat indicates the bump was triggered
 	// by an AI chat heartbeat.
 	ActivityBumpReasonChatHeartbeat ActivityBumpReason = "chat_heartbeat"
-	// ActivityBumpReasonAppActivity indicates the bump was triggered
-	// by app or port-forward activity.
-	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
 	// ActivityBumpReasonChatWorkspaceUpload indicates the bump was
 	// triggered by a chat file upload streaming into the workspace.
 	ActivityBumpReasonChatWorkspaceUpload ActivityBumpReason = "chat_workspace_upload"
