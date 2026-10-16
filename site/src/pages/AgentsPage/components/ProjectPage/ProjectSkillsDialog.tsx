@@ -86,7 +86,7 @@ type ProjectSkillsDialogProps = {
 	readonly onCloseAutoFocus: (event: Event) => void;
 };
 
-/** Lists, creates, edits, and deletes the skills of a chat project. */
+/** Manages project skills, read-only without canEdit; onCloseAutoFocus restores focus. */
 export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	project,
 	open,

@@ -4,7 +4,7 @@ import { saveAs } from "file-saver";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { chatProjectSkill } from "#/api/queries/chatProjectSkills";
+import { chatProjectSkillKey } from "#/api/queries/chatProjectSkills";
 import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -234,7 +234,7 @@ describe("ProjectSkillsDialog", () => {
 			defaultOptions: { queries: { retry: false } },
 		});
 		queryClient.setQueryData(
-			chatProjectSkill(orgId, projectId, "reviewer").queryKey,
+			chatProjectSkillKey(projectId, "reviewer"),
 			mockReviewerSkill,
 		);
 		const updateSkill = vi
@@ -276,7 +276,7 @@ describe("ProjectSkillsDialog", () => {
 			defaultOptions: { queries: { retry: false } },
 		});
 		queryClient.setQueryData(
-			chatProjectSkill(orgId, projectId, "reviewer").queryKey,
+			chatProjectSkillKey(projectId, "reviewer"),
 			mockReviewerSkill,
 		);
 		const { user, getSkill, getSkills, onOpenChange } = renderDialog({
@@ -365,7 +365,7 @@ describe("ProjectSkillsDialog", () => {
 		const queryClient = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
-		const detailKey = chatProjectSkill(orgId, projectId, "reviewer").queryKey;
+		const detailKey = chatProjectSkillKey(projectId, "reviewer");
 		queryClient.setQueryData(detailKey, mockReviewerSkill);
 		const notFound = mockApiError({ message: "Skill not found." });
 		vi.spyOn(API.experimental, "deleteChatProjectSkill").mockRejectedValue({
@@ -404,7 +404,7 @@ describe("ProjectSkillsDialog", () => {
 		const queryClient = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
-		const detailKey = chatProjectSkill(orgId, projectId, "reviewer").queryKey;
+		const detailKey = chatProjectSkillKey(projectId, "reviewer");
 		queryClient.setQueryData(detailKey, mockReviewerSkill);
 		const savedSkill = {
 			...mockReviewerSkill,

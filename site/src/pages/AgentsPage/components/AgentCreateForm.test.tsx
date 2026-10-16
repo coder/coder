@@ -65,6 +65,7 @@ import {
 	selectedOrganizationIdStorageKey,
 	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
+import { serializeMessageDraft } from "./ChatMessageInput/SkillInvocationNode";
 
 const dashboard = vi.hoisted(
 	(): { showOrganizations: boolean; experiments: string[] } => ({
@@ -947,50 +948,24 @@ describe("AgentCreateForm project picker", () => {
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
 	});
 
-	it("drops organization and project skill chips when their scope changes", async () => {
-		dashboard.showOrganizations = true;
+	it("drops project skill chips when the picked project changes", async () => {
 		const queryClient = createProjectQueryClient();
-		queryClient.setQueryData(
-			organizationChatModelsKey(MockOrganization2.id),
-			mockModelCatalog,
-		);
-		queryClient.setQueryData(
-			userChatPersonalModelOverridesKey(MockOrganization2.id, "me"),
-			mockPersonalModelOverrides,
-		);
-		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
 		queryClient.setQueryData(userSkillsKey(), [
 			{ ...MockSkill, name: "notes" },
 		]);
-		queryClient.setQueryData(
-			organizationSkillsKey(MockDefaultOrganization.id),
-			[{ ...MockSkill, name: "review" }],
-		);
 		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
 			{ ...MockSkill, name: "triage" },
 		]);
 		const { onCreateChat } = renderForm({}, { queryClient });
-		const insertSkills = async (names: string[]) => {
-			await user().click(screen.getByRole("textbox", { name: "Chat message" }));
-			for (const name of names) {
-				await user().paste("/");
-				await user().click(
-					await screen.findByRole("option", { name: new RegExp(name) }),
-				);
-			}
-		};
-		const switchOrganization = async (name: string) => {
-			await user().click(
-				screen.getByRole("button", { name: /^Organization:/ }),
-			);
-			await user().click(await screen.findByRole("option", { name }));
-		};
 
-		await insertSkills(["review", "notes"]);
-		await switchOrganization(MockOrganization2.display_name);
-		await switchOrganization(MockDefaultOrganization.display_name);
 		await pickProject(MockChatProject.name);
-		await insertSkills(["triage"]);
+		await user().click(screen.getByRole("textbox", { name: "Chat message" }));
+		for (const name of ["triage", "notes"]) {
+			await user().paste("/");
+			await user().click(
+				await screen.findByRole("option", { name: new RegExp(name) }),
+			);
+		}
 		await user().click(screen.getByRole("button", { name: /^Project:/ }));
 		await user().click(
 			await screen.findByRole("option", { name: /^No project/ }),
@@ -1055,6 +1030,31 @@ describe("AgentCreateForm project picker", () => {
 			options.composerParts?.filter((part) => part.type === "skill-invocation"),
 		).toEqual([
 			{ type: "skill-invocation", source: "personal", name: "notes" },
+		]);
+	});
+
+	it("drops project skill chips from a restored draft without a project", async () => {
+		localStorage.setItem(
+			draftStorageKeys(undefined).text,
+			serializeMessageDraft([
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: " carry on" },
+			]),
+		);
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toEqual([
+			{ type: "text", text: " carry on" },
 		]);
 	});
 

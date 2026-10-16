@@ -549,6 +549,24 @@ describe("ChatMessageInput", () => {
 					},
 				]);
 			});
+
+			// A composer payload that cannot be parsed pastes its plain text.
+			const mimeType = "application/x-lexical-editor";
+			const payload = JSON.parse(copied?.getData(mimeType) ?? "{}");
+			copied?.setData(
+				mimeType,
+				JSON.stringify({ ...payload, nodes: [{ type: "unregistered" }] }),
+			);
+			act(() => inputRef.current?.clear());
+			await user.paste(copied);
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{
+						type: "text",
+						text: "Lead/personal/triage /org/release-notes tail",
+					},
+				]),
+			);
 		});
 
 		it("drops pasted skill chips beyond the limit and says why", async () => {

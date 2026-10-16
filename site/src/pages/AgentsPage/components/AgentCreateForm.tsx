@@ -758,14 +758,14 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	// so the editor, which lives outside React state, drops them whenever the
 	// scope changes, including when a refetch revokes the organization or
 	// removes the picked project. Resolving the organization on load keeps a
-	// restored draft's chips.
+	// restored draft's chips, but without a project its project chips go.
 	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
 	useEffect(() => {
 		const last = lastChipScopeRef.current;
 		lastChipScopeRef.current = { organizationId, chatProjectId };
 		if (last.organizationId && last.organizationId !== organizationId) {
 			chatInputRef.current?.removeSkills(["org", "project"]);
-		} else if (last.chatProjectId !== chatProjectId) {
+		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
 			chatInputRef.current?.removeSkills(["project"]);
 		}
 	}, [organizationId, chatProjectId]);
