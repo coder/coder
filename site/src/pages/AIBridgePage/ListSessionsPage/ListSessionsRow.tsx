@@ -88,12 +88,20 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-48 whitespace-nowrap font-normal">
 				<div className="flex items-center justify-between">
-					<span>
-						{formatDateTime(
-							new Date(session.last_active_at),
-							DATE_FORMAT.FULL_DATETIME,
-						)}
-					</span>
+					<div className="flex flex-col">
+						<span>
+							{formatDateTime(
+								new Date(session.last_active_at),
+								DATE_FORMAT.MEDIUM_DATE,
+							)}
+						</span>
+						<span className="text-xs text-content-secondary">
+							{formatDateTime(
+								new Date(session.last_active_at),
+								DATE_FORMAT.TIME_12H,
+							)}
+						</span>
+					</div>
 					<ChevronRightIcon className="ml-4 size-icon-sm" />
 				</div>
 			</TableCell>
