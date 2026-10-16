@@ -29,6 +29,15 @@ const mockSkills: SkillMetadata[] = [
 	updated_at: hoursAgo(index * 5 + 2),
 }));
 
+const mockSkillsAtCapacity: SkillMetadata[] = Array.from(
+	{ length: 100 },
+	(_, index) => ({
+		...mockSkills[0],
+		id: `skill-${index}`,
+		name: `skill-${index}`,
+	}),
+);
+
 const mockReviewerSkill: Skill = {
 	...mockSkills[0],
 	content:
@@ -72,11 +81,7 @@ export const AtCapacity: Story = {
 		queries: [
 			{
 				key: chatProjectSkillsKey(MockChatProject.id),
-				data: Array.from({ length: 100 }, (_, index) => ({
-					...mockSkills[0],
-					id: `skill-${index}`,
-					name: `skill-${index}`,
-				})),
+				data: mockSkillsAtCapacity,
 			},
 		],
 	},
@@ -173,6 +178,37 @@ export const EditLoadError: Story = {
 		await userEvent.click(
 			await screen.findByRole("menuitem", { name: "Edit" }),
 		);
+	},
+};
+
+export const DeleteConfirmation: Story = {
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: /Delete/ }),
+		);
+	},
+};
+
+export const DeleteError: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "deleteChatProjectSkill").mockRejectedValue(
+			mockApiError({ message: "Failed to delete project skill." }),
+		);
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: /Delete/ }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Delete skill" }),
+		);
+		await screen.findByText("Failed to delete project skill.");
 	},
 };
 

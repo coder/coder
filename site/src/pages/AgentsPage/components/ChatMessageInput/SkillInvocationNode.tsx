@@ -151,8 +151,6 @@ export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
 /**
  * Replaces the selection with a skill chip followed by a space. A skill
  * already in the editor is not added again; the selection is only removed.
- * When the editor already holds the maximum number of skills, it warns
- * and changes nothing.
  */
 export function $insertSkillInvocation(
 	selection: RangeSelection,

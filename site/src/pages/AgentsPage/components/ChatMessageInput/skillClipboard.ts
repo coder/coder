@@ -43,11 +43,8 @@ export const getClipboardNodes = (
 };
 
 /**
- * Pastes copied composer nodes at the selection. A skill chip that is
- * already in the editor is dropped, and one the composer cannot invoke
- * becomes its plain-text alias. Chips beyond the per-message limit are
- * dropped with a warning. Returns false, changing nothing, when a node
- * cannot be parsed, so the caller can paste the plain text instead.
+ * Pastes copied composer nodes at the selection. Returns false, changing
+ * nothing, when a node cannot be parsed, so the caller pastes plain text.
  */
 export const $insertClipboardNodes = (
 	selection: RangeSelection,
