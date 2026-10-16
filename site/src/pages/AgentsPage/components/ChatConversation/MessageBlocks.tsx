@@ -376,6 +376,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 								parsedCommands={tool.parsedCommands}
 								startedAt={tool.startedAt}
 								hookRewritten={tool.hookRewritten}
+								providerExecuted={tool.providerExecuted}
+								foundPages={tool.foundPages}
 							/>
 						);
 					}
@@ -444,6 +446,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 					parsedCommands={tool.parsedCommands}
 					startedAt={tool.startedAt}
 					hookRewritten={tool.hookRewritten}
+					providerExecuted={tool.providerExecuted}
+					foundPages={tool.foundPages}
 				/>
 			))}
 		</>

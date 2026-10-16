@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
+import { getVisibleContent } from "./messageHelpers";
+import { isHiddenProviderExecutedPart } from "./messageParsing";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -24,7 +25,7 @@ export type WorkingBlock = {
 	 * at the front when history is prepended into that row.
 	 */
 	memberIds: number[];
-	/** Distinct visible tools plus web searches, not rows. */
+	/** Distinct visible tools plus hidden provider calls, not rows. */
 	stepCount: number;
 	/** The last row's answer renders after the block; only its work folds in. */
 	endsWithAnswer: boolean;
@@ -115,8 +116,8 @@ type MemberRow = {
 };
 
 /**
- * A row ending in an answer joins only when it also did work, even a search
- * without citations, and then closes the block. A live row with no output yet
+ * A row ending in an answer joins only when it also did work, even a hidden
+ * provider call, and then closes the block. A live row with no output yet
  * is the turn working on its next step.
  */
 const getMemberRow = (
@@ -140,7 +141,7 @@ const getMemberRow = (
 		}
 
 		content = getVisibleContent(parsed.blocks, parsed.tools);
-		searched = (message.content ?? []).some(isProviderToolResult);
+		searched = (message.content ?? []).some(isHiddenProviderResult);
 	}
 
 	const { visibleBlocks, visibleTools } = content;
@@ -195,11 +196,18 @@ const getPartTimestamps = (entry: ParsedMessageEntry): string[] =>
 		.filter((timestamp) => timestamp !== undefined);
 
 /**
+ * A provider-executed call that renders no row, so only its result shows
+ * that the step ran. Web searches render rows and count as tools.
+ */
+const isHiddenProviderResult = (part: TypesGen.ChatMessagePart): boolean =>
+	part.type === "tool-result" && isHiddenProviderExecutedPart(part);
+
+/**
  * Results, not calls: a step can end with a provider call unanswered, and the
  * next step issues that call again.
  */
 const countProviderResults = (message: TypesGen.ChatMessage): number =>
-	(message.content ?? []).filter(isProviderToolResult).length;
+	(message.content ?? []).filter(isHiddenProviderResult).length;
 
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
@@ -222,6 +230,7 @@ export const groupWorkingBlocks = (
 		ordinal: number;
 		containsLiveRow: boolean;
 		narrates: boolean;
+		hasProviderTool: boolean;
 	};
 
 	const drafts: Draft[] = [];
@@ -242,7 +251,7 @@ export const groupWorkingBlocks = (
 
 		if (!current) {
 			// Rows that render nothing, like the empty stream before each step or
-			// an uncited search, extend a block but never start one: a turn's
+			// a hidden provider call, extend a block but never start one: a turn's
 			// first moments keep the thinking indicator, and no block is empty.
 			if (!member.showsWork) {
 				continue;
@@ -257,6 +266,7 @@ export const groupWorkingBlocks = (
 				ordinal,
 				containsLiveRow: false,
 				narrates: false,
+				hasProviderTool: false,
 			};
 			ordinal += 1;
 			drafts.push(current);
@@ -268,6 +278,7 @@ export const groupWorkingBlocks = (
 
 		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
+			current.hasProviderTool ||= tool.providerExecuted === true;
 		}
 		current.sourceBlocks += member.content.visibleBlocks.filter(
 			(block) => block.type === "sources",
@@ -311,8 +322,7 @@ export const groupWorkingBlocks = (
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
 		// The span covers hidden tool-result messages up to the next row and,
-		// before the first row, searches that rendered nothing since the
-		// previous row.
+		// before the first row, hidden provider calls since the previous row.
 		const fromId = Math.min(...memberIds);
 		const toId = messageIdAfter(lastRowIndex);
 		const previousRowId = Math.max(
@@ -331,16 +341,19 @@ export const groupWorkingBlocks = (
 		});
 		spanStartId = toId;
 
-		// Until the step persists, one flag stands in for its searches.
+		// Until the step persists, one flag stands in for its hidden calls.
 		const searches = spanEntries.reduce(
 			(count, { message }) => count + countProviderResults(message),
 			draft.containsLiveRow && options.streamState?.providerToolRan ? 1 : 0,
 		);
 
-		// Source blocks count as searches only when no provider result does:
-		// some providers cite without a search, and an interrupt commits a
-		// search's result apart from the answer citing it.
-		const stepCount = draft.toolIds.size + (searches || draft.sourceBlocks);
+		// Source blocks count as searches only when no provider search does,
+		// hidden or shown as a tool: some providers cite without a search, and
+		// an interrupt commits a search's result apart from the answer citing
+		// it.
+		const citedSearches =
+			searches > 0 || draft.hasProviderTool ? 0 : draft.sourceBlocks;
+		const stepCount = draft.toolIds.size + searches + citedSearches;
 
 		// Completed reasoning alone stays visible. The live turn folds from its
 		// first reasoning, so thinking never shows and then vanishes once a tool
