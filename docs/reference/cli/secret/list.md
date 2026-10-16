@@ -46,6 +46,10 @@ Include the secrets of this workspace build. Takes precedence over --workspace.
 
 ### -c, --column
 
+| Property | Value                                                                                                  |
+|----------|--------------------------------------------------------------------------------------------------------|
+| Type     | <code>[created\|name\|updated\|source\|env\|file\|enabled\|replaced by\|ephemeral\|description]</code> |
+| Default  | <code>name,created,updated,env,file,enabled,description</code>                                         |
 
 Columns to display in table output.
 
