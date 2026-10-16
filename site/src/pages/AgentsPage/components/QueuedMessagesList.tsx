@@ -75,7 +75,6 @@ export const getFirstLinePreview = (
 			firstLine.push(part);
 			continue;
 		}
-		// Leading blank lines do not end an empty first line.
 		const text = firstLine.length === 0 ? part.text.trimStart() : part.text;
 		const lineBreakIndex = text.indexOf("\n");
 		const line = lineBreakIndex === -1 ? text : text.slice(0, lineBreakIndex);

@@ -15,6 +15,7 @@ import {
 	isSerializedSkillInvocationNode,
 	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
+	warnSkillLimit,
 } from "./SkillInvocationNode";
 
 /**
@@ -42,14 +43,14 @@ export const getClipboardNodes = (
 /**
  * Pastes copied composer nodes at the selection. A skill chip that is
  * already in the editor is dropped, and one the composer cannot invoke
- * becomes its plain-text alias. Returns false when chips beyond the
- * per-message limit were dropped.
+ * becomes its plain-text alias. Chips beyond the per-message limit are
+ * dropped with a warning.
  */
 export const $insertClipboardNodes = (
 	selection: RangeSelection,
 	serializedNodes: readonly SerializedLexicalNode[],
 	isSkillAvailable: (source: SkillSource, name: string) => boolean,
-): boolean => {
+) => {
 	// Chips the paste replaces must not count as already in the editor.
 	selection.removeText();
 	const pastedAliases = new Set<string>();
@@ -88,7 +89,9 @@ export const $insertClipboardNodes = (
 			.map((node) => $resolveNode($parseSerializedNode(node)))
 			.filter((node) => node !== null),
 	);
-	return isWithinLimit;
+	if (!isWithinLimit) {
+		warnSkillLimit();
+	}
 };
 
 const getSerializedNodeText = (node: SerializedLexicalNode): string => {

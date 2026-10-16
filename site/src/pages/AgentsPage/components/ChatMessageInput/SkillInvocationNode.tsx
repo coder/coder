@@ -16,6 +16,7 @@ import {
 	type Spread,
 } from "lexical";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { SkillSource } from "../../utils/skillAliases";
 import { useFileReferenceSpacing } from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
@@ -124,6 +125,13 @@ const SkillChipWrapper: React.FC<{
 /** chatd rejects a message that invokes more skills than this. */
 export const MAX_SKILL_INVOCATIONS_PER_MESSAGE = 8;
 
+/** Tells the user that a chip was not added because of the skill limit. */
+export const warnSkillLimit = () => {
+	toast.error(
+		`A message can include up to ${MAX_SKILL_INVOCATIONS_PER_MESSAGE} skills.`,
+	);
+};
+
 export const $getSkillInvocationNodes = (): SkillInvocationNode[] =>
 	$getRoot()
 		.getChildren()
@@ -143,30 +151,30 @@ export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
 /**
  * Replaces the selection with a skill chip followed by a space. A skill
  * already in the editor is not added again; the selection is only removed.
- * Returns false, changing nothing, when the editor already holds the
- * maximum number of skills.
+ * When the editor already holds the maximum number of skills, it warns
+ * and changes nothing.
  */
 export function $insertSkillInvocation(
 	selection: RangeSelection,
 	source: SkillSource,
 	name: string,
-): boolean {
+) {
 	if ($hasSkillInvocationNode(source, name)) {
 		selection.removeText();
-		return true;
+		return;
 	}
 	if ($getSkillInvocationNodes().length >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
-		return false;
+		warnSkillLimit();
+		return;
 	}
 	const chip = new SkillInvocationNode(source, name);
 	selection.insertNodes([chip]);
 	const next = chip.getNextSibling();
 	if ($isTextNode(next) && /^\s/.test(next.getTextContent())) {
 		next.select(1, 1);
-		return true;
+		return;
 	}
 	chip.selectNext().insertText(" ");
-	return true;
 }
 
 /**

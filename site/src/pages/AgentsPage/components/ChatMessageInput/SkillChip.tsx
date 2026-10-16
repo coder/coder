@@ -21,7 +21,7 @@ const SkillChipLabel: React.FC<{ alias: string }> = ({ alias }) => (
 	</>
 );
 
-/** A skill invoked by a sent message. */
+/** A display-only skill chip in sent and queued messages. */
 export const SkillChip: React.FC<SkillChipProps> = ({
 	source,
 	name,
