@@ -754,11 +754,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		);
 
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
-	// Organization and project skill chips would be sent with another scope,
-	// so the editor, which lives outside React state, drops them whenever the
-	// scope changes, including when a refetch revokes the organization or
-	// removes the picked project. Resolving the organization on load keeps a
-	// restored draft's chips, but without a project its project chips go.
+	// The editor lives outside React state, so drop chips whose scope changed.
 	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
 	useEffect(() => {
 		const last = lastChipScopeRef.current;
