@@ -257,6 +257,12 @@ export type AttachedWorkspaceInfo = {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
+const pillFocusRingClasses =
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
+
+const pillFocusWithinRingClasses =
+	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
+
 // Pills clamp to the popover width so a long name truncates instead
 // of pushing its X out of view.
 const BadgePopoverContent: React.FC<PopoverContentProps> = ({
@@ -306,10 +312,10 @@ const BadgeDismissButton: React.FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
-		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
+		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary group-focus-visible:bg-surface-tertiary group-focus-visible:text-content-primary">
 			<XIcon className="size-2.5!" />
 		</span>
 	</button>
@@ -340,6 +346,7 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					className={cn(
 						className,
 						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						pillFocusRingClasses,
 					)}
 				>
 					<MCPServerIconStack servers={servers} />
@@ -383,6 +390,7 @@ const ToolBadge: React.FC<{
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		pillFocusWithinRingClasses,
 		className,
 	);
 
@@ -416,7 +424,7 @@ const ToolBadge: React.FC<{
 							to={badge.route}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
+							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline focus-visible:outline-hidden"
 						>
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
@@ -585,6 +593,24 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	// Browsers treat any contenteditable focus as focus-visible, including
+	// autofocus, so only ring focus that arrived via Tab.
+	const lastInputWasTabRef = useRef(false);
+	const [isEditorKeyboardFocused, setIsEditorKeyboardFocused] = useState(false);
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			lastInputWasTabRef.current = event.key === "Tab";
+		};
+		const handlePointerDown = () => {
+			lastInputWasTabRef.current = false;
+		};
+		document.addEventListener("keydown", handleKeyDown, true);
+		document.addEventListener("pointerdown", handlePointerDown, true);
+		return () => {
+			document.removeEventListener("keydown", handleKeyDown, true);
+			document.removeEventListener("pointerdown", handlePointerDown, true);
+		};
+	}, []);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1376,7 +1402,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs",
+					isEditorKeyboardFocused && "ring-2 ring-content-link",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingHistoryMessage || warning) &&
@@ -1384,6 +1411,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					isReadOnlyView && "border border-solid border-border",
 				)}
 				onKeyDown={handleComposerKeyDown}
+				onFocus={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(lastInputWasTabRef.current);
+					}
+				}}
+				onBlur={(event) => {
+					if (
+						event.target instanceof HTMLElement &&
+						event.target.isContentEditable
+					) {
+						setIsEditorKeyboardFocused(false);
+					}
+				}}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
@@ -1765,7 +1808,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className={cn(pillSizingClasses, "md:h-auto")}
+								className={cn(
+									pillSizingClasses,
+									"md:h-auto focus-visible:ring-inset",
+								)}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1776,7 +1822,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
 							<span
 								data-testid="planning-badge"
-								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+								className={cn(
+									"hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex",
+									pillFocusWithinRingClasses,
+								)}
 							>
 								<PencilIcon className="size-3" />
 								Planning
@@ -1845,6 +1894,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										type="button"
 										className={cn(
 											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											pillFocusRingClasses,
 											overflowCount === 0 && "invisible",
 										)}
 										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
