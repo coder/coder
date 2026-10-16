@@ -67,7 +67,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
+							shouldDisplayDiff &&
+								"cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 						)}
 						{...(shouldDisplayDiff && {
 							tabIndex: 0,
