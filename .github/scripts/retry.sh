@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
 # Retry a command with exponential backoff.
 #
-# Usage: retry.sh [--max-attempts N] [--timeout SECONDS] -- <command...>
-#
 # Example:
 #   retry.sh --max-attempts 3 -- go install gotest.tools/gotestsum@latest
 #
 # This will retry the command up to 3 times with exponential backoff
 # (2s, 4s, 8s delays between attempts).
-#
-# With --timeout, an attempt that runs longer than SECONDS is killed and
-# counts as a failed attempt.
 
 set -euo pipefail
 
@@ -46,8 +41,7 @@ if [[ $# -lt 1 ]]; then
 	error "Usage: retry.sh [--max-attempts N] [--timeout SECONDS] -- <command...>"
 fi
 
-# The timer is plain bash so that it does not need GNU timeout, which the
-# macOS runners may not have.
+# Avoid a GNU timeout dependency for macOS runners.
 run_attempt() {
 	if [[ -z "$timeout" ]]; then
 		"$@"
