@@ -75,7 +75,8 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Empty(t, result)
 	})
 
@@ -94,7 +95,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -131,7 +133,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, agent, connFn)
+		result, err := waitForAgentReady(ctx, db, agent, connFn)
+		require.NoError(t, err)
 		require.GreaterOrEqual(t, attempts, 1)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.Equal(t, ExternalAgentUnavailableMessage(agent), result["agent_error"])
@@ -168,7 +171,8 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agent, connFn)
+		result, err := waitForAgentReady(context.Background(), db, agent, connFn)
+		require.NoError(t, err)
 		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
 		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
 		require.NotContains(t, result, "agent_error")
@@ -228,9 +232,44 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
+	})
+
+	t.Run("LifecycleReadError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{}, xerrors.New("db down"))
+
+		_, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.ErrorContains(t, err, "db down")
+	})
+
+	t.Run("LifecycleReadAfterDeadlineReportsTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			DoAndReturn(func(ctx context.Context, _ uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+				return database.GetWorkspaceAgentLifecycleStateByIDRow{}, ctx.Err()
+			})
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+
+		result, err := waitForAgentReady(ctx, db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.NoError(t, err)
+		require.Equal(t, "startup_scripts_timeout", result["startup_scripts"])
 	})
 
 	t.Run("NilAgentConnFn", func(t *testing.T) {
@@ -246,7 +285,8 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		result, err := waitForAgentReady(context.Background(), db, database.WorkspaceAgent{ID: agentID}, nil)
+		require.NoError(t, err)
 		require.Empty(t, result)
 	})
 
@@ -260,7 +300,8 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		result, err := waitForAgentReady(ctx, nil, database.WorkspaceAgent{ID: uuid.New()}, connFn)
+		require.NoError(t, err)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -1078,10 +1119,9 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			wantTTLMs: nil,
 		},
 		{
-			name:      "DBError_FallsBackToNil",
+			name:      "DBError_ReturnsToolError",
 			ttlReturn: "",
 			ttlErr:    xerrors.New("db error"),
-			wantTTLMs: nil,
 		},
 		{
 			name:      "InvalidStoredValue_FallsBackToNil",
@@ -1129,23 +1169,25 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				GetChatWorkspaceTTL(gomock.Any()).
 				Return(tc.ttlReturn, tc.ttlErr)
 
-			db.EXPECT().
-				GetWorkspaceBuildByID(gomock.Any(), buildID).
-				Return(database.WorkspaceBuild{
-					ID:          buildID,
-					WorkspaceID: workspaceID,
-					JobID:       jobID,
-				}, nil)
-			db.EXPECT().
-				GetProvisionerJobByID(gomock.Any(), jobID).
-				Return(database.ProvisionerJob{
-					ID:        jobID,
-					JobStatus: database.ProvisionerJobStatusSucceeded,
-				}, nil)
+			if tc.ttlErr == nil {
+				db.EXPECT().
+					GetWorkspaceBuildByID(gomock.Any(), buildID).
+					Return(database.WorkspaceBuild{
+						ID:          buildID,
+						WorkspaceID: workspaceID,
+						JobID:       jobID,
+					}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{
+						ID:        jobID,
+						JobStatus: database.ProvisionerJobStatusSucceeded,
+					}, nil)
 
-			db.EXPECT().
-				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-				Return([]database.WorkspaceAgent{}, nil)
+				db.EXPECT().
+					GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return([]database.WorkspaceAgent{}, nil)
+			}
 
 			var capturedReq codersdk.CreateWorkspaceRequest
 			createFn := func(_ context.Context, _, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
@@ -1176,6 +1218,11 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Content)
+			if tc.ttlErr != nil {
+				require.True(t, resp.IsError)
+				require.Contains(t, resp.Content, "read chat workspace TTL: db error")
+				return
+			}
 
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
@@ -1867,6 +1914,101 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 	require.Nil(t, check.Result)
 }
 
+func TestCheckExistingWorkspace_DBErrorStopsCreation(t *testing.T) {
+	t.Parallel()
+
+	dbErr := xerrors.New("db down")
+	tests := []struct {
+		name    string
+		setup   func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID)
+		wantErr string
+	}{
+		{
+			name: "Build",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{}, dbErr)
+			},
+			wantErr: "get latest build: db down",
+		},
+		{
+			name: "Job",
+			setup: func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{ID: uuid.New(), JobID: jobID}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{}, dbErr)
+			},
+			wantErr: "get provisioner job: db down",
+		},
+		{
+			name: "Agents",
+			setup: func(db *dbmock.MockStore, workspaceID, jobID uuid.UUID) {
+				db.EXPECT().
+					GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(database.WorkspaceBuild{
+						ID:         uuid.New(),
+						JobID:      jobID,
+						Transition: database.WorkspaceTransitionStart,
+					}, nil)
+				db.EXPECT().
+					GetProvisionerJobByID(gomock.Any(), jobID).
+					Return(database.ProvisionerJob{
+						ID:        jobID,
+						JobStatus: database.ProvisionerJobStatusSucceeded,
+					}, nil)
+				db.EXPECT().
+					GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+					Return(nil, dbErr)
+			},
+			wantErr: "get workspace agents: db down",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			db := newCreateWorkspaceMockStore(ctrl)
+
+			chatID := uuid.New()
+			workspaceID := uuid.New()
+			jobID := uuid.New()
+
+			db.EXPECT().
+				GetChatByID(gomock.Any(), chatID).
+				Return(database.Chat{
+					ID:          chatID,
+					WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+				}, nil)
+			db.EXPECT().
+				GetWorkspaceByID(gomock.Any(), workspaceID).
+				Return(database.Workspace{ID: workspaceID}, nil)
+			tc.setup(db, workspaceID, jobID)
+
+			tool := CreateWorkspace(db, uuid.New(), chatID, CreateWorkspaceOptions{
+				CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+					t.Fatal("CreateFn must not be called when the existing workspace check fails")
+					return codersdk.Workspace{}, database.Chat{}, nil
+				},
+				WorkspaceMu: &sync.Mutex{},
+			})
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "create_workspace",
+				Input: fmt.Sprintf(`{"template_id":%q}`, uuid.New()),
+			})
+			require.NoError(t, err)
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, tc.wantErr)
+		})
+	}
+}
+
 func testCheckExistingWorkspaceOptions(
 	agentConnFn AgentConnFunc,
 ) CreateWorkspaceOptions {
@@ -2117,7 +2259,7 @@ func setupCreateWorkspacePresetTest(t *testing.T) createWorkspacePresetTestSetup
 	// Chat workspace TTL.
 	db.EXPECT().
 		GetChatWorkspaceTTL(gomock.Any()).
-		Return("", sql.ErrNoRows)
+		Return("0s", nil)
 
 	// Check for existing workspace (no existing).
 	db.EXPECT().
