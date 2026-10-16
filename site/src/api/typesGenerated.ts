@@ -7739,6 +7739,23 @@ export interface Organization extends MinimalOrganization {
 	readonly default_org_member_roles: readonly string[];
 }
 
+// From codersdk/aimodelprices.go
+/**
+ * OrganizationAIModelPrice is an organization's price for one model on one
+ * configured provider. Prices follow the units of AIModelPrice.
+ */
+export interface OrganizationAIModelPrice {
+	readonly organization_id: string;
+	readonly provider_id: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
@@ -11373,6 +11390,21 @@ export interface UpsertGroupAIBudgetRequest {
 	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
 	 */
 	readonly spend_limit_micros: number;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * UpsertOrganizationAIModelPriceRequest sets an organization's price for one
+ * model on one configured provider. Every price key must be present. Use null
+ * for a price that is not known.
+ */
+export interface UpsertOrganizationAIModelPriceRequest {
+	readonly provider_id: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
 }
 
 // From codersdk/aibridge.go

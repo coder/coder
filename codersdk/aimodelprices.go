@@ -2,8 +2,11 @@ package codersdk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -116,6 +119,107 @@ func (c *ExperimentalClient) ListAIModelPrices(ctx context.Context, filter AIMod
 // rejected in full if any model fails validation.
 func (c *ExperimentalClient) UpsertAIModelPrices(ctx context.Context, req UpsertAIModelPricesRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/ai/model-prices", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// OrganizationAIModelPrice is an organization's price for one model on one
+// configured provider. Prices follow the units of AIModelPrice.
+type OrganizationAIModelPrice struct {
+	OrganizationID  uuid.UUID `json:"organization_id" format:"uuid"`
+	ProviderID      uuid.UUID `json:"provider_id" format:"uuid"`
+	Model           string    `json:"model"`
+	InputPrice      *int64    `json:"input_price"`
+	OutputPrice     *int64    `json:"output_price"`
+	CacheReadPrice  *int64    `json:"cache_read_price"`
+	CacheWritePrice *int64    `json:"cache_write_price"`
+	CreatedAt       time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+}
+
+// UpsertOrganizationAIModelPriceRequest sets an organization's price for one
+// model on one configured provider. Every price key must be present. Use null
+// for a price that is not known.
+type UpsertOrganizationAIModelPriceRequest struct {
+	ProviderID      uuid.UUID `json:"provider_id" format:"uuid"`
+	Model           string    `json:"model"`
+	InputPrice      *int64    `json:"input_price"`
+	OutputPrice     *int64    `json:"output_price"`
+	CacheReadPrice  *int64    `json:"cache_read_price"`
+	CacheWritePrice *int64    `json:"cache_write_price"`
+}
+
+// OrganizationAIModelPriceKey identifies one of an organization's prices: a
+// configured provider and a model.
+//
+// @typescript-ignore OrganizationAIModelPriceKey
+type OrganizationAIModelPriceKey struct {
+	ProviderID uuid.UUID `json:"provider_id"`
+	Model      string    `json:"model"`
+}
+
+func (k OrganizationAIModelPriceKey) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		query := r.URL.Query()
+		if k.ProviderID != uuid.Nil {
+			query.Set("provider_id", k.ProviderID.String())
+		}
+		query.Set("model", k.Model)
+		r.URL.RawQuery = query.Encode()
+	}
+}
+
+// GetOrganizationAIModelPrice returns the organization's price for one model
+// on one configured provider.
+func (c *ExperimentalClient) GetOrganizationAIModelPrice(ctx context.Context, organization uuid.UUID, key OrganizationAIModelPriceKey) (OrganizationAIModelPrice, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),
+		nil,
+		key.asRequestOption(),
+	)
+	if err != nil {
+		return OrganizationAIModelPrice{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationAIModelPrice{}, ReadBodyAsError(res)
+	}
+
+	var price OrganizationAIModelPrice
+	return price, ReadBodyAsJSON(res, &price)
+}
+
+// UpsertOrganizationAIModelPrice sets the organization's price for one model
+// on one configured provider.
+func (c *ExperimentalClient) UpsertOrganizationAIModelPrice(ctx context.Context, organization uuid.UUID, req UpsertOrganizationAIModelPriceRequest) error {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),
+		req,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// DeleteOrganizationAIModelPrice deletes one of the organization's prices.
+// Site-wide prices cannot be deleted through an organization.
+func (c *ExperimentalClient) DeleteOrganizationAIModelPrice(ctx context.Context, organization uuid.UUID, key OrganizationAIModelPriceKey) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/model-prices", organization.String()),
+		nil,
+		key.asRequestOption(),
+	)
 	if err != nil {
 		return err
 	}
