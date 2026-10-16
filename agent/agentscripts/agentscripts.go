@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 var (
@@ -56,10 +57,17 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+	// Clock drives the periodic "Waiting for dependencies" line for
+	// ordered scripts, so a test can advance it. Script timeouts keep
+	// using the context deadline.
+	Clock quartz.Clock
 }
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 	cronCtx, cronCtxCancel := context.WithCancel(context.Background())
 	return &Runner{
 		Options:       opts,
@@ -211,7 +219,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		return initErr
 	}
 
-	var eg errgroup.Group
+	var scripts []codersdk.WorkspaceAgentScript
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
 			(option == ExecuteStopScripts && script.RunOnStop) ||
@@ -221,16 +229,45 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		if !runScript {
 			continue
 		}
+		scripts = append(scripts, script)
+	}
 
+	if (option == ExecuteStartScripts || option == ExecuteStopScripts) && anyOrdered(scripts) {
+		executor := lifecycleExecutor{
+			clock:           r.Clock,
+			logger:          r.Logger,
+			getScriptLogger: r.GetScriptLogger,
+			run:             r.runTracked,
+		}
+		return executor.execute(ctx, scripts, option)
+	}
+
+	var eg errgroup.Group
+	for _, script := range scripts {
 		eg.Go(func() error {
-			err := r.trackRun(ctx, script, option)
-			if err != nil {
-				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
-			}
-			return nil
+			return r.runTracked(ctx, script, option)
 		})
 	}
 	return eg.Wait()
+}
+
+// runTracked runs one script and wraps its error the same way for both the
+// ordered and the unordered path.
+func (r *Runner) runTracked(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
+	err := r.trackRun(ctx, script, option)
+	if err != nil {
+		return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
+	}
+	return nil
+}
+
+func anyOrdered(scripts []codersdk.WorkspaceAgentScript) bool {
+	for _, script := range scripts {
+		if len(script.Dependencies) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // trackRun wraps "run" with metrics.
