@@ -41,6 +41,8 @@ var bedrockOpenErrorResponse = func() []byte {
 
 var _ Provider = &Bedrock{}
 
+var _ UpstreamHeadersProvider = &Bedrock{}
+
 // Bedrock implements the Provider interface for AWS Bedrock. It serves the
 // native Anthropic Messages route under both the invoke-model and mantle
 // protocols, and the OpenAI-shaped chat-completions and responses routes under
@@ -175,6 +177,7 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
+		UpstreamHeaders:  p.cfg.UpstreamHeaders,
 	}
 	cred, err := p.ResolveCredential(r)
 	if err != nil {
@@ -265,6 +268,7 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 		BaseURL:          p.runtime.Cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
+		UpstreamHeaders:  p.cfg.UpstreamHeaders,
 	}
 }
 
@@ -287,6 +291,14 @@ func (p *Bedrock) ResolveCredential(r *http.Request) (credential.Credential, err
 
 func (p *Bedrock) BaseURL() string {
 	return p.cfg.BaseURL
+}
+
+// UpstreamHeaders returns the admin-configured custom headers sent on every
+// upstream request for this provider. It satisfies UpstreamHeadersProvider,
+// consumed by the passthrough router; intercepted routes read the same
+// configuration from intercept.Config instead.
+func (p *Bedrock) UpstreamHeaders() map[string]string {
+	return p.cfg.UpstreamHeaders
 }
 
 func (*Bedrock) AuthHeader() string {

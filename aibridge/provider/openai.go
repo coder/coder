@@ -42,6 +42,8 @@ type OpenAI struct {
 
 var _ Provider = &OpenAI{}
 
+var _ UpstreamHeadersProvider = &OpenAI{}
+
 func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderOpenAI
@@ -111,6 +113,7 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
+		UpstreamHeaders:  p.cfg.UpstreamHeaders,
 	}
 	cred, err := p.ResolveCredential(r)
 	if err != nil {
@@ -172,6 +175,14 @@ func (p *OpenAI) ResolveCredential(r *http.Request) (credential.Credential, erro
 
 func (p *OpenAI) BaseURL() string {
 	return p.cfg.BaseURL
+}
+
+// UpstreamHeaders returns the admin-configured custom headers sent on every
+// upstream request for this provider. It satisfies UpstreamHeadersProvider,
+// consumed by the passthrough router; intercepted routes read the same
+// configuration from intercept.Config instead.
+func (p *OpenAI) UpstreamHeaders() map[string]string {
+	return p.cfg.UpstreamHeaders
 }
 
 func (*OpenAI) AuthHeader() string {

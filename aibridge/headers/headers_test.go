@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/headers"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // actorID is the authenticated actor in tests. Client and SDK values use
@@ -704,3 +705,87 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 }
 
 func int32Ptr(n int32) *int32 { return &n }
+
+func TestChatIDPlaceholderMatchesSDK(t *testing.T) {
+	t.Parallel()
+	// The placeholder is defined in both codersdk (admin-facing settings)
+	// and headers (gateway hot path) because aibridge does not import
+	// codersdk. This test pins the two definitions together so a rename on
+	// either side fails loudly instead of silently breaking
+	// per-conversation upstream routing.
+	require.Equal(t, codersdk.ChatIDPlaceholder, headers.ChatIDPlaceholder)
+}
+
+func TestApplyUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty configuration leaves headers untouched", func(t *testing.T) {
+		t.Parallel()
+		dst := http.Header{"Authorization": {"Bearer sk-key"}}
+		headers.ApplyUpstreamHeaders(dst, nil, http.Header{"X-Coder-Chat-Id": {"chat-1"}}, "zen")
+		require.Equal(t, http.Header{"Authorization": {"Bearer sk-key"}}, dst)
+	})
+
+	t.Run("literal headers are set", func(t *testing.T) {
+		t.Parallel()
+		dst := http.Header{}
+		headers.ApplyUpstreamHeaders(dst,
+			map[string]string{
+				"x-opencode-session": "session-123",
+				"X-Custom-Two":       "second",
+			},
+			http.Header{}, "zen")
+		assert.Equal(t, "session-123", dst.Get("X-Opencode-Session"))
+		assert.Equal(t, "second", dst.Get("X-Custom-Two"))
+	})
+
+	t.Run("configured headers override forwarded client headers", func(t *testing.T) {
+		t.Parallel()
+		dst := http.Header{"X-Opencode-Session": {"client-value"}}
+		headers.ApplyUpstreamHeaders(dst,
+			map[string]string{"x-opencode-session": "admin-value"},
+			http.Header{}, "zen")
+		assert.Equal(t, "admin-value", dst.Get("X-Opencode-Session"))
+	})
+
+	t.Run("placeholder resolves to the conversation id", func(t *testing.T) {
+		t.Parallel()
+		dst := http.Header{}
+		headers.ApplyUpstreamHeaders(dst,
+			map[string]string{"x-opencode-session": "prefix-" + headers.ChatIDPlaceholder},
+			http.Header{"X-Coder-Chat-Id": {"chat-abc"}}, "zen")
+		assert.Equal(t, "prefix-chat-abc", dst.Get("X-Opencode-Session"))
+	})
+
+	t.Run("placeholder falls back to a stable uuid without a conversation id", func(t *testing.T) {
+		t.Parallel()
+		first := http.Header{}
+		headers.ApplyUpstreamHeaders(first,
+			map[string]string{"x-opencode-session": headers.ChatIDPlaceholder},
+			http.Header{}, "zen")
+		second := http.Header{}
+		headers.ApplyUpstreamHeaders(second,
+			map[string]string{"x-opencode-session": headers.ChatIDPlaceholder},
+			nil, "zen")
+		got := first.Get("X-Opencode-Session")
+		require.NotEmpty(t, got)
+		// The fallback is a UUID so upstreams that validate session shape
+		// accept it, and it is stable across requests and restarts.
+		require.Len(t, got, 36)
+		assert.Equal(t, got, second.Get("X-Opencode-Session"))
+		other := http.Header{}
+		headers.ApplyUpstreamHeaders(other,
+			map[string]string{"x-opencode-session": headers.ChatIDPlaceholder},
+			nil, "other-provider")
+		assert.NotEqual(t, got, other.Get("X-Opencode-Session"), "fallback must differ per provider")
+	})
+
+	t.Run("nil client headers are safe", func(t *testing.T) {
+		t.Parallel()
+		dst := http.Header{}
+		headers.ApplyUpstreamHeaders(dst,
+			map[string]string{"X-A": "b"},
+			nil, "zen")
+		assert.Equal(t, "b", dst.Get("X-A"))
+	})
+}

@@ -27,6 +27,8 @@ import (
 
 var _ Provider = &Anthropic{}
 
+var _ UpstreamHeadersProvider = &Anthropic{}
+
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
 	cfg            config.Anthropic
@@ -170,6 +172,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		BaseURL:          p.BaseURL(),
 		APIDumpDir:       p.cfg.APIDumpDir,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
+		UpstreamHeaders:  p.cfg.UpstreamHeaders,
 	}
 	if p.claudePlatform != nil {
 		cfg.HTTPClient = &http.Client{Transport: p.claudePlatform}
@@ -242,6 +245,14 @@ func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.Round
 		return inner
 	}
 	return &claudePlatformTransport{inner: inner, cfg: cp.cfg, creds: cp.creds, logger: cp.logger}
+}
+
+// UpstreamHeaders returns the admin-configured custom headers sent on every
+// upstream request for this provider. It satisfies UpstreamHeadersProvider,
+// consumed by the passthrough router; intercepted routes read the same
+// configuration from intercept.Config instead.
+func (p *Anthropic) UpstreamHeaders() map[string]string {
+	return p.cfg.UpstreamHeaders
 }
 
 func (*Anthropic) AuthHeader() string {

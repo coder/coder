@@ -576,9 +576,10 @@ export interface AIProviderKeyMutation {
  *
  * On the wire, settings serialize as a JSON object that always carries
  * _type and _version discriminator keys alongside the type-specific
- * fields. The custom (Un)MarshalJSON implementations on this type
- * handle the routing automatically; callers should never marshal the
- * concrete settings struct directly.
+ * fields. Bedrock and Claude Platform for AWS settings may also carry
+ * upstream headers in the same object. The custom (Un)MarshalJSON
+ * implementations on this type handle the routing automatically; callers
+ * should never marshal the concrete settings struct directly.
  *
  * AIProviderTypeBedrock is a distinct provider type for historical reasons.
  * New Anthropic *authentication methods* do not get provider types: they are
@@ -600,6 +601,13 @@ export const AIProviderSettingsTypeBedrock = "bedrock";
  * AIProviderClaudePlatformAWSSettings.
  */
 export const AIProviderSettingsTypeClaudePlatformAWS = "claude_platform_aws";
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * AIProviderSettingsTypeUpstreamHeaders is the _type discriminator value for
+ * AIProviderUpstreamHeadersSettings.
+ */
+export const AIProviderSettingsTypeUpstreamHeaders = "upstream-headers";
 
 // From codersdk/aiproviders.go
 /**
@@ -647,6 +655,32 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openrouter",
 	"vercel",
 ];
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * AIProviderUpstreamHeadersSettings carries per-provider custom headers sent
+ * on every upstream request for that provider. Values are plain strings, not
+ * secrets: they are echoed back in GET and list responses so admins can audit
+ * them, and must never carry credentials (Authorization and X-Api-Key are
+ * rejected by validation because the key pool and BYOK machinery own those).
+ *
+ * A header value may embed ChatIDPlaceholder to get per-conversation
+ * stability; see the constant's doc for the resolution and fallback rules.
+ */
+export interface AIProviderUpstreamHeadersSettings {
+	/**
+	 * Headers maps header name to header value. Names are matched
+	 * case-insensitively per RFC 9110.
+	 */
+	readonly headers?: Record<string, string>;
+}
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * AIProviderUpstreamHeadersSettingsVersion is the current schema version of
+ * AIProviderUpstreamHeadersSettings.
+ */
+export const AIProviderUpstreamHeadersSettingsVersion = 1;
 
 // From codersdk/aibridge.go
 /**
@@ -2826,6 +2860,19 @@ export interface ChatHookNoticePart {
 	readonly type: "hook-notice";
 	readonly text: string;
 }
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * ChatIDPlaceholder is the only template token allowed in an upstream header
+ * value. It resolves per request to the caller's conversation ID (the
+ * X-Coder-Chat-Id header sent by Coder Agents) so upstreams that key routing
+ * off a session header (e.g. OpenCode Zen's x-opencode-session) see a stable
+ * value per conversation. When the conversation ID is not reachable on the
+ * request, the gateway substitutes a deployment-stable UUID derived from the
+ * provider name instead. Literal values without the placeholder are sent
+ * verbatim on every request.
+ */
+export const ChatIDPlaceholder = "{{chat_id}}";
 
 // From codersdk/chats.go
 /**
@@ -6732,6 +6779,20 @@ export const MaxAIModelPricesBytes = 1048576; // 1 MiB
  * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
  */
 export const MaxAIProviderAPIKeys = 5;
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * MaxAIProviderUpstreamHeaderValueLen bounds a single header value so a
+ * misconfigured row cannot bloat every upstream request.
+ */
+export const MaxAIProviderUpstreamHeaderValueLen = 4096;
+
+// From codersdk/aiproviders_upstream_headers.go
+/**
+ * MaxAIProviderUpstreamHeaders bounds the number of custom headers per
+ * provider so a misconfigured row cannot bloat every upstream request.
+ */
+export const MaxAIProviderUpstreamHeaders = 16;
 
 // From codersdk/aibridge.go
 /**
