@@ -437,7 +437,7 @@ func TestChatProjectTemplates(t *testing.T) {
 		{"PresetWithoutDefault", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultPresetID: &firstPreset.ID}, "templates.default_template_id", "Default preset and parameters require a default template."},
 		{"PresetAndParameters", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &firstPreset.ID, DefaultParameters: map[string]string{"region": "eu"}}, "templates.default_preset_id", "Choose a default preset or default parameters, not both."},
 		{"PresetOfOtherTemplate", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultPresetID: &secondPreset.ID}, "templates.default_preset_id", "The default preset must belong to the default template's active version."},
-		{"UnknownParameter", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{first.ID}, DefaultTemplateID: &first.ID, DefaultParameters: map[string]string{"size": "xl"}}, "templates.default_parameters", `Parameter "size" does not exist on the default template's active version.`},
+		{"UnknownClassicParameter", codersdk.ChatProjectTemplates{TemplateIDs: []uuid.UUID{second.ID}, DefaultTemplateID: &second.ID, DefaultParameters: map[string]string{"size": "xl"}}, "templates.default_parameters", `Parameter "size" does not exist on the default template's active version.`},
 	} {
 		_, err := client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &tc.templates})
 		requireChatProjectFieldError(t, err, tc.field, tc.detail)
@@ -455,11 +455,12 @@ func TestChatProjectTemplates(t *testing.T) {
 	require.Equal(t, "templates.default_parameters", sdkErr.Validations[0].Field)
 	require.True(t, strings.HasPrefix(sdkErr.Message, `Parameter "cpu" has an invalid value: `), sdkErr.Message)
 
-	// Dynamic parameter values are left for the build to validate.
+	// Dynamic parameter names and values are left for the build to validate,
+	// since a parameter can exist only for some values of the others.
 	_, err = client.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Templates: &codersdk.ChatProjectTemplates{
 		TemplateIDs:       []uuid.UUID{first.ID},
 		DefaultTemplateID: &first.ID,
-		DefaultParameters: map[string]string{"cpu": "99"},
+		DefaultParameters: map[string]string{"cpu": "99", "gpu_type": "a100"},
 	}})
 	require.NoError(t, err)
 }

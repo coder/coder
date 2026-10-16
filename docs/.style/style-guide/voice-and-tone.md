@@ -52,7 +52,7 @@ Do not use first-person plural for:
 
 **Do**:
 
-> For more information about enterprise licensing, [contact us](https://coder.com/contact/sales).
+> For more information about Premium licensing, [contact us](https://coder.com/contact/sales).
 >
 > Coder Technologies, Inc. publishes a new agent binary in each release.
 >

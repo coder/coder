@@ -117,9 +117,8 @@ You can add only the members and the groups of the organization that owns the mo
 To change a model's access list, open **Model actions** > **Manage permissions** on the **Models** page.
 Refer to [Manage model permissions](../models.md#manage-model-permissions) for the steps.
 
-To change an MCP server's access list, open **Server actions** >
-**Manage permissions** on the **MCP servers** page. Refer to
-[Access control](./mcp-servers.md#access-control) for details.
+To change an MCP server's access list, open **Server actions** > **Manage permissions** on the **MCP servers** page.
+Refer to [Access control](./mcp-servers.md#access-control) for details.
 
 You can also use the API:
 
