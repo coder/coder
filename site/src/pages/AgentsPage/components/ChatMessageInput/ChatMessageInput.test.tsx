@@ -387,6 +387,31 @@ describe("ChatMessageInput", () => {
 				mockSkillPart("personal", "reviewer"),
 			]);
 		});
+
+		it("drops the slash trigger when the skill limit rejects a menu pick", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(
+				getRequestContent(inputRef).filter(
+					(part) => part.type === "skill-invocation",
+				),
+			).toHaveLength(8);
+			expect(inputRef.current?.getValue()).not.toContain("/rev");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
 	});
 
 	describe("insertSkill", () => {
