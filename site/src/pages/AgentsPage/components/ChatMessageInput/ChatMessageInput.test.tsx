@@ -550,7 +550,6 @@ describe("ChatMessageInput", () => {
 				]);
 			});
 
-			// A composer payload that cannot be parsed pastes its plain text.
 			const mimeType = "application/x-lexical-editor";
 			const payload = JSON.parse(copied?.getData(mimeType) ?? "{}");
 			copied?.setData(

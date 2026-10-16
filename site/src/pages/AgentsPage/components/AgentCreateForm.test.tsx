@@ -973,10 +973,11 @@ describe("AgentCreateForm project picker", () => {
 		await submitMessage("scope changed");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		const skillParts = submittedOptions(onCreateChat).composerParts?.filter(
-			(part) => part.type === "skill-invocation",
-		);
-		expect(skillParts).toEqual([
+		expect(
+			submittedOptions(onCreateChat).composerParts?.filter(
+				(part) => part.type === "skill-invocation",
+			),
+		).toEqual([
 			{ type: "skill-invocation", source: "personal", name: "notes" },
 		]);
 	});
