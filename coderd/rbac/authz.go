@@ -90,6 +90,7 @@ const (
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
 	SubjectTypeExternalAuthCoordinator      SubjectType = "external_auth_coordinator"
+	SubjectTypeWorkspaceSecretManager       SubjectType = "workspace_secret_manager"
 )
 
 const (
