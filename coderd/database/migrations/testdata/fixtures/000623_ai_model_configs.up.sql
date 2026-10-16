@@ -1,4 +1,4 @@
-INSERT INTO ai_org_provider_model_prices (
+INSERT INTO ai_model_configs (
     organization_id,
     provider_id,
     model,

@@ -1,1 +1,0 @@
-DROP TABLE ai_org_provider_model_prices;
