@@ -3,16 +3,17 @@ title: Trace workspace connections
 ---
 
 This guide is for Coder deployment administrators and platform teams who investigate dropped or failed workspace connections from `coder ssh`, VS Code, JetBrains Toolbox, and the web terminal.
-It shows how to collect logs from the user's client, the Coder control plane (`coderd`), and the workspace agent, correlate them with a client session ID, and read the fields that explain why a connection ended.
+It shows how to collect logs from the user's client, the Coder control plane (`coderd`), and the workspace agent; correlate them with a client session ID; and read the fields that explain why a connection ended.
 For connection log filters and export formats, refer to [Connection logs](./connection-logs.md).
 To diagnose a connection that is still open, refer to [Networking troubleshooting](../networking/troubleshooting.md).
 
 ## Before you begin
 
 - Run Coder server and workspace agents on version 2.39 or later.
-  Older agents keep working, but they don't record client session IDs, app names, or workspace shutdown reasons.
+  Agents from earlier versions keep working, but they don't record client session IDs, app names, or workspace shutdown reasons.
 - Collect `coderd` logs with a log management tool such as Splunk, Datadog, or Grafana Loki.
-  JSON output is easiest to query; enable it with [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json).
+  JSON output is easiest to query.
+  Turn on JSON output with [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json).
 - The `connection_log` entries in this guide require a [Premium license](https://coder.com/pricing#compare-plans).
   Client and agent logs don't.
 - For VS Code, use the Coder Remote extension version 1.16.1 or later to send session IDs, and version 1.17.0 or later to report the editor name, such as `cursor`.
@@ -77,7 +78,9 @@ Ask the user to run **Coder: Create Support Bundle** from the Command Palette.
 The bundle includes the extension logs and the `coder ssh` logs under `vscode-logs/`.
 For details, refer to [Generate a support bundle](../../support/support-bundle.md#vs-code).
 
-The extension starts `coder ssh` with debug logging and writes its logs to a `log` directory in the extension's global storage, unless `coder.proxyLogDirectory` is set.
+The extension starts `coder ssh` with debug logging.
+It writes the `coder ssh` logs to the directory in the `coder.proxyLogDirectory` VS Code setting.
+If the setting is empty, the extension uses `CODER_SSH_LOG_DIR`, and if that isn't set either, a `log` directory in the extension's global storage.
 In the **Coder** output channel, each line starts with `[session` and the first 8 characters of the session ID.
 The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails or the user collects a support bundle.
 To change the number of entries, set `coder.connectionLogBuffer.size`.
@@ -86,7 +89,7 @@ To change the number of entries, set `coder.connectionLogBuffer.size`.
 
 Toolbox starts `coder ssh`, which writes its logs to the default directory for `coder ssh` unless an SSH log directory is set in the Coder plugin settings.
 For the Toolbox logs, ask the user to select **Collect logs** from the workspace action menu.
-**Collect logs** doesn't include the `coder ssh` log files, so also ask the user for the files from the `coder ssh` log directory.
+**Collect logs** doesn't include the `coder ssh` log files, so also ask the user for the files from the [`coder ssh` log directory](#coder-ssh).
 For details, refer to [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
@@ -102,7 +105,7 @@ Gather `coderd` and agent logs that cover the time of the failure.
 
 `coderd` writes a `connection_log` entry at the info level each time a connection opens or closes, so these entries don't require debug logging.
 For SSH and web terminal connections, the agent reports both events, so each connection produces a `connected` entry and a `disconnected` entry with the same `ConnectionID`.
-The fields that matter most for tracing are:
+The fields that matter most for tracing are in the following table:
 
 | Field                | Description                                                                                                                           |
 |----------------------|---------------------------------------------------------------------------------------------------------------------------------------|
@@ -123,32 +126,36 @@ To turn it on, set [`CODER_LOG_FILTER`](../../reference/cli/server/index.md#-l--
 
 ### Agent logs
 
-The workspace agent writes its log to `/tmp/coder-agent.log` in Linux and macOS workspaces, or to the directory in `CODER_AGENT_LOG_DIR`.
+The workspace agent writes its log to `coder-agent.log` in the directory set by `CODER_AGENT_LOG_DIR`.
+If `CODER_AGENT_LOG_DIR` isn't set, the agent uses the system temporary directory.
+On Linux and macOS, that's `$TMPDIR` if it's set, or `/tmp` otherwise.
+On Windows, it's the user's temporary directory, usually `%TEMP%`.
 In Kubernetes workspaces, the same entries are also in the pod logs.
 To collect the agent log without workspace access, run `coder support bundle <owner>/<workspace>` and open `agent/logs.txt`.
 For details, refer to [Generate a support bundle](../../support/support-bundle.md).
 
 By default, the agent logs at the info level.
 It keeps the 1,000 most recent debug entries in memory and writes them to the log when it loses its connection to `coderd` or before it logs an error.
-To change the number of entries, set `CODER_AGENT_FLIGHT_RECORDER_SIZE` in the agent's environment; `0` turns it off.
+To change the number of entries, set `CODER_AGENT_FLIGHT_RECORDER_SIZE` in the agent's environment.
+A value of `0` turns it off.
 To record every debug entry, set `CODER_VERBOSE=true` in the agent's environment.
 
 Search the agent log for these messages:
 
-| Message                                    | What it records                                                                                                                                       |
-|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `handling ssh session`                     | An SSH session started.                                                                                                                               |
-| `ssh session closed`                       | An SSH session ended. Includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                           |
-| `ssh connection complete`                  | An SSH connection closed. When a workspace stop or delete closed it, also includes `disconnect_reason`, `build_id`, `build_reason`, and `transition`. |
-| `ssh connection failed`                    | An SSH connection failed before a session started.                                                                                                    |
-| `accepted conn`, `reconnecting pty closed` | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                           |
-| `disconnected from coderd`                 | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                              |
+| Message                                    | What it records                                                                                                                                             |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `handling ssh session`                     | An SSH session started.                                                                                                                                     |
+| `ssh session closed`                       | An SSH session ended. Coder includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                           |
+| `ssh connection complete`                  | An SSH connection closed. When a workspace stop or delete closed it, Coder also includes `disconnect_reason`, `build_id`, `build_reason`, and `transition`. |
+| `ssh connection failed`                    | An SSH connection failed before a session started.                                                                                                          |
+| `accepted conn`, `reconnecting pty closed` | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                                 |
+| `disconnected from coderd`                 | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                                    |
 
 ## Correlate a session
 
 With a session ID and the logs, rebuild the timeline of the session:
 
-1. Search the `coderd` logs for `connection_log` entries whose `ClientSessionID` matches the session ID.
+1. Search the `coderd` logs for `connection_log` entries where the `ClientSessionID` matches the session ID.
 
    For example, with JSON logs in a file:
 
@@ -165,7 +172,7 @@ With a session ID and the logs, rebuild the timeline of the session:
 1. Search the agent log for the session ID:
 
    ```sh
-   grep '<session-id>' /tmp/coder-agent.log
+   grep '<session-id>' <agent-log-dir>/coder-agent.log
    ```
 
    The matching lines show each SSH or web terminal session the client opened and the reason it closed.
@@ -173,7 +180,7 @@ With a session ID and the logs, rebuild the timeline of the session:
 1. Line up the client log with the server-side entries by time.
    The last client entries before a disconnect usually show the error the client hit.
 
-If the client log has the session ID but there are no `connection_log` entries for it, either the connection didn't reach the agent or the agent is older than version 2.39.
+If the client log has the session ID but there are no `connection_log` entries for it, either the connection didn't reach the agent or the agent version is earlier than 2.39.
 Check the `coderd` logs for the session ID, and filter the connection log with `method:tunnel` for the same workspace and time to find denied tunnel requests.
 
 If you start without a session ID, filter the connection log by `workspace_owner`, `workspace_id`, and time, then take `ClientSessionID` from the matching service log entries.
