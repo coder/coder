@@ -288,15 +288,16 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
  * it, so a downloaded manual-only skill keeps that setting when re-imported.
  */
 export const withDisabledModelInvocation = (content: string): string => {
-	const frontmatterEnd = content.indexOf("\n---", 3);
-	if (!content.startsWith("---\n") || frontmatterEnd === -1) {
+	const opening = /^---(\r?\n)/.exec(content);
+	const frontmatterEnd = content.search(/\r?\n---/);
+	if (!opening || frontmatterEnd < 3) {
 		return content;
 	}
-	const frontmatter = content.slice(0, frontmatterEnd);
-	if (/^disable-model-invocation:/m.test(frontmatter)) {
+	if (/^disable-model-invocation:/m.test(content.slice(0, frontmatterEnd))) {
 		return content;
 	}
-	return `---\ndisable-model-invocation: true\n${content.slice(4)}`;
+	const newline = opening[1];
+	return `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
 };
 
 export const getSkillContentSizeBytes = (content: string): number =>

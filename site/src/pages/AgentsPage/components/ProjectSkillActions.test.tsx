@@ -59,10 +59,14 @@ describe("ProjectSkillActions", () => {
 		await user.click(await screen.findByRole("button", { name: "deploy" }));
 		await user.click(screen.getByRole("button", { name: "lint" }));
 		await user.click(screen.getByRole("button", { name: "release" }));
-		await user.click(screen.getByRole("button", { name: "More" }));
+		await user.click(
+			screen.getByRole("button", { name: "More project actions" }),
+		);
 		await user.click(await screen.findByRole("menuitem", { name: "review" }));
 		await waitFor(() => expect(onInvoke).toHaveBeenLastCalledWith("review"));
-		await user.click(screen.getByRole("button", { name: "More" }));
+		await user.click(
+			screen.getByRole("button", { name: "More project actions" }),
+		);
 		await user.click(await screen.findByRole("menuitem", { name: "triage" }));
 
 		await waitFor(() =>

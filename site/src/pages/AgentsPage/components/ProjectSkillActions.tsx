@@ -67,7 +67,11 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 			{menuActions.length > 0 && (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button size="sm" variant="outline">
+						<Button
+							size="sm"
+							variant="outline"
+							aria-label="More project actions"
+						>
 							More
 							<ChevronDownIcon aria-hidden="true" />
 						</Button>

@@ -11,6 +11,7 @@ import {
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
 	tryParseSkillMarkdown,
+	withDisabledModelInvocation,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -353,4 +354,18 @@ describe("getSkillContentSizeBytes", () => {
 	it("exposes the backend size limit", () => {
 		expect(SKILL_MAX_SIZE_BYTES).toBe(65_536);
 	});
+});
+
+describe("withDisabledModelInvocation", () => {
+	it.each([
+		["LF", "---\nname: triage\n---\nTriage issues.\n"],
+		["CRLF", "---\r\nname: triage\r\n---\r\nTriage issues.\r\n"],
+	])(
+		"marks %s frontmatter so re-importing keeps the skill manual",
+		(_, content) => {
+			expect(
+				parseSkillMarkdown(withDisabledModelInvocation(content)).modelInvocable,
+			).toBe(false);
+		},
+	);
 });

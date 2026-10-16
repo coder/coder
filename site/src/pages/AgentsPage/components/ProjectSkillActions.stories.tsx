@@ -82,7 +82,9 @@ export const FiveActionsMoreOpen: Story = {
 		],
 	},
 	play: async () => {
-		await userEvent.click(await screen.findByRole("button", { name: "More" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "More project actions" }),
+		);
 	},
 };
 

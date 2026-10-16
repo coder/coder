@@ -174,7 +174,9 @@ describe("ChatPageInput", () => {
 
 		renderChatPageInput(createChatStore(), { chat: mockRootChat, inputRef });
 
-		await user.click(await screen.findByRole("button", { name: "More" }));
+		await user.click(
+			await screen.findByRole("button", { name: "More project actions" }),
+		);
 		await user.click(await screen.findByRole("menuitem", { name: "triage" }));
 
 		await waitFor(() =>
