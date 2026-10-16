@@ -1,0 +1,1 @@
+DROP INDEX idx_connection_logs_client_session_id_connect_time;

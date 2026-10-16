@@ -15511,7 +15511,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
-    client_session_id
+    client_session_id, connect_time_source
 )
 SELECT
     u.id,
@@ -15532,7 +15532,8 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    u.connect_time_source
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -15552,20 +15553,28 @@ FROM (
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time,
-        unnest($18::text[]) AS client_session_id
+        unnest($18::text[]) AS client_session_id,
+        unnest($19::connection_log_connect_time_source[]) AS connect_time_source
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
-    -- Pick the earliest real connect_time. The zero sentinel
-    -- ('0001-01-01') means the batch didn't know the connect_time
-    -- (e.g. a pure disconnect event), so we keep the existing value.
-    connect_time = CASE
-        WHEN EXCLUDED.connect_time = '0001-01-01 00:00:00Z'::timestamptz
-        THEN connection_logs.connect_time
-        WHEN connection_logs.connect_time = '0001-01-01 00:00:00Z'::timestamptz
-        THEN EXCLUDED.connect_time
-        ELSE LEAST(connection_logs.connect_time, EXCLUDED.connect_time)
-    END,
+    -- A reported connect takes precedence over a disconnect-time placeholder.
+    -- '0001-01-01' means no usable timestamp.
+    (connect_time, connect_time_source) = (
+        SELECT candidate.connect_time, candidate.connect_time_source
+        FROM (VALUES
+            (false, connection_logs.connect_time, connection_logs.connect_time_source),
+            (true, EXCLUDED.connect_time, EXCLUDED.connect_time_source)
+        ) AS candidate(incoming, connect_time, connect_time_source)
+        WHERE candidate.incoming = CASE
+            WHEN EXCLUDED.connect_time = '0001-01-01 00:00:00Z'::timestamptz THEN false
+            WHEN connection_logs.connect_time = '0001-01-01 00:00:00Z'::timestamptz THEN true
+            WHEN EXCLUDED.connect_time_source != 'connect' THEN false
+            WHEN connection_logs.connect_time_source = 'connect'
+                THEN EXCLUDED.connect_time < connection_logs.connect_time
+            ELSE true
+        END
+    ),
     disconnect_time = CASE
         WHEN connection_logs.disconnect_time IS NULL
         THEN EXCLUDED.disconnect_time
@@ -15584,24 +15593,25 @@ DO UPDATE SET
 `
 
 type BatchUpsertConnectionLogsParams struct {
-	ID               []uuid.UUID           `db:"id" json:"id"`
-	ConnectTime      []time.Time           `db:"connect_time" json:"connect_time"`
-	OrganizationID   []uuid.UUID           `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID []uuid.UUID           `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      []uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    []string              `db:"workspace_name" json:"workspace_name"`
-	AgentName        []string              `db:"agent_name" json:"agent_name"`
-	ConnectionMethod []ConnectionLogMethod `db:"connection_method" json:"connection_method"`
-	Code             []int32               `db:"code" json:"code"`
-	CodeValid        []bool                `db:"code_valid" json:"code_valid"`
-	Ip               []pqtype.Inet         `db:"ip" json:"ip"`
-	UserAgent        []string              `db:"user_agent" json:"user_agent"`
-	UserID           []uuid.UUID           `db:"user_id" json:"user_id"`
-	AppNameOrPort    []string              `db:"app_name_or_port" json:"app_name_or_port"`
-	ConnectionID     []uuid.UUID           `db:"connection_id" json:"connection_id"`
-	DisconnectReason []string              `db:"disconnect_reason" json:"disconnect_reason"`
-	DisconnectTime   []time.Time           `db:"disconnect_time" json:"disconnect_time"`
-	ClientSessionID  []string              `db:"client_session_id" json:"client_session_id"`
+	ID                []uuid.UUID                      `db:"id" json:"id"`
+	ConnectTime       []time.Time                      `db:"connect_time" json:"connect_time"`
+	OrganizationID    []uuid.UUID                      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID  []uuid.UUID                      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID       []uuid.UUID                      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName     []string                         `db:"workspace_name" json:"workspace_name"`
+	AgentName         []string                         `db:"agent_name" json:"agent_name"`
+	ConnectionMethod  []ConnectionLogMethod            `db:"connection_method" json:"connection_method"`
+	Code              []int32                          `db:"code" json:"code"`
+	CodeValid         []bool                           `db:"code_valid" json:"code_valid"`
+	Ip                []pqtype.Inet                    `db:"ip" json:"ip"`
+	UserAgent         []string                         `db:"user_agent" json:"user_agent"`
+	UserID            []uuid.UUID                      `db:"user_id" json:"user_id"`
+	AppNameOrPort     []string                         `db:"app_name_or_port" json:"app_name_or_port"`
+	ConnectionID      []uuid.UUID                      `db:"connection_id" json:"connection_id"`
+	DisconnectReason  []string                         `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime    []time.Time                      `db:"disconnect_time" json:"disconnect_time"`
+	ClientSessionID   []string                         `db:"client_session_id" json:"client_session_id"`
+	ConnectTimeSource []ConnectionLogConnectTimeSource `db:"connect_time_source" json:"connect_time_source"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -15624,6 +15634,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
 		pq.Array(arg.ClientSessionID),
+		pq.Array(arg.ConnectTimeSource),
 	)
 	return err
 }
@@ -15735,11 +15746,16 @@ SELECT COUNT(*) AS count FROM (
 				connection_logs.connection_id = $14
 			ELSE true
 		END
-		-- Filter by whether the session has a disconnect_time
 		AND CASE
 			WHEN $15 :: text != '' THEN
-				(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-				($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+				connection_logs.client_session_id = $15
+			ELSE true
+		END
+		-- Filter by whether the session has a disconnect_time
+		AND CASE
+			WHEN $16 :: text != '' THEN
+				(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+				($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
 				connection_method IN ('ssh', 'reconnecting_pty')
@@ -15749,7 +15765,7 @@ SELECT COUNT(*) AS count FROM (
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
 	-- NOTE: See the CountAuditLogs LIMIT note.
-	LIMIT NULLIF($16::int, 0) + 1
+	LIMIT NULLIF($17::int, 0) + 1
 ) AS limited_count
 `
 
@@ -15768,6 +15784,7 @@ type CountConnectionLogsParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
@@ -15788,6 +15805,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.CountCap,
 	)
@@ -15824,7 +15842,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id, connection_logs.connect_time_source,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -15948,11 +15966,16 @@ WHERE
 			connection_logs.connection_id = $14
 		ELSE true
 	END
-	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN $15 :: text != '' THEN
-			(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-			($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			connection_logs.client_session_id = $15
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $16 :: text != '' THEN
+			(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+			($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
 			connection_method IN ('ssh', 'reconnecting_pty')
@@ -15967,9 +15990,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($17 :: int, 0), 100)
+	COALESCE(NULLIF($18 :: int, 0), 100)
 OFFSET
-	$16
+	$17
 `
 
 type GetConnectionLogsOffsetParams struct {
@@ -15987,6 +16010,7 @@ type GetConnectionLogsOffsetParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
@@ -16028,6 +16052,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -16057,6 +16082,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.ConnectTimeSource,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

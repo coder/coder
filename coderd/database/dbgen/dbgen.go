@@ -529,30 +529,33 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
+	source := database.ConnectionLogConnectTimeSourceConnect
 	var disconnectTime sql.NullTime
 	if arg.ConnectionStatus == database.ConnectionStatusDisconnected {
+		source = database.ConnectionLogConnectTimeSourceDisconnect
 		disconnectTime = sql.NullTime{Time: arg.Time, Valid: true}
 	}
 
 	err := db.BatchUpsertConnectionLogs(genCtx, database.BatchUpsertConnectionLogsParams{
-		ID:               []uuid.UUID{arg.ID},
-		ConnectTime:      []time.Time{arg.Time},
-		OrganizationID:   []uuid.UUID{arg.OrganizationID},
-		WorkspaceOwnerID: []uuid.UUID{arg.WorkspaceOwnerID},
-		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
-		WorkspaceName:    []string{arg.WorkspaceName},
-		AgentName:        []string{arg.AgentName},
-		ConnectionMethod: []database.ConnectionLogMethod{arg.ConnectionMethod},
-		Code:             []int32{arg.Code.Int32},
-		CodeValid:        []bool{arg.Code.Valid},
-		Ip:               []pqtype.Inet{arg.IP},
-		UserAgent:        []string{arg.UserAgent.String},
-		UserID:           []uuid.UUID{arg.UserID.UUID},
-		AppNameOrPort:    []string{arg.AppNameOrPort.String},
-		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
-		DisconnectReason: []string{arg.DisconnectReason.String},
-		DisconnectTime:   []time.Time{disconnectTime.Time},
-		ClientSessionID:  []string{arg.ClientSessionID.String},
+		ID:                []uuid.UUID{arg.ID},
+		ConnectTime:       []time.Time{arg.Time},
+		OrganizationID:    []uuid.UUID{arg.OrganizationID},
+		WorkspaceOwnerID:  []uuid.UUID{arg.WorkspaceOwnerID},
+		WorkspaceID:       []uuid.UUID{arg.WorkspaceID},
+		WorkspaceName:     []string{arg.WorkspaceName},
+		AgentName:         []string{arg.AgentName},
+		ConnectionMethod:  []database.ConnectionLogMethod{arg.ConnectionMethod},
+		Code:              []int32{arg.Code.Int32},
+		CodeValid:         []bool{arg.Code.Valid},
+		Ip:                []pqtype.Inet{arg.IP},
+		UserAgent:         []string{arg.UserAgent.String},
+		UserID:            []uuid.UUID{arg.UserID.UUID},
+		AppNameOrPort:     []string{arg.AppNameOrPort.String},
+		ConnectionID:      []uuid.UUID{arg.ConnectionID.UUID},
+		DisconnectReason:  []string{arg.DisconnectReason.String},
+		DisconnectTime:    []time.Time{disconnectTime.Time},
+		ClientSessionID:   []string{arg.ClientSessionID.String},
+		ConnectTimeSource: []database.ConnectionLogConnectTimeSource{source},
 	})
 	require.NoError(t, err, "insert connection log")
 

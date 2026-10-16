@@ -411,6 +411,12 @@ CREATE TYPE chat_title_source AS ENUM (
 
 COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
+CREATE TYPE connection_log_connect_time_source AS ENUM (
+    'unknown',
+    'connect',
+    'disconnect'
+);
+
 CREATE TYPE connection_log_method AS ENUM (
     'ssh',
     'reconnecting_pty',
@@ -2587,6 +2593,7 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    connect_time_source connection_log_connect_time_source DEFAULT 'unknown'::connection_log_connect_time_source NOT NULL,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2607,6 +2614,8 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.connect_time_source IS 'Source of connect_time: unknown when provenance is unavailable, connect for an observed connect event, disconnect for a standalone disconnect placeholder.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -5139,6 +5148,8 @@ COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over
 CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((parent_chat_id IS NULL)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
+
+CREATE INDEX idx_connection_logs_client_session_id_connect_time ON connection_logs USING btree (client_session_id, connect_time DESC) WHERE (client_session_id IS NOT NULL);
 
 CREATE INDEX idx_connection_logs_connect_time_desc ON connection_logs USING btree (connect_time DESC);
 

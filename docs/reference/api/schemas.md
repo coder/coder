@@ -5882,9 +5882,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "name": "string"
   },
   "ssh_info": {
+    "client_session_id": "string",
     "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
     "disconnect_reason": "string",
     "disconnect_time": "2019-08-24T14:15:22Z",
+    "duration_seconds": 0,
+    "duration_status": "recorded",
     "exit_code": 0
   },
   "type": "string",
@@ -5945,6 +5948,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                                                                          |
 | `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                                                                          |
 
+## codersdk.ConnectionLogDurationStatus
+
+```json
+"recorded"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                |
+|-------------------------------------------------------------------------|
+| `invalid`, `missing_connect`, `no_disconnect`, `recorded`, `unverified` |
+
 ## codersdk.ConnectionLogMethod
 
 ```json
@@ -5979,9 +5996,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
+        "duration_seconds": 0,
+        "duration_status": "recorded",
         "exit_code": 0
       },
       "type": "string",
@@ -6038,21 +6058,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "client_session_id": "string",
   "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
   "disconnect_reason": "string",
   "disconnect_time": "2019-08-24T14:15:22Z",
+  "duration_seconds": 0,
+  "duration_status": "recorded",
   "exit_code": 0
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                                                                           |
-|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `connection_id`     | string  | false    |              |                                                                                                                                       |
-| `disconnect_reason` | string  | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
-| `disconnect_time`   | string  | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
-| `exit_code`         | integer | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen. |
+| Name                | Type                                                                         | Required | Restrictions | Description                                                                                                                                                                                    |
+|---------------------|------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_session_id` | string                                                                       | false    |              | Client session ID is an optional client-supplied correlation label, not a unique IDE-instance identifier. Related rows may overlap or have gaps.                                               |
+| `connection_id`     | string                                                                       | false    |              |                                                                                                                                                                                                |
+| `disconnect_reason` | string                                                                       | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                                                                          |
+| `disconnect_time`   | string                                                                       | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                                                                            |
+| `duration_seconds`  | number                                                                       | false    |              | Duration seconds is the stored connect-to-disconnect interval, including unverified intervals labeled by DurationStatus. It is omitted when an endpoint is missing or the interval is invalid. |
+| `duration_status`   | [codersdk.ConnectionLogDurationStatus](#codersdkconnectionlogdurationstatus) | false    |              |                                                                                                                                                                                                |
+| `exit_code`         | integer                                                                      | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen.                                                          |
 
 ## codersdk.ConnectionLogWebInfo
 

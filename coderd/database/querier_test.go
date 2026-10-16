@@ -4495,13 +4495,20 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	for orgID := range orgConnectionLogs {
 		orgIDs = append(orgIDs, orgID)
 	}
+	const sessionID = "0123456789abcdef0123456789abcdef"
+	sessionLogIDs := []uuid.UUID{orgConnectionLogs[orgA.Org.ID][0], orgConnectionLogs[orgB.Org.ID][0]}
 	for orgID, ids := range orgConnectionLogs {
 		for _, id := range ids {
+			var clientSessionID sql.NullString
+			if slices.Contains(sessionLogIDs, id) {
+				clientSessionID = sql.NullString{String: sessionID, Valid: true}
+			}
 			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDB, database.UpsertConnectionLogParams{
 				WorkspaceID:      wsID,
 				WorkspaceOwnerID: user.ID,
 				ID:               id,
 				OrganizationID:   orgID,
+				ClientSessionID:  clientSessionID,
 			}))
 		}
 	}
@@ -4587,6 +4594,29 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
 		count, err := authDB.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+
+	t.Run("SingleOrgAuditorClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, orgA.Org.ID)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		logs, err := authDB.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{
+			ClientSessionID: sessionID,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []uuid.UUID{orgConnectionLogs[orgA.Org.ID][0]}, connectionOnlyIDs(logs))
+		count, err := authDB.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{
+			ClientSessionID: sessionID,
+		})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -4733,6 +4763,10 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	})
 
 	now := dbtime.Now()
+	const (
+		sessionA = "0123456789abcdef0123456789abcdef"
+		sessionB = "fedcba9876543210fedcba9876543210"
+	)
 	log1ConnID := uuid.New()
 	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 		Time:             now.Add(-4 * time.Hour),
@@ -4759,6 +4793,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Mark log2 as disconnected
@@ -4784,6 +4819,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionB, Valid: true},
 	})
 
 	// Mark log3 as disconnected
@@ -4808,6 +4844,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Tunnel events are point-in-time (no disconnect event is ever
@@ -5003,6 +5040,13 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log1.ID},
 		},
 		{
+			name: "ClientSessionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ClientSessionID: sessionA,
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
 			name: "StatusOngoing",
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
@@ -5047,6 +5091,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 				ConnectedBefore:     tc.params.ConnectedBefore,
 				WorkspaceID:         tc.params.WorkspaceID,
 				ConnectionID:        tc.params.ConnectionID,
+				ClientSessionID:     tc.params.ClientSessionID,
 				Status:              tc.params.Status,
 				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
 				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,
@@ -5097,12 +5142,59 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 	// connect/disconnect time provided".
 	zeroTime := time.Time{}
 
-	defaultIP := pqtype.Inet{
-		IPNet: net.IPNet{
-			IP:   net.IPv4(127, 0, 0, 1),
-			Mask: net.IPv4Mask(255, 255, 255, 255),
-		},
-		Valid: true,
+	connectParams := func(ws database.WorkspaceTable, at time.Time, connIDs ...uuid.UUID) database.BatchUpsertConnectionLogsParams {
+		ip := pqtype.Inet{
+			IPNet: net.IPNet{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 255, 255)},
+			Valid: true,
+		}
+		var p database.BatchUpsertConnectionLogsParams
+		for _, connID := range connIDs {
+			p.ID = append(p.ID, uuid.New())
+			p.ConnectTime = append(p.ConnectTime, at)
+			p.OrganizationID = append(p.OrganizationID, ws.OrganizationID)
+			p.WorkspaceOwnerID = append(p.WorkspaceOwnerID, ws.OwnerID)
+			p.WorkspaceID = append(p.WorkspaceID, ws.ID)
+			p.WorkspaceName = append(p.WorkspaceName, ws.Name)
+			p.AgentName = append(p.AgentName, "agent")
+			p.ConnectionMethod = append(p.ConnectionMethod, database.ConnectionLogMethodSSH)
+			p.Code = append(p.Code, 0)
+			p.CodeValid = append(p.CodeValid, false)
+			p.Ip = append(p.Ip, ip)
+			p.UserAgent = append(p.UserAgent, "")
+			p.UserID = append(p.UserID, uuid.Nil)
+			p.AppNameOrPort = append(p.AppNameOrPort, "")
+			p.ConnectionID = append(p.ConnectionID, connID)
+			p.DisconnectReason = append(p.DisconnectReason, "")
+			p.DisconnectTime = append(p.DisconnectTime, zeroTime)
+			p.ClientSessionID = append(p.ClientSessionID, "")
+			p.ConnectTimeSource = append(p.ConnectTimeSource, database.ConnectionLogConnectTimeSourceConnect)
+		}
+		return p
+	}
+	// The disconnect time is a placeholder until a connect event arrives.
+	disconnectParams := func(ws database.WorkspaceTable, at time.Time, connID uuid.UUID) database.BatchUpsertConnectionLogsParams {
+		p := connectParams(ws, at, connID)
+		p.CodeValid[0] = true
+		p.DisconnectReason[0] = "bye"
+		p.DisconnectTime[0] = at
+		p.ConnectTimeSource[0] = database.ConnectionLogConnectTimeSourceDisconnect
+		return p
+	}
+	listRows := func(t *testing.T, ctx context.Context, db database.Store) []database.ConnectionLog {
+		t.Helper()
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		logs := make([]database.ConnectionLog, 0, len(rows))
+		for _, row := range rows {
+			logs = append(logs, row.ConnectionLog)
+		}
+		return logs
+	}
+	onlyRow := func(t *testing.T, ctx context.Context, db database.Store) database.ConnectionLog {
+		t.Helper()
+		rows := listRows(t, ctx, db)
+		require.Len(t, rows, 1)
+		return rows[0]
 	}
 
 	t.Run("SingleConnect", func(t *testing.T) {
@@ -5110,224 +5202,15 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
-		connID := uuid.New()
 		connectTime := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{connectTime},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
+		err := db.BatchUpsertConnectionLogs(ctx, connectParams(ws, connectTime, uuid.New()))
 		require.NoError(t, err)
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, connectTime.Equal(rows[0].ConnectionLog.ConnectTime))
-		require.False(t, rows[0].ConnectionLog.DisconnectTime.Valid,
-			"disconnect_time should be NULL for a connect-only event")
-	})
-
-	t.Run("ConnectThenDisconnect", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		connectTime := dbtime.Now()
-
-		// Insert connect.
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{connectTime},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		// Insert disconnect for same connection.
-		disconnectTime := connectTime.Add(time.Second)
-		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{zeroTime},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{1},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"test disconnect"},
-			DisconnectTime:   []time.Time{disconnectTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		row := rows[0].ConnectionLog
+		row := onlyRow(t, ctx, db)
 		require.True(t, connectTime.Equal(row.ConnectTime))
-		require.True(t, row.DisconnectTime.Valid)
-		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
-		require.Equal(t, "test disconnect", row.DisconnectReason.String)
-		require.Equal(t, int32(1), row.Code.Int32)
-	})
-
-	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		connectTime := dbtime.Now()
-
-		mkParams := func(ct time.Time, ip pqtype.Inet) database.BatchUpsertConnectionLogsParams {
-			return database.BatchUpsertConnectionLogsParams{
-				ID:               []uuid.UUID{uuid.New()},
-				ConnectTime:      []time.Time{ct},
-				OrganizationID:   []uuid.UUID{ws.OrganizationID},
-				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-				WorkspaceID:      []uuid.UUID{ws.ID},
-				WorkspaceName:    []string{ws.Name},
-				AgentName:        []string{"agent"},
-				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-				Code:             []int32{0},
-				CodeValid:        []bool{false},
-				Ip:               []pqtype.Inet{ip},
-				UserAgent:        []string{""},
-				UserID:           []uuid.UUID{uuid.Nil},
-				AppNameOrPort:    []string{""},
-				ConnectionID:     []uuid.UUID{connID},
-				DisconnectReason: []string{""},
-				DisconnectTime:   []time.Time{zeroTime},
-				ClientSessionID:  []string{""},
-			}
-		}
-
-		err := db.BatchUpsertConnectionLogs(ctx, mkParams(connectTime, defaultIP))
-		require.NoError(t, err)
-
-		rows1, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows1, 1)
-
-		// Second connect with later time and different IP.
-		otherIP := pqtype.Inet{
-			IPNet: net.IPNet{
-				IP:   net.IPv4(10, 0, 0, 1),
-				Mask: net.IPv4Mask(255, 255, 255, 255),
-			},
-			Valid: true,
-		}
-		err = db.BatchUpsertConnectionLogs(ctx, mkParams(connectTime.Add(time.Second), otherIP))
-		require.NoError(t, err)
-
-		rows2, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows2, 1)
-
-		// The LEAST logic should pick the earlier connect_time; IP and
-		// other fields are not updated on conflict.
-		require.True(t, connectTime.Equal(rows2[0].ConnectionLog.ConnectTime),
-			"connect_time should remain the original (earlier) value")
-	})
-
-	t.Run("OrderIndependentConnectTime", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		disconnectTime := dbtime.Now()
-		connectTime := disconnectTime.Add(-5 * time.Second)
-
-		// Disconnect arrives first.
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{disconnectTime},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"bye"},
-			DisconnectTime:   []time.Time{disconnectTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		// Connect arrives second with the real (earlier) connect_time.
-		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{connectTime},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, connectTime.Equal(rows[0].ConnectionLog.ConnectTime),
-			"LEAST should pick the earlier connect_time")
+		require.False(t, row.DisconnectTime.Valid,
+			"disconnect_time should be NULL for a connect-only event")
 	})
 
 	t.Run("DisconnectFieldsAreWriteOnce", func(t *testing.T) {
@@ -5336,42 +5219,27 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
 		connID := uuid.New()
-		disconnectTime := dbtime.Now()
+		connectTime := dbtime.Now()
+		disconnectTime := connectTime.Add(time.Second)
 
-		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
-			return database.BatchUpsertConnectionLogsParams{
-				ID:               []uuid.UUID{uuid.New()},
-				ConnectTime:      []time.Time{disconnectTime},
-				OrganizationID:   []uuid.UUID{ws.OrganizationID},
-				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-				WorkspaceID:      []uuid.UUID{ws.ID},
-				WorkspaceName:    []string{ws.Name},
-				AgentName:        []string{"agent"},
-				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-				Code:             []int32{code},
-				CodeValid:        []bool{true},
-				Ip:               []pqtype.Inet{defaultIP},
-				UserAgent:        []string{""},
-				UserID:           []uuid.UUID{uuid.Nil},
-				AppNameOrPort:    []string{""},
-				ConnectionID:     []uuid.UUID{connID},
-				DisconnectReason: []string{reason},
-				DisconnectTime:   []time.Time{disconnectTime},
-				ClientSessionID:  []string{""},
-			}
+		err := db.BatchUpsertConnectionLogs(ctx, connectParams(ws, connectTime, connID))
+		require.NoError(t, err)
+		for i, d := range []struct {
+			reason string
+			code   int32
+		}{{"first reason", 1}, {"second reason", 2}} {
+			p := disconnectParams(ws, disconnectTime.Add(time.Duration(i)*time.Second), connID)
+			p.DisconnectReason[0] = d.reason
+			p.Code[0] = d.code
+			err = db.BatchUpsertConnectionLogs(ctx, p)
+			require.NoError(t, err)
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
-		require.NoError(t, err)
-
-		// Second disconnect with different reason and code.
-		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		row := rows[0].ConnectionLog
+		row := onlyRow(t, ctx, db)
+		require.True(t, connectTime.Equal(row.ConnectTime))
+		require.True(t, row.DisconnectTime.Valid)
+		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time),
+			"disconnect_time should not be overwritten")
 		require.Equal(t, "first reason", row.DisconnectReason.String,
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
@@ -5418,44 +5286,6 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
 		require.Equal(t, "bye", row.DisconnectReason.String)
 	})
-	t.Run("NullConnectionIDEvents", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		now := dbtime.Now()
-
-		// Insert two web events with NULL connection_id (uuid.Nil →
-		// NULL via NULLIF) for the same workspace/agent.
-		for i := range 2 {
-			err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-				ID:               []uuid.UUID{uuid.New()},
-				ConnectTime:      []time.Time{now.Add(time.Duration(i) * time.Second)},
-				OrganizationID:   []uuid.UUID{ws.OrganizationID},
-				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-				WorkspaceID:      []uuid.UUID{ws.ID},
-				WorkspaceName:    []string{ws.Name},
-				AgentName:        []string{"agent"},
-				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
-				Code:             []int32{200},
-				CodeValid:        []bool{true},
-				Ip:               []pqtype.Inet{defaultIP},
-				UserAgent:        []string{"Mozilla/5.0"},
-				UserID:           []uuid.UUID{uuid.Nil},
-				AppNameOrPort:    []string{"web-terminal"},
-				ConnectionID:     []uuid.UUID{uuid.Nil},
-				DisconnectReason: []string{""},
-				DisconnectTime:   []time.Time{zeroTime},
-				ClientSessionID:  []string{""},
-			})
-			require.NoError(t, err)
-		}
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 2,
-			"NULL connection_id rows should not conflict with each other")
-	})
 
 	t.Run("InvalidClientSessionID", func(t *testing.T) {
 		t.Parallel()
@@ -5463,26 +5293,9 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{dbtime.Now()},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{42},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{uuid.New()},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{"invalid"},
-		})
+		p := connectParams(ws, dbtime.Now(), uuid.New())
+		p.ClientSessionID[0] = "invalid"
+		err := db.BatchUpsertConnectionLogs(ctx, p)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "violates check constraint")
 	})
@@ -5492,36 +5305,15 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"normal"},
-			DisconnectTime:   []time.Time{now},
-			ClientSessionID:  []string{""},
-		})
+		p := disconnectParams(ws, dbtime.Now(), uuid.New())
+		p.Code[0] = 0
+		err := db.BatchUpsertConnectionLogs(ctx, p)
 		require.NoError(t, err)
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
-		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
+		row := onlyRow(t, ctx, db)
+		require.True(t, row.Code.Valid, "code should be non-NULL")
+		require.Equal(t, int32(0), row.Code.Int32,
 			"code=0 should be preserved, not treated as NULL")
 	})
 
@@ -5530,35 +5322,14 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{99},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
+		p := connectParams(ws, dbtime.Now(), uuid.New())
+		p.Code[0] = 99
+		p.CodeValid[0] = false
+		err := db.BatchUpsertConnectionLogs(ctx, p)
 		require.NoError(t, err)
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.False(t, rows[0].ConnectionLog.Code.Valid,
+		require.False(t, onlyRow(t, ctx, db).Code.Valid,
 			"code should be NULL when code_valid is false")
 	})
 
@@ -5572,32 +5343,14 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		// Insert two web events with NULL connection_id (uuid.Nil →
 		// NULL via NULLIF) for the same workspace/agent.
 		for i := range 2 {
-			err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-				ID:               []uuid.UUID{uuid.New()},
-				ConnectTime:      []time.Time{now.Add(time.Duration(i) * time.Second)},
-				OrganizationID:   []uuid.UUID{ws.OrganizationID},
-				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-				WorkspaceID:      []uuid.UUID{ws.ID},
-				WorkspaceName:    []string{ws.Name},
-				AgentName:        []string{"agent"},
-				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
-				Code:             []int32{200},
-				CodeValid:        []bool{true},
-				Ip:               []pqtype.Inet{defaultIP},
-				UserAgent:        []string{"Mozilla/5.0"},
-				UserID:           []uuid.UUID{uuid.Nil},
-				AppNameOrPort:    []string{"web-terminal"},
-				ConnectionID:     []uuid.UUID{uuid.Nil},
-				DisconnectReason: []string{""},
-				DisconnectTime:   []time.Time{zeroTime},
-				ClientSessionID:  []string{""},
-			})
+			p := connectParams(ws, now.Add(time.Duration(i)*time.Second), uuid.Nil)
+			p.ConnectionMethod[0] = database.ConnectionLogMethodWorkspaceApp
+			p.AppNameOrPort[0] = "web-terminal"
+			err := db.BatchUpsertConnectionLogs(ctx, p)
 			require.NoError(t, err)
 		}
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 2,
+		require.Len(t, listRows(t, ctx, db), 2,
 			"NULL connection_id rows should not conflict with each other")
 	})
 
@@ -5608,72 +5361,148 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		now := dbtime.Now()
 
-		n := 5
-		ids := make([]uuid.UUID, n)
-		connectTimes := make([]time.Time, n)
-		orgIDs := make([]uuid.UUID, n)
-		ownerIDs := make([]uuid.UUID, n)
-		wsIDs := make([]uuid.UUID, n)
-		wsNames := make([]string, n)
-		agentNames := make([]string, n)
-		methods := make([]database.ConnectionLogMethod, n)
-		codes := make([]int32, n)
-		codeValids := make([]bool, n)
-		ips := make([]pqtype.Inet, n)
-		userAgents := make([]string, n)
-		userIDs := make([]uuid.UUID, n)
-		slugOrPorts := make([]string, n)
+		const n = 5
 		connIDs := make([]uuid.UUID, n)
-		disconnectReasons := make([]string, n)
-		disconnectTimes := make([]time.Time, n)
-		clientSessionIDs := make([]string, n)
-
-		for i := range n {
-			ids[i] = uuid.New()
-			connectTimes[i] = now.Add(time.Duration(i) * time.Second)
-			orgIDs[i] = ws.OrganizationID
-			ownerIDs[i] = ws.OwnerID
-			wsIDs[i] = ws.ID
-			wsNames[i] = ws.Name
-			agentNames[i] = "agent"
-			methods[i] = database.ConnectionLogMethodSSH
-			codes[i] = 0
-			codeValids[i] = false
-			ips[i] = defaultIP
-			userAgents[i] = ""
-			userIDs[i] = uuid.Nil
-			slugOrPorts[i] = ""
+		for i := range connIDs {
 			connIDs[i] = uuid.New()
-			disconnectReasons[i] = ""
-			disconnectTimes[i] = zeroTime
-			clientSessionIDs[i] = ""
+		}
+		p := connectParams(ws, now, connIDs...)
+		for i := range p.ConnectTime {
+			p.ConnectTime[i] = now.Add(time.Duration(i) * time.Second)
+		}
+		err := db.BatchUpsertConnectionLogs(ctx, p)
+		require.NoError(t, err)
+
+		require.Len(t, listRows(t, ctx, db), n, "each unique connection_id should produce its own row")
+	})
+
+	t.Run("ConnectTimeProvenance", func(t *testing.T) {
+		t.Parallel()
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		ws := createWorkspace(t, db)
+		base := dbtime.Now()
+
+		type report struct {
+			at     time.Duration
+			source database.ConnectionLogConnectTimeSource
+			// unknownTime sends the zero connect_time sentinel instead of at.
+			unknownTime bool
+		}
+		connectAt := func(at time.Duration) report {
+			return report{at: at, source: database.ConnectionLogConnectTimeSourceConnect}
+		}
+		disconnectAt := func(at time.Duration) report {
+			return report{at: at, source: database.ConnectionLogConnectTimeSourceDisconnect}
+		}
+		// Historical reports omit the source column to test its default and must
+		// come first because the insert has no conflict handling.
+		historicalAt := func(at time.Duration) report {
+			return report{at: at, source: database.ConnectionLogConnectTimeSourceUnknown}
+		}
+		connectWithoutTime := report{source: database.ConnectionLogConnectTimeSourceConnect, unknownTime: true}
+
+		tests := []struct {
+			name       string
+			reports    []report
+			wantStart  time.Time
+			wantSource database.ConnectionLogConnectTimeSource
+		}{
+			{
+				name:       "OrphanDisconnectIsPlaceholder",
+				reports:    []report{disconnectAt(10 * time.Second)},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceDisconnect,
+			},
+			{
+				name:       "DuplicateOrphanDisconnectKeepsStart",
+				reports:    []report{disconnectAt(10 * time.Second), disconnectAt(0)},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceDisconnect,
+			},
+			{
+				name:       "EarlierConnectReplacesPlaceholder",
+				reports:    []report{disconnectAt(5 * time.Second), connectAt(0)},
+				wantStart:  base,
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "LateConnectReplacesLaterPlaceholder",
+				reports:    []report{disconnectAt(0), connectAt(5 * time.Second)},
+				wantStart:  base.Add(5 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "DisconnectNeverMovesObservedStart",
+				reports:    []report{connectAt(10 * time.Second), disconnectAt(0)},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "EarliestObservedConnectWins",
+				reports:    []report{connectAt(10 * time.Second), connectAt(0), connectAt(20 * time.Second)},
+				wantStart:  base,
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "HistoricalStartKeptOnDisconnect",
+				reports:    []report{historicalAt(10 * time.Second), disconnectAt(0)},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceUnknown,
+			},
+			{
+				name:       "ObservedConnectReplacesHistoricalStart",
+				reports:    []report{historicalAt(0), connectAt(10 * time.Second)},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "UnknownIncomingTimeKeepsStart",
+				reports:    []report{connectAt(10 * time.Second), connectWithoutTime},
+				wantStart:  base.Add(10 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceConnect,
+			},
+			{
+				name:       "UnknownStoredTimeIsReplaced",
+				reports:    []report{connectWithoutTime, disconnectAt(5 * time.Second)},
+				wantStart:  base.Add(5 * time.Second),
+				wantSource: database.ConnectionLogConnectTimeSourceDisconnect,
+			},
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               ids,
-			ConnectTime:      connectTimes,
-			OrganizationID:   orgIDs,
-			WorkspaceOwnerID: ownerIDs,
-			WorkspaceID:      wsIDs,
-			WorkspaceName:    wsNames,
-			AgentName:        agentNames,
-			ConnectionMethod: methods,
-			Code:             codes,
-			CodeValid:        codeValids,
-			Ip:               ips,
-			UserAgent:        userAgents,
-			UserID:           userIDs,
-			AppNameOrPort:    slugOrPorts,
-			ConnectionID:     connIDs,
-			DisconnectReason: disconnectReasons,
-			DisconnectTime:   disconnectTimes,
-			ClientSessionID:  clientSessionIDs,
-		})
-		require.NoError(t, err)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				connID := uuid.New()
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, n, "each unique connection_id should produce its own row")
+				for _, r := range tc.reports {
+					at := base.Add(r.at)
+					if r.unknownTime {
+						at = zeroTime
+					}
+					switch r.source {
+					case database.ConnectionLogConnectTimeSourceUnknown:
+						_, err := sqlDB.ExecContext(ctx, `INSERT INTO connection_logs (
+							id, connect_time, organization_id, workspace_owner_id, workspace_id,
+							workspace_name, agent_name, connection_method, connection_id
+						) VALUES ($1, $2, $3, $4, $5, $6, 'agent', 'ssh', $7)`,
+							uuid.New(), at, ws.OrganizationID, ws.OwnerID, ws.ID, ws.Name, connID)
+						require.NoError(t, err)
+					case database.ConnectionLogConnectTimeSourceDisconnect:
+						require.NoError(t, db.BatchUpsertConnectionLogs(ctx, disconnectParams(ws, at, connID)))
+					default:
+						require.NoError(t, db.BatchUpsertConnectionLogs(ctx, connectParams(ws, at, connID)))
+					}
+				}
+
+				rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{ConnectionID: connID})
+				require.NoError(t, err)
+				require.Len(t, rows, 1)
+				row := rows[0].ConnectionLog
+				require.True(t, tc.wantStart.Equal(row.ConnectTime), "connect_time: want %s, got %s", tc.wantStart, row.ConnectTime)
+				require.Equal(t, tc.wantSource, row.ConnectTimeSource)
+			})
+		}
 	})
 }
 

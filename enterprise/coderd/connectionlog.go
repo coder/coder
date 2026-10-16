@@ -98,6 +98,24 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 	return clogs
 }
 
+func connectionLogDuration(log database.ConnectionLog) (*float64, codersdk.ConnectionLogDurationStatus) {
+	if !log.DisconnectTime.Valid {
+		return nil, codersdk.ConnectionLogDurationNoDisconnect
+	}
+	if log.ConnectTimeSource == database.ConnectionLogConnectTimeSourceDisconnect {
+		return nil, codersdk.ConnectionLogDurationMissingConnect
+	}
+	start, end := log.ConnectTime, log.DisconnectTime.Time
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return nil, codersdk.ConnectionLogDurationInvalid
+	}
+	seconds := float64(end.Unix()-start.Unix()) + float64(end.Nanosecond()-start.Nanosecond())/1e9
+	if log.ConnectTimeSource == database.ConnectionLogConnectTimeSourceConnect {
+		return &seconds, codersdk.ConnectionLogDurationRecorded
+	}
+	return &seconds, codersdk.ConnectionLogDurationUnverified
+}
+
 func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.ConnectionLog {
 	var ip *netip.Addr
 	if dblog.ConnectionLog.Ip.Valid {
@@ -139,9 +157,13 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if appName != "" {
 			appDisplayName = codersdk.AppDisplayName(appName)
 		}
+		seconds, status := connectionLogDuration(dblog.ConnectionLog)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
+			ClientSessionID:  dblog.ConnectionLog.ClientSessionID.String,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
+			DurationSeconds:  seconds,
+			DurationStatus:   status,
 		}
 		if dblog.ConnectionLog.DisconnectTime.Valid {
 			sshInfo.DisconnectTime = &dblog.ConnectionLog.DisconnectTime.Time

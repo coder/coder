@@ -30,6 +30,14 @@ Agent-reported events do not identify the Coder user who connected. To
 attribute SSH and IDE activity to a user, correlate them with tunnel
 events for the same workspace and agent.
 
+Clients such as `coder ssh` can supply a client session ID.
+Use it to correlate connections, not as a unique IDE identifier or a measure of an IDE's lifetime.
+Connections sharing an ID can overlap or have gaps.
+
+Open the details of an entry with a client session ID.
+Select **View related connections** to replace the current filters with that entry's `workspace_id` and `client_session_id`.
+Results and counts refer to individual connections, not groups.
+
 ## Tunnel Connections
 
 The connection log records the authorization decision for each request to add a tunnel to a workspace agent.
@@ -75,9 +83,14 @@ You can filter connection logs by the following parameters:
    Uses the RFC3339Nano format.
 - `workspace_id`: The ID of the workspace being connected to.
 - `connection_id`: The ID of the connection.
+- `client_session_id`: Exact match for a recorded client session ID.
+  Coder accepts 32 hexadecimal characters and lowercases them before matching.
+  Entries without a client session ID don't match.
+  For upgrade limits, refer to [Upgrades in high availability deployments](#upgrades-in-high-availability-deployments).
 - `status`: The status of the connection, either `ongoing` or `completed`.
   Only SSH and reconnecting PTY connections have a status.
   A connection is `completed` after Coder receives its disconnect event, and `ongoing` until then.
+  `ongoing` doesn't confirm an active connection, and `completed` doesn't guarantee a duration.
   Workspace app, port forwarding, and tunnel events never match a `status` filter.
 
 ### Replace the type filter
@@ -112,6 +125,11 @@ Each connection log in the response describes the connection with these fields:
   The client reports this name, so treat it as a label rather than a verified identity.
   The response omits this field when the app isn't known, and for workspace app, port forwarding, and tunnel connections.
 - `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
+- `ssh_info.client_session_id`: The optional client session ID for SSH or reconnecting PTY connections.
+  Omitted when the client didn't supply an ID.
+- `ssh_info.duration_seconds`: Seconds between stored connect and disconnect times, including `0`.
+  Included only when `ssh_info.duration_status` is `recorded` or `unverified`.
+- `ssh_info.duration_status`: How Coder determined the duration, as listed in [Duration status values](#duration-status-values).
 - `type`: Deprecated.
   Use `connection_method` and `app_name` instead.
   It will be removed in a future release.
@@ -127,6 +145,32 @@ If you read `type`, map its values to the new fields as follows:
 | `workspace_app`, `port_forwarding`, `tunnel` | Same as `type`      | Omitted                                                       |
 
 The `type` field keeps the same values, but the API schema describes it as a string rather than an enum.
+
+#### Duration status values
+
+Durations use stored timestamps for SSH and reconnecting PTY connections.
+They aren't running timers and don't measure active work or an IDE's lifetime.
+Workspace app, port forwarding, and tunnel events have no `ssh_info` or duration.
+
+| `duration_status` | Meaning                                      | Connection Log page                         |
+|-------------------|----------------------------------------------|---------------------------------------------|
+| `recorded`        | Both connect and disconnect events recorded  | The duration                                |
+| `unverified`      | Stored start not verified as a connect event | Duration with an **(unverified)** qualifier |
+| `no_disconnect`   | Disconnect not recorded                      | **No disconnect recorded**                  |
+| `missing_connect` | Disconnect recorded without a connect        | **No connect recorded**                     |
+| `invalid`         | Unknown or reversed timestamps               | **Duration unavailable**                    |
+
+`no_disconnect` matches `status:ongoing`.
+All other duration statuses match `status:completed`.
+
+#### Upgrades in high availability deployments
+
+During a rolling upgrade, [high availability](../networking/high-availability.md) replicas can run different Coder versions:
+
+- Older replicas omit `ssh_info.duration_seconds`, `ssh_info.duration_status`, and `ssh_info.client_session_id`, and reject `client_session_id` filters.
+  All replicas support these fields and filters after the upgrade.
+- Don't rely on duration labels for entries written by mixed versions, including `recorded` entries.
+  Completing the upgrade doesn't correct those timestamps or verify the recorded events.
 
 ### Service Logs
 

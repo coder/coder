@@ -707,6 +707,7 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -736,6 +737,7 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.ConnectTimeSource,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -794,6 +796,7 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.CountCap,
 	)

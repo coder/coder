@@ -3165,7 +3165,7 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
-export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockConnectedSSHConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3187,10 +3187,12 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: undefined,
 		disconnect_time: undefined,
 		exit_code: undefined,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
+		duration_status: "no_disconnect",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
-export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockDisconnectedSSHConnectionLog = {
 	id: "893e75e0-1518-4ac8-9629-35923a39533a",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3212,8 +3214,11 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: "server shut down",
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
+		duration_seconds: 240,
+		duration_status: "recorded",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,

@@ -124,6 +124,11 @@ WHERE
 			connection_logs.connection_id = @connection_id
 		ELSE true
 	END
+	AND CASE
+		WHEN @client_session_id :: text != '' THEN
+			connection_logs.client_session_id = @client_session_id
+		ELSE true
+	END
 	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN @status :: text != '' THEN
@@ -254,6 +259,11 @@ SELECT COUNT(*) AS count FROM (
 				connection_logs.connection_id = @connection_id
 			ELSE true
 		END
+		AND CASE
+			WHEN @client_session_id :: text != '' THEN
+				connection_logs.client_session_id = @client_session_id
+			ELSE true
+		END
 		-- Filter by whether the session has a disconnect_time
 		AND CASE
 			WHEN @status :: text != '' THEN
@@ -288,7 +298,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
-    client_session_id
+    client_session_id, connect_time_source
 )
 SELECT
     u.id,
@@ -309,7 +319,8 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    u.connect_time_source
 FROM (
     SELECT
         unnest(sqlc.arg('id')::uuid[]) AS id,
@@ -329,20 +340,28 @@ FROM (
         unnest(sqlc.arg('connection_id')::uuid[]) AS connection_id,
         unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
         unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time,
-        unnest(sqlc.arg('client_session_id')::text[]) AS client_session_id
+        unnest(sqlc.arg('client_session_id')::text[]) AS client_session_id,
+        unnest(sqlc.arg('connect_time_source')::connection_log_connect_time_source[]) AS connect_time_source
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
-    -- Pick the earliest real connect_time. The zero sentinel
-    -- ('0001-01-01') means the batch didn't know the connect_time
-    -- (e.g. a pure disconnect event), so we keep the existing value.
-    connect_time = CASE
-        WHEN EXCLUDED.connect_time = '0001-01-01 00:00:00Z'::timestamptz
-        THEN connection_logs.connect_time
-        WHEN connection_logs.connect_time = '0001-01-01 00:00:00Z'::timestamptz
-        THEN EXCLUDED.connect_time
-        ELSE LEAST(connection_logs.connect_time, EXCLUDED.connect_time)
-    END,
+    -- A reported connect takes precedence over a disconnect-time placeholder.
+    -- '0001-01-01' means no usable timestamp.
+    (connect_time, connect_time_source) = (
+        SELECT candidate.connect_time, candidate.connect_time_source
+        FROM (VALUES
+            (false, connection_logs.connect_time, connection_logs.connect_time_source),
+            (true, EXCLUDED.connect_time, EXCLUDED.connect_time_source)
+        ) AS candidate(incoming, connect_time, connect_time_source)
+        WHERE candidate.incoming = CASE
+            WHEN EXCLUDED.connect_time = '0001-01-01 00:00:00Z'::timestamptz THEN false
+            WHEN connection_logs.connect_time = '0001-01-01 00:00:00Z'::timestamptz THEN true
+            WHEN EXCLUDED.connect_time_source != 'connect' THEN false
+            WHEN connection_logs.connect_time_source = 'connect'
+                THEN EXCLUDED.connect_time < connection_logs.connect_time
+            ELSE true
+        END
+    ),
     disconnect_time = CASE
         WHEN connection_logs.disconnect_time IS NULL
         THEN EXCLUDED.disconnect_time

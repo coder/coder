@@ -13,9 +13,11 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -90,8 +92,14 @@ func TestConnectionLogs(t *testing.T) {
 		})
 
 		ws := createWorkspace(t, db)
+		const sessionID = "0123456789abcdef0123456789abcdef"
 		insert := func(method database.ConnectionLogMethod, appNameOrPort string) uuid.UUID {
+			var clientSessionID sql.NullString
+			if appNameOrPort == "cursor" {
+				clientSessionID = sql.NullString{String: sessionID, Valid: true}
+			}
 			return dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ClientSessionID:  clientSessionID,
 				ConnectionMethod: method,
 				AppNameOrPort:    sql.NullString{String: appNameOrPort, Valid: appNameOrPort != ""},
 				WorkspaceID:      ws.ID,
@@ -103,7 +111,7 @@ func TestConnectionLogs(t *testing.T) {
 		ptyCursor := insert(database.ConnectionLogMethodReconnectingPTY, "cursor")
 		_ = insert(database.ConnectionLogMethodSSH, "")
 		// A workspace app slugged like an IDE is still a workspace app.
-		_ = insert(database.ConnectionLogMethodWorkspaceApp, "cursor")
+		workspaceCursor := insert(database.ConnectionLogMethodWorkspaceApp, "cursor")
 
 		query := func(q string) []uuid.UUID {
 			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: q})
@@ -119,8 +127,28 @@ func TestConnectionLogs(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{sshCursor}, query("type:vscode"))
 		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor}, query("app:cursor"))
 		require.ElementsMatch(t, []uuid.UUID{ptyCursor}, query("method:reconnecting_pty app:cursor"))
+		require.ElementsMatch(t, []uuid.UUID{sshCursor, ptyCursor, workspaceCursor}, query("client_session_id:"+sessionID+" workspace_id:"+ws.ID.String()))
+		require.Empty(t, query("client_session_id:"+sessionID+" workspace_id:"+uuid.NewString()))
 
-		_, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "method:vscode"})
+		otherWorkspace := createWorkspace(t, db)
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			ClientSessionID:  sql.NullString{String: sessionID, Valid: true},
+			WorkspaceID:      otherWorkspace.ID,
+			OrganizationID:   otherWorkspace.OrganizationID,
+			WorkspaceOwnerID: otherWorkspace.OwnerID,
+		})
+		require.Len(t, query("client_session_id:"+sessionID), 4)
+		auditor, _ := coderdtest.CreateAnotherUser(t, client, ws.OrganizationID, rbac.ScopedRoleOrgAuditor(ws.OrganizationID))
+		visible, err := auditor.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "client_session_id:" + sessionID})
+		require.NoError(t, err)
+		require.EqualValues(t, 3, visible.Count)
+		require.Len(t, visible.ConnectionLogs, 3)
+		for _, log := range visible.ConnectionLogs {
+			require.Equal(t, ws.OrganizationID, log.Organization.ID)
+		}
+
+		_, err = client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{SearchQuery: "method:vscode"})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
@@ -300,6 +328,7 @@ func TestConnectionLogs(t *testing.T) {
 			Time:             now.Add(-time.Hour),
 			ConnectionMethod: database.ConnectionLogMethodSSH,
 			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -315,6 +344,9 @@ func TestConnectionLogs(t *testing.T) {
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.ExitCode)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
+		require.Nil(t, logs.ConnectionLogs[0].SSHInfo.DurationSeconds)
+		require.Equal(t, codersdk.ConnectionLogDurationNoDisconnect, logs.ConnectionLogs[0].SSHInfo.DurationStatus)
+		require.Equal(t, "0123456789abcdef0123456789abcdef", logs.ConnectionLogs[0].SSHInfo.ClientSessionID)
 
 		// Mark log as closed
 		updatedClog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
@@ -356,5 +388,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
+		require.Equal(t, new(3600.0), logs.ConnectionLogs[0].SSHInfo.DurationSeconds)
+		require.Equal(t, codersdk.ConnectionLogDurationRecorded, logs.ConnectionLogs[0].SSHInfo.DurationStatus)
 	})
 }

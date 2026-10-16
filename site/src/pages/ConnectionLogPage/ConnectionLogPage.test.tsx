@@ -7,6 +7,7 @@ import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockEntitlementsWithConnectionLog,
+	MockWorkspace,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
@@ -181,6 +182,60 @@ describe("ConnectionLogPage", () => {
 					offset: 0,
 					q: query,
 				}),
+			);
+		});
+	});
+
+	describe("Client session metadata", () => {
+		const clientSessionId =
+			MockDisconnectedSSHConnectionLog.ssh_info.client_session_id;
+
+		beforeEach(() => {
+			vi.spyOn(API, "getConnectionLogs").mockResolvedValue({
+				connection_logs: [MockDisconnectedSSHConnectionLog],
+				count: 100,
+				count_cap: 0,
+			});
+		});
+
+		it("lists every related connection in the workspace from the first page", async () => {
+			await renderPage({ filter: "method:ssh status:completed", page: 3 });
+			const getConnectionLogsSpy = vi.mocked(API.getConnectionLogs);
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("link", { name: "View related connections" }),
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: `client_session_id:${clientSessionId} workspace_id:${MockWorkspace.id}`,
+				}),
+			);
+		});
+
+		it("copies the client session ID", async () => {
+			await renderPage();
+
+			// Set up the clipboard stub before spying on writeText.
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Copy client session ID" }),
+			);
+
+			await waitFor(() =>
+				expect(writeText).toHaveBeenCalledWith(clientSessionId),
 			);
 		});
 	});
