@@ -21977,6 +21977,17 @@ const docTemplate = `{
                     "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
                     "type": "string"
                 },
+                "skill_name": {
+                    "type": "string"
+                },
+                "skill_source": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeSkillInvocation. The server loads the skill\nas the chat owner when the message is sent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
+                },
                 "start_line": {
                     "type": "integer"
                 },
@@ -22012,13 +22023,15 @@ const docTemplate = `{
                 "text",
                 "file",
                 "file-reference",
-                "workspace-file-reference"
+                "workspace-file-reference",
+                "skill-invocation"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
-                "ChatInputPartTypeWorkspaceFileReference"
+                "ChatInputPartTypeWorkspaceFileReference",
+                "ChatInputPartTypeSkillInvocation"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22201,8 +22214,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_name": {
-                    "description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory.",
+                    "description": "SkillName is the kebab-case name of the skill.",
                     "type": "string"
+                },
+                "skill_source": {
+                    "description": "SkillSource is where the invoked skill of a skill-invocation\npart is stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
                 },
                 "source_id": {
                     "type": "string"
@@ -22264,6 +22285,7 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "workspace-file-reference",
+                "skill-invocation",
                 "hook-context",
                 "hook-notice"
             ],
@@ -22278,6 +22300,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
+                "ChatMessagePartTypeSkillInvocation",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]
@@ -23158,6 +23181,21 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatRoleRead",
                 "ChatRoleDeleted"
+            ]
+        },
+        "codersdk.ChatSkillSource": {
+            "type": "string",
+            "enum": [
+                "personal",
+                "org",
+                "project",
+                "workspace"
+            ],
+            "x-enum-varnames": [
+                "ChatSkillSourcePersonal",
+                "ChatSkillSourceOrganization",
+                "ChatSkillSourceProject",
+                "ChatSkillSourceWorkspace"
             ]
         },
         "codersdk.ChatStatus": {

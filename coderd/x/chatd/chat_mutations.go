@@ -80,7 +80,10 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	contentParts := opts.Content
+	contentParts, err := p.resolveChatSkillInvocations(ctx, opts.ChatID, opts.Content)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
@@ -288,7 +291,10 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
 
-	contentParts := opts.Content
+	contentParts, err := p.resolveChatSkillInvocations(ctx, opts.ChatID, opts.Content)
+	if err != nil {
+		return EditMessageResult{}, err
+	}
 	var sessionStartHookResult *chathooks.Result
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
