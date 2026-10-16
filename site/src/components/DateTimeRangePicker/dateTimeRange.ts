@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 export type QuickPreset = {
 	id: string;
 	label: string;
+	placeholder?: string;
 	range: (now: Date) => { start: Date; end: Date };
 };
 

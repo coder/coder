@@ -41,7 +41,9 @@ export function usersKey(req: UsersRequest) {
 }
 
 export function paginatedUsers(
+	/** Drives pagination only; the users query comes from `filter`. */
 	searchParams: URLSearchParams,
+	filter: string,
 ): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
 	return {
 		searchParams,
@@ -49,7 +51,7 @@ export function paginatedUsers(
 			return {
 				limit,
 				offset,
-				q: prepareQuery(searchParams.get("filter") ?? ""),
+				q: prepareQuery(filter),
 			};
 		},
 
