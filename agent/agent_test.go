@@ -72,6 +72,8 @@ func TestMain(m *testing.M) {
 	}
 	// Report multi-second pauses of the whole process, see coder/internal#1365.
 	testutil.StartStallDetector(5 * time.Second)
+	// Fail with a heap profile before a runaway allocation pushes the runner into swap.
+	testutil.StartMemoryGuardFromEnv()
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
@@ -131,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC212WithRole(context.Context, string) (
-	proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
+	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -243,8 +245,12 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			require.NoError(t, err, "waiting for session to exit")
 
 			assertConnectionReport(t, agentClient,
-				proto.ConnectEvent{Type: proto.Connection_SSH},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: 17,            // echo + exit
+					TxBytes: wantSomeBytes, // echo output + prompts
+				},
 			)
 		})
 	}
@@ -454,8 +460,12 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_VSCODE},
-			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyVSCode)},
+			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
+				RxBytes: 7,               // exit command
+				TxBytes: wantIgnoreBytes, // might get a prompt
+			},
 		)
 	})
 
@@ -515,7 +525,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 
 		// Kill the server and connection after checking for the echo.
-		requireEcho(t, tunneledConn)
+		written := requireEcho(t, tunneledConn)
 		_ = echoServerCmd.Process.Kill()
 		_ = tunneledConn.Close()
 
@@ -530,8 +540,12 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_JETBRAINS},
-			proto.DisconnectEvent{Reason: "normal close"},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: string(codersdk.AppFamilyJetBrains)},
+			proto.DisconnectEvent{
+				Reason:  "normal close",
+				RxBytes: int64(written),
+				TxBytes: int64(written),
+			},
 		)
 	})
 }
@@ -1233,7 +1247,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPRemoteForwarding(t *testing.T) {
@@ -1266,7 +1280,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
@@ -1421,7 +1435,7 @@ func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -1472,7 +1486,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("unix", remoteSocketPath)
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -1516,8 +1530,11 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
 		)
 	})
 
@@ -1552,8 +1569,11 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
 		)
 	})
 
@@ -1610,8 +1630,12 @@ func TestAgent_SCP(t *testing.T) {
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
 	assertConnectionReport(t, agentClient,
-		proto.ConnectEvent{Type: proto.Connection_SSH},
-		proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+		proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
+		proto.DisconnectEvent{
+			Reason:  string(codersdk.DisconnectReasonGraceful),
+			RxBytes: wantSomeBytes,
+			TxBytes: wantSomeBytes,
+		},
 	)
 }
 
@@ -1648,7 +1672,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		assertFileTransferBlocked(t, err.Error())
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
 				Code:   agentssh.BlockedFileTransferErrorCode,
 				Reason: "file transfer blocked",
@@ -1678,10 +1702,11 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		assertFileTransferBlocked(t, err.Error())
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
-				Code:   agentssh.BlockedFileTransferErrorCode,
-				Reason: "file transfer blocked",
+				Code:    agentssh.BlockedFileTransferErrorCode,
+				Reason:  "file transfer blocked",
+				TxBytes: wantSomeBytes,
 			},
 		)
 	})
@@ -1721,10 +1746,11 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				assertFileTransferBlocked(t, string(msg))
 
 				assertConnectionReport(t, agentClient,
-					proto.ConnectEvent{Type: proto.Connection_SSH},
+					proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 					proto.DisconnectEvent{
-						Code:   agentssh.BlockedFileTransferErrorCode,
-						Reason: "file transfer blocked",
+						Code:    agentssh.BlockedFileTransferErrorCode,
+						Reason:  "file transfer blocked",
+						TxBytes: wantSomeBytes,
 					},
 				)
 			})
@@ -1789,6 +1815,54 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 			require.NotEmpty(t, strings.TrimSpace(string(output)))
 		})
 	}
+}
+
+func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
+	t.Parallel()
+
+	command := "sh -c 'echo $CODER_WORKSPACE_BUILD_ID'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %CODER_WORKSPACE_BUILD_ID%"
+	}
+
+	buildID := uuid.New()
+	session := setupSSHSession(t, agentsdk.Manifest{WorkspaceBuildID: buildID}, codersdk.ServiceBannerConfig{}, nil)
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
+
+	// A manifest from a server that predates the build ID leaves it unset
+	// rather than exporting the nil UUID.
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("uses POSIX parameter expansion")
+		}
+		// The agent inherits the runner's environment, so hide any build ID the
+		// runner itself exports.
+		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = withoutEnvInfo{exclude: "CODER_WORKSPACE_BUILD_ID"}
+		})
+		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
+		require.NoError(t, err)
+		require.Equal(t, "unset", strings.TrimSpace(string(output)))
+	})
+}
+
+// withoutEnvInfo is the system environment without one variable.
+type withoutEnvInfo struct {
+	usershell.SystemEnvInfo
+	exclude string
+}
+
+func (e withoutEnvInfo) Environ() []string {
+	var environ []string
+	for _, kv := range e.SystemEnvInfo.Environ() {
+		if !strings.HasPrefix(kv, e.exclude+"=") {
+			environ = append(environ, kv)
+		}
+	}
+	return environ
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
@@ -2046,6 +2120,113 @@ func TestAgentMetadata_Timing(t *testing.T) {
 			t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
 		}
 	}
+}
+
+func TestAgent_OrderedStartupScripts(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+
+	scripts := func(cloneScript, installScript string) (clone, install codersdk.WorkspaceAgentScript) {
+		clone = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Clone repo",
+			ResourceAddress: "coder_script.clone_repo", RunOnStart: true,
+			Script: cloneScript,
+		}
+		install = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Install tools",
+			ResourceAddress: "coder_script.install_tools", RunOnStart: true,
+			Script: installScript,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone_repo",
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+			}},
+		}
+		return clone, install
+	}
+	timingFor := func(client *agenttest.Client, id uuid.UUID) *proto.Timing {
+		for _, timing := range client.GetTimings() {
+			if bytes.Equal(timing.ScriptId, id[:]) {
+				return timing
+			}
+		}
+		return nil
+	}
+	// collectLines drains the batches delivered so far and keeps the lines
+	// written to one script's log.
+	collectLines := func(logsCh <-chan *proto.BatchCreateLogsRequest, logSourceID uuid.UUID, lines *[]string) {
+		for {
+			select {
+			case batch := <-logsCh:
+				if !bytes.Equal(batch.LogSourceId, logSourceID[:]) {
+					continue
+				}
+				for _, log := range batch.Logs {
+					*lines = append(*lines, log.Output)
+				}
+			default:
+				return
+			}
+		}
+	}
+	startAgent := func(t *testing.T, clone, install codersdk.WorkspaceAgentScript) (*agenttest.Client, <-chan *proto.BatchCreateLogsRequest) {
+		t.Helper()
+		logsCh := make(chan *proto.BatchCreateLogsRequest, 256)
+		//nolint:dogsled // only the client is needed
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Scripts: []codersdk.WorkspaceAgentScript{clone, install},
+		}, 0, func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		})
+		return client, logsCh
+	}
+	waitForLifecycle := func(t *testing.T, client *agenttest.Client, want codersdk.WorkspaceAgentLifecycle) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			return slices.Contains(client.GetLifecycleStates(), want)
+		}, testutil.WaitLong, testutil.IntervalMedium)
+	}
+
+	t.Run("WaitsThenRuns", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		// install_tools exits 1 if it runs before clone_repo has finished.
+		clone, install := scripts("sleep 0.5 && touch "+marker, "test -f "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleReady)
+		require.FileExists(t, marker)
+		var installLines []string
+		collectLines(logsCh, install.LogSourceID, &installLines)
+		require.Empty(t, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil && timing.Status == proto.Timing_OK
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("SkipsAfterFailure", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		clone, install := scripts("exit 128", "touch "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleStartError)
+		require.NoFileExists(t, marker)
+		var installLines []string
+		require.Eventually(t, func() bool {
+			collectLines(logsCh, install.LogSourceID, &installLines)
+			return len(installLines) > 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, []string{`Skipping script: dependency "Clone repo" failed.`}, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil &&
+				timing.Status == proto.Timing_SKIPPED &&
+				timing.Start.AsTime().Equal(timing.End.AsTime())
+		}, testutil.WaitShort, testutil.IntervalFast, "the skipped dependent reports one zero-duration timing")
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -2427,14 +2608,20 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			idConnectionReport := uuid.New()
 			id := uuid.New()
 
-			// Test that the connection is reported. This must be tested in the
-			// first connection because we care about verifying all of these.
+			// Test that the connection is reported when closed. This must be tested
+			// in the first connection because we care about verifying all of these.
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient,
-				proto.ConnectEvent{Type: proto.Connection_RECONNECTING_PTY},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.ConnectEvent{Method: proto.Connection_METHOD_RECONNECTING_PTY},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: wantSomeBytes, // should get bytes from the init message
+					// Depending on close timing, the prompt may not send in time, so skip
+					// checking the sent bytes.
+					TxBytes: wantIgnoreBytes,
+				},
 			)
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
@@ -4538,19 +4725,28 @@ func echoOnce(t *testing.T, ll net.Listener) {
 	}
 }
 
-// requireEcho sends 4 bytes and requires the read response to match what was sent.
-func requireEcho(t *testing.T, conn net.Conn) {
+// requireEcho sends 4 bytes and requires the read response to match what was
+// sent.  Returns the number of bytes written.
+func requireEcho(t *testing.T, conn net.Conn) int {
 	t.Helper()
-	_, err := conn.Write([]byte("test"))
+	written, err := conn.Write([]byte("test"))
 	require.NoError(t, err)
-	b := make([]byte, 4)
+	b := make([]byte, written)
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+	return written
 }
 
+const (
+	wantSomeBytes   int64 = -1
+	wantIgnoreBytes int64 = -2
+)
+
 // assertConnectionReport expects the provided connect and disconnect events
-// have been reported.
+// have been reported.  If the disconnection bytes are wantSomeBytes, assert the
+// bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
+// they match exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4568,8 +4764,11 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 
 	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
 	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
-	assert.Equal(t, connect.Type, reports[0].GetConnection().GetType(), "connect type should be %s", connect.Type)
-	assert.Equal(t, connect.Type, reports[1].GetConnection().GetType(), "disconnect type should be %s", connect.Type)
+	assert.Equal(t, connect.Method, reports[0].GetConnection().GetConnectionMethod(), "connect method should be %s", connect.Method)
+	assert.Equal(t, connect.Method, reports[1].GetConnection().GetConnectionMethod(), "disconnect method should be %s", connect.Method)
+	assert.Equal(t, connect.AppName, reports[0].GetConnection().GetAppName(), "connect app name should be %s", connect.AppName)
+	assert.Equal(t, connect.AppName, reports[1].GetConnection().GetAppName(), "disconnect app name should be %s", connect.AppName)
+	assert.Equal(t, reports[0].GetConnection().GetId(), reports[1].GetConnection().GetId(), "disconnect id should match connect id")
 	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
 	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
 	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
@@ -4585,6 +4784,19 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	}
 	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
 	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetRxBytes(), "connect rxbytes should be 0")
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetTxBytes(), "connect txbytes should be 0")
+	assertBytes(t, disconnect.RxBytes, reports[1].GetConnection().GetRxBytes(), "rx")
+	assertBytes(t, disconnect.TxBytes, reports[1].GetConnection().GetTxBytes(), "tx")
+}
+
+func assertBytes(t testing.TB, expectedBytes, gotBytes int64, label string) {
+	t.Helper()
+	if expectedBytes == wantSomeBytes {
+		assert.Greater(t, gotBytes, int64(0), "disconnect %s bytes should be greater than zero", label)
+	} else if expectedBytes != wantIgnoreBytes {
+		assert.Equal(t, expectedBytes, gotBytes, "disconnect %s bytes should be %d", label, expectedBytes)
+	}
 }
 
 func TestAgent_ToolCall(t *testing.T) {

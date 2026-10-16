@@ -25,7 +25,7 @@ func (r *RootCmd) stop() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Flag:        "template-version",
-				Description: "Stop with a named version of the workspace template. Defaults to the workspace's current version.",
+				Description: "Stop with a version of the workspace template, by name or ID. Defaults to the workspace's current version.",
 				Value:       serpent.StringOf(&templateVersion),
 			},
 			cliui.SkipPromptOption(),
@@ -52,7 +52,7 @@ func (r *RootCmd) stop() *serpent.Command {
 				return err
 			}
 
-			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, workspace.TemplateName, templateVersion)
 			if err != nil {
 				return err
 			}

@@ -2,7 +2,8 @@
 title: OAuth2 provider scopes
 ---
 
-An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions.
+A token can never do more than its user can.
 
 A grant also never exceeds the session that authorizes it: that session must hold every requested scope and an allow list of `*:*`, which every browser session has.
 Refer to ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).

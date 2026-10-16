@@ -903,6 +903,24 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectWorkspaceSecretManager = rbac.Subject{
+		Type:         rbac.SubjectTypeWorkspaceSecretManager,
+		FriendlyName: "Workspace Secret Manager",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "workspace-secret-manager"},
+				DisplayName: "Workspace Secret Manager",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceWorkspaceSecret.Type: rbac.ResourceWorkspaceSecret.AvailableActions(),
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -1061,6 +1079,13 @@ func AsSCIMProvisioner(ctx context.Context) context.Context {
 // read and refresh any user's external auth links.
 func AsExternalAuthCoordinator(ctx context.Context) context.Context {
 	return As(ctx, subjectExternalAuthCoordinator)
+}
+
+// AsWorkspaceSecretManager returns a context with an actor that can read
+// decrypted workspace secret values, copy them onto a new build, and clear
+// superseded rows. No user role can read secret values.
+func AsWorkspaceSecretManager(ctx context.Context) context.Context {
+	return As(ctx, subjectWorkspaceSecretManager)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -2024,6 +2049,28 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 		return err
 	}
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
+}
+
+func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
+		return err
+	}
+	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
+}
+
+func (q *querier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
+		return err
+	}
+	return q.db.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -3738,6 +3785,10 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
+func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
 	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
 		return database.GetChatProjectInstructionsByProjectIDRow{}, err
@@ -3776,6 +3827,10 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 
 func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
+}
+
+func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsOwnedOrSharedWithUserID)(ctx, userID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -4966,6 +5021,13 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 		return "", err
 	}
 	return q.db.GetRuntimeConfig(ctx, key)
+}
+
+func (q *querier) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return database.GetScriptOrderTelemetrySummaryRow{}, err
+	}
+	return q.db.GetScriptOrderTelemetrySummary(ctx)
 }
 
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
@@ -6172,6 +6234,20 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
+	// Deployment-wide listing of decrypted values exists only for the
+	// dbcrypt key rotation utility.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceSecrets(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	// Metadata only; values are never selected.
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -7077,12 +7153,42 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace.WorkspaceSecretRBACObject()); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return q.db.InsertWorkspaceSecret(ctx, arg)
+}
+
 func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return false, err
 	}
 	return q.db.IsChatHeartbeatStale(ctx, arg)
+}
+
+// IsChatProjectAccessibleByUserID answers for another user, so it requires
+// reading every project.
+func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return false, err
+	}
+	if rbac.ChatACLDisabled() {
+		project, err := q.db.GetChatProjectByID(ctx, arg.ProjectID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return project.OwnerID == arg.UserID, nil
+	}
+	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
 }
 
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
@@ -7174,6 +7280,15 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 		return nil, err
 	}
 	return q.db.ListAIGatewayKeys(ctx)
+}
+
+func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	// Returns decrypted values. read_secret is granted only to
+	// AsWorkspaceSecretManager, never to user roles.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return nil, err
+	}
+	return q.db.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
@@ -7888,6 +8003,16 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
+	if rbac.ChatACLDisabled() {
+		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
+	}
+	fetch := func(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) (database.ChatProject, error) {
+		return q.db.GetChatProjectByID(ctx, arg.ID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 		return q.db.GetChatProjectByID(ctx, arg.ID)
@@ -8049,6 +8174,18 @@ func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg data
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	// Key rotation reads and rewrites values, so it needs read_secret as
+	// well as update. No user role holds read_secret.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceSecret); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return q.db.UpdateEncryptedWorkspaceSecretValue(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -8548,6 +8685,28 @@ func (q *querier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpdateTemplateVersionFlagsByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	// An actor is allowed to update the template version script order usage data if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {

@@ -3,15 +3,12 @@ title: AI Governance cost control
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
 AI Governance Cost Control governs AI spend in two complementary ways:
 
-- **Enforcement** stops a user's requests routed via AI Gateway once their
-  spend reaches their budget.
-- **Reporting** shows what each user and group has approximately spent in the
-  current budget period.
+- **Enforcement** stops a user's requests routed via AI Gateway once their spend reaches their budget.
+- **Reporting** shows what each user and group has approximately spent in the current budget period.
 
 AI Governance Cost Control requires:
 
@@ -20,7 +17,8 @@ AI Governance Cost Control requires:
 
 > [!NOTE]
 > AI Governance Cost Control reports approximate spend rather than billed cost.
-> These figures will not match your provider invoices exactly. For details, visit [How spend is calculated](#how-spend-is-calculated).
+> These figures will not match your provider invoices exactly.
+> For details, visit [How spend is calculated](#how-spend-is-calculated).
 
 These terms appear throughout this page and in the Coder dashboard:
 
@@ -35,31 +33,29 @@ These terms appear throughout this page and in the Coder dashboard:
 
 ## Deployment settings
 
-Two deployment-wide settings govern budget resolution and the reset window. Each
-accepts a single value today.
+Two deployment-wide settings govern budget resolution and the reset window.
+Each accepts a single value today.
 
 | Setting       | Flag                 | Environment variable     | Supported values | Default   |
 |---------------|----------------------|--------------------------|------------------|-----------|
 | Budget policy | `--ai-budget-policy` | `CODER_AI_BUDGET_POLICY` | `highest`        | `highest` |
 | Budget period | `--ai-budget-period` | `CODER_AI_BUDGET_PERIOD` | `month`          | `month`   |
 
-- **Budget policy** determines which budget wins when a user belongs to more
-  than one budgeted group. `highest` selects the largest.
-- **Budget period** sets the reset window. `month` is the UTC calendar month, so
-  spend resets at 00:00 UTC on the first day of each month.
+- **Budget policy** determines which budget wins when a user belongs to more than one budgeted group.
+  `highest` selects the largest.
+- **Budget period** sets the reset window.
+  `month` is the UTC calendar month, so spend resets at 00:00 UTC on the first day of each month.
 
 These settings are deployment-wide.
 
 ## Budget
 
-**Every user's spend is recorded against a group.** A user only has a budget
-when one is set on a group they belong to, or when they are given a user
-override.
+**Every user's spend is recorded against a group.**
+A user only has a budget when one is set on a group they belong to, or when they are given a user override.
 
 > [!NOTE]
-> When AI Governance Cost Control is first deployed, users have **unlimited
-> spend** until an administrator sets budgets. Their spend is recorded against
-> the `Everyone` group.
+> When AI Governance Cost Control is first deployed, users have **unlimited spend** until an administrator sets budgets.
+> Their spend is recorded against the `Everyone` group.
 
 ### Group budget
 
@@ -67,9 +63,8 @@ Setting a group budget requires the Owner, User Admin, Organization Admin, or Or
 Refer to [Groups and roles](../../admin/users/groups-roles.md) for the deployment roles.
 The [Organization roles](../../admin/users/groups-roles.md#organization-roles) section covers the organization roles.
 
-A group budget applies to each member individually rather than to the group as a
-whole. For example, if a group has ten members and a budget of $200 USD, each
-member can spend $200 USD and the group has a total spend limit of $2,000 USD.
+A group budget applies to each member individually rather than to the group as a whole.
+For example, if a group has ten members and a budget of $200 USD, each member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 1. Go to **Groups** and select a group.
 1. Select **Settings**.
@@ -80,30 +75,25 @@ member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 Budget values behave as follows:
 
-- An empty field means no budget is set. The field displays `no budget`.
-- `$0 USD` blocks every request routed via AI Gateway from members whose
-  effective group is this group.
+- An empty field means no budget is set.
+  The field displays `no budget`.
+- `$0 USD` blocks every request routed via AI Gateway from members whose effective group is this group.
 - The maximum is `$1,000,000 USD` per member per budget period.
 
-Note: Members who belong to other groups with budgets are still governed by
-whichever group the budget policy selects. See
-[Effective group resolution](#effective-group-resolution).
+Note: Members who belong to other groups with budgets are still governed by whichever group the budget policy selects.
+See [Effective group resolution](#effective-group-resolution).
 
 ### User override
 
-Adding or removing an override requires the Owner or User Admin
-[role](../../admin/users/groups-roles.md). Other administrator roles can view
-overrides but cannot change them.
+Adding or removing an override requires the Owner or User Admin [role](../../admin/users/groups-roles.md).
+Other administrator roles can view overrides but cannot change them.
 
-Override a group budget when one user needs a different limit from the rest of
-their group.
+Override a group budget when one user needs a different limit from the rest of their group.
 
 1. Go to **Groups**, select a group, then open the **Members** tab.
-1. Find the member to apply the override to, open their action menu, and select
-   **Manage AI budget**.
+1. Find the member to apply the override to, open their action menu, and select **Manage AI budget**.
 1. Enable **Override group budget**.
-1. Set **Custom monthly budget**, then choose the group in
-   **Budget assigned to**.
+1. Set **Custom monthly budget**, then choose the group in **Budget assigned to**.
 1. Select **Update**.
 
 ![User AI budget override](../../images/aibridge/user-override-ai-budget.png)
@@ -112,64 +102,50 @@ Overrides behave as follows:
 
 - A user can have only one override at a time.
 - An override supersedes every group budget the user belongs to.
-- Spend is always attributed to a group, so an override must name the assigned
-  group. This group can be different from the group selected in the **Members**
-  tab. The user must belong to the assigned group.
+- Spend is always attributed to a group, so an override must name the assigned group.
+  This group can be different from the group selected in the **Members** tab.
+  The user must belong to the assigned group.
 - The `$0 USD` to `$1,000,000 USD` range applies to overrides as well.
-- Disabling **Override group budget** removes the override and returns the user
-  to the budget of their [effective group](#effective-group-resolution).
+- Disabling **Override group budget** removes the override and returns the user to the budget of their [effective group](#effective-group-resolution).
 
 ### Effective group resolution
 
-A user can belong to several groups that have budgets, and can also hold an
-override. AI Gateway resolves a single effective group for each request, in this
-order:
+A user can belong to several groups that have budgets, and can also hold an override.
+AI Gateway resolves a single effective group for each request, in this order:
 
-1. The user's [override](#user-override) takes precedence over every group
-   budget.
-1. Otherwise, the [budget policy](#deployment-settings) selects one of the
-   groups the user belongs to. The default policy, `highest`, selects the group
-   with the largest budget.
-1. If none of those groups has a budget, the user has *effectively* unlimited
-   spend and their spend is recorded against the `Everyone` group.
+1. The user's [override](#user-override) takes precedence over every group budget.
+1. Otherwise, the [budget policy](#deployment-settings) selects one of the groups the user belongs to.
+   The default policy, `highest`, selects the group with the largest budget.
+1. If none of those groups has a budget, the user has *effectively* unlimited spend and their spend is recorded against the `Everyone` group.
 
 > [!NOTE]
-> Groups with identical budgets are ranked by the organization membership the
-> user joined first, then by group ID. To see the effective group currently
-> assigned to a user, see [Monitor spend](#monitor-spend). The effective group is
-> deployment-wide, so it can be a group in a different organization.
+> Groups with identical budgets are ranked by the organization membership the user joined first, then by group ID.
+> To see the effective group currently assigned to a user, see [Monitor spend](#monitor-spend).
+> The effective group is deployment-wide, so it can be a group in a different organization.
 
-Recorded spend is immutable. Changing which budget applies to a user affects
-future requests only: spend that Coder has already recorded stays with the group
-it was attributed to, so a user's history can span several groups. The effective
-group is resolved at request time, so changing a group budget can change which
-group applies to a user on future requests.
+Recorded spend is immutable.
+Changing which budget applies to a user affects future requests only: spend that Coder has already recorded stays with the group it was attributed to, so a user's history can span several groups.
+The effective group is resolved at request time, so changing a group budget can change which group applies to a user on future requests.
 
 ## How enforcement works
 
-AI Gateway checks each request before forwarding it upstream. The check compares
-the user's spend in the current budget period with the budget that applies to the
-request:
+AI Gateway checks each request before forwarding it upstream.
+The check compares the user's spend in the current budget period with the budget that applies to the request:
 
 - Spend below the budget: the request proceeds.
-- Spend at or above the budget: AI Gateway returns `403 Forbidden` with a
-  message that describes the issue.
+- Spend at or above the budget: AI Gateway returns `403 Forbidden` with a message that describes the issue.
 
-Users without a budget have **unlimited spend**, so their requests proceed
-without enforcement. A blocked user's access resumes when the budget period
-resets, when an administrator raises the budget, or when an override is added.
+Users without a budget have **unlimited spend**, so their requests proceed without enforcement.
+A blocked user's access resumes when the budget period resets, when an administrator raises the budget, or when an override is added.
 
 > [!NOTE]
-> Enforcement is approximate. A request's cost is known only after the provider
-> response reaches AI Gateway, so concurrent in-flight requests can carry a user
-> slightly past their budget. Subsequent requests are blocked after the recorded
-> spend reaches the budget.
+> Enforcement is approximate.
+> A request's cost is known only after the provider response reaches AI Gateway, so concurrent in-flight requests can carry a user slightly past their budget.
+> Subsequent requests are blocked after the recorded spend reaches the budget.
 
 ### Notifications
 
-The first time a user's spend crosses a threshold within a budget period, Coder
-notifies the user and deployment-wide Owners and User Admins, excluding the
-affected user:
+The first time a user's spend crosses a threshold within a budget period, Coder notifies the user and deployment-wide Owners and User Admins, excluding the affected user:
 
 | Threshold | User notification              | Admin notification                       |
 |-----------|--------------------------------|------------------------------------------|
@@ -178,12 +154,12 @@ affected user:
 
 - A single expensive request can cross both thresholds at once.
 - Budgets of `$0 USD` and unpriced usage cross no thresholds.
-- Notifications are informational. Enforcement does not depend on them.
+- Notifications are informational.
+  Enforcement does not depend on them.
 
 Owners also receive **Missing AI Model Prices** weekly, listing models used in the past week that have no price.
 
-For delivery methods, see
-[Notifications](../../admin/monitoring/notifications/index.md).
+For delivery methods, see [Notifications](../../admin/monitoring/notifications/index.md).
 
 ## How spend is calculated
 
@@ -201,25 +177,25 @@ Coder uses the first price it finds, in this order:
 
 A price for the requested model always takes precedence, even when the model the provider reports has a custom price.
 
-Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
-therefore produces a partial first period.
+Spend accumulates only from the moment v2.36 is deployed.
+Upgrading mid-month therefore produces a partial first period.
 
-To see the prices this deployment uses, list them. The `source` column reports
-whether each is a default price or a custom price set on this deployment:
+To see the prices this deployment uses, list them.
+The `source` column reports whether each is a default price or a custom price set on this deployment:
 
 ```sh
 coder exp ai-model-prices list
 ```
 
-A custom price takes precedence over its default, so it is the one listed. To
-see the default for such a model, filter to it:
+A custom price takes precedence over its default, so it is the one listed.
+To see the default for such a model, filter to it:
 
 ```sh
 coder exp ai-model-prices list --source default
 ```
 
-Default prices come from the price book that ships with each Coder release. To
-see the price book for a release:
+Default prices come from the price book that ships with each Coder release.
+To see the price book for a release:
 
 ```text
 https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/data/prices.json
@@ -227,20 +203,17 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 
 Replace `<VERSION>` with a Coder minor version, for example `2.36`.
 
-To use your own price for any of these models, see
-[Configure model prices](#configure-model-prices).
+To use your own price for any of these models, see [Configure model prices](#configure-model-prices).
 
 > [!IMPORTANT]
-> Spend is an approximation. It can differ from what the provider bills, and
-> some usage does not count toward it at all:
+> Spend is an approximation.
+> It can differ from what the provider bills, and some usage does not count toward it at all:
 >
-> - Default prices are list prices. A custom price brings spend closer to the
->   rates a deployment actually pays, though billing rules that are not a
->   per-token rate, such as committed-use discounts, cannot be represented.
-> - A model with no price adds nothing to spend. Its token usage is still
->   recorded, but it never counts toward a limit, so a user who calls only
->   unpriced models is effectively unlimited. Setting a price for the model
->   closes the gap.
+> - Default prices are list prices.
+>   A custom price brings spend closer to the rates a deployment actually pays, though billing rules that are not a per-token rate, such as committed-use discounts, cannot be represented.
+> - A model with no price adds nothing to spend.
+>   Its token usage is still recorded, but it never counts toward a limit, so a user who calls only unpriced models is effectively unlimited.
+>   Setting a price for the model closes the gap.
 
 Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`, labeled by `provider`, `provider_type`, `model`, and `provider_model`, to detect unpriced usage.
 `model` is the model the client requested, and `provider_model` is the model the provider reported, or empty when the provider didn't report one.
@@ -252,16 +225,12 @@ Coder also notifies Owners weekly about models used in the past week that have n
 
 ### Configure model prices
 
-Use the experimental `coder exp ai-model-prices` command to set model prices
-for your deployment. It requires AI Governance, which is included with a
-Premium license, and the Owner
-[role](../../admin/users/groups-roles.md) or a custom role granting
-`ai_model_price:update`. Run `coder exp ai-model-prices --help` for the full
-reference.
+Use the experimental `coder exp ai-model-prices` command to set model prices for your deployment.
+It requires AI Governance, which is included with a Premium license, and the Owner [role](../../admin/users/groups-roles.md) or a custom role granting `ai_model_price:update`.
+Run `coder exp ai-model-prices --help` for the full reference.
 
-List the prices this deployment holds, optionally narrowed to one provider or
-model. The `source` column reports whether a price is a default price
-(`default`) or one set on this deployment (`custom`):
+List the prices this deployment holds, optionally narrowed to one provider or model.
+The `source` column reports whether a price is a default price (`default`) or one set on this deployment (`custom`):
 
 ```sh
 coder exp ai-model-prices list --provider anthropic
@@ -273,16 +242,16 @@ List only the prices you have set:
 coder exp ai-model-prices list --source custom
 ```
 
-A listing reports one price per model, so an overridden model's default is not
-shown. To see every price a model holds, both at once:
+A listing reports one price per model, so an overridden model's default is not shown.
+To see every price a model holds, both at once:
 
 ```sh
 coder exp ai-model-prices list --source all
 ```
 
-Price a single model. Prices are micro-units per million tokens, so `3000000`
-is $3.00 per million tokens. Use `null` for a price you do not have, and `0` to
-declare a model free:
+Price a single model.
+Prices are micro-units per million tokens, so `3000000` is $3.00 per million tokens.
+Use `null` for a price you do not have, and `0` to declare a model free:
 
 ```sh
 coder exp ai-model-prices update --provider anthropic --model my-model \
@@ -290,8 +259,7 @@ coder exp ai-model-prices update --provider anthropic --model my-model \
   --cache-read-price null --cache-write-price null
 ```
 
-Price several models at once from a JSON document in the same shape as the
-price book:
+Price several models at once from a JSON document in the same shape as the price book:
 
 ```sh
 coder exp ai-model-prices update prices.json
@@ -299,14 +267,12 @@ coder exp ai-model-prices update prices.json
 
 > [!IMPORTANT]
 >
-> - Prices are not retroactive. Usage recorded before you set a price stays
->   unpriced, so past spend does not change.
-> - A price you set takes precedence over the default and stays in effect
->   across upgrades, so it does not pick up later price books.
-> - A price is keyed by provider type and model, so every configured provider
->   of that type shares it.
-> - `openai-compat` providers cannot be priced. They pass through to any
->   upstream vendor, so a single price would be wrong for most of them.
+> - Prices are not retroactive.
+>   Usage recorded before you set a price stays unpriced, so past spend does not change.
+> - A price you set takes precedence over the default and stays in effect across upgrades, so it does not pick up later price books.
+> - A price is keyed by provider type and model, so every configured provider of that type shares it.
+> - `openai-compat` providers cannot be priced.
+>   They pass through to any upstream vendor, so a single price would be wrong for most of them.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend
@@ -332,23 +298,14 @@ Visibility follows the viewer's role:
   If you can also view AI sessions, you can filter it by provider, model, and client.
 -->
 
-- The **Groups** page compares each group's spend with the combined limits of
-  the members it covers.
-- The **Members** tab of a group reports each member's spend, their budget, and
-  its source, labeled `Custom limit` for an override or `Group limit` for a
-  group budget. If the effective group is another group in the same organization,
-  the row shows `Budget managed by another group`. If the effective group is in a
-  different organization, the row shows a dash and explains that the group is not
-  visible there. Because the organization's `Everyone` group includes every
-  member, its **Members** tab is a quick way to look up any user's effective
-  group.
-- The avatar menu reports the signed-in user's own spend for the budget period
-  as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget
-  applies.
+- The **Groups** page compares each group's spend with the combined limits of the members it covers.
+- The **Members** tab of a group reports each member's spend, their budget, and its source, labeled `Custom limit` for an override or `Group limit` for a group budget.
+  If the effective group is another group in the same organization, the row shows `Budget managed by another group`.
+  If the effective group is in a different organization, the row shows a dash and explains that the group is not visible there.
+  Because the organization's `Everyone` group includes every member, its **Members** tab is a quick way to look up any user's effective group.
+- The avatar menu reports the signed-in user's own spend for the budget period as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget applies.
 
-Administrators can also use the
-[Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API
-endpoint to see a user's current effective group.
+Administrators can also use the [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API endpoint to see a user's current effective group.
 
 ### Spend export
 
@@ -371,39 +328,37 @@ For programmatic per-user reporting, refer to the [List organization AI spend by
 
 ### Prometheus Metrics
 
-Prometheus metrics report blocked requests, users over budget, unpriced usage,
-and enforcement latency. For the full metric list, including types and labels,
-see [Prometheus metrics](../../admin/integrations/prometheus.md).
+Prometheus metrics report blocked requests, users over budget, unpriced usage, and enforcement latency.
+For the full metric list, including types and labels, see [Prometheus metrics](../../admin/integrations/prometheus.md).
 
 ## Migrate from Coder Agents Cost Control
 
-In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control. The
-legacy Coder Agents Spend page remains available until v2.37.
+In v2.36, AI Governance Cost Control replaces Coder Agents Cost Control.
+The legacy Coder Agents Spend page remains available until v2.37.
 
 > [!WARNING]
-> Spend limits configured under **Admin settings** > **AI** > **Spend** are no
-> longer enforced by Coder Agents. To enforce spend, set an AI Governance budget.
+> Spend limits configured under **Admin settings** > **AI** > **Spend** are no longer enforced by Coder Agents.
+> To enforce spend, set an AI Governance budget.
 
 To migrate existing limits:
 
-1. Record the limits currently set under **Admin settings** > **AI** >
-   **Spend**, including the default limit and any group or user overrides.
+1. Record the limits currently set under **Admin settings** > **AI** > **Spend**, including the default limit and any group or user overrides.
 1. Recreate group limits as [group budgets](#group-budget).
 1. Recreate per-user limits as [user overrides](#user-override).
 
 Expect the following differences:
 
-- No deployment-wide default exists. Each group that needs a limit requires its
-  own budget.
-- The UTC calendar month is the only period. Daily and weekly periods are not
-  currently supported.
-- Users in several budgeted groups receive the highest budget. Coder Agents Cost
-  Control applied the lowest.
-- Budgets cover priced AI Gateway traffic. Chat, IDE extensions, and CLI agents
-  draw on the same budget when their provider and model are priced. See
-  [How spend is calculated](#how-spend-is-calculated).
-- Recorded spend does not carry over. Every user starts the first period at
-  $0 USD.
+- No deployment-wide default exists.
+  Each group that needs a limit requires its own budget.
+- The UTC calendar month is the only period.
+  Daily and weekly periods are not currently supported.
+- Users in several budgeted groups receive the highest budget.
+  Coder Agents Cost Control applied the lowest.
+- Budgets cover priced AI Gateway traffic.
+  Chat, IDE extensions, and CLI agents draw on the same budget when their provider and model are priced.
+  See [How spend is calculated](#how-spend-is-calculated).
+- Recorded spend does not carry over.
+  Every user starts the first period at $0 USD.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
   The error details include the AI Governance budget limit.
 
@@ -412,8 +367,7 @@ Expect the following differences:
 Cost control reads none of the tables that store prompts, tool call arguments or model thoughts.
 It depends only on the interception and token usage records, the model prices and the budget tables.
 
-A deployment that wants budgets and spend reporting without retaining conversation content can therefore set
-[`--ai-gateway-disable-content-recording`](./setup.md#disable-content-recording) and keep every cost control feature on this page.
+A deployment that wants budgets and spend reporting without retaining conversation content can therefore set [`--ai-gateway-disable-content-recording`](./setup.md#disable-content-recording) and keep every cost control feature on this page.
 
 > [!NOTE]
 > [`--ai-gateway-retention`](./setup.md#data-retention) can't do this.

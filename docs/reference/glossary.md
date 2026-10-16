@@ -419,7 +419,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid enterprise tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics

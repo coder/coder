@@ -374,12 +374,14 @@ Actions: `create`, `write`, `delete`
 <tbody>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -518,6 +520,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_revocation_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_scopes</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_token_url</code></td><td>Yes</td></tr>
@@ -764,6 +767,8 @@ Actions: `create`, `write`
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
 <tr><td><code>readme</code></td><td>Yes</td></tr>
+<tr><td><code>script_order_data_source_count</code></td><td>No</td></tr>
+<tr><td><code>script_order_rule_count</code></td><td>No</td></tr>
 <tr><td><code>source_example_id</code></td><td>No</td></tr>
 <tr><td><code>template_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
