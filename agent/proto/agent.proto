@@ -573,10 +573,6 @@ message ReportBoundaryLogsRequest {
 
 message ReportBoundaryLogsResponse {}
 
-// UpdateAppStatusRequest reported a Workspace App's status.
-//
-// Deprecated: workspace app statuses have been removed and coderd discards
-// these requests. Remove in the next major Agent API version.
 message UpdateAppStatusRequest {
   string slug = 1;
 
@@ -730,9 +726,7 @@ service Agent {
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
-	// UpdateAppStatus is a deprecated no-op kept for older agents. Coderd
-	// accepts and discards the request. Remove in the next major Agent API
-	// version.
+	// Deprecated: no-op kept for older agents. Remove in the next major version.
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse) {
 		option deprecated = true;
 	}

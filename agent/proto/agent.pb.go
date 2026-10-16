@@ -4039,10 +4039,6 @@ func (*ReportBoundaryLogsResponse) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{46}
 }
 
-// UpdateAppStatusRequest reported a Workspace App's status.
-//
-// Deprecated: workspace app statuses have been removed and coderd discards
-// these requests. Remove in the next major Agent API version.
 type UpdateAppStatusRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
