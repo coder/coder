@@ -122,8 +122,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			switch {
 			case ctx.Err() != nil:
-				// Shutdown closes the PTY and its attached connections, so
-				// the handler can return without an error.
+				// Canceling ctx closes the PTY, which closes its attached
+				// connections. The read loop treats that like any other
+				// closed connection, so the handler returns without an error.
 				reason = codersdk.DisconnectReasonServerShutdown
 				code = 1
 				fields = append(fields, codersdk.DisconnectInitiatorAgent.SlogField())

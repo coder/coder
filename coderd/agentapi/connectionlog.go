@@ -20,8 +20,10 @@ import (
 )
 
 type ConnLogAPI struct {
-	AgentID          uuid.UUID
-	AgentName        string
+	AgentID   uuid.UUID
+	AgentName string
+	// WorkspaceBuildID is the build that created the agent.
+	WorkspaceBuildID uuid.UUID
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 	Workspace        *CachedWorkspaceFields
 	Database         database.Store
@@ -147,12 +149,14 @@ func (a *ConnLogAPI) workspaceShutdownReason(ctx context.Context, workspaceID uu
 		logger.Warn(ctx, "get shutdown workspace build", slog.Error(err))
 		return reason
 	}
-	stopping := build.Transition == database.WorkspaceTransitionStop ||
-		build.Transition == database.WorkspaceTransitionDelete
-	// A delayed report must not be attributed to a stop requested after the
+	// The agent stays connected after a newer build exists only while that
+	// build stops or deletes the workspace (see checkBuildIsLatest), so a newer
+	// build is the shutdown cause.
+	replaced := build.ID != a.WorkspaceBuildID
+	// A delayed report must not be attributed to a build requested after the
 	// connection closed.
 	requestedAfterClose := build.CreatedAt.After(connection.GetTimestamp().AsTime())
-	if !stopping || requestedAfterClose {
+	if !replaced || requestedAfterClose {
 		return reason
 	}
 

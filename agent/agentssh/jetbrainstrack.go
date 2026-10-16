@@ -104,7 +104,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		return c, r, err
 	}
 	endSession := w.startSession(string(codersdk.AppFamilyJetBrains))
-	// Channel handlers outlive their connection's tracking, so register the
+	// The channel handler outlives its connection's tracking, so register the
 	// channel until its close is reported with the server's shutdown state.
 	tracked := w.trackChannel(true)
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized

@@ -11,6 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -113,6 +116,8 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 		name   string
 		id     string
 		expect string
+		// shutdown closes the agent instead of exiting the session.
+		shutdown bool
 	}{
 		{
 			name: "EmptyClientSessionID",
@@ -126,6 +131,12 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			id:     "0123456789abcdef0123456789abcdef",
 			expect: "0123456789abcdef0123456789abcdef",
 		},
+		{
+			name:     "AgentShutdown",
+			id:       "0123456789abcdef0123456789abcdef",
+			expect:   "0123456789abcdef0123456789abcdef",
+			shutdown: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -135,8 +146,10 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			//nolint:dogsled
-			conn, client, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			sink := testutil.NewFakeSink(t)
+			conn, client, stats, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				o.Logger = sink.Logger()
+			})
 			require.True(t, conn.AwaitReachable(ctx))
 
 			if tc.id != "" {
@@ -161,19 +174,31 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			require.NoError(t, err)
 
 			assertSSHStats(t, stats)
-			_, err = stdin.Write([]byte("exit 0\n"))
-			require.NoError(t, err, "writing exit to stdin")
-			_ = stdin.Close()
-			err = session.Wait()
-			require.NoError(t, err, "waiting for session to exit")
+			reason := codersdk.DisconnectReasonGraceful
+			code := 0
+			if tc.shutdown {
+				// The client's end of the tunnel may not notice the shutdown, so
+				// only the agent's report is checked.
+				require.NoError(t, agnt.Close())
+				reason = codersdk.DisconnectReasonServerShutdown
+				// The killed shell's exit code differs between platforms.
+				code = -1
+			} else {
+				_, err = stdin.Write([]byte("exit 0\n"))
+				require.NoError(t, err, "writing exit to stdin")
+				_ = stdin.Close()
+				err = session.Wait()
+				require.NoError(t, err, "waiting for session to exit")
+			}
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Method:          proto.Connection_METHOD_SSH,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{Code: code, Reason: string(reason)},
 			)
+			requireDisconnectLog(t, sink, "ssh session closed", tc.expect, reason)
 		})
 	}
 }
@@ -185,6 +210,8 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 		name   string
 		id     string
 		expect string
+		// shutdown closes the agent instead of the client connection.
+		shutdown bool
 	}{
 		{
 			name: "EmptyClientSessionID",
@@ -198,6 +225,12 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			id:     "0123456789abcdef0123456789abcdef",
 			expect: "0123456789abcdef0123456789abcdef",
 		},
+		{
+			name:     "AgentShutdown",
+			id:       "0123456789abcdef0123456789abcdef",
+			expect:   "0123456789abcdef0123456789abcdef",
+			shutdown: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -207,8 +240,11 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			sink := testutil.NewFakeSink(t)
 			//nolint:dogsled
-			conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, client, _, _, agnt := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+				o.Logger = sink.Logger()
+			})
 			require.True(t, conn.AwaitReachable(ctx))
 
 			if tc.id != "" {
@@ -228,16 +264,50 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 			_, err = ptyConn.Write(data)
 			require.NoError(t, err)
 
-			err = ptyConn.Close()
-			require.NoError(t, err)
+			reason := codersdk.DisconnectReasonGraceful
+			code := 0
+			if tc.shutdown {
+				// Wait until the PTY is attached, so the shutdown closes a live
+				// connection rather than one still being set up.
+				require.NoError(t, testutil.NewTerminalReader(t, ptyConn).ReadUntilString(ctx, "test"))
+				require.NoError(t, agnt.Close())
+				reason = codersdk.DisconnectReasonServerShutdown
+				code = 1
+			} else {
+				err = ptyConn.Close()
+				require.NoError(t, err)
+			}
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Method:          proto.Connection_METHOD_RECONNECTING_PTY,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{Code: code, Reason: string(reason)},
 			)
+			requireDisconnectLog(t, sink, "reconnecting pty closed", tc.expect, reason)
 		})
+	}
+}
+
+// requireDisconnectLog requires exactly one agent log line with the given
+// message, carrying the client session ID and disconnect reason. Shutdowns
+// must also name the agent as the initiator.
+func requireDisconnectLog(t *testing.T, sink *testutil.FakeSink, message, clientSessionID string, reason codersdk.DisconnectReason) {
+	t.Helper()
+	var entries []slog.SinkEntry
+	require.Eventually(t, func() bool {
+		entries = sink.Entries(func(e slog.SinkEntry) bool { return e.Message == message })
+		return len(entries) > 0
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Len(t, entries, 1)
+	fields := make(map[string]any)
+	for _, field := range entries[0].Fields {
+		fields[field.Name] = field.Value
+	}
+	require.Equal(t, clientSessionID, fields["client_session_id"])
+	require.Equal(t, reason, fields["disconnect_reason"])
+	if reason == codersdk.DisconnectReasonServerShutdown {
+		require.Equal(t, codersdk.DisconnectInitiatorAgent, fields["disconnect_initiator"])
 	}
 }

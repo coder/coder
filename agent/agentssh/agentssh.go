@@ -1239,6 +1239,25 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 	return true
 }
 
+// trackChannel registers a channel whose handler outlives its connection's
+// tracking, such as a forwarded JetBrains channel. If the server is closing,
+// the channel is not registered.
+//
+//nolint:revive // add is a control flag, matching trackConn and trackSession.
+func (s *Server) trackChannel(add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			return false
+		}
+		s.wg.Add(1)
+		return true
+	}
+	s.wg.Done()
+	return true
+}
+
 // trackCommand registers the process with the server. If the server is
 // closing, the process is not registered and should be closed.
 //

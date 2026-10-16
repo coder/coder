@@ -40,6 +40,8 @@ func TestConnectionLog(t *testing.T) {
 		agent = database.WorkspaceAgent{
 			ID: uuid.New(),
 		}
+		// agentBuildID is the build that created the agent.
+		agentBuildID = uuid.New()
 	)
 
 	type testCase struct {
@@ -170,8 +172,8 @@ func TestConnectionLog(t *testing.T) {
 					Reason: database.BuildReasonAutostop, CreatedAt: dbtime.Now().Add(-time.Minute),
 				}, jobStatus: status,
 			}
-			if transition != database.WorkspaceTransitionStart &&
-				(status == database.ProvisionerJobStatusRunning || status == database.ProvisionerJobStatusSucceeded) {
+			// Any newer build replaced the agent once its job runs.
+			if status == database.ProvisionerJobStatusRunning || status == database.ProvisionerJobStatusSucceeded {
 				tt.wantReason = string(codersdk.DisconnectReasonWorkspaceStopped)
 			}
 			tests = append(tests, tt)
@@ -198,6 +200,13 @@ func TestConnectionLog(t *testing.T) {
 			action: agentproto.Connection_DISCONNECT.Enum(), typ: agentproto.Connection_JETBRAINS.Enum(), method: database.ConnectionLogMethodSSH, appName: "jetbrains",
 			time: dbtime.Now(), reason: string(codersdk.DisconnectReasonServerShutdown),
 			build: &database.WorkspaceBuild{ID: uuid.New(), JobID: uuid.New(), Transition: database.WorkspaceTransitionStop}, jobErr: queryErr,
+		},
+		testCase{
+			// The agent's own build is still the latest, so no build ended it.
+			name: "AgentBuildIsLatest", id: uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(), typ: agentproto.Connection_SSH.Enum(), method: database.ConnectionLogMethodSSH,
+			time: dbtime.Now(), reason: string(codersdk.DisconnectReasonServerShutdown),
+			build: &database.WorkspaceBuild{ID: agentBuildID, JobID: uuid.New(), Transition: database.WorkspaceTransitionStart, CreatedAt: dbtime.Now().Add(-time.Hour)},
 		},
 		testCase{
 			name: "LaterStopBuild", id: uuid.New(),
@@ -242,8 +251,7 @@ func TestConnectionLog(t *testing.T) {
 					build = *tt.build
 				}
 				mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, tt.buildErr)
-				if tt.buildErr == nil && !build.CreatedAt.After(tt.time) &&
-					(build.Transition == database.WorkspaceTransitionStop || build.Transition == database.WorkspaceTransitionDelete) {
+				if tt.buildErr == nil && !build.CreatedAt.After(tt.time) && build.ID != agentBuildID {
 					mDB.EXPECT().GetProvisionerJobByID(gomock.Any(), build.JobID).Return(database.ProvisionerJob{JobStatus: tt.jobStatus}, tt.jobErr)
 				}
 			}
@@ -253,6 +261,7 @@ func TestConnectionLog(t *testing.T) {
 				Database:         mDB,
 				AgentID:          agent.ID,
 				AgentName:        agent.Name,
+				WorkspaceBuildID: agentBuildID,
 				Workspace:        &agentapi.CachedWorkspaceFields{},
 			}
 			_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{

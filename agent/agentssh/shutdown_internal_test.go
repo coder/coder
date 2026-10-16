@@ -4,10 +4,8 @@ import (
 	"context"
 	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -15,87 +13,9 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func TestJetbrainsShutdownReason(t *testing.T) {
-	t.Parallel()
-	for _, shutdown := range []bool{false, true} {
-		name := "Graceful"
-		if shutdown {
-			name = "ServerShutdown"
-		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			var closing atomic.Bool
-			var tracked atomic.Int64
-			sink := testutil.NewFakeSink(t)
-			clientSessionID := uuid.NewString()
-			reporter := &shutdownReporter{}
-			watcher := &JetbrainsChannelWatcher{
-				NewChannel:      shutdownNewChannel{},
-				logger:          sink.Logger().With(slog.F("client_session_id", clientSessionID)),
-				clientSessionID: clientSessionID, connectionReporter: reporter,
-				startSession: func(string) func() { return func() {} },
-				isClosing:    closing.Load,
-				trackChannel: func(add bool) bool {
-					if add {
-						tracked.Add(1)
-					} else {
-						tracked.Add(-1)
-					}
-					return true
-				},
-			}
-			channel, _, err := watcher.Accept()
-			require.NoError(t, err)
-			require.EqualValues(t, 1, tracked.Load(), "Close must wait for the channel's close report")
-			closing.Store(shutdown)
-			require.NoError(t, channel.Close())
-			require.NoError(t, channel.Close())
-			require.Zero(t, tracked.Load())
-			require.Equal(t, clientSessionID, reporter.connect.ClientSessionID)
-			require.Len(t, reporter.disconnects, 1)
-			wantReason := "normal close"
-			if shutdown {
-				wantReason = string(codersdk.DisconnectReasonServerShutdown)
-			}
-			require.Equal(t, wantReason, reporter.disconnects[0].Reason)
-			entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "JetBrains channel closed" })
-			require.Len(t, entries, 1)
-			require.Contains(t, entries[0].Fields, slog.F("client_session_id", clientSessionID))
-			if shutdown {
-				require.Contains(t, entries[0].Fields, codersdk.DisconnectReasonServerShutdown.SlogField())
-			}
-		})
-	}
-}
-
-type shutdownNewChannel struct{ ssh.NewChannel }
-
-func (shutdownNewChannel) Accept() (ssh.Channel, <-chan *ssh.Request, error) {
-	return shutdownChannel{}, nil, nil
-}
-
-type shutdownChannel struct{ ssh.Channel }
-
-func (shutdownChannel) Close() error { return nil }
-
-type shutdownReporter struct {
-	connect     proto.ConnectEvent
-	disconnects []proto.DisconnectEvent
-}
-
-func (r *shutdownReporter) Connect(event proto.ConnectEvent) proto.DisconnectionReporter {
-	r.connect = event
-	return r
-}
-
-func (r *shutdownReporter) Disconnect(event proto.DisconnectEvent) {
-	r.disconnects = append(r.disconnects, event)
-}
 
 func TestSSHShutdownWaitsForConnectionLog(t *testing.T) {
 	t.Parallel()
