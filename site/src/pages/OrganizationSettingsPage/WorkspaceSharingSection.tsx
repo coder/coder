@@ -3,7 +3,7 @@ import {
 	type ShareableWorkspaceOwners,
 	ShareableWorkspaceOwnerses,
 } from "#/api/typesGenerated";
-import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Alert } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { FormSection, HorizontalForm } from "#/components/Form/Form";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -48,11 +48,9 @@ export const WorkspaceSharingSection: React.FC<
 				>
 					<div className="flex flex-col gap-2">
 						{workspaceSharingGloballyDisabled && (
-							<Alert severity="warning" className="mb-4">
-								<AlertTitle>Disabled by deployment settings</AlertTitle>
-								Workspace sharing has been disallowed by an administrator.
-								Sharing must be allowed by an administrator before sharing can
-								be used in this organization.
+							<Alert severity="info" className="mb-4">
+								Workspace sharing is turned off for this deployment. A
+								deployment admin can turn it on in deployment settings.
 							</Alert>
 						)}
 						<div className="flex items-start gap-3">

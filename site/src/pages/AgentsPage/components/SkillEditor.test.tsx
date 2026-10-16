@@ -52,7 +52,7 @@ describe("SkillEditor file import", () => {
 				screen.getByLabelText("Upload SKILL.md"),
 				new File([markdown], "SKILL.md", { type: "text/markdown" }),
 			);
-			await screen.findByText("Imported SKILL.md");
+			await screen.findByText(/^Imported SKILL\.md\./);
 			expect(onSubmit).not.toHaveBeenCalled();
 
 			await user.click(
@@ -77,12 +77,12 @@ describe("SkillEditor file import", () => {
 	it.each([
 		{
 			content: "---\ndescription: Missing name\n---\nBody",
-			error: "Could not parse SKILL.md",
+			error: "Couldn't parse this SKILL.md",
 		},
-		{ content: " \n", error: "File is empty" },
+		{ content: " \n", error: "This file is empty" },
 		{
 			content: "x".repeat(SKILL_MAX_SIZE_BYTES + 1),
-			error: "File is too large",
+			error: "This file is too large",
 		},
 	])("preserves edits when $error", async ({ content, error }) => {
 		const { user, onSubmit } = renderEditor("edit");
@@ -118,9 +118,9 @@ describe("SkillEditor file import", () => {
 			.mockResolvedValue(markdown);
 
 		await user.upload(screen.getByLabelText("Upload SKILL.md"), file);
-		await screen.findByText("Could not read file");
+		await screen.findByText("Couldn't read this file");
 		await user.upload(screen.getByLabelText("Upload SKILL.md"), file);
-		await screen.findByText("Imported SKILL.md");
+		await screen.findByText(/^Imported SKILL\.md\./);
 		await user.click(screen.getByRole("button", { name: "Create skill" }));
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith(

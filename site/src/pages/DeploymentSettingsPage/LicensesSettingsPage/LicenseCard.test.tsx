@@ -45,7 +45,7 @@ describe("LicenseCard", () => {
 		await openRemoveDialog(user);
 
 		await screen.findByText(
-			/Removing this license will disable all Premium features/,
+			/Removing this license turns off all Premium features/,
 		);
 	});
 

@@ -27,7 +27,6 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 				attempt: 1,
 				delayMs: 1000,
 				retryingAt: "2026-03-10T00:00:01.000Z",
-				title: "Reconnecting",
 				message: "Reconnecting",
 			};
 		case "failed":

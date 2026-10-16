@@ -81,8 +81,6 @@ const DERPRegionPage: React.FC = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
-							prominent
-							dismissible
 						>
 							{warning.message}
 						</Alert>

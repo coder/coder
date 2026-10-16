@@ -51,7 +51,7 @@ type SkillEditorProps = {
 
 type ImportStatus = {
 	kind: "success" | "error";
-	title: string;
+	title?: string;
 	detail?: string;
 };
 
@@ -154,7 +154,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 		if (!result.ok) {
 			setImportStatus({
 				kind: "error",
-				title: "Could not parse SKILL.md",
+				title: "Couldn't parse this SKILL.md",
 				detail: result.error,
 			});
 			return;
@@ -181,10 +181,9 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 		setImportContent("");
 		setImportStatus({
 			kind: "success",
-			title: "Imported SKILL.md",
 			detail: isCreate
-				? "Updated name, description, and body fields."
-				: "Updated description and body fields. Kept the existing name.",
+				? "Imported SKILL.md. Name, description, and body are filled in."
+				: "Imported SKILL.md. Description and body are filled in, and the name is unchanged.",
 		});
 	};
 
@@ -201,8 +200,8 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 		if (file.size > SKILL_MAX_SIZE_BYTES) {
 			setImportStatus({
 				kind: "error",
-				title: "File is too large",
-				detail: `Choose a file that is ${formatKiB(SKILL_MAX_SIZE_BYTES)} or smaller.`,
+				title: "This file is too large",
+				detail: `Choose a file that's ${formatKiB(SKILL_MAX_SIZE_BYTES)} or smaller.`,
 			});
 			return;
 		}
@@ -213,8 +212,8 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 			if (!content.trim()) {
 				setImportStatus({
 					kind: "error",
-					title: "File is empty",
-					detail: "Choose a SKILL.md file with frontmatter and a body.",
+					title: "This file is empty",
+					detail: "Choose a SKILL.md with frontmatter and a body.",
 				});
 			} else {
 				setImportContent(content);
@@ -223,8 +222,8 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 		} catch {
 			setImportStatus({
 				kind: "error",
-				title: "Could not read file",
-				detail: "Try selecting the file again.",
+				title: "Couldn't read this file",
+				detail: "Select the file again.",
 			});
 		}
 		setIsReadingFile(false);
@@ -319,7 +318,9 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 								/>
 								{importStatus && (
 									<Alert severity={importStatus.kind}>
-										<AlertTitle>{importStatus.title}</AlertTitle>
+										{importStatus.title && (
+											<AlertTitle>{importStatus.title}</AlertTitle>
+										)}
 										{importStatus.detail && (
 											<AlertDescription>{importStatus.detail}</AlertDescription>
 										)}

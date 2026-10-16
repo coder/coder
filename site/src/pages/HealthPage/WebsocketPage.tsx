@@ -1,7 +1,7 @@
 import { CodeIcon } from "lucide-react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import {
 	Tooltip,
 	TooltipContent,
@@ -11,6 +11,7 @@ import { pageTitle } from "#/utils/page";
 import {
 	Header,
 	HeaderTitle,
+	HealthMessageDocsLink,
 	HealthyDot,
 	Main,
 	Pill,
@@ -37,13 +38,18 @@ const WebsocketPage = () => {
 			<Main>
 				{websocket.error && (
 					<Alert severity="error" prominent>
-						{websocket.error}
+						<AlertTitle>The websocket check failed</AlertTitle>
+						<AlertDescription>{websocket.error}</AlertDescription>
 					</Alert>
 				)}
 
 				{websocket.warnings.map((warning) => {
 					return (
-						<Alert key={warning.code} severity="warning" prominent dismissible>
+						<Alert
+							actions={<HealthMessageDocsLink {...warning} />}
+							key={warning.code}
+							severity="warning"
+						>
 							{warning.message}
 						</Alert>
 					);

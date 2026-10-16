@@ -34,7 +34,7 @@ describe("getAgentConnectivityIssues", () => {
 			getAgentConnectivityIssues(buildAgent({ status: "disconnected" })),
 		).toContainEqual(
 			expect.objectContaining({
-				title: "Workspace agent has disconnected",
+				title: "Workspace agent disconnected",
 				severity: "warning",
 				prominent: false,
 			}),
@@ -148,7 +148,7 @@ describe("getAgentScriptIssues", () => {
 		const issues = getAgentScriptIssues(buildAgent({ status: "disconnected" }));
 		expect(issues).not.toContainEqual(
 			expect.objectContaining({
-				title: "Workspace agent has disconnected",
+				title: "Workspace agent disconnected",
 			}),
 		);
 	});
@@ -168,7 +168,7 @@ describe("getAgentHealthIssues", () => {
 			getAgentHealthIssues(buildAgent({ status: "disconnected" })),
 		).toContainEqual(
 			expect.objectContaining({
-				title: "Workspace agent has disconnected",
+				title: "Workspace agent disconnected",
 				severity: "warning",
 				prominent: false,
 			}),
@@ -280,7 +280,7 @@ describe("getAgentHealthIssues", () => {
 			}),
 		);
 		expect(issues).toContainEqual(
-			expect.objectContaining({ title: "Workspace agent has disconnected" }),
+			expect.objectContaining({ title: "Workspace agent disconnected" }),
 		);
 		expect(issues).toContainEqual(
 			expect.objectContaining({ title: `"Startup Script" failed` }),

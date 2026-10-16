@@ -68,11 +68,7 @@ export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 				</DialogHeader>
 
 				<div className="flex flex-col gap-3">
-					{info && (
-						<Alert severity="warning" prominent>
-							{info}
-						</Alert>
-					)}
+					{info && <Alert severity="warning">{info}</Alert>}
 					<p className="m-0 text-sm text-content-secondary font-medium">
 						Type <strong className="text-content-primary">{name}</strong> below
 						to confirm.

@@ -7,8 +7,7 @@ type LiveStatusBase = {
 	hasAccumulatedOutput: boolean;
 };
 
-const RECONNECTING_TITLE = "Reconnecting";
-const RECONNECTING_MESSAGE = "Chat stream disconnected. Reconnecting…";
+const RECONNECTING_MESSAGE = "Connection to the chat was lost. Reconnecting…";
 
 export type LiveStatusModel =
 	| ({ phase: "idle" } & LiveStatusBase)
@@ -26,7 +25,6 @@ export type LiveStatusModel =
 	  } & LiveStatusBase)
 	| ({
 			phase: "reconnecting";
-			title: string;
 			message: string;
 			attempt: number;
 			delayMs: number;
@@ -71,7 +69,6 @@ const toReconnectingLiveStatus = (
 ): Extract<LiveStatusModel, { phase: "reconnecting" }> => ({
 	phase: "reconnecting",
 	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
-	title: RECONNECTING_TITLE,
 	message: RECONNECTING_MESSAGE,
 	...reconnectState,
 });

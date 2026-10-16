@@ -105,9 +105,9 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
 				)}
 
 				{!initialValues.user_can_set && (
-					<Alert severity="error">
-						Your administrator has disabled the ability to set a custom quiet
-						hours schedule.
+					<Alert severity="info">
+						Your administrator doesn&apos;t allow custom quiet hours, so you
+						can&apos;t change this schedule.
 					</Alert>
 				)}
 

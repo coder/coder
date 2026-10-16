@@ -48,7 +48,7 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 	const hasInstallations = externalAuth.installations.length > 0;
 
 	// We only want to wrap this with a link if an install URL is available!
-	let installTheApp: React.ReactNode = `install the ${externalAuth.display_name} App`;
+	let installTheApp: React.ReactNode = `Install the ${externalAuth.display_name} App`;
 	if (externalAuth.app_install_url) {
 		installTheApp = (
 			<Link
@@ -113,8 +113,8 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 			<div className="m-4 flex flex-col items-center gap-1">
 				{!hasInstallations && externalAuth.app_installable && (
 					<Alert severity="warning" className="m-4">
-						You must {installTheApp} to clone private repositories. Accounts
-						will appear here once authorized.
+						{installTheApp} to clone private repositories. Authorized accounts
+						appear here.
 					</Alert>
 				)}
 

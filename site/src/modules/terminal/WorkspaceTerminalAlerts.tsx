@@ -68,40 +68,23 @@ const ErrorScriptAlert: React.FC = () => {
 		<TerminalAlert
 			severity="warning"
 			dismissible
-			actions={<RefreshSessionButton />}
+			actions={
+				<>
+					<RefreshSessionButton />
+					<Link
+						href={docs(
+							"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
+						)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						Go to troubleshooting docs
+						<span className="sr-only"> (opens in new tab)</span>
+					</Link>
+				</>
+			}
 		>
-			The workspace{" "}
-			<Link
-				title="startup script has exited with an error"
-				href={docs(
-					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
-				)}
-				target="_blank"
-				rel="noreferrer"
-				className="mx-0"
-			>
-				startup script has exited with an error
-			</Link>
-			, we recommend reloading this session and{" "}
-			<Link
-				title=" debugging the startup script"
-				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
-				target="_blank"
-				rel="noreferrer"
-			>
-				debugging the startup script
-			</Link>{" "}
-			because{" "}
-			<Link
-				title="your workspace may be incomplete."
-				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
-				)}
-				target="_blank"
-				rel="noreferrer"
-			>
-				your workspace may be incomplete.
-			</Link>{" "}
+			The startup script failed, so this workspace may be incomplete.
 		</TerminalAlert>
 	);
 };
@@ -113,19 +96,7 @@ const LoadingScriptsAlert: React.FC = () => {
 			severity="info"
 			actions={<RefreshSessionButton />}
 		>
-			Startup scripts are still running. You can continue using this terminal,
-			but{" "}
-			<Link
-				title="your workspace may be incomplete."
-				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
-				)}
-				target="_blank"
-				rel="noreferrer"
-			>
-				{" "}
-				your workspace may be incomplete.
-			</Link>
+			Startup scripts are still running. Some tools may not be ready yet.
 		</TerminalAlert>
 	);
 };
@@ -137,20 +108,8 @@ const LoadedScriptsAlert: React.FC = () => {
 			dismissible
 			actions={<RefreshSessionButton />}
 		>
-			Startup scripts have completed successfully. The workspace is ready but
-			this{" "}
-			<Link
-				title="session was started before the startup scripts finished"
-				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
-				)}
-				target="_blank"
-				rel="noreferrer"
-			>
-				session was started before the startup script finished.
-			</Link>{" "}
-			To ensure your shell environment is up-to-date, we recommend reloading
-			this session.
+			Startup scripts finished. Refresh the session to load the updated
+			environment.
 		</TerminalAlert>
 	);
 };
@@ -184,7 +143,7 @@ const DisconnectedAlert: React.FC<AlertProps> = (props) => {
 			severity="info"
 			actions={<RefreshSessionButton />}
 		>
-			Trying to connect...
+			Reconnecting to your workspace.
 		</TerminalAlert>
 	);
 };

@@ -464,34 +464,34 @@ export const CreateWorkspacePageView: React.FC<
 					{template.use_classic_parameter_flow && (
 						<Alert
 							severity="warning"
-							prominent
 							actions={
-								canUpdateTemplate && (
-									<Button asChild size="sm">
-										<RouterLink
-											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
-										>
-											Open template settings
-										</RouterLink>
-									</Button>
-								)
+								<>
+									{canUpdateTemplate && (
+										<Button asChild size="sm">
+											<RouterLink
+												to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+											>
+												Open template settings
+											</RouterLink>
+										</Button>
+									)}
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Go to dynamic parameters docs
+										<span className="sr-only"> (opens in new tab)</span>
+									</Link>
+								</>
 							}
 						>
 							<AlertTitle>This template uses deprecated parameters</AlertTitle>
 							<AlertDescription>
-								Some features like real-time validation and conditional
-								parameters won&apos;t work here until the template is switched
-								to dynamic parameters.{" "}
-								<Link
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
-									target="_blank"
-									rel="noreferrer"
-								>
-									View docs
-									<span className="sr-only"> (opens in new tab)</span>
-								</Link>
+								Real-time validation and conditional parameters won&apos;t work
+								until it switches to dynamic parameters.
 							</AlertDescription>
 						</Alert>
 					)}
@@ -504,9 +504,9 @@ export const CreateWorkspacePageView: React.FC<
 
 					{hasIgnoredUrlParams && urlPreset && (
 						<Alert severity="info" dismissible>
-							Preset selected. <code>param.*</code> URL parameters have been
-							ignored. Use either <code>preset</code> or <code>param.*</code>,
-							not both.
+							This link&apos;s preset was applied, so its <code>param.*</code>{" "}
+							values were ignored. Links should use <code>preset</code> or{" "}
+							<code>param.*</code>, not both.
 						</Alert>
 					)}
 
@@ -516,8 +516,8 @@ export const CreateWorkspacePageView: React.FC<
 							dismissible
 							data-testid="duplication-warning"
 						>
-							Duplicating a workspace only copies its parameters. No state from
-							the old workspace is copied over.
+							Duplicating copies only the parameters, not files or other state
+							from the original workspace.
 						</Alert>
 					)}
 
@@ -615,9 +615,8 @@ export const CreateWorkspacePageView: React.FC<
 								)}
 								{!isCreatingForSelf && (
 									<Alert severity="info">
-										This shows the external authentication state for{" "}
-										{owner.username}. They must connect any required providers
-										themselves; you can't authenticate on their behalf.
+										These are {owner.username}&apos;s connections. Only{" "}
+										{owner.username} can connect the required providers.
 									</Alert>
 								)}
 								{externalAuth.map((auth) => (

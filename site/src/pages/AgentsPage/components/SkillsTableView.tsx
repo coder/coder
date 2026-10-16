@@ -230,9 +230,9 @@ const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 						skill. This action cannot be undone.
 					</p>
 					{state.error && (
-						<Alert severity="error" className="mt-3">
+						<Alert severity="error" prominent className="mt-3">
 							<AlertDescription>
-								{state.error.message}
+								Coder couldn't delete this skill. {state.error.message}
 								{state.error.detail ? ` ${state.error.detail}` : ""}
 							</AlertDescription>
 						</Alert>
@@ -318,8 +318,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 			{access.create && isAtLimit && (
 				<Alert severity="warning">
 					<AlertDescription>
-						You have reached the limit of {SKILLS_MAX_PER_OWNER} {pluralNoun}.
-						Delete a skill before creating another one.
+						You've reached the limit of {SKILLS_MAX_PER_OWNER} {pluralNoun}.
+						Delete one to add another.
 					</AlertDescription>
 				</Alert>
 			)}

@@ -7,7 +7,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
@@ -212,24 +212,26 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 											prominent
 											className="rounded-none border-0 border-b border-solid border-border"
 										>
-											<div>
-												The workspace may have failed to delete due to a
-												Terraform state mismatch. A template admin may run{" "}
+											<AlertTitle>
+												Couldn&apos;t delete this workspace
+											</AlertTitle>
+											<AlertDescription>
+												The Terraform state may not match its resources. A
+												template admin can run{" "}
 												<code className="font-semibold w-fit inline-block">
 													{`coder rm ${`${build.workspace_owner_name}/${build.workspace_name}`} --orphan`}
 												</code>{" "}
-												to delete the workspace skipping resource destruction.
-											</div>
+												to delete it without destroying its resources.
+											</AlertDescription>
 										</Alert>
 									)}
 								{build?.job?.logs_overflowed && (
 									<Alert
 										severity="warning"
-										prominent
 										className="rounded-none border-0 border-b border-solid border-border"
 									>
-										Provisioner logs exceeded the max size of 1MB. Will not
-										continue to write provisioner logs for workspace build.
+										This build&apos;s logs reached the 1 MB limit, so later
+										output wasn&apos;t saved.
 									</Alert>
 								)}
 								<BuildLogsContent logs={logs} build={build} />

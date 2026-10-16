@@ -274,7 +274,8 @@ export const HealthMessageDocsLink: React.FC<HealthMessageDocsLinkProps> = ({
 			rel="noreferrer"
 			className="mx-0"
 		>
-			Docs for {code}
+			Go to health check docs
+			<span className="sr-only"> (opens in new tab)</span>
 		</Link>
 	);
 };

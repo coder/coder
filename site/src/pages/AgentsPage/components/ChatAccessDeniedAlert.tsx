@@ -4,11 +4,13 @@ import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 type ChatAccessDeniedAlertProps = {
+	readonly title?: string;
 	readonly description?: string;
 };
 
 export const ChatAccessDeniedAlert: React.FC<ChatAccessDeniedAlertProps> = ({
-	description = "You don't have permission to use Coder Agents. Your existing chats are kept and reappear when your access is restored. Contact your Coder administrator, then refresh this page.",
+	title = "You can't use Coder Agents",
+	description = "Your existing chats are kept and come back when access is restored. Ask your Coder administrator for access, then refresh.",
 }) => {
 	const docsLink = docs(
 		"/ai-coder/agents/getting-started#control-who-can-use-coder-agents",
@@ -16,20 +18,21 @@ export const ChatAccessDeniedAlert: React.FC<ChatAccessDeniedAlertProps> = ({
 
 	return (
 		<Alert
-			severity="info"
+			severity="warning"
 			actions={
-				<Button size="sm" onClick={() => location.reload()}>
-					Refresh
-				</Button>
+				<>
+					<Button size="sm" onClick={() => location.reload()}>
+						Refresh
+					</Button>
+					<Link href={docsLink} target="_blank" rel="noreferrer">
+						Go to access docs
+						<span className="sr-only"> (opens in new tab)</span>
+					</Link>
+				</>
 			}
 		>
-			<AlertTitle>Permission required</AlertTitle>
-			<AlertDescription>
-				{description}{" "}
-				<Link href={docsLink} target="_blank" rel="noreferrer">
-					View Docs
-				</Link>
-			</AlertDescription>
+			<AlertTitle>{title}</AlertTitle>
+			<AlertDescription>{description}</AlertDescription>
 		</Alert>
 	);
 };

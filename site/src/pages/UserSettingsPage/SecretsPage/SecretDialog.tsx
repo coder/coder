@@ -1,12 +1,7 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { useState } from "react";
-import {
-	type FieldError,
-	getErrorMessage,
-	isApiError,
-	isApiErrorResponse,
-} from "#/api/errors";
+import { type FieldError, isApiError, isApiErrorResponse } from "#/api/errors";
 import {
 	type CreateUserSecretRequest,
 	type ImportUserSecretsRequest,
@@ -66,7 +61,7 @@ const emptyValues: SecretFormValues = {
 	file_path: "",
 };
 
-const infoText = "Secret values cannot be retrieved once saved.";
+const infoText = "You can't view a secret's value after you save it.";
 export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••••••••••";
 
 export const SecretDialog: React.FC<SecretDialogProps> = ({
@@ -225,7 +220,8 @@ export const SecretDialog: React.FC<SecretDialogProps> = ({
 					</Alert>
 
 					{formError && (
-						<Alert severity="error" prominent>
+						<Alert severity="error" prominent dismissible>
+							<AlertTitle>Couldn&apos;t save this secret</AlertTitle>
 							<AlertDescription>{formError}</AlertDescription>
 						</Alert>
 					)}
@@ -647,11 +643,10 @@ const ImportSecretsError: React.FC<ImportSecretsErrorProps> = ({ error }) => {
 	}
 
 	return (
-		<Alert severity="error" prominent>
-			<AlertTitle>
-				{getErrorMessage(error, "Failed to import secrets.")}
-			</AlertTitle>
+		<Alert severity="error" prominent dismissible>
+			<AlertTitle>Couldn&apos;t import secrets</AlertTitle>
 			<AlertDescription>
+				Update these entries in your file, then import it again:
 				<ul className="m-0 flex list-disc flex-col gap-1 pl-5">
 					{validations.map((validation) => (
 						<li key={validation.field}>

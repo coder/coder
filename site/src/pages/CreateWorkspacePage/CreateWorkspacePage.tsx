@@ -123,7 +123,13 @@ const CreateWorkspacePage: React.FC = () => {
 		if (templateVersionPresetsQuery.isError) {
 			return {
 				preset: undefined,
-				error: `Failed to load presets: ${templateVersionPresetsQuery.error?.message ?? "unknown error"}. Please try refreshing the page.`,
+				error: [
+					"Coder couldn't load this template's presets.",
+					templateVersionPresetsQuery.error?.message,
+					"Refresh the page to try again.",
+				]
+					.filter(Boolean)
+					.join(" "),
 			};
 		}
 
@@ -136,7 +142,7 @@ const CreateWorkspacePage: React.FC = () => {
 			const versionLabel = templateVersionQuery.data?.name ?? realizedVersionId;
 			return {
 				preset: undefined,
-				error: `Preset "${effectivePresetName}" not found on template version "${versionLabel}". Check that the preset name matches exactly (names are case-sensitive).`,
+				error: `Coder couldn't find the preset "${effectivePresetName}" in template version "${versionLabel}". Preset names are case-sensitive. Choose a preset below.`,
 			};
 		}
 		return { preset: found, error: undefined };
