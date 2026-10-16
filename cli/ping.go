@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,14 +60,21 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	s.m2 += d * d2
 }
 
-// Write finalizes the summary and writes it
-func (s *pingSummary) Write(w io.Writer) {
+// finalize computes the derived Avg and Variance fields from the
+// accumulated results. It must be called before the summary is
+// displayed or serialized.
+func (s *pingSummary) finalize() {
 	if s.Successful > 0 {
 		s.Avg = new(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
 	}
 	if s.Successful > 1 {
 		s.Variance = new(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
 	}
+}
+
+// Write finalizes the summary and writes it
+func (s *pingSummary) Write(w io.Writer) {
+	s.finalize()
 	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "Failed to display ping summary: %v\n", err)
@@ -77,13 +85,62 @@ func (s *pingSummary) Write(w io.Writer) {
 	_, _ = fmt.Fprint(w, out)
 }
 
+// PingJSONPong is one ping attempt. Error is set when the attempt failed.
+type PingJSONPong struct {
+	Sequence   int        `json:"sequence"`
+	Time       *time.Time `json:"time,omitempty"`
+	LatencyMS  *float64   `json:"latency_ms,omitempty"`
+	Direct     *bool      `json:"direct,omitempty"`
+	DERPRegion string     `json:"derp_region,omitempty"`
+	Error      string     `json:"error,omitempty"`
+}
+
+// PingJSONSummary mirrors the fields shown in the ping summary table.
+type PingJSONSummary struct {
+	Total      int      `json:"total"`
+	Successful int      `json:"successful"`
+	MinMS      *float64 `json:"min_ms,omitempty"`
+	AvgMS      *float64 `json:"avg_ms,omitempty"`
+	MaxMS      *float64 `json:"max_ms,omitempty"`
+	VarianceMS *float64 `json:"variance_ms,omitempty"`
+}
+
+// PingJSONOutput is the single document `coder ping -o json` prints to stdout
+// after the last attempt.
+type PingJSONOutput struct {
+	Workspace string          `json:"workspace"`
+	Pongs     []PingJSONPong  `json:"pongs"`
+	Summary   PingJSONSummary `json:"summary"`
+}
+
+func durationMS(d *time.Duration) *float64 {
+	if d == nil {
+		return nil
+	}
+	ms := float64(*d) / float64(time.Millisecond)
+	return &ms
+}
+
+// jsonSummary builds the JSON summary. finalize must be called first.
+func (s *pingSummary) jsonSummary() PingJSONSummary {
+	return PingJSONSummary{
+		Total:      s.Total,
+		Successful: s.Successful,
+		MinMS:      durationMS(s.Min),
+		AvgMS:      durationMS(s.Avg),
+		MaxMS:      durationMS(s.Max),
+		VarianceMS: durationMS(s.Variance),
+	}
+}
+
 func (r *RootCmd) ping() *serpent.Command {
 	var (
-		pingNum       int64
-		pingTimeout   time.Duration
-		pingWait      time.Duration
-		pingTimeLocal bool
-		pingTimeUTC   bool
+		pingNum          int64
+		pingTimeout      time.Duration
+		pingWait         time.Duration
+		pingTimeLocal    bool
+		pingTimeUTC      bool
+		pingOutputFormat string
 	)
 
 	cmd := &serpent.Command{
@@ -94,6 +151,13 @@ func (r *RootCmd) ping() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			// JSON output is a single document printed when pinging ends. Without
+			// --num, pinging continues until interrupted, so stdout would stay
+			// empty and every pong would be held in memory until then.
+			if pingOutputFormat == "json" && pingNum <= 0 {
+				return xerrors.New("--output json requires --num, because pings continue until interrupted without it")
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -103,6 +167,16 @@ func (r *RootCmd) ping() *serpent.Command {
 			appearanceConfig := initAppearance(ctx, client)
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
+
+			// In JSON mode, stdout carries a single JSON document at the
+			// end. Diagnostic and per-attempt lines that would otherwise go
+			// to stdout are redirected to stderr so they cannot corrupt the
+			// JSON output. Default (table) output is unaffected.
+			jsonOutput := pingOutputFormat == "json"
+			diagOut := inv.Stdout
+			if jsonOutput {
+				diagOut = inv.Stderr
+			}
 
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
@@ -125,7 +199,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			opts := &workspacesdk.DialAgentOptions{}
 
 			if r.verbose {
-				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(diagOut)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
@@ -177,7 +251,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			if err == nil {
 				connDiags.LocalInterfaces = &ifReport
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
+				_, _ = fmt.Fprintf(diagOut, "Failed to retrieve local interfaces report: %v\n", err)
 			}
 
 			agentNetcheck, err := conn.Netcheck(diagCtx)
@@ -187,9 +261,9 @@ func (r *RootCmd) ping() *serpent.Command {
 			} else {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					_, _ = fmt.Fprint(inv.Stdout, "Could not generate full connection report as the workspace agent is outdated\n")
+					_, _ = fmt.Fprint(diagOut, "Could not generate full connection report as the workspace agent is outdated\n")
 				} else {
-					_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection report from agent: %v\n", err)
+					_, _ = fmt.Fprintf(diagOut, "Failed to retrieve connection report from agent: %v\n", err)
 				}
 			}
 
@@ -198,6 +272,17 @@ func (r *RootCmd) ping() *serpent.Command {
 			connDiags.Write(inv.Stderr)
 			results := &pingSummary{
 				Workspace: workspaceName,
+			}
+			var pongs []PingJSONPong
+			emitJSON := func() error {
+				results.finalize()
+				enc := json.NewEncoder(inv.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(PingJSONOutput{
+					Workspace: workspaceName,
+					Pongs:     pongs,
+					Summary:   results.jsonSummary(),
+				})
 			}
 			var (
 				pong *ipnstate.PingResult
@@ -223,32 +308,64 @@ func (r *RootCmd) ping() *serpent.Command {
 				results.addResult(pong)
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
-						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
+						_, _ = fmt.Fprintf(diagOut, "ping to %q timed out \n", workspaceName)
+						if jsonOutput {
+							pongs = append(pongs, PingJSONPong{
+								Sequence: n,
+								Time:     &pongTime,
+								Error:    "timed out",
+							})
+						}
 						if n == int(pingNum) {
+							if jsonOutput {
+								return emitJSON()
+							}
 							return nil
 						}
 						continue
 					}
 					if xerrors.Is(err, context.Canceled) {
+						if jsonOutput {
+							return emitJSON()
+						}
 						return nil
 					}
 
 					if err.Error() == "no matching peer" {
+						if jsonOutput {
+							pongs = append(pongs, PingJSONPong{
+								Sequence: n,
+								Time:     &pongTime,
+								Error:    err.Error(),
+							})
+						}
 						continue
 					}
 
-					_, _ = fmt.Fprintf(inv.Stdout, "ping to %q failed %s\n", workspaceName, err.Error())
+					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
+					if jsonOutput {
+						pongs = append(pongs, PingJSONPong{
+							Sequence: n,
+							Time:     &pongTime,
+							Error:    err.Error(),
+						})
+					}
 					if n == int(pingNum) {
+						if jsonOutput {
+							return emitJSON()
+						}
 						return nil
 					}
 					continue
 				}
 
-				dur = dur.Round(time.Millisecond)
+				dispDur := dur.Round(time.Millisecond)
 				var via string
+				var derpRegionName string
+				direct := p2p
 				if p2p {
 					if !didP2p {
-						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
+						_, _ = fmt.Fprintln(diagOut, "p2p connection established in",
 							pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
@@ -264,6 +381,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					if ok {
 						derpName = derpRegion.RegionName
 					}
+					derpRegionName = derpName
 					via = fmt.Sprintf("%s via %s",
 						pretty.Sprint(cliui.DefaultStyles.Fuchsia, "proxied"),
 						pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("DERP(%s)", derpName)),
@@ -275,12 +393,23 @@ func (r *RootCmd) ping() *serpent.Command {
 					displayTime = pretty.Sprintf(cliui.DefaultStyles.DateTimeStamp, "[%s] ", pongTime.Format(time.RFC3339))
 				}
 
-				_, _ = fmt.Fprintf(inv.Stdout, "%spong from %s %s in %s\n",
+				_, _ = fmt.Fprintf(diagOut, "%spong from %s %s in %s\n",
 					displayTime,
 					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
-					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dispDur.String()),
 				)
+
+				if jsonOutput {
+					latencyMS := float64(dur) / float64(time.Millisecond)
+					pongs = append(pongs, PingJSONPong{
+						Sequence:   n,
+						Time:       &pongTime,
+						LatencyMS:  &latencyMS,
+						Direct:     &direct,
+						DERPRegion: derpRegionName,
+					})
+				}
 
 				select {
 				case <-notifyCtx.Done():
@@ -301,6 +430,10 @@ func (r *RootCmd) ping() *serpent.Command {
 			} else {
 				_, _ = fmt.Fprintf(inv.Stderr, "❗ You are connected via a DERP relay, not directly (p2p)\n"+
 					"   %s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
+			}
+
+			if jsonOutput {
+				return emitJSON()
 			}
 
 			results.Write(inv.Stdout)
@@ -338,6 +471,13 @@ func (r *RootCmd) ping() *serpent.Command {
 			Flag:        "utc",
 			Description: "Show the response time of each pong in UTC (implies --time).",
 			Value:       serpent.BoolOf(&pingTimeUTC),
+		},
+		{
+			Flag:          "output",
+			FlagShorthand: "o",
+			Default:       "table",
+			Description:   "Output format. Available formats: table, json. JSON output requires --num.",
+			Value:         serpent.EnumOf(&pingOutputFormat, "table", "json"),
 		},
 	}
 	return cmd
