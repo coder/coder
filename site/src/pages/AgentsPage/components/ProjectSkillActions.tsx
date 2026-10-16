@@ -21,7 +21,6 @@ const MAX_INLINE_ACTIONS = 3;
 type ProjectSkillActionsProps = {
 	organizationId: string;
 	projectId: string;
-	/** Inserts the named project skill into the composer. */
 	onInvoke: (name: string) => void;
 };
 
@@ -121,27 +120,22 @@ type ProjectSkillActionButtonProps = {
 const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 	skill,
 	onInvoke,
-}) => {
-	const button = (
-		<Button
-			size="sm"
-			variant="outline"
-			className="max-w-full"
-			onClick={() => onInvoke(skill.name)}
-		>
-			<span className="truncate">{skill.name}</span>
-		</Button>
-	);
-	// Shows the full name, which a narrow composer truncates.
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>{button}</TooltipTrigger>
-			<TooltipContent className="max-w-64">
-				<span className="block break-words font-medium">{skill.name}</span>
-				{skill.description && (
-					<span className="block">{skill.description}</span>
-				)}
-			</TooltipContent>
-		</Tooltip>
-	);
-};
+}) => (
+	// The tooltip shows the full name, which a narrow composer truncates.
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				size="sm"
+				variant="outline"
+				className="max-w-full"
+				onClick={() => onInvoke(skill.name)}
+			>
+				<span className="truncate">{skill.name}</span>
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent className="max-w-64">
+			<span className="block break-words font-medium">{skill.name}</span>
+			{skill.description && <span className="block">{skill.description}</span>}
+		</TooltipContent>
+	</Tooltip>
+);
