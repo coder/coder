@@ -13,7 +13,7 @@ import {
 	NetworkMonitoringDisabled,
 	NetworkNoActivity,
 } from "../NetworkRequestStates";
-import { TokenBadges } from "../TokenBadges";
+import { CacheTokenBadges, TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
@@ -27,6 +27,8 @@ type SessionSummaryTableProps = {
 	providers: readonly string[];
 	inputTokens: number;
 	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
@@ -51,6 +53,8 @@ export const SessionSummaryTable = ({
 	client,
 	inputTokens,
 	outputTokens,
+	cacheReadTokens,
+	cacheWriteTokens,
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
@@ -178,6 +182,18 @@ export const SessionSummaryTable = ({
 						inputTokens={inputTokens}
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+				</dd>
+			</div>
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">
+					Cache read / write
+				</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<CacheTokenBadges
+						cacheReadTokens={cacheReadTokens}
+						cacheWriteTokens={cacheWriteTokens}
 					/>
 				</dd>
 			</div>
