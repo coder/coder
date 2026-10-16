@@ -2836,6 +2836,23 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 	return dbauthz.As(ctx, actor)
 }
 
+// skillLoader says who asked for a stored skill body. Skills that are not
+// model-invocable stay hidden from the agent but load for users who invoke
+// them explicitly.
+type skillLoader int
+
+const (
+	// skillLoaderModel loads a skill the agent asked for with read_skill.
+	skillLoaderModel skillLoader = iota
+	// skillLoaderUser loads a skill the user invoked in a message.
+	skillLoaderUser
+)
+
+// hides reports whether the loader must treat a skill as missing.
+func (l skillLoader) hides(enabled, modelInvocable bool) bool {
+	return !enabled || (l == skillLoaderModel && !modelInvocable)
+}
+
 func (p *Server) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -2847,7 +2864,7 @@ func (p *Server) fetchPersonalSkillMetadata(
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
 			continue
 		}
 		personalSkills = append(personalSkills, skillspkg.Skill{
@@ -2863,6 +2880,7 @@ func (p *Server) loadPersonalSkillBody(
 	ctx context.Context,
 	userID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	row, err := p.db.GetUserSkillByUserIDAndName(
 		userSkillContext(ctx, userID),
@@ -2882,7 +2900,7 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
@@ -2926,7 +2944,7 @@ func (p *Server) fetchOrganizationSkillMetadata(
 
 	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
 			continue
 		}
 		organizationSkills = append(organizationSkills, skillspkg.Skill{
@@ -2943,6 +2961,7 @@ func (p *Server) loadOrganizationSkillBody(
 	owner rbac.Subject,
 	organizationID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
 	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
@@ -2964,7 +2983,7 @@ func (p *Server) loadOrganizationSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
@@ -2981,7 +3000,8 @@ func (p *Server) loadOrganizationSkillBody(
 	return parsed, nil
 }
 
-// fetchProjectSkillMetadata lists the enabled skills of a chat project. Reads
+// fetchProjectSkillMetadata lists the enabled, model-invocable skills of a
+// chat project. Reads
 // run as the chat owner, so they follow the owner's access to the project.
 func (p *Server) fetchProjectSkillMetadata(
 	ctx context.Context,
@@ -2996,7 +3016,7 @@ func (p *Server) fetchProjectSkillMetadata(
 
 	projectSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if !row.Enabled {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
 			continue
 		}
 		projectSkills = append(projectSkills, skillspkg.Skill{
@@ -3010,12 +3030,13 @@ func (p *Server) fetchProjectSkillMetadata(
 
 // loadProjectSkillBody loads the current body of a chat project skill as the
 // chat owner. It returns skillspkg.ErrSkillNotFound when the skill is gone,
-// disabled, or the owner can no longer read the project.
+// disabled, hidden from loader, or the owner can no longer read the project.
 func (p *Server) loadProjectSkillBody(
 	ctx context.Context,
 	owner rbac.Subject,
 	projectID uuid.UUID,
 	name string,
+	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	//nolint:gocritic // Project access is evaluated against the chat owner.
 	row, err := p.db.GetProjectSkillByProjectIDAndName(
@@ -3036,7 +3057,7 @@ func (p *Server) loadProjectSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load project skill body: %w", err)
 	}
-	if !row.Enabled {
+	if loader.hides(row.Enabled, row.ModelInvocable) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 

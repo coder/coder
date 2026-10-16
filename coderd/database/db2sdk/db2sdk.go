@@ -2453,12 +2453,14 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 func Skill(skill database.Skill) codersdk.Skill {
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
-			ID:          skill.ID,
-			Name:        skill.Name,
-			Description: skill.Description,
-			Enabled:     skill.Enabled,
-			CreatedAt:   skill.CreatedAt,
-			UpdatedAt:   skill.UpdatedAt,
+			ID:             skill.ID,
+			Name:           skill.Name,
+			Description:    skill.Description,
+			Enabled:        skill.Enabled,
+			Action:         skill.Action,
+			ModelInvocable: skill.ModelInvocable,
+			CreatedAt:      skill.CreatedAt,
+			UpdatedAt:      skill.UpdatedAt,
 		},
 		Content: skill.Content,
 	}
@@ -2470,12 +2472,14 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2487,12 +2491,14 @@ func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadata
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2503,12 +2509,14 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata

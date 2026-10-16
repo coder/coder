@@ -87,7 +87,7 @@ func TestSkillOwners(t *testing.T) {
 	type skillRow struct {
 		owners
 		name              string
-		enabled           bool
+		enabled, action   bool
 		groupACL, userACL string
 	}
 	insertSkill := func(ctx context.Context, q interface {
@@ -104,9 +104,9 @@ func TestSkillOwners(t *testing.T) {
 			row.userACL = "{}"
 		}
 		_, err := q.ExecContext(ctx, `
-			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, group_acl, user_acl)
-			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7::jsonb, $8::jsonb)`,
-			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.groupACL, row.userACL)
+			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, action, group_acl, user_acl)
+			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7, $8::jsonb, $9::jsonb)`,
+			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.action, row.groupACL, row.userACL)
 		return err
 	}
 	countSkills := func(ctx context.Context, column string, id uuid.UUID) int {
@@ -156,6 +156,16 @@ func TestSkillOwners(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsGroupAclIsObject), err)
 		err = insertSkill(ctx, sqlDB, skillRow{owners: org, userACL: "[]"})
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsUserAclIsObject), err)
+	})
+
+	t.Run("ActionOnlyOnProjectSkills", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		for _, o := range []owners{{user: valid(newUser())}, {org: valid(newOrg())}} {
+			err := insertSkill(ctx, sqlDB, skillRow{owners: o, action: true})
+			require.True(t, database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly), "owners %+v: %v", o, err)
+		}
+		require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{project: valid(newProject())}, action: true}))
 	})
 
 	// TestUserSkillLimit and TestUserSkillLimitConcurrentCreates in coderd
