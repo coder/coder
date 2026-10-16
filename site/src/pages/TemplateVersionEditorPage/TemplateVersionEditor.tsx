@@ -308,7 +308,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 						>
 							<Alert
 								severity="success"
-								prominent
 								dismissible
 								actions={
 									<Button asChild size="sm">
