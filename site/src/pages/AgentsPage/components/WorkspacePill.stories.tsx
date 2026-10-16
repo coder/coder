@@ -30,7 +30,6 @@ const externalApp: WorkspaceApp = {
 	sharing_level: "owner",
 	hidden: false,
 	open_in: "slim-window",
-	statuses: [],
 };
 
 const cursorApp: WorkspaceApp = {
@@ -44,7 +43,6 @@ const cursorApp: WorkspaceApp = {
 	sharing_level: "owner",
 	hidden: false,
 	open_in: "slim-window",
-	statuses: [],
 	icon: "/icon/cursor.svg",
 };
 
@@ -59,7 +57,6 @@ const hiddenApp: WorkspaceApp = {
 	sharing_level: "owner",
 	hidden: true,
 	open_in: "slim-window",
-	statuses: [],
 };
 
 const agentWithApps = {

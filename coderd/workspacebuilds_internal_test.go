@@ -19,7 +19,7 @@ import (
 
 // buildFixture holds one batch of rows shaped like the output of
 // workspaceBuildsData: a set of builds plus the flat resource, agent, app,
-// script, log source, status, and daemon rows for all of them.
+// script, log source, and daemon rows for all of them.
 type buildFixture struct {
 	builds           []database.WorkspaceBuild
 	workspaces       []database.Workspace
@@ -29,7 +29,6 @@ type buildFixture struct {
 	metadata         []database.WorkspaceResourceMetadatum
 	agents           []database.WorkspaceAgent
 	apps             []database.WorkspaceApp
-	statuses         []database.WorkspaceAppStatus
 	scripts          []database.GetWorkspaceAgentScriptsByAgentIDsRow
 	logSources       []database.WorkspaceAgentLogSource
 	daemons          []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
@@ -122,12 +121,6 @@ func newBuildFixture(builds, resourcesPerBuild int, agentsPerResource int32, app
 						SharingLevel: database.AppSharingLevelOwner,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 					})
-					f.statuses = append(f.statuses, database.WorkspaceAppStatus{
-						ID:      uuid.New(),
-						AgentID: agentID,
-						AppID:   appID,
-						State:   database.WorkspaceAppStatusStateComplete,
-					})
 				}
 			}
 		}
@@ -157,7 +150,6 @@ func (f buildFixture) convert(api *API) ([]codersdk.WorkspaceBuild, error) {
 		f.metadata,
 		f.agents,
 		f.apps,
-		f.statuses,
 		f.scripts,
 		f.logSources,
 		f.templateVersions,
@@ -248,7 +240,6 @@ func TestConvertWorkspaceBuildsRowsPerBuild(t *testing.T) {
 
 				for _, app := range agent.Apps {
 					require.True(t, strings.HasPrefix(app.Slug, fmt.Sprintf("app-%d-", b)), app.Slug)
-					require.Len(t, app.Statuses, 1)
 				}
 			}
 		}

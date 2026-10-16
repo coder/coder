@@ -116,17 +116,6 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 			},
 		},
 		{
-			name: "AppStatuses",
-			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}}},
-			setup: func(db *dbmock.MockStore) {
-				expectResources(db)
-				expectAgents(db)
-				expectApps(db)
-				db.EXPECT().GetWorkspaceAppStatusesByAppIDs(gomock.Any(), gomock.Any()).
-					Return([]database.WorkspaceAppStatus{}, nil)
-			},
-		},
-		{
 			name: "Scripts",
 			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Scripts: true}}},
 			setup: func(db *dbmock.MockStore) {
@@ -157,8 +146,6 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 				expectApps(db)
 				db.EXPECT().GetWorkspaceResourceMetadataByResourceIDs(gomock.Any(), gomock.Any()).
 					Return([]database.WorkspaceResourceMetadatum{}, nil)
-				db.EXPECT().GetWorkspaceAppStatusesByAppIDs(gomock.Any(), gomock.Any()).
-					Return([]database.WorkspaceAppStatus{}, nil)
 				db.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), gomock.Any()).
 					Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
 				db.EXPECT().GetWorkspaceAgentLogSourcesByAgentIDs(gomock.Any(), gomock.Any()).
@@ -193,19 +180,18 @@ func TestWorkspaceBuildsDataResourcesShortCircuit(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	build := database.WorkspaceBuild{ID: uuid.New(), JobID: uuid.New(), TemplateVersionID: uuid.New()}
-	// No resources returned: the agent, app, and status queries must be skipped.
+	// No resources returned: the agent and app queries must be skipped.
 	db.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), gomock.Any()).
 		Return([]database.WorkspaceResource{}, nil)
 
-	cfg := wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}}}
+	cfg := wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}}}
 	api := &API{Options: &Options{Database: db}}
 	_, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{build}, cfg)
 	require.NoError(t, err)
 }
 
 // TestWorkspaceDataQueryGating asserts that workspaceData gates its
-// workspace-level queries (templates, latest builds, and latest app statuses)
-// on the selection.
+// workspace-level queries (templates and latest builds) on the selection.
 func TestWorkspaceDataQueryGating(t *testing.T) {
 	t.Parallel()
 
@@ -239,16 +225,12 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 			},
 		},
 		{
-			name: "AppStatuses",
+			name: "Apps",
 			cfg: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
-				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}},
+				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}},
 			}},
 			setup: func(db *dbmock.MockStore) {
-				// The workspace-level latest app status query is gated on the
-				// apps.statuses node. With no builds, only the workspace-level
-				// status, build, and (empty) resource queries run.
-				db.EXPECT().GetLatestWorkspaceAppStatusesByWorkspaceIDs(gomock.Any(), gomock.Any()).
-					Return([]database.WorkspaceAppStatus{}, nil)
+				// With no builds, only the build and (empty) resource queries run.
 				db.EXPECT().GetLatestWorkspaceBuildsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 					Return([]database.WorkspaceBuild{}, nil)
 				db.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), gomock.Any()).
