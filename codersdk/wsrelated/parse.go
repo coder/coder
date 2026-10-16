@@ -62,12 +62,6 @@ func buildSchema() []relatedNode {
 								{
 									name:       "apps",
 									selectInto: func(r *Config) { r.ensureLatestBuild().ensureResources().ensureAgents().ensureApps() },
-									children: []relatedNode{
-										{
-											name:       "statuses",
-											selectInto: func(r *Config) { r.ensureLatestBuild().ensureResources().ensureAgents().ensureApps().Statuses = true },
-										},
-									},
 								},
 								{
 									name:       "scripts",

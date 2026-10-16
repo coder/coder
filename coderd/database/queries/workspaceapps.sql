@@ -100,31 +100,3 @@ SET
 	health = $2
 WHERE
 	id = $1;
-
--- name: InsertWorkspaceAppStatus :one
-INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, uri)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING *;
-
--- name: GetWorkspaceAppStatusesByAppIDs :many
-SELECT * FROM workspace_app_statuses WHERE app_id = ANY(@ids :: uuid [ ])
-ORDER BY created_at DESC, id DESC;
-
--- name: GetLatestWorkspaceAppStatusByAppID :one
-SELECT *
-FROM workspace_app_statuses
-WHERE app_id = @app_id::uuid
-ORDER BY created_at DESC, id DESC
-LIMIT 1;
-
--- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
--- id DESC is a stability tiebreaker, not an insertion-order signal: back-to-back
--- inserts can share a created_at on platforms with coarse time.Now() resolution,
--- and id is a random UUID, so this only guarantees a deterministic pick, not the
--- later row. Callers must not depend on sub-microsecond recency here.
-SELECT DISTINCT ON (workspace_id)
-  *
-FROM workspace_app_statuses
-WHERE workspace_id = ANY(@ids :: uuid[])
-ORDER BY workspace_id, created_at DESC, id DESC;
-

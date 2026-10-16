@@ -22,21 +22,6 @@ func TestAll(t *testing.T) {
 	require.True(t, all.LatestBuild.Resources.Metadata)
 	require.NotNil(t, all.LatestBuild.Resources.Agents)
 	require.NotNil(t, all.LatestBuild.Resources.Agents.Apps)
-	require.True(t, all.LatestBuild.Resources.Agents.Apps.Statuses)
 	require.True(t, all.LatestBuild.Resources.Agents.Scripts)
 	require.True(t, all.LatestBuild.Resources.Agents.LogSources)
-	require.True(t, all.LatestBuild.AppStatuses())
-}
-
-// TestLatestBuildAppStatuses verifies the nil-safe AppStatuses accessor only
-// reports true when the full apps.statuses path is present.
-func TestLatestBuildAppStatuses(t *testing.T) {
-	t.Parallel()
-
-	require.False(t, (*wsrelated.LatestBuild)(nil).AppStatuses())
-	require.False(t, (&wsrelated.LatestBuild{}).AppStatuses())
-	require.False(t, (&wsrelated.LatestBuild{Resources: &wsrelated.Resources{}}).AppStatuses())
-	require.False(t, (&wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{}}}).AppStatuses())
-	require.False(t, (&wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}}}).AppStatuses())
-	require.True(t, (&wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}}}).AppStatuses())
 }

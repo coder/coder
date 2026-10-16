@@ -160,8 +160,11 @@ service AgentSocket {
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
   // List all registered units and their current statuses.
   rpc SyncList(SyncListRequest) returns (SyncListResponse);
-  // Update app status, forwarded to coderd.
-  rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse);
+  // UpdateAppStatus is kept so older clients keep working. The agent accepts
+  // and discards the request.
+  rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse) {
+    option deprecated = true;
+  }
   // List the workspace context sources registered on the agent.
   rpc ContextSources(ContextSourcesRequest) returns (ContextSourcesResponse);
   // Get a single registered context source by path.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -19,7 +18,6 @@ var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 var (
 	ErrUnitManagerNotAvailable    = xerrors.New("unit manager not available")
-	ErrAgentAPINotConnected       = xerrors.New("agent not connected to coderd")
 	ErrContextManagerNotAvailable = xerrors.New("context manager not available")
 	ErrContextSourceNotFound      = xerrors.New("context source not found")
 )
@@ -41,25 +39,6 @@ type DRPCAgentSocketService struct {
 	unitManager    *unit.Manager
 	contextManager ContextManager
 	logger         slog.Logger
-
-	mu       sync.Mutex
-	agentAPI agentproto.DRPCAgentClient28
-}
-
-// SetAgentAPI sets the agent API client used to forward requests
-// to coderd. This is called when the agent connects to coderd.
-func (s *DRPCAgentSocketService) SetAgentAPI(api agentproto.DRPCAgentClient28) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.agentAPI = api
-}
-
-// ClearAgentAPI clears the agent API client. This is called when
-// the agent disconnects from coderd.
-func (s *DRPCAgentSocketService) ClearAgentAPI() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.agentAPI = nil
 }
 
 // Ping responds to a ping request to check if the service is alive.
@@ -215,17 +194,13 @@ func (s *DRPCAgentSocketService) SyncList(_ context.Context, _ *proto.SyncListRe
 	return &proto.SyncListResponse{Units: unitInfos}, nil
 }
 
-// UpdateAppStatus forwards an app status update to coderd via the
-// agent API. Returns an error if the agent is not connected.
-func (s *DRPCAgentSocketService) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
-	s.mu.Lock()
-	api := s.agentAPI
-	s.mu.Unlock()
-
-	if api == nil {
-		return nil, ErrAgentAPINotConnected
-	}
-	return api.UpdateAppStatus(ctx, req)
+// UpdateAppStatus accepts and discards app status updates. Workspace app
+// statuses have been removed, but the RPC stays so older clients in the
+// workspace that still report statuses do not fail.
+//
+// Deprecated: workspace app statuses have been removed.
+func (*DRPCAgentSocketService) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+	return new(agentproto.UpdateAppStatusResponse), nil
 }
 
 // ContextSources lists the workspace-context sources registered on the agent.

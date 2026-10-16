@@ -133,11 +133,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appStatus := codersdk.WorkspaceAppStatus{}
-	if len(data.appStatuses) > 0 {
-		appStatus = data.appStatuses[0]
-	}
-
 	// Related data may be omitted, in which case these carry zero values.
 	var build codersdk.WorkspaceBuild
 	if len(data.builds) > 0 {
@@ -156,7 +151,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		build,
 		template,
 		api.AllowWorkspaceRenames,
-		appStatus,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -376,11 +370,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	appStatus := codersdk.WorkspaceAppStatus{}
-	if len(data.appStatuses) > 0 {
-		appStatus = data.appStatuses[0]
-	}
-
 	// Related data may be omitted, in which case these carry zero values.
 	var build codersdk.WorkspaceBuild
 	if len(data.builds) > 0 {
@@ -399,7 +388,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		build,
 		template,
 		api.AllowWorkspaceRenames,
-		appStatus,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -911,7 +899,7 @@ func createWorkspace(
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, nil, provisionerDaemons),
+		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, provisionerDaemons),
 		database.TemplateVersion{},
 	)
 	if err != nil {
@@ -929,7 +917,6 @@ func createWorkspace(
 		apiBuild,
 		template,
 		api.AllowWorkspaceRenames,
-		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -1687,11 +1674,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = newWorkspace
 
-	appStatus := codersdk.WorkspaceAppStatus{}
-	if len(data.appStatuses) > 0 {
-		appStatus = data.appStatuses[0]
-	}
-
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
@@ -1700,7 +1682,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		data.builds[0],
 		data.templates[0],
 		api.AllowWorkspaceRenames,
-		appStatus,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2255,10 +2236,6 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		appStatus := codersdk.WorkspaceAppStatus{}
-		if len(data.appStatuses) > 0 {
-			appStatus = data.appStatuses[0]
-		}
 		w, err := convertWorkspace(
 			ctx,
 			api.Logger,
@@ -2267,7 +2244,6 @@ func (api *API) watchWorkspace(
 			data.builds[0],
 			data.templates[0],
 			api.AllowWorkspaceRenames,
-			appStatus,
 		)
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
@@ -2690,9 +2666,8 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceData struct {
-	templates   []database.Template
-	builds      []codersdk.WorkspaceBuild
-	appStatuses []codersdk.WorkspaceAppStatus
+	templates []database.Template
+	builds    []codersdk.WorkspaceBuild
 	// deploymentAllowsRenames is the deprecated deployment-wide rename flag.
 	deploymentAllowsRenames bool
 }
@@ -2782,10 +2757,9 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	var (
-		templates   []database.Template
-		builds      []database.WorkspaceBuild
-		appStatuses []database.WorkspaceAppStatus
-		eg          errgroup.Group
+		templates []database.Template
+		builds    []database.WorkspaceBuild
+		eg        errgroup.Group
 	)
 	if cfg.Template {
 		eg.Go(func() (err error) {
@@ -2805,17 +2779,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 			builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return xerrors.Errorf("get workspace builds: %w", err)
-			}
-			return nil
-		})
-	}
-	if cfg.LatestBuild.AppStatuses() {
-		eg.Go(func() (err error) {
-			// This query must be run as system restricted to be efficient.
-			// nolint:gocritic
-			appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get workspace app statuses: %w", err)
 			}
 			return nil
 		})
@@ -2844,7 +2807,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.metadata,
 		data.agents,
 		data.apps,
-		data.appStatuses,
 		data.scripts,
 		data.logSources,
 		data.templateVersions,
@@ -2856,7 +2818,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 
 	return workspaceData{
 		templates:               templates,
-		appStatuses:             db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:                  apiBuilds,
 		deploymentAllowsRenames: api.AllowWorkspaceRenames,
 	}, nil
@@ -2948,10 +2909,6 @@ func convertWorkspaces(
 	for _, template := range data.templates {
 		templateByID[template.ID] = template
 	}
-	appStatusesByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceAppStatus{}
-	for _, appStatus := range data.appStatuses {
-		appStatusesByWorkspaceID[appStatus.WorkspaceID] = appStatus
-	}
 
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -2968,8 +2925,6 @@ func convertWorkspaces(
 		if !exists {
 			continue
 		}
-		appStatus := appStatusesByWorkspaceID[workspace.ID]
-
 		w, err := convertWorkspace(
 			ctx,
 			logger,
@@ -2978,7 +2933,6 @@ func convertWorkspaces(
 			build,
 			template,
 			data.deploymentAllowsRenames,
-			appStatus,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("convert workspace: %w", err)
@@ -2997,7 +2951,6 @@ func convertWorkspace(
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
 	deploymentAllowsRenames bool,
-	latestAppStatus codersdk.WorkspaceAppStatus,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
 		return codersdk.Workspace{}, xerrors.Errorf("developer error: requesterID cannot be uuid.Nil!")
@@ -3048,11 +3001,6 @@ func convertWorkspace(
 	// Only show favorite status if you own the workspace.
 	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite
 
-	appStatus := &latestAppStatus
-	if latestAppStatus.ID == uuid.Nil {
-		appStatus = nil
-	}
-
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -3064,7 +3012,6 @@ func convertWorkspace(
 		OrganizationName:                     workspace.OrganizationName,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,
-		LatestAppStatus:                      appStatus,
 		TemplateName:                         workspace.TemplateName,
 		TemplateIcon:                         workspace.TemplateIcon,
 		TemplateDisplayName:                  workspace.TemplateDisplayName,

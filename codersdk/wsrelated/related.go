@@ -67,17 +67,6 @@ func (c *LatestBuild) ensureResources() *Resources {
 	return c.Resources
 }
 
-// AppStatuses reports whether app statuses
-// (latest_build.resources.agents.apps.statuses) are selected. It is nil-safe so
-// callers holding a possibly-nil subtree can descend without a chain of guards.
-func (c *LatestBuild) AppStatuses() bool {
-	return c != nil &&
-		c.Resources != nil &&
-		c.Resources.Agents != nil &&
-		c.Resources.Agents.Apps != nil &&
-		c.Resources.Agents.Apps.Statuses
-}
-
 // appendPaths appends the frontier paths under base, or base itself when this
 // node has no selected descendants.
 func (c *LatestBuild) appendPaths(paths []string, base string) []string {
@@ -164,14 +153,9 @@ func (c *Agents) appendPaths(paths []string, base string) []string {
 	return paths
 }
 
-type Apps struct {
-	Statuses bool // latest_build.resources.agents.apps.statuses
-}
+type Apps struct{}
 
-func (c *Apps) appendPaths(paths []string, base string) []string {
-	if c.Statuses {
-		return append(paths, base+".statuses")
-	}
+func (*Apps) appendPaths(paths []string, base string) []string {
 	return append(paths, base)
 }
 
@@ -192,7 +176,7 @@ func AllLatestBuild() LatestBuild {
 		Resources: &Resources{
 			Metadata: true,
 			Agents: &Agents{
-				Apps:       &Apps{Statuses: true},
+				Apps:       &Apps{},
 				Scripts:    true,
 				LogSources: true,
 			},

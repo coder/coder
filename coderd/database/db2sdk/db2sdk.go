@@ -686,7 +686,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
 	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
 		return cmp.Or(
 			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
@@ -695,14 +695,8 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 		)
 	})
 
-	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
-	for _, status := range statuses {
-		statusesByAppID[status.AppID] = append(statusesByAppID[status.AppID], status)
-	}
-
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
-		statuses := statusesByAppID[dbApp.ID]
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -719,32 +713,14 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Interval:  dbApp.HealthcheckInterval,
 				Threshold: dbApp.HealthcheckThreshold,
 			},
-			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
-			Group:    dbApp.DisplayGroup.String,
-			Hidden:   dbApp.Hidden,
-			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
-			Tooltip:  dbApp.Tooltip,
-			Statuses: WorkspaceAppStatuses(statuses),
+			Health:  codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:   dbApp.DisplayGroup.String,
+			Hidden:  dbApp.Hidden,
+			OpenIn:  codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Tooltip: dbApp.Tooltip,
 		})
 	}
 	return apps
-}
-
-func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.WorkspaceAppStatus {
-	return slice.List(statuses, WorkspaceAppStatus)
-}
-
-func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
-	return codersdk.WorkspaceAppStatus{
-		ID:          status.ID,
-		CreatedAt:   status.CreatedAt,
-		WorkspaceID: status.WorkspaceID,
-		AgentID:     status.AgentID,
-		AppID:       status.AppID,
-		URI:         status.Uri.String,
-		Message:     status.Message,
-		State:       codersdk.WorkspaceAppStatusState(status.State),
-	}
 }
 
 func ProvisionerJobLog(log database.ProvisionerJobLog) codersdk.ProvisionerJobLog {

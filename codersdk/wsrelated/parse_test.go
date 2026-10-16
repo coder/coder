@@ -54,13 +54,6 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
-			name:  "AppStatusesDeep",
-			input: "latest_build.resources.agents.apps.statuses",
-			want: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
-				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}},
-			}},
-		},
-		{
 			name:  "WildcardJob",
 			input: "latest_build.job.*",
 			want:  wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{Job: &wsrelated.Job{QueuePosition: true}}},
@@ -70,7 +63,7 @@ func TestParse(t *testing.T) {
 			input: "latest_build.resources.agents.*",
 			want: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
 				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{
-					Apps:       &wsrelated.Apps{Statuses: true},
+					Apps:       &wsrelated.Apps{},
 					Scripts:    true,
 					LogSources: true,
 				}},
@@ -127,7 +120,7 @@ func TestParse(t *testing.T) {
 				Resources: &wsrelated.Resources{
 					Metadata: true,
 					Agents: &wsrelated.Agents{
-						Apps:       &wsrelated.Apps{Statuses: true},
+						Apps:       &wsrelated.Apps{},
 						Scripts:    true,
 						LogSources: true,
 					},

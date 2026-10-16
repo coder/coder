@@ -10,7 +10,9 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Sync operations: SyncStart, SyncWant, SyncComplete, SyncWait, SyncStatus
 //
 // API v1.1:
-//   - UpdateAppStatus RPC (forwarded to coderd)
+//   - UpdateAppStatus RPC (forwarded to coderd). Workspace app statuses have
+//     since been removed: the agent accepts and discards these requests so
+//     older clients keep working.
 //
 // API v1.2:
 //   - SyncList RPC (list all registered units)
