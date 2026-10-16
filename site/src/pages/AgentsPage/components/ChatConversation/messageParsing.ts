@@ -354,7 +354,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "skill-invocation": {
-				// Not rendered yet; the skill chip UI renders these.
+				// The conversation timeline does not render invocation metadata.
 				break;
 			}
 			default: {
