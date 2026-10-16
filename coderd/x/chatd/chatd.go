@@ -185,6 +185,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -2000,6 +2001,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -2013,6 +2017,9 @@ type Config struct {
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	if cfg.ExperimentEvaluator == nil {
 		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -2097,6 +2104,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -2479,24 +2487,31 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// filterMCPServersForTurn returns the external MCP servers visible on the
-// current turn and the set of their IDs. Outside plan mode every server is
-// visible and the set is nil. Plan-mode subagents see none: their trust
-// boundary is narrower than the root chat's. Root plan-mode chats see the
-// servers whose policy allows plan mode.
+func isPlanModeSubagentTurn(mode database.NullChatPlanMode, parentChatID uuid.NullUUID) bool {
+	return mode.Valid && mode.ChatPlanMode == database.ChatPlanModePlan && parentChatID.Valid
+}
+
+func turnUsesMCPServers(chat database.Chat) bool {
+	isExploreRootChat := isExploreSubagentMode(chat.Mode) && !chat.ParentChatID.Valid
+	return !isPlanModeSubagentTurn(chat.PlanMode, chat.ParentChatID) && !isExploreRootChat
+}
+
+// Plan-mode subagents have a narrower trust boundary and cannot use MCP
+// servers. Root plan-mode chats require policy approval. Outside plan mode,
+// all servers are visible and the approved-ID set is nil.
 func filterMCPServersForTurn[T any](
 	servers []T,
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 	policy func(T) (id uuid.UUID, allowInPlanMode bool),
 ) ([]T, map[uuid.UUID]struct{}) {
+	if isPlanModeSubagentTurn(mode, parentChatID) {
+		return nil, map[uuid.UUID]struct{}{}
+	}
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return servers, nil
 	}
 	approved := map[uuid.UUID]struct{}{}
-	if parentChatID.Valid {
-		return nil, approved
-	}
 	filtered := make([]T, 0, len(servers))
 	for _, srv := range servers {
 		id, allowInPlanMode := policy(srv)
@@ -2579,8 +2594,6 @@ func filterToolsForTurn(
 	return filtered
 }
 
-// activeToolNamesForTurn extends the built-in plan allowlist with approved
-// external MCP tools for root plan-mode chats.
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
@@ -2630,12 +2643,9 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. Org tools were
-		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
-		// tools come only from root chat servers with allow_in_subagents.
-		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
-		// workspace tools are excluded here too, in addition to the
-		// structural exclusion in runChat tool assembly.
+		// Org tools use the spawn-time snapshot; inline tools require
+		// allow_in_subagents. Internal servers decide access in ServerForChat.
+		// WorkspaceMCPTool lacks MCPToolIdentifier and remains excluded.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}

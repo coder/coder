@@ -95,6 +95,7 @@ func (server *Server) prepareGeneration(
 		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
+	usesMCPServers := turnUsesMCPServers(chat)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -113,6 +114,14 @@ func (server *Server) prepareGeneration(
 		g.Go(func() error {
 			var err error
 			inlineMCPServers, mcpLoadFailures, err = server.loadInlineMCPServers(ctx, chat)
+			return err
+		})
+	}
+	var internalMCPServers []mcpclient.InProcessServer
+	if usesMCPServers && len(server.internalMCPServers) > 0 {
+		g.Go(func() error {
+			var err error
+			internalMCPServers, err = server.internalMCPServersForChat(ctx, chat)
 			return err
 		})
 	}
@@ -193,18 +202,25 @@ func (server *Server) prepareGeneration(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn, so all of them
-	// are allowed in plan mode.
+	// Root plan-mode chats allow inline servers selected by the caller
+	// and internal servers selected by coderd.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
 		chat.ParentChatID,
 		func(srv mcpclient.Server) (uuid.UUID, bool) { return srv.ID, true },
 	)
-	// Both sets are nil outside plan mode, so this never writes to a nil
+	internalMCPConnectServers, approvedInternalMCPServerIDs := filterMCPServersForTurn(
+		internalMCPServers,
+		currentPlanMode,
+		chat.ParentChatID,
+		func(srv mcpclient.InProcessServer) (uuid.UUID, bool) { return srv.ID, true },
+	)
+	// All sets are nil outside plan mode, so this never writes to a nil
 	// map. Every tool source below is filtered against the union.
 	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
-	if isExploreSubagent && isRootChat {
+	maps.Copy(approvedPlanMCPConfigIDs, approvedInternalMCPServerIDs)
+	if !usesMCPServers {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
@@ -257,13 +273,15 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
-	// read only after g2.Wait, so no error path can run this before
-	// they are set.
-	var mcpCleanup, inlineMCPCleanup func()
+	// Once g2 starts, cleanup must wait for g2.Wait because its callbacks
+	// are assigned by g2 goroutines.
+	var mcpCleanup, inlineMCPCleanup, internalMCPCleanup func()
 	cleanup := func() {
 		if inlineMCPCleanup != nil {
 			inlineMCPCleanup()
+		}
+		if internalMCPCleanup != nil {
+			internalMCPCleanup()
 		}
 		if mcpCleanup != nil {
 			mcpCleanup()
@@ -518,6 +536,20 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
+	var (
+		internalMCPTools     []fantasy.AgentTool
+		internalMCPSummaries []mcpclient.ConnectSummary
+	)
+	if len(internalMCPConnectServers) > 0 {
+		g2.Go(func() error {
+			internalMCPTools, internalMCPSummaries, internalMCPCleanup = mcpclient.ConnectInProcess(
+				ctx,
+				logger,
+				internalMCPConnectServers,
+			)
+			return nil
+		})
+	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			var err error
@@ -538,6 +570,7 @@ func (server *Server) prepareGeneration(
 	}
 	g2Err := g2.Wait()
 	mcpSummaries = append(mcpSummaries, inlineMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, internalMCPSummaries...)
 	mcpSummaries = append(mcpSummaries, mcpLoadFailures...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
@@ -709,6 +742,20 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	// Append sources in trust order so less trusted tools cannot replace
+	// trusted tools: built-in, internal, admin, workspace, then inline.
+	// Apply the plan-mode filter after all sources join.
+	tools = mcpclient.AppendTools(ctx, logger, tools, internalMCPTools)
+	// Exclude rejected tools from deferral so a name collision cannot
+	// hide the winning tool through the rejected tool's deferral policy.
+	numTools := len(tools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, mcpTools)
+	mcpTools = tools[numTools:]
+	if !isExploreSubagent {
+		numTools = len(tools)
+		tools = mcpclient.AppendTools(ctx, logger, tools, workspaceMCPTools)
+		workspaceMCPTools = tools[numTools:]
+	}
 	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
 	for _, config := range mcpConnectConfigs {
 		mcpConfigByID[config.ID] = config
@@ -722,14 +769,7 @@ func (server *Server) prepareGeneration(
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
 		includeWorkspaceTools: !isExploreSubagent,
 	})
-	tools = append(tools, mcpTools...)
-	if !isExploreSubagent {
-		tools = append(tools, workspaceMCPTools...)
-	}
-	// Inline tools join after every trusted source so a name
-	// collision resolves in favor of the trusted tool, and before the
-	// plan-mode filter so they are subject to the same approved set.
-	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
+	tools = mcpclient.AppendTools(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
 	var dynamicToolNames map[string]bool
