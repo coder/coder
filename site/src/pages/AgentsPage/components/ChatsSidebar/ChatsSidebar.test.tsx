@@ -962,10 +962,7 @@ describe("ChatsSidebar project drops", () => {
 		organization_id: "other-org",
 	};
 
-	const renderSidebar = (
-		chats: Chat[],
-		projects: TypesGen.ChatProject[] = [],
-	) => {
+	const renderSidebar = (chats: Chat[], projects: TypesGen.ChatProject[]) => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json(projects),

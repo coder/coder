@@ -25,7 +25,7 @@ export type DropTarget =
 			readonly kind: "project";
 			readonly projectId: string;
 			readonly organizationId: string;
-			/** The folder's visible name, for screen reader announcements. */
+			/** The folder's accessible name, for screen reader announcements. */
 			readonly label: string;
 	  }
 	| {

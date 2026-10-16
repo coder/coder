@@ -2892,12 +2892,14 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
+const mockLooseChat = buildChat({
+	id: "loose-chat",
+	title: "Loose chat",
+	organization_id: MockChatProject.organization_id,
+});
+
 const mockProjectChats = [
-	buildChat({
-		id: "loose-chat",
-		title: "Loose chat",
-		organization_id: MockChatProject.organization_id,
-	}),
+	mockLooseChat,
 	buildChat({
 		id: "project-chat",
 		title: "Project chat",
@@ -2929,15 +2931,7 @@ const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
 };
 
 export const ChatDraggedOverProjectFolder: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "loose-chat",
-				title: "Loose chat",
-				organization_id: MockChatProject.organization_id,
-			}),
-		],
-	},
+	args: { chats: [mockLooseChat] },
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
@@ -2998,15 +2992,7 @@ const mockOtherOrganizationProject: TypesGen.ChatProject = {
 };
 
 export const LooseChatDragMutesUnavailableTargets: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "loose-chat",
-				title: "Loose chat",
-				organization_id: MockChatProject.organization_id,
-			}),
-		],
-	},
+	args: { chats: [mockLooseChat] },
 	parameters: {
 		experiments: ["chat-projects"],
 		organizations: [MockDefaultOrganization, MockOrganization2],
