@@ -1,0 +1,193 @@
+# A/B Coder Agents on a PR branch vs main: each arm builds its own coderd,
+# runs Terminal-Bench 2.0 through Harbor with the Coder environment provider
+# (scripts/harbor-coder), and the comparison is posted on the PR.
+#
+# Trigger by commenting `/coder-agents-eval` on a PR (push access required,
+# fork PRs refused since the candidate arm runs the PR's code with the gateway
+# token in scope), or via workflow_dispatch to compare the current ref to main.
+# Trials spend real model tokens, so this never runs automatically.
+
+name: eval/coder-agents
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: eval-coder-agents-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  HARBOR_DATASET: terminal-bench@2.0
+  # qemu-* and build-cython-ext are broken upstream (bit-rotted apt sources
+  # and a git clone in the verifier). The rest are ML training, emulation,
+  # and long compiles that each take 20 to 60 minutes and are not decided by
+  # the system prompt; dropping them cuts an arm from ~3h to ~80 minutes.
+  HARBOR_EXCLUDE: >-
+    -x qemu-* -x build-cython-ext
+    -x train-fasttext -x compile-compcert -x install-windows-3.11
+    -x winning-avg-corewars -x extract-moves-from-video -x mcmc-sampling-stan
+    -x regex-chess -x mteb-leaderboard -x caffe-cifar-10
+  # Sonnet sits mid-range on Terminal-Bench, leaving headroom in both
+  # directions for a prompt change to move; Opus is near the ceiling.
+  HARBOR_CODER_MODEL: claude-sonnet-5-5
+  HARBOR_ATTEMPTS: "2"
+  HARBOR_CONCURRENCY: "8"
+
+jobs:
+  resolve:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && startsWith(github.event.comment.body, '/coder-agents-eval'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      candidate_ref: ${{ steps.pr.outputs.sha || github.sha }}
+      candidate_label: ${{ steps.pr.outputs.ref || github.ref_name }}
+      pr_number: ${{ github.event.issue.number }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Resolve PR
+        id: pr
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$(gh api "/repos/${REPO}/collaborators/${COMMENTER}/permission" --jq .user.permissions.push)" != "true" ]]; then
+            echo "::error::${COMMENTER} does not have push access"; exit 1
+          fi
+          if [[ "$(gh pr view "${PR}" -R "${REPO}" --json isCrossRepository --jq .isCrossRepository)" == "true" ]]; then
+            echo "::error::refusing to run on a fork PR"; exit 1
+          fi
+          echo "sha=$(gh pr view "${PR}" -R "${REPO}" --json headRefOid --jq .headRefOid)" >> "${GITHUB_OUTPUT}"
+          echo "ref=$(gh pr view "${PR}" -R "${REPO}" --json headRefName --jq .headRefName)" >> "${GITHUB_OUTPUT}"
+          gh api -X POST "/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null
+
+  run:
+    name: run (${{ matrix.arm }})
+    needs: resolve
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [baseline, candidate]
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout arm ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.arm == 'baseline' && 'main' || needs.resolve.outputs.candidate_ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      # The harness always comes from the candidate so both arms run the same code.
+      - name: Checkout harness from candidate ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
+          path: .eval-src
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+      - run: rm -rf scripts/harbor-coder && cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
+
+      - uses: ./.github/actions/setup-go-paths
+      - uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv tool install --with-editable ./scripts/harbor-coder harbor
+
+      - name: Build and serve coderd
+        env:
+          # A Coder API key for dogfood; the eval's coderd uses dogfood's AI
+          # gateway as its model upstream, so no provider key is involved.
+          HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
+        run: ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env"
+
+      - name: Run Harbor
+        env:
+          ARM: ${{ matrix.arm }}
+        run: |
+          set -euo pipefail
+          set -a; . "${RUNNER_TEMP}/coder.env"; set +a
+          export PATH="${HARBOR_CODER_BIN%/*}:${PATH}"
+          # shellcheck disable=SC2086
+          harbor run -d "${HARBOR_DATASET}" ${HARBOR_EXCLUDE} \
+            --agent harbor_coder.agent:CoderAgentsAgent \
+            --env harbor_coder.environment:CoderEnvironment \
+            -k "${HARBOR_ATTEMPTS}" -n "${HARBOR_CONCURRENCY}" -o jobs --job-name "${ARM}"
+          # Harbor exits 0 even when every trial raised.
+          if [[ "$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)" -eq 0 ]]; then
+            echo "::error::no trial produced a reward"; exit 1
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: harbor-${{ matrix.arm }}
+          path: jobs/
+
+  compare:
+    needs: [resolve, run]
+    if: always() && needs.resolve.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: harbor-*
+          path: jobs
+          merge-multiple: true
+      - name: Compare
+        env:
+          LABEL: ${{ needs.resolve.outputs.candidate_label }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p jobs/baseline jobs/candidate
+          PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+            --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
+          printf '\n%s, %s, %s attempt(s) per task. [Run](%s)\n' "${HARBOR_DATASET}" "${HARBOR_CODER_MODEL}" "${HARBOR_ATTEMPTS}" "${RUN_URL}" >> report.md
+          cat report.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Comment on PR
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.resolve.outputs.pr_number }}
+        run: gh pr comment "${PR}" -R "${REPO}" --body-file report.md
