@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -220,7 +221,25 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("option", { name: /release-notes/ }),
 		);
-		expect(inputRef.current?.getValue()).toBe("/release-notes");
+		expect(inputRef.current?.getContentParts()).toContainEqual({
+			type: "skill-invocation",
+			source: "org",
+			name: "release-notes",
+		});
+	});
+
+	it("sends a message that holds only a skill chip", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		renderInput(
+			<AgentChatInput {...inputProps} onSend={onSend} inputRef={inputRef} />,
+		);
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledTimes(1);
 	});
 
 	it("offers the chat project's skills in the slash menu", async () => {
@@ -248,7 +267,11 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("option", { name: /project-conventions/ }),
 		);
-		expect(inputRef.current?.getValue()).toBe("/project-conventions");
+		expect(inputRef.current?.getContentParts()).toContainEqual({
+			type: "skill-invocation",
+			source: "project",
+			name: "project-conventions",
+		});
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
 	});
 
