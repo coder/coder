@@ -2816,11 +2816,11 @@ func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOrganizationAIModelPrices(ctx context.Context, arg database.GetOrganizationAIModelPricesParams) ([]database.GetOrganizationAIModelPricesRow, error) {
+func (m queryMetricsStore) GetOrganizationAIProviderModelPrice(ctx context.Context, arg database.GetOrganizationAIProviderModelPriceParams) (database.AIModelConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetOrganizationAIModelPrices(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetOrganizationAIModelPrices").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIModelPrices").Inc()
+	r0, r1 := m.s.GetOrganizationAIProviderModelPrice(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationAIProviderModelPrice").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationAIProviderModelPrice").Inc()
 	return r0, r1
 }
 

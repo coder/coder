@@ -52,103 +52,19 @@ ORDER BY
 	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
--- name: GetOrganizationAIModelPrices :many
--- Returns every price that applies to the organization: its prices for
--- configured providers and the site-wide catalog. Prices for soft-deleted
--- providers are left out. Organization rows have a provider_id, site-wide rows
--- do not.
--- By default each price is collapsed into the one in effect: a custom
--- site-wide price hides the price book. A price for one configured provider
--- hides nothing, since other providers of its type still use the site-wide
--- price. Filtering by source narrows the rows considered first, and
--- organization prices count as custom. The source 'all' reports every row
--- instead.
-WITH prices AS (
-	SELECT
-		NULL::uuid AS organization_id,
-		NULL::uuid AS provider_id,
-		NULL::text AS provider_name,
-		ai_model_prices.provider,
-		ai_model_prices.model,
-		ai_model_prices.input_price,
-		ai_model_prices.output_price,
-		ai_model_prices.cache_read_price,
-		ai_model_prices.cache_write_price,
-		ai_model_prices.source,
-		ai_model_prices.created_at,
-		ai_model_prices.updated_at
-	FROM ai_model_prices
-	UNION ALL
-	SELECT
-		ai_org_provider_model_prices.organization_id,
-		ai_org_provider_model_prices.provider_id,
-		ai_providers.name,
-		ai_providers.type::text,
-		ai_org_provider_model_prices.model,
-		ai_org_provider_model_prices.input_price,
-		ai_org_provider_model_prices.output_price,
-		ai_org_provider_model_prices.cache_read_price,
-		ai_org_provider_model_prices.cache_write_price,
-		'custom'::ai_model_price_source,
-		ai_org_provider_model_prices.created_at,
-		ai_org_provider_model_prices.updated_at
-	FROM ai_org_provider_model_prices
-	JOIN ai_providers
-		ON ai_providers.id = ai_org_provider_model_prices.provider_id
-		AND ai_providers.deleted = false
-	WHERE ai_org_provider_model_prices.organization_id = @organization_id::uuid
-)
-SELECT DISTINCT ON (
-	prices.provider,
-	prices.model,
-	COALESCE(prices.provider_id::text, ''),
-	CASE WHEN @source::text = 'all' THEN prices.source::text ELSE '' END
-)
-	prices.organization_id,
-	prices.provider_id,
-	prices.provider_name,
-	prices.provider,
-	prices.model,
-	prices.input_price,
-	prices.output_price,
-	prices.cache_read_price,
-	prices.cache_write_price,
-	prices.source,
-	prices.created_at,
-	prices.updated_at
-FROM prices
-	-- Filter by provider type
-WHERE CASE
-		WHEN @provider::text != '' THEN
-			prices.provider = @provider
-		ELSE true
-	END
-	-- Filter by model
-	AND CASE
-		WHEN @model::text != '' THEN
-			prices.model = @model
-		ELSE true
-	END
-	-- Filter by source
-	AND CASE
-		WHEN @source::text NOT IN ('', 'all') THEN
-			prices.source = @source::ai_model_price_source
-		ELSE true
-	END
-ORDER BY
-	prices.provider ASC,
-	prices.model ASC,
-	-- Site-wide prices first, then each provider's price.
-	COALESCE(prices.provider_id::text, '') ASC,
-	CASE WHEN @source::text = 'all' THEN prices.source::text ELSE '' END ASC,
-	-- A custom price is in effect over the price book.
-	CASE WHEN prices.source = 'custom' THEN 0 ELSE 1 END ASC;
+-- name: GetOrganizationAIProviderModelPrice :one
+-- Returns the organization's price for one model on one configured provider.
+SELECT *
+FROM ai_model_configs
+WHERE organization_id = @organization_id
+	AND provider_id = @provider_id
+	AND model = @model;
 
 -- name: UpsertOrganizationAIProviderModelPrice :exec
 -- Sets the organization's price for one model on one configured provider. A
 -- NULL price is unknown. An existing row is only rewritten when a price
 -- differs, so updated_at records when a price last changed.
-INSERT INTO ai_org_provider_model_prices (
+INSERT INTO ai_model_configs (
 	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
 ) VALUES (
 	@organization_id, @provider_id, @model, @input_price, @output_price, @cache_read_price, @cache_write_price
@@ -160,10 +76,10 @@ ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
 	cache_write_price = EXCLUDED.cache_write_price,
 	updated_at        = NOW()
 WHERE (
-	ai_org_provider_model_prices.input_price,
-	ai_org_provider_model_prices.output_price,
-	ai_org_provider_model_prices.cache_read_price,
-	ai_org_provider_model_prices.cache_write_price
+	ai_model_configs.input_price,
+	ai_model_configs.output_price,
+	ai_model_configs.cache_read_price,
+	ai_model_configs.cache_write_price
 ) IS DISTINCT FROM (
 	EXCLUDED.input_price,
 	EXCLUDED.output_price,
@@ -172,7 +88,7 @@ WHERE (
 );
 
 -- name: DeleteOrganizationAIProviderModelPrice :execrows
-DELETE FROM ai_org_provider_model_prices
+DELETE FROM ai_model_configs
 WHERE organization_id = @organization_id
 	AND provider_id = @provider_id
 	AND model = @model;
