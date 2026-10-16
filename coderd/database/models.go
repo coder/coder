@@ -5637,6 +5637,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {
@@ -6352,23 +6356,25 @@ type TemplateUsageStatsSessionApp struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	Name                  string          `db:"name" json:"name"`
-	Readme                string          `db:"readme" json:"readme"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string          `db:"message" json:"message"`
-	Archived              bool            `db:"archived" json:"archived"`
-	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
-	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
-	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TemplateID                 uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	Name                       string          `db:"name" json:"name"`
+	Readme                     string          `db:"readme" json:"readme"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy                  uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders      json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message                    string          `db:"message" json:"message"`
+	Archived                   bool            `db:"archived" json:"archived"`
+	SourceExampleID            sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasExternalAgent           sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
+	CreatedByAvatarURL         string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername          string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName              string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -6457,6 +6463,10 @@ type TemplateVersionTable struct {
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionTerraformValue struct {

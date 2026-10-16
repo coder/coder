@@ -595,13 +595,11 @@ func (api *API) postWorkspaceBuildsInternal(
 				slog.F("workspace_build_id", workspaceBuild.ID),
 				slog.F("provisioner_job_id", provisionerJob.ID),
 			)
-			buildResourceInfo := audit.AdditionalFields{
-				WorkspaceName:  workspace.Name,
-				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
-				BuildReason:    workspaceBuild.Reason,
-				WorkspaceID:    workspace.ID,
-				WorkspaceOwner: workspace.OwnerName,
+			buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, api.Database, workspace, *workspaceBuild)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to list workspace build secrets for audit", slog.Error(err))
 			}
+			buildResourceInfo.WorkspaceOwner = workspace.OwnerName
 			briBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))

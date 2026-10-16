@@ -1500,13 +1500,9 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					previousBuild = database.WorkspaceBuild{}
 				}
 
-				// We pass the below information to the Auditor so that it
-				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := audit.AdditionalFields{
-					WorkspaceName: workspace.Name,
-					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
-					BuildReason:   database.BuildReason(string(build.Reason)),
-					WorkspaceID:   workspace.ID,
+				buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, build)
+				if err != nil {
+					s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1874,6 +1870,15 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("template version ID is expected: %w", err)
 	}
 
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
 	// Execute all database operations in a transaction
 	return s.Database.InTx(func(db database.Store) error {
 		now := s.timeNow()
@@ -2048,6 +2053,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
+		}
+		if orderUsageErr == nil {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
 		}
 
 		// Process terraform values
@@ -2497,13 +2513,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			previousBuild = database.WorkspaceBuild{}
 		}
 
-		// We pass the below information to the Auditor so that it
-		// can form a friendly string for the user to view in the UI.
-		buildResourceInfo := audit.AdditionalFields{
-			WorkspaceName: workspace.Name,
-			BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-			BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
-			WorkspaceID:   workspace.ID,
+		buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, workspaceBuild)
+		if err != nil {
+			s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)
