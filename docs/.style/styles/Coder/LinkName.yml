@@ -1,0 +1,93 @@
+# Coder.LinkName - flag a link with no text.
+#
+# A screen reader announces a link by its text. A link with none, such as
+# `[](url)`, a link around an image whose alt text is empty, or an empty
+# `<a href>`, is announced as its URL or not at all, which fails WCAG 2.4.4
+# (Link Purpose) and 4.1.2 (Name, Role, Value). markdownlint MD042 checks only
+# that a link has a destination, not that it has text. The policy lives in the
+# style guide:
+# docs/.style/style-guide/accessibility-and-inclusion.md#descriptive-link-text
+#
+# The rule flags, on one line:
+#
+# - A Markdown link whose text is empty or whitespace: `[](url)`, `[ ](url)`.
+# - A Markdown link whose only content is an image with empty alt text:
+#   `[![](img.png)](url)` or `[<img src="img.png" alt="">](url)`.
+# - A raw `<a>` with an `href` whose content is empty, whitespace, `&nbsp;`, or
+#   an `<img>` with empty alt text.
+#
+# An `<a id="...">` anchor with no `href` is a link target, not a link, and is
+# not flagged.
+#
+# Implementation: a raw-scoped script, because the `link` scope hands a rule
+# only the text a link has, so it can't see a link with none. Raw scope also
+# reaches fenced code, inline code, YAML front matter, and HTML comments, so
+# the script skips all four. Known gaps, none hit by the current corpus: a link
+# split across lines, reference-style links (`[][ref]`), and inline code spans
+# delimited by more than one backtick.
+#
+# Tengo note: text.re_find panics on a capture group that didn't take part in
+# the match, so the patterns below use only non-capturing groups.
+#
+# Level: error. A link with no text is objectively wrong, and the corpus is
+# clean.
+extends: script
+message: "Link has no text, so a screen reader announces only its URL; give the link text that names the destination. Refer to accessibility-and-inclusion.md#descriptive-link-text."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#descriptive-link-text
+level: error
+scope: raw
+script: |
+  text := import("text")
+  emptyImage := "(?:!\\[\\s*\\]\\([^)]*\\)|<img\\s[^>]*\\balt=(?:\"\\s*\"|'\\s*')[^>]*>)"
+  markdownLink := "(?:^|[^!\\]\\\\])\\[\\s*" + emptyImage + "?\\s*\\]\\([^)\\s]+(?:\\s+\"[^\"]*\")?\\)"
+  htmlLink := "(?i:<a\\s[^>]*\\bhref\\s*=[^>]*>(?:\\s|&nbsp;|&#160;)*" + emptyImage + "?(?:\\s|&nbsp;|&#160;)*</a\\s*>)"
+  pattern := markdownLink + "|" + htmlLink
+  matches := []
+  pos := 0
+  frontmatter := false
+  fence := ""
+  comment := false
+  for i, line in text.split(scope, "\n") {
+    start := pos
+    pos += len(line) + 1
+    if i == 0 && text.trim_space(line) == "---" {
+      frontmatter = true
+      continue
+    }
+    if frontmatter {
+      if text.trim_space(line) == "---" { frontmatter = false }
+      continue
+    }
+    f := text.re_find("^\\s*(`{3,}|~{3,})", line)
+    if fence != "" {
+      if f != undefined && text.has_prefix(f[0][1].text, fence) && text.re_match("^\\s*[`~]+\\s*$", line) { fence = "" }
+      continue
+    }
+    if f != undefined {
+      fence = f[0][1].text
+      continue
+    }
+    if comment {
+      if text.contains(line, "-->") { comment = false }
+      continue
+    }
+    open := text.last_index(line, "<!--")
+    if open >= 0 && !text.contains(line[open:], "-->") {
+      comment = true
+      continue
+    }
+    found := text.re_find(pattern, line, -1)
+    if found == undefined { continue }
+    skip := []
+    spans := text.re_find("`[^`]*`|<!--.*?-->", line, -1)
+    if spans != undefined { skip = spans }
+    for m in found {
+      inside := false
+      for s in skip {
+        if m[0].begin < s[0].end && m[0].end > s[0].begin { inside = true }
+      }
+      if !inside {
+        matches = append(matches, {begin: start + m[0].begin, end: start + m[0].end})
+      }
+    }
+  }

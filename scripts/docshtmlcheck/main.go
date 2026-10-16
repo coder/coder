@@ -20,7 +20,9 @@
 //
 // It also fails on table header cells with no text, in Markdown pipe tables and
 // raw HTML tables alike, because screen readers announce them as unnamed
-// columns (see tables.go).
+// columns (see tables.go), and on elements and attributes that docs pages have
+// no use for: ARIA, role, tabindex, and lang attributes, and iframe, object,
+// area, form control, and meta elements (see guard.go).
 //
 // Detection is Markdown-aware: the file is parsed with goldmark and only raw
 // HTML nodes are inspected, so angle brackets inside fenced code blocks, inline
@@ -200,7 +202,7 @@ func run(roots []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	var htmlIssues, tableIssues, staleIssues int
+	var htmlIssues, tableIssues, guardIssues, staleIssues int
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -212,9 +214,16 @@ func run(roots []string, stdout, stderr io.Writer) int {
 		slices.SortStableFunc(findings, func(a, b finding) int {
 			return cmp.Compare(a.line, b.line)
 		})
+		guarded := 0
+		for _, f := range findings {
+			if f.kind == kindDisallowedElement || f.kind == kindDisallowedAttribute {
+				guarded++
+			}
+		}
 		h, s := reportFindings(path, findings, allowedUnknownTags, stdout)
-		htmlIssues += h - len(tables)
+		htmlIssues += h - len(tables) - guarded
 		tableIssues += len(tables)
+		guardIssues += guarded
 		staleIssues += s
 	}
 
@@ -230,11 +239,17 @@ func run(roots []string, stdout, stderr io.Writer) int {
 			"top-left corner cell of a matrix; screen readers announce an empty one\n"+
 			"with no name.\n", tableIssues)
 	}
+	if guardIssues > 0 {
+		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d disallowed element(s) or attribute(s).\n"+
+			"Docs pages don't use ARIA, role, tabindex, or lang attributes, or iframe, object,\n"+
+			"area, form control, or meta elements. Each brings accessibility requirements\n"+
+			"that no docs check verifies; write the content in Markdown instead.\n", guardIssues)
+	}
 	if staleIssues > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d stale allowlist entry(ies); "+
 			"remove them from allowedUnknownTags in %s.\n", staleIssues, docshtmlcheckSource)
 	}
-	if htmlIssues+tableIssues+staleIssues > 0 {
+	if htmlIssues+tableIssues+guardIssues+staleIssues > 0 {
 		return 1
 	}
 	return 0
@@ -465,7 +480,7 @@ type checker struct {
 // across nodes, so a container opened in one block and closed in another still
 // balances.
 func (c *checker) scanNode(segs []text.Segment) {
-	tokenizeSegments(c.src, segs, c.lineAt, func(_ *html.Tokenizer, tt html.TokenType, raw []byte, line int) {
+	tokenizeSegments(c.src, segs, c.lineAt, func(z *html.Tokenizer, tt html.TokenType, raw []byte, line int) {
 		switch tt {
 		case html.StartTagToken, html.SelfClosingTagToken:
 			rawName := rawTagName(raw)
@@ -506,6 +521,7 @@ func (c *checker) scanNode(segs []text.Segment) {
 				})
 				return
 			}
+			c.findings = append(c.findings, guardTag(z, name, line)...)
 			// Track balance for container elements that need an explicit end
 			// tag. A self-closing flag on a non-void HTML element (<div/>) is
 			// ignored by the HTML5 parser and the docs renderer, so it opens a
