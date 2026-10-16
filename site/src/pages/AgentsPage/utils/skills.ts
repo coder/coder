@@ -297,7 +297,11 @@ export const withDisabledModelInvocation = (content: string): string => {
 		return content;
 	}
 	const newline = opening[1];
-	return `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
+	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
+	// A file past the size limit could not be re-imported at all.
+	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
+		? content
+		: marked;
 };
 
 export const getSkillContentSizeBytes = (content: string): number =>

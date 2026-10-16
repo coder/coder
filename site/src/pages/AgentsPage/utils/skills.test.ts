@@ -368,4 +368,9 @@ describe("withDisabledModelInvocation", () => {
 			).toBe(false);
 		},
 	);
+
+	it("leaves content unmarked when the marker would pass the size limit", () => {
+		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
+		expect(withDisabledModelInvocation(content)).toBe(content);
+	});
 });
