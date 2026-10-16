@@ -382,7 +382,7 @@ jobs:
         run: helm version --short
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
@@ -474,7 +474,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
@@ -539,7 +539,9 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        # make fmt runs go mod tidy, which needs modules that go mod download
+        # does not fetch, such as the test dependencies of dependencies.
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod tidy
 
       - name: make fmt
         timeout-minutes: 7
@@ -963,7 +965,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nginx
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Run Tests
         run: make test-tailnet-integration
@@ -1041,7 +1043,7 @@ jobs:
         working-directory: site
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
@@ -1193,7 +1195,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Format
         run: |
@@ -1302,7 +1304,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
           make gen/mark-fresh
           make -j build
 
@@ -1412,7 +1414,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
@@ -1713,7 +1715,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Setup and run sqlc vet
         run: |
