@@ -4991,6 +4991,19 @@ type AIGatewayKey struct {
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+}
+
 // Per-model token prices used by AI Bridge to compute interception cost.
 type AIModelPrice struct {
 	Provider        string        `db:"provider" json:"provider"`
@@ -5003,19 +5016,6 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
-}
-
-// Per-model token prices for one configured AI provider within one organization. Overrides site-wide prices in ai_model_prices.
-type AIOrgProviderModelPrice struct {
-	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
-	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
-	Model           string        `db:"model" json:"model"`
-	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
-	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
