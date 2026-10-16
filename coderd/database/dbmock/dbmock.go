@@ -3594,21 +3594,6 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
-// GetChatProjectsByOwnerID mocks base method.
-func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectsByOwnerID", ctx, ownerID)
-	ret0, _ := ret[0].([]database.ChatProject)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectsByOwnerID indicates an expected call of GetChatProjectsByOwnerID.
-func (mr *MockStoreMockRecorder) GetChatProjectsByOwnerID(ctx, ownerID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsByOwnerID), ctx, ownerID)
-}
-
 // GetChatProjectsOwnedOrSharedWithUserID mocks base method.
 func (m *MockStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
@@ -9412,19 +9397,19 @@ func (mr *MockStoreMockRecorder) IsChatHeartbeatStale(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatHeartbeatStale", reflect.TypeOf((*MockStore)(nil).IsChatHeartbeatStale), ctx, arg)
 }
 
-// IsChatProjectAccessibleByUserID mocks base method.
-func (m *MockStore) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+// IsChatProjectUsableByUserID mocks base method.
+func (m *MockStore) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsChatProjectAccessibleByUserID", ctx, arg)
+	ret := m.ctrl.Call(m, "IsChatProjectUsableByUserID", ctx, arg)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// IsChatProjectAccessibleByUserID indicates an expected call of IsChatProjectAccessibleByUserID.
-func (mr *MockStoreMockRecorder) IsChatProjectAccessibleByUserID(ctx, arg any) *gomock.Call {
+// IsChatProjectUsableByUserID indicates an expected call of IsChatProjectUsableByUserID.
+func (mr *MockStoreMockRecorder) IsChatProjectUsableByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatProjectAccessibleByUserID", reflect.TypeOf((*MockStore)(nil).IsChatProjectAccessibleByUserID), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatProjectUsableByUserID", reflect.TypeOf((*MockStore)(nil).IsChatProjectUsableByUserID), ctx, arg)
 }
 
 // LinkChatFiles mocks base method.

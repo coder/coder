@@ -1912,14 +1912,6 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProjectsByOwnerID(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetChatProjectsByOwnerID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByOwnerID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectsOwnedOrSharedWithUserID(ctx, userID)
@@ -5000,11 +4992,11 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+func (m queryMetricsStore) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
 	start := time.Now()
-	r0, r1 := m.s.IsChatProjectAccessibleByUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("IsChatProjectAccessibleByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectAccessibleByUserID").Inc()
+	r0, r1 := m.s.IsChatProjectUsableByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("IsChatProjectUsableByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectUsableByUserID").Inc()
 	return r0, r1
 }
 

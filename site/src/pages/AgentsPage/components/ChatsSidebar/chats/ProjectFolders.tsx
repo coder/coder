@@ -270,6 +270,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
 								/>
@@ -282,6 +283,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
 					/>
