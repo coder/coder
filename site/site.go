@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/justinas/nosurf"
 	"github.com/unrolled/secure"
+	xhtml "golang.org/x/net/html"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -811,6 +813,110 @@ type RenderOAuthAllowData struct {
 	// rather than by name. A field of its own because an empty Scopes is the
 	// opposite grant: deciding by list length would call it full access.
 	Unrestricted bool
+	// Appearance is the signed-in user's theme preference.
+	Appearance codersdk.UserAppearanceSettings
+}
+
+// oauthAllowState is what site/static/oauth2allow.html renders.
+type oauthAllowState struct {
+	RenderOAuthAllowData
+	Stylesheets []string
+	// ThemeLightClass and ThemeDarkClass are the <html> classes for each OS
+	// color scheme; the page picks one with prefers-color-scheme.
+	ThemeLightClass string
+	ThemeDarkClass  string
+}
+
+// dashboardStylesheets is read once because the embedded build never changes.
+var dashboardStylesheets = sync.OnceValue(func() []string {
+	return stylesheetHrefs(FS())
+})
+
+// stylesheetHrefs returns the stylesheets linked from the built index.html.
+// Their names are content hashed per build, so they cannot be hardcoded.
+func stylesheetHrefs(fsys fs.FS) []string {
+	f, err := fsys.Open("index.html")
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var hrefs []string
+	z := xhtml.NewTokenizer(f)
+	for {
+		switch z.Next() {
+		case xhtml.ErrorToken:
+			return hrefs
+		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+			tok := z.Token()
+			if tok.Data != "link" {
+				continue
+			}
+			var rel, href string
+			for _, attr := range tok.Attr {
+				switch attr.Key {
+				case "rel":
+					rel = attr.Val
+				case "href":
+					href = attr.Val
+				}
+			}
+			if rel == "stylesheet" && strings.HasPrefix(href, "/assets/") {
+				hrefs = append(hrefs, href)
+			}
+		}
+	}
+}
+
+var concreteThemes = []string{
+	"dark",
+	"light",
+	"dark-protan-deuter",
+	"light-protan-deuter",
+	"dark-tritan",
+	"light-tritan",
+}
+
+var legacyAutoThemes = map[string][2]string{
+	"auto":               {"light", "dark"},
+	"auto-protan-deuter": {"light-protan-deuter", "dark-protan-deuter"},
+	"auto-tritan":        {"light-tritan", "dark-tritan"},
+}
+
+// resolveThemes returns the theme to use for each OS color scheme. It mirrors
+// migrateLegacyPreference in site/src/theme/themeMode.ts, except that an
+// unknown preference follows the OS instead of defaulting to dark.
+func resolveThemes(s codersdk.UserAppearanceSettings) (light, dark string) {
+	concreteOr := func(v, fallback string) string {
+		if slices.Contains(concreteThemes, v) {
+			return v
+		}
+		return fallback
+	}
+
+	if s.ThemeMode == codersdk.ThemeModeSync {
+		return concreteOr(s.ThemeLight, "light"), concreteOr(s.ThemeDark, "dark")
+	}
+	if slices.Contains(concreteThemes, s.ThemePreference) {
+		return s.ThemePreference, s.ThemePreference
+	}
+	if pair, ok := legacyAutoThemes[s.ThemePreference]; ok && s.ThemeMode == codersdk.ThemeModeUnset {
+		return concreteOr(s.ThemeLight, pair[0]), concreteOr(s.ThemeDark, pair[1])
+	}
+	return "light", "dark"
+}
+
+// themeClass returns the <html> classes ThemeProvider applies for a theme:
+// the theme itself and its base mode.
+func themeClass(theme string) string {
+	base := "light"
+	if strings.HasPrefix(theme, "dark") {
+		base = "dark"
+	}
+	if theme == base {
+		return theme
+	}
+	return theme + " " + base
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create
@@ -846,7 +952,13 @@ func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOA
 	rw.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 	rw.Header().Set("X-Frame-Options", "DENY")
 
-	err := oauthTemplate.Execute(rw, data)
+	light, dark := resolveThemes(data.Appearance)
+	err := oauthTemplate.Execute(rw, oauthAllowState{
+		RenderOAuthAllowData: data,
+		Stylesheets:          dashboardStylesheets(),
+		ThemeLightClass:      themeClass(light),
+		ThemeDarkClass:       themeClass(dark),
+	})
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 			Message: "Failed to render oauth page: " + err.Error(),
