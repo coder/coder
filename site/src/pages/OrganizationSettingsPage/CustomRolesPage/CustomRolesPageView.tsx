@@ -1,6 +1,8 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
+import { reportPremiumFunnelEvent } from "#/api/queries/premiumFunnel";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
 import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
@@ -10,6 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -24,12 +27,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
+import { trackPremiumFunnelClick } from "#/modules/paywall/premiumFunnelAttribution";
 import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
@@ -117,6 +121,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 				<RoleTable
 					roles={customRoles}
 					isCustomRolesEnabled={isCustomRolesEnabled}
+					canViewPremium={permissions.viewAllLicenses}
 					canCreateOrgRole={canCreateOrgRole}
 					canUpdateOrgRole={canUpdateOrgRole}
 					canDeleteOrgRole={canDeleteOrgRole}
@@ -137,6 +142,7 @@ export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 				<RoleTable
 					roles={builtInRoles}
 					isCustomRolesEnabled={isCustomRolesEnabled}
+					canViewPremium={permissions.viewAllLicenses}
 					canCreateOrgRole={canCreateOrgRole}
 					canUpdateOrgRole={canUpdateOrgRole}
 					canDeleteOrgRole={canDeleteOrgRole}
@@ -255,6 +261,7 @@ const DefaultRolesSummary: React.FC<DefaultRolesSummaryProps> = ({
 type RoleTableBodyProps = {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
+	canViewPremium: boolean;
 	canCreateOrgRole: boolean;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
@@ -288,28 +295,54 @@ const RoleTable: React.FC<RoleTableProps> = ({
 const RoleTableBody: React.FC<RoleTableBodyProps> = ({
 	roles,
 	isCustomRolesEnabled,
+	canViewPremium,
 	canCreateOrgRole,
 	canUpdateOrgRole,
 	canDeleteOrgRole,
 	onDeleteRole,
 }) => {
+	const { mutate: reportClick } = useMutation(reportPremiumFunnelEvent());
+
 	if (roles === undefined) {
 		return <TableLoader />;
 	}
 	if (roles.length === 0) {
+		if (!isCustomRolesEnabled) {
+			return (
+				<TableEmptyState
+					variant="upgrade"
+					message="No custom roles yet"
+					description="Upgrade to a premium license to create custom roles."
+					cta={
+						canViewPremium && (
+							<Button variant="outline" asChild>
+								<RouterLink
+									to={PREMIUM_PAGE_PATH}
+									onClick={() =>
+										reportClick(
+											trackPremiumFunnelClick("custom_roles", "small"),
+										)
+									}
+								>
+									Start free trial
+								</RouterLink>
+							</Button>
+						)
+					}
+				/>
+			);
+		}
 		return (
-			<TableEmpty
-				message="No custom roles yet"
+			<TableEmptyState
+				variant="create"
+				message="No custom roles configured"
 				description={
-					canCreateOrgRole && isCustomRolesEnabled
+					canCreateOrgRole
 						? "Create your first custom role"
-						: !isCustomRolesEnabled
-							? "Upgrade to a premium license to create a custom role"
-							: "You don't have permission to create a custom role"
+						: "You don't have permission to create a custom role"
 				}
 				cta={
-					canCreateOrgRole &&
-					isCustomRolesEnabled && (
+					canCreateOrgRole && (
 						<Button asChild>
 							<RouterLink to="create">
 								<PlusIcon />

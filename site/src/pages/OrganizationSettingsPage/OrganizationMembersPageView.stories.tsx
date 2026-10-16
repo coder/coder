@@ -67,6 +67,23 @@ export const NoMembers: Story = {
 	},
 };
 
+export const NoMembersMatchingSearch: Story = {
+	args: {
+		filterProps: {
+			filter: {
+				query: "nobody",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: true,
+			},
+		},
+		members: [],
+		membersQuery: { ...mockSuccessResult, totalRecords: 0 },
+	},
+};
+
 export const WithError: Story = {
 	args: {
 		error: "Something went wrong",

@@ -91,6 +91,25 @@ export const EmptyPage: Story = {
 	},
 };
 
+export const NoUsersMatchingSearch: Story = {
+	args: {
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "username:nobody",
+			menus: { status: MockMenu },
+			values: { username: "nobody" },
+			used: true,
+		}),
+		usersQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
+	},
+};
+
 export const WithError: Story = {
 	args: {
 		usersQuery: {

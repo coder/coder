@@ -36,7 +36,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -175,7 +175,15 @@ const GroupMembersPage: React.FC = () => {
 
 					<TableBody>
 						{members.length === 0 ? (
-							<TableEmpty message="No members found" />
+							filterProps.filter.used ? (
+								<TableEmptyState
+									variant="search"
+									message="No members match your search"
+									onResetFilters={() => filterProps.filter.update("")}
+								/>
+							) : (
+								<TableEmptyState variant="default" message="No members found" />
+							)
 						) : (
 							membersWithSpend.map((member) => (
 								<GroupMemberRow

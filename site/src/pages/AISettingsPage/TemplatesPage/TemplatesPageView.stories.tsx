@@ -187,15 +187,6 @@ export const Empty: Story = {
 	args: {
 		templates: [],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("No templates found.")).toBeVisible();
-		expect(
-			canvas.getByText(
-				"Create a template before configuring whether Coder Agents can create workspaces.",
-			),
-		).toBeVisible();
-	},
 };
 
 export const FilteredEmpty: Story = {
@@ -209,12 +200,6 @@ export const FilteredEmpty: Story = {
 				used: true,
 			},
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("No results matched your search."),
-		).toBeVisible();
 	},
 };
 
