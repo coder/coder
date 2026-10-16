@@ -65,7 +65,7 @@ func initTestRepo(t *testing.T) string {
 	return dir
 }
 
-func TestSubscribeBulkPathsAndDedupes(t *testing.T) {
+func TestSetPathsDedupesRepoRoots(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
@@ -73,50 +73,54 @@ func TestSubscribeBulkPathsAndDedupes(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	// Subscribe with multiple paths in the same repo — should dedupe
-	// to one repo root.
-	filePath1 := filepath.Join(repoDir, "a.go")
-	filePath2 := filepath.Join(repoDir, "b.go")
-	added := h.Subscribe([]string{filePath1, filePath2})
-	require.True(t, added, "first subscribe should add a repo")
+	// Multiple paths in the same repo dedupe to one repo root.
+	paths := []string{filepath.Join(repoDir, "a.go"), filepath.Join(repoDir, "b.go")}
+	h.SetPaths(paths)
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.Equal(t, repoDir, msg.Repositories[0].RepoRoot)
 
-	// Subscribing again with the same paths should not add new repos.
-	added = h.Subscribe([]string{filePath1})
-	require.False(t, added, "duplicate subscribe should not add repos")
+	// Setting the same paths again changes nothing, so the next scan
+	// is a heartbeat.
+	h.SetPaths(paths)
+	msg = h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories)
 }
 
-func TestSubscribeNonGitPathsIgnored(t *testing.T) {
+func TestSetPathsNonGitPathsIgnored(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	nonGitDir := t.TempDir()
-	added := h.Subscribe([]string{filepath.Join(nonGitDir, "file.txt")})
-	require.False(t, added, "non-git paths should be ignored")
+	h.SetPaths([]string{filepath.Join(t.TempDir(), "file.txt")})
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories, "non-git paths should be ignored")
 }
 
-func TestSubscribeRelativePathsIgnored(t *testing.T) {
+func TestSetPathsRelativePathsIgnored(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	added := h.Subscribe([]string{"relative/path.go"})
-	require.False(t, added, "relative paths should be ignored")
+	h.SetPaths([]string{"relative/path.go"})
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories, "relative paths should be ignored")
 }
 
-func TestSubscribeEmptyPaths(t *testing.T) {
+func TestSetPathsEmptyPaths(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	added := h.Subscribe([]string{})
-	require.False(t, added, "empty slice should not add any repos")
-
-	added = h.Subscribe(nil)
-	require.False(t, added, "nil slice should not add any repos")
+	h.SetPaths([]string{})
+	h.SetPaths(nil)
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -136,7 +140,7 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 	// Create a dirty file.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
 
-	h.Subscribe([]string{filepath.Join(repoDir, "new.go")})
+	h.SetPaths([]string{filepath.Join(repoDir, "new.go")})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -185,7 +189,7 @@ func TestWithExecerRunsGit(t *testing.T) {
 	h := agentgit.NewHandler(logger, agentgit.WithExecer(execer))
 
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
-	require.True(t, h.Subscribe([]string{filepath.Join(repoDir, "new.go")}))
+	h.SetPaths([]string{filepath.Join(repoDir, "new.go")})
 	msg := h.Scan(context.Background())
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -217,7 +221,7 @@ func TestScanRespectsGitignore(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "build", "output.bin"), []byte("binary\n"), 0o600))
 
 	h := agentgit.NewHandler(logger)
-	h.Subscribe([]string{filepath.Join(repoDir, "main.go")})
+	h.SetPaths([]string{filepath.Join(repoDir, "main.go")})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -261,7 +265,7 @@ func TestScanRespectsGitignoreNestedNegation(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o600))
 
 	h := agentgit.NewHandler(logger)
-	h.Subscribe([]string{filepath.Join(repoDir, "main.go")})
+	h.SetPaths([]string{filepath.Join(repoDir, "main.go")})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -291,7 +295,7 @@ func TestScanDeltaEmission(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.Subscribe([]string{dirtyFile})
+	h.SetPaths([]string{dirtyFile})
 	ctx := context.Background()
 
 	// First scan — returns all files (no previous snapshot).
@@ -331,7 +335,7 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	h := agentgit.NewHandler(logger)
-	require.True(t, h.Subscribe([]string{repoDir}))
+	h.SetPaths([]string{repoDir})
 	ctx := context.Background()
 
 	// First scan on a clean repo captures branch/remote/empty-diff.
@@ -388,7 +392,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	readmePath := filepath.Join(repoDir, "README.md")
 	require.NoError(t, os.WriteFile(readmePath, []byte("# Edit 1\n"), 0o600))
 
-	h.Subscribe([]string{readmePath})
+	h.SetPaths([]string{readmePath})
 	ctx := context.Background()
 
 	// First scan — returns the initial dirty state.
@@ -420,7 +424,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	untrackedPath := filepath.Join(repoDir, "untracked.go")
 	require.NoError(t, os.WriteFile(untrackedPath, []byte("package main\n"), 0o600))
 
-	h.Subscribe([]string{untrackedPath})
+	h.SetPaths([]string{untrackedPath})
 	msg4 := h.Scan(ctx)
 	require.NotNil(t, msg4)
 
@@ -448,7 +452,7 @@ func TestScanRateLimiting(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	h.Subscribe([]string{filepath.Join(repoDir, "file.go")})
+	h.SetPaths([]string{filepath.Join(repoDir, "file.go")})
 
 	// First scan should succeed.
 	ctx := context.Background()
@@ -464,7 +468,7 @@ func TestScanRateLimiting(t *testing.T) {
 	require.NotNil(t, msg2, "scan with new dirty file should return changes")
 }
 
-func TestSubscribeDeeplyNestedFile(t *testing.T) {
+func TestSetPathsDeeplyNestedFile(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
@@ -478,8 +482,7 @@ func TestSubscribeDeeplyNestedFile(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	added := h.Subscribe([]string{nestedFile})
-	require.True(t, added, "deeply nested file should resolve to repo root")
+	h.SetPaths([]string{nestedFile})
 
 	msg := h.Scan(context.Background())
 	require.NotNil(t, msg)
@@ -490,7 +493,7 @@ func TestSubscribeDeeplyNestedFile(t *testing.T) {
 	require.Contains(t, msg.Repositories[0].UnifiedDiff, "a/b/c/deep.go")
 }
 
-func TestSubscribeNestedGitRepos(t *testing.T) {
+func TestSetPathsNestedGitRepos(t *testing.T) {
 	t.Parallel()
 
 	// Create an outer repo.
@@ -517,9 +520,8 @@ func TestSubscribeNestedGitRepos(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
 
-	// Subscribe with the path inside the inner repo.
-	added := h.Subscribe([]string{dirtyFile})
-	require.True(t, added)
+	// Watch a path inside the inner repo.
+	h.SetPaths([]string{dirtyFile})
 
 	msg := h.Scan(context.Background())
 	require.NotNil(t, msg)
@@ -542,7 +544,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.Subscribe([]string{dirtyFile})
+	h.SetPaths([]string{dirtyFile})
 	ctx := context.Background()
 
 	// Initial scan — populates the snapshot with the dirty file.
@@ -584,7 +586,7 @@ func TestScanDeletedGitDirEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.Subscribe([]string{dirtyFile})
+	h.SetPaths([]string{dirtyFile})
 	ctx := context.Background()
 
 	msg1 := h.Scan(ctx)
@@ -621,7 +623,7 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	dirtyFile := filepath.Join(worktreeDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.Subscribe([]string{dirtyFile})
+	h.SetPaths([]string{dirtyFile})
 	ctx := context.Background()
 
 	// Initial scan should succeed.
@@ -664,7 +666,7 @@ func TestScanTransientErrorDoesNotRemoveRepo(t *testing.T) {
 	dirtyFile := filepath.Join(repoDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package dirty\n"), 0o600))
 
-	h.Subscribe([]string{dirtyFile})
+	h.SetPaths([]string{dirtyFile})
 	ctx := context.Background()
 
 	// Initial scan succeeds.
@@ -705,6 +707,84 @@ func TestScanTransientErrorDoesNotRemoveRepo(t *testing.T) {
 	require.Len(t, msg3.Repositories, 1)
 	require.False(t, msg3.Repositories[0].Removed)
 	require.Equal(t, repoDir, msg3.Repositories[0].RepoRoot)
+}
+
+// repoRemovals maps each repo root in msg to whether it was reported
+// as removed.
+func repoRemovals(msg *codersdk.WorkspaceAgentGitServerMessage) map[string]bool {
+	removals := make(map[string]bool, len(msg.Repositories))
+	for _, repo := range msg.Repositories {
+		removals[repo.RepoRoot] = repo.Removed
+	}
+	return removals
+}
+
+// TestSetPathsReportsRootsNoLongerResolved pins that SetPaths drops a
+// root no path resolves to anymore, reports it as removed, and sends
+// it in full if a path resolves to it again.
+func TestSetPathsReportsRootsNoLongerResolved(t *testing.T) {
+	t.Parallel()
+
+	parent := initTestRepo(t)
+	sub := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	file := filepath.Join(sub, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	ctx := context.Background()
+
+	h.SetPaths([]string{file})
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{parent: false}, repoRemovals(msg))
+
+	// The path now belongs to a nested repository.
+	gitCmd(t, sub, "init")
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{sub: false, parent: true}, repoRemovals(msg))
+
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Empty(t, msg.Repositories, "the removal is reported once")
+
+	// Without the nested repository the path resolves to parent
+	// again, which is sent in full even though it has not changed.
+	require.NoError(t, os.RemoveAll(filepath.Join(sub, ".git")))
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{parent: false, sub: true}, repoRemovals(msg))
+}
+
+// TestSetPathsKeepsRootWhenPathDirectoryDeleted pins that a path
+// whose directory was deleted still resolves to the repo containing
+// it, so the repo stays watched.
+func TestSetPathsKeepsRootWhenPathDirectoryDeleted(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	buildDir := filepath.Join(repoDir, "build", "out")
+	require.NoError(t, os.MkdirAll(buildDir, 0o700))
+	file := filepath.Join(buildDir, "out.go")
+	require.NoError(t, os.WriteFile(file, []byte("package build\n"), 0o600))
+
+	h := agentgit.NewHandler(slogtest.Make(t, nil))
+	ctx := context.Background()
+
+	h.SetPaths([]string{file})
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg))
+
+	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, "build")))
+	h.SetPaths([]string{file})
+	msg = h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Equal(t, map[string]bool{repoDir: false}, repoRemovals(msg),
+		"the repo stays watched and its diff is updated")
 }
 
 // --- WebSocket end-to-end tests ---
@@ -948,6 +1028,47 @@ func TestWebSocketRefreshResolvesNewRepo(t *testing.T) {
 	require.Equal(t, dir, msg.Repositories[0].RepoRoot)
 }
 
+// TestWebSocketRefreshMatchesNewConnection pins that refresh leaves
+// the client with the repos a new connection reports, removing a repo
+// that the chat's paths no longer resolve to.
+func TestWebSocketRefreshMatchesNewConnection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	parent := initTestRepo(t)
+	sub := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o700))
+	file := filepath.Join(sub, "main.go")
+	require.NoError(t, os.WriteFile(file, []byte("package main\n"), 0o600))
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ps.AddPaths([]uuid.UUID{chatID}, []string{file})
+
+	mClock := quartz.NewMock(t)
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	msg := recvMsg(ctx, t, ch)
+	require.Equal(t, map[string]bool{parent: false}, repoRemovals(&msg))
+
+	// The path now belongs to a nested repository.
+	gitCmd(t, sub, "init")
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+
+	err := stream.Send(codersdk.WorkspaceAgentGitClientMessage{
+		Type: codersdk.WorkspaceAgentGitClientMessageTypeRefresh,
+	})
+	require.NoError(t, err)
+
+	msg = recvMsg(ctx, t, ch)
+	require.Equal(t, map[string]bool{sub: false, parent: true}, repoRemovals(&msg))
+
+	fresh := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	msg = recvMsg(ctx, t, fresh.Chan())
+	require.Equal(t, map[string]bool{sub: false}, repoRemovals(&msg))
+}
+
 func TestWebSocketUnknownMessageType(t *testing.T) {
 	t.Parallel()
 
@@ -988,7 +1109,7 @@ func TestGetRepoChangesStagedModifiedDeleted(t *testing.T) {
 	// Create an untracked file.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "untracked.txt"), []byte("hello\n"), 0o600))
 
-	h.Subscribe([]string{filepath.Join(repoDir, "README.md")})
+	h.SetPaths([]string{filepath.Join(repoDir, "README.md")})
 	msg := h.Scan(context.Background())
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
@@ -1115,7 +1236,7 @@ func TestScanLargeFileTooLargeToDiff(t *testing.T) {
 	largeFile := filepath.Join(repoDir, "large.txt")
 	require.NoError(t, os.WriteFile(largeFile, largeContent, 0o600))
 
-	h.Subscribe([]string{largeFile})
+	h.SetPaths([]string{largeFile})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -1144,7 +1265,7 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	largeFile := filepath.Join(repoDir, "big.dat")
 	require.NoError(t, os.WriteFile(largeFile, largeContent, 0o600))
 
-	h.Subscribe([]string{largeFile})
+	h.SetPaths([]string{largeFile})
 	ctx := context.Background()
 
 	// First scan — should include the large file.
@@ -1188,7 +1309,7 @@ func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 		paths = append(paths, fullPath)
 	}
 
-	h.Subscribe(paths)
+	h.SetPaths(paths)
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -1222,7 +1343,7 @@ func TestScanBinaryFileDiff(t *testing.T) {
 	binaryFile := filepath.Join(repoDir, "image.png")
 	require.NoError(t, os.WriteFile(binaryFile, binaryContent, 0o600))
 
-	h.Subscribe([]string{binaryFile})
+	h.SetPaths([]string{binaryFile})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -1262,7 +1383,7 @@ func TestScanBinaryFileModifiedDiff(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
-	h.Subscribe([]string{binPath})
+	h.SetPaths([]string{binPath})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -1298,7 +1419,7 @@ func TestScanFileDiffTooLargeForWire(t *testing.T) {
 	bigFile := filepath.Join(repoDir, "big_diff.txt")
 	require.NoError(t, os.WriteFile(bigFile, content, 0o600))
 
-	h.Subscribe([]string{bigFile})
+	h.SetPaths([]string{bigFile})
 
 	ctx := context.Background()
 	msg := h.Scan(ctx)
@@ -1515,8 +1636,8 @@ func TestE2E_ReEditedFileTriggersRescan(t *testing.T) {
 	require.NotEmpty(t, msg1.Repositories)
 	require.Contains(t, msg1.Repositories[0].UnifiedDiff, "v1")
 
-	// Modify the same file again — the repo is already watched,
-	// so Subscribe returns false. The handler must still scan.
+	// Modify the same file again. The repo is already watched, so
+	// the watch set does not change. The handler must still scan.
 	require.NoError(t, os.WriteFile(filePath, []byte("package v2\n"), 0o600))
 
 	// Advance past the scan cooldown so the second scan fires
@@ -1640,10 +1761,10 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
 
-	// Subscribe a real repo so Scan() actually does work and, on
+	// Watch a real repo so Scan() actually does work and, on
 	// completion, updates lastScanAt. Without this, Scan() early-
 	// returns on empty roots and the cooldown branch never arms.
-	require.True(t, h.Subscribe([]string{repoDir}))
+	h.SetPaths([]string{repoDir})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
