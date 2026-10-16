@@ -12,6 +12,7 @@ import type {
 	ChatProject,
 	ChatProjectInstructions,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
@@ -21,6 +22,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 
@@ -469,5 +471,161 @@ describe("ProjectDetailsPanel", () => {
 
 		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
 		await screen.findByRole("button", { name: "Edit instructions" });
+	});
+
+	it("opens the project skills from the Skills row with the user's access", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+			MockSkills[0],
+			MockDisabledSkill,
+		]);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ updateProject: true });
+		const getSkill = vi
+			.spyOn(API.experimental, "getChatProjectSkill")
+			.mockResolvedValue({
+				...MockSkills[0],
+				content: "---\nname: reviewer\n---\nReview the diff.\n",
+			});
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Skills: 2 skills, 1 disabled",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+
+		expect(checkAuthorization).toHaveBeenCalledWith({
+			checks: {
+				updateProject: {
+					object: {
+						resource_type: "chat_project",
+						owner_id: MockChatProject.owner_id,
+						organization_id: MockChatProject.organization_id,
+					},
+					action: "update",
+				},
+			},
+		});
+		await waitFor(() =>
+			expect(getSkill).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				"reviewer",
+			),
+		);
+	});
+
+	it("checks skill access again before opening the skills after a failure", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockRejectedValue(mockApiError({ message: "Authorization failed." }));
+		const toastError = vi.spyOn(toast, "error");
+		const { user } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(1));
+
+		await user.click(skillsButton);
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(2);
+
+		checkAuthorization.mockResolvedValue({ updateProject: true });
+		await user.click(skillsButton);
+		await user.click(await screen.findByRole("button", { name: "New" }));
+		expect(checkAuthorization).toHaveBeenCalledTimes(3);
+		expect(toastError).toHaveBeenCalledTimes(1);
+	});
+
+	it("waits for a background skill access refetch before opening the skills", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ updateProject: true });
+		const toastError = vi.spyOn(toast, "error");
+		const { user, queryClient } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(1));
+
+		let rejectCheck: (error: unknown) => void = () => {};
+		checkAuthorization.mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectCheck = reject;
+			}),
+		);
+		void queryClient.refetchQueries({ type: "active" });
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalledTimes(2));
+		await user.click(skillsButton);
+		await act(async () =>
+			rejectCheck(mockApiError({ message: "Authorization failed." })),
+		);
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(2);
+	});
+
+	it("waits for a pending skill access check before opening the skills", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		let rejectCheck: (error: unknown) => void = () => {};
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockReturnValue(
+				new Promise((_resolve, reject) => {
+					rejectCheck = reject;
+				}),
+			);
+		const toastError = vi.spyOn(toast, "error");
+		const { user } = renderPanel();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Skills: None" }),
+		);
+		await act(async () =>
+			rejectCheck(mockApiError({ message: "Authorization failed." })),
+		);
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith(
+				"Could not check your access to project skills.",
+				expect.anything(),
+			),
+		);
+		expect(checkAuthorization).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns focus to the Skills row when the skills dialog closes", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const { user } = renderPanel();
+		const skillsButton = await screen.findByRole("button", {
+			name: "Skills: None",
+		});
+
+		await user.click(skillsButton);
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+
+		await waitFor(() => expect(skillsButton).toHaveFocus());
 	});
 });
