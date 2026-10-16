@@ -447,9 +447,12 @@ func TestExecuteCanceledScriptReportsCanceled(t *testing.T) {
 			runner := setup(t, func(uuid.UUID) agentscripts.ScriptLogger { return fLogger })
 			aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 
+			// exec keeps the shell from forking sleep. A SIGHUP that lands
+			// in that fork window can miss the child, which then holds the
+			// output pipes open for cmd.WaitDelay and the test times out.
 			script := codersdk.WorkspaceAgentScript{
 				ID: uuid.New(), LogSourceID: uuid.New(),
-				Script: "echo started && sleep 30", RunOnStart: true, RunOnStop: true,
+				Script: "echo started && exec sleep 30", RunOnStart: true, RunOnStop: true,
 			}
 			require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
 
@@ -487,6 +490,94 @@ func TestExecuteCanceledScriptReportsCanceled(t *testing.T) {
 		require.Len(t, timings, 1)
 		require.Equal(t, proto.Timing_EXIT_FAILURE, timings[0].Status)
 		require.Equal(t, int32(1), timings[0].ExitCode)
+	})
+}
+
+// TestCloseWaitsForCanceledStartReports follows the agent's shutdown order:
+// cancel the start execution and call Close at once, without waiting for
+// Execute to return.
+func TestCloseWaitsForCanceledStartReports(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep")
+	}
+
+	t.Run("Unordered", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		execCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		fLogger := newFakeScriptLogger()
+		runner := setup(t, func(uuid.UUID) agentscripts.ScriptLogger { return fLogger })
+		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+		script := codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(),
+			Script: "echo started && exec sleep 30", RunOnStart: true,
+		}
+		require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
+
+		done := make(chan error, 1)
+		go func() { done <- runner.Execute(execCtx, agentscripts.ExecuteStartScripts) }()
+		require.Equal(t, "started", testutil.RequireReceive(ctx, t, fLogger.logs).Output)
+		cancel()
+		require.NoError(t, runner.Close())
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
+
+		timings := aAPI.GetTimings()
+		require.Len(t, timings, 1)
+		require.Equal(t, proto.Timing_CANCELED, timings[0].Status)
+		require.Equal(t, proto.Timing_START, timings[0].Stage)
+
+		require.ErrorContains(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts), "execute: closed")
+	})
+
+	t.Run("Ordered", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		execCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		fLogger := newFakeScriptLogger()
+		running := codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.running",
+			Script: "echo started && exec sleep 30", RunOnStart: true,
+		}
+		waiting := codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), ResourceAddress: "coder_script.waiting",
+			Script: "echo never", RunOnStart: true,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: running.ResourceAddress,
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementCompletion,
+			}},
+		}
+		// Only the running script's output goes to the channel the test
+		// reads, so the waiting line does not block Execute.
+		runner := setup(t, func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
+			if logSourceID == running.LogSourceID {
+				return fLogger
+			}
+			return noopScriptLogger{}
+		})
+		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+		require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{running, waiting}, aAPI.ScriptCompleted))
+
+		done := make(chan error, 1)
+		go func() { done <- runner.Execute(execCtx, agentscripts.ExecuteStartScripts) }()
+		require.Equal(t, "started", testutil.RequireReceive(ctx, t, fLogger.logs).Output)
+		cancel()
+		require.NoError(t, runner.Close())
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
+
+		timings := aAPI.GetTimings()
+		require.Len(t, timings, 2)
+		byScript := make(map[uuid.UUID]*proto.Timing, len(timings))
+		for _, timing := range timings {
+			byScript[uuid.UUID(timing.ScriptId)] = timing
+		}
+		require.Equal(t, proto.Timing_CANCELED, byScript[running.ID].Status)
+		require.True(t, byScript[running.ID].End.AsTime().After(byScript[running.ID].Start.AsTime()), "the running script keeps its real interval")
+		require.Equal(t, proto.Timing_CANCELED, byScript[waiting.ID].Status)
+		require.Equal(t, byScript[waiting.ID].Start.AsTime(), byScript[waiting.ID].End.AsTime(), "the waiting script never ran")
 	})
 }
 

@@ -2173,7 +2173,7 @@ func TestAgent_OrderedStartupScripts(t *testing.T) {
 	startAgent := func(t *testing.T, clone, install codersdk.WorkspaceAgentScript) (*agenttest.Client, <-chan *proto.BatchCreateLogsRequest) {
 		t.Helper()
 		logsCh := make(chan *proto.BatchCreateLogsRequest, 256)
-		//nolint:dogsled
+		//nolint:dogsled // only the client is needed
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{clone, install},
 		}, 0, func(cl *agenttest.Client, _ *agent.Options) {

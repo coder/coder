@@ -95,7 +95,9 @@ type Runner struct {
 	cronCtx         context.Context
 	cronCtxCancel   context.CancelFunc
 	cmdCloseWait    sync.WaitGroup
+	executeWait     sync.WaitGroup
 	closed          chan struct{}
+	closing         bool
 	closeMutex      sync.Mutex
 	cron            *cron.Cron
 	scripts         []codersdk.WorkspaceAgentScript
@@ -221,6 +223,15 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 	if initErr != nil {
 		return initErr
 	}
+
+	r.closeMutex.Lock()
+	if r.closing {
+		r.closeMutex.Unlock()
+		return xerrors.New("execute: closed")
+	}
+	r.executeWait.Add(1)
+	r.closeMutex.Unlock()
+	defer r.executeWait.Done()
 
 	var scripts []codersdk.WorkspaceAgentScript
 	for _, script := range r.scripts {
@@ -546,6 +557,16 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 }
 
 func (r *Runner) Close() error {
+	r.closeMutex.Lock()
+	r.closing = true
+	r.closeMutex.Unlock()
+
+	// The agent cancels the start execution and calls Close without
+	// waiting for Execute to return, so the CANCELED timings are still
+	// being sent. They go through trackCommandGoroutine, which refuses
+	// once closed is closed, so wait for Execute with the mutex released.
+	r.executeWait.Wait()
+
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 	if r.isClosed() {
