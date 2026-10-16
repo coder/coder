@@ -109,6 +109,7 @@ const (
 	ACPEventKindStatus      ACPEventKind = "status"
 	ACPEventKindError       ACPEventKind = "error"
 	ACPEventKindReset       ACPEventKind = "reset"
+	ACPEventKindSnapshot    ACPEventKind = "snapshot"
 )
 
 // ACPEvent preserves ACP updates separately from locally submitted messages.
