@@ -1,4 +1,5 @@
 import type React from "react";
+import { createContext, use } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import type { WorkspaceFileUpload } from "../../hooks/useWorkspaceFileUploads";
 import type { getAgentChatSendShortcut } from "../../utils/agentChatSendShortcut";
@@ -101,6 +102,7 @@ export type ComposerContextValue = {
 		speechSupported: boolean;
 		speechRecording: boolean;
 		speechError: string | null;
+		needsSetup: boolean;
 		files: Pick<
 			ComposerFileBindings,
 			"attachments" | "uploadStates" | "previewUrls" | "textContents"
@@ -118,7 +120,8 @@ export type ComposerContextValue = {
 		cancelHistoryEdit?: () => void;
 		/** Returns whether any file was routed to an upload owner. */
 		attachFiles: (files: File[]) => boolean;
-		removeAttachment: (attachment: number | File) => void;
+		/** Absent when the upload owner does not support removing attachments. */
+		removeAttachment?: (attachment: number | File) => void;
 		removeWorkspaceUpload: (id: string) => void;
 		inlineText: (file: File, nextContent?: string) => void;
 		contentChange: ComposerEditorBindings["onContentChange"];
@@ -139,3 +142,18 @@ export type ComposerContextValue = {
 		sendButtonKeyShortcuts?: string;
 	};
 };
+
+export const ComposerContext = createContext<ComposerContextValue | null>(null);
+
+/** Reads composer state and actions; must be called inside AgentComposer.Provider. */
+export function useAgentComposer() {
+	const context = use(ComposerContext);
+
+	if (!context) {
+		throw new Error(
+			"useAgentComposer must be used inside AgentComposer.Provider",
+		);
+	}
+
+	return context;
+}
