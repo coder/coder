@@ -170,7 +170,7 @@ func TestAssignOrganizationMemberRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		inv, root := clitest.New(t, "organization", "members", "edit-roles", user.Username, codersdk.RoleOrganizationAdmin, "-o", "json")
-		// nolint:gocritic // you cannot change your own roles
+		//nolint:gocritic // you cannot change your own roles
 		clitest.SetupConfig(t, ownerClient, root)
 
 		buf := new(bytes.Buffer)
@@ -183,6 +183,33 @@ func TestAssignOrganizationMemberRole(t *testing.T) {
 		require.Equal(t, user.Username, member.Username)
 		require.Len(t, member.Roles, 1)
 		require.Equal(t, "organization-admin", member.Roles[0].Name)
+	})
+
+	t.Run("Table", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		inv, root := clitest.New(t, "organization", "members", "edit-roles", user.Username, codersdk.RoleOrganizationAdmin, "-o", "table", "-c", "username,organization roles")
+		//nolint:gocritic // you cannot change your own roles
+		clitest.SetupConfig(t, ownerClient, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		require.Contains(t, buf.String(), "USERNAME")
+		require.Contains(t, buf.String(), user.Username)
+		require.Contains(t, buf.String(), must(rbac.RoleByName(rbac.ScopedRoleOrgAdmin(owner.OrganizationID))).DisplayName)
 	})
 }
 
