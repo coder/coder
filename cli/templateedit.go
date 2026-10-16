@@ -13,6 +13,104 @@ import (
 	"github.com/coder/serpent"
 )
 
+// defaultAutostopRequirementWeeks mirrors the server-side normalization in
+// resolveTemplateMetaUpdate (coderd/templates_meta_update.go), which forces
+// any nonpositive autostop requirement weeks value to 1.
+const defaultAutostopRequirementWeeks = 1
+
+// templateEditWorkspaceImpactingChanges describes requested changes that act on
+// existing workspaces without a new build (dormancy, failure TTL, active
+// version, autostop and autostart requirements, and TTL overrides when user
+// autostop is disabled), so they need confirmation. Settings that only affect
+// future builds or new workspaces are excluded.
+func templateEditWorkspaceImpactingChanges(template codersdk.Template, req codersdk.UpdateTemplateMeta) []string {
+	var (
+		changes                       []string
+		failureTTL                    = time.Duration(*req.FailureTTLMillis) * time.Millisecond
+		dormancyThreshold             = time.Duration(*req.TimeTilDormantMillis) * time.Millisecond
+		dormancyAutoDeletion          = time.Duration(*req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		requireActiveVersion          = *req.RequireActiveVersion
+		autostopRequirementDaysOfWeek = req.AutostopRequirement.DaysOfWeek
+		autostopRequirementWeeks      = req.AutostopRequirement.Weeks
+		autostartDaysOfWeek           = req.AutostartRequirement.DaysOfWeek
+		defaultTTL                    = time.Duration(*req.DefaultTTLMillis) * time.Millisecond
+		allowUserAutostop             = *req.AllowUserAutostop
+	)
+
+	// The server normalizes a nonpositive value to defaultAutostopRequirementWeeks,
+	// so a requested value of 0 (or negative) against a template already at the
+	// normalized value is a no-op. Normalize before comparing so we don't prompt
+	// for a change that won't actually apply.
+	if autostopRequirementWeeks <= 0 {
+		autostopRequirementWeeks = defaultAutostopRequirementWeeks
+	}
+
+	currentFailureTTL := time.Duration(template.FailureTTLMillis) * time.Millisecond
+	if failureTTL != currentFailureTTL {
+		changes = append(changes, fmt.Sprintf("Failure TTL: %s -> %s", currentFailureTTL, failureTTL))
+	}
+
+	currentDormancyThreshold := time.Duration(template.TimeTilDormantMillis) * time.Millisecond
+	if dormancyThreshold != currentDormancyThreshold {
+		changes = append(changes, fmt.Sprintf("Dormancy threshold: %s -> %s", currentDormancyThreshold, dormancyThreshold))
+	}
+
+	currentDormancyAutoDeletion := time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+	if dormancyAutoDeletion != currentDormancyAutoDeletion {
+		changes = append(changes, fmt.Sprintf("Dormancy auto-deletion: %s -> %s", currentDormancyAutoDeletion, dormancyAutoDeletion))
+	}
+
+	if requireActiveVersion != template.RequireActiveVersion {
+		changes = append(changes, fmt.Sprintf("Require active version: %t -> %t", template.RequireActiveVersion, requireActiveVersion))
+	}
+
+	if from, to, changed := weekdaysChanged(template.AutostopRequirement.DaysOfWeek, autostopRequirementDaysOfWeek); changed {
+		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", from, to))
+	}
+
+	if autostopRequirementWeeks != template.AutostopRequirement.Weeks {
+		changes = append(changes, fmt.Sprintf("Autostop requirement weeks: %d -> %d", template.AutostopRequirement.Weeks, autostopRequirementWeeks))
+	}
+
+	// Changing the allowed autostart days recomputes the next start time of
+	// every existing workspace.
+	if from, to, changed := weekdaysChanged(template.AutostartRequirement.DaysOfWeek, autostartDaysOfWeek); changed {
+		changes = append(changes, fmt.Sprintf("Autostart requirement days: %v -> %v", from, to))
+	}
+
+	// While user autostop is disabled, the server overwrites the TTL of every
+	// existing workspace. That happens when autostop is being disabled, or when
+	// the default TTL changes while it is disabled.
+	currentDefaultTTL := time.Duration(template.DefaultTTLMillis) * time.Millisecond
+	if !allowUserAutostop && template.AllowUserAutostop {
+		changes = append(changes, fmt.Sprintf("Allow user autostop: %t -> %t", template.AllowUserAutostop, allowUserAutostop))
+	}
+	if !allowUserAutostop && defaultTTL != currentDefaultTTL {
+		changes = append(changes, fmt.Sprintf("Default TTL (applied to existing workspaces while user autostop is disabled): %s -> %s", currentDefaultTTL, defaultTTL))
+	}
+
+	return changes
+}
+
+// weekdaysChanged compares weekday lists as bitmaps, the same way the server
+// does, so differences in case, order, or duplicates are not reported as a
+// change. It returns both lists in canonical form for display. Invalid
+// weekdays are reported as unchanged so the server can reject them.
+func weekdaysChanged(current, requested []string) (from, to []string, changed bool) {
+	currentBitmap, err := codersdk.WeekdaysToBitmap(current)
+	if err != nil {
+		return nil, nil, false
+	}
+	requestedBitmap, err := codersdk.WeekdaysToBitmap(requested)
+	if err != nil {
+		return nil, nil, false
+	}
+	if currentBitmap == requestedBitmap {
+		return nil, nil, false
+	}
+	return codersdk.BitmapToWeekdays(currentBitmap), codersdk.BitmapToWeekdays(requestedBitmap), true
+}
+
 func (r *RootCmd) templateEdit() *serpent.Command {
 	const deprecatedFlagName = "deprecated"
 	var (
@@ -211,6 +309,23 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				// rewrite this CLI to only set pointers for flags the user
 				// explicitly provided via userSetOption. The current
 				// fetch-then-resend-everything dance is no longer required.
+			}
+
+			changes := templateEditWorkspaceImpactingChanges(template, req)
+			if len(changes) > 0 {
+				// Write the summary to stderr so scripted runs that pass -y keep
+				// the same stdout.
+				_, _ = fmt.Fprintln(inv.Stderr, "The following changes will apply to existing workspaces created from this template:")
+				for _, change := range changes {
+					_, _ = fmt.Fprintf(inv.Stderr, "  %s\n", change)
+				}
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Apply these changes?",
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
