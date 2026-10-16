@@ -3066,11 +3066,17 @@ func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecre
 	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
-func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
-		return database.AIModelPrice{}, err
+// GetAIModelPriceForProvider reads organization prices when given an
+// organization, and only site-wide prices otherwise.
+func (q *querier) GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error) {
+	object := rbac.ResourceAiModelPrice
+	if arg.OrganizationID.Valid {
+		object = object.InOrg(arg.OrganizationID.UUID)
 	}
-	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return database.GetAIModelPriceForProviderRow{}, err
+	}
+	return q.db.GetAIModelPriceForProvider(ctx, arg)
 }
 
 func (q *querier) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
