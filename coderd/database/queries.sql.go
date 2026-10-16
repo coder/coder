@@ -2818,7 +2818,7 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 }
 
 const deleteOrganizationAIProviderModelPrice = `-- name: DeleteOrganizationAIProviderModelPrice :execrows
-DELETE FROM ai_org_provider_model_prices
+DELETE FROM ai_model_configs
 WHERE organization_id = $1
 	AND provider_id = $2
 	AND model = $3
@@ -3307,160 +3307,36 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 	return i, err
 }
 
-const getOrganizationAIModelPrices = `-- name: GetOrganizationAIModelPrices :many
-WITH prices AS (
-	SELECT
-		NULL::uuid AS organization_id,
-		NULL::uuid AS provider_id,
-		NULL::text AS provider_name,
-		ai_model_prices.provider,
-		ai_model_prices.model,
-		ai_model_prices.input_price,
-		ai_model_prices.output_price,
-		ai_model_prices.cache_read_price,
-		ai_model_prices.cache_write_price,
-		ai_model_prices.source,
-		ai_model_prices.created_at,
-		ai_model_prices.updated_at
-	FROM ai_model_prices
-	UNION ALL
-	SELECT
-		ai_org_provider_model_prices.organization_id,
-		ai_org_provider_model_prices.provider_id,
-		ai_providers.name,
-		ai_providers.type::text,
-		ai_org_provider_model_prices.model,
-		ai_org_provider_model_prices.input_price,
-		ai_org_provider_model_prices.output_price,
-		ai_org_provider_model_prices.cache_read_price,
-		ai_org_provider_model_prices.cache_write_price,
-		'custom'::ai_model_price_source,
-		ai_org_provider_model_prices.created_at,
-		ai_org_provider_model_prices.updated_at
-	FROM ai_org_provider_model_prices
-	JOIN ai_providers
-		ON ai_providers.id = ai_org_provider_model_prices.provider_id
-		AND ai_providers.deleted = false
-	WHERE ai_org_provider_model_prices.organization_id = $4::uuid
-)
-SELECT DISTINCT ON (
-	prices.provider,
-	prices.model,
-	COALESCE(prices.provider_id::text, ''),
-	CASE WHEN $1::text = 'all' THEN prices.source::text ELSE '' END
-)
-	prices.organization_id,
-	prices.provider_id,
-	prices.provider_name,
-	prices.provider,
-	prices.model,
-	prices.input_price,
-	prices.output_price,
-	prices.cache_read_price,
-	prices.cache_write_price,
-	prices.source,
-	prices.created_at,
-	prices.updated_at
-FROM prices
-	-- Filter by provider type
-WHERE CASE
-		WHEN $2::text != '' THEN
-			prices.provider = $2
-		ELSE true
-	END
-	-- Filter by model
-	AND CASE
-		WHEN $3::text != '' THEN
-			prices.model = $3
-		ELSE true
-	END
-	-- Filter by source
-	AND CASE
-		WHEN $1::text NOT IN ('', 'all') THEN
-			prices.source = $1::ai_model_price_source
-		ELSE true
-	END
-ORDER BY
-	prices.provider ASC,
-	prices.model ASC,
-	-- Site-wide prices first, then each provider's price.
-	COALESCE(prices.provider_id::text, '') ASC,
-	CASE WHEN $1::text = 'all' THEN prices.source::text ELSE '' END ASC,
-	-- A custom price is in effect over the price book.
-	CASE WHEN prices.source = 'custom' THEN 0 ELSE 1 END ASC
+const getOrganizationAIProviderModelPrice = `-- name: GetOrganizationAIProviderModelPrice :one
+SELECT organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+FROM ai_model_configs
+WHERE organization_id = $1
+	AND provider_id = $2
+	AND model = $3
 `
 
-type GetOrganizationAIModelPricesParams struct {
-	Source         string    `db:"source" json:"source"`
-	Provider       string    `db:"provider" json:"provider"`
-	Model          string    `db:"model" json:"model"`
+type GetOrganizationAIProviderModelPriceParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
+	Model          string    `db:"model" json:"model"`
 }
 
-type GetOrganizationAIModelPricesRow struct {
-	OrganizationID  uuid.NullUUID      `db:"organization_id" json:"organization_id"`
-	ProviderID      uuid.NullUUID      `db:"provider_id" json:"provider_id"`
-	ProviderName    sql.NullString     `db:"provider_name" json:"provider_name"`
-	Provider        string             `db:"provider" json:"provider"`
-	Model           string             `db:"model" json:"model"`
-	InputPrice      sql.NullInt64      `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64      `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64      `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64      `db:"cache_write_price" json:"cache_write_price"`
-	Source          AIModelPriceSource `db:"source" json:"source"`
-	CreatedAt       time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time          `db:"updated_at" json:"updated_at"`
-}
-
-// Returns every price that applies to the organization: its prices for
-// configured providers and the site-wide catalog. Prices for soft-deleted
-// providers are left out. Organization rows have a provider_id, site-wide rows
-// do not.
-// By default each price is collapsed into the one in effect: a custom
-// site-wide price hides the price book. A price for one configured provider
-// hides nothing, since other providers of its type still use the site-wide
-// price. Filtering by source narrows the rows considered first, and
-// organization prices count as custom. The source 'all' reports every row
-// instead.
-func (q *sqlQuerier) GetOrganizationAIModelPrices(ctx context.Context, arg GetOrganizationAIModelPricesParams) ([]GetOrganizationAIModelPricesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationAIModelPrices,
-		arg.Source,
-		arg.Provider,
-		arg.Model,
-		arg.OrganizationID,
+// Returns the organization's price for one model on one configured provider.
+func (q *sqlQuerier) GetOrganizationAIProviderModelPrice(ctx context.Context, arg GetOrganizationAIProviderModelPriceParams) (AIModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationAIProviderModelPrice, arg.OrganizationID, arg.ProviderID, arg.Model)
+	var i AIModelConfig
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.Model,
+		&i.InputPrice,
+		&i.OutputPrice,
+		&i.CacheReadPrice,
+		&i.CacheWritePrice,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetOrganizationAIModelPricesRow
-	for rows.Next() {
-		var i GetOrganizationAIModelPricesRow
-		if err := rows.Scan(
-			&i.OrganizationID,
-			&i.ProviderID,
-			&i.ProviderName,
-			&i.Provider,
-			&i.Model,
-			&i.InputPrice,
-			&i.OutputPrice,
-			&i.CacheReadPrice,
-			&i.CacheWritePrice,
-			&i.Source,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return i, err
 }
 
 const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
@@ -4085,7 +3961,7 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 }
 
 const upsertOrganizationAIProviderModelPrice = `-- name: UpsertOrganizationAIProviderModelPrice :exec
-INSERT INTO ai_org_provider_model_prices (
+INSERT INTO ai_model_configs (
 	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
 ) VALUES (
 	$1, $2, $3, $4, $5, $6, $7
@@ -4097,10 +3973,10 @@ ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
 	cache_write_price = EXCLUDED.cache_write_price,
 	updated_at        = NOW()
 WHERE (
-	ai_org_provider_model_prices.input_price,
-	ai_org_provider_model_prices.output_price,
-	ai_org_provider_model_prices.cache_read_price,
-	ai_org_provider_model_prices.cache_write_price
+	ai_model_configs.input_price,
+	ai_model_configs.output_price,
+	ai_model_configs.cache_read_price,
+	ai_model_configs.cache_write_price
 ) IS DISTINCT FROM (
 	EXCLUDED.input_price,
 	EXCLUDED.output_price,

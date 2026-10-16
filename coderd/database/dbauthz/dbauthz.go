@@ -2608,6 +2608,10 @@ func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg
 	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }
 
+// TODO: ai_model_configs holds AI Governance configuration for a model, not
+// only its prices. Authorize it, and the other organization model price
+// queries, against a resource that represents that configuration instead of
+// ResourceAiModelPrice.
 func (q *querier) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg database.DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
 		return 0, err
@@ -4611,13 +4615,11 @@ func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.Ge
 	return q.db.GetOldUnlinkedChatFileIDs(ctx, arg)
 }
 
-// GetOrganizationAIModelPrices also returns site-wide prices. They apply to
-// the organization, so reading them through it needs only organization read.
-func (q *querier) GetOrganizationAIModelPrices(ctx context.Context, arg database.GetOrganizationAIModelPricesParams) ([]database.GetOrganizationAIModelPricesRow, error) {
+func (q *querier) GetOrganizationAIProviderModelPrice(ctx context.Context, arg database.GetOrganizationAIProviderModelPriceParams) (database.AIModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice.InOrg(arg.OrganizationID)); err != nil {
-		return nil, err
+		return database.AIModelConfig{}, err
 	}
-	return q.db.GetOrganizationAIModelPrices(ctx, arg)
+	return q.db.GetOrganizationAIProviderModelPrice(ctx, arg)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {

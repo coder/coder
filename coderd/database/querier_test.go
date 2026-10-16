@@ -19413,24 +19413,6 @@ func TestGetAIModelPrices(t *testing.T) {
 	}
 }
 
-// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
-// by keys and with only an input price set.
-func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
-	t.Helper()
-	elem := map[string]any{
-		"input_price":       inputPrice,
-		"output_price":      nil,
-		"cache_read_price":  nil,
-		"cache_write_price": nil,
-	}
-	for k, v := range keys {
-		elem[k] = v
-	}
-	raw, err := json.Marshal([]any{elem})
-	require.NoError(t, err)
-	return raw
-}
-
 // upsertOrgProviderPrice sets an organization's price for a model on a
 // configured provider, with only an input price.
 func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
@@ -19443,7 +19425,7 @@ func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store
 	}))
 }
 
-func TestGetOrganizationAIModelPrices(t *testing.T) {
+func TestGetOrganizationAIProviderModelPrice(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -19451,116 +19433,117 @@ func TestGetOrganizationAIModelPrices(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
-	deletedProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 
-	upsertSite := func(source database.AIModelPriceSource, provider, model string, price int64) {
-		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-			Seed:   aiModelPriceSeed(t, map[string]string{"provider": provider, "model": model}, price),
-			Source: source,
-		}))
-	}
-	upsertOrgProvider := func(orgID, providerID uuid.UUID, model string, price int64) {
-		upsertOrgProviderPrice(ctx, t, db, orgID, providerID, model, price)
-	}
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, "model-a", 3)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-b", 4)
 
-	// model-a has every kind of price.
-	upsertSite(database.AIModelPriceSourceDefault, "anthropic", "model-a", 1)
-	upsertSite(database.AIModelPriceSourceCustom, "anthropic", "model-a", 2)
-	upsertOrgProvider(org.ID, provider.ID, "model-a", 4)
-	// model-b has only a site-wide price.
-	upsertSite(database.AIModelPriceSourceDefault, "openai", "model-b", 5)
-	// Another organization's prices never show.
-	upsertOrgProvider(otherOrg.ID, provider.ID, "model-b", 7)
-	// Prices for a soft-deleted provider are hidden.
-	upsertOrgProvider(org.ID, deletedProvider.ID, "model-a", 8)
-	require.NoError(t, db.DeleteAIProviderByID(ctx, deletedProvider.ID))
+	got, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, org.ID, got.OrganizationID)
+	require.Equal(t, provider.ID, got.ProviderID)
+	require.Equal(t, "model-a", got.Model)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+	require.False(t, got.OutputPrice.Valid)
 
-	// kind names what a row is: an organization provider price, or a
-	// site-wide price by its source.
-	type row struct {
-		kind     string
-		provider string
-		model    string
-		price    int64
-	}
-	list := func(params database.GetOrganizationAIModelPricesParams) []row {
+	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-c",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpsertOrganizationAIProviderModelPrice(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	get := func(model string) database.AIModelConfig {
 		t.Helper()
-		params.OrganizationID = org.ID
-		prices, err := db.GetOrganizationAIModelPrices(ctx, params)
-		require.NoError(t, err)
-		rows := make([]row, 0, len(prices))
-		for _, p := range prices {
-			// Organization rows carry the organization and the provider,
-			// site-wide rows carry neither.
-			kind := "site_" + string(p.Source)
-			if p.ProviderID.Valid {
-				kind = "org"
-				require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, p.OrganizationID)
-				require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, p.ProviderID)
-				require.Equal(t, sql.NullString{String: provider.Name, Valid: true}, p.ProviderName)
-				require.Equal(t, database.AIModelPriceSourceCustom, p.Source)
-			} else {
-				require.False(t, p.OrganizationID.Valid)
-			}
-			rows = append(rows, row{kind: kind, provider: p.Provider, model: p.Model, price: p.InputPrice.Int64})
-		}
-		return rows
-	}
-
-	t.Run("Effective", func(t *testing.T) {
-		t.Parallel()
-		// The custom site-wide price hides the price book for
-		// anthropic/model-a. The provider price hides nothing.
-		require.Equal(t, []row{
-			{"site_custom", "anthropic", "model-a", 2},
-			{"org", "anthropic", "model-a", 4},
-			{"site_default", "openai", "model-b", 5},
-		}, list(database.GetOrganizationAIModelPricesParams{}))
-	})
-
-	t.Run("All", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []row{
-			{"site_custom", "anthropic", "model-a", 2},
-			{"site_default", "anthropic", "model-a", 1},
-			{"org", "anthropic", "model-a", 4},
-			{"site_default", "openai", "model-b", 5},
-		}, list(database.GetOrganizationAIModelPricesParams{Source: string(codersdk.AIModelPriceSourceFilterAll)}))
-	})
-
-	t.Run("SourceDefault", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []row{
-			{"site_default", "anthropic", "model-a", 1},
-			{"site_default", "openai", "model-b", 5},
-		}, list(database.GetOrganizationAIModelPricesParams{Source: string(database.AIModelPriceSourceDefault)}))
-	})
-
-	t.Run("SourceCustom", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []row{
-			{"site_custom", "anthropic", "model-a", 2},
-			{"org", "anthropic", "model-a", 4},
-		}, list(database.GetOrganizationAIModelPricesParams{Source: string(database.AIModelPriceSourceCustom)}))
-	})
-
-	t.Run("ByProviderAndModel", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []row{
-			{"site_default", "openai", "model-b", 5},
-		}, list(database.GetOrganizationAIModelPricesParams{Provider: "openai", Model: "model-b"}))
-	})
-
-	t.Run("DeleteOnlyTouchesOrganizationRows", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		// Deleting from another organization matches nothing.
-		n, err := db.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
-			OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+		got, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
 		})
 		require.NoError(t, err)
-		require.Zero(t, n)
+		return got
+	}
+
+	t.Run("IdenticalPricesKeepUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		before := get("identical")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		require.Equal(t, before, get("identical"))
 	})
+
+	t.Run("ChangedPricesAdvanceUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 1)
+		before := get("changed")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 2)
+		after := get("changed")
+		require.Equal(t, int64(2), after.InputPrice.Int64)
+		require.Equal(t, before.CreatedAt, after.CreatedAt)
+		require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
+	})
+
+	t.Run("EmptyModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpsertOrganizationAIProviderModelPrice(ctx, database.UpsertOrganizationAIProviderModelPriceParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          "",
+			InputPrice:     sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckAIModelConfigsModelCheck), "got %v", err)
+	})
+}
+
+func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+
+	del := func(orgID uuid.UUID, model string) int64 {
+		t.Helper()
+		n, err := db.DeleteOrganizationAIProviderModelPrice(ctx, database.DeleteOrganizationAIProviderModelPriceParams{
+			OrganizationID: orgID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return n
+	}
+
+	require.EqualValues(t, 1, del(org.ID, "model-a"))
+	_, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The other organization's price for the same model is untouched.
+	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	// Deleting a price that does not exist matches nothing.
+	require.Zero(t, del(org.ID, "model-a"))
 }
 
 func TestGetChatSiteConfigValue(t *testing.T) {

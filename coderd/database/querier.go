@@ -778,17 +778,8 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
-	// Returns every price that applies to the organization: its prices for
-	// configured providers and the site-wide catalog. Prices for soft-deleted
-	// providers are left out. Organization rows have a provider_id, site-wide rows
-	// do not.
-	// By default each price is collapsed into the one in effect: a custom
-	// site-wide price hides the price book. A price for one configured provider
-	// hides nothing, since other providers of its type still use the site-wide
-	// price. Filtering by source narrows the rows considered first, and
-	// organization prices count as custom. The source 'all' reports every row
-	// instead.
-	GetOrganizationAIModelPrices(ctx context.Context, arg GetOrganizationAIModelPricesParams) ([]GetOrganizationAIModelPricesRow, error)
+	// Returns the organization's price for one model on one configured provider.
+	GetOrganizationAIProviderModelPrice(ctx context.Context, arg GetOrganizationAIProviderModelPriceParams) (AIModelConfig, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
