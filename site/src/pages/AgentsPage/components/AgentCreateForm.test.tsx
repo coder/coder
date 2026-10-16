@@ -1005,6 +1005,58 @@ describe("AgentCreateForm project picker", () => {
 		]);
 	});
 
+	it("drops organization skill chips when the organization is revoked", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		queryClient.setQueryData(userSkillsKey(), [
+			{ ...MockSkill, name: "notes" },
+		]);
+		queryClient.setQueryData(organizationSkillsKey(MockOrganization2.id), [
+			{ ...MockSkill, name: "review" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await user().click(screen.getByRole("textbox", { name: "Chat message" }));
+		for (const name of ["review", "notes"]) {
+			await user().paste("/");
+			await user().click(
+				await screen.findByRole("option", { name: new RegExp(name) }),
+			);
+		}
+		act(() =>
+			queryClient.setQueryData(
+				permittedOrganizationsKey({
+					object: { resource_type: "chat", owner_id: "me" },
+					action: "create",
+				}),
+				[MockDefaultOrganization],
+			),
+		);
+		await submitMessage("organization revoked");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+		expect(
+			options.composerParts?.filter((part) => part.type === "skill-invocation"),
+		).toEqual([
+			{ type: "skill-invocation", source: "personal", name: "notes" },
+		]);
+	});
+
 	it("drops project skill chips when a refetch removes the picked project", async () => {
 		const queryClient = createProjectQueryClient();
 		queryClient.setQueryData(userSkillsKey(), []);
