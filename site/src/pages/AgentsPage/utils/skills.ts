@@ -286,6 +286,7 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 /**
  * Adds `disable-model-invocation: true` to SKILL.md frontmatter that lacks
  * it, so a downloaded manual-only skill keeps that setting when re-imported.
+ * Content the marker would push past the size limit is returned unchanged.
  */
 export const withDisabledModelInvocation = (content: string): string => {
 	const opening = /^---(\r?\n)/.exec(content);
@@ -298,7 +299,6 @@ export const withDisabledModelInvocation = (content: string): string => {
 	}
 	const newline = opening[1];
 	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
-	// A file past the size limit could not be re-imported at all.
 	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
 		? content
 		: marked;
