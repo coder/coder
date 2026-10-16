@@ -22,6 +22,8 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	args: {
 		ownerLabel: "You",
 		createdAt: MockChatProject.created_at,
+		templateCount: 2,
+		onEditTemplates: fn(),
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),
@@ -36,6 +38,14 @@ export const Default: Story = {};
 
 export const WithOrganization: Story = {
 	args: { organizationLabel: "Coder" },
+};
+
+export const NoTemplates: Story = {
+	args: { templateCount: 0 },
+};
+
+export const OneTemplate: Story = {
+	args: { templateCount: 1 },
 };
 
 export const OwnerLoading: Story = {

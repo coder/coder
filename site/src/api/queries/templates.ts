@@ -381,7 +381,7 @@ export const previousTemplateVersion = (
 	};
 };
 
-const templateVersionPresetsKey = (versionId: string) => [
+export const templateVersionPresetsKey = (versionId: string) => [
 	templateVersionRoot,
 	versionId,
 	"presets",
