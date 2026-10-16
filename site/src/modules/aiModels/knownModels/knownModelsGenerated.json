@@ -885,10 +885,10 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2,
-			"outputCost": 10,
-			"cacheReadCost": 0.2,
-			"cacheWriteCost": 2.5
+			"inputCost": 4,
+			"outputCost": 20,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "openrouter",
@@ -942,9 +942,10 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 117964,
-			"inputCost": 0.037,
-			"outputCost": 0.17
+			"maxOutputTokens": 65536,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -953,7 +954,7 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.5,
+			"inputCost": 0.45,
 			"outputCost": 15,
 			"cacheReadCost": 0.28
 		},
@@ -975,9 +976,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.079,
+			"inputCost": 0.03,
 			"outputCost": 4.8,
-			"cacheReadCost": 0.059
+			"cacheReadCost": 0.029
 		},
 		{
 			"provider": "openrouter",
@@ -997,9 +998,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.06,
+			"inputCost": 0.0264,
 			"outputCost": 7,
-			"cacheReadCost": 0.059
+			"cacheReadCost": 0.0254
 		},
 		{
 			"provider": "openrouter",
@@ -1176,7 +1177,7 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.01584,
+			"inputCost": 0.01368,
 			"outputCost": 0.891,
 			"cacheReadCost": 0.0054
 		},
@@ -1198,9 +1199,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.398808,
-			"outputCost": 0.797616,
-			"cacheReadCost": 0.033234
+			"inputCost": 0.95526,
+			"outputCost": 1.91052,
+			"cacheReadCost": 0.079605
 		},
 		{
 			"provider": "openrouter",
