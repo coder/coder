@@ -198,7 +198,7 @@ export function EditableFileReferenceChip({
 			>
 				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
-			<ChipRemoveButton label="Remove reference" onRemove={onRemove} />
+			<ChipRemoveButton label={`Remove ${title}`} onRemove={onRemove} />
 		</span>
 	);
 }
