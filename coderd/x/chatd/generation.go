@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -23,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -55,66 +53,6 @@ type generationPrepareInput struct {
 	// TurnExperiments holds the turn's user-scoped experiment
 	// decisions, shared by every step of the turn. Required.
 	TurnExperiments *turnExperimentDecisions
-}
-
-// turnEnvironment is everything one generation step needs: the chat
-// snapshot, model call, prompt, toolset, and compaction inputs.
-type turnEnvironment struct {
-	Chat     database.Chat
-	Messages []database.ChatMessage
-
-	Model              chatprovider.Model
-	Prompt             []fantasy.Message
-	Tools              []fantasy.AgentTool
-	ActiveTools        []string
-	AllowInactiveTools map[string]bool
-	ProviderTools      []chatloop.ProviderTool
-	ModelBuildOptions  modelBuildOptions
-
-	// ResolvedProvider is the configured provider identity used to label
-	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider    string
-	ReasoningProvenance reasoningProvenance
-	// ReasoningRejected reports whether the provider rejected the
-	// encrypted reasoning replayed into this step's model call.
-	ReasoningRejected *atomic.Bool
-
-	StageModel chatloop.StageModel
-
-	ModelConfigID        uuid.UUID
-	CallTemplate         fantasy.Call
-	ContextLimitFallback int64
-
-	DynamicToolNames   map[string]bool
-	StopAfterTools     map[string]struct{}
-	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
-
-	MaxSteps   int
-	Compaction *generationCompaction
-
-	Debug *generationDebug
-
-	cleanup func()
-}
-
-// Close releases the MCP connections and workspace state the step opened.
-func (p turnEnvironment) Close() {
-	if p.cleanup != nil {
-		p.cleanup()
-	}
-}
-
-// stepReasoningProvenance returns the provenance to stamp on the step's
-// reasoning. A rejection starts the provider's next epoch, so later steps
-// leave out the reasoning the rejected call replayed.
-func (p turnEnvironment) stepReasoningProvenance() reasoningProvenance {
-	provenance := p.ReasoningProvenance
-	if p.ReasoningRejected != nil && p.ReasoningRejected.Load() {
-		provenance.Epoch++
-	}
-	return provenance
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
