@@ -35,7 +35,6 @@ import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
-	type ChatMessageInputRef,
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
@@ -73,6 +72,7 @@ import {
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
