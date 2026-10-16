@@ -6,6 +6,7 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
 	spyOn,
 	userEvent,
 	waitFor,
@@ -3040,5 +3041,119 @@ export const ProjectFolderEmptyWithEmojiIcon: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+};
+
+// Only the owner of an unarchived root chat can move it, so the next three
+// menus have no Move to project.
+export const ArchivedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-no-move",
+				title: "Archived chat",
+				organization_id: MockChatProject.organization_id,
+				archived: true,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Archived chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Unarchive agent",
+		});
+	},
+};
+
+export const SharedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-no-move",
+				title: "Shared chat",
+				organization_id: MockChatProject.organization_id,
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Shared chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const ChildChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-no-move",
+				title: "Root chat",
+				organization_id: MockChatProject.organization_id,
+				children: [
+					buildChat({
+						id: "child-no-move",
+						title: "Child chat",
+						organization_id: MockChatProject.organization_id,
+						parent_chat_id: "root-no-move",
+						root_chat_id: "root-no-move",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-no-move",
+				pathParams: { agentId: "child-no-move" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Child chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const MoveToProjectOffWhileSubagentRuns: Story = {
+	args: IdleParentWithRunningChild.args,
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Idle parent agent",
+			}),
+		);
+		(await screen.findByRole("menuitem", { name: "Move to project" })).focus();
 	},
 };
