@@ -386,6 +386,7 @@ type turnWorkspaceContext struct {
 	chatStateMu      *sync.Mutex
 	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+	runnerAgentConn  *runnerAgentConn // Optional; without it, each step acquires its own connection.
 
 	mu                sync.Mutex
 	agent             database.WorkspaceAgent
@@ -716,6 +717,21 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 	)
 }
 
+// forgetStaleBindingConn reads the chat agent of the workspace's latest
+// build. If the chat is bound to another workspace agent, the chat runner
+// forgets its connection to the bound one, so each step dials it again
+// through dialWithLazyValidation.
+func (c *turnWorkspaceContext) forgetStaleBindingConn(ctx context.Context) error {
+	chatSnapshot, latestAgentID, err := c.workspaceAgentIDForConn(ctx)
+	if err != nil {
+		return err
+	}
+	if chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != latestAgentID {
+		c.runnerAgentConn.forget(chatSnapshot.AgentID.UUID)
+	}
+	return nil
+}
+
 // getWorkspaceConnLocked returns the cached connection when it still matches
 // the current workspace. When the workspace changed, it clears the stale
 // cached state and returns the release func for the caller to run after
@@ -760,6 +776,21 @@ func agentDisconnectedFor(now time.Time, agent database.WorkspaceAgent, inactive
 		disconnectedFor = 0
 	}
 	return disconnectedFor, true
+}
+
+// workspaceAgentDisconnected reports whether the workspace agent's row shows
+// it disconnected. It reports false if the row cannot be read.
+func (p *Server) workspaceAgentDisconnected(ctx context.Context, agentID uuid.UUID) bool {
+	agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to re-fetch agent for status check",
+			slog.F("agent_id", agentID),
+			slog.Error(err),
+		)
+		return false
+	}
+	_, disconnected := agentDisconnectedFor(p.clock.Now(), agent, p.agentInactiveDisconnectTimeout)
+	return disconnected
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentRecoveryError(
@@ -857,26 +888,13 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		// Status check on cache hit: re-fetch the agent
 		// row so we see the latest heartbeat rather than
-		// a potentially stale cached copy.
+		// a potentially stale cached copy. On DB error the
+		// check re-runs on the next tool call.
 		if currentConn != nil {
 			chatSnapshot := c.currentChatSnapshot()
-			if agentID != uuid.Nil {
-				freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
-				if err != nil {
-					c.server.logger.Warn(ctx, "failed to re-fetch agent for status check",
-						slog.F("agent_id", agentID),
-						slog.Error(err),
-					)
-					// On DB error the check re-runs on the
-					// next tool call.
-				} else if _, disconnected := agentDisconnectedFor(
-					c.server.clock.Now(),
-					freshAgent,
-					c.server.agentInactiveDisconnectTimeout,
-				); disconnected {
-					c.clearCachedWorkspaceState()
-					continue
-				}
+			if agentID != uuid.Nil && c.server.workspaceAgentDisconnected(ctx, agentID) {
+				c.clearCachedWorkspaceState()
+				continue
 			}
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
 			return currentConn, nil
@@ -913,7 +931,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			c.server.clock,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
-			DialFunc(c.server.agentConnFn),
+			DialFunc(c.agentConnFn()),
 			func(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error) {
 				return c.latestWorkspaceAgentID(ctx, workspaceID)
 			},
@@ -1023,6 +1041,33 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	}
 
 	return nil, xerrors.New("chat workspace changed while connecting")
+}
+
+func (c *turnWorkspaceContext) agentConnFn() AgentConnFunc {
+	if c.runnerAgentConn == nil {
+		return c.server.agentConnFn
+	}
+	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return c.runnerAgentConn.dial(ctx, c.server, agentID)
+	}
+}
+
+// workspaceHome returns the home directory of the chat's workspace agent. The
+// chat runner keeps it with its connection, so later steps skip the lookup.
+func (c *turnWorkspaceContext) workspaceHome(ctx context.Context) (string, error) {
+	conn, err := c.getWorkspaceConn(ctx)
+	if err != nil {
+		return "", err
+	}
+	if home, ok := c.runnerAgentConn.homeOf(conn); ok {
+		return home, nil
+	}
+	home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+	if err != nil {
+		return "", err
+	}
+	c.runnerAgentConn.setHome(conn, home)
+	return home, nil
 }
 
 // AgentConnFunc provides access to workspace agent connections.
