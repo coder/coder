@@ -6,6 +6,7 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
 	spyOn,
 	userEvent,
 	waitFor,
@@ -3153,5 +3154,6 @@ export const MoveToProjectOffWhileSubagentRuns: Story = {
 				name: "Open actions for Idle parent agent",
 			}),
 		);
+		(await screen.findByRole("menuitem", { name: "Move to project" })).focus();
 	},
 };

@@ -944,6 +944,31 @@ describe("ChatsSidebar move to project", () => {
 			["c1", { project_id: mockBillingProject.id }],
 		]);
 	});
+
+	it("lets keyboard users reach a blocked move and read why", async () => {
+		const user = userEvent.setup();
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "running",
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await focusMenuItem(user, "menuitem", "Move to project");
+		const trigger = screen.getByRole("menuitem", { name: "Move to project" });
+		expect(trigger).toHaveAccessibleDescription(
+			"Interrupt or wait for the agent to finish first.",
+		);
+		await user.keyboard("{ArrowRight}{Enter}");
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
+	});
 });
 
 describe("ChatsSidebar pinned reordering", () => {

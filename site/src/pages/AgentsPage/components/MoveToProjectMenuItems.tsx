@@ -1,4 +1,5 @@
 import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { chatProjectsByOrganization } from "#/api/queries/chatProjects";
@@ -70,6 +71,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 	SubTrigger,
 	SubContent,
 }) => {
+	const [open, setOpen] = useState(false);
 	const projectsQuery = useQuery(chatProjectsByOrganization());
 	const projects = projectsQuery.data?.[chat.organization_id] ?? [];
 	const mutation = useMoveChatToProject();
@@ -77,8 +79,14 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 		mutation.mutate({ chatId: chat.id, projectId });
 
 	return (
-		<Sub>
-			<SubTrigger disabled={blocked} aria-describedby={describedBy}>
+		<Sub open={open} onOpenChange={(next) => setOpen(next && !blocked)}>
+			{/* Radix keeps disabled items out of keyboard focus, so a blocked
+			    trigger only looks disabled and keeps its hint reachable. */}
+			<SubTrigger
+				aria-disabled={blocked || undefined}
+				data-disabled={blocked ? "" : undefined}
+				aria-describedby={describedBy}
+			>
 				<FolderInputIcon />
 				Move to project
 			</SubTrigger>
