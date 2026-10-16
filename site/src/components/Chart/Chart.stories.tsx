@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { userEvent, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -73,3 +74,18 @@ export default meta;
 type Story = StoryObj<typeof ChartContainer>;
 
 export const Default: Story = {};
+
+export const TooltipHovered: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("show the tooltip for the first data point", async () => {
+			await userEvent.tab();
+			await userEvent.keyboard("{ArrowRight}");
+		});
+
+		await step("move the pointer onto the tooltip", async () => {
+			await userEvent.hover(await canvas.findByText("February"));
+		});
+	},
+};
