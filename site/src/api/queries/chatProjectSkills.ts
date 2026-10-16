@@ -41,7 +41,7 @@ const invalidateChatProjectSkills = (
 		exact: true,
 	});
 
-/** Creates a project skill from SKILL.md content. */
+/** Creates a project skill; every outcome, conflicts included, refreshes the list. */
 export const createChatProjectSkill = (
 	queryClient: QueryClient,
 	organizationId: string,
