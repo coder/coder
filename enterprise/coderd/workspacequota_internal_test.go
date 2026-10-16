@@ -107,9 +107,16 @@ func TestCommitQuotaRetry(t *testing.T) {
 		trap := clock.Trap().NewTimer("CommitQuota", "backoff")
 		defer trap.Close()
 
+		want := []time.Duration{
+			50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond,
+			1600 * time.Millisecond, 2 * time.Second, 2 * time.Second, 2 * time.Second, 2 * time.Second,
+		}
+		require.Len(t, want, commitQuotaMaxAttempts-1)
+
 		resCh := commit(ctx, c, req)
-		for range commitQuotaMaxAttempts - 1 {
+		for i := range want {
 			call := trap.MustWait(ctx)
+			require.Equal(t, want[i], call.Duration)
 			call.MustRelease(ctx)
 			clock.Advance(call.Duration).MustWait(ctx)
 		}

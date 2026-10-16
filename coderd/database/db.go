@@ -94,6 +94,9 @@ type TxOptions struct {
 	// BeforeSerialRetry, if set, is called between serializable attempts,
 	// after the failed transaction has been rolled back, with the number of
 	// attempts made so far. A non-nil error stops retrying and is returned.
+	//
+	// Both fields only apply to the outermost serializable InTx call. They are
+	// ignored inside an existing transaction, where the outer call owns retries.
 	BeforeSerialRetry func(attempt int) error
 
 	// Set by InTx
