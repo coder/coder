@@ -62,10 +62,7 @@ export const getQueuedMessageInfo = (
 	return { previewParts, attachmentCount, hookNotices };
 };
 
-/**
- * Cuts preview parts at the message's first line break, trimming text only
- * after the cut so a break at the end of a text part still ends the line.
- */
+/** Cuts preview parts at the first line break, trimming text only after the cut. */
 export const getFirstLinePreview = (
 	parts: readonly QueuedMessagePreviewPart[],
 ): { parts: QueuedMessagePreviewPart[]; isTruncated: boolean } => {
