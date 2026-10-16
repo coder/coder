@@ -48,13 +48,15 @@ run_attempt() {
 		return
 	fi
 
+	set -m
 	"$@" &
 	local pid=$!
+	set +m
 	local deadline=$((SECONDS + timeout))
 	while kill -0 "$pid" 2>/dev/null; do
 		if ((SECONDS >= deadline)); then
 			log "Attempt $attempt/$max_attempts timed out after ${timeout}s"
-			kill "$pid"
+			kill -- -"$pid"
 			break
 		fi
 		sleep 1
