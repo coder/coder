@@ -299,12 +299,15 @@ const PasteSanitizationPlugin: React.FC<{
 						event.preventDefault();
 						editor.update(() => {
 							const selection = $getSelection();
-							if ($isRangeSelection(selection)) {
-								$insertClipboardNodes(
+							if (
+								$isRangeSelection(selection) &&
+								!$insertClipboardNodes(
 									selection,
 									composerNodes,
 									isSkillAvailable,
-								);
+								)
+							) {
+								warnSkillLimit();
 							}
 						});
 						return true;
@@ -578,6 +581,16 @@ export type ChatMessageInputRef = {
 	 */
 	insertSkill: (source: SkillSource, name: string) => void;
 	removeSkills: (sources: readonly SkillSource[]) => void;
+	/** Serialize the editor content, including chips, for restoreEditorState. */
+	getEditorState: () => string;
+	/**
+	 * Replace the editor content with a getEditorState snapshot, optionally
+	 * followed by text appended to its last paragraph.
+	 */
+	restoreEditorState: (
+		serializedEditorState: string,
+		appendText?: string,
+	) => void;
 	/**
 	 * Walk the Lexical tree in document order and return interleaved
 	 * text and chip parts. Adjacent text nodes within the same
@@ -1082,6 +1095,35 @@ const ChatMessageInput = ({
 				// does not move DOM focus when the editor was blurred.
 				editor.focus(() => {
 					editor.getRootElement()?.focus({ preventScroll: true });
+				});
+			},
+			getEditorState: () =>
+				JSON.stringify(editorRef.current?.getEditorState().toJSON() ?? null),
+			restoreEditorState: (serializedEditorState: string, appendText = "") => {
+				const editor = editorRef.current;
+				const children =
+					editor && getRestorableRootChildren(editor, serializedEditorState);
+				if (!editor || !children) return;
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					root.append(...children.map($parseSerializedNode));
+					const lastChild = root.getLastChild();
+					const paragraph = $isParagraphNode(lastChild)
+						? lastChild
+						: $createParagraphNode();
+					if (paragraph !== lastChild) {
+						root.append(paragraph);
+					}
+					if (appendText) {
+						const needsSpace =
+							paragraph.getChildrenSize() > 0 &&
+							!/\s$/.test(paragraph.getTextContent());
+						paragraph.append(
+							$createTextNode(needsSpace ? ` ${appendText}` : appendText),
+						);
+					}
+					root.selectEnd();
 				});
 			},
 			removeSkills: (sources: readonly SkillSource[]) => {

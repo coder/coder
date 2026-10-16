@@ -50,8 +50,7 @@ export class SkillInvocationNode extends DecoratorNode<React.ReactNode> {
 
 	createDOM(): HTMLElement {
 		const span = document.createElement("span");
-		span.style.display = "inline";
-		span.style.userSelect = "none";
+		span.className = "inline select-none";
 		return span;
 	}
 

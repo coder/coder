@@ -10,8 +10,10 @@ import {
 } from "lexical";
 import { getSkillAlias, type SkillSource } from "../../utils/skillAliases";
 import {
+	$getSkillInvocationNodes,
 	$hasSkillInvocationNode,
 	isSerializedSkillInvocationNode,
+	MAX_SKILL_INVOCATIONS_PER_MESSAGE,
 	SkillInvocationNode,
 } from "./SkillInvocationNode";
 
@@ -40,16 +42,19 @@ export const getClipboardNodes = (
 /**
  * Pastes copied composer nodes at the selection. A skill chip that is
  * already in the editor is dropped, and one the composer cannot invoke
- * becomes its plain-text alias.
+ * becomes its plain-text alias. Returns false when chips beyond the
+ * per-message limit were dropped.
  */
 export const $insertClipboardNodes = (
 	selection: RangeSelection,
 	serializedNodes: readonly SerializedLexicalNode[],
 	isSkillAvailable: (source: SkillSource, name: string) => boolean,
-) => {
+): boolean => {
 	// Chips the paste replaces must not count as already in the editor.
 	selection.removeText();
 	const pastedAliases = new Set<string>();
+	let chipCount = $getSkillInvocationNodes().length;
+	let isWithinLimit = true;
 	const $resolveNode = (node: LexicalNode): LexicalNode | null => {
 		if (node instanceof SkillInvocationNode) {
 			const { __source: source, __name: name } = node;
@@ -60,6 +65,11 @@ export const $insertClipboardNodes = (
 			if (pastedAliases.has(alias) || $hasSkillInvocationNode(source, name)) {
 				return null;
 			}
+			if (chipCount >= MAX_SKILL_INVOCATIONS_PER_MESSAGE) {
+				isWithinLimit = false;
+				return null;
+			}
+			chipCount++;
 			pastedAliases.add(alias);
 		} else if ($isElementNode(node)) {
 			for (const child of node.getChildren()) {
@@ -78,6 +88,7 @@ export const $insertClipboardNodes = (
 			.map((node) => $resolveNode($parseSerializedNode(node)))
 			.filter((node) => node !== null),
 	);
+	return isWithinLimit;
 };
 
 const getSerializedNodeText = (node: SerializedLexicalNode): string => {

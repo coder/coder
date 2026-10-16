@@ -551,6 +551,47 @@ describe("ChatMessageInput", () => {
 			});
 		});
 
+		it("drops pasted skill chips beyond the limit and says why", async () => {
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const toastError = vi.spyOn(toast, "error");
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("personal", `skill-${index}`);
+				}
+			});
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			act(() => {
+				inputRef.current?.clear();
+				inputRef.current?.insertSkill("personal", "extra");
+			});
+			await user.paste(copied);
+
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
+			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
 		it("restores chips from a saved draft without React errors", async () => {
 			const onChange = vi.fn();
 			const inputRef = createRef<ChatMessageInputRef>();
