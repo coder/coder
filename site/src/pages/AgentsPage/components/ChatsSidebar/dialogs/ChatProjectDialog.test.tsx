@@ -6,7 +6,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import type { ChatProject, Preset, Template } from "#/api/typesGenerated";
+import type { Preset, Template } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
@@ -504,11 +504,6 @@ const preset: Preset = {
 	Description: "",
 	Icon: "",
 };
-const projectWithTemplates: ChatProject = {
-	...MockChatProject,
-	templates: { template_ids: [firstTemplate.id, secondTemplate.id] },
-};
-
 describe("ChatProjectDialog templates", () => {
 	const useTemplateHandlers = () => {
 		server.use(
@@ -524,16 +519,31 @@ describe("ChatProjectDialog templates", () => {
 		);
 	};
 
-	it("creates a project with every eligible template", async () => {
-		useTemplateHandlers();
-		const user = userEvent.setup();
-		const { props } = renderDialog();
-
+	/** Names the new project and selects every eligible template. */
+	const startCreate = async (user: ReturnType<typeof userEvent.setup>) => {
 		await user.type(
 			screen.getByRole("textbox", { name: /project name/i }),
 			"New",
 		);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
+	};
+
+	const pickDefaultTemplate = async (
+		user: ReturnType<typeof userEvent.setup>,
+		name: string,
+	) => {
+		await user.click(
+			screen.getByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name }));
+	};
+
+	it("creates a project with every eligible template", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await startCreate(user);
 		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
@@ -549,17 +559,15 @@ describe("ChatProjectDialog templates", () => {
 	it("submits a default template with a preset", async () => {
 		useTemplateHandlers();
 		const user = userEvent.setup();
-		const { props } = renderDialog({ project: projectWithTemplates });
+		const { props } = renderDialog();
 
-		await user.click(
-			await screen.findByRole("combobox", { name: "Default template" }),
-		);
-		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
 		await user.click(
 			await screen.findByRole("combobox", { name: "Default preset" }),
 		);
 		await user.click(screen.getByRole("option", { name: "Small" }));
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -577,27 +585,18 @@ describe("ChatProjectDialog templates", () => {
 	it("submits default parameter values instead of a preset", async () => {
 		useTemplateHandlers();
 		const user = userEvent.setup();
-		const { props } = renderDialog({
-			project: {
-				...projectWithTemplates,
-				templates: {
-					...projectWithTemplates.templates,
-					default_template_id: firstTemplate.id,
-					default_preset_id: preset.ID,
-				},
-			},
-		});
+		const { props } = renderDialog();
 
-		await user.click(
-			await screen.findByRole("radio", { name: "Parameter values" }),
-		);
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Docker");
+		await user.click(screen.getByRole("radio", { name: "Parameter values" }));
 		await user.type(
 			await screen.findByRole("textbox", {
 				name: MockTemplateVersionParameter1.name,
 			}),
 			"custom",
 		);
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -617,21 +616,13 @@ describe("ChatProjectDialog templates", () => {
 	it("clears the default when its template is removed", async () => {
 		useTemplateHandlers();
 		const user = userEvent.setup();
-		const { props } = renderDialog({
-			project: {
-				...projectWithTemplates,
-				templates: {
-					...projectWithTemplates.templates,
-					default_template_id: secondTemplate.id,
-				},
-			},
-		});
+		const { props } = renderDialog();
 
-		await user.click(
-			await screen.findByRole("combobox", { name: "Templates" }),
-		);
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Kubernetes");
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
 		await user.keyboard("{Backspace}");
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -647,11 +638,7 @@ describe("ChatProjectDialog templates", () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog();
 
-		await user.type(
-			screen.getByRole("textbox", { name: /project name/i }),
-			"New",
-		);
-		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await startCreate(user);
 		await user.click(screen.getByRole("combobox", { name: /^Organization/ }));
 		await user.click(
 			screen.getByRole("option", {

@@ -2,19 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import {
-	agentTemplates,
-	richParametersKey,
-	templateVersionPresetsKey,
-} from "#/api/queries/templates";
-import type { ChatProject, Preset, Template } from "#/api/typesGenerated";
+import { agentTemplates } from "#/api/queries/templates";
+import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockTemplate,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter2,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
@@ -33,24 +27,6 @@ const kubernetesTemplate: Template = {
 	display_name: "Kubernetes",
 	active_version_id: "version-kubernetes",
 };
-const smallPreset: Preset = {
-	ID: "preset-small",
-	Name: "Small",
-	Parameters: [],
-	Default: false,
-	DesiredPrebuildInstances: null,
-	Description: "",
-	Icon: "",
-};
-const projectWithDefaultPreset: ChatProject = {
-	...MockChatProject,
-	templates: {
-		template_ids: [dockerTemplate.id, kubernetesTemplate.id],
-		default_template_id: dockerTemplate.id,
-		default_preset_id: smallPreset.ID,
-	},
-};
-
 const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
 	component: ChatProjectDialog,
@@ -198,63 +174,19 @@ export const NarrowOpenOrganizationDropdown: Story = {
 	globals: Narrow.globals,
 };
 
-export const EditDefaultPreset: Story = {
-	args: { project: projectWithDefaultPreset },
-	parameters: {
-		queries: [
-			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
-				data: [dockerTemplate, kubernetesTemplate],
-			},
-			{
-				key: templateVersionPresetsKey(dockerTemplate.active_version_id),
-				data: [smallPreset],
-			},
-		],
-	},
-};
-
-export const EditDefaultParameters: Story = {
+/** The server rejected the templates, for example one deprecated meanwhile. */
+export const CreateTemplatesSaveError: Story = {
 	args: {
-		project: {
-			...projectWithDefaultPreset,
-			templates: {
-				template_ids: [dockerTemplate.id, kubernetesTemplate.id],
-				default_template_id: dockerTemplate.id,
-				default_parameters: { [MockTemplateVersionParameter1.name]: "custom" },
-			},
-		},
-	},
-	parameters: {
-		queries: [
-			{
-				key: agentTemplates(MockChatProject.organization_id).queryKey,
-				data: [dockerTemplate, kubernetesTemplate],
-			},
-			{
-				key: richParametersKey(dockerTemplate.active_version_id),
-				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
-			},
-		],
-	},
-};
-
-export const EditTemplatesSaveError: Story = {
-	args: {
-		...EditDefaultParameters.args,
 		error: mockApiError({
-			message:
-				'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
+			message: `Template ${kubernetesTemplate.id} is not available to agents in this organization.`,
 			validations: [
 				{
-					field: "templates.default_parameters",
-					detail:
-						'Parameter "cpu" has an invalid value: value 99 is more than the maximum 8',
+					field: "templates.template_ids",
+					detail: `Template ${kubernetesTemplate.id} is not available to agents in this organization.`,
 				},
 			],
 		}),
 	},
-	parameters: EditDefaultParameters.parameters,
 };
 
 export const NoEligibleTemplates: Story = {

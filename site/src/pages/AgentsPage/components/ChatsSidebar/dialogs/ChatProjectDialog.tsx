@@ -43,8 +43,8 @@ export type ChatProjectFormValues = {
 	description: string;
 	icon: string;
 	/**
-	 * Omitted when unchanged or when the organization's templates could not
-	 * be loaded.
+	 * Set only when creating a project with templates selected, once the
+	 * organization's templates have loaded.
 	 */
 	templates?: ChatProjectTemplates;
 };
@@ -85,11 +85,6 @@ const trimValues = (values: ChatProjectFormState): ChatProjectFormValues => ({
 	icon: values.icon.trim(),
 });
 
-const isSameTemplates = (
-	a: ChatProjectTemplatesValues,
-	b: ChatProjectTemplatesValues,
-) => JSON.stringify(a) === JSON.stringify(b);
-
 const isUnchangedEdit = (
 	project: ChatProject | undefined,
 	values: ChatProjectFormState,
@@ -103,8 +98,7 @@ const isUnchangedEdit = (
 	return (
 		trimmed.name === trimmedInitial.name &&
 		trimmed.description === trimmedInitial.description &&
-		trimmed.icon === trimmedInitial.icon &&
-		isSameTemplates(values.templates, initial.templates)
+		trimmed.icon === trimmedInitial.icon
 	);
 };
 
@@ -191,14 +185,13 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	onCancel,
 	onSubmit,
 }) => {
-	const initialTemplates = chatProjectTemplatesValues(project?.templates);
 	const form = useFormik<ChatProjectFormState>({
 		initialValues: {
 			organizationId: project?.organization_id ?? initialOrganizationId ?? "",
 			name: project?.name ?? "",
 			description: project?.description ?? "",
 			icon: project?.icon ?? "",
-			templates: initialTemplates,
+			templates: chatProjectTemplatesValues(undefined),
 		},
 		validateOnMount: true,
 		validationSchema: project
@@ -215,14 +208,13 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		// cannot submit again before the caller's isSubmitting turns on.
 		onSubmit: async (values) => {
 			// Built outside the try block: the React Compiler cannot compile
-			// conditional expressions inside try/catch.
-			// Unchanged templates are left out so the server keeps them.
-			const eligibleTemplates = isSameTemplates(
-				values.templates,
-				initialTemplates,
-			)
-				? undefined
-				: eligibleTemplatesQuery.data;
+			// conditional expressions inside try/catch. Templates are edited
+			// from the project page after creation, and an empty list is the
+			// server's default.
+			const eligibleTemplates =
+				project || values.templates.templateIds.length === 0
+					? undefined
+					: eligibleTemplatesQuery.data;
 			const submitted = {
 				...(!project && { organizationId: values.organizationId }),
 				...trimValues(values),
@@ -264,8 +256,9 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 				validation.field.startsWith("templates."),
 			)?.detail
 		: undefined;
-	const templatesOrganizationId =
-		project?.organization_id ?? selectedOrganization?.id;
+	const templatesOrganizationId = project
+		? undefined
+		: selectedOrganization?.id;
 	const eligibleTemplatesQuery = useQuery({
 		...agentTemplates(templatesOrganizationId ?? ""),
 		enabled: templatesOrganizationId !== undefined,
