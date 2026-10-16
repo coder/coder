@@ -96,10 +96,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		setIsEditorOpen(true);
 	};
 
+	// Read during render so react-query tracks these for the click handler.
+	const { isSuccess: hasAccessResult, isFetching: isCheckingAccess } =
+		permissionsQuery;
 	const openSkills = async () => {
-		// Opening before a successful check would show owners a read-only
-		// dialog. A check still in flight is awaited rather than restarted.
-		if (!permissionsQuery.isSuccess) {
+		// Opening before a successful, settled check could show the wrong
+		// access. A check still in flight is awaited rather than restarted.
+		if (!hasAccessResult || isCheckingAccess) {
 			const { error } = await permissionsQuery.refetch({
 				cancelRefetch: false,
 			});
