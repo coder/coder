@@ -3191,13 +3191,14 @@
 		},
 		"/api/v2/chats/watch": {
 			"get": {
+				"description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Watch chat events for a user via WebSockets",
 				"operationId": "watch-chat-events-for-a-user-via-websockets",
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"$ref": "#/definitions/codersdk.ChatWatchEvent"
 						}
@@ -3840,6 +3841,7 @@
 		},
 		"/api/v2/chats/{chat}/stream": {
 			"get": {
+				"description": "Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Stream chat events via WebSockets",
@@ -3861,8 +3863,8 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"type": "array",
 							"items": {
@@ -3880,6 +3882,7 @@
 		},
 		"/api/v2/chats/{chat}/stream/git": {
 			"get": {
+				"description": "Upgrades to a WebSocket. The server sends each git state update as a separate message.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Watch chat workspace git state via WebSockets",
@@ -3895,8 +3898,8 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
 						}
@@ -3911,6 +3914,7 @@
 		},
 		"/api/v2/chats/{chat}/stream/parts": {
 			"get": {
+				"description": "Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Stream chat parts via WebSockets",
@@ -3926,8 +3930,8 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"type": "array",
 							"items": {
@@ -9501,6 +9505,7 @@
 		},
 		"/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
 			"get": {
+				"description": "Returns 204 with no body when the version has no previous version.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get previous template version by organization, template, and name",
@@ -14419,6 +14424,7 @@
 		},
 		"/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
 			"get": {
+				"description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Watch for workspace agent metadata updates via WebSockets",
@@ -14434,8 +14440,8 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"$ref": "#/definitions/codersdk.ServerSentEvent"
 						}
@@ -16017,6 +16023,7 @@
 		},
 		"/api/v2/workspaces/{workspace}/watch-ws": {
 			"get": {
+				"description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Watch workspace by ID via WebSockets",
@@ -16032,8 +16039,8 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"description": "OK",
+					"101": {
+						"description": "Switching Protocols",
 						"schema": {
 							"$ref": "#/definitions/codersdk.ServerSentEvent"
 						}

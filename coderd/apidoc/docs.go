@@ -3586,6 +3586,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/watch": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
                 "produces": [
                     "application/json"
                 ],
@@ -3595,8 +3596,8 @@ const docTemplate = `{
                 "summary": "Watch chat events for a user via WebSockets",
                 "operationId": "watch-chat-events-for-a-user-via-websockets",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatWatchEvent"
                         }
@@ -4309,6 +4310,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -4334,8 +4336,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -4353,6 +4355,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/git": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends each git state update as a separate message.",
                 "produces": [
                     "application/json"
                 ],
@@ -4372,8 +4375,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
                         }
@@ -4388,6 +4391,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream/parts": {
             "get": {
+                "description": "Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.",
                 "produces": [
                     "application/json"
                 ],
@@ -4407,8 +4411,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -10632,6 +10636,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "description": "Returns 204 with no body when the version has no previous version.",
                 "produces": [
                     "application/json"
                 ],
@@ -16175,6 +16180,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
                 "produces": [
                     "application/json"
                 ],
@@ -16194,8 +16200,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
@@ -17973,6 +17979,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
+                "description": "Upgrades to a WebSocket. The server sends each event as a separate message.",
                 "produces": [
                     "application/json"
                 ],
@@ -17992,8 +17999,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "101": {
+                        "description": "Switching Protocols",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
