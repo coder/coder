@@ -212,7 +212,6 @@ type TemplateAppUsage struct {
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
 	TimesUsed   int64            `json:"times_used" example:"2"`
-	Family      AppFamilyName    `json:"family" example:"vscode"`
 	// SecondsIsUpperBound marks overflow usage that includes folded apps.
 	// Their overlap is not stored, so Seconds may overestimate active time.
 	SecondsIsUpperBound bool `json:"seconds_is_upper_bound,omitempty" example:"false"`

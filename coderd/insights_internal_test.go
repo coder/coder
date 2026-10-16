@@ -372,7 +372,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				Slug:        "cursor",
 				Icon:        "/icon/cursor.svg",
 				Seconds:     120,
-				Family:      codersdk.AppFamilyVSCode,
 			},
 			{
 				TemplateIDs: []uuid.UUID{},
@@ -380,7 +379,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				DisplayName: "Other apps",
 				Slug:        codersdk.AppNameOverflow,
 				Seconds:     120,
-				Family:      codersdk.AppFamilyUnknown,
 			},
 			{
 				TemplateIDs: []uuid.UUID{cursorTemplateID},
@@ -388,7 +386,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				DisplayName: "some_new_ide",
 				Slug:        "some_new_ide",
 				Seconds:     60,
-				Family:      codersdk.AppFamilyUnknown,
 			},
 			{
 				TemplateIDs: []uuid.UUID{},
@@ -396,7 +393,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				DisplayName: "Unknown",
 				Slug:        "unknown",
 				Seconds:     60,
-				Family:      codersdk.AppFamilyUnknown,
 			},
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID},
@@ -405,7 +401,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				Slug:        "vscode",
 				Icon:        "/icon/code.svg",
 				Seconds:     300,
-				Family:      codersdk.AppFamilyVSCode,
 			},
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID},
@@ -413,7 +408,6 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 				DisplayName: "File Browser",
 				Slug:        "filebrowser",
 				Seconds:     30,
-				Family:      codersdk.AppFamilyWorkspaceApp,
 			},
 		}, apps)
 	})

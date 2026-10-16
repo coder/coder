@@ -1650,8 +1650,7 @@ export type AppFamilyName =
 	| "sftp"
 	| "ssh"
 	| "unknown"
-	| "vscode"
-	| "workspace_app";
+	| "vscode";
 
 export const AppFamilyNames: AppFamilyName[] = [
 	"jetbrains",
@@ -1661,7 +1660,6 @@ export const AppFamilyNames: AppFamilyName[] = [
 	"ssh",
 	"unknown",
 	"vscode",
-	"workspace_app",
 ];
 
 // From codersdk/deployment.go
@@ -10054,7 +10052,6 @@ export interface TemplateAppUsage {
 	readonly icon: string;
 	readonly seconds: number;
 	readonly times_used: number;
-	readonly family: AppFamilyName;
 	/**
 	 * SecondsIsUpperBound marks overflow usage that includes folded apps.
 	 * Their overlap is not stored, so Seconds may overestimate active time.

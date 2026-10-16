@@ -27,8 +27,6 @@ const (
 	AppFamilyPortForwarding  AppFamilyName = "port_forwarding"
 	AppFamilySFTP            AppFamilyName = "sftp"
 	AppFamilyUnknown         AppFamilyName = "unknown"
-	// AppFamilyWorkspaceApp groups template apps, which no agent reports.
-	AppFamilyWorkspaceApp AppFamilyName = "workspace_app"
 )
 
 // appFamilyDisplayNames names each family.
@@ -40,7 +38,6 @@ var appFamilyDisplayNames = map[AppFamilyName]string{
 	AppFamilyPortForwarding:  "Port Forwarding",
 	AppFamilySFTP:            "SFTP",
 	AppFamilyUnknown:         "Unknown",
-	AppFamilyWorkspaceApp:    "Workspace App",
 }
 
 // DisplayName returns the family's human-readable name.

@@ -437,7 +437,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var usage database.GetTemplateInsightsRow
-	var appUsage []database.GetTemplateAppInsightsRow
+	var templateAppUsage []database.GetTemplateAppInsightsRow
 	var dailyUsage []database.GetTemplateInsightsByIntervalRow
 	var parameterRows []database.GetTemplateParameterInsightsRow
 
@@ -486,7 +486,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
+		templateAppUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -543,7 +543,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
-		appsUsage, err := convertTemplateInsightsApps(usage, appUsage)
+		appsUsage, err := convertTemplateInsightsApps(usage, templateAppUsage)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error converting template app insights.",
@@ -579,26 +579,26 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 // convertTemplateInsightsApps lists each session app with usage as a builtin
 // app, followed by the template apps.
-func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
-	appSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
+func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, templateAppUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
+	sessionAppSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
 	if err != nil {
 		return nil, xerrors.Errorf("decode session app usage seconds: %w", err)
 	}
-	appTemplateIDs, err := codersdk.DecodeAppMap[[]uuid.UUID](usage.SessionAppTemplateIds)
+	sessionAppTemplateIDs, err := codersdk.DecodeAppMap[[]uuid.UUID](usage.SessionAppTemplateIds)
 	if err != nil {
 		return nil, xerrors.Errorf("decode session app template ids: %w", err)
 	}
 
-	// TODO(mafredri): We could take Web Terminal usage from appUsage since
+	// TODO(mafredri): We could take Web Terminal usage from templateAppUsage since
 	// that should be more accurate. The difference is that this reflects
 	// the rpty session as seen by the agent (can live past the connection),
-	// whereas appUsage reflects the lifetime of the client connection. The
-	// condition finding the corresponding app entry in appUsage is:
+	// whereas templateAppUsage reflects the lifetime of the client connection. The
+	// condition finding the corresponding app entry in templateAppUsage is:
 	// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
-	apps := make([]codersdk.TemplateAppUsage, 0, len(appSeconds)+len(appUsage))
-	for _, appName := range slices.Sorted(maps.Keys(appSeconds)) {
-		displayName, icon, family := codersdk.SessionAppPresentation(appName)
-		templateIDs := appTemplateIDs[appName]
+	apps := make([]codersdk.TemplateAppUsage, 0, len(sessionAppSeconds)+len(templateAppUsage))
+	for _, appName := range slices.Sorted(maps.Keys(sessionAppSeconds)) {
+		displayName, icon, _ := codersdk.SessionAppPresentation(appName)
+		templateIDs := sessionAppTemplateIDs[appName]
 		if templateIDs == nil {
 			// Keep serializing an empty template list as [] instead of null.
 			templateIDs = []uuid.UUID{}
@@ -609,14 +609,13 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			DisplayName:         displayName,
 			Slug:                appName,
 			Icon:                icon,
-			Seconds:             appSeconds[appName],
-			Family:              family,
+			Seconds:             sessionAppSeconds[appName],
 			SecondsIsUpperBound: appName == codersdk.AppNameOverflow && usage.SessionFoldedAppCount > 0,
 		})
 	}
 
 	// Sort here to keep row order independent of the database collation.
-	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
+	slices.SortFunc(templateAppUsage, func(a, b database.GetTemplateAppInsightsRow) int {
 		if a.Slug != b.Slug {
 			return strings.Compare(a.Slug, b.Slug)
 		}
@@ -627,7 +626,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	})
 
 	// Template apps.
-	for _, app := range appUsage {
+	for _, app := range templateAppUsage {
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
@@ -636,7 +635,6 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 			TimesUsed:   app.TimesUsed,
-			Family:      codersdk.AppFamilyWorkspaceApp,
 		})
 	}
 

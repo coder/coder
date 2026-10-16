@@ -342,7 +342,6 @@ const SESSION_FAMILIES = {
 	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
 	sftp: null,
 	port_forwarding: null,
-	workspace_app: null,
 } satisfies Record<
 	AppFamilyName,
 	{ name: string; icon: React.ReactNode } | null
