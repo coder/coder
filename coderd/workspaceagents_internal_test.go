@@ -372,8 +372,8 @@ func TestWatchChatGit(t *testing.T) {
 				},
 			}, nil)
 
-		// Node(agentID) proves the root agent was selected.
-		mCoordinator.EXPECT().Node(agentID).Return(nil)
+		// Node(subAgentID) proves the devcontainer sub-agent was selected.
+		mCoordinator.EXPECT().Node(subAgentID).Return(nil)
 
 		// And: We mount the HTTP handler.
 		r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).

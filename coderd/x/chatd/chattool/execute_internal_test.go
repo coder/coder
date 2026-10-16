@@ -98,3 +98,40 @@ func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	return result
 }
+
+func TestExecuteNotice(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	exitCode := 0
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil).Times(2)
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{ExitCode: &exitCode, Output: "ok"}, nil).Times(2)
+
+	notices := []string{"devcontainer unavailable", ""}
+	tool := Execute(ExecuteOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+		Notice: func() string {
+			notice := notices[0]
+			notices = notices[1:]
+			return notice
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	run := func() ExecuteResult {
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "execute", Input: `{"command":"true"}`})
+		require.NoError(t, err)
+		var result ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
+	}
+
+	require.Equal(t, "devcontainer unavailable", run().Note)
+	require.Empty(t, run().Note)
+}

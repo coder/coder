@@ -393,6 +393,10 @@ type turnWorkspaceContext struct {
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
+	// devcontainerUnavailable is set when the chat was bound to a parent
+	// agent because its declared devcontainer agent never became
+	// available.
+	devcontainerUnavailable bool
 }
 
 func (c *turnWorkspaceContext) close() {
@@ -597,26 +601,16 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			}
 		}
 
-		agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-			ctx,
-			chatSnapshot.WorkspaceID.UUID,
-		)
+		// Wait for a declared devcontainer agent instead of binding its
+		// parent while the devcontainer is still starting.
+		resolved, err := chattool.ResolveChatAgent(ctx, c.server.db, c.server.clock, chatSnapshot.WorkspaceID.UUID)
 		if err != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
-				"get workspace agents in latest build: %w",
-				err,
-			)
+			if xerrors.Is(err, chattool.ErrNoWorkspaceAgent) {
+				return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
+			}
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("resolve chat agent: %w", err)
 		}
-		if len(agents) == 0 {
-			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
-		}
-		selected, err := agentselect.FindChatAgent(agents)
-		if err != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
-				"find chat agent: %w",
-				err,
-			)
-		}
+		selected := resolved.Agent
 
 		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
 		if err != nil {
@@ -642,12 +636,26 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		c.agent = selected
 		c.agentLoaded = true
 		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+		c.devcontainerUnavailable = resolved.DevcontainerUnavailable
 		return chatSnapshot, c.agent, nil
 	}
 
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// takeDevcontainerNotice returns the devcontainer fallback notice once
+// after the chat was bound to a parent agent whose devcontainer agent
+// never became available.
+func (c *turnWorkspaceContext) takeDevcontainerNotice() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.devcontainerUnavailable {
+		return ""
+	}
+	c.devcontainerUnavailable = false
+	return chattool.DevcontainerUnavailableMessage
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentID(
@@ -2999,6 +3007,7 @@ func (p *Server) appendRootChatTools(
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
 			Logger:                         p.logger,
+			Clock:                          p.clock,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
@@ -3007,6 +3016,7 @@ func (p *Server) appendRootChatTools(
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,
+			Clock:         p.clock,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,

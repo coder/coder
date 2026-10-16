@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -71,6 +72,8 @@ type CreateWorkspaceOptions struct {
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
+	// Clock drives devcontainer agent waits. Nil uses the real clock.
+	Clock quartz.Clock
 }
 
 type createWorkspaceArgs struct {
@@ -326,6 +329,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 
 			// Wait for the agent to come online and startup scripts to finish.
 			if selectedAgent.ID != uuid.Nil {
+				selectedAgent = options.waitForDevcontainerAgent(ctx, db, workspace.ID, selectedAgent, result)
 				agentStatus := waitForAgentReady(ctx, db, selectedAgent, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
@@ -460,6 +464,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				)
 				selected = agents[0]
 			}
+			selected = o.waitForDevcontainerAgent(ctx, db, ws.ID, selected, result)
 			for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 				result[k] = v
 			}
@@ -613,6 +618,40 @@ func externalAgentReadyError(
 		return ""
 	}
 	return ExternalAgentUnavailableMessage(agent)
+}
+
+// waitForDevcontainerAgent waits for a declared devcontainer agent of
+// selected and records a fallback in result. On error it keeps selected.
+func (o CreateWorkspaceOptions) waitForDevcontainerAgent(
+	ctx context.Context,
+	db database.Store,
+	workspaceID uuid.UUID,
+	selected database.WorkspaceAgent,
+	result map[string]any,
+) database.WorkspaceAgent {
+	return waitForDevcontainerAgentInResult(ctx, o.Logger, db, clockOrReal(o.Clock), workspaceID, selected, result)
+}
+
+func waitForDevcontainerAgentInResult(
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	clock quartz.Clock,
+	workspaceID uuid.UUID,
+	selected database.WorkspaceAgent,
+	result map[string]any,
+) database.WorkspaceAgent {
+	resolved, err := waitForDevcontainerAgent(ctx, db, clock, workspaceID, selected)
+	if err != nil {
+		logger.Debug(ctx, "devcontainer agent wait failed, using selected agent",
+			slog.F("workspace_id", workspaceID),
+			slog.F("agent_id", selected.ID),
+			slog.Error(err),
+		)
+		return selected
+	}
+	setDevcontainerStatus(result, resolved)
+	return resolved.Agent
 }
 
 // waitForAgentReady waits for the workspace agent to become
