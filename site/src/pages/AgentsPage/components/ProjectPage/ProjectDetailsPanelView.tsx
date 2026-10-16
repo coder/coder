@@ -17,9 +17,9 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
-	/** `undefined` until the project's skills load. */
+	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
-	/** `undefined` until the project's skills load. */
+	/** `undefined` while the skills load or after loading fails. */
 	readonly disabledSkillCount: number | undefined;
 	readonly skillsError: unknown;
 	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;

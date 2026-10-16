@@ -3,7 +3,10 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-/** Keys the skill list of a chat project. */
+/**
+ * Keys a project's skill list. It prefixes each skill's detail key, so
+ * invalidating it without `exact` also hits the details.
+ */
 export const chatProjectSkillsKey = (projectId: string) =>
 	["chat-project-skills", projectId] as const;
 
