@@ -135,7 +135,6 @@ export const WithSkillChips: Story = {
 					skill_name: "triage",
 				},
 			]),
-			// Only the first line shows, so the chip after the break is hidden.
 			buildMessage(3, [
 				{
 					type: "skill-invocation",
