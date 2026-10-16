@@ -524,6 +524,11 @@ func (r *RootCmd) loginToken() *serpent.Command {
 				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
 					return errKeyringNotSupported
 				}
+				if xerrors.Is(err, sessionstore.ErrOriginMismatch) {
+					// The message already names both origins, so return it as-is
+					// rather than burying it behind another prefix.
+					return err
+				}
 				return xerrors.Errorf("read session token: %w", err)
 			}
 			if tok == "" {
