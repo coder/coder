@@ -539,8 +539,6 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: Download Go modules
-        # make fmt runs go mod tidy, which needs modules that go mod download
-        # does not fetch, such as the test dependencies of dependencies.
         run: ./.github/scripts/retry.sh --timeout 120 -- go mod tidy
 
       - name: make fmt
