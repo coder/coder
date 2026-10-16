@@ -98,7 +98,7 @@ as immutable and set only once, during workspace creation.
 
 You may only specify the following as inputs for `coder_workspace_tags`:
 
-|                    | Example                                       |
+| Input              | Example                                       |
 |:-------------------|:----------------------------------------------|
 | Static values      | `"developers"`                                |
 | Template variables | `var.az`                                      |

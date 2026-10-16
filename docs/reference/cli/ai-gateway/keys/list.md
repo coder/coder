@@ -22,18 +22,18 @@ coder ai-gateway keys list [flags]
 
 ### -c, --column
 
-|         |                                                                    |
-|---------|--------------------------------------------------------------------|
-| Type    | <code>[id\|name\|key prefix\|created at\|last heartbeat at]</code> |
-| Default | <code>id,name,key prefix,last heartbeat at,created at</code>       |
+| Property | Value                                                              |
+|----------|--------------------------------------------------------------------|
+| Type     | <code>[id\|name\|key prefix\|created at\|last heartbeat at]</code> |
+| Default  | <code>id,name,key prefix,last heartbeat at,created at</code>       |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

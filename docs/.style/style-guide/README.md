@@ -40,6 +40,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
 | `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
 | `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
+| `empty-table-header`               | `docshtmlcheck`    | `error`   | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables          |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.

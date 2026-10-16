@@ -22,7 +22,7 @@ coder provisioner list [flags]
 
 ### -l, --limit
 
-|             |                                            |
+| Property    | Value                                      |
 |-------------|--------------------------------------------|
 | Type        | <code>int</code>                           |
 | Environment | <code>$CODER_PROVISIONER_LIST_LIMIT</code> |
@@ -32,7 +32,7 @@ Limit the number of provisioners returned.
 
 ### -f, --show-offline
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_PROVISIONER_SHOW_OFFLINE</code> |
@@ -41,7 +41,7 @@ Show offline provisioners.
 
 ### -s, --status
 
-|             |                                             |
+| Property    | Value                                       |
 |-------------|---------------------------------------------|
 | Type        | <code>[offline\|idle\|busy]</code>          |
 | Environment | <code>$CODER_PROVISIONER_LIST_STATUS</code> |
@@ -50,7 +50,7 @@ Filter by provisioner status.
 
 ### -m, --max-age
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>duration</code>                        |
 | Environment | <code>$CODER_PROVISIONER_LIST_MAX_AGE</code> |
@@ -59,7 +59,7 @@ Filter provisioners by maximum age.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
@@ -68,18 +68,18 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                               |
-|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|organization id\|created at\|last seen at\|name\|version\|api version\|tags\|key name\|status\|current job id\|current job status\|current job template name\|current job template icon\|current job template display name\|previous job id\|previous job status\|previous job template name\|previous job template icon\|previous job template display name\|organization]</code> |
-| Default | <code>created at,last seen at,key name,name,version,status,tags</code>                                                                                                                                                                                                                                                                                                                        |
+| Property | Value                                                                                                                                                                                                                                                                                                                                                                                         |
+|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[id\|organization id\|created at\|last seen at\|name\|version\|api version\|tags\|key name\|status\|current job id\|current job status\|current job template name\|current job template icon\|current job template display name\|previous job id\|previous job status\|previous job template name\|previous job template icon\|previous job template display name\|organization]</code> |
+| Default  | <code>created at,last seen at,key name,name,version,status,tags</code>                                                                                                                                                                                                                                                                                                                        |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

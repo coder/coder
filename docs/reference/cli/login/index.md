@@ -30,7 +30,7 @@ By default, the session token is stored in the operating system keyring on macOS
 
 ### --first-user-email
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_FIRST_USER_EMAIL</code> |
@@ -39,7 +39,7 @@ Specifies an email address to use if creating the first user for the deployment.
 
 ### --first-user-username
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_FIRST_USER_USERNAME</code> |
@@ -48,7 +48,7 @@ Specifies a username to use if creating the first user for the deployment.
 
 ### --first-user-full-name
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_FIRST_USER_FULL_NAME</code> |
@@ -57,7 +57,7 @@ Specifies a human-readable name for the first user of the deployment.
 
 ### --first-user-password
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_FIRST_USER_PASSWORD</code> |
@@ -66,7 +66,7 @@ Specifies a password to use if creating the first user for the deployment.
 
 ### --first-user-trial
 
-|             |                                      |
+| Property    | Value                                |
 |-------------|--------------------------------------|
 | Type        | <code>bool</code>                    |
 | Environment | <code>$CODER_FIRST_USER_TRIAL</code> |
@@ -75,7 +75,7 @@ Specifies whether a trial license should be provisioned for the Coder deployment
 
 ### --first-user-trial-first-name
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_FIRST_NAME</code> |
@@ -84,7 +84,7 @@ Specifies the first name of the first user for the deployment. Only used if --fi
 
 ### --first-user-trial-last-name
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_LAST_NAME</code> |
@@ -93,7 +93,7 @@ Specifies the last name of the first user for the deployment. Only used if --fir
 
 ### --first-user-trial-phone-number
 
-|             |                                                   |
+| Property    | Value                                             |
 |-------------|---------------------------------------------------|
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_PHONE_NUMBER</code> |
@@ -102,7 +102,7 @@ Specifies the phone number of the first user for the deployment. Only used if --
 
 ### --first-user-trial-job-title
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_JOB_TITLE</code> |
@@ -111,7 +111,7 @@ Specifies the job title of the first user for the deployment. Only used if --fir
 
 ### --first-user-trial-company-name
 
-|             |                                                   |
+| Property    | Value                                             |
 |-------------|---------------------------------------------------|
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_COMPANY_NAME</code> |
@@ -120,7 +120,7 @@ Specifies the company name of the first user for the deployment. Only used if --
 
 ### --first-user-trial-country
 
-|             |                                              |
+| Property    | Value                                        |
 |-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_COUNTRY</code> |
@@ -129,7 +129,7 @@ Specifies the country of the first user for the deployment. Only used if --first
 
 ### --first-user-trial-developers
 
-|             |                                                 |
+| Property    | Value                                           |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_FIRST_USER_TRIAL_DEVELOPERS</code> |
@@ -138,8 +138,8 @@ Specifies the number of developers using the deployment. Only used if --first-us
 
 ### --use-token-as-session
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.

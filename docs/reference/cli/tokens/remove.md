@@ -29,8 +29,8 @@ Remove a token by expiring it. Use --delete to permanently hard-delete the token
 
 ### --delete
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Permanently delete the token instead of expiring it. This removes the audit trail.

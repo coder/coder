@@ -18,7 +18,7 @@ coder provisioner keys create [flags] <name>
 
 ### -t, --tag
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
@@ -27,7 +27,7 @@ Tags to filter provisioner jobs by.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
