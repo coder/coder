@@ -167,9 +167,20 @@ func TestProjectTemplateEnforcement(t *testing.T) {
 		require.Equal(t, preset.ID, req.TemplateVersionPresetID)
 
 		// A preset the model chooses wins over the default.
-		_, req = createWorkspace(t, withPreset, `{"template_id":"`+inProject.ID.String()+`","preset_id":"`+otherPreset.ID.String()+`"}`)
+		chosen := dbgen.Preset(t, db, database.InsertPresetParams{TemplateVersionID: inProject.ActiveVersionID})
+		_, req = createWorkspace(t, withPreset, `{"template_id":"`+inProject.ID.String()+`","preset_id":"`+chosen.ID.String()+`"}`)
 		require.NotNil(t, req)
-		require.Equal(t, otherPreset.ID, req.TemplateVersionPresetID)
+		require.Equal(t, chosen.ID, req.TemplateVersionPresetID)
+	})
+
+	t.Run("CreateWorkspacePresetFromOtherTemplate", func(t *testing.T) {
+		t.Parallel()
+		// Prebuilds are claimed by preset ID alone, so a preset from a
+		// template outside the project must not reach CreateFn.
+		resp, req := createWorkspace(t, withParameters, `{"template_id":"`+inProject.ID.String()+`","preset_id":"`+otherPreset.ID.String()+`"}`)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "preset_id does not belong")
+		require.Nil(t, req)
 	})
 
 	t.Run("CreateWorkspaceStaleDefaultPreset", func(t *testing.T) {
