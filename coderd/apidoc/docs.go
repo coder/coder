@@ -23171,7 +23171,8 @@ const docTemplate = `{
                 "deleted",
                 "diff_status_change",
                 "action_required",
-                "context_dirty"
+                "context_dirty",
+                "project_change"
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
@@ -23182,7 +23183,8 @@ const docTemplate = `{
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
-                "ChatWatchEventKindContextDirty"
+                "ChatWatchEventKindContextDirty",
+                "ChatWatchEventKindProjectChange"
             ]
         },
         "codersdk.ChatWorkspaceTTLResponse": {

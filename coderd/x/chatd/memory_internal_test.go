@@ -140,7 +140,7 @@ func TestMemoryIndexMessage(t *testing.T) {
 		db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(append([]database.ChatMessage{prompt}, history...), nil)
 		db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(memories, nil).AnyTimes()
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		message, ok, err := server.memoryIndexMessage(t.Context(), chat)
+		message, ok, err := server.memoryIndexMessage(t.Context(), chat, nil)
 		require.NoError(t, err)
 		if !ok {
 			return "", false

@@ -5816,9 +5816,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `project_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ChatWorkspaceTTLResponse
 
