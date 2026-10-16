@@ -118,10 +118,11 @@ export const ProjectDetailsPanelView: React.FC<
 							<button
 								type="button"
 								aria-label={`Skills: ${skillsLabel}`}
-								className="rounded-sm hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+								className="group inline-flex items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 								onClick={onOpenSkills}
 							>
 								{skillsLabel}
+								<PenIcon className="size-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
 							</button>
 						)}
 					</DetailRow>
