@@ -851,6 +851,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			chatOrganizationId={organizationId}
 			chatProjectId={chatProjectId}
 			isChatProjectPending={!isChatProjectResolved}
+			showProjectActions
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}

@@ -309,6 +309,36 @@ describe("AgentChatInput", () => {
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		["a pending send settles", { isLoading: true }],
+		["the composer is enabled", { isDisabled: true }],
+	])("loads project actions only once %s", async (_, blocked) => {
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([]);
+		const queryClient = createTestQueryClient();
+		const renderInput = (isBlocked: boolean) => (
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					{...(isBlocked ? blocked : {})}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+					showProjectActions
+				/>
+			</AppProviders>
+		);
+
+		const { rerender } = render(renderInput(true));
+		await screen.findByRole("textbox", { name: "Chat message" });
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
+
+		rerender(renderInput(false));
+		await waitFor(() =>
+			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1"),
+		);
+	});
+
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");

@@ -9,6 +9,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -261,7 +262,21 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	const handleCreateChat = async ({
+	const handleCreateChat = async (options: CreateChatOptions) => {
+		try {
+			await createChatAndNavigate(options);
+		} catch (error) {
+			// The request may have invoked a project skill removed elsewhere.
+			if (options.projectId) {
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSkillsKey(options.projectId),
+				});
+			}
+			throw error;
+		}
+	};
+
+	const createChatAndNavigate = async ({
 		message,
 		composerParts,
 		fileIDs,

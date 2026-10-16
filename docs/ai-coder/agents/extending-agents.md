@@ -252,6 +252,9 @@ To manage them, open the project page and select the **Skills** row in the **Det
 A chat in the project can use the project's skills while the chat owner can view the project.
 A sub-agent chat uses the skills of the project its top-level chat belongs to.
 
+**Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
+Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or an action button.
+
 The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
 It is experimental and might change.
 

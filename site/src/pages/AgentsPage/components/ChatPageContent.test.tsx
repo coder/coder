@@ -159,6 +159,36 @@ describe("ChatPageInput", () => {
 		expect(getChat).toHaveBeenCalledWith(mockRootChat.id, expect.anything());
 	});
 
+	it("inserts a project action from More into the chat's composer", async () => {
+		const user = userEvent.setup();
+		const getChatProjectSkills = mockSkillRequests();
+		getChatProjectSkills.mockResolvedValue(
+			["deploy", "lint", "release", "triage"].map((name) => ({
+				...MockSkill,
+				id: `skill-${name}`,
+				name,
+				action: true,
+			})),
+		);
+		const inputRef = createRef<ChatMessageInputRef>();
+
+		renderChatPageInput(createChatStore(), { chat: mockRootChat, inputRef });
+
+		await user.click(
+			await screen.findByRole("button", { name: "More project actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "triage" }));
+
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toContainEqual({
+				type: "skill-invocation",
+				source: "project",
+				name: "triage",
+			}),
+		);
+		expect(screen.getByRole("textbox", { name: "Chat message" })).toHaveFocus();
+	});
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
