@@ -563,7 +563,7 @@ WHERE datname = current_database()
 
 				// The chat has no project, so removing it from its project
 				// moves nothing and is not refused.
-				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &uuid.Nil}))
+				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}))
 				require.Equal(t, before, chatRowsOfFamily(ctx, t, api, chat.ID), "a move to the current project changes no row")
 			})
 		}

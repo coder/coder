@@ -165,10 +165,9 @@ type SetFamilyProjectInput struct {
 
 // SetFamilyProject moves a root chat into a project, or out of its
 // project, inside one transaction. Every family member must be in W,
-// E0 or E1; one member in another state rolls back the move with
-// [ErrTransitionNotAllowed], so no step of the family runs with the
-// old project's memory tools after the move. Subagent chats have no
-// project and use the root's, so only the root row changes.
+// E0 or E1, or the move rolls back, so no step of the family runs with
+// the old project's memory tools after the move. Subagent chats have no
+// project and use the root's, so only the root's project_id changes.
 //
 // Like [SetFamilyArchived], it locks the root first and then each
 // member in GetChatFamilyIDsByRootID order, and it publishes only after
@@ -212,9 +211,6 @@ func SetFamilyProject(
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
-		}
-		if len(ids) == 0 {
-			return ErrChatNotFound
 		}
 		familyChats = make([]database.Chat, 0, len(ids))
 		for _, id := range ids {

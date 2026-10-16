@@ -844,11 +844,14 @@ describe("ChatsSidebar move to project", () => {
 			</Wrapper>,
 		);
 
+	let projectRequests = 0;
 	beforeEach(() => {
+		projectRequests = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, mockBillingProject]),
-			),
+			http.get("/api/experimental/chats/projects", () => {
+				projectRequests += 1;
+				return HttpResponse.json([MockChatProject, mockBillingProject]);
+			}),
 		);
 	});
 
@@ -871,13 +874,6 @@ describe("ChatsSidebar move to project", () => {
 		const update = vi
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
-		let projectRequests = 0;
-		server.use(
-			http.get("/api/experimental/chats/projects", () => {
-				projectRequests += 1;
-				return HttpResponse.json([MockChatProject, mockBillingProject]);
-			}),
-		);
 		renderSidebar([
 			buildChat({
 				id: "c1",

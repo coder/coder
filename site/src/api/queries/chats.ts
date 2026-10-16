@@ -1323,7 +1323,6 @@ type UpdateChatWorkspaceVariables = {
 
 type MoveChatToProjectVariables = {
 	readonly chatId: string;
-	/** Null removes the chat from its project. */
 	readonly projectId: string | null;
 };
 
