@@ -396,8 +396,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
-					// Workspace file references and skill invocations render
-					// through the user message display state, not as timeline blocks.
+					// These render through the user message display state instead.
 					case "workspace-file-reference":
 					case "skill-invocation":
 						return null;

@@ -575,10 +575,7 @@ export type ChatMessageInputRef = {
 	removeSkills: (sources: readonly SkillSource[]) => void;
 	/** Serialize the editor content, including chips, for restoreEditorState. */
 	getEditorState: () => string;
-	/**
-	 * Replace the editor content with a getEditorState snapshot, optionally
-	 * followed by text appended to its last paragraph.
-	 */
+	/** Restore a getEditorState snapshot, appending text to its last paragraph. */
 	restoreEditorState: (
 		serializedEditorState: string,
 		appendText?: string,
