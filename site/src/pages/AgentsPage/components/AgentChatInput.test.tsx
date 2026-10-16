@@ -624,6 +624,29 @@ describe("AgentChatInput", () => {
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
 
+	it("lets Escape on a chip's remove button cancel a history edit", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onCancelHistoryEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				inputRef={inputRef}
+				isEditingHistoryMessage
+				onCancelHistoryEdit={onCancelHistoryEdit}
+			/>,
+		);
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		const remove = await screen.findByRole("button", {
+			name: "Remove skill /project/triage",
+		});
+		act(() => remove.focus());
+
+		await user.keyboard("{Escape}");
+		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
