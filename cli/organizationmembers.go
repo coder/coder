@@ -106,7 +106,16 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 
 			return fmt.Sprintf("Member roles updated to [%s]", strings.Join(updatedTo, ", ")), nil
 		}),
-		cliui.TableFormat([]codersdk.OrganizationMemberWithUserData{}, []string{"username", "organization roles"}),
+		cliui.ChangeFormatterData(
+			cliui.TableFormat([]codersdk.OrganizationMemberWithUserData{}, []string{"username", "organization roles"}),
+			func(data any) (any, error) {
+				member, ok := data.(codersdk.OrganizationMemberWithUserData)
+				if !ok {
+					return nil, xerrors.Errorf("expected codersdk.OrganizationMemberWithUserData, got %T", data)
+				}
+				return []codersdk.OrganizationMemberWithUserData{member}, nil
+			},
+		),
 		cliui.JSONFormat(),
 	)
 
