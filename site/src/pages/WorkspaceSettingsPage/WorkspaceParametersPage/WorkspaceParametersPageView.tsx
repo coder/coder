@@ -5,7 +5,7 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -146,41 +146,35 @@ export const WorkspaceParametersPageView: React.FC<
 	return (
 		<>
 			{disabled && (
-				<Alert severity="warning" className="mb-8" prominent>
-					The template for this workspace requires automatic updates. Update the
-					workspace to edit parameters.
+				<Alert severity="warning" className="mb-8">
+					This template requires workspaces to use the active version. Update
+					the workspace to edit its parameters.
 				</Alert>
 			)}
 
 			{hasIncompatibleParameters && (
-				<Alert severity="error" prominent>
-					<p className="text-lg leading-normal font-bold m-0">
-						Workspace update blocked
-					</p>
-					<p className="mb-0">
-						The new template version includes parameter changes that are
-						incompatible with this workspace's existing parameter values. This
-						may be caused by:
-					</p>
-					<ul className="mb-0 pl-4 space-y-1">
-						<li>
-							New <strong>required</strong> parameters that cannot be provided
-							after workspace creation
-						</li>
-						<li>
-							Changes to <strong>valid options or validations</strong> for
-							existing parameters
-						</li>
-						<li>Logic changes that conflict with previously selected values</li>
-					</ul>
-					<p className="mb-0">
-						Please contact the <strong>template administrator</strong> to review
-						the changes and ensure compatibility for existing workspaces.
-					</p>
-					<p className="mb-0">
-						Consider supplying defaults for new parameters or validating
-						conditional logic against prior workspace states.
-					</p>
+				<Alert
+					severity="error"
+					prominent
+					actions={
+						<Link
+							href={docs(
+								"/admin/templates/extending-templates/dynamic-parameters",
+							)}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Go to dynamic parameters docs
+							<span className="sr-only"> (opens in new tab)</span>
+						</Link>
+					}
+				>
+					<AlertTitle>This workspace can&apos;t be updated</AlertTitle>
+					<AlertDescription>
+						The new template version changed parameters in ways that don&apos;t
+						fit this workspace&apos;s current values. Ask a template admin to
+						review the changes.
+					</AlertDescription>
 				</Alert>
 			)}
 

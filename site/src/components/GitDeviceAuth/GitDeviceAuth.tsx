@@ -85,33 +85,36 @@ export const GitDeviceAuth: React.FC<GitDeviceAuthProps> = ({
 				status = (
 					<div>
 						{status}
-						<Alert severity="warning">
-							Rate limit reached. Waiting a few seconds before retrying...
+						<Alert severity="info">
+							The Git provider asked Coder to slow down. Coder checks again in a
+							few seconds.
 						</Alert>
 					</div>
 				);
 				break;
 			case DeviceExchangeError.ExpiredToken:
 				status = (
-					<Alert severity="error">
-						The one-time code has expired. Refresh to get a new one!
+					<Alert severity="error" prominent>
+						This one-time code expired. Refresh the page to get a new code.
 					</Alert>
 				);
 				break;
 			case DeviceExchangeError.AccessDenied:
 				status = (
 					<Alert severity="error" prominent>
-						Access to the Git provider was denied.
+						Coder can&apos;t connect to your Git account because access was
+						denied. Refresh the page to try again, and approve access on the
+						provider&apos;s page.
 					</Alert>
 				);
 				break;
 			default:
 				status = (
-					<Alert severity="error">
-						<AlertTitle>{deviceExchangeError.message}</AlertTitle>
-						{deviceExchangeError.detail && (
-							<AlertDescription>{deviceExchangeError.detail}</AlertDescription>
-						)}
+					<Alert severity="error" prominent>
+						<AlertTitle>Couldn&apos;t connect your Git account</AlertTitle>
+						<AlertDescription>
+							{deviceExchangeError.detail || deviceExchangeError.message}
+						</AlertDescription>
 					</Alert>
 				);
 				break;

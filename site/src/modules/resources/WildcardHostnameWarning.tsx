@@ -38,45 +38,39 @@ export const WildcardHostnameWarning: React.FC<
 	return (
 		<Alert
 			severity="warning"
-			prominent
 			className={
 				hasResources
 					? "rounded-none border-0 border-l-2 border-l-warning border-b-divider"
 					: undefined
 			}
+			actions={
+				<Link
+					href={docs("/admin/networking/wildcard-access-url")}
+					target="_blank"
+					rel="noreferrer"
+				>
+					Go to wildcard access URL docs
+					<span className="sr-only"> (opens in new tab)</span>
+				</Link>
+			}
 		>
-			<AlertTitle>Some workspace applications will not work</AlertTitle>
+			<AlertTitle>Some apps won&apos;t open</AlertTitle>
 			<AlertDescription>
-				<div>
-					{hasResources
-						? "This template contains coder_app resources with"
-						: "One or more apps in this workspace have"}{" "}
-					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
-						subdomain = true
-					</code>
-					{canEditDeploymentConfig ? (
-						<>
-							, but subdomain applications are not configured. Users won't be
-							able to access these applications until you configure the{" "}
-							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
-								--wildcard-access-url
-							</code>{" "}
-							flag when starting the Coder server.
-						</>
-					) : (
-						", which requires a Coder deployment with a Wildcard Access URL configured. Please contact your administrator."
-					)}
-				</div>
-				<div className="pt-2">
-					<Link
-						href={docs("/admin/networking/wildcard-access-url")}
-						target="_blank"
-					>
-						<span className="font-semibold">
-							Learn more about wildcard access URL
-						</span>
-					</Link>
-				</div>
+				{canEditDeploymentConfig ? (
+					<>
+						These apps use{" "}
+						<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
+							subdomain = true
+						</code>
+						, but this deployment has no wildcard access URL. Set{" "}
+						<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
+							--wildcard-access-url
+						</code>{" "}
+						on the Coder server so users can open them.
+					</>
+				) : (
+					"These apps need a wildcard access URL, which this deployment doesn't have. Ask your Coder administrator to set one up."
+				)}
 			</AlertDescription>
 		</Alert>
 	);

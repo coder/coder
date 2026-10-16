@@ -804,7 +804,7 @@ describe("AgentCreatePage debug deep link", () => {
 
 		renderPage();
 
-		await screen.findByText("Could not load the workspace build or its logs");
+		await screen.findByText("Couldn't load the workspace build or its logs");
 		await user.click(
 			await screen.findByRole("textbox", { name: "Chat message" }),
 		);

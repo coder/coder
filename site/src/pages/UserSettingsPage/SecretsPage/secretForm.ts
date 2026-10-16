@@ -160,7 +160,7 @@ export const mapSecretApiErrorToFormErrors = (
 	if (!apiError) {
 		return {
 			fieldErrors: {},
-			formError: "Something went wrong.",
+			formError: "Try again.",
 		};
 	}
 

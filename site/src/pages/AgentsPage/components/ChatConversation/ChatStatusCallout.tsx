@@ -137,7 +137,6 @@ const ReconnectingAlert: React.FC<{ status: ReconnectingStatus }> = ({
 				</div>
 			}
 		>
-			<AlertTitle>{status.title}</AlertTitle>
 			<AlertDescription>{status.message}</AlertDescription>
 		</Alert>
 	);

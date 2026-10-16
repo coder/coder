@@ -251,7 +251,7 @@ export const UploadSkillMarkdown: Story = {
 				{ type: "text/markdown" },
 			),
 		);
-		await dialog.findByText("Imported SKILL.md");
+		await dialog.findByText(/^Imported SKILL\.md\./);
 	},
 };
 
@@ -265,7 +265,7 @@ export const UploadEmptyFile: Story = {
 			dialog.getByLabelText("Upload SKILL.md"),
 			new File([], "SKILL.md", { type: "text/markdown" }),
 		);
-		await dialog.findByText("File is empty");
+		await dialog.findByText("This file is empty");
 	},
 };
 
@@ -359,7 +359,7 @@ export const ImportSkillMarkdownPopulatesCreateFields: Story = {
 
 		// Wait for the import to populate the create fields so the snapshot
 		// captures the imported values.
-		await dialogCanvas.findByText("Imported SKILL.md");
+		await dialogCanvas.findByText(/^Imported SKILL\.md\./);
 	},
 };
 
@@ -384,7 +384,7 @@ export const ImportSkillMarkdownShowsParseError: Story = {
 		await userEvent.paste("---\ndescription: Missing name\n---\nBody");
 
 		// Wait for the parse error to render so the snapshot captures it.
-		await dialogCanvas.findByText("Could not parse SKILL.md");
+		await dialogCanvas.findByText("Couldn't parse this SKILL.md");
 	},
 };
 
@@ -420,7 +420,7 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 		// Wait for the import confirmation so the snapshot captures the
 		// updated fields with the kept name.
 		await dialogCanvas.findByText(
-			"Updated description and body fields. Kept the existing name.",
+			"Imported SKILL.md. Description and body are filled in, and the name is unchanged.",
 		);
 	},
 };

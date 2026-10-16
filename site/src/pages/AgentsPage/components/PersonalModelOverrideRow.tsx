@@ -310,7 +310,7 @@ export const PersonalModelOverrideRow: React.FC<
 
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
-					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
+					unavailableMessage="Your saved model isn't available anymore, so it's ignored. Choose another model and save."
 					modelsError={modelsError}
 				>
 					{isInvalidRootDeploymentDefault && (

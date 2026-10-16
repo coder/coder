@@ -1,5 +1,5 @@
 import type { AuthMethods } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { getApplicationName } from "#/utils/appearance";
 import { OAuthSignInForm } from "./OAuthSignInForm";
@@ -74,7 +74,11 @@ export const SignInForm: React.FC<SignInFormProps> = ({
 
 			{!passwordEnabled && !oAuthEnabled && (
 				<Alert severity="error" prominent>
-					No authentication methods configured!
+					<AlertTitle>Sign-in isn&apos;t available</AlertTitle>
+					<AlertDescription>
+						This deployment has no authentication methods turned on. If you
+						manage it, turn one on in the Coder server configuration.
+					</AlertDescription>
 				</Alert>
 			)}
 		</div>

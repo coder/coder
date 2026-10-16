@@ -144,9 +144,9 @@ export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 					</p>
 
 					{!isWorkspaceHealthy && isLoadingFiles && (
-						<Alert severity="warning" prominent>
-							Your workspace is unhealthy. Some logs may be unavailable for
-							download.
+						<Alert severity="warning">
+							This workspace is unhealthy, so some logs might not be available
+							to download.
 						</Alert>
 					)}
 

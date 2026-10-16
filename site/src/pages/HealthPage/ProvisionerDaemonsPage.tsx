@@ -1,6 +1,6 @@
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Provisioner } from "#/modules/provisioners/Provisioner";
 import { pageTitle } from "#/utils/page";
 import {
@@ -31,7 +31,8 @@ const ProvisionerDaemonsPage: React.FC = () => {
 			<Main>
 				{daemons.error && (
 					<Alert severity="error" prominent>
-						{daemons.error}
+						<AlertTitle>The provisioner daemons check failed</AlertTitle>
+						<AlertDescription>{daemons.error}</AlertDescription>
 					</Alert>
 				)}
 				{daemons.warnings.map((warning) => {
@@ -40,8 +41,6 @@ const ProvisionerDaemonsPage: React.FC = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
-							prominent
-							dismissible
 						>
 							{warning.message}
 						</Alert>

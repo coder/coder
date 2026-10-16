@@ -1350,7 +1350,7 @@ export const ForbiddenErrorWithPermission: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByText("Permission required"),
+			canvas.queryByText("You can't use Coder Agents"),
 		).not.toBeInTheDocument();
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
 		const textbox = canvas.getByRole("textbox");
@@ -1895,7 +1895,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/don't have permission to use Coder Agents/i);
+		await canvas.findByText(/You can't use Coder Agents/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2114,12 +2114,14 @@ export const ForbiddenNoOrganizationAccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
 		await expect(
-			canvas.getByText(/don't have permission to use Coder Agents/),
+			canvas.getByText("You can't use Coder Agents"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /View Docs/ }),
+			canvas.getByText(/Ask your Coder administrator for access/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /Go to access docs/ }),
 		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),
@@ -2170,7 +2172,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		await waitFor(
 			() => {
 				expect(
-					canvas.getByText(/don't have permission to use Coder Agents/i),
+					canvas.getByText(/You can't use Coder Agents/i),
 				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },

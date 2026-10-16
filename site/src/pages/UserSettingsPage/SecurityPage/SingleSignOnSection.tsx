@@ -66,7 +66,7 @@ export const useSingleSignOnSection = () => {
 				// The redirect on success should be back to the login page with a nice message.
 				// The user should be logged out if this worked.
 				encodeURIComponent(
-					`/login?message=Login type has been changed to ${loginTypeMsg}. Log in again using the new method.`,
+					`/login?message=Your login type changed to ${loginTypeMsg}. Sign in with it to continue.`,
 				),
 			);
 		},

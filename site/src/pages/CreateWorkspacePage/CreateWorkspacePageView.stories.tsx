@@ -413,13 +413,13 @@ export const WithUrlPresetNotFound: Story = {
 	args: {
 		presets: [gpuLargePreset],
 		urlPresetError:
-			'Preset "gpu-large" not found on template version "test-version". Check that the preset name matches exactly (names are case-sensitive).',
+			'Coder couldn\'t find the preset "gpu-large" in template version "test-version". Preset names are case-sensitive. Choose a preset below.',
 		parameters: [parameterDropdown],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(/Preset "gpu-large" not found on template version/i),
+			canvas.getByText(/couldn't find the preset "gpu-large"/i),
 		).toBeVisible();
 	},
 };
@@ -491,7 +491,7 @@ export const ExternalAuthForAnotherUser: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(/must connect any required providers themselves/i),
+			canvas.getByText(/can connect the required providers/i),
 		).toBeInTheDocument();
 		expect(canvas.getByText("Not connected")).toBeInTheDocument();
 		expect(
@@ -521,7 +521,7 @@ export const ClassicParameterFlowTemplate: Story = {
 		).toBeVisible();
 		expect(
 			within(alert).getByRole("link", {
-				name: /view docs \(opens in new tab\)/i,
+				name: /go to dynamic parameters docs \(opens in new tab\)/i,
 			}),
 		).toBeVisible();
 		expect(
@@ -539,7 +539,7 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 		const alert = within(canvasElement).getByRole("alert");
 
 		const docsLink = within(alert).getByRole("link", {
-			name: /view docs \(opens in new tab\)/i,
+			name: /go to dynamic parameters docs \(opens in new tab\)/i,
 		});
 		expect(docsLink).toHaveAttribute(
 			"href",

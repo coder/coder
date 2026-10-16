@@ -313,7 +313,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				info={
 					isExpired
 						? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
-						: "Removing this license will disable all Premium features. You can add a new license at any time."
+						: "Removing this license turns off all Premium features. You can add a license again at any time."
 				}
 				confirmLoading={isRemoving}
 			/>

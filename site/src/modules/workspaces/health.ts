@@ -37,17 +37,17 @@ export const agentConnectionMessages = {
 	connecting: {
 		title: "Workspace agent is connecting",
 		detail:
-			"The workspace agent has not connected yet. Wait for it to connect or check the logs if it does not.",
+			"The workspace agent hasn't connected yet. If it doesn't connect, check the agent logs.",
 	},
 	timeout: {
 		title: "Agent is taking longer than expected to connect",
 		detail:
-			"Continue to wait and check the log output for errors. If agents do not connect, try restarting the workspace.",
+			"Keep waiting, or check the agent logs for errors. If it doesn't connect, restart the workspace.",
 	},
 	disconnected: {
-		title: "Workspace agent has disconnected",
+		title: "Workspace agent disconnected",
 		detail:
-			"Check the log output for errors. If agents do not reconnect, try restarting the workspace.",
+			"Apps and terminals won't work until it reconnects. Check the agent logs, or restart the workspace.",
 	},
 } as const;
 

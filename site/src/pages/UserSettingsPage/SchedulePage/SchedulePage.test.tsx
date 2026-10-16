@@ -137,7 +137,7 @@ describe("SchedulePage", () => {
 
 			renderWithAuth(<SchedulePage />);
 			await screen.findByText(
-				"Your administrator has disabled the ability to set a custom quiet hours schedule.",
+				"Your administrator doesn't allow custom quiet hours, so you can't change this schedule.",
 			);
 
 			const timeInput = screen.getByLabelText("Start time");

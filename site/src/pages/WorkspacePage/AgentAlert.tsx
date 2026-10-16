@@ -17,18 +17,22 @@ export const AgentAlert: React.FC<AgentAlertProps> = ({
 	troubleshootingURL,
 }) => {
 	return (
-		<Alert severity={severity} prominent={prominent}>
-			<AlertTitle>{title}</AlertTitle>
-			<AlertDescription>
-				<div className="mb-2">{detail}</div>
-				{troubleshootingURL && (
+		<Alert
+			severity={severity}
+			prominent={prominent}
+			actions={
+				troubleshootingURL && (
 					<Button size="sm" asChild>
 						<a href={troubleshootingURL} target="_blank" rel="noreferrer">
-							View docs to troubleshoot
+							Go to troubleshooting docs
+							<span className="sr-only"> (opens in new tab)</span>
 						</a>
 					</Button>
-				)}
-			</AlertDescription>
+				)
+			}
+		>
+			<AlertTitle>{title}</AlertTitle>
+			<AlertDescription>{detail}</AlertDescription>
 		</Alert>
 	);
 };

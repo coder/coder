@@ -190,16 +190,6 @@ const TemplateVersionEditorPage: React.FC = () => {
 					isPublishing={publishVersionMutation.isPending}
 					publishingError={publishVersionMutation.error}
 					publishedVersion={lastSuccessfulPublishedVersion}
-					createWorkspaceUrl={(() => {
-						const params = new URLSearchParams();
-						const publishedVersion = lastSuccessfulPublishedVersion;
-						if (publishedVersion) {
-							params.set("version", publishedVersion.id);
-						}
-						return `${getLink(
-							linkToTemplate(organizationName, templateName),
-						)}/workspace?${params.toString()}`;
-					})()}
 					isBuilding={
 						createTemplateVersionMutation.isPending ||
 						uploadFileMutation.isPending ||

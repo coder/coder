@@ -53,8 +53,7 @@ describe("deriveLiveStatus", () => {
 	const reconnectingStatus = {
 		phase: "reconnecting",
 		hasAccumulatedOutput: false,
-		title: "Reconnecting",
-		message: "Chat stream disconnected. Reconnecting…",
+		message: "Connection to the chat was lost. Reconnecting…",
 		attempt: 1,
 		delayMs: 1000,
 		retryingAt: "2026-03-10T00:00:01.000Z",
