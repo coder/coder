@@ -795,6 +795,8 @@ Actions: `create`, `write`
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
 <tr><td><code>readme</code></td><td>Yes</td></tr>
+<tr><td><code>script_order_data_source_count</code></td><td>No</td></tr>
+<tr><td><code>script_order_rule_count</code></td><td>No</td></tr>
 <tr><td><code>source_example_id</code></td><td>No</td></tr>
 <tr><td><code>template_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
