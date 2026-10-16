@@ -12,7 +12,7 @@ type SkillChipProps = {
 	className?: string;
 };
 
-/** A skill attached to the message being composed. */
+/** Atomic Lexical decorator for SkillInvocationNode; arrows skip it, Backspace or its button removes it. */
 export const EditableSkillChip: React.FC<
 	SkillChipProps & { onRemove: () => void }
 > = ({ source, name, onRemove, className }) => {
