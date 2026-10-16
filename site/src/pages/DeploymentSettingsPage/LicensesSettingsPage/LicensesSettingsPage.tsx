@@ -7,6 +7,7 @@ import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
 import { insightsUserStatusCounts } from "#/api/queries/insights";
 import { licenses, licensesKey } from "#/api/queries/licenses";
 import { toast } from "#/components/Toaster/toast";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
@@ -18,6 +19,7 @@ const LicensesSettingsPage: React.FC = () => {
 	const [confettiOn, setConfettiOn] = useState(false);
 
 	const { metadata } = useEmbeddedMetadata();
+	const { permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 
 	const { data: userStatusCount } = useQuery(insightsUserStatusCounts());
@@ -54,7 +56,11 @@ const LicensesSettingsPage: React.FC = () => {
 			},
 		});
 
-	const { data: licensesList, isLoading } = useQuery(licenses());
+	const {
+		data: licensesList,
+		isLoading,
+		error: licensesError,
+	} = useQuery(licenses());
 
 	useEffect(() => {
 		if (!success) {
@@ -86,6 +92,8 @@ const LicensesSettingsPage: React.FC = () => {
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
 				licenses={licensesList}
+				licensesError={licensesError}
+				canViewLicenses={permissions.viewAllLicenses}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
 				activeUsers={userStatusCount?.active}
@@ -95,16 +103,24 @@ const LicensesSettingsPage: React.FC = () => {
 				agentRuntimeHoursFeature={
 					entitlementsQuery.data?.features.agent_runtime_hours
 				}
-				refreshEntitlements={async () => {
-					try {
-						await refreshEntitlementsMutation.mutateAsync();
-						toast.success("Successfully removed license.");
-					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to remove license."), {
-							description: getErrorDetail(error),
-						});
-					}
-				}}
+				refreshEntitlements={() =>
+					refreshEntitlementsMutation.mutate(undefined, {
+						onSuccess: () => {
+							toast.success("Successfully refreshed license entitlements.");
+						},
+						onError: (error) => {
+							toast.error(
+								getErrorMessage(
+									error,
+									"Failed to refresh license entitlements.",
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
+						},
+					})
+				}
 			/>
 		</>
 	);

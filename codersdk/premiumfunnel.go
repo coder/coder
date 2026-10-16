@@ -26,6 +26,7 @@ const (
 	PremiumFunnelSourceGroups                 PremiumFunnelSource = "groups"
 	PremiumFunnelSourceIdpOrgSync             PremiumFunnelSource = "idp_org_sync"
 	PremiumFunnelSourceIdpSync                PremiumFunnelSource = "idp_sync"
+	PremiumFunnelSourceLicenses               PremiumFunnelSource = "licenses"
 	PremiumFunnelSourceMultipleOrganizations  PremiumFunnelSource = "multiple_organizations"
 	PremiumFunnelSourceObservability          PremiumFunnelSource = "observability"
 	PremiumFunnelSourceProvisionerKeys        PremiumFunnelSource = "provisioner_keys"
@@ -54,6 +55,7 @@ func PremiumFunnelSources() []PremiumFunnelSource {
 		PremiumFunnelSourceGroups,
 		PremiumFunnelSourceIdpOrgSync,
 		PremiumFunnelSourceIdpSync,
+		PremiumFunnelSourceLicenses,
 		PremiumFunnelSourceMultipleOrganizations,
 		PremiumFunnelSourceObservability,
 		PremiumFunnelSourceProvisionerKeys,
