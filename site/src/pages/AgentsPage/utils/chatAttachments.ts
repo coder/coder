@@ -253,7 +253,7 @@ const unsafeChatFileNameChars = /[()[\]{}<>'"`;,:*?|&#$\\/\s\p{Cc}]/gu;
  * LLM prompts, audit logs, path interpolation) with underscores. Keeps
  * dots, dashes, underscores, ASCII alphanumerics, and non-ASCII letters
  * so localized names remain readable. The server still applies its own
- * normalization (control-char strip plus 255-byte truncate) on top of this.
+ * normalization on top of this.
  *
  * If the sanitized name is empty after trimming leading or trailing `_`,
  * `.`, or whitespace, falls back to `"file"` so the server's
