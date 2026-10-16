@@ -65,10 +65,10 @@ func (server *Server) effectiveMCPServerConfigs(
 	return configs, nil
 }
 
-func (server *Server) prepareGeneration(
+func (server *Server) buildTurnEnvironment(
 	ctx context.Context,
 	input generationPrepareInput,
-) (prepared generationPrepared, err error) {
+) (env turnEnvironment, err error) {
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -117,12 +117,12 @@ func (server *Server) prepareGeneration(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
-		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
+		return turnEnvironment{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
@@ -134,7 +134,7 @@ func (server *Server) prepareGeneration(
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
@@ -151,7 +151,7 @@ func (server *Server) prepareGeneration(
 		var cuModelProvider, cuModelName string
 		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
 		if err != nil {
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
+			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
 		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
 			purpose: "computer_use",
@@ -165,7 +165,7 @@ func (server *Server) prepareGeneration(
 			buildOptions:    modelOpts,
 		})
 		if cuErr != nil {
-			return generationPrepared{}, xerrors.Errorf(
+			return turnEnvironment{}, xerrors.Errorf(
 				"resolve computer use model for provider %q model %q: %w",
 				computerUseProvider,
 				cuModelName,
@@ -212,14 +212,14 @@ func (server *Server) prepareGeneration(
 
 	planModeInstructions, err := server.loadPlanModeInstructions(ctx, currentPlanMode)
 	if err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
 	if server.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := server.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
-			return generationPrepared{}, xerrors.Errorf("load advisor config: %w", cfgErr)
+			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
 		var advisorErr error
 		advisorRuntime, advisorErr = server.newAdvisorRuntime(
@@ -230,7 +230,7 @@ func (server *Server) prepareGeneration(
 			logger,
 		)
 		if advisorErr != nil {
-			return generationPrepared{}, advisorErr
+			return turnEnvironment{}, advisorErr
 		}
 	}
 
@@ -358,7 +358,7 @@ func (server *Server) prepareGeneration(
 	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], reasoningSource)
 	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
 	if err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
@@ -387,7 +387,7 @@ func (server *Server) prepareGeneration(
 		var resolveErr error
 		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
-			return generationPrepared{}, resolveErr
+			return turnEnvironment{}, resolveErr
 		}
 	}
 
@@ -399,7 +399,7 @@ func (server *Server) prepareGeneration(
 	var debug *generationDebug
 	if resolved.debugEnabled {
 		if debugSvc == nil {
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
+			return turnEnvironment{}, xerrors.New("chat debug service missing after enablement check")
 		}
 		debug = &generationDebug{
 			Enabled:             true,
@@ -549,7 +549,7 @@ func (server *Server) prepareGeneration(
 		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
 	}
 	if g2Err != nil {
-		return generationPrepared{}, g2Err
+		return turnEnvironment{}, g2Err
 	}
 
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
@@ -743,7 +743,7 @@ func (server *Server) prepareGeneration(
 	} else {
 		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
 		if err != nil {
-			return generationPrepared{}, err
+			return turnEnvironment{}, err
 		}
 	}
 
@@ -772,7 +772,7 @@ func (server *Server) prepareGeneration(
 			logger:           server.logger.Named("computer_use"),
 		})
 		if err != nil {
-			return generationPrepared{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
+			return turnEnvironment{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
 		}
 	} else {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
@@ -780,7 +780,7 @@ func (server *Server) prepareGeneration(
 			isComputerUse:  false,
 		})
 		if err != nil {
-			return generationPrepared{}, err
+			return turnEnvironment{}, err
 		}
 	}
 
@@ -858,7 +858,7 @@ func (server *Server) prepareGeneration(
 	effectiveThreshold := modelConfig.CompressionThreshold
 	thresholdOverride, ok, err := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID)
 	if err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 	if ok {
 		effectiveThreshold = thresholdOverride
@@ -873,7 +873,7 @@ func (server *Server) prepareGeneration(
 		organizationID: chat.OrganizationID,
 	})
 	if err != nil {
-		return generationPrepared{}, err
+		return turnEnvironment{}, err
 	}
 	binding := chatTrigger
 	bindingSource := compactionTriggerSourceChat
@@ -925,7 +925,7 @@ func (server *Server) prepareGeneration(
 		refreshedChat = chat
 	}
 
-	return generationPrepared{
+	return turnEnvironment{
 		Chat:                 refreshedChat,
 		Messages:             input.Messages,
 		Model:                model,
@@ -957,8 +957,8 @@ func (server *Server) prepareGeneration(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Cleanup: cleanup,
 		Debug:   debug,
+		cleanup: cleanup,
 	}, nil
 }
 
