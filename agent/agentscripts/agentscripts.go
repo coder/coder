@@ -44,6 +44,9 @@ var (
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
 
+// reportTimeout bounds each timing report to coderd.
+const reportTimeout = 30 * time.Second
+
 type ScriptLogger interface {
 	Send(ctx context.Context, log ...agentsdk.Log) error
 	Flush(context.Context) error
@@ -238,6 +241,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			logger:          r.Logger,
 			getScriptLogger: r.GetScriptLogger,
 			run:             r.runTracked,
+			reportUnstarted: r.reportUnstarted,
 		}
 		return executor.execute(ctx, scripts, option)
 	}
@@ -268,6 +272,49 @@ func anyOrdered(scripts []codersdk.WorkspaceAgentScript) bool {
 		}
 	}
 	return false
+}
+
+// reportUnstarted sends the one timing for a startup script that never
+// ran, because it was skipped or canceled while waiting.
+func (r *Runner) reportUnstarted(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption, status proto.Timing_Status) {
+	// Nothing reads a shutdown outcome, and the dashboard draws the start
+	// stage only.
+	if option != ExecuteStartScripts {
+		return
+	}
+	logger := r.Logger.With(
+		slog.F("log_source_id", script.LogSourceID),
+		slog.F("resource_address", script.ResourceAddress),
+		slog.F("status", status.String()),
+	)
+	if r.scriptCompleted == nil {
+		logger.Debug(ctx, "r.scriptCompleted unexpectedly nil")
+		return
+	}
+
+	at := r.Clock.Now("agent_scripts", "unstarted_timing").UTC()
+	err := r.trackCommandGoroutine(func() {
+		// The execution's context may already be canceled.
+		reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportTimeout)
+		defer cancel()
+
+		_, err := r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
+			Timing: &proto.Timing{
+				ScriptId: script.ID[:],
+				Start:    timestamppb.New(at),
+				End:      timestamppb.New(at),
+				ExitCode: 0,
+				Stage:    proto.Timing_START,
+				Status:   status,
+			},
+		})
+		if err != nil {
+			logger.Warn(ctx, "reporting unstarted script", slog.Error(err))
+		}
+	})
+	if err != nil {
+		logger.Warn(ctx, "reporting unstarted script: track command goroutine", slog.Error(err))
+	}
 }
 
 // trackRun wraps "run" with metrics.
@@ -398,9 +445,12 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
-		// We want to check this outside of the goroutine to avoid a race condition
+		// We want to check these outside of the goroutine to avoid a race condition
 		timedOut := errors.Is(err, ErrTimeout)
 		pipesLeftOpen := errors.Is(err, ErrOutputPipesOpen)
+		// Start executions only: nothing reads a shutdown outcome and nothing
+		// draws a cron one, so those keep reporting EXIT_FAILURE.
+		canceled := option == ExecuteStartScripts && err != nil && ctx.Err() != nil
 
 		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
@@ -419,13 +469,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				status = proto.Timing_TIMED_OUT
 			case pipesLeftOpen:
 				status = proto.Timing_PIPES_LEFT_OPEN
+			case canceled:
+				status = proto.Timing_CANCELED
 			case exitCode != 0:
 				status = proto.Timing_EXIT_FAILURE
 			default:
 				status = proto.Timing_OK
 			}
 
-			reportTimeout := 30 * time.Second
 			reportCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 			defer cancel()
 

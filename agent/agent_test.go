@@ -133,8 +133,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC214WithRole(context.Context, string) (
-	proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC215WithRole(context.Context, string) (
+	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -2120,6 +2120,113 @@ func TestAgentMetadata_Timing(t *testing.T) {
 			t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
 		}
 	}
+}
+
+func TestAgent_OrderedStartupScripts(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+
+	scripts := func(cloneScript, installScript string) (clone, install codersdk.WorkspaceAgentScript) {
+		clone = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Clone repo",
+			ResourceAddress: "coder_script.clone_repo", RunOnStart: true,
+			Script: cloneScript,
+		}
+		install = codersdk.WorkspaceAgentScript{
+			ID: uuid.New(), LogSourceID: uuid.New(), DisplayName: "Install tools",
+			ResourceAddress: "coder_script.install_tools", RunOnStart: true,
+			Script: installScript,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone_repo",
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+			}},
+		}
+		return clone, install
+	}
+	timingFor := func(client *agenttest.Client, id uuid.UUID) *proto.Timing {
+		for _, timing := range client.GetTimings() {
+			if bytes.Equal(timing.ScriptId, id[:]) {
+				return timing
+			}
+		}
+		return nil
+	}
+	// collectLines drains the batches delivered so far and keeps the lines
+	// written to one script's log.
+	collectLines := func(logsCh <-chan *proto.BatchCreateLogsRequest, logSourceID uuid.UUID, lines *[]string) {
+		for {
+			select {
+			case batch := <-logsCh:
+				if !bytes.Equal(batch.LogSourceId, logSourceID[:]) {
+					continue
+				}
+				for _, log := range batch.Logs {
+					*lines = append(*lines, log.Output)
+				}
+			default:
+				return
+			}
+		}
+	}
+	startAgent := func(t *testing.T, clone, install codersdk.WorkspaceAgentScript) (*agenttest.Client, <-chan *proto.BatchCreateLogsRequest) {
+		t.Helper()
+		logsCh := make(chan *proto.BatchCreateLogsRequest, 256)
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Scripts: []codersdk.WorkspaceAgentScript{clone, install},
+		}, 0, func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		})
+		return client, logsCh
+	}
+	waitForLifecycle := func(t *testing.T, client *agenttest.Client, want codersdk.WorkspaceAgentLifecycle) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			return slices.Contains(client.GetLifecycleStates(), want)
+		}, testutil.WaitLong, testutil.IntervalMedium)
+	}
+
+	t.Run("WaitsThenRuns", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		// install_tools exits 1 if it runs before clone_repo has finished.
+		clone, install := scripts("sleep 0.5 && touch "+marker, "test -f "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleReady)
+		require.FileExists(t, marker)
+		var installLines []string
+		collectLines(logsCh, install.LogSourceID, &installLines)
+		require.Empty(t, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil && timing.Status == proto.Timing_OK
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("SkipsAfterFailure", func(t *testing.T) {
+		t.Parallel()
+		marker := filepath.Join(t.TempDir(), "cloned")
+		clone, install := scripts("exit 128", "touch "+marker)
+		client, logsCh := startAgent(t, clone, install)
+
+		waitForLifecycle(t, client, codersdk.WorkspaceAgentLifecycleStartError)
+		require.NoFileExists(t, marker)
+		var installLines []string
+		require.Eventually(t, func() bool {
+			collectLines(logsCh, install.LogSourceID, &installLines)
+			return len(installLines) > 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, []string{`Skipping script: dependency "Clone repo" failed.`}, installLines)
+		require.Eventually(t, func() bool {
+			timing := timingFor(client, install.ID)
+			return timing != nil &&
+				timing.Status == proto.Timing_SKIPPED &&
+				timing.Start.AsTime().Equal(timing.End.AsTime())
+		}, testutil.WaitShort, testutil.IntervalFast, "the skipped dependent reports one zero-duration timing")
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {

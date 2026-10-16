@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -420,6 +421,73 @@ func TestExecuteOrderedTimeoutStartsAfterWaiting(t *testing.T) {
 	require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{clone, install}, aAPI.ScriptCompleted))
 	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteStartScripts))
 	require.Equal(t, []string{"installed"}, logs.outputs(install.LogSourceID))
+}
+
+func TestExecuteCanceledScriptReportsCanceled(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep")
+	}
+
+	for _, test := range []struct {
+		name       string
+		option     agentscripts.ExecuteOption
+		wantStatus proto.Timing_Status
+		wantStage  proto.Timing_Stage
+	}{
+		{name: "Start", option: agentscripts.ExecuteStartScripts, wantStatus: proto.Timing_CANCELED, wantStage: proto.Timing_START},
+		{name: "Stop", option: agentscripts.ExecuteStopScripts, wantStatus: proto.Timing_EXIT_FAILURE, wantStage: proto.Timing_STOP},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			execCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			fLogger := newFakeScriptLogger()
+			runner := setup(t, func(uuid.UUID) agentscripts.ScriptLogger { return fLogger })
+			aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+			script := codersdk.WorkspaceAgentScript{
+				ID: uuid.New(), LogSourceID: uuid.New(),
+				Script: "echo started && sleep 30", RunOnStart: true, RunOnStop: true,
+			}
+			require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
+
+			done := make(chan error, 1)
+			go func() { done <- runner.Execute(execCtx, test.option) }()
+			require.Equal(t, "started", testutil.RequireReceive(ctx, t, fLogger.logs).Output)
+			cancel()
+			require.ErrorIs(t, testutil.RequireReceive(ctx, t, done), context.Canceled)
+			require.NoError(t, runner.Close())
+
+			timings := aAPI.GetTimings()
+			require.Len(t, timings, 1)
+			require.Equal(t, test.wantStatus, timings[0].Status)
+			require.Equal(t, test.wantStage, timings[0].Stage)
+			require.True(t, timings[0].End.AsTime().After(timings[0].Start.AsTime()), "the real interval is kept")
+		})
+	}
+
+	t.Run("ExitedBeforeCancel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		execCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		runner := setup(t, nil)
+		aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+
+		script := codersdk.WorkspaceAgentScript{ID: uuid.New(), LogSourceID: uuid.New(), Script: "exit 1", RunOnStart: true}
+		require.NoError(t, runner.Init([]codersdk.WorkspaceAgentScript{script}, aAPI.ScriptCompleted))
+
+		require.Error(t, runner.Execute(execCtx, agentscripts.ExecuteStartScripts))
+		cancel()
+		require.NoError(t, runner.Close())
+
+		timings := aAPI.GetTimings()
+		require.Len(t, timings, 1)
+		require.Equal(t, proto.Timing_EXIT_FAILURE, timings[0].Status)
+		require.Equal(t, int32(1), timings[0].ExitCode)
+	})
 }
 
 // recordingScriptLogs keeps every line per log source so a test can read a
