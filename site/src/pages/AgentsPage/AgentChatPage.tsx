@@ -44,6 +44,7 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
@@ -68,7 +69,10 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
+import {
+	type SubmitChatTurnParams,
+	submitChatTurn,
+} from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -102,6 +106,25 @@ import {
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
+
+function restoreComposerFocus(
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
+) {
+	if (!isMobileViewport()) {
+		chatInputRef.current?.focusWhenEditable();
+	}
+}
+
+async function submitChatTurnAndRestoreFocus(
+	params: SubmitChatTurnParams,
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
+) {
+	try {
+		await submitChatTurn(params);
+	} finally {
+		restoreComposerFocus(chatInputRef);
+	}
+}
 
 const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
@@ -309,7 +332,7 @@ const AgentChatPage: React.FC = () => {
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId),
 	);
-	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
+	const { isPending: isInterruptPending, mutate: interrupt } = useMutation(
 		interruptChat(queryClient, agentId),
 	);
 	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
@@ -535,7 +558,9 @@ const AgentChatPage: React.FC = () => {
 		if (isInterruptPending) {
 			return;
 		}
-		void interrupt();
+		interrupt(undefined, {
+			onSettled: () => restoreComposerFocus(chatInputRef),
+		});
 	};
 
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
@@ -680,20 +705,24 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
-	const handleSendAskUserQuestionResponse = async (message: string) => {
-		await submitChatTurn({
-			...chatTurnDeps,
-			message,
-		});
-	};
+	const handleSendAskUserQuestionResponse = (message: string) =>
+		submitChatTurnAndRestoreFocus(
+			{
+				...chatTurnDeps,
+				message,
+			},
+			chatInputRef,
+		);
 
-	const handleImplementPlan = async () => {
-		await submitChatTurn({
-			...chatTurnDeps,
-			message: "Implement the plan.",
-			clearPlanMode: true,
-		});
-	};
+	const handleImplementPlan = () =>
+		submitChatTurnAndRestoreFocus(
+			{
+				...chatTurnDeps,
+				message: "Implement the plan.",
+				clearPlanMode: true,
+			},
+			chatInputRef,
+		);
 
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
