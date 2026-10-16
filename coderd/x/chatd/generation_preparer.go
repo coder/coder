@@ -330,7 +330,9 @@ func (server *Server) prepareGeneration(
 		workspaceSkills     []chattool.SkillMeta
 		personalSkills      []skillspkg.Skill
 		orgSkills           []skillspkg.Skill
-		orgSkillReader      rbac.Subject
+		projectSkills       []skillspkg.Skill
+		skillProjectID      uuid.NullUUID
+		skillOwner          rbac.Subject
 		resolvedUserPrompt  string
 		projectInstructions string
 		planPathBlock       string
@@ -439,14 +441,39 @@ func (server *Server) prepareGeneration(
 		personalSkills, err = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID)
 		return err
 	})
+	// Organization and project skills are both read as the chat owner, so
+	// the owner subject is loaded once and shared.
+	loadSkillOwner := sync.OnceValues(func() (rbac.Subject, error) {
+		return server.chatOwnerSubject(ctx, chat.OwnerID)
+	})
 	g2.Go(func() error {
 		var err error
-		orgSkillReader, err = server.chatOwnerSubject(ctx, chat.OwnerID)
+		skillOwner, err = loadSkillOwner()
 		if err != nil {
 			return err
 		}
-		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		orgSkills, err = server.fetchOrganizationSkillMetadata(ctx, skillOwner, chat.OrganizationID)
 		return err
+	})
+	g2.Go(func() error {
+		skillProjectID = server.resolveChatProjectID(ctx, logger, chat)
+		if !skillProjectID.Valid {
+			return nil
+		}
+		owner, err := loadSkillOwner()
+		if err != nil {
+			// The organization skill fetch reports this error.
+			return nil
+		}
+		// Project skills fail open: the turn continues without them.
+		projectSkills, err = server.fetchProjectSkillMetadata(ctx, owner, skillProjectID.UUID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load chat project skills",
+				slog.F("project_id", skillProjectID.UUID),
+				slog.Error(err),
+			)
+		}
+		return nil
 	})
 	g2.Go(func() error {
 		var err error
@@ -564,7 +591,7 @@ func (server *Server) prepareGeneration(
 		subagentInstruction = defaultSubagentInstruction
 	}
 	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, orgSkills, workspaceSkills)
+		return mergeTurnSkills(personalSkills, orgSkills, projectSkills, workspaceSkills)
 	}
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
@@ -655,14 +682,18 @@ func (server *Server) prepareGeneration(
 		},
 		ResolveAlias: resolveSkillAlias,
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
-			if skill.Source == skillspkg.SourceOrganization {
-				return server.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name)
+			switch skill.Source {
+			case skillspkg.SourceOrganization:
+				return server.loadOrganizationSkillBody(ctx, skillOwner, chat.OrganizationID, skill.Name)
+			case skillspkg.SourceProject:
+				return server.loadProjectSkillBody(ctx, skillOwner, skillProjectID.UUID, skill.Name)
+			default:
+				return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 			}
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(workspaceSkills) == 0 {
 			return current, false
 		}
 		updated := current

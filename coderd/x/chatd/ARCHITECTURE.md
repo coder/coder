@@ -59,6 +59,8 @@ TODO (#27079): messages can now carry a `workspace-file-reference` part (path, n
 
 Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project.
 
+TODO (project-skills): chats in a project now also get the project's enabled skills as a `project` skill source next to personal, organization, and workspace skills. They are read each turn as the chat owner, subagents use the root chat's project, and a failed read continues the turn without them. Describe this here.
+
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
 ## Execution states

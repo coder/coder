@@ -465,6 +465,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						(chatProject) => chatProject.id === pickedProject.id,
 					) ?? null)
 			: null;
+	const chatProjectId = project?.id ?? selectedProject?.id;
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 	const openCreateProjectDialog = () => {
@@ -762,7 +763,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
-			projectId: project?.id ?? selectedProject?.id,
+			projectId: chatProjectId,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1076,6 +1077,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					}}
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
+					chatProjectId={chatProjectId}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);
