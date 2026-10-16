@@ -9,6 +9,10 @@ import {
 	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
+import {
+	keyboardHighlightRingClassName,
+	useHighlightSource,
+} from "#/components/Command/useHighlightSource";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
 	Popover,
@@ -123,6 +127,7 @@ export function FilterComboboxRoot({
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
+	const highlightSource = useHighlightSource();
 	// cmdk only reports highlight changes when its value is controlled.
 	const [highlightedValue, setHighlightedValue] = useState("");
 	const highlightedValueRef = useRef("");
@@ -156,6 +161,8 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
+					data-highlight-source={highlightSource.source}
+					onFocus={highlightSource.markFromPage}
 					onKeyDown={(event) => {
 						// On Enter the cmdk root selects the highlighted row and cancels
 						// the focused button's click. A button takes Enter as a click
@@ -177,6 +184,7 @@ export function FilterComboboxRoot({
 					// Runs after the row's own handler, so the flag covers only the
 					// highlight that pointer move causes.
 					onPointerMove={() => {
+						highlightSource.markPointer();
 						userNavigatingRef.current = false;
 					}}
 					onValueChange={(value) => {
@@ -344,7 +352,8 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-content-link data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				keyboardHighlightRingClassName,
 				className,
 			)}
 			{...props}

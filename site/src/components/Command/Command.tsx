@@ -1,16 +1,30 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
+import {
+	keyboardHighlightRingClassName,
+	useHighlightSource,
+} from "./useHighlightSource";
 
 export const Command: React.FC<
 	React.ComponentProps<typeof CommandPrimitive>
-> = ({ className, ...props }) => {
+> = ({ className, onFocus, onPointerMove, ...props }) => {
+	const highlightSource = useHighlightSource();
 	return (
 		<CommandPrimitive
 			className={cn(
 				"flex h-full w-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
 				className,
 			)}
+			data-highlight-source={highlightSource.source}
+			onFocus={(event) => {
+				highlightSource.markFromPage();
+				onFocus?.(event);
+			}}
+			onPointerMove={(event) => {
+				highlightSource.markPointer();
+				onPointerMove?.(event);
+			}}
 			{...props}
 		/>
 	);
@@ -93,8 +107,8 @@ export const CommandItem: React.FC<
 				`relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-hidden
 			data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 			data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
-			data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-content-link
 			[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,
+				keyboardHighlightRingClassName,
 				className,
 			)}
 			{...props}
