@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,4 +358,52 @@ func TestTokensListExpiredFiltering(t *testing.T) {
 		require.Contains(t, res, expiredToken.ID)
 		require.Contains(t, res, "expired-token")
 	})
+}
+
+func TestTokenCreateJSON(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	allowWorkspaceID := uuid.New()
+	allowSpec := fmt.Sprintf("workspace:%s", allowWorkspaceID.String())
+
+	inv, root := clitest.New(t, "tokens", "create",
+		"--name", "json-token",
+		"--scope", string(codersdk.APIKeyScopeWorkspaceRead),
+		"--allow", allowSpec,
+		"--output", "json",
+	)
+	clitest.SetupConfig(t, client, root)
+	buf := new(bytes.Buffer)
+	inv.Stdout = buf
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+
+	var createRes struct {
+		codersdk.APIKey
+		Key string `json:"key"`
+	}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &createRes))
+	require.NotEmpty(t, createRes.Key)
+	require.Equal(t, "json-token", createRes.TokenName)
+	require.NotEmpty(t, createRes.ID)
+	require.Contains(t, createRes.Key, createRes.ID)
+	require.False(t, createRes.ExpiresAt.IsZero())
+	require.Contains(t, createRes.Scopes, codersdk.APIKeyScopeWorkspaceRead)
+	require.Len(t, createRes.AllowList, 1)
+	require.Equal(t, allowSpec, createRes.AllowList[0].String())
+
+	inv, root = clitest.New(t, "tokens", "create", "--name", "text-token")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	textRes := buf.String()
+	require.True(t, strings.HasSuffix(textRes, "\n"))
+	require.NotContains(t, strings.TrimSuffix(textRes, "\n"), "\n")
 }
