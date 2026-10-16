@@ -3007,10 +3007,10 @@ WITH prices AS (
 		output_price,
 		cache_read_price,
 		cache_write_price
-	FROM ai_org_provider_model_prices
-	WHERE ai_org_provider_model_prices.organization_id = $4::uuid
-		AND ai_org_provider_model_prices.provider_id = $5::uuid
-		AND ai_org_provider_model_prices.model IN ($1::text, $3::text)
+	FROM ai_model_configs
+	WHERE ai_model_configs.organization_id = $4::uuid
+		AND ai_model_configs.provider_id = $5::uuid
+		AND ai_model_configs.model IN ($1::text, $3::text)
 )
 SELECT
 	prices.model,

@@ -19139,6 +19139,24 @@ func TestGetAIModelPrices(t *testing.T) {
 	}
 }
 
+// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
+// by keys and with only an input price set.
+func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
+	t.Helper()
+	elem := map[string]any{
+		"input_price":       inputPrice,
+		"output_price":      nil,
+		"cache_read_price":  nil,
+		"cache_write_price": nil,
+	}
+	for k, v := range keys {
+		elem[k] = v
+	}
+	raw, err := json.Marshal([]any{elem})
+	require.NoError(t, err)
+	return raw
+}
+
 // upsertOrgProviderPrice sets an organization's price for a model on a
 // configured provider, with only an input price.
 func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
@@ -19470,7 +19488,9 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	require.EqualValues(t, 1, inputPrice)
 }
 
-func TestDeleteOrganizationAIModelPrices(t *testing.T) {
+// Deleting an organization price makes the lookup fall back to the site-wide
+// price, which the delete leaves in place.
+func TestGetAIModelPriceForProviderAfterDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
