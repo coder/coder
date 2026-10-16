@@ -24340,7 +24340,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "user_status": {
-                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "description": "UserStatus defaults to UserStatusDormant. Service accounts default to\nUserStatusActive and can't be dormant.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UserStatus"
