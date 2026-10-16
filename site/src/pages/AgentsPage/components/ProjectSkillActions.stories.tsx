@@ -59,6 +59,7 @@ export const OneAction: Story = {
 		await userEvent.hover(
 			await screen.findByRole("button", { name: "deploy" }),
 		);
+		await screen.findByRole("tooltip");
 	},
 };
 
