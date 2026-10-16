@@ -15562,7 +15562,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
-    client_session_id
+    client_session_id, rx_bytes, tx_bytes
 )
 SELECT
     u.id,
@@ -15583,7 +15583,9 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    CASE WHEN u.rx_bytes_valid THEN u.rx_bytes ELSE NULL END,
+    CASE WHEN u.tx_bytes_valid THEN u.tx_bytes ELSE NULL END
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -15603,7 +15605,11 @@ FROM (
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time,
-        unnest($18::text[]) AS client_session_id
+        unnest($18::text[]) AS client_session_id,
+        unnest($19::bigint[]) AS rx_bytes,
+        unnest($20::bool[]) AS rx_bytes_valid,
+        unnest($21::bigint[]) AS tx_bytes,
+        unnest($22::bool[]) AS tx_bytes_valid
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -15631,6 +15637,16 @@ DO UPDATE SET
         WHEN connection_logs.code IS NULL
         THEN EXCLUDED.code
         ELSE connection_logs.code
+    END,
+    rx_bytes = CASE
+        WHEN connection_logs.rx_bytes IS NULL
+        THEN EXCLUDED.rx_bytes
+        ELSE connection_logs.rx_bytes
+    END,
+    tx_bytes = CASE
+        WHEN connection_logs.tx_bytes IS NULL
+        THEN EXCLUDED.tx_bytes
+        ELSE connection_logs.tx_bytes
     END
 `
 
@@ -15653,6 +15669,10 @@ type BatchUpsertConnectionLogsParams struct {
 	DisconnectReason []string              `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time           `db:"disconnect_time" json:"disconnect_time"`
 	ClientSessionID  []string              `db:"client_session_id" json:"client_session_id"`
+	RxBytes          []int64               `db:"rx_bytes" json:"rx_bytes"`
+	RxBytesValid     []bool                `db:"rx_bytes_valid" json:"rx_bytes_valid"`
+	TxBytes          []int64               `db:"tx_bytes" json:"tx_bytes"`
+	TxBytesValid     []bool                `db:"tx_bytes_valid" json:"tx_bytes_valid"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -15675,6 +15695,10 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
 		pq.Array(arg.ClientSessionID),
+		pq.Array(arg.RxBytes),
+		pq.Array(arg.RxBytesValid),
+		pq.Array(arg.TxBytes),
+		pq.Array(arg.TxBytesValid),
 	)
 	return err
 }
@@ -15875,7 +15899,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id, connection_logs.rx_bytes, connection_logs.tx_bytes,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -16108,6 +16132,8 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.RxBytes,
+			&i.ConnectionLog.TxBytes,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -30668,7 +30694,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count
 				FROM
 					template_versions
 				WHERE
@@ -30769,7 +30795,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30808,6 +30834,8 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30815,9 +30843,40 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 	return i, err
 }
 
+const getScriptOrderTelemetrySummary = `-- name: GetScriptOrderTelemetrySummary :one
+SELECT
+	COUNT(*) AS templates_with_script_order,
+	COALESCE(SUM(tv.script_order_data_source_count), 0)::bigint AS data_source_count,
+	COALESCE(SUM(tv.script_order_rule_count), 0)::bigint AS rule_count
+FROM templates t
+JOIN template_versions tv ON tv.id = t.active_version_id
+JOIN provisioner_jobs pj ON pj.id = tv.job_id
+WHERE t.deleted = false
+	AND tv.script_order_data_source_count > 0
+	AND pj.type = 'template_version_import'
+	AND pj.completed_at IS NOT NULL
+	AND COALESCE(pj.error, '') = ''
+	AND pj.canceled_at IS NULL
+`
+
+type GetScriptOrderTelemetrySummaryRow struct {
+	TemplatesWithScriptOrder int64 `db:"templates_with_script_order" json:"templates_with_script_order"`
+	DataSourceCount          int64 `db:"data_source_count" json:"data_source_count"`
+	RuleCount                int64 `db:"rule_count" json:"rule_count"`
+}
+
+// Count only the active, successfully imported version of each non-deleted
+// template, so repeated imports do not inflate adoption.
+func (q *sqlQuerier) GetScriptOrderTelemetrySummary(ctx context.Context) (GetScriptOrderTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getScriptOrderTelemetrySummary)
+	var i GetScriptOrderTelemetrySummaryRow
+	err := row.Scan(&i.TemplatesWithScriptOrder, &i.DataSourceCount, &i.RuleCount)
+	return i, err
+}
+
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30842,6 +30901,8 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30851,7 +30912,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30876,6 +30937,8 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30885,7 +30948,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30916,6 +30979,8 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Archived,
 		&i.SourceExampleID,
 		&i.HasExternalAgent,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -30925,7 +30990,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -30956,6 +31021,8 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -30975,7 +31042,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -31053,6 +31120,8 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -31071,7 +31140,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_external_agent, script_order_data_source_count, script_order_rule_count, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -31098,6 +31167,8 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasExternalAgent,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -31277,6 +31348,34 @@ type UpdateTemplateVersionFlagsByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionFlagsByJobID, arg.JobID, arg.HasExternalAgent, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionScriptOrderUsageByJobID = `-- name: UpdateTemplateVersionScriptOrderUsageByJobID :exec
+UPDATE
+	template_versions
+SET
+	script_order_data_source_count = $2,
+	script_order_rule_count = $3,
+	updated_at = $4
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionScriptOrderUsageByJobIDParams struct {
+	JobID                      uuid.UUID `db:"job_id" json:"job_id"`
+	ScriptOrderDataSourceCount int32     `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32     `db:"script_order_rule_count" json:"script_order_rule_count"`
+	UpdatedAt                  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionScriptOrderUsageByJobID,
+		arg.JobID,
+		arg.ScriptOrderDataSourceCount,
+		arg.ScriptOrderRuleCount,
+		arg.UpdatedAt,
+	)
 	return err
 }
 
@@ -34793,6 +34892,346 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
 	var i ValidateUserIDsRow
 	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
+	return i, err
+}
+
+const clearWorkspaceSecretsBeforeBuild = `-- name: ClearWorkspaceSecretsBeforeBuild :exec
+UPDATE workspace_secrets
+SET
+    value        = NULL,
+    value_key_id = NULL,
+    cleared_at   = CURRENT_TIMESTAMP
+FROM workspace_builds
+WHERE workspace_secrets.workspace_build_id = workspace_builds.id
+  AND workspace_secrets.workspace_id = $1
+  AND workspace_secrets.cleared_at IS NULL
+  AND workspace_builds.build_number < (
+      SELECT current_build.build_number
+      FROM workspace_builds AS current_build
+      WHERE current_build.id = $2
+        AND current_build.workspace_id = $1
+  )
+`
+
+type ClearWorkspaceSecretsBeforeBuildParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+}
+
+// Drops the values of every live row that belongs to an earlier build of the
+// workspace (lower build number than the given build), keeping the rows so
+// the history of which secrets earlier builds received stays inspectable.
+// Rows of the given build and of any later build are left untouched, so a
+// build that clears out of order cannot wipe a newer build's secrets. The
+// cutoff build must belong to the workspace; otherwise nothing is cleared.
+func (q *sqlQuerier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg ClearWorkspaceSecretsBeforeBuildParams) error {
+	_, err := q.db.ExecContext(ctx, clearWorkspaceSecretsBeforeBuild, arg.WorkspaceID, arg.WorkspaceBuildID)
+	return err
+}
+
+const clearWorkspaceSecretsByWorkspaceID = `-- name: ClearWorkspaceSecretsByWorkspaceID :exec
+UPDATE workspace_secrets
+SET
+    value        = NULL,
+    value_key_id = NULL,
+    cleared_at   = CURRENT_TIMESTAMP
+WHERE workspace_id = $1
+  AND cleared_at IS NULL
+`
+
+// Drops the values of every live row of the workspace, keeping the rows as
+// history. Used when the workspace is deleted.
+func (q *sqlQuerier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearWorkspaceSecretsByWorkspaceID, workspaceID)
+	return err
+}
+
+const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
+FROM workspace_secrets
+WHERE value IS NOT NULL
+  AND id > $1::uuid
+ORDER BY id
+LIMIT $2::int
+`
+
+type GetWorkspaceSecretsParams struct {
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Returns a page of workspace secrets that still hold a value across the
+// deployment, ordered by id. Pass the last returned id as after_id to fetch
+// the next page. Used only by the dbcrypt key rotation utility.
+func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context, arg GetWorkspaceSecretsParams) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecrets, arg.AfterID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.Source,
+			&i.CreatedAt,
+			&i.ClearedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceSecretsHistory = `-- name: GetWorkspaceSecretsHistory :many
+SELECT
+    ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
+    ws.env_name, ws.file_path, ws.ephemeral, ws.source, ws.created_at, ws.cleared_at,
+    w.owner_id AS workspace_owner_id,
+    w.organization_id AS workspace_organization_id
+FROM workspace_secrets ws
+JOIN workspaces w ON w.id = ws.workspace_id
+WHERE ws.workspace_id = $1
+    AND (
+        $2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR ws.workspace_build_id = $2
+    )
+ORDER BY ws.created_at ASC, ws.name ASC
+`
+
+type GetWorkspaceSecretsHistoryParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+}
+
+type GetWorkspaceSecretsHistoryRow struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID        uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name                    string                `db:"name" json:"name"`
+	EnvName                 string                `db:"env_name" json:"env_name"`
+	FilePath                string                `db:"file_path" json:"file_path"`
+	Ephemeral               bool                  `db:"ephemeral" json:"ephemeral"`
+	Source                  WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt               sql.NullTime          `db:"cleared_at" json:"cleared_at"`
+	WorkspaceOwnerID        uuid.UUID             `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOrganizationID uuid.UUID             `db:"workspace_organization_id" json:"workspace_organization_id"`
+}
+
+// Returns metadata for every workspace secret row of a workspace, including
+// cleared rows, so the secrets each build received can be inspected. Values
+// are never selected. The workspace owner and organization are included for
+// authorization. A non-nil workspace_build_id limits the rows to that build.
+func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, arg GetWorkspaceSecretsHistoryParams) ([]GetWorkspaceSecretsHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, arg.WorkspaceID, arg.WorkspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceSecretsHistoryRow
+	for rows.Next() {
+		var i GetWorkspaceSecretsHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.Source,
+			&i.CreatedAt,
+			&i.ClearedAt,
+			&i.WorkspaceOwnerID,
+			&i.WorkspaceOrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceSecret = `-- name: InsertWorkspaceSecret :one
+INSERT INTO workspace_secrets (
+    id,
+    workspace_id,
+    workspace_build_id,
+    name,
+    value,
+    value_key_id,
+    env_name,
+    file_path,
+    ephemeral,
+    source
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10
+)
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
+`
+
+type InsertWorkspaceSecretParams struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorkspaceSecretParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceSecret,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.WorkspaceBuildID,
+		arg.Name,
+		arg.Value,
+		arg.ValueKeyID,
+		arg.EnvName,
+		arg.FilePath,
+		arg.Ephemeral,
+		arg.Source,
+	)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.WorkspaceBuildID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.Ephemeral,
+		&i.Source,
+		&i.CreatedAt,
+		&i.ClearedAt,
+	)
+	return i, err
+}
+
+const listActiveWorkspaceSecrets = `-- name: ListActiveWorkspaceSecrets :many
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
+FROM workspace_secrets
+WHERE workspace_build_id = $1
+  AND cleared_at IS NULL
+ORDER BY name ASC
+`
+
+// Returns the live rows (value not yet cleared) linked to a build. Only the
+// latest build of a workspace has live rows, so an older build returns none.
+// Includes decrypted values, so this is used only by the agent manifest and
+// by the build transaction that copies secrets forward; there is no REST
+// endpoint that reads workspace secrets.
+func (q *sqlQuerier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveWorkspaceSecrets, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.Source,
+			&i.CreatedAt,
+			&i.ClearedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEncryptedWorkspaceSecretValue = `-- name: UpdateEncryptedWorkspaceSecretValue :one
+UPDATE workspace_secrets
+SET
+    value        = $1,
+    value_key_id = $2
+WHERE id = $3
+  AND cleared_at IS NULL
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
+`
+
+type UpdateEncryptedWorkspaceSecretValueParams struct {
+	Value      sql.NullString `db:"value" json:"value"`
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
+	ID         uuid.UUID      `db:"id" json:"id"`
+}
+
+// Updates only the encrypted columns on a row. Used by the dbcrypt key
+// rotation utility to re-encrypt or decrypt rows in place.
+// Cleared rows are skipped: they hold no value, and a row cleared between
+// the rotation's list and this update must not have a value written back.
+func (q *sqlQuerier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg UpdateEncryptedWorkspaceSecretValueParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedWorkspaceSecretValue, arg.Value, arg.ValueKeyID, arg.ID)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.WorkspaceBuildID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.Ephemeral,
+		&i.Source,
+		&i.CreatedAt,
+		&i.ClearedAt,
+	)
 	return i, err
 }
 

@@ -152,8 +152,13 @@ func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSourc
 	}}})
 }
 
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
 func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
-	t.Parallel()
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
 
 	const selfDependencyPlanJSON = `{
 		"format_version":"1.2",
@@ -277,9 +282,8 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
 			graphPath := filepath.Join(dir, "graph.dot")
@@ -343,8 +347,13 @@ esac
 	}
 }
 
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
 func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
-	t.Parallel()
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
 
 	// Terraform records the script order data source in prior state when it is
 	// read during planning. The plan fixture reproduces that shape so this test
@@ -416,9 +425,8 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
 			statePath := filepath.Join(dir, "state.json")

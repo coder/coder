@@ -471,7 +471,11 @@ func (api *API) validateChatProjectDefaults(
 			return "default_preset_id", "The default preset must belong to the default template's active version.", nil
 		}
 	}
-	if len(req.DefaultParameters) > 0 {
+	// Dynamic parameters can appear or change based on other values, so the
+	// stored parameter rows cannot check their names or values. Only the
+	// classic flow is checked here; the build validates dynamic parameters
+	// when a workspace is created.
+	if len(req.DefaultParameters) > 0 && template.UseClassicParameterFlow {
 		parameters, err := api.Database.GetTemplateVersionParameters(ctx, activeVersionID)
 		if err != nil {
 			return "", "", xerrors.Errorf("get template version parameters: %w", err)
@@ -480,12 +484,6 @@ func (api *API) validateChatProjectDefaults(
 			index := slices.IndexFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name })
 			if index < 0 {
 				return "default_parameters", fmt.Sprintf("Parameter %q does not exist on the default template's active version.", name), nil
-			}
-			// Dynamic parameters can depend on other values, so only the
-			// classic flow's stored rules can check a value on its own. The
-			// build validates dynamic values when a workspace is created.
-			if !template.UseClassicParameterFlow {
-				continue
 			}
 			parameter, err := db2sdk.TemplateVersionParameter(parameters[index])
 			if err != nil {
