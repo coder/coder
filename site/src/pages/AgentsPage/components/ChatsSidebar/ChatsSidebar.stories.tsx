@@ -3078,6 +3078,26 @@ export const ProjectFolderExpanded: Story = {
 	},
 };
 
+const mockOtherOrganizationLaunchProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-launch-project",
+	organization_id: MockOrganization2.id,
+};
+
+export const SameNamedProjects: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockOtherOrganizationLaunchProject],
+			},
+		],
+	},
+};
+
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {

@@ -236,11 +236,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								className="size-4"
 							/>
 							<span className="flex-1 truncate">{project.name}</span>
-							{organizationLabel && (
-								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
-									{organizationLabel}
-								</span>
-							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
