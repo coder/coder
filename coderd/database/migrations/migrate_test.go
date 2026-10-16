@@ -4594,7 +4594,7 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 	require.Zero(t, updated.ScriptOrderRuleCount)
 }
 
-func TestMigration000626WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
+func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -4635,7 +4635,7 @@ func TestMigration000626WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	skippedTiming := timingWith(database.WorkspaceAgentScriptTimingStatusSkipped, at.Add(time.Minute), 0)
 	canceledTiming := timingWith(database.WorkspaceAgentScriptTimingStatusCanceled, at.Add(2*time.Minute), -1)
 
-	downSQL, err := os.ReadFile("000626_workspace_agent_script_timing_skipped_canceled.down.sql")
+	downSQL, err := os.ReadFile("000627_workspace_agent_script_timing_skipped_canceled.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -4662,7 +4662,7 @@ func TestMigration000626WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	require.Equal(t, "exit_failure", status)
 	require.Equal(t, int32(255), exitCode)
 
-	upSQL, err := os.ReadFile("000626_workspace_agent_script_timing_skipped_canceled.up.sql")
+	upSQL, err := os.ReadFile("000627_workspace_agent_script_timing_skipped_canceled.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)

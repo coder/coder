@@ -102,11 +102,12 @@ import (
 //     Terraform address and its resolved coder_script_order prerequisites
 //     in the manifest. Both are empty for unordered scripts.
 //   - A v2.14 agent runs start and stop scripts in dependency order.
+//   - Added rx_bytes and tx_bytes to Connection on the agent API.
 //
 // API v2.15:
 //   - Added SKIPPED and CANCELED to Timing.Status on the Agent API, for a
 //     lifecycle script that never ran because of a prerequisite and one the
-//     workspace stopped before it finished. Agents do not send either value
+//     agent shut down before it finished. Agents do not send either value
 //     yet.
 const (
 	CurrentMajor = 2
