@@ -10,6 +10,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -80,6 +81,7 @@ func (f DevcontainerFeatures) OptionsAsEnvs() []string {
 
 type DevcontainerConfiguration struct {
 	Customizations DevcontainerCustomizations `json:"customizations,omitempty"`
+	WaitFor        string                     `json:"waitFor,omitempty"`
 }
 
 type DevcontainerCustomizations struct {
@@ -110,9 +112,10 @@ type DevcontainerCLI interface {
 type DevcontainerCLIUpOptions func(*DevcontainerCLIUpConfig)
 
 type DevcontainerCLIUpConfig struct {
-	Args   []string // Additional arguments for the Up command.
-	Stdout io.Writer
-	Stderr io.Writer
+	Args    []string // Additional arguments for the Up command.
+	Stdout  io.Writer
+	Stderr  io.Writer
+	OnReady func()
 }
 
 // WithRemoveExistingContainer is an option to remove the existing
@@ -129,6 +132,15 @@ func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
 	return func(o *DevcontainerCLIUpConfig) {
 		o.Stdout = stdout
 		o.Stderr = stderr
+	}
+}
+
+// WithUpReady calls onReady when the first lifecycle hook after waitFor starts.
+// It is called at most once, before Up returns, and must not block. If no such
+// hook runs, it is not called.
+func WithUpReady(onReady func()) DevcontainerCLIUpOptions {
+	return func(o *DevcontainerCLIUpConfig) {
+		o.OnReady = onReady
 	}
 }
 
@@ -173,8 +185,17 @@ func WithRemoteEnv(env ...string) DevcontainerCLIExecOptions {
 type DevcontainerCLIReadConfigOptions func(*devcontainerCLIReadConfigConfig)
 
 type devcontainerCLIReadConfigConfig struct {
-	stdout io.Writer
-	stderr io.Writer
+	stdout                  io.Writer
+	stderr                  io.Writer
+	skipMergedConfiguration bool
+}
+
+// withoutMergedConfiguration avoids pulling an image before up creates the
+// container.
+func withoutMergedConfiguration() DevcontainerCLIReadConfigOptions {
+	return func(o *devcontainerCLIReadConfigConfig) {
+		o.skipMergedConfiguration = true
+	}
 }
 
 func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) DevcontainerCLIUpConfig {
@@ -234,12 +255,22 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 		args = append(args, "--config", configPath)
 	}
 	args = append(args, conf.Args...)
+
+	stdoutReadyWriter, stderrReadyWriter := io.Discard, io.Discard
+	if conf.OnReady != nil {
+		progressNames := lifecycleProgressNamesAfter(d.readWaitFor(ctx, logger, workspaceFolder, configPath))
+		onReady := sync.OnceFunc(conf.OnReady)
+		stdoutReadyWriter = &lifecycleReadyWriter{progressNames: progressNames, onReady: onReady}
+		stderrReadyWriter = &lifecycleReadyWriter{progressNames: progressNames, onReady: onReady}
+	}
+
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
 
 	// Capture stdout for parsing and stream logs for both default and provided writers.
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(
 		&stdoutBuf,
+		stdoutReadyWriter,
 		&devcontainerCLILogWriter{
 			ctx:    ctx,
 			logger: logger.With(slog.F("stdout", true)),
@@ -247,11 +278,14 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 		},
 	)
 	// Stream stderr logs and provided writer if any.
-	cmd.Stderr = &devcontainerCLILogWriter{
-		ctx:    ctx,
-		logger: logger.With(slog.F("stderr", true)),
-		writer: conf.Stderr,
-	}
+	cmd.Stderr = io.MultiWriter(
+		stderrReadyWriter,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
+			logger: logger.With(slog.F("stderr", true)),
+			writer: conf.Stderr,
+		},
+	)
 
 	if err := cmd.Run(); err != nil {
 		result, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
@@ -322,7 +356,10 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	conf := applyDevcontainerCLIReadConfigOptions(opts)
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
-	args := []string{"read-configuration", "--include-merged-configuration"}
+	args := []string{"read-configuration"}
+	if !conf.skipMergedConfiguration {
+		args = append(args, "--include-merged-configuration")
+	}
 	if workspaceFolder != "" {
 		args = append(args, "--workspace-folder", workspaceFolder)
 	}
@@ -358,6 +395,89 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	return config, nil
+}
+
+// devcontainerLifecycleHooks lists the lifecycle hooks in the order the
+// devcontainer CLI runs them.
+var devcontainerLifecycleHooks = []string{
+	"initializeCommand",
+	"onCreateCommand",
+	"updateContentCommand",
+	"postCreateCommand",
+	"postStartCommand",
+	"postAttachCommand",
+}
+
+// defaultWaitForHook is the spec default for waitFor in devcontainer.json.
+const defaultWaitForHook = "updateContentCommand"
+
+func (d *devcontainerCLI) readWaitFor(ctx context.Context, logger slog.Logger, workspaceFolder, configPath string) string {
+	config, err := d.ReadConfig(ctx, workspaceFolder, configPath, nil, withoutMergedConfiguration())
+	if err != nil {
+		logger.Warn(ctx, "read waitFor failed, using default", slog.F("default", defaultWaitForHook), slog.Error(err))
+		return defaultWaitForHook
+	}
+	waitFor := config.Configuration.WaitFor
+	if waitFor == "" {
+		return defaultWaitForHook
+	}
+	// The spec excludes postAttachCommand from waitFor.
+	if hookIndex := slices.Index(devcontainerLifecycleHooks, waitFor); hookIndex < 0 || hookIndex == len(devcontainerLifecycleHooks)-1 {
+		logger.Warn(ctx, "unknown waitFor value, using default", slog.F("wait_for", waitFor), slog.F("default", defaultWaitForHook))
+		return defaultWaitForHook
+	}
+	return waitFor
+}
+
+func lifecycleProgressNamesAfter(waitFor string) []string {
+	waitForIndex := slices.Index(devcontainerLifecycleHooks, waitFor)
+	var progressNames []string
+	for _, hook := range devcontainerLifecycleHooks[waitForIndex+1:] {
+		progressNames = append(progressNames, "Running "+hook+"...")
+	}
+	return progressNames
+}
+
+// lifecycleReadyWriter detects the first hook after waitFor. Empty or skipped
+// hooks emit no events, so readiness depends on the next hook that starts.
+type lifecycleReadyWriter struct {
+	progressNames []string
+	onReady       func()
+	ready         bool
+	partialLine   []byte
+}
+
+func (w *lifecycleReadyWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	for !w.ready {
+		newlineIndex := bytes.IndexByte(p, '\n')
+		if newlineIndex < 0 {
+			w.partialLine = append(w.partialLine, p...)
+			break
+		}
+		w.partialLine = append(w.partialLine, p[:newlineIndex]...)
+		p = p[newlineIndex+1:]
+		if w.startsHookAfterWaitFor(w.partialLine) {
+			w.ready = true
+			w.partialLine = nil
+			w.onReady()
+			break
+		}
+		w.partialLine = w.partialLine[:0]
+	}
+	return n, nil
+}
+
+func (w *lifecycleReadyWriter) startsHookAfterWaitFor(line []byte) bool {
+	var event struct {
+		Type   string `json:"type"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	if len(line) == 0 || line[0] != '{' || json.Unmarshal(line, &event) != nil {
+		return false
+	}
+	return event.Type == "progress" && event.Status == "running" && slices.Contains(w.progressNames, event.Name)
 }
 
 // parseDevcontainerCLILastLine parses the last line of the devcontainer CLI output
