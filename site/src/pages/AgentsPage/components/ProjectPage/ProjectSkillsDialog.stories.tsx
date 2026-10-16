@@ -59,6 +59,21 @@ export const Empty: Story = {
 	},
 };
 
+export const AtCapacity: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: Array.from({ length: 100 }, (_, index) => ({
+					...mockSkills[0],
+					id: `skill-${index}`,
+					name: `skill-${index}`,
+				})),
+			},
+		],
+	},
+};
+
 export const Loading: Story = {
 	parameters: { queries: [] },
 	beforeEach: () => {
