@@ -885,6 +885,7 @@ func TestPostChats(t *testing.T) {
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			PlanMode:       codersdk.ChatPlanModePlan,
 			OrganizationID: firstUser.OrganizationID, Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -909,6 +910,7 @@ func TestPostChats(t *testing.T) {
 		messagesResult, err := memberClient.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, chatResult.ID)
+		require.Equal(t, codersdk.ChatPlanModePlan, chatResult.PlanMode)
 
 		foundUserMessage := false
 		for _, message := range messagesResult.Messages {

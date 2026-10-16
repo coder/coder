@@ -728,6 +728,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		mode     database.NullChatMode
 		planMode database.NullChatPlanMode
 		child    bool
+		// spawn delegates to a general sub-agent, which must keep the
+		// parent's plan mode.
+		spawn bool
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
@@ -748,9 +751,10 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		{
 			name:     "PlanRoot",
 			planMode: plan,
+			spawn:    true,
 			prompt:   []string{planRootOverlay, proposePlan},
 			want: []string{
-				"write_file", "edit_files", "execute", "process_output", "ask_user_question",
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "spawn_agent",
 				"approved__echo", "filtered__visible", "inline__echo",
 			},
 			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
@@ -891,8 +895,51 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
+
+			if tt.spawn {
+				tool := findToolByName(env.Tools, spawnAgentToolName)
+				require.NotNil(t, tool)
+				response, err := tool.Run(ctx, fantasy.ToolCall{
+					ID:    uuid.NewString(),
+					Name:  spawnAgentToolName,
+					Input: `{"type":"general","prompt":"inspect the codebase","title":"sub"}`,
+				})
+				require.NoError(t, err)
+				childID := requireSpawnAgentChildChatID(t, response)
+				child, err := db.GetChatByID(ctx, childID)
+				require.NoError(t, err)
+				require.Equal(t, chat.PlanMode, child.PlanMode)
+			}
 		})
 	}
+}
+
+func TestCreateExploreChatPreservesMCPSelection(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	chat, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "root-explore",
+		ModelConfigID:      model.ID,
+		ChatMode:           database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+		MCPServerIDs:       []uuid.UUID{config.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase")},
+	})
+	require.NoError(t, err)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{config.ID}, storedChat.MCPServerIDs)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
