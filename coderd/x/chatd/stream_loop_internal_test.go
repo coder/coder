@@ -561,10 +561,9 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 			messages := tt.messages(chatID)
 			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), afterID)
 
-			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 			)
-			tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
 			tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
 			tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        chatID,
@@ -616,10 +615,9 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 		}
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 0)
 
-		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 		)
-		tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
 		tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 			ChatID:        chatID,
@@ -657,10 +655,9 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			HistoryVersion:  3,
 		}
 		expectSync := func(chat database.Chat, afterRevision int64, changed []database.ChatMessage) {
-			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 			)
-			tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
 			tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
 			tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        chatID,
