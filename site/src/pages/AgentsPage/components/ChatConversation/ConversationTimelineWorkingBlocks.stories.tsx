@@ -10,9 +10,11 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockPageFromAttachedFileMessages,
 	MockQuestionCallMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
@@ -76,7 +78,8 @@ export const Expanded: Story = {
 	},
 };
 
-// Only the answer's final text shows after the summary.
+// The answer's lead-in text closes the steps' block, and its search folds into
+// a block of its own before the final text.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
@@ -88,10 +91,12 @@ export const AnswerWorkFoldsExpanded: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
 	},
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: "Worked for 15s (3 steps)",
-			}),
+			canvas.getByRole("button", { name: "Worked for 13s (2 steps)" }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 2s (1 step)" }),
 		);
 	},
 };
@@ -120,7 +125,7 @@ export const UncitedSearchAnswerFoldsExpanded: Story = {
 	},
 };
 
-export const LabeledNarrationFolds: Story = {
+export const LabeledNarrationStaysVisible: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
 			MockWorkingMessages[0],
@@ -144,9 +149,68 @@ export const LabeledNarrationFolds: Story = {
 	},
 };
 
-export const LeadInBeforeSearchFolds: Story = {
+export const LeadInBeforeSearchStaysVisible: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 2s (1 step)",
+			}),
+		);
+	},
+};
+
+export const TextBetweenStepsSplitsBlocks: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			{
+				...MockWorkingMessages[3],
+				content: [
+					{
+						type: "text",
+						text: "The first check passed. Running the trials next.",
+					},
+					...(MockWorkingMessages[3].content ?? []),
+				],
+			},
+			...MockWorkingMessages.slice(4),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 3s (1 step)" }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 8s (1 step)" }),
+		);
+	},
+};
+
+// The answer's reasoning after the attached file stays in the block.
+export const AttachedFilesRenderBelowBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockAttachedFileMessages,
+			{
+				...MockChatMessage,
+				id: 5,
+				role: "assistant",
+				created_at: workingFixtureTime(4),
+				content: [
+					{
+						type: "reasoning",
+						text: "Summarizing the report",
+						created_at: workingFixtureTime(2),
+						completed_at: workingFixtureTime(3),
+					},
+					{ type: "text", text: "The inspection report is attached." },
+				],
+			},
+		]),
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -161,6 +225,24 @@ export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages.slice(3)),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for at least 8s (1 step or more)",
+			}),
+		);
+	},
+};
+
+// The page's block may continue from older history, so it renders above the
+// attached file, where it stays once that history loads.
+export const PaginatedFromAttachedFile: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockPageFromAttachedFileMessages,
+		),
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
