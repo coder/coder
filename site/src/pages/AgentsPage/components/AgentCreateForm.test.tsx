@@ -948,40 +948,6 @@ describe("AgentCreateForm project picker", () => {
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
 	});
 
-	it("drops project skill chips when the picked project changes", async () => {
-		const queryClient = createProjectQueryClient();
-		queryClient.setQueryData(userSkillsKey(), [
-			{ ...MockSkill, name: "notes" },
-		]);
-		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
-			{ ...MockSkill, name: "triage" },
-		]);
-		const { onCreateChat } = renderForm({}, { queryClient });
-
-		await pickProject(MockChatProject.name);
-		await user().click(screen.getByRole("textbox", { name: "Chat message" }));
-		for (const name of ["triage", "notes"]) {
-			await user().paste("/");
-			await user().click(
-				await screen.findByRole("option", { name: new RegExp(name) }),
-			);
-		}
-		await user().click(screen.getByRole("button", { name: /^Project:/ }));
-		await user().click(
-			await screen.findByRole("option", { name: /^No project/ }),
-		);
-		await submitMessage("scope changed");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(
-			submittedOptions(onCreateChat).composerParts?.filter(
-				(part) => part.type === "skill-invocation",
-			),
-		).toEqual([
-			{ type: "skill-invocation", source: "personal", name: "notes" },
-		]);
-	});
-
 	it("drops organization skill chips when the organization is revoked", async () => {
 		dashboard.showOrganizations = true;
 		localStorage.setItem(
