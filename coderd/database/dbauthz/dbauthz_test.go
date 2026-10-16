@@ -7537,6 +7537,37 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
+	s.Run("GetOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		price := database.AIModelConfig{OrganizationID: orgID, ProviderID: uuid.New(), Model: "claude-sonnet-4-5"}
+		db.EXPECT().GetOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(price, nil).AnyTimes()
+		check.Args(database.GetOrganizationAIProviderModelPriceParams{
+			OrganizationID: orgID,
+			ProviderID:     price.ProviderID,
+			Model:          price.Model,
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead).Returns(price)
+	}))
+
+	s.Run("UpsertOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		db.EXPECT().UpsertOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.UpsertOrganizationAIProviderModelPriceParams{
+			OrganizationID: orgID,
+			ProviderID:     uuid.New(),
+			Model:          "claude-sonnet-4-5",
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
+	}))
+
+	s.Run("DeleteOrganizationAIProviderModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		db.EXPECT().DeleteOrganizationAIProviderModelPrice(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args(database.DeleteOrganizationAIProviderModelPriceParams{
+			OrganizationID: orgID,
+			ProviderID:     uuid.New(),
+			Model:          "claude-sonnet-4-5",
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate).Returns(int64(1))
+	}))
+
 	s.Run("GetAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPrices(gomock.Any(), gomock.Any()).Return([]database.AIModelPrice{}, nil).AnyTimes()
 		check.Args(database.GetAIModelPricesParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
