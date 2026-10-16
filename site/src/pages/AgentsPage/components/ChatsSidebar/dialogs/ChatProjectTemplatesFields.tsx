@@ -163,12 +163,15 @@ export const ChatProjectTemplatesFields: React.FC<
 						disabled={disabled}
 						hidePlaceholderWhenSelected
 					/>
-				) : templatesError ? (
-					<p className="m-0 text-sm text-content-destructive">
+				) : (
+					!templatesError && <Skeleton className="h-10 w-full" />
+				)}
+				{/* Shown with cached templates too, since a failed refetch means
+				    the list may be out of date. */}
+				{Boolean(templatesError) && (
+					<p role="alert" className="m-0 text-sm text-content-destructive">
 						{getErrorMessage(templatesError, "Failed to load templates.")}
 					</p>
-				) : (
-					<Skeleton className="h-10 w-full" />
 				)}
 				<p className="m-0 text-xs text-content-secondary">
 					Chats in this project can only use these templates. Without templates,
@@ -306,7 +309,7 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 						</div>
 					)
 				) : presetsQuery.error ? (
-					<p className="m-0 text-sm text-content-destructive">
+					<p role="alert" className="m-0 text-sm text-content-destructive">
 						{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
 					</p>
 				) : (
@@ -345,7 +348,7 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 					})
 				)
 			) : parametersQuery.error ? (
-				<p className="m-0 text-sm text-content-destructive">
+				<p role="alert" className="m-0 text-sm text-content-destructive">
 					{getErrorMessage(parametersQuery.error, "Failed to load parameters.")}
 				</p>
 			) : (
