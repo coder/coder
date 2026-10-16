@@ -150,7 +150,7 @@ function tooltipContent(t: ScriptTiming): React.ReactNode {
 		case "pipes_left_open":
 			return "Script exited without closing its output pipes.";
 		case "skipped":
-			return "Script was skipped because a prerequisite did not reach the required outcome.";
+			return "Script was skipped because a script it depends on failed, timed out, or was skipped.";
 		case "canceled":
 			return "Script was canceled because the agent shut down before it finished.";
 		default:

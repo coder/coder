@@ -124,7 +124,7 @@ export const SkippedScript: Story = {
 		const bar = await canvas.findByLabelText("Install tools: skipped");
 		await user.hover(bar);
 		await body.findByText(
-			"Script was skipped because a prerequisite did not reach the required outcome.",
+			"Script was skipped because a script it depends on failed, timed out, or was skipped.",
 		);
 	},
 };
