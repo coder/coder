@@ -865,10 +865,13 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			// Return authorization response with user ID and username.
+			// Return authorization response with user ID, username, and a
+			// resolved organization. The organization is not used downstream
+			// yet and must not change request handling.
 			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
-				OwnerId:  testUserID.String(),
-				Username: testUsername,
+				OwnerId:        testUserID.String(),
+				Username:       testUsername,
+				OrganizationId: uuid.NewString(),
 			}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
