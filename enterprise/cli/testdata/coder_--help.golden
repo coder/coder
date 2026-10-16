@@ -18,7 +18,7 @@ SUBCOMMANDS:
                            HTTP/HTTPS requests
     ai-gateway             Manage AI Gateway
     external-workspaces    Create or manage external workspaces
-    features               List Enterprise features
+    features               List license features and entitlements
     groups                 Manage groups
     licenses               Add, delete, and list licenses
     prebuilds              Manage Coder prebuilds

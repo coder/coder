@@ -293,6 +293,10 @@ func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
+func (r GetWorkspaceSecretsHistoryRow) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceSecret.WithID(r.ID).WithOwner(r.WorkspaceOwnerID.String()).InOrg(r.WorkspaceOrganizationID)
+}
+
 func (c GetChatFileDataPrefixesByIDsRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
@@ -560,6 +564,12 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 
 func (w Workspace) RBACObject() rbac.Object {
 	return w.WorkspaceTable().RBACObject()
+}
+
+// WorkspaceSecretRBACObject returns the RBAC object for the workspace's
+// secrets, owned by the workspace owner.
+func (w Workspace) WorkspaceSecretRBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceSecret.WithOwner(w.OwnerID.String()).InOrg(w.OrganizationID)
 }
 
 // IsPrebuild returns true if the workspace is a prebuild workspace.
@@ -1119,6 +1129,8 @@ type UpsertConnectionLogParams struct {
 	ClientSessionID  sql.NullString      `db:"client_session_id" json:"client_session_id"`
 	Time             time.Time           `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus    `db:"connection_status" json:"connection_status"`
+	RxBytes          sql.NullInt64       `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes          sql.NullInt64       `db:"tx_bytes" json:"tx_bytes"`
 }
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
