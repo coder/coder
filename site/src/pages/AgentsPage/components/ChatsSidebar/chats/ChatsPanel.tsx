@@ -106,6 +106,8 @@ type ChatsPanelProps = {
 	readonly organizations: readonly Organization[];
 	readonly isProjectsLoading: boolean;
 	readonly projectsError: unknown;
+	/** True when the first projects load failed and no data is cached. */
+	readonly isProjectsLoadError: boolean;
 	readonly onRetryProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDeleteProject: DeleteProject;
@@ -142,6 +144,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	organizations,
 	isProjectsLoading,
 	projectsError,
+	isProjectsLoadError,
 	onRetryProjects,
 	onOpenProjectDialog,
 	onDeleteProject,
@@ -622,6 +625,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							{chatProjectsEnabled && (
 								<ChatTreeContext value={chatTreeCtx}>
 									<ProjectFolders
+										currentUserId={currentUserId}
 										projects={projects}
 										organizations={organizations}
 										chatsByProjectId={chatsByProjectId}
@@ -637,6 +641,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 										onDelete={onDeleteProject}
 										isLoading={isProjectsLoading}
 										error={projectsError}
+										isLoadError={isProjectsLoadError}
 										onRetry={onRetryProjects}
 										emptyMessage={emptyStateMessage}
 										draggedChat={draggedChat}

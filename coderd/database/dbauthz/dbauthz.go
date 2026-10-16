@@ -5023,6 +5023,13 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 	return q.db.GetRuntimeConfig(ctx, key)
 }
 
+func (q *querier) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return database.GetScriptOrderTelemetrySummaryRow{}, err
+	}
+	return q.db.GetScriptOrderTelemetrySummary(ctx)
+}
+
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	// GetStaleChats is a system-level operation used by the chat processor for recovery.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
@@ -6236,9 +6243,9 @@ func (q *querier) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorks
 	return q.db.GetWorkspaceSecrets(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
 	// Metadata only; values are never selected.
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, workspaceID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
@@ -8689,6 +8696,28 @@ func (q *querier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpdateTemplateVersionFlagsByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	// An actor is allowed to update the template version script order usage data if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
