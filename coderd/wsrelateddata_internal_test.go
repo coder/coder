@@ -108,7 +108,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "Apps",
-			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: true}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -184,7 +184,7 @@ func TestWorkspaceBuildsDataResourcesShortCircuit(t *testing.T) {
 	db.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), gomock.Any()).
 		Return([]database.WorkspaceResource{}, nil)
 
-	cfg := wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}}}
+	cfg := wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: true}}}
 	api := &API{Options: &Options{Database: db}}
 	_, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{build}, cfg)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 		{
 			name: "Apps",
 			cfg: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
-				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}},
+				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: true}},
 			}},
 			setup: func(db *dbmock.MockStore) {
 				// With no builds, only the build and (empty) resource queries run.

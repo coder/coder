@@ -1326,7 +1326,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	)
 
 	var eg errgroup.Group
-	if agentsCfg.Apps != nil {
+	if agentsCfg.Apps {
 		eg.Go(func() (err error) {
 			// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
 			apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)

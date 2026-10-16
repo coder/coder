@@ -21,7 +21,7 @@ func TestAll(t *testing.T) {
 	require.NotNil(t, all.LatestBuild.Resources)
 	require.True(t, all.LatestBuild.Resources.Metadata)
 	require.NotNil(t, all.LatestBuild.Resources.Agents)
-	require.NotNil(t, all.LatestBuild.Resources.Agents.Apps)
+	require.True(t, all.LatestBuild.Resources.Agents.Apps)
 	require.True(t, all.LatestBuild.Resources.Agents.Scripts)
 	require.True(t, all.LatestBuild.Resources.Agents.LogSources)
 }
