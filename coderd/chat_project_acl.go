@@ -142,7 +142,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		// Lock granted users' memberships before the project row. A membership
-		// delete locks its row and then, through the 000624 trigger, the project
+		// delete locks its row and then, through the 000628 trigger, the project
 		// row, so the reverse order could deadlock. Holding the membership lock
 		// also keeps a delete from missing the grant written below.
 		if userIDs := grantedChatProjectIDs(userRoles); len(userIDs) > 0 {
@@ -328,7 +328,7 @@ func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatPr
 	//nolint:gocritic // Project readers see who it is shared with without user read permission.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	// Entries for users outside the organization grant nothing, because access
-	// requires membership, so hide them. The 000624 trigger and the membership
+	// requires membership, so hide them. The 000628 trigger and the membership
 	// lock in patchChatProjectACL keep such entries from being written.
 	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {

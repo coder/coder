@@ -13,14 +13,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestMigration000624DropsOutOfOrgChatProjectGrants(t *testing.T) {
+func TestMigration000628DropsOutOfOrgChatProjectGrants(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 623)
+	stepTo(t, sqlDB, 627)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db := database.New(sqlDB)
@@ -41,7 +41,7 @@ func TestMigration000624DropsOutOfOrgChatProjectGrants(t *testing.T) {
 		projectID, org.ID, owner.ID, userACL)
 	require.NoError(t, err)
 
-	migration, err := os.ReadFile("000624_chat_project_acl_org_member_delete.up.sql")
+	migration, err := os.ReadFile("000628_chat_project_acl_org_member_delete.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(migration))
 	require.NoError(t, err)
