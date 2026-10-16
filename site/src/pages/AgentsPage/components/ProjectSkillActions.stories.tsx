@@ -84,3 +84,18 @@ export const FiveActionsMoreOpen: Story = {
 		await userEvent.click(await screen.findByRole("button", { name: "More" }));
 	},
 };
+
+export const NarrowWidth: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		queries: [
+			{ key: chatProjectSkillsKey(MockChatProject.id), data: mockActionSkills },
+		],
+	},
+};
