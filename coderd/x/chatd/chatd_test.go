@@ -4803,6 +4803,86 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 }
 
+func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "after-id-edit-test",
+		Status:            database.ChatStatusWaiting,
+	})
+
+	insertMessage := func(role database.ChatMessageRole, text string) database.ChatMessage {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(text),
+		})
+		require.NoError(t, err)
+		msg := database.ChatMessage{
+			ChatID:         chat.ID,
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           role,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Content:        content,
+		}
+		if role == database.ChatMessageRoleUser {
+			msg.CreatedBy = uuid.NullUUID{UUID: user.ID, Valid: true}
+		}
+		return dbgen.ChatMessage(t, db, msg)
+	}
+	first := insertMessage(database.ChatMessageRoleUser, "first")
+	firstReply := insertMessage(database.ChatMessageRoleAssistant, "first reply")
+	second := insertMessage(database.ChatMessageRoleUser, "second")
+	secondReply := insertMessage(database.ChatMessageRoleAssistant, "second reply")
+
+	// Editing the second user message deletes it and its reply.
+	edit, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: second.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("second edited")},
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{second.ID, secondReply.ID}, edit.DeletedMessageIDs)
+	require.NotEmpty(t, edit.InsertedMessages)
+	newest := edit.InsertedMessages[len(edit.InsertedMessages)-1]
+
+	isHistoryReset := func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	}
+
+	// A client that loaded after the edit gets neither a reset nor the
+	// messages it holds.
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID)
+	require.True(t, ok)
+	cancel()
+	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
+	require.Empty(t, filterMessageEvents(snapshot))
+
+	// A client that loaded before the edit holds deleted messages, so it
+	// gets a reset with the live history.
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID)
+	require.True(t, ok)
+	cancel()
+	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
+	wantIDs := []int64{first.ID, firstReply.ID}
+	for _, msg := range edit.InsertedMessages {
+		wantIDs = append(wantIDs, msg.ID)
+	}
+	var gotIDs []int64
+	for _, e := range filterMessageEvents(snapshot) {
+		gotIDs = append(gotIDs, e.Message.ID)
+	}
+	require.Equal(t, wantIDs, gotIDs)
+}
+
 // filterMessageEvents returns only the Message-type events from a
 // snapshot slice, which is useful for ignoring status / queue events.
 func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
