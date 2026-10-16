@@ -147,9 +147,12 @@ export const ChipRemoveButton: React.FC<{
 			e.stopPropagation();
 			onRemove();
 		}}
-		// Keys on the focused button must not reach the editor, where Enter
-		// would send the message instead of pressing the button.
-		onKeyDownCapture={(e) => e.stopPropagation()}
+		// Enter would send the message from the editor instead of pressing this.
+		onKeyDownCapture={(e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.stopPropagation();
+			}
+		}}
 		aria-label={label}
 	>
 		<XIcon className="size-2.5" />
