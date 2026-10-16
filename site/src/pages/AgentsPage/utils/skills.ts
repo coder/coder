@@ -366,7 +366,7 @@ export const organizationSkillsScope = (
 	remove: (queryClient) => deleteOrganizationSkill(queryClient, organizationId),
 });
 
-/** Reads and changes the skills of one chat project. */
+/** Adapts a project's skill queries to SkillsScope; mutations refresh its list. */
 export const projectSkillsScope = (
 	organizationId: string,
 	projectId: string,
