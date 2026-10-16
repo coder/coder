@@ -125,7 +125,7 @@ const SkillChipWrapper: React.FC<{
 /** chatd rejects a message that invokes more skills than this. */
 export const MAX_SKILL_INVOCATIONS_PER_MESSAGE = 8;
 
-/** Tells the user that a chip was not added because of the skill limit. */
+/** Reports chips rejected by the limit, for direct insertion and paste alike. */
 export const warnSkillLimit = () => {
 	toast.error(
 		`A message can include up to ${MAX_SKILL_INVOCATIONS_PER_MESSAGE} skills.`,
