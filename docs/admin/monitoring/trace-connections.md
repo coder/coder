@@ -142,14 +142,14 @@ To record every debug entry, set `CODER_VERBOSE=true` in the agent's environment
 
 Search the agent log for these messages:
 
-| Message                                    | What it records                                                                                                                                             |
-|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `handling ssh session`                     | An SSH session started.                                                                                                                                     |
-| `ssh session closed`                       | An SSH session ended. Coder includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                           |
-| `ssh connection complete`                  | An SSH connection closed. When a workspace stop or delete closed it, Coder also includes `disconnect_reason`, `build_id`, `build_reason`, and `transition`. |
-| `ssh connection failed`                    | An SSH connection failed before a session started.                                                                                                          |
-| `accepted conn`, `reconnecting pty closed` | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                                 |
-| `disconnected from coderd`                 | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                                    |
+| Message                                    | What it records                                                                                                                                       |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `handling ssh session`                     | An SSH session started.                                                                                                                               |
+| `ssh session closed`                       | An SSH session ended. Coder includes `disconnect_reason`, `disconnect_expected`, and `exit_code`.                                                     |
+| `ssh connection complete`                  | An SSH connection closed. If the agent was shutting down, Coder also includes `disconnect_reason`, `disconnect_expected`, and `disconnect_initiator`. |
+| `ssh connection failed`                    | An SSH connection failed before a session started.                                                                                                    |
+| `accepted conn`, `reconnecting pty closed` | A web terminal connection opened or closed. The closing entry includes `disconnect_reason`.                                                           |
+| `disconnected from coderd`                 | The agent lost its connection to `coderd`. The buffered debug entries are written just before this line.                                              |
 
 ## Correlate a session
 
@@ -187,22 +187,27 @@ If you start without a session ID, filter the connection log by `workspace_owner
 
 ## Read disconnect reasons
 
-When an SSH session, SSH connection, or web terminal connection closes, the agent logs `disconnect_reason` and `disconnect_expected`, and reports the same reason to the connection log as `DisconnectReason`.
+When an SSH session or web terminal connection closes, the agent logs `disconnect_reason` and `disconnect_expected` and reports the reason to the connection log as `DisconnectReason`.
+The two can differ after a workspace stop or delete: the agent logs `server_shutdown`, and `coderd` records `workspace_stopped` in the connection log.
+`coderd` records `workspace_stopped` only when a stop or delete build that was requested before the connection closed is running or has succeeded.
+Otherwise, the connection log keeps `server_shutdown`.
 
-| `disconnect_reason` | Meaning                                                                                                              |
-|---------------------|----------------------------------------------------------------------------------------------------------------------|
-| `graceful`          | The connection ended cleanly, for example when the SSH command exited with status `0`.                               |
-| `network_error`     | The transport between the client and the agent failed, for example with an EOF, a read or write error, or a timeout. |
-| `server_shutdown`   | The agent closed the connection because the agent was shutting down.                                                 |
-| `workspace_stopped` | A workspace stop or delete closed the connection. `build_reason` shows what started the build.                       |
-| `unknown`           | The agent couldn't determine why the connection closed.                                                              |
+| `disconnect_reason` | Meaning                                                                                                               |
+|---------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `graceful`          | The connection ended cleanly, for example when the SSH command exited with status `0`.                                |
+| `network_error`     | The transport between the client and the agent failed, for example with an EOF, a read or write error, or a timeout.  |
+| `server_shutdown`   | The agent closed the connection because the agent was shutting down.                                                  |
+| `workspace_stopped` | A workspace stop or delete closed the connection. Only the connection log and the `coder ssh` log record this reason. |
+| `unknown`           | The agent couldn't determine why the connection closed.                                                               |
 
 For SSH sessions, the reason can also be a specific message, such as `process exited with error status: 1` when the command exited with a nonzero status.
 
 `disconnect_expected` is `true` for `graceful`, `server_shutdown`, and `workspace_stopped`, and `false` for every other reason.
 Filter on `disconnect_expected=false` to find the disconnects worth investigating.
 
-When `disconnect_reason` is `workspace_stopped`, `build_reason` shows what stopped the workspace:
+When a workspace stop or delete ends a `coder ssh` session, the `coder ssh` log has a `workspace is shutting down` line with `disconnect_reason` set to `workspace_stopped`, `build_id`, `build_reason`, and `transition`.
+The agent log doesn't include these build fields.
+`build_reason` shows what stopped the workspace:
 
 | `build_reason` | The workspace stopped because                 |
 |----------------|-----------------------------------------------|
