@@ -1,0 +1,74 @@
+name: Migration numbering
+
+on:
+  # Metadata only. The trusted main script reads PR blobs through the API and
+  # never checks out or executes PR code with write credentials.
+  pull_request_target: # zizmor: ignore[dangerous-triggers] PR data only.
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+  push:
+    branches: [main]
+    paths:
+      - "coderd/database/migrations/**"
+      - ".github/scripts/migration-*.cjs"
+      - ".github/workflows/migration-numbers.yaml"
+  workflow_dispatch:
+
+permissions: {}
+
+# Revision checks and expectedHeadOid reconcile overlapping runs.
+
+jobs:
+  refresh-migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout trusted automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Check App configuration
+        id: app-settings
+        env:
+          APP_ID: ${{ secrets.BACKPORT_APP_ID }}
+          APP_KEY: ${{ secrets.BACKPORT_APP_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$APP_ID" && -n "$APP_KEY" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Autofix is disabled. Configure BACKPORT_APP_ID and BACKPORT_APP_PRIVATE_KEY with contents:write access; numbering checks remain enabled."
+          fi
+
+      - name: Generate restricted App token
+        id: app-token
+        continue-on-error: true
+        if: steps.app-settings.outputs.configured == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BACKPORT_APP_ID }}
+          private-key: ${{ secrets.BACKPORT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Check and repair migration numbers
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          script: |
+            const { run } = require("./.github/scripts/migration-automation.cjs");
+            const token = process.env.APP_TOKEN;
+            await run({ github, context, core, writer: token ? getOctokit(token) : undefined });
