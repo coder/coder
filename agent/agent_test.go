@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -1436,6 +1437,40 @@ func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 	_ = requireEcho(t, conn)
+}
+
+func TestAgent_X11ForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockX11Forwarding = true
+	})
+
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	payload := gossh.Marshal(struct {
+		SingleConnection bool
+		AuthProtocol     string
+		AuthCookie       string
+		ScreenNumber     uint32
+	}{
+		SingleConnection: false,
+		AuthProtocol:     "MIT-MAGIC-COOKIE-1",
+		AuthCookie:       "fake-cookie",
+		ScreenNumber:     0,
+	})
+
+	ok, err := session.SendRequest("x11-req", true, payload)
+
+	require.NoError(t, err)
+	require.False(t, ok, "x11-req should be denied by the server")
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {

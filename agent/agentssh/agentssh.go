@@ -114,6 +114,8 @@ type Config struct {
 	BlockReversePortForwarding bool
 	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
 	BlockLocalPortForwarding bool
+	// BlockX11Forwarding disables X11 forwarding (ssh -X).
+	BlockX11Forwarding bool
 	// ConnectionReporter reports connect and disconnect events.
 	ConnectionReporter proto.ConnectionReporter
 	// Experimental: allow connecting to running containers via Docker exec.
@@ -632,6 +634,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 
 	x11, hasX11 := session.X11()
+	// DOUBLE CHECK: Defensively gate X11 so DISPLAY is never injected if blocked.
 	if hasX11 {
 		display, handled := s.x11Forwarder.x11Handler(ctx, session)
 		if !handled {
