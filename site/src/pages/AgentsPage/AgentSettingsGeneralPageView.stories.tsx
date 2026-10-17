@@ -20,6 +20,8 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	userPromptData: {
 		custom_prompt: "Prefer concise answers with clear next steps.",
 	},
+	isLoadingUserPrompt: false,
+	userPromptError: undefined,
 	onSaveUserPrompt: fn(),
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
@@ -38,7 +40,7 @@ const meta = {
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
 	parameters: {
-		queries: [{ key: ["me", "preferences"], data: preferencesData }],
+		queries: [{ key: preferenceSettingsKey, data: preferencesData }],
 	},
 } satisfies Meta<typeof AgentSettingsGeneralPageView>;
 
@@ -46,6 +48,23 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsGeneralPageView>;
 
 export const Default: Story = {};
+
+export const LoadingPersonalInstructions: Story = {
+	args: { userPromptData: undefined, isLoadingUserPrompt: true },
+};
+
+export const PersonalInstructionsLoadError: Story = {
+	args: {
+		userPromptData: undefined,
+		userPromptError: new Error(
+			"Unable to load personal instructions. Please reload the page.",
+		),
+	},
+};
+
+export const EmptyPersonalInstructions: Story = {
+	args: { userPromptData: { custom_prompt: "" } },
+};
 
 export const InvisibleUnicodeWarningUserPrompt: Story = {
 	args: {
