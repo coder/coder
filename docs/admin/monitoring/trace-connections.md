@@ -10,7 +10,7 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
 ## Before you begin
 
 - Update workspace agents to the same version as your Coder server.
-  Agents from earlier versions keep working, but they don't record client session IDs, app names, or workspace shutdown reasons.
+  Agents from earlier versions keep working, but they don't record client session IDs, app names, workspace shutdown reasons, or bytes transferred.
 - Collect `coderd` logs with a log management tool such as Splunk, Datadog, or Grafana Loki.
   JSON output is easiest to query.
   Turn on JSON output with [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json).
@@ -107,15 +107,15 @@ Gather `coderd` and agent logs that cover the time of the failure.
 For SSH and web terminal connections, the agent reports both events, so each connection produces a `connected` entry and a `disconnected` entry with the same `ConnectionID`.
 The fields that matter most for tracing are in the following table:
 
-| Field                | Description                                                                                                                           |
-|----------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `ClientSessionID`    | The client session ID. Empty for workspace app, port forwarding, and tunnel events, and for connections from older clients or agents. |
-| `ConnectionID`       | Identifies one SSH or web terminal connection.                                                                                        |
-| `ConnectionStatus`   | `connected` or `disconnected`.                                                                                                        |
-| `ConnectionMethod`   | How the connection was made, such as `ssh` or `reconnecting_pty`.                                                                     |
-| `AppNameOrPort`      | The app that made an SSH or web terminal connection, such as `vscode` or `cursor`.                                                    |
-| `DisconnectReason`   | Why the connection closed, on `disconnected` entries. Refer to [Read disconnect reasons](#read-disconnect-reasons).                   |
-| `RxBytes`, `TxBytes` | Bytes the agent received and sent over the connection.                                                                                |
+| Field                | Description                                                                                                                               |
+|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `ClientSessionID`    | The client session ID. Empty for workspace app, port forwarding, and tunnel events, and for connections from older clients or agents.     |
+| `ConnectionID`       | Identifies one SSH or web terminal connection.                                                                                            |
+| `ConnectionStatus`   | `connected` or `disconnected`.                                                                                                            |
+| `ConnectionMethod`   | How the connection was made, such as `ssh` or `reconnecting_pty`.                                                                         |
+| `AppNameOrPort`      | The app that made an SSH or web terminal connection, such as `vscode` or `cursor`.                                                        |
+| `DisconnectReason`   | Why the connection closed, on `disconnected` entries. Refer to [Read disconnect reasons](#read-disconnect-reasons).                       |
+| `RxBytes`, `TxBytes` | Bytes the agent received and sent over an SSH or web terminal connection. Set only on `disconnected` entries, and empty for older agents. |
 
 For every field and an example entry, refer to [Service logs](./connection-logs.md#service-logs).
 
