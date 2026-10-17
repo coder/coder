@@ -63,8 +63,7 @@ import (
 //
 // API v2.8:
 //   - Added support for pre-created sub agents on the Agent API.
-//   - Added support for UpdateAppStatus on the Agent API. Now a deprecated
-//     no-op; remove in the next major version.
+//   - Added support for UpdateAppStatus on the Agent API.
 //
 // API v2.9:
 //   - Added session_id and confined_process fields to
@@ -110,9 +109,14 @@ import (
 //     lifecycle script that never ran because of a prerequisite and one the
 //     agent shut down before it finished.
 //   - A v2.15 agent reports skipped and canceled startup scripts.
+//
+// API v2.16:
+//   - Deprecated UpdateAppStatus on the Agent API. Workspace app statuses
+//     were removed, so coderd accepts and discards the request. Remove the
+//     RPC in the next major version.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 15
+	CurrentMinor = 16
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
