@@ -3,13 +3,17 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -83,6 +87,10 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	templates, ok := api.chatProjectTemplateFieldsOrWriteError(ctx, rw, organization.ID, req.Templates)
+	if !ok {
+		return
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -117,6 +125,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			Name:           req.Name,
 			Description:    req.Description,
 			Icon:           req.Icon,
+
+			TemplateIDs:                    templates.templateIDs,
+			DefaultTemplateID:              templates.defaultTemplateID,
+			DefaultTemplateVersionPresetID: templates.defaultPresetID,
+			DefaultParameters:              pqtype.NullRawMessage{RawMessage: templates.defaultParameters, Valid: true},
 		})
 		return err
 	}, nil)
@@ -174,6 +187,8 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
+	// Update covers the template list and defaults, so anyone allowed to edit
+	// the project, including through its ACL, can change them.
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -209,12 +224,25 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !validateChatProjectFields(ctx, rw, name, description, icon) {
 		return
 	}
+	templates := storedChatProjectTemplateFields(project)
+	if req.Templates != nil {
+		var ok bool
+		templates, ok = api.chatProjectTemplateFieldsOrWriteError(ctx, rw, project.OrganizationID, req.Templates)
+		if !ok {
+			return
+		}
+	}
 
 	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
 		ID:          project.ID,
 		Name:        name,
 		Description: description,
 		Icon:        icon,
+
+		TemplateIDs:                    templates.templateIDs,
+		DefaultTemplateID:              templates.defaultTemplateID,
+		DefaultTemplateVersionPresetID: templates.defaultPresetID,
+		DefaultParameters:              templates.defaultParameters,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -301,9 +329,175 @@ func validateChatProjectFields(ctx context.Context, rw http.ResponseWriter, name
 	return true
 }
 
+// chatProjectTemplateFieldsOrWriteError validates requested templates and
+// writes the error response when they are invalid or cannot be checked.
+func (api *API) chatProjectTemplateFieldsOrWriteError(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	organizationID uuid.UUID,
+	req *codersdk.ChatProjectTemplates,
+) (chatProjectTemplateFields, bool) {
+	fields, validation, err := api.validateChatProjectTemplates(ctx, organizationID, req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate chat project templates.",
+			Detail:  err.Error(),
+		})
+		return chatProjectTemplateFields{}, false
+	}
+	if validation != nil {
+		writeChatProjectFieldError(ctx, rw, validation.Field, validation.Detail)
+		return chatProjectTemplateFields{}, false
+	}
+	return fields, true
+}
+
 func writeChatProjectFieldError(ctx context.Context, rw http.ResponseWriter, field, detail string) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message:     detail,
 		Validations: []codersdk.ValidationError{{Field: field, Detail: detail}},
 	})
+}
+
+// chatProjectTemplateFields are the validated database values for a
+// project's templates and defaults.
+type chatProjectTemplateFields struct {
+	templateIDs       []uuid.UUID
+	defaultTemplateID uuid.NullUUID
+	defaultPresetID   uuid.NullUUID
+	defaultParameters json.RawMessage
+}
+
+// storedChatProjectTemplateFields returns a project's current template
+// fields so an update that omits templates keeps them.
+func storedChatProjectTemplateFields(project database.ChatProject) chatProjectTemplateFields {
+	return chatProjectTemplateFields{
+		templateIDs:       project.TemplateIDs,
+		defaultTemplateID: project.DefaultTemplateID,
+		defaultPresetID:   project.DefaultTemplateVersionPresetID,
+		defaultParameters: project.DefaultParameters,
+	}
+}
+
+// validateChatProjectTemplates checks a project's requested templates and
+// defaults. Templates are looked up as the requester, so templates they
+// cannot read are reported as unavailable. A non-nil validation error means
+// the request is invalid; a non-nil error means the lookup failed.
+func (api *API) validateChatProjectTemplates(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	req *codersdk.ChatProjectTemplates,
+) (chatProjectTemplateFields, *codersdk.ValidationError, error) {
+	fields := chatProjectTemplateFields{templateIDs: []uuid.UUID{}, defaultParameters: json.RawMessage("{}")}
+	if req == nil {
+		return fields, nil, nil
+	}
+	invalid := func(field, detail string) (chatProjectTemplateFields, *codersdk.ValidationError, error) {
+		return chatProjectTemplateFields{}, &codersdk.ValidationError{Field: "templates." + field, Detail: detail}, nil
+	}
+
+	fields.templateIDs = slice.Unique(req.TemplateIDs)
+	templatesByID := make(map[uuid.UUID]database.Template, len(fields.templateIDs))
+	if len(fields.templateIDs) > 0 {
+		templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+			OrganizationID: organizationID,
+			IDs:            fields.templateIDs,
+			Deprecated:     sql.NullBool{Bool: false, Valid: true},
+			AgentsAllowed:  sql.NullBool{Bool: true, Valid: true},
+		})
+		if err != nil {
+			return chatProjectTemplateFields{}, nil, xerrors.Errorf("get templates: %w", err)
+		}
+		for _, template := range templates {
+			templatesByID[template.ID] = template
+		}
+	}
+	for _, id := range fields.templateIDs {
+		if _, ok := templatesByID[id]; !ok {
+			return invalid("template_ids", fmt.Sprintf("Template %s is not available to agents in this organization.", id))
+		}
+	}
+
+	if req.DefaultTemplateID == nil {
+		if req.DefaultPresetID != nil || len(req.DefaultParameters) > 0 {
+			return invalid("default_template_id", "Default preset and parameters require a default template.")
+		}
+		return fields, nil, nil
+	}
+	defaultTemplate, ok := templatesByID[*req.DefaultTemplateID]
+	if !ok {
+		return invalid("default_template_id", "The default template must be one of the project's templates.")
+	}
+	field, detail, err := api.validateChatProjectDefaults(ctx, defaultTemplate, req)
+	if err != nil {
+		return chatProjectTemplateFields{}, nil, err
+	}
+	if field != "" {
+		return invalid(field, detail)
+	}
+
+	fields.defaultTemplateID = uuid.NullUUID{UUID: *req.DefaultTemplateID, Valid: true}
+	if req.DefaultPresetID != nil {
+		fields.defaultPresetID = uuid.NullUUID{UUID: *req.DefaultPresetID, Valid: true}
+	}
+	if len(req.DefaultParameters) > 0 {
+		raw, err := json.Marshal(req.DefaultParameters)
+		if err != nil {
+			return chatProjectTemplateFields{}, nil, xerrors.Errorf("marshal default parameters: %w", err)
+		}
+		fields.defaultParameters = raw
+	}
+	return fields, nil, nil
+}
+
+// validateChatProjectDefaults checks the default preset and parameters
+// against the default template's active version. It returns the invalid
+// field and its detail, or an empty field when the defaults are valid.
+func (api *API) validateChatProjectDefaults(
+	ctx context.Context,
+	template database.Template,
+	req *codersdk.ChatProjectTemplates,
+) (field string, detail string, err error) {
+	activeVersionID := template.ActiveVersionID
+	if req.DefaultPresetID != nil && len(req.DefaultParameters) > 0 {
+		return "default_preset_id", "Choose a default preset or default parameters, not both.", nil
+	}
+	if req.DefaultPresetID != nil {
+		presets, err := api.Database.GetPresetsByTemplateVersionID(ctx, activeVersionID)
+		if err != nil {
+			return "", "", xerrors.Errorf("get presets: %w", err)
+		}
+		if !slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool { return p.ID == *req.DefaultPresetID }) {
+			return "default_preset_id", "The default preset must belong to the default template's active version.", nil
+		}
+	}
+	// Dynamic parameters can appear or change based on other values, so the
+	// stored parameter rows cannot check their names or values. Only the
+	// classic flow is checked here; the build validates dynamic parameters
+	// when a workspace is created.
+	if len(req.DefaultParameters) > 0 && template.UseClassicParameterFlow {
+		parameters, err := api.Database.GetTemplateVersionParameters(ctx, activeVersionID)
+		if err != nil {
+			return "", "", xerrors.Errorf("get template version parameters: %w", err)
+		}
+		for _, name := range slices.Sorted(maps.Keys(req.DefaultParameters)) {
+			index := slices.IndexFunc(parameters, func(p database.TemplateVersionParameter) bool { return p.Name == name })
+			if index < 0 {
+				return "default_parameters", fmt.Sprintf("Parameter %q does not exist on the default template's active version.", name), nil
+			}
+			parameter, err := db2sdk.TemplateVersionParameter(parameters[index])
+			if err != nil {
+				return "", "", xerrors.Errorf("convert template version parameter: %w", err)
+			}
+			value := codersdk.WorkspaceBuildParameter{Name: name, Value: req.DefaultParameters[name]}
+			if err := codersdk.ValidateWorkspaceBuildParameter(parameter, &value, nil); err != nil {
+				reason := err
+				if inner := errors.Unwrap(err); inner != nil {
+					reason = inner
+				}
+				return "default_parameters", fmt.Sprintf("Parameter %q has an invalid value: %s", name, reason), nil
+			}
+		}
+	}
+	return "", "", nil
 }

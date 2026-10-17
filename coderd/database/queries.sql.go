@@ -7903,7 +7903,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7922,12 +7922,16 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		pq.Array(&i.TemplateIDs),
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE id = $1::uuid
 FOR UPDATE
@@ -7947,12 +7951,16 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		pq.Array(&i.TemplateIDs),
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
 
 const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 FROM chat_projects
 WHERE owner_id = $1::uuid
 ORDER BY lower(name), id
@@ -7978,6 +7986,10 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			pq.Array(&i.TemplateIDs),
+			&i.DefaultTemplateID,
+			&i.DefaultTemplateVersionPresetID,
+			&i.DefaultParameters,
 		); err != nil {
 			return nil, err
 		}
@@ -7993,7 +8005,7 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 }
 
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.template_ids, chat_projects.default_template_id, chat_projects.default_template_version_preset_id, chat_projects.default_parameters
 FROM chat_projects
 WHERE chat_projects.owner_id = $1::uuid
     OR (
@@ -8041,6 +8053,10 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			pq.Array(&i.TemplateIDs),
+			&i.DefaultTemplateID,
+			&i.DefaultTemplateVersionPresetID,
+			&i.DefaultParameters,
 		); err != nil {
 			return nil, err
 		}
@@ -8056,25 +8072,36 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
+INSERT INTO chat_projects (
+    id, organization_id, owner_id, name, description, icon,
+    template_ids, default_template_id, default_template_version_preset_id, default_parameters
+)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::text,
     $5::text,
-    $6::text
+    $6::text,
+    COALESCE($7::uuid[], '{}'::uuid[]),
+    $8::uuid,
+    $9::uuid,
+    COALESCE($10::jsonb, '{}'::jsonb)
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type InsertChatProjectParams struct {
-	ID             uuid.NullUUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Icon           string        `db:"icon" json:"icon"`
+	ID                             uuid.NullUUID         `db:"id" json:"id"`
+	OrganizationID                 uuid.UUID             `db:"organization_id" json:"organization_id"`
+	OwnerID                        uuid.UUID             `db:"owner_id" json:"owner_id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	TemplateIDs                    []uuid.UUID           `db:"template_ids" json:"template_ids"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
 }
 
 func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
@@ -8085,6 +8112,10 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		pq.Array(arg.TemplateIDs),
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 	)
 	var i ChatProject
 	err := row.Scan(
@@ -8098,6 +8129,10 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		pq.Array(&i.TemplateIDs),
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
@@ -8168,16 +8203,24 @@ SET
     name = $1::text,
     description = $2::text,
     icon = $3::text,
+    template_ids = $4::uuid[],
+    default_template_id = $5::uuid,
+    default_template_version_preset_id = $6::uuid,
+    default_parameters = $7::jsonb,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+WHERE id = $8::uuid
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type UpdateChatProjectByIDParams struct {
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Icon        string    `db:"icon" json:"icon"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	Name                           string          `db:"name" json:"name"`
+	Description                    string          `db:"description" json:"description"`
+	Icon                           string          `db:"icon" json:"icon"`
+	TemplateIDs                    []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	DefaultTemplateID              uuid.NullUUID   `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID   `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              json.RawMessage `db:"default_parameters" json:"default_parameters"`
+	ID                             uuid.UUID       `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
@@ -8185,6 +8228,10 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		pq.Array(arg.TemplateIDs),
+		arg.DefaultTemplateID,
+		arg.DefaultTemplateVersionPresetID,
+		arg.DefaultParameters,
 		arg.ID,
 	)
 	var i ChatProject
@@ -8199,6 +8246,10 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		pq.Array(&i.TemplateIDs),
+		&i.DefaultTemplateID,
+		&i.DefaultTemplateVersionPresetID,
+		&i.DefaultParameters,
 	)
 	return i, err
 }
