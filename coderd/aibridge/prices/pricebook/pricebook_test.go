@@ -117,13 +117,12 @@ func TestWrite(t *testing.T) {
 		// generated artifact is the input to both the diff tool and the seeder.
 		rows := []pricebook.Row{
 			{
-				Provider:        "anthropic",
-				Model:           "claude",
-				InputPrice:      int64Ptr(3_000_000),
-				OutputPrice:     int64Ptr(0),
-				CacheReadPrice:  nil,
-				CacheWritePrice: int64Ptr(1),
-				// A tier keeps a null price, which falls back to the base price.
+				Provider:          "anthropic",
+				Model:             "claude",
+				InputPrice:        int64Ptr(3_000_000),
+				OutputPrice:       int64Ptr(0),
+				CacheReadPrice:    nil,
+				CacheWritePrice:   int64Ptr(1),
 				CacheWrite1hPrice: int64Ptr(6_000_000),
 				Tiers: []pricebook.Tier{{
 					ThresholdTokens: 200_000,

@@ -1833,12 +1833,6 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
 }
 
-// workspaceSecretObject is the RBAC object for a workspace's secrets, owned
-// by the workspace owner within the workspace's organization.
-func workspaceSecretObject(workspace database.Workspace) rbac.Object {
-	return rbac.ResourceWorkspaceSecret.WithOwner(workspace.OwnerID.String()).InOrg(workspace.OrganizationID)
-}
-
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2062,7 +2056,7 @@ func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg data
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return err
 	}
 	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
@@ -2073,7 +2067,7 @@ func (q *querier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, worksp
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return err
 	}
 	return q.db.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
@@ -5029,6 +5023,13 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 	return q.db.GetRuntimeConfig(ctx, key)
 }
 
+func (q *querier) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return database.GetScriptOrderTelemetrySummaryRow{}, err
+	}
+	return q.db.GetScriptOrderTelemetrySummary(ctx)
+}
+
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	// GetStaleChats is a system-level operation used by the chat processor for recovery.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
@@ -6242,9 +6243,9 @@ func (q *querier) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorks
 	return q.db.GetWorkspaceSecrets(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
 	// Metadata only; values are never selected.
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, workspaceID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
@@ -7157,7 +7158,7 @@ func (q *querier) InsertWorkspaceSecret(ctx context.Context, arg database.Insert
 	if err != nil {
 		return database.WorkspaceSecret{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
 	return q.db.InsertWorkspaceSecret(ctx, arg)
@@ -8684,6 +8685,28 @@ func (q *querier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpdateTemplateVersionFlagsByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	// An actor is allowed to update the template version script order usage data if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {

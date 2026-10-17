@@ -24,11 +24,13 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Adds the authenticated user's email to IsAuthorizedResponse.
 //
 // API v1.4:
-//   - Adds cache_write_one_hour_input_tokens and prompt_tokens to
-//     RecordTokenUsageRequest.
+//   - Adds prompt_tokens to RecordTokenUsageRequest.
+//
+// API v1.5:
+//   - Adds cache_write_one_hour_input_tokens to RecordTokenUsageRequest.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 4
+	CurrentMinor = 5
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

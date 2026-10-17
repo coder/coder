@@ -163,8 +163,6 @@ export const MockGPT5ModelPrice: AIModelPrice = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
-// The second tier sets no cache read or 1h price, so those use the base cache
-// read price and the tier cache write price.
 export const MockClaudeSonnetModelPrice: AIModelPrice = {
 	provider: "anthropic",
 	model: "claude-sonnet-4-5",

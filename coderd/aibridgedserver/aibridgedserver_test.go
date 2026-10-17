@@ -2976,9 +2976,8 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	}
 }
 
-// TestRecordTokenUsageCacheTTLAndTiers covers the 1h cache write price and the
-// long-context tier against a real database, so the inserted row snapshots
-// the prices that applied and its breakdown adds up to the cost.
+// TestRecordTokenUsageCacheTTLAndTiers verifies persisted prices and costs for
+// tiered requests and mixed cache TTLs.
 func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 	t.Parallel()
 
@@ -3002,7 +3001,6 @@ func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 		wantCost      int64
 	}{
 		{
-			// The prompt equals the threshold, which is not over it.
 			name:         "BasePricesAtThreshold",
 			req:          &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
 			want1hTokens: 40,
@@ -3020,8 +3018,15 @@ func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 			wantCost:      2112, // 901*2 + 60*2.5 + 40*4
 		},
 		{
-			// A message_delta record carries only output tokens and the
-			// prompt size of its message.
+			name:          "CacheReadCountsTowardPrompt",
+			req:           &proto.RecordTokenUsageRequest{InputTokens: 1, CacheReadInputTokens: 1000},
+			wantPrompt:    1001,
+			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
+			wantCost:      202, // 1*2 + 1000*0.2
+		},
+		{
+			// A message_delta usage record.
 			name:          "OutputOnlyRecordUsesPromptTokens",
 			req:           &proto.RecordTokenUsageRequest{OutputTokens: 10, PromptTokens: 1001},
 			wantPrompt:    1001,
@@ -3030,8 +3035,7 @@ func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 			wantCost:      40,
 		},
 		{
-			// A 1h count over the cache write total is clamped instead of
-			// failing the row on its check constraint.
+			// An oversized 1h count must not discard the usage row.
 			name:         "OneHourCountClamped",
 			req:          &proto.RecordTokenUsageRequest{CacheWriteInputTokens: 10, CacheWriteOneHourInputTokens: 50},
 			want1hTokens: 10,

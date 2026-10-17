@@ -307,9 +307,8 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 	return validations
 }
 
-// validateOptionalAIModelPrices checks the 1h price and the tiers of one
-// entry. The cost calculation reads tiers in threshold order, so the request
-// must list them that way.
+// The cost calculation reads tiers in threshold order, so the request must
+// list them that way.
 func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpsert) []codersdk.ValidationError {
 	var validations []codersdk.ValidationError
 	negative := func(name string, value *int64) {

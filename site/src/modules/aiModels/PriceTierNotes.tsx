@@ -11,8 +11,9 @@ const formatLabeledPrice = (label: string, micros: number | null): string => {
 };
 
 /**
- * A tier without a 1h price bills 1h writes at the cache write price that
- * applies to the tier, not at the base 1h price.
+ * Prices the tier leaves unset fall back to the base price, matching how the
+ * server bills them, except an unset 1h price, which uses the cache write
+ * price that applies to the tier.
  */
 export const formatTierNote = (
 	base: AIModelPrice,
@@ -39,21 +40,20 @@ export const formatTierNote = (
 			),
 		);
 	}
-	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens: ${prices.join(" · ")}`;
+	return `Over ${tier.threshold_tokens.toLocaleString("en-US")} prompt tokens (USD/1M tokens): ${prices.join(" · ")}`;
 };
 
-/** One note per long-context price tier of a price row. */
-export const PriceTierNotes: React.FC<{ price: AIModelPrice }> = ({
-	price,
-}) => (
-	<>
-		{price.tiers.map((tier) => (
-			<p
-				key={tier.threshold_tokens}
-				className="col-span-full m-0 text-xs text-content-secondary"
-			>
-				{formatTierNote(price, tier)}
-			</p>
-		))}
-	</>
-);
+type PriceTierNotesProps = {
+	price: AIModelPrice;
+};
+
+/** The server keeps tiers in ascending threshold order. */
+export const PriceTierNotes: React.FC<PriceTierNotesProps> = ({ price }) =>
+	price.tiers.map((tier) => (
+		<p
+			key={tier.threshold_tokens}
+			className="col-span-full m-0 text-xs text-content-secondary"
+		>
+			{formatTierNote(price, tier)}
+		</p>
+	));

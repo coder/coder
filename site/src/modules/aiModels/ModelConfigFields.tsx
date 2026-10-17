@@ -720,9 +720,9 @@ export const PricingEstimateFields: React.FC<{
 		findKnownModelByExactAlias(normalizedProvider, trimmedModel);
 
 	// A price book row is the deployment's own pricing for the model, so it
-	// wins outright. A null field on that row means the category is unpriced
-	// (the cost engine bills it as zero), not that the catalog should fill it
-	// in. The catalog is only the fallback when the model has no row at all.
+	// wins outright. A null input, output, cache read, or cache write price on
+	// that row bills as zero, so the catalog does not fill it in. The catalog
+	// is only the fallback when the model has no row at all.
 	const costs: ModelCosts | undefined = livePrice
 		? {
 				inputCost: priceOrUndefined(livePrice.input_price),
@@ -732,7 +732,8 @@ export const PricingEstimateFields: React.FC<{
 				cacheWrite1hCost: priceOrUndefined(livePrice.cache_write_1h_price),
 			}
 		: knownModel;
-	// The 1h price is set only for models that bill 1h cache writes apart.
+	// A null 1h price bills at the cache write price, which the cache write
+	// field already shows.
 	const visibleFields: ReadonlyArray<[string, keyof ModelCosts]> =
 		costs?.cacheWrite1hCost === undefined
 			? priceEstimateFields
@@ -803,7 +804,7 @@ export const PricingEstimateFields: React.FC<{
 					</div>
 				);
 			})}
-			{!livePriceLoading && livePrice && <PriceTierNotes price={livePrice} />}
+			{livePrice && <PriceTierNotes price={livePrice} />}
 		</>
 	);
 };

@@ -166,10 +166,10 @@ For delivery methods, see [Notifications](../../admin/monitoring/notifications/i
 Coder multiplies the token usage of each request by the published price of its model.
 Prices come from a curated [models.dev](https://models.dev) snapshot that ships with every Coder release, so no configuration is required.
 
-Two rules change the price of some tokens:
-
-- A cache write with a 1-hour TTL costs twice the input price on Claude models served through Anthropic, Amazon Bedrock, or GitHub Copilot.
-- When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
+When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
+When a model has more than one long-context size, the largest size that the prompt is over applies.
+A long-context price that is not set uses the base price.
+A cache write with a 1-hour TTL costs twice the input price on Claude models served through Anthropic, Amazon Bedrock, or GitHub Copilot.
 
 Coder prices a request by the model the client requested.
 When that model has no price, Coder uses the price of the model the provider reports serving, for example when the provider resolves an alias to a specific model.

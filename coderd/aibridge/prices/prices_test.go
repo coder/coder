@@ -247,8 +247,6 @@ func TestSeedFromBytes(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, _ := dbtestutil.NewDB(t)
 
-		// A row seeded before the 1h price and tiers existed must pick them
-		// up on the next seed even though its four base prices are equal.
 		row := pricebook.Row{
 			Provider:        "anthropic",
 			Model:           "claude-haiku",
@@ -279,11 +277,11 @@ func TestSeedFromBytes(t *testing.T) {
 
 		row.Tiers = []pricebook.Tier{{ThresholdTokens: 100_000, InputPrice: ptr.Ref(int64(500_000))}}
 		withTiers := seedAndGet(row)
-		require.JSONEq(t, `[{"threshold_tokens": 100000, "input_price": 500000, "output_price": null,
-			"cache_read_price": null, "cache_write_price": null, "cache_write_1h_price": null}]`, string(withTiers.Tiers))
+		var tiers []pricebook.Tier
+		require.NoError(t, json.Unmarshal(withTiers.Tiers, &tiers))
+		require.Equal(t, row.Tiers, tiers)
 		require.True(t, withTiers.UpdatedAt.After(with1h.UpdatedAt))
 
-		// Re-seeding the same tiers changes nothing.
 		again := seedAndGet(row)
 		require.Equal(t, withTiers.UpdatedAt, again.UpdatedAt)
 	})

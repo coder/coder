@@ -6,15 +6,14 @@ import (
 	"math"
 	"testing"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+func nullInt64(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
+
 func TestComputeCost(t *testing.T) {
 	t.Parallel()
-
-	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
 
 	const oneMicroPerToken = 1_000_000
 	bound := maxCostMicros.IntPart()
@@ -58,8 +57,6 @@ func TestComputeCost(t *testing.T) {
 			want: 1515,
 		},
 		{
-			// 4 of the 10 cache writes have a 1h TTL: 6*3_750_000/1e6 = 22
-			// plus 4*6_000_000/1e6 = 24.
 			name: "1h cache writes use the 1h price",
 			price: priceSet{
 				cacheWrite:   nullInt64(3_750_000),
@@ -67,7 +64,8 @@ func TestComputeCost(t *testing.T) {
 			},
 			cacheWriteTokens:   10,
 			cacheWrite1hTokens: 4,
-			want:               46,
+			// 22 + 24 (6*3_750_000/1e6 = 22, integer division).
+			want: 46,
 		},
 		{
 			name:             "all prices null is zero cost",
@@ -290,8 +288,6 @@ func TestValidateTokenUsage(t *testing.T) {
 func TestPricesForPrompt(t *testing.T) {
 	t.Parallel()
 
-	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
-
 	base := database.AIModelPrice{
 		Model:             "m",
 		InputPrice:        nullInt64(1_000),
@@ -307,10 +303,11 @@ func TestPricesForPrompt(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		row    database.AIModelPrice
-		prompt int64
-		want   priceSet
+		name    string
+		row     database.AIModelPrice
+		prompt  int64
+		want    priceSet
+		wantErr bool
 	}{
 		{
 			name:   "no tiers uses base prices",
@@ -331,12 +328,10 @@ func TestPricesForPrompt(t *testing.T) {
 			want: priceSet{input: nullInt64(1_000), cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(1_250)},
 		},
 		{
-			// Tiers are read in threshold order even when the stored array
-			// is not sorted, so the highest tier under the prompt wins.
 			name: "highest tier below the prompt applies",
 			row: withTiers(`[
-				{"threshold_tokens": 500, "input_price": 5000, "output_price": 5000, "cache_read_price": 500, "cache_write_price": 5000, "cache_write_1h_price": 5000},
-				{"threshold_tokens": 200, "input_price": 3000, "output_price": 3000, "cache_read_price": 300, "cache_write_price": 3000, "cache_write_1h_price": 3000}
+				{"threshold_tokens": 200, "input_price": 3000, "output_price": 3000, "cache_read_price": 300, "cache_write_price": 3000, "cache_write_1h_price": 3000},
+				{"threshold_tokens": 500, "input_price": 5000, "output_price": 5000, "cache_read_price": 500, "cache_write_price": 5000, "cache_write_1h_price": 5000}
 			]`),
 			prompt: 501,
 			want: priceSet{
@@ -355,8 +350,6 @@ func TestPricesForPrompt(t *testing.T) {
 			},
 		},
 		{
-			// The fallback for a missing tier 1h price is the tier cache
-			// write price, not the base 1h price.
 			name:   "tier without 1h price uses the tier cache write price",
 			row:    withTiers(`[{"threshold_tokens": 200, "cache_write_price": 4000}]`),
 			prompt: 201,
@@ -366,21 +359,26 @@ func TestPricesForPrompt(t *testing.T) {
 			},
 		},
 		{
-			name:   "undecodable tiers use base prices",
-			row:    withTiers(`{"threshold_tokens": 200}`),
-			prompt: 201,
-			want: priceSet{
-				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
-				cacheWrite: nullInt64(1_250), cacheWrite1h: nullInt64(2_000),
-			},
+			name:    "undecodable tiers fail",
+			row:     withTiers(`{"threshold_tokens": 200}`),
+			prompt:  201,
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
-			got := s.pricesForPrompt(t.Context(), tt.row, tt.prompt)
+			got, err := pricesForPrompt(tt.row, tt.prompt)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("pricesForPrompt = %+v, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("pricesForPrompt error = %v, want nil", err)
+			}
 			if got != tt.want {
 				t.Fatalf("pricesForPrompt = %+v, want %+v", got, tt.want)
 			}

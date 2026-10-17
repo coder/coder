@@ -100,8 +100,6 @@ func TestConvert(t *testing.T) {
 	require.Equal(t, int64(300_000), *sonnet.CacheReadPrice)
 	require.Equal(t, int64(3_750_000), *sonnet.CacheWritePrice)
 	require.Equal(t, int64(6_000_000), *sonnet.CacheWrite1hPrice)
-	// Tiers are sorted by size, keep absent prices nil, and get a 1h price
-	// of 2x their own input. context_over_200k is not read.
 	require.Equal(t, []pricebook.Tier{
 		{
 			ThresholdTokens:   200_000,
@@ -145,8 +143,7 @@ func TestClaude1hPrice(t *testing.T) {
 		{"anthropic", "claude-opus-5-5", int64Ptr(4_000_000), int64Ptr(8_000_000)},
 		{"bedrock", "anthropic.claude-sonnet-4-6", int64Ptr(3_000_000), int64Ptr(6_000_000)},
 		{"copilot", "claude-sonnet-4.6", int64Ptr(3_000_000), int64Ptr(6_000_000)},
-		// Other providers serve Claude through paths that do not report the
-		// 1h part of cache writes.
+		// These providers do not report the 1h part of Claude cache writes.
 		{"openrouter", "anthropic/claude-sonnet-4", int64Ptr(3_000_000), nil},
 		{"vercel", "anthropic/claude-sonnet-4", int64Ptr(3_000_000), nil},
 		{"azure", "claude-opus-5-5", int64Ptr(4_000_000), nil},

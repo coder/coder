@@ -57,11 +57,14 @@ Coder's price book:
   * Every entry sets all four prices, so all four are required. Use 'null'
     for a price you do not have.
   * "cache_write_1h_price" (optional) is the price of a cache write with a
-    1-hour TTL. Omit it to use the cache write price.
+    1-hour TTL. When it is 'null' or absent, such writes use the cache write
+    price.
   * "tiers" (optional) lists long-context prices in ascending
     "threshold_tokens" order. When the prompt of a request is over a
     threshold, every token of that request uses the prices of that tier. A
-    tier price that is 'null' or absent uses the base price.
+    tier price that is 'null' or absent uses the base price, except a tier
+    "cache_write_1h_price", which uses the cache write price that applies to
+    the tier.
 `
 
 // aiModelPriceRow renders prices as dollars per million tokens for the table
@@ -184,13 +187,12 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 
 func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 	var (
-		provider   string
-		model      string
-		input      string
-		output     string
-		cacheRead  string
-		cacheWrite string
-		// cacheWrite1h is optional, unlike the four prices above.
+		provider     string
+		model        string
+		input        string
+		output       string
+		cacheRead    string
+		cacheWrite   string
 		cacheWrite1h string
 	)
 
@@ -303,8 +305,7 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 
 var modelPriceFlags = []string{"input-price", "output-price", "cache-read-price", "cache-write-price"}
 
-// cacheWrite1hPriceFlag is an optional single-model flag, so it is not in
-// modelPriceFlags.
+// cacheWrite1hPriceFlag is optional, so it is not in modelPriceFlags.
 const cacheWrite1hPriceFlag = "cache-write-1h-price"
 
 // readAIModelPrices picks the input source and returns the requested prices,
@@ -330,7 +331,7 @@ func readAIModelPrices(inv *serpent.Invocation, provider, model string) ([]coder
 	return []codersdk.AIModelPriceUpsert{price}, false, nil
 }
 
-// userSetPriceFlags lists the price flags the caller supplied.
+// userSetPriceFlags lists the required price flags the caller supplied.
 func userSetPriceFlags(inv *serpent.Invocation) []string {
 	var provided []string
 	for _, name := range modelPriceFlags {
@@ -341,7 +342,6 @@ func userSetPriceFlags(inv *serpent.Invocation) []string {
 	return provided
 }
 
-// flagSet reports whether the caller supplied the named flag.
 func flagSet(inv *serpent.Invocation, name string) bool {
 	opt := inv.Command.Options.ByFlag(name)
 	return opt != nil && opt.ValueSource != serpent.ValueSourceNone
@@ -352,8 +352,8 @@ func validateModelPriceFlags(provider, model string, providedFlags []string) err
 	if provider == "" || model == "" {
 		return xerrors.New("--provider and --model are both required to price a single model")
 	}
-	// An entry sets all four prices, so every flag is required. Leaving one out
-	// would clear that price rather than preserve it.
+	// An entry sets all four base prices, so all four flags are required.
+	// Leaving one out would clear that price rather than preserve it.
 	if len(providedFlags) != len(modelPriceFlags) {
 		return xerrors.Errorf("all price flags are required: --%s. Pass 'null' for a price you do not have",
 			strings.Join(modelPriceFlags, ", --"))
@@ -378,8 +378,8 @@ func modelPriceFromFlags(inv *serpent.Invocation, provider, model string) (coder
 		flags = append(flags, priceFlag{cacheWrite1hPriceFlag, &price.CacheWrite1hPrice})
 	}
 	for _, flag := range flags {
-		// A nil value is an unknown price, spelled "null" to match the JSON
-		// document and the stored column.
+		// "null" leaves the price nil, as in the JSON document and the stored
+		// column.
 		raw := inv.Command.Options.ByFlag(flag.name).Value.String()
 		if strings.EqualFold(raw, "null") {
 			continue
@@ -482,7 +482,6 @@ func pricesEqual(requested codersdk.AIModelPriceUpsert, stored codersdk.AIModelP
 		slices.EqualFunc(requested.Tiers, stored.Tiers, tierEqual)
 }
 
-// tierEqual reports whether two tiers have the same threshold and prices.
 func tierEqual(a, b codersdk.AIModelPriceTier) bool {
 	return a.ThresholdTokens == b.ThresholdTokens &&
 		priceEqual(a.InputPrice, b.InputPrice) &&
@@ -539,7 +538,6 @@ func describePrices(price codersdk.AIModelPriceUpsert) string {
 	return strings.Join(parts, "  ")
 }
 
-// formatTiers renders tiers on one line, listing the set prices of each.
 func formatTiers(tiers []codersdk.AIModelPriceTier) string {
 	if len(tiers) == 0 {
 		return "-"
@@ -591,7 +589,6 @@ type namedPrice struct {
 	value *int64
 }
 
-// namedPrices lists an entry's prices in field order.
 func namedPrices(price codersdk.AIModelPriceUpsert) []namedPrice {
 	return []namedPrice{
 		{"input_price", price.InputPrice},

@@ -1,12 +1,10 @@
 package aibridgedserver
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"slices"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -71,14 +69,13 @@ func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
 // usage record. A field left unset (Valid == false) is recorded as SQL NULL; a
 // price or cost of 0 is recorded as 0, which is distinct from NULL.
 type tokenUsageCost struct {
-	effectiveGroupID      uuid.NullUUID
-	spendLimitMicros      sql.NullInt64
-	limitSource           codersdk.AIBudgetLimitSource
-	inputPriceMicros      sql.NullInt64
-	outputPriceMicros     sql.NullInt64
-	cacheReadPriceMicros  sql.NullInt64
-	cacheWritePriceMicros sql.NullInt64
-	// cacheWrite1hPriceMicros is the price applied to 1h cache writes.
+	effectiveGroupID        uuid.NullUUID
+	spendLimitMicros        sql.NullInt64
+	limitSource             codersdk.AIBudgetLimitSource
+	inputPriceMicros        sql.NullInt64
+	outputPriceMicros       sql.NullInt64
+	cacheReadPriceMicros    sql.NullInt64
+	cacheWritePriceMicros   sql.NullInt64
 	cacheWrite1hPriceMicros sql.NullInt64
 	// priceTierThresholdTokens is the threshold of the long-context tier
 	// whose prices applied, or NULL for the base prices.
@@ -87,14 +84,13 @@ type tokenUsageCost struct {
 	pricedModel              sql.NullString
 }
 
-// usageTokens holds the counts of one usage record. cacheWrite1h is part of
-// cacheWrite. prompt is the prompt size of the upstream request.
+// cacheWrite1h is part of cacheWrite, not an additional count.
 type usageTokens struct {
 	input, output, cacheRead, cacheWrite, cacheWrite1h, prompt int64
 }
 
-// usageFromRequest is the one place that reads the counts of a request, so
-// the inserted row and its cost agree.
+// The inserted row and its cost both read the counts through
+// usageFromRequest, so they agree.
 func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 	u := usageTokens{
 		input:      in.GetInputTokens(),
@@ -102,8 +98,7 @@ func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 		cacheRead:  in.GetCacheReadInputTokens(),
 		cacheWrite: in.GetCacheWriteInputTokens(),
 	}
-	// Clamped so the cache_write_1h_input_tokens check constraint holds and
-	// a bad count cannot drop the row.
+	// A bad 1h count must not fail the check constraint and drop the row.
 	u.cacheWrite1h = min(in.GetCacheWriteOneHourInputTokens(), u.cacheWrite)
 	// A record carries at least its own input. An output-only record of a
 	// stream carries the prompt size of its message in PromptTokens.
@@ -120,11 +115,10 @@ type priceSet struct {
 	tierThreshold sql.NullInt64
 }
 
-// pricesForPrompt returns the prices for one upstream request. The tier with
-// the highest threshold below the prompt size applies; a tier price that is
-// absent uses the base price. A 1h price that is absent uses the cache write
-// price of the same tier.
-func (s *Server) pricesForPrompt(ctx context.Context, row database.AIModelPrice, prompt int64) priceSet {
+// pricesForPrompt applies the highest tier below the prompt size, reading the
+// tiers in their stored threshold order. An absent tier price uses the base
+// price, and an absent 1h price uses the cache write price that applies.
+func pricesForPrompt(row database.AIModelPrice, prompt int64) (priceSet, error) {
 	set := priceSet{
 		input:        row.InputPrice,
 		output:       row.OutputPrice,
@@ -135,17 +129,9 @@ func (s *Server) pricesForPrompt(ctx context.Context, row database.AIModelPrice,
 	var tiers []pricebook.Tier
 	if len(row.Tiers) > 0 {
 		if err := json.Unmarshal(row.Tiers, &tiers); err != nil {
-			s.logger.Error(ctx, "decode price tiers, using base prices",
-				slog.F("provider", row.Provider),
-				slog.F("model", row.Model),
-				slog.F("source", row.Source),
-				slog.Error(err))
-			tiers = nil
+			return priceSet{}, xerrors.Errorf("decode tiers: %w", err)
 		}
 	}
-	slices.SortFunc(tiers, func(a, b pricebook.Tier) int {
-		return cmp.Compare(a.ThresholdTokens, b.ThresholdTokens)
-	})
 	for _, t := range tiers {
 		if prompt <= t.ThresholdTokens {
 			break
@@ -162,10 +148,9 @@ func (s *Server) pricesForPrompt(ctx context.Context, row database.AIModelPrice,
 	if !set.cacheWrite1h.Valid {
 		set.cacheWrite1h = set.cacheWrite
 	}
-	return set
+	return set, nil
 }
 
-// priceOr returns price, or fallback when price is nil.
 func priceOr(price *int64, fallback sql.NullInt64) sql.NullInt64 {
 	if price == nil {
 		return fallback
@@ -250,7 +235,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	// The row snapshots the prices that applied, so its per-category
 	// breakdown still adds up to cost_micros.
 	usage := usageFromRequest(in)
-	prices := s.pricesForPrompt(ctx, price, usage.prompt)
+	prices, err := pricesForPrompt(price, usage.prompt)
+	if err != nil {
+		return tokenUsageCost{}, xerrors.Errorf("prices of %s/%s: %w", price.Provider, price.Model, err)
+	}
 	result.pricedModel = sql.NullString{String: price.Model, Valid: true}
 	result.inputPriceMicros = prices.input
 	result.outputPriceMicros = prices.output
@@ -283,10 +271,8 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	return result, nil
 }
 
-// computeCost returns the cost of a usage record in micro-units. Prices are
-// expressed per million tokens; a NULL price is treated as zero (e.g.
-// providers that do not charge for cache writes). 1h cache writes use the 1h
-// price and the rest of the cache writes use the cache write price.
+// computeCost returns the cost in micro-units. Prices are per million tokens,
+// and a NULL price counts as zero.
 func computeCost(price priceSet, u usageTokens) (int64, error) {
 	total := tokenCost(u.input, price.input).
 		Add(tokenCost(u.output, price.output)).

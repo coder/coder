@@ -10,8 +10,8 @@ import (
 // Row is one provider and model entry in the generated price book. Pointer
 // fields preserve the distinction between a missing price and an explicit zero.
 //
-// NOTE: the batch SQL upsert extracts these fields from the raw JSON by name,
-// so the tags here and that query must stay in sync. TestSeedFromBytes/
+// NOTE: the batch SQL upsert extracts the fields it seeds from the raw JSON by
+// name, so the tags here and that query must stay in sync. TestSeedFromBytes/
 // RowTagsMatchSQLColumns in the parent package guards that.
 type Row struct {
 	Provider        string `json:"provider"`
@@ -22,8 +22,7 @@ type Row struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 	// CacheWrite1hPrice is nil when a 1h write costs the cache write price.
 	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
-	// Tiers are sorted by ThresholdTokens. omitempty keeps rows without
-	// tiers unchanged in the generated artifact.
+	// Tiers are sorted by ThresholdTokens.
 	Tiers []Tier `json:"tiers,omitempty"`
 }
 

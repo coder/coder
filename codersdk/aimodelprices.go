@@ -12,16 +12,15 @@ import (
 // Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
 // million tokens. A nil price means the price is not known, which the cost
 // calculation treats the same as zero. Distinguish that from an explicit 0,
-// which declares the model free of charge.
+// which declares the model free of charge. A nil CacheWrite1hPrice instead
+// uses CacheWritePrice.
 type AIModelPrice struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
-	// CacheWrite1hPrice is the price of a cache write with a 1-hour TTL. Nil
-	// when a 1-hour write costs the cache write price.
+	Provider          string `json:"provider"`
+	Model             string `json:"model"`
+	InputPrice        *int64 `json:"input_price"`
+	OutputPrice       *int64 `json:"output_price"`
+	CacheReadPrice    *int64 `json:"cache_read_price"`
+	CacheWritePrice   *int64 `json:"cache_write_price"`
 	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 	// Tiers are long-context prices, sorted by ThresholdTokens.
 	Tiers     []AIModelPriceTier `json:"tiers"`
@@ -32,14 +31,15 @@ type AIModelPrice struct {
 
 // AIModelPriceTier holds the prices for a request whose prompt is over
 // ThresholdTokens tokens. Every token of such a request uses the prices of the
-// highest tier it is over. A nil price uses the base price of the model, but a
-// nil CacheWrite1hPrice uses the cache write price that applies to the tier.
+// highest tier it is over. A nil price uses the base price of the model.
 type AIModelPriceTier struct {
-	ThresholdTokens   int64  `json:"threshold_tokens"`
-	InputPrice        *int64 `json:"input_price"`
-	OutputPrice       *int64 `json:"output_price"`
-	CacheReadPrice    *int64 `json:"cache_read_price"`
-	CacheWritePrice   *int64 `json:"cache_write_price"`
+	ThresholdTokens int64  `json:"threshold_tokens"`
+	InputPrice      *int64 `json:"input_price"`
+	OutputPrice     *int64 `json:"output_price"`
+	CacheReadPrice  *int64 `json:"cache_read_price"`
+	CacheWritePrice *int64 `json:"cache_write_price"`
+	// CacheWrite1hPrice falls back to the cache write price that applies to
+	// the tier when nil, not to the base CacheWrite1hPrice.
 	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 }
 
@@ -77,8 +77,8 @@ type UpsertAIModelPricesRequest struct {
 }
 
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
-// only the writable fields of AIModelPrice. A missing or null
-// CacheWrite1hPrice or Tiers clears it.
+// only the writable fields of AIModelPrice. Omitting CacheWrite1hPrice or
+// Tiers clears them.
 type AIModelPriceUpsert struct {
 	Provider          string             `json:"provider"`
 	Model             string             `json:"model"`

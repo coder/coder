@@ -1153,19 +1153,19 @@ title: Schemas
 
 ### Properties
 
-| Name                   | Type                                                            | Required | Restrictions | Description                                                                                                                |
-|------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `cache_read_price`     | integer                                                         | false    |              |                                                                                                                            |
-| `cache_write_1h_price` | integer                                                         | false    |              | Cache write 1h price is the price of a cache write with a 1-hour TTL. Nil when a 1-hour write costs the cache write price. |
-| `cache_write_price`    | integer                                                         | false    |              |                                                                                                                            |
-| `created_at`           | string                                                          | false    |              |                                                                                                                            |
-| `input_price`          | integer                                                         | false    |              |                                                                                                                            |
-| `model`                | string                                                          | false    |              |                                                                                                                            |
-| `output_price`         | integer                                                         | false    |              |                                                                                                                            |
-| `provider`             | string                                                          | false    |              |                                                                                                                            |
-| `source`               | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource)      | false    |              |                                                                                                                            |
-| `tiers`                | array of [codersdk.AIModelPriceTier](#codersdkaimodelpricetier) | false    |              | Tiers are long-context prices, sorted by ThresholdTokens.                                                                  |
-| `updated_at`           | string                                                          | false    |              |                                                                                                                            |
+| Name                   | Type                                                            | Required | Restrictions | Description                                               |
+|------------------------|-----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `cache_read_price`     | integer                                                         | false    |              |                                                           |
+| `cache_write_1h_price` | integer                                                         | false    |              |                                                           |
+| `cache_write_price`    | integer                                                         | false    |              |                                                           |
+| `created_at`           | string                                                          | false    |              |                                                           |
+| `input_price`          | integer                                                         | false    |              |                                                           |
+| `model`                | string                                                          | false    |              |                                                           |
+| `output_price`         | integer                                                         | false    |              |                                                           |
+| `provider`             | string                                                          | false    |              |                                                           |
+| `source`               | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource)      | false    |              |                                                           |
+| `tiers`                | array of [codersdk.AIModelPriceTier](#codersdkaimodelpricetier) | false    |              | Tiers are long-context prices, sorted by ThresholdTokens. |
+| `updated_at`           | string                                                          | false    |              |                                                           |
 
 ## codersdk.AIModelPriceSource
 
@@ -1196,14 +1196,14 @@ title: Schemas
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `cache_read_price`     | integer | false    |              |             |
-| `cache_write_1h_price` | integer | false    |              |             |
-| `cache_write_price`    | integer | false    |              |             |
-| `input_price`          | integer | false    |              |             |
-| `output_price`         | integer | false    |              |             |
-| `threshold_tokens`     | integer | false    |              |             |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                    |
+|------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `cache_read_price`     | integer | false    |              |                                                                                                                                |
+| `cache_write_1h_price` | integer | false    |              | Cache write 1h price falls back to the cache write price that applies to the tier when nil, not to the base CacheWrite1hPrice. |
+| `cache_write_price`    | integer | false    |              |                                                                                                                                |
+| `input_price`          | integer | false    |              |                                                                                                                                |
+| `output_price`         | integer | false    |              |                                                                                                                                |
+| `threshold_tokens`     | integer | false    |              |                                                                                                                                |
 
 ## codersdk.AIModelPriceUpsert
 
@@ -1622,7 +1622,7 @@ None
   "exit_code": 0,
   "stage": "init",
   "started_at": "2019-08-24T14:15:22Z",
-  "status": "string",
+  "status": "ok",
   "workspace_agent_id": "string",
   "workspace_agent_name": "string"
 }
@@ -1630,16 +1630,16 @@ None
 
 ### Properties
 
-| Name                   | Type                                         | Required | Restrictions | Description |
-|------------------------|----------------------------------------------|----------|--------------|-------------|
-| `display_name`         | string                                       | false    |              |             |
-| `ended_at`             | string                                       | false    |              |             |
-| `exit_code`            | integer                                      | false    |              |             |
-| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
-| `started_at`           | string                                       | false    |              |             |
-| `status`               | string                                       | false    |              |             |
-| `workspace_agent_id`   | string                                       | false    |              |             |
-| `workspace_agent_name` | string                                       | false    |              |             |
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name`         | string                                                                     | false    |              |             |
+| `ended_at`             | string                                                                     | false    |              |             |
+| `exit_code`            | integer                                                                    | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage)                               | false    |              |             |
+| `started_at`           | string                                                                     | false    |              |             |
+| `status`               | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `workspace_agent_id`   | string                                                                     | false    |              |             |
+| `workspace_agent_name` | string                                                                     | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -7477,6 +7477,15 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "state": [
     0
   ],
@@ -7496,6 +7505,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `orphan`                     | boolean                                                                                        | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets for this build. Previous secrets that are not listed carry forward unless they were ephemeral or a listed secret uses their env_name or file_path.                  |
 | `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
@@ -7540,6 +7550,15 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -7557,6 +7576,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
 | `name`                       | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)       | false    |              | Secrets sets the workspace's initial secrets.                                                           |
 | `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`        | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
 | `template_version_preset_id` | string                                                                        | false    |              |                                                                                                         |
@@ -19686,9 +19706,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                             |
-|------------------------------------------------------|
-| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
+| Value(s)                                                                    |
+|-----------------------------------------------------------------------------|
+| `canceled`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -20196,7 +20216,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }
@@ -20653,6 +20673,66 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.WorkspaceSecret
+
+```json
+{
+  "cleared_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "enabled": true,
+  "env_name": "string",
+  "env_replaces": "84a889b2-94af-4f34-9249-aa46f6f7b463",
+  "ephemeral": true,
+  "file_path": "string",
+  "file_replaces": "1fdcc987-93b6-4e8f-afdc-b4eba4090da4",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cleared_at`         | string  | false    |              | Cleared at is set once a later build superseded the secret and its value was dropped. Cleared secrets are not delivered and replace nothing.                                                                                         |
+| `created_at`         | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`            | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`           | string  | false    |              |                                                                                                                                                                                                                                      |
+| `env_replaces`       | string  | false    |              | Env replaces is the ID of the workspace owner's user secret that this secret displaces on env_name.                                                                                                                                  |
+| `ephemeral`          | boolean | false    |              | Ephemeral secrets are delivered to their build only and not copied to the next one.                                                                                                                                                  |
+| `file_path`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_replaces`      | string  | false    |              | File replaces is the ID of the workspace owner's user secret that this secret displaces on file_path.                                                                                                                                |
+| `id`                 | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`               | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`         | string  | false    |              |                                                                                                                                                                                                                                      |
+| `workspace_build_id` | string  | false    |              |                                                                                                                                                                                                                                      |
+
+## codersdk.WorkspaceSecretInput
+
+```json
+{
+  "env_name": "string",
+  "ephemeral": true,
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                                    |
+|-------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `env_name`  | string  | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when file_path is empty and value is set. |
+| `ephemeral` | boolean | false    |              | Ephemeral secrets are delivered to this build only and are not carried forward to the next build.                                              |
+| `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery. |
+| `name`      | string  | false    |              |                                                                                                                                                |
+| `value`     | string  | false    |              | Value is the plaintext secret. A null value removes the secret. An empty string sets an empty secret.                                          |
 
 ## codersdk.WorkspaceSharingSettings
 

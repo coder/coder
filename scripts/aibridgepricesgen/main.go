@@ -53,8 +53,8 @@ type upstreamCost struct {
 	Output     *float64 `json:"output"`
 	CacheRead  *float64 `json:"cache_read"`
 	CacheWrite *float64 `json:"cache_write"`
-	// Tiers are long-context prices. context_over_200k repeats the first
-	// tier under a wrong name for 272K models, so the generator ignores it.
+	// Tiers carry explicit sizes. context_over_200k repeats the first tier
+	// under a 200K name that is wrong for some models, so it is not read.
 	Tiers []upstreamTier `json:"tiers"`
 }
 
@@ -71,9 +71,8 @@ type upstreamTier struct {
 	} `json:"tier"`
 }
 
-// claude1hMultiplier is the 1h cache write price as a multiple of input.
-// Anthropic and Bedrock bill a 1h write at 2x input. models.dev has no field
-// for it.
+// models.dev has no 1h cache write price. Claude bills a 1h write at 2x
+// input.
 const claude1hMultiplier = 2
 
 // messagesProviders use the Messages path, the only path that reports the
@@ -190,14 +189,15 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 			if err != nil {
 				return nil, xerrors.Errorf("convert tiers of %s/%s: %w", providerID, modelID, err)
 			}
+			input := toMicros(m.Cost.Input)
 			rows = append(rows, pricebook.Row{
 				Provider:          providerID,
 				Model:             modelID,
-				InputPrice:        toMicros(m.Cost.Input),
+				InputPrice:        input,
 				OutputPrice:       toMicros(m.Cost.Output),
 				CacheReadPrice:    toMicros(m.Cost.CacheRead),
 				CacheWritePrice:   toMicros(m.Cost.CacheWrite),
-				CacheWrite1hPrice: claude1hPrice(providerID, modelID, toMicros(m.Cost.Input)),
+				CacheWrite1hPrice: claude1hPrice(providerID, modelID, input),
 				Tiers:             tiers,
 			})
 		}
@@ -215,8 +215,6 @@ func convert(upstream map[string]upstreamProvider, providerIDs []string) ([]pric
 	return rows, nil
 }
 
-// claude1hPrice returns the 1h cache write price for a Claude row on a
-// provider that uses the Messages path, and nil for other rows.
 func claude1hPrice(providerID, modelID string, input *int64) *int64 {
 	if input == nil || !strings.Contains(modelID, "claude") {
 		return nil
@@ -228,13 +226,7 @@ func claude1hPrice(providerID, modelID string, input *int64) *int64 {
 	return &price
 }
 
-// convertTiers converts the long-context tiers of one model, sorted by
-// threshold. It fails on a tier type other than "context" or a size that is
-// not positive, since either would price requests wrongly.
 func convertTiers(providerID, modelID string, upstream []upstreamTier) ([]pricebook.Tier, error) {
-	if len(upstream) == 0 {
-		return nil, nil
-	}
 	tiers := make([]pricebook.Tier, 0, len(upstream))
 	for _, t := range upstream {
 		if t.Tier.Type != "context" {
