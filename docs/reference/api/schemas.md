@@ -1136,23 +1136,33 @@ title: Schemas
   "output_price": 0,
   "provider": "string",
   "source": "default",
+  "tiers": [
+    {
+      "cache_read_price": 0,
+      "cache_write_price": 0,
+      "input_price": 0,
+      "output_price": 0,
+      "threshold_tokens": 0
+    }
+  ],
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                       | Required | Restrictions | Description |
-|---------------------|------------------------------------------------------------|----------|--------------|-------------|
-| `cache_read_price`  | integer                                                    | false    |              |             |
-| `cache_write_price` | integer                                                    | false    |              |             |
-| `created_at`        | string                                                     | false    |              |             |
-| `input_price`       | integer                                                    | false    |              |             |
-| `model`             | string                                                     | false    |              |             |
-| `output_price`      | integer                                                    | false    |              |             |
-| `provider`          | string                                                     | false    |              |             |
-| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
-| `updated_at`        | string                                                     | false    |              |             |
+| Name                | Type                                                            | Required | Restrictions | Description                                               |
+|---------------------|-----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `cache_read_price`  | integer                                                         | false    |              |                                                           |
+| `cache_write_price` | integer                                                         | false    |              |                                                           |
+| `created_at`        | string                                                          | false    |              |                                                           |
+| `input_price`       | integer                                                         | false    |              |                                                           |
+| `model`             | string                                                          | false    |              |                                                           |
+| `output_price`      | integer                                                         | false    |              |                                                           |
+| `provider`          | string                                                          | false    |              |                                                           |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource)      | false    |              |                                                           |
+| `tiers`             | array of [codersdk.AIModelPriceTier](#codersdkaimodelpricetier) | false    |              | Tiers are long-context prices, sorted by ThresholdTokens. |
+| `updated_at`        | string                                                          | false    |              |                                                           |
 
 ## codersdk.AIModelPriceSource
 
@@ -1168,16 +1178,15 @@ title: Schemas
 |---------------------|
 | `custom`, `default` |
 
-## codersdk.AIModelPriceUpsert
+## codersdk.AIModelPriceTier
 
 ```json
 {
   "cache_read_price": 0,
   "cache_write_price": 0,
   "input_price": 0,
-  "model": "string",
   "output_price": 0,
-  "provider": "string"
+  "threshold_tokens": 0
 }
 ```
 
@@ -1188,9 +1197,42 @@ title: Schemas
 | `cache_read_price`  | integer | false    |              |             |
 | `cache_write_price` | integer | false    |              |             |
 | `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
 | `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
+| `threshold_tokens`  | integer | false    |              |             |
+
+## codersdk.AIModelPriceUpsert
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string",
+  "tiers": [
+    {
+      "cache_read_price": 0,
+      "cache_write_price": 0,
+      "input_price": 0,
+      "output_price": 0,
+      "threshold_tokens": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                            | Required | Restrictions | Description |
+|---------------------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `cache_read_price`  | integer                                                         | false    |              |             |
+| `cache_write_price` | integer                                                         | false    |              |             |
+| `input_price`       | integer                                                         | false    |              |             |
+| `model`             | string                                                          | false    |              |             |
+| `output_price`      | integer                                                         | false    |              |             |
+| `provider`          | string                                                          | false    |              |             |
+| `tiers`             | array of [codersdk.AIModelPriceTier](#codersdkaimodelpricetier) | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -17622,7 +17664,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "input_price": 0,
       "model": "string",
       "output_price": 0,
-      "provider": "string"
+      "provider": "string",
+      "tiers": [
+        {
+          "cache_read_price": 0,
+          "cache_write_price": 0,
+          "input_price": 0,
+          "output_price": 0,
+          "threshold_tokens": 0
+        }
+      ]
     }
   ]
 }
