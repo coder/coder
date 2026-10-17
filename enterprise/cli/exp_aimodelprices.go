@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -55,6 +56,10 @@ Coder's price book:
     model free.
   * Every entry sets all four prices, so all four are required. Use 'null'
     for a price you do not have.
+  * "tiers" (optional) lists long-context prices in ascending
+    "threshold_tokens" order. When the prompt of a request is over a
+    threshold, every token of that request uses the prices of that tier. A
+    tier price that is 'null' or absent uses the base price.
 `
 
 // aiModelPriceRow renders prices as dollars per million tokens for the table
@@ -71,9 +76,11 @@ type aiModelPriceRow struct {
 	OutputPrice     string `json:"-" table:"output price"`
 	CacheReadPrice  string `json:"-" table:"cache read price"`
 	CacheWritePrice string `json:"-" table:"cache write price"`
-	Source          string `json:"-" table:"source"`
-	CreatedAt       string `json:"-" table:"created at"`
-	UpdatedAt       string `json:"-" table:"updated at"`
+	// Tiers is not shown by default; JSON output carries it too.
+	Tiers     string `json:"-" table:"tiers"`
+	Source    string `json:"-" table:"source"`
+	CreatedAt string `json:"-" table:"created at"`
+	UpdatedAt string `json:"-" table:"updated at"`
 }
 
 func (r *RootCmd) aiModelPricesList() *serpent.Command {
@@ -145,6 +152,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 					OutputPrice:     formatMicros(price.OutputPrice),
 					CacheReadPrice:  formatMicros(price.CacheReadPrice),
 					CacheWritePrice: formatMicros(price.CacheWritePrice),
+					Tiers:           formatTiers(price.Tiers),
 					Source:          string(price.Source),
 					CreatedAt:       humanize.Time(price.CreatedAt),
 					UpdatedAt:       humanize.Time(price.UpdatedAt),
@@ -438,12 +446,22 @@ func diffAIModelPrices(requested []codersdk.AIModelPriceUpsert, current []coders
 	return additions, changes
 }
 
-// pricesEqual reports whether all four prices already hold the requested values.
+// pricesEqual reports whether every price and tier already holds the requested
+// values.
 func pricesEqual(requested codersdk.AIModelPriceUpsert, stored codersdk.AIModelPrice) bool {
 	return priceEqual(requested.InputPrice, stored.InputPrice) &&
 		priceEqual(requested.OutputPrice, stored.OutputPrice) &&
 		priceEqual(requested.CacheReadPrice, stored.CacheReadPrice) &&
-		priceEqual(requested.CacheWritePrice, stored.CacheWritePrice)
+		priceEqual(requested.CacheWritePrice, stored.CacheWritePrice) &&
+		slices.EqualFunc(requested.Tiers, stored.Tiers, tierEqual)
+}
+
+func tierEqual(a, b codersdk.AIModelPriceTier) bool {
+	return a.ThresholdTokens == b.ThresholdTokens &&
+		priceEqual(a.InputPrice, b.InputPrice) &&
+		priceEqual(a.OutputPrice, b.OutputPrice) &&
+		priceEqual(a.CacheReadPrice, b.CacheReadPrice) &&
+		priceEqual(a.CacheWritePrice, b.CacheWritePrice)
 }
 
 // priceEqual compares two prices, treating unknown as equal only to unknown.
@@ -487,7 +505,32 @@ func describePrices(price codersdk.AIModelPriceUpsert) string {
 		}
 		parts = append(parts, fmt.Sprintf("%s %s", named.name, formatMicros(named.value)))
 	}
+	if len(price.Tiers) > 0 {
+		parts = append(parts, "tiers "+formatTiers(price.Tiers))
+	}
 	return strings.Join(parts, "  ")
+}
+
+func formatTiers(tiers []codersdk.AIModelPriceTier) string {
+	if len(tiers) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(tiers))
+	for _, tier := range tiers {
+		prices := []string{fmt.Sprintf("over %d:", tier.ThresholdTokens)}
+		for _, named := range []namedPrice{
+			{"input", tier.InputPrice},
+			{"output", tier.OutputPrice},
+			{"cache read", tier.CacheReadPrice},
+			{"cache write", tier.CacheWritePrice},
+		} {
+			if named.value != nil {
+				prices = append(prices, named.name+" "+formatMicros(named.value))
+			}
+		}
+		parts = append(parts, strings.Join(prices, " "))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // describePriceChanges renders one "old -> new" line per price that moves.
@@ -504,6 +547,9 @@ func describePriceChanges(change aiModelPriceChange) []string {
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("%-18s %s -> %s", named.name, formatMicros(old[named.name]), formatMicros(named.value)))
+	}
+	if !slices.EqualFunc(change.price.Tiers, change.old.Tiers, tierEqual) {
+		lines = append(lines, fmt.Sprintf("%-18s %s -> %s", "tiers", formatTiers(change.old.Tiers), formatTiers(change.price.Tiers)))
 	}
 	return lines
 }

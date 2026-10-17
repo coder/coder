@@ -5028,6 +5028,10 @@ type AIBridgeTokenUsage struct {
 	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
 	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
 	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
+	// The prompt size of the upstream request, which selects the long-context price tier. NULL on rows recorded before it was tracked.
+	PromptTokens sql.NullInt64 `db:"prompt_tokens" json:"prompt_tokens"`
+	// The threshold_tokens of the long-context price tier that applied. NULL when the base prices applied.
+	PriceTierThresholdTokens sql.NullInt64 `db:"price_tier_threshold_tokens" json:"price_tier_threshold_tokens"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5085,6 +5089,8 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
+	// Long-context prices as a JSON array sorted by threshold_tokens. A tier applies when the prompt of a request is over its threshold_tokens; a missing tier price uses the base price.
+	Tiers json.RawMessage `db:"tiers" json:"tiers"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

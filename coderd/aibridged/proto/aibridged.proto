@@ -104,6 +104,7 @@ message RecordTokenUsageRequest {
   int64 cache_read_input_tokens = 7;
   int64 cache_write_input_tokens = 8;
   string provider_model = 9; // Model reported by the provider, empty if not reported.
+  int64 prompt_tokens = 10; // Prompt size of the upstream request, 0 if not reported.
 }
 message RecordTokenUsageResponse {}
 
