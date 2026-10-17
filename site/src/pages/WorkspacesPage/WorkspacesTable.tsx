@@ -3,8 +3,6 @@ import {
 	BanIcon,
 	CircleAlertIcon,
 	EllipsisVerticalIcon,
-	ExternalLinkIcon,
-	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	RotateCcwIcon,
@@ -67,7 +65,6 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
-import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
@@ -524,12 +521,9 @@ const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 			}}
 		>
 			<div className="flex gap-1 justify-end">
-				{workspace.latest_build.status === "running" &&
-					(workspace.latest_app_status ? (
-						<WorkspaceAppStatusLinks workspace={workspace} />
-					) : (
-						<WorkspaceApps workspace={workspace} />
-					))}
+				{workspace.latest_build.status === "running" && (
+					<WorkspaceApps workspace={workspace} />
+				)}
 
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
@@ -814,41 +808,6 @@ const WorkspaceApps: React.FC<WorkspaceAppsProps> = ({ workspace }) => {
 	return buttons;
 };
 
-type WorkspaceAppStatusLinksProps = {
-	workspace: Workspace;
-};
-
-const WorkspaceAppStatusLinks: React.FC<WorkspaceAppStatusLinksProps> = ({
-	workspace,
-}) => {
-	const status = workspace.latest_app_status;
-	const appWithAgent = status
-		? findWorkspaceAppWithAgent(workspace, status.agent_id, status.app_id)
-		: undefined;
-
-	return (
-		<>
-			{appWithAgent && (
-				<IconAppLink
-					app={appWithAgent}
-					workspace={workspace}
-					agent={appWithAgent.agent}
-				/>
-			)}
-
-			{status?.uri && status?.uri !== "n/a" && (
-				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
-					{status.uri.startsWith("file://") ? (
-						<FileIcon />
-					) : (
-						<ExternalLinkIcon />
-					)}
-				</BaseIconLink>
-			)}
-		</>
-	);
-};
-
 type IconAppLinkProps = {
 	app: WorkspaceApp;
 	workspace: Workspace;
@@ -957,7 +916,6 @@ type BaseIconLinkCommonProps = React.PropsWithChildren<{
 type BaseIconLinkAnchorProps = BaseIconLinkCommonProps & {
 	href: string;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
-	target?: string;
 };
 
 type BaseIconLinkButtonProps = BaseIconLinkCommonProps & {
@@ -987,7 +945,6 @@ const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 							disabled={isLoading}
 						>
 							<a
-								target={rest.target}
 								className={loadingClass}
 								href={rest.href}
 								onClick={(e) => {

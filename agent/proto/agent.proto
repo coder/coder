@@ -573,7 +573,6 @@ message ReportBoundaryLogsRequest {
 
 message ReportBoundaryLogsResponse {}
 
-// UpdateAppStatusRequest updates the given Workspace App's status. c.f. agentsdk.PatchAppStatus
 message UpdateAppStatusRequest {
   string slug = 1;
 
@@ -727,6 +726,9 @@ service Agent {
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
-	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
+	// Deprecated: no-op kept for older agents. Remove in the next major version.
+	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse) {
+		option deprecated = true;
+	}
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
 }

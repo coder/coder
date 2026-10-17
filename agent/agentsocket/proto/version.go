@@ -14,10 +14,14 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.2:
 //   - SyncList RPC (list all registered units)
+//
+// API v1.3:
+//   - Removed the UpdateAppStatus RPC along with workspace app statuses. Calls
+//     now fail with an unknown RPC error.
 
 const (
 	CurrentMajor = 1
-	CurrentMinor = 2
+	CurrentMinor = 3
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

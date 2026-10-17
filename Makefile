@@ -1332,7 +1332,7 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
 
-agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
 	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \

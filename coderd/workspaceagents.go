@@ -25,7 +25,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -98,20 +97,6 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appIDs := []uuid.UUID{}
-	for _, app := range dbApps {
-		appIDs = append(appIDs, app.ID)
-	}
-	// nolint:gocritic // This is a system restricted operation.
-	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace app statuses.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	apiScripts, err := convertScripts(scripts)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -122,7 +107,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -293,83 +278,6 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, nil)
-}
-
-// @Summary Patch workspace agent app status
-// @ID patch-workspace-agent-app-status
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Agents
-// @Param request body agentsdk.PatchAppStatus true "app status"
-// @Success 200 {object} codersdk.Response
-// @Router /api/v2/workspaceagents/me/app-status [patch]
-// @Deprecated Use UpdateAppStatus on the Agent API instead.
-func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-
-	var req agentsdk.PatchAppStatus
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to get workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// This functionality has been moved to the AppsAPI in the agentapi. We keep this HTTP handler around for back
-	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
-	// implementation.
-	cachedWs := &agentapi.CachedWorkspaceFields{}
-	cachedWs.UpdateValues(workspace)
-
-	appAPI := &agentapi.AppsAPI{
-		AgentID:   workspaceAgent.ID,
-		Database:  api.Database,
-		Log:       api.Logger,
-		Workspace: cachedWs,
-		AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
-			return api.Database.GetWorkspaceAgentByID(ctx, workspaceAgent.ID)
-		},
-		PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
-			api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
-				Kind:        kind,
-				WorkspaceID: workspace.ID,
-				AgentID:     &agentID,
-			})
-			return nil
-		},
-		NotificationsEnqueuer: api.NotificationsEnqueuer,
-		Clock:                 api.Clock,
-	}
-	protoReq, err := agentsdk.ProtoFromPatchAppStatus(req)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to parse request.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	_, err = appAPI.UpdateAppStatus(r.Context(), protoReq)
-	if err != nil {
-		sdkErr := new(codersdk.Error)
-		if xerrors.As(err, &sdkErr) {
-			httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update app status.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
@@ -1796,7 +1704,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
-	return db2sdk.Apps(dbApps, []database.WorkspaceAppStatus{}, database.WorkspaceAgent{}, "", database.WorkspaceTable{})
+	return db2sdk.Apps(dbApps, database.WorkspaceAgent{}, "", database.WorkspaceTable{})
 }
 
 func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []codersdk.WorkspaceAgentLogSource {
