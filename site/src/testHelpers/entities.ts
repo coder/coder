@@ -558,6 +558,27 @@ export const MockChatProject: TypesGen.ChatProject = {
 	updated_at: "2026-09-02T12:00:00Z",
 };
 
+export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
+	project_id: MockChatProject.id,
+	instructions:
+		"Use TypeScript for new code.\nRun the linters before committing.",
+	updated_by: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: MockUserOwner.avatar_url,
+	},
+	updated_at: "2026-10-02T12:00:00Z",
+};
+
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
+
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
 	username: "TestUser2",
@@ -1350,6 +1371,22 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
 		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "58eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "skipped",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "68eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "canceled",
+			display_name: "canceled",
+		},
 	],
 	logs_length: 4,
 	log_sources: [
@@ -1375,6 +1412,16 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			...MockWorkspaceAgentLogSource,
 			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "canceled",
 		},
 	],
 };

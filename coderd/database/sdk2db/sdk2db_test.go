@@ -38,27 +38,40 @@ func TestProvisionerDaemonStatus(t *testing.T) {
 	}
 }
 
-func TestConnectionLogFromAgentType(t *testing.T) {
+func TestConnectionLogFromAgentConnection(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		typ     agentproto.Connection_Type
+		name    string
+		conn    *agentproto.Connection
 		method  database.ConnectionLogMethod
 		appName string
 	}{
-		{agentproto.Connection_SSH, database.ConnectionLogMethodSSH, ""},
-		// SSH handlers reported unfamiliar apps as unspecified.
-		{agentproto.Connection_TYPE_UNSPECIFIED, database.ConnectionLogMethodSSH, ""},
-		{agentproto.Connection_VSCODE, database.ConnectionLogMethodSSH, "vscode"},
-		{agentproto.Connection_JETBRAINS, database.ConnectionLogMethodSSH, "jetbrains"},
-		{agentproto.Connection_RECONNECTING_PTY, database.ConnectionLogMethodReconnectingPTY, ""},
+		{"SSH", &agentproto.Connection{ConnectionMethod: agentproto.Connection_METHOD_SSH}, database.ConnectionLogMethodSSH, ""},
+		{"SSHApp", &agentproto.Connection{ConnectionMethod: agentproto.Connection_METHOD_SSH, AppName: "Some-IDE"}, database.ConnectionLogMethodSSH, "some_ide"},
+		{"SSHIgnoresType", &agentproto.Connection{ConnectionMethod: agentproto.Connection_METHOD_SSH, Type: agentproto.Connection_VSCODE}, database.ConnectionLogMethodSSH, ""},
+		{"ReconnectingPTY", &agentproto.Connection{ConnectionMethod: agentproto.Connection_METHOD_RECONNECTING_PTY}, database.ConnectionLogMethodReconnectingPTY, ""},
+		{"PortForwarding", &agentproto.Connection{ConnectionMethod: agentproto.Connection_METHOD_PORT_FORWARDING, AppName: "cursor"}, database.ConnectionLogMethodPortForwarding, ""},
+		{"LegacySSH", &agentproto.Connection{Type: agentproto.Connection_SSH}, database.ConnectionLogMethodSSH, ""},
+		{"LegacyUnspecified", &agentproto.Connection{}, database.ConnectionLogMethodSSH, ""},
+		{"LegacyVSCode", &agentproto.Connection{Type: agentproto.Connection_VSCODE}, database.ConnectionLogMethodSSH, "vscode"},
+		{"LegacyJetBrains", &agentproto.Connection{Type: agentproto.Connection_JETBRAINS}, database.ConnectionLogMethodSSH, "jetbrains"},
+		{"LegacyReconnectingPTY", &agentproto.Connection{Type: agentproto.Connection_RECONNECTING_PTY}, database.ConnectionLogMethodReconnectingPTY, ""},
 	} {
-		method, appName, err := sdk2db.ConnectionLogFromAgentType(tc.typ)
-		require.NoError(t, err, tc.typ)
-		require.Equal(t, tc.method, method, tc.typ)
-		require.Equal(t, tc.appName, appName, tc.typ)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			method, appName, err := sdk2db.ConnectionLogFromAgentConnection(tc.conn)
+			require.NoError(t, err)
+			require.Equal(t, tc.method, method)
+			require.Equal(t, tc.appName, appName)
+		})
 	}
 
-	_, _, err := sdk2db.ConnectionLogFromAgentType(agentproto.Connection_Type(1000))
-	require.Error(t, err)
+	for _, conn := range []*agentproto.Connection{
+		{ConnectionMethod: agentproto.Connection_Method(1000)},
+		{Type: agentproto.Connection_Type(1000)},
+	} {
+		_, _, err := sdk2db.ConnectionLogFromAgentConnection(conn)
+		require.Error(t, err, conn)
+	}
 }

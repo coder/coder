@@ -2,22 +2,20 @@
 title: Groups and roles
 ---
 
-Groups and roles can be manually assigned in Coder. For production deployments,
-these can also be [managed and synced by the identity provider](./idp-sync.md).
+Groups and roles can be manually assigned in Coder.
+For production deployments, these can also be [managed and synced by the identity provider](./idp-sync.md).
 
 ## Groups
 
 > [!NOTE]
-> Groups require a
-> [Premium license](https://coder.com/pricing#compare-plans).
+> Groups require a [Premium license](https://coder.com/pricing#compare-plans).
 > For more details, [contact your account team](https://coder.com/contact).
 
-Groups are logical segmentations of users in Coder and can be used to control
-which templates developers can use. For example:
+Groups are logical segmentations of users in Coder and can be used to control which templates developers can use.
+For example:
 
 - Users within the `devops` group can access the `AWS-VM` template
-- Users within the `data-science` group can access the `Jupyter-Kubernetes`
-  template
+- Users within the `data-science` group can access the `Jupyter-Kubernetes` template
 
 ## Roles
 
@@ -58,13 +56,21 @@ Assign organization roles from **Admin settings** > **Organizations** > **Member
 
 Coder ships the following organization roles:
 
-- **Organization Admin**: manages the organization's templates, provisioners, groups, members, and organization role assignments.
-- **Organization User Admin**: manages the organization's members, groups, and role assignments, including its IdP sync settings.
-- **Organization Template Admin**: manages the organization's templates and provisioners, and reads its workspaces.
-- **Organization Auditor**: reads the organization's audit logs and connection logs, along with the resources those logs reference.
-- **Organization Workspace Access**: creates and operates the user's own workspaces in the organization.
-- **Organization Workspace Creation Ban**: blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
-- **Coder Agents User**: uses [Coder Agents](../../ai-coder/agents/index.md) in the organization. Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
+- **Organization Admin**:
+  manages the organization's templates, provisioners, groups, members, and organization role assignments.
+- **Organization User Admin**:
+  manages the organization's members, groups, and role assignments, including its IdP sync settings.
+- **Organization Template Admin**:
+  manages the organization's templates and provisioners, and reads its workspaces.
+- **Organization Auditor**:
+  reads the organization's audit logs and connection logs, along with the resources those logs reference.
+- **Organization Workspace Access**:
+  creates and operates the user's own workspaces in the organization.
+- **Organization Workspace Creation Ban**:
+  blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
+- **Coder Agents User**:
+  uses [Coder Agents](../../ai-coder/agents/index.md) in the organization.
+  Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.
 A user with that role can read, build, stop, and delete those workspaces.
@@ -80,28 +86,21 @@ Service accounts hold an equivalent implicit role.
 > Custom roles are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Starting in v2.16.0, Premium Coder deployments can configure custom roles on the
-[Organization](./organizations.md) level. You can create and assign custom roles
-in the dashboard under **Organizations** -> **My Organization** -> **Roles**.
+Starting in v2.16.0, Premium Coder deployments can configure custom roles on the [Organization](./organizations.md) level.
+You can create and assign custom roles in the dashboard under **Organizations** -> **My Organization** -> **Roles**.
 
 ![Custom roles](../../images/admin/users/roles/custom-roles.PNG)
 
 ### Example roles
 
-- The `Banking Compliance Auditor` custom role cannot create workspaces, but can
-  read template source code and view audit logs
-- The `Organization Lead` role can access user workspaces for troubleshooting
-  purposes, but cannot edit templates
-- The `Platform Member` role cannot edit or create workspaces as they are
-  created via a third-party system
+- The `Banking Compliance Auditor` custom role cannot create workspaces, but can read template source code and view audit logs
+- The `Organization Lead` role can access user workspaces for troubleshooting purposes, but cannot edit templates
+- The `Platform Member` role cannot edit or create workspaces as they are created via a third-party system
 
-Custom roles can also be applied to
-[headless user accounts](./headless-auth.md):
+Custom roles can also be applied to [headless user accounts](./headless-auth.md):
 
-- A `Health Check` role can view deployment status but cannot create workspaces,
-  manage templates, or view users
-- A `CI` role can update manage templates but cannot create workspaces or view
-  users
+- A `Health Check` role can view deployment status but cannot create workspaces, manage templates, or view users
+- A `CI` role can update manage templates but cannot create workspaces or view users
 
 <a id="creating-custom-roles"></a>
 
@@ -111,22 +110,16 @@ Selecting "Create custom role" opens a UI to select the desired permissions for 
 
 ![Creating a custom role](../../images/admin/users/roles/creating-custom-role.PNG)
 
-From there, you can assign the custom role to any user in the organization under
-the **Users** settings in the dashboard.
+From there, you can assign the custom role to any user in the organization under the **Users** settings in the dashboard.
 
 ![Assigning a custom role](../../images/admin/users/roles/assigning-custom-role.PNG)
 
-Note that these permissions only apply to the scope of an
-[organization](./organizations.md), not across the deployment.
+Note that these permissions only apply to the scope of an [organization](./organizations.md), not across the deployment.
 
 ### Security notes
 
-A malicious Template Admin could write a template that executes commands on the
-host (or `coder server` container), which potentially escalates their privileges
-or shuts down the control plane. To avoid this, run
-[external provisioners](../../install/operate/provisioners/index.md).
+A malicious Template Admin could write a template that executes commands on the host (or `coder server` container), which potentially escalates their privileges or shuts down the control plane.
+To avoid this, run [external provisioners](../../install/operate/provisioners/index.md).
 
-In low-trust environments, we do not recommend giving users direct access to
-edit templates. Instead, use
-[CI/CD pipelines to update templates](../templates/managing-templates/change-management.md)
-with proper security scans and code reviews in place.
+In low-trust environments, we do not recommend giving users direct access to edit templates.
+Instead, use [CI/CD pipelines to update templates](../templates/managing-templates/change-management.md) with proper security scans and code reviews in place.

@@ -42,11 +42,11 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, workspace.TemplateName, templateVersion)
 			if err != nil {
 				return err
 			}
-			stopVersionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, stopTemplateVersion)
+			stopVersionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, workspace.TemplateName, stopTemplateVersion)
 			if err != nil {
 				return err
 			}
@@ -131,11 +131,11 @@ func (r *RootCmd) update() *serpent.Command {
 
 	cmd.Options = append(cmd.Options, serpent.Option{
 		Flag:        "template-version",
-		Description: "Start with a named version of the workspace template. Defaults to the active version.",
+		Description: "Start with a version of the workspace template, by name or ID. Defaults to the active version.",
 		Value:       serpent.StringOf(&templateVersion),
 	}, serpent.Option{
 		Flag:        "stop-template-version",
-		Description: "Stop with a named version of the workspace template. Only applies when the workspace is started. Defaults to the workspace's current version.",
+		Description: "Stop with a version of the workspace template, by name or ID. Only applies when the workspace is started. Defaults to the workspace's current version.",
 		Value:       serpent.StringOf(&stopTemplateVersion),
 	})
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)

@@ -1816,7 +1816,7 @@
 						},
 						{
 							"title": "`features`",
-							"description": "List Enterprise features",
+							"description": "List license features and entitlements",
 							"path": "reference/cli/features/index.md",
 							"children": [
 								{

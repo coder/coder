@@ -384,33 +384,87 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 	})
 }
 
-// sessionCloseTracker is a wrapper around Session that tracks the exit code.
-type sessionCloseTracker struct {
+// sessionTracker is a wrapper around Session that tracks the exit code and
+// transferred bytes.
+type sessionTracker struct {
 	ssh.Session
 	exitOnce sync.Once
 	code     atomic.Int64
+	rxBytes  atomic.Int64
+	txBytes  atomic.Int64
 }
 
-var _ ssh.Session = &sessionCloseTracker{}
+var _ ssh.Session = &sessionTracker{}
 
-func (s *sessionCloseTracker) track(code int) {
+func (s *sessionTracker) track(code int) {
 	s.exitOnce.Do(func() {
 		s.code.Store(int64(code))
 	})
 }
 
-func (s *sessionCloseTracker) exitCode() int {
+func (s *sessionTracker) exitCode() int {
 	return int(s.code.Load())
 }
 
-func (s *sessionCloseTracker) Exit(code int) error {
+func (s *sessionTracker) RxBytes() int64 { return s.rxBytes.Load() }
+func (s *sessionTracker) TxBytes() int64 { return s.txBytes.Load() }
+
+func (s *sessionTracker) Read(p []byte) (int, error) {
+	n, err := s.Session.Read(p)
+	if n > 0 {
+		s.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Write(p []byte) (int, error) {
+	n, err := s.Session.Write(p)
+	if n > 0 {
+		s.txBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Exit(code int) error {
 	s.track(code)
 	return s.Session.Exit(code)
 }
 
-func (s *sessionCloseTracker) Close() error {
+func (s *sessionTracker) Close() error {
 	s.track(1)
 	return s.Session.Close()
+}
+
+func (s *sessionTracker) Stderr() io.ReadWriter {
+	return &readWriterTracker{
+		ReadWriter: s.Session.Stderr(),
+		rxBytes:    &s.rxBytes,
+		txBytes:    &s.txBytes,
+	}
+}
+
+// readWriterTracker is a wrapper around io.ReadWriter that adds bytes
+// transferred to the provided counters.
+type readWriterTracker struct {
+	io.ReadWriter
+	rxBytes *atomic.Int64
+	txBytes *atomic.Int64
+}
+
+func (rw *readWriterTracker) Read(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Read(p)
+	if n > 0 {
+		rw.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (rw *readWriterTracker) Write(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Write(p)
+	if n > 0 {
+		rw.txBytes.Add(int64(n))
+	}
+	return n, err
 }
 
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
@@ -455,18 +509,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		)
 	}
 
-	// Connection_Type is a fixed enum, stored as a database enum in the
-	// connection log, so it can only hold a family.
-	var connectionType proto.Connection_Type
-	switch family {
-	case codersdk.AppFamilySSH:
-		connectionType = proto.Connection_SSH
-	case codersdk.AppFamilyVSCode:
-		connectionType = proto.Connection_VSCODE
-	case codersdk.AppFamilyJetBrains:
-		connectionType = proto.Connection_JETBRAINS
-	default:
-		connectionType = proto.Connection_TYPE_UNSPECIFIED
+	// App-less sessions count as SSH but report no app.
+	connectionAppName := appName
+	if rawAppName == "" {
+		connectionAppName = ""
 	}
 
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
@@ -483,14 +529,16 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		// Report connection attempt even if we couldn't accept it.
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
 		defer connReporter.Disconnect(proto.DisconnectEvent{
-			Code:   1,
-			Reason: reason,
+			Code:    1,
+			Reason:  reason,
+			RxBytes: 0,
+			TxBytes: 0,
 		})
 
 		logger.Info(ctx, reason)
@@ -516,13 +564,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		var reason codersdk.DisconnectReason
 		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
-		scr := &sessionCloseTracker{Session: session}
-		session = scr
+		st := &sessionTracker{Session: session}
+		session = st
 
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
@@ -531,11 +579,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				codersdk.ConnectionDirectionAgentToClient.SlogField(),
 				reason.SlogField(),
 				reason.SlogExpectedField(),
-				slog.F("exit_code", scr.exitCode()),
+				slog.F("exit_code", st.exitCode()),
 			)
 			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:   scr.exitCode(),
-				Reason: string(reason),
+				Code:    st.exitCode(),
+				Reason:  string(reason),
+				RxBytes: st.RxBytes(),
+				TxBytes: st.TxBytes(),
 			})
 		}()
 	}

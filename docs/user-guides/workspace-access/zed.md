@@ -2,8 +2,7 @@
 title: Zed
 ---
 
-[Zed](https://zed.dev/) is an [open-source](https://github.com/zed-industries/zed)
-multiplayer code editor from the creators of Atom and Tree-sitter.
+[Zed](https://zed.dev/) is an [open-source](https://github.com/zed-industries/zed) multiplayer code editor from the creators of Atom and Tree-sitter.
 
 ## Use Zed to connect to Coder via SSH
 
@@ -24,19 +23,15 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   Refer to [GitHub releases](https://github.com/coder/coder/releases) for
-   alternate installation methods (e.g. standalone binaries, system packages).
+   Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
 
    ### Windows
 
-   Use [GitHub releases](https://github.com/coder/coder/releases) to download the
-   Windows installer (`.msi`) or standalone binary (`.exe`).
+   Use [GitHub releases](https://github.com/coder/coder/releases) to download the Windows installer (`.msi`) or standalone binary (`.exe`).
 
    ![Windows setup wizard](../../images/install/windows-installer.png)
 
-   Alternatively, you can use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
+   Alternatively, you can use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
    ```ps1
    winget install Coder.Coder
@@ -69,6 +64,4 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    ![Zed open remote project](../../images/zed/zed-ssh-open-remote.png)
 
 > [!NOTE]
-> If you have any suggestions or experience any issues, please
-> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
-> [our Discord channel](https://discord.gg/coder).
+> If you have any suggestions or experience any issues, please [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).
