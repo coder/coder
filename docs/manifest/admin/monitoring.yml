@@ -16,4 +16,7 @@ children:
     description: Monitor SSH, app, and agent connections to your workspaces with the connection log.
     path: ./admin/monitoring/connection-logs.md
     state: [premium]
+  - title: Trace workspace connections
+    description: Correlate client, coderd, and agent logs to find why an SSH, IDE, or web terminal connection failed.
+    path: ./admin/monitoring/trace-connections.md
   - include: admin/monitoring/notifications.yml
