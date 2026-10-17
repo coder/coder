@@ -48,11 +48,6 @@ const meta: Meta<typeof ModelsPageView> = {
 			MockAnthropicProviderState,
 			MockBedrockProviderState,
 		],
-		providerTypeByID: new Map<string, string>([
-			["prov-openai", "openai"],
-			["prov-anthropic", "anthropic"],
-			["prov-bedrock", "bedrock"],
-		]),
 		canCreateModel: true,
 	},
 	parameters: {
@@ -105,6 +100,27 @@ export const Default: Story = {
 		const menu = await within(document.body).findByRole("menu");
 		await within(menu).findByRole("menuitem", { name: "Anthropic" });
 		await userEvent.keyboard("{Escape}");
+	},
+};
+
+const MockOpenAIProviderWithCustomIcon = {
+	...MockOpenAIProviderState,
+	providerDescriptor: {
+		...MockOpenAIProviderState.providerDescriptor,
+		icon: "/icon/coder.svg",
+	},
+};
+
+export const CustomProviderIcon: Story = {
+	args: {
+		models: [mockGPT5, mockProviderDisabledModel, mockOrphanedModel],
+		providerStates: [
+			MockOpenAIProviderWithCustomIcon,
+			MockDisabledProviderState,
+		],
+	},
+	parameters: {
+		pixel: { exclude: false },
 	},
 };
 
@@ -174,10 +190,6 @@ export const DisabledProviderModelsStillListed: Story = {
 	args: {
 		models: [mockGPT5, mockProviderDisabledModel],
 		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
-		providerTypeByID: new Map<string, string>([
-			["prov-openai", "openai"],
-			["prov-openai-disabled", "openai"],
-		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -194,18 +206,12 @@ export const DisabledProviderModelsStillListed: Story = {
 	},
 };
 
-// An orphaned model is one whose ai_provider_id references a provider row
-// that has been deleted. In production `deriveProviderStates` drops such
-// models entirely, so the row reaches "Unset" via a map-miss and the
-// `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
-// here: the model appears in `models` but is not present in any
-// providerState.models, so a `?? true` regression would hide the
-// unavailable notice and be caught.
+// Deleted providers are absent from providerStates, but their models can
+// remain in the model list.
 export const OrphanedModelShowsUnset: Story = {
 	args: {
 		models: [mockGPT5, mockOrphanedModel],
 		providerStates: [MockOpenAIProviderState],
-		providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
