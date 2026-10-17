@@ -33,12 +33,12 @@ func TestUpdateChat(t *testing.T) {
 		return err
 	}
 
-	t.Run("ReloadsAndPublishesAfterStateUpdate", func(t *testing.T) {
+	t.Run("ReturnsAndPublishesPostTransitionChat", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		fixture, chat, recorder, server := setup(t)
 
-		updated, err := server.updateChat(ctx, chat.ID, "test", requestCompaction)
+		updated, err := server.updateChat(ctx, chat.ID, requestCompaction)
 		require.NoError(t, err)
 		stored, err := fixture.db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -66,13 +66,13 @@ func TestUpdateChat(t *testing.T) {
 		require.Greater(t, watchIndex, stateIndex)
 	})
 
-	t.Run("TransitionRowSkipsReload", func(t *testing.T) {
+	t.Run("TransitionRowOverridesResult", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, chat, recorder, server := setup(t)
 		sentinel := database.Chat{ID: chat.ID, OwnerID: chat.OwnerID, Title: "from transition"}
 
-		updated, err := server.updateChat(ctx, chat.ID, "test", func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
+		updated, err := server.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
 			*updated = sentinel
 			return requestCompaction(tx, store, nil)
 		})
@@ -89,7 +89,7 @@ func TestUpdateChat(t *testing.T) {
 		fixture, chat, recorder, server := setup(t)
 		wantErr := xerrors.New("transition failed")
 
-		_, err := server.updateChat(ctx, chat.ID, "test", func(*chatstate.Tx, database.Store, *database.Chat) error {
+		_, err := server.updateChat(ctx, chat.ID, func(*chatstate.Tx, database.Store, *database.Chat) error {
 			return wantErr
 		})
 		require.ErrorIs(t, err, wantErr)
