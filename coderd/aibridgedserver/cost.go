@@ -3,6 +3,7 @@ package aibridgedserver
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
@@ -52,6 +54,7 @@ func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
 		{"output_tokens", in.GetOutputTokens()},
 		{"cache_read_input_tokens", in.GetCacheReadInputTokens()},
 		{"cache_write_input_tokens", in.GetCacheWriteInputTokens()},
+		{"prompt_tokens", in.GetPromptTokens()},
 	} {
 		if category.count < 0 || category.count > maxAllowedTokenUsage {
 			return xerrors.Errorf("%s is %d, outside [0, %d]: %w",
@@ -72,8 +75,77 @@ type tokenUsageCost struct {
 	outputPriceMicros     sql.NullInt64
 	cacheReadPriceMicros  sql.NullInt64
 	cacheWritePriceMicros sql.NullInt64
-	costMicros            sql.NullInt64
-	pricedModel           sql.NullString
+	// priceTierThresholdTokens is the threshold of the long-context tier
+	// whose prices applied, or NULL for the base prices.
+	priceTierThresholdTokens sql.NullInt64
+	costMicros               sql.NullInt64
+	pricedModel              sql.NullString
+}
+
+type usageTokens struct {
+	input, output, cacheRead, cacheWrite, prompt int64
+}
+
+// The inserted row and its cost both read the counts through
+// usageFromRequest, so they agree.
+func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
+	u := usageTokens{
+		input:      in.GetInputTokens(),
+		output:     in.GetOutputTokens(),
+		cacheRead:  in.GetCacheReadInputTokens(),
+		cacheWrite: in.GetCacheWriteInputTokens(),
+	}
+	// A record carries at least its own input. An output-only record of a
+	// stream carries the prompt size of its message in PromptTokens.
+	u.prompt = max(in.GetPromptTokens(), u.input+u.cacheRead+u.cacheWrite)
+	return u
+}
+
+// priceSet holds the per-million-token prices that apply to one usage
+// record. A NULL price is treated as zero.
+type priceSet struct {
+	input, output, cacheRead, cacheWrite sql.NullInt64
+	// tierThreshold is the threshold of the applied tier, NULL for the base
+	// prices.
+	tierThreshold sql.NullInt64
+}
+
+// pricesForPrompt returns the prices for one upstream request. The tiers are
+// stored in threshold order; the highest one below the prompt size applies,
+// and a tier price that is absent uses the base price.
+func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (priceSet, error) {
+	set := priceSet{
+		input:      row.InputPrice,
+		output:     row.OutputPrice,
+		cacheRead:  row.CacheReadPrice,
+		cacheWrite: row.CacheWritePrice,
+	}
+	var tiers []pricebook.Tier
+	if len(row.Tiers) > 0 {
+		if err := json.Unmarshal(row.Tiers, &tiers); err != nil {
+			return priceSet{}, xerrors.Errorf("decode tiers: %w", err)
+		}
+	}
+	for _, t := range tiers {
+		if prompt <= t.ThresholdTokens {
+			break
+		}
+		set = priceSet{
+			input:         priceOr(t.InputPrice, row.InputPrice),
+			output:        priceOr(t.OutputPrice, row.OutputPrice),
+			cacheRead:     priceOr(t.CacheReadPrice, row.CacheReadPrice),
+			cacheWrite:    priceOr(t.CacheWritePrice, row.CacheWritePrice),
+			tierThreshold: sql.NullInt64{Int64: t.ThresholdTokens, Valid: true},
+		}
+	}
+	return set, nil
+}
+
+func priceOr(price *int64, fallback sql.NullInt64) sql.NullInt64 {
+	if price == nil {
+		return fallback
+	}
+	return sql.NullInt64{Int64: *price, Valid: true}
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
@@ -155,15 +227,21 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		return tokenUsageCost{}, xerrors.Errorf("look up model price for %s/%s: %w", configuredType, intc.Model, err)
 	}
 
+	// The row snapshots the prices that applied, so its per-category
+	// breakdown still adds up to cost_micros.
+	usage := usageFromRequest(in)
+	prices, err := pricesForPrompt(price, usage.prompt)
+	if err != nil {
+		return tokenUsageCost{}, xerrors.Errorf("prices of %s/%s: %w", configuredType, price.Model, err)
+	}
 	result.pricedModel = sql.NullString{String: price.Model, Valid: true}
-	result.inputPriceMicros = price.InputPrice
-	result.outputPriceMicros = price.OutputPrice
-	result.cacheReadPriceMicros = price.CacheReadPrice
-	result.cacheWritePriceMicros = price.CacheWritePrice
+	result.inputPriceMicros = prices.input
+	result.outputPriceMicros = prices.output
+	result.cacheReadPriceMicros = prices.cacheRead
+	result.cacheWritePriceMicros = prices.cacheWrite
+	result.priceTierThresholdTokens = prices.tierThreshold
 
-	costMicros, err := computeCost(price,
-		in.GetInputTokens(), in.GetOutputTokens(),
-		in.GetCacheReadInputTokens(), in.GetCacheWriteInputTokens())
+	costMicros, err := computeCost(prices, usage)
 	if err != nil {
 		// No trustworthy cost exists, so record it as unknown rather than
 		// storing a figure derived from bad inputs.
@@ -178,6 +256,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
 			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.F("prompt_tokens", usage.prompt),
 			slog.Error(err))
 		return result, nil
 	}
@@ -185,15 +264,13 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	return result, nil
 }
 
-// computeCost returns the cost of an interception in micro-units, snapshotting
-// the per-token prices from the price table. Prices are expressed per million
-// tokens; a NULL price column is treated as zero (e.g. providers that do not
-// charge for cache writes).
-func computeCost(price database.GetAIModelPriceForProviderRow, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) (int64, error) {
-	total := tokenCost(inputTokens, price.InputPrice).
-		Add(tokenCost(outputTokens, price.OutputPrice)).
-		Add(tokenCost(cacheReadTokens, price.CacheReadPrice)).
-		Add(tokenCost(cacheWriteTokens, price.CacheWritePrice))
+// computeCost returns the cost in micro-units. Prices are per million tokens,
+// and a NULL price counts as zero.
+func computeCost(price priceSet, u usageTokens) (int64, error) {
+	total := tokenCost(u.input, price.input).
+		Add(tokenCost(u.output, price.output)).
+		Add(tokenCost(u.cacheRead, price.cacheRead)).
+		Add(tokenCost(u.cacheWrite, price.cacheWrite))
 
 	if err := validateTotalCost(total); err != nil {
 		return 0, err

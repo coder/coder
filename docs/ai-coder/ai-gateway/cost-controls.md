@@ -169,6 +169,10 @@ For delivery methods, see [Notifications](../../admin/monitoring/notifications/i
 Coder multiplies the token usage of each request by the published price of its model.
 Prices come from a curated [models.dev](https://models.dev) snapshot that ships with every Coder release, so no configuration is required.
 
+When the prompt of a request is over the long-context size of its model, every token of that request uses the long-context price.
+When a model has more than one long-context size, the largest size that the prompt is over applies.
+A long-context price that is not set uses the base price.
+
 Coder prices a request by the model the client requested.
 When that model has no price, Coder uses the price of the model the provider reports serving, for example when the provider resolves an alias to a specific model.
 Coder uses the first price it finds, in this order:
@@ -273,6 +277,7 @@ coder exp ai-model-prices update prices.json
 > - Prices are not retroactive.
 >   Usage recorded before you set a price stays unpriced, so past spend does not change.
 > - A price you set takes precedence over the default and stays in effect across upgrades, so it does not pick up later price books.
+>   It also replaces the default long-context prices, so set `tiers` on it too.
 > - A price is keyed by provider type and model, so every configured provider of that type shares it.
 > - `openai-compat` providers cannot be priced.
 >   They pass through to any upstream vendor, so a single price would be wrong for most of them.

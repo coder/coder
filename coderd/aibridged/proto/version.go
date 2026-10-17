@@ -25,6 +25,7 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.4:
 //   - Adds organization_id to IsAuthorizedResponse.
+//   - Adds prompt_tokens to RecordTokenUsageRequest.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 4
