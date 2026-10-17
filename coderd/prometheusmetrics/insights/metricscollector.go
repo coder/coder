@@ -1,9 +1,10 @@
 package insights
 
 import (
+	"cmp"
 	"context"
-	"encoding/json"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -21,7 +22,8 @@ import (
 
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The workspace app usage per template.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	sessionAppsUsageSecondsDesc  = prometheus.NewDesc("coderd_insights_session_apps_usage_seconds", "The built-in app usage per template and app name, such as vscode, cursor, or ssh. Overlapping apps each count their own minutes.", []string{"template_name", "app_name", "organization_name"}, nil)
 	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
 )
 
@@ -30,7 +32,6 @@ type MetricsCollector struct {
 	logger       slog.Logger
 	timeWindow   time.Duration
 	tickInterval time.Duration
-	appFamilies  json.RawMessage
 
 	data atomic.Pointer[insightsData]
 }
@@ -65,17 +66,11 @@ func NewMetricsCollector(db database.Store, logger slog.Logger, timeWindow time.
 	if tickInterval == 0 {
 		tickInterval = timeWindow
 	}
-	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
-	if err != nil {
-		return nil, xerrors.Errorf("marshal app families: %w", err)
-	}
-
 	return &MetricsCollector{
 		database:     db,
 		logger:       logger.Named("insights_metrics_collector"),
 		timeWindow:   timeWindow,
 		tickInterval: tickInterval,
-		appFamilies:  appFamilies,
 	}, nil
 }
 
@@ -105,9 +100,8 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		eg.Go(func() error {
 			var err error
 			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
-				StartTime:   startTime,
-				EndTime:     endTime,
-				AppFamilies: mc.appFamilies,
+				StartTime: startTime,
+				EndTime:   endTime,
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
@@ -216,6 +210,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- templatesActiveUsersDesc
 	descCh <- applicationsUsageSecondsDesc
+	descCh <- sessionAppsUsageSecondsDesc
 	descCh <- parametersDesc
 }
 
@@ -233,15 +228,13 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 			appRow.DisplayName, appRow.SlugOrPort, data.organizationNames[appRow.TemplateID])
 	}
 
-	// Built-in apps, one series per app family.
+	// Built-in apps, one series per app with usage.
 	for _, templateRow := range data.templates {
+		templateName := data.templateNames[templateRow.TemplateID]
 		orgName := data.organizationNames[templateRow.TemplateID]
-		for _, family := range appFamilySeries {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-				float64(templateRow.SessionFamilyUsageSeconds[string(family)]),
-				data.templateNames[templateRow.TemplateID],
-				family.DisplayName(),
-				"", orgName)
+		for appName, seconds := range capSessionApps(templateRow.SessionAppUsageSeconds) {
+			metricsCh <- prometheus.MustNewConstMetric(sessionAppsUsageSecondsDesc, prometheus.GaugeValue,
+				float64(seconds), templateName, appName, orgName)
 		}
 	}
 
@@ -287,12 +280,38 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 	return m
 }
 
-// appFamilySeries lists the app families reported as built-in app series.
-var appFamilySeries = []codersdk.AppFamilyName{
-	codersdk.AppFamilyVSCode,
-	codersdk.AppFamilyJetBrains,
-	codersdk.AppFamilyReconnectingPTY,
-	codersdk.AppFamilySSH,
+// registeredSessionApps holds the registry's app names.
+var registeredSessionApps = codersdk.SessionCountAppFamilies()
+
+// capSessionApps bounds the app names of one template the same way the
+// template insights API does. Registered names and the unknown and overflow
+// accounting names always get their own series. Only the busiest
+// codersdk.TemplateInsightsMaxUnregisteredApps other names do; the rest are
+// added to overflow. Their overlap is not known, so overflow can count a
+// minute more than once.
+func capSessionApps(byApp map[string]int64) map[string]int64 {
+	capped := make(map[string]int64, len(byApp))
+	var unregistered []string
+	for appName, seconds := range byApp {
+		_, registered := registeredSessionApps[appName]
+		if registered || appName == string(codersdk.AppFamilyUnknown) || appName == codersdk.AppNameOverflow {
+			capped[appName] += seconds
+			continue
+		}
+		unregistered = append(unregistered, appName)
+	}
+	// Same order as the API's folding: busiest first, then by name.
+	slices.SortFunc(unregistered, func(a, b string) int {
+		return cmp.Or(cmp.Compare(byApp[b], byApp[a]), strings.Compare(a, b))
+	})
+	for i, appName := range unregistered {
+		if i < codersdk.TemplateInsightsMaxUnregisteredApps {
+			capped[appName] = byApp[appName]
+		} else {
+			capped[codersdk.AppNameOverflow] += byApp[appName]
+		}
+	}
+	return capped
 }
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {
