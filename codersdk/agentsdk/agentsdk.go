@@ -120,6 +120,9 @@ type Manifest struct {
 	OwnerName     string    `json:"owner_name"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
+	// WorkspaceBuildID is the build that created this agent. It is
+	// uuid.Nil when the server predates the field.
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
@@ -395,6 +398,19 @@ func (c *Client) ConnectRPC214WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient214, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 14), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC215WithRole returns a dRPC client to the Agent API v2.15, which
+// adds SKIPPED and CANCELED to script timing statuses. Pass role "agent" for
+// workspace agents to enable connection monitoring.
+func (c *Client) ConnectRPC215WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient215, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 15), role)
 	if err != nil {
 		return nil, nil, err
 	}

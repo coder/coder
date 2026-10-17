@@ -3,10 +3,10 @@ title: VS Code
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-VS Code's native chat can be configured to use AI Gateway via the **Custom Endpoint** language model provider (VS Code 1.122+, Stable). GitHub sign-in is not required, so this works in air-gapped or restricted environments.
+VS Code's native chat can be configured to use AI Gateway via the **Custom Endpoint** language model provider (VS Code 1.122+, Stable).
+GitHub sign-in is not required, so this works in air-gapped or restricted environments.
 
 ## Setup
 
@@ -20,9 +20,12 @@ For each provider below, the setup steps are:
 1. To add or edit models, select the gear icon next to the provider in the Language Models view to open `chatLanguageModels.json`.
 
 > [!IMPORTANT]
-> Enter your API token through the UI. VS Code stores it securely and inserts a reference like `${input:chat.lm.secret.XXXXX}` into the JSON. Do not paste your token directly into the JSON file.
+> Enter your API token through the UI.
+> VS Code stores it securely and inserts a reference like `${input:chat.lm.secret.XXXXX}` into the JSON.
+> Do not paste your token directly into the JSON file.
 
-_Replace `coder.example.com` with your Coder deployment URL. Model IDs must match what is configured in your AI Gateway._
+_Replace `coder.example.com` with your Coder deployment URL.
+Model IDs must match what is configured in your AI Gateway._
 
 ### OpenAI-compatible models
 
@@ -76,4 +79,5 @@ Set **API type** to `messages`.
 }
 ```
 
-**References:** [VS Code - Bring your own language model](https://code.visualstudio.com/docs/copilot/customization/language-models)
+**References:**
+[VS Code - Bring your own language model](https://code.visualstudio.com/docs/copilot/customization/language-models)

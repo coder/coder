@@ -422,6 +422,34 @@ func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
 }
 
+// ClearWorkspaceSecretsBeforeBuild mocks base method.
+func (m *MockStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearWorkspaceSecretsBeforeBuild", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearWorkspaceSecretsBeforeBuild indicates an expected call of ClearWorkspaceSecretsBeforeBuild.
+func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsBeforeBuild(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsBeforeBuild", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsBeforeBuild), ctx, arg)
+}
+
+// ClearWorkspaceSecretsByWorkspaceID mocks base method.
+func (m *MockStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearWorkspaceSecretsByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearWorkspaceSecretsByWorkspaceID indicates an expected call of ClearWorkspaceSecretsByWorkspaceID.
+func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsByWorkspaceID), ctx, workspaceID)
+}
+
 // CountAIBridgeSessions mocks base method.
 func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -5921,6 +5949,21 @@ func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
 }
 
+// GetScriptOrderTelemetrySummary mocks base method.
+func (m *MockStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScriptOrderTelemetrySummary", ctx)
+	ret0, _ := ret[0].(database.GetScriptOrderTelemetrySummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScriptOrderTelemetrySummary indicates an expected call of GetScriptOrderTelemetrySummary.
+func (mr *MockStoreMockRecorder) GetScriptOrderTelemetrySummary(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScriptOrderTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetScriptOrderTelemetrySummary), ctx)
+}
+
 // GetStaleChats mocks base method.
 func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -7856,6 +7899,36 @@ func (mr *MockStoreMockRecorder) GetWorkspaceResourcesCreatedAfter(ctx, createdA
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourcesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourcesCreatedAfter), ctx, createdAt)
 }
 
+// GetWorkspaceSecrets mocks base method.
+func (m *MockStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceSecrets", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceSecrets indicates an expected call of GetWorkspaceSecrets.
+func (mr *MockStoreMockRecorder) GetWorkspaceSecrets(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecrets), ctx, arg)
+}
+
+// GetWorkspaceSecretsHistory mocks base method.
+func (m *MockStore) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceSecretsHistory", ctx, arg)
+	ret0, _ := ret[0].([]database.GetWorkspaceSecretsHistoryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceSecretsHistory indicates an expected call of GetWorkspaceSecretsHistory.
+func (mr *MockStoreMockRecorder) GetWorkspaceSecretsHistory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecretsHistory", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecretsHistory), ctx, arg)
+}
+
 // GetWorkspaceUniqueOwnerCountByTemplateIDs mocks base method.
 func (m *MockStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	m.ctrl.T.Helper()
@@ -9309,6 +9382,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
 }
 
+// InsertWorkspaceSecret mocks base method.
+func (m *MockStore) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceSecret", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceSecret indicates an expected call of InsertWorkspaceSecret.
+func (mr *MockStoreMockRecorder) InsertWorkspaceSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceSecret", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceSecret), ctx, arg)
+}
+
 // IsChatHeartbeatStale mocks base method.
 func (m *MockStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -9532,6 +9620,21 @@ func (m *MockStore) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGat
 func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
+}
+
+// ListActiveWorkspaceSecrets mocks base method.
+func (m *MockStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListActiveWorkspaceSecrets", ctx, workspaceBuildID)
+	ret0, _ := ret[0].([]database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListActiveWorkspaceSecrets indicates an expected call of ListActiveWorkspaceSecrets.
+func (mr *MockStoreMockRecorder) ListActiveWorkspaceSecrets(ctx, workspaceBuildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).ListActiveWorkspaceSecrets), ctx, workspaceBuildID)
 }
 
 // ListAuthorizedAIBridgeClients mocks base method.
@@ -10889,6 +10992,21 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedUserAIProviderKey(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedUserAIProviderKey), ctx, arg)
 }
 
+// UpdateEncryptedWorkspaceSecretValue mocks base method.
+func (m *MockStore) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedWorkspaceSecretValue", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedWorkspaceSecretValue indicates an expected call of UpdateEncryptedWorkspaceSecretValue.
+func (mr *MockStoreMockRecorder) UpdateEncryptedWorkspaceSecretValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedWorkspaceSecretValue", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedWorkspaceSecretValue), ctx, arg)
+}
+
 // UpdateExternalAuthLink mocks base method.
 func (m *MockStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -11465,6 +11583,20 @@ func (m *MockStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) UpdateTemplateVersionFlagsByJobID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionFlagsByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionFlagsByJobID), ctx, arg)
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionScriptOrderUsageByJobID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID indicates an expected call of UpdateTemplateVersionScriptOrderUsageByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionScriptOrderUsageByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionScriptOrderUsageByJobID), ctx, arg)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.
