@@ -733,7 +733,8 @@ export const PricingEstimateFields: React.FC<{
 			}
 		: knownModel;
 	// A null 1h price bills at the cache write price, which the cache write
-	// field already shows.
+	// field already shows. The catalog has no 1h price, so catalog estimates
+	// hide the field too.
 	const visibleFields: ReadonlyArray<[string, keyof ModelCosts]> =
 		costs?.cacheWrite1hCost === undefined
 			? priceEstimateFields
