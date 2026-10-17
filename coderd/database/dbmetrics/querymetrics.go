@@ -5272,6 +5272,14 @@ func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatAndBumpSnapshotVersionNoWait(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatAndBumpSnapshotVersionNoWait(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatAndBumpSnapshotVersionNoWait").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatAndBumpSnapshotVersionNoWait").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatByID(ctx, id)

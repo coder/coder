@@ -7473,6 +7473,17 @@ func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UU
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
 }
 
+func (q *querier) LockChatAndBumpSnapshotVersionNoWait(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.LockChatAndBumpSnapshotVersionNoWait(ctx, id)
+}
+
 func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return uuid.Nil, err
