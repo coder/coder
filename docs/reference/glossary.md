@@ -261,8 +261,8 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Template inputs that can change per build, with conditional visibility and validation.
-Refer to [Dynamic parameters](../admin/templates/extending-templates/dynamic-parameters.md).
+Former name for the conditional, identity-aware, and form-type capabilities that every template parameter now has.
+Refer to [Parameters](#parameters).
 
 ## E
 
@@ -391,6 +391,12 @@ The top-level administrator role, with full access to the deployment and every o
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## P
+
+### Parameters
+
+Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
+Previously, the conditional and identity-aware capabilities were called dynamic parameters.
+Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
 
 ### Peripheral resource
 

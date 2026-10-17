@@ -2,14 +2,39 @@
 title: Parameters
 ---
 
-A template can prompt the user for additional information when creating workspaces with [_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
+Parameters prompt the user for information when they create or update a workspace, such as a region, an instance size, or a repository URL.
+You declare each parameter in your template's Terraform with the [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter) data source, so the workspace creation form lives next to the provisioning code that uses it.
 
-![Parameters in Create Workspace screen](../../../images/parameters.png)
+![Parameters in Create Workspace screen](../../../../images/parameters.png)
 
-The user can set parameters in the dashboard UI and CLI.
+Users set parameter values in the dashboard or with the CLI.
 
-You'll likely want to hardcode certain template properties for workspaces, such as security group.
-But you can let developers specify other properties with parameters like instance size, geographical location, repository URL, etc.
+Because Coder evaluates parameters as Terraform, a parameter can do more than collect a value.
+It can react to other parameters, change based on who is filling in the form, and render as a dropdown, slider, multi-select, or other control.
+Use these capabilities to replace several near-duplicate templates with one template whose form adapts to each team.
+
+> [!NOTE]
+> Earlier Coder releases called these capabilities _dynamic parameters_.
+> They're the default for every template as of Coder v2.25.0, so this section covers them alongside the basics.
+> Templates that still use [compatibility mode](./compatibility-mode.md) render the older classic form.
+
+This section covers:
+
+- [Form types and styling](./form-types.md): Choose the input control for each parameter, such as a dropdown, slider, or text area.
+- [Validation](./validation.md): Constrain values with ranges, monotonic numbers, regular expressions, and rules that depend on other parameters.
+- [Conditional parameters](./conditional-parameters.md): Show, hide, or change parameters based on the user's other selections.
+- [Identity-aware parameters](./identity-aware-parameters.md): Change parameters based on the user's roles and groups.
+- [Workspace presets](./workspace-presets.md): Bundle common parameter values into a single choice.
+- [Compatibility mode](./compatibility-mode.md): Move templates off the deprecated classic parameter flow.
+- [Troubleshooting](./troubleshooting.md): Fix common problems with parameter forms.
+
+You can try any example in this section in the [Parameters Playground](https://playground.coder.app/parameters).
+Experiment there before you change a live template.
+
+## Define a parameter
+
+Hardcode the template properties that you control, such as a security group.
+Use parameters for the properties that developers choose, such as instance size, geographical location, or repository URL.
 
 This example lets a developer choose a Docker host for the workspace:
 
@@ -48,6 +73,47 @@ provider "docker" {
   host = data.coder_parameter.docker_host.value
 }
 ```
+
+## Coder provider version
+
+Form types, styling, and the other features in this section require version 2.4.0 or later of the Coder Terraform provider.
+Set the version in your template's `terraform` block:
+
+```tf
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+      version = ">=2.4.0"
+    }
+  }
+}
+```
+
+If a template's active version was published before Coder supported these features, publish a new version to generate the metadata the form requires.
+To publish one without editing the template's Terraform, [refresh the template data](../../managing-templates/index.md#refresh-template-data).
+
+## How Coder evaluates parameters
+
+Coder parses every parameter from your template's Terraform and evaluates it again each time the user changes a value in the form.
+You can use native Terraform functions, locals, and conditionals in any parameter attribute.
+
+Coder reads Terraform `data` sources once, when it imports a template version, and stores the results.
+Rendering the form evaluates your parameter expressions against those stored results, so a `data` source whose underlying value changes in your cloud or cluster keeps returning the imported value.
+
+The `coder_workspace_owner` data source is the exception.
+Coder substitutes the identity of the user filling in the form each time it renders, which is what makes [identity-aware parameters](./identity-aware-parameters.md) work.
+
+To pick up a change to any other `data` source, [refresh the template data](../../managing-templates/index.md#refresh-template-data).
+This imports the active version's source files again and publishes the result as a new active version.
+
+> [!IMPORTANT]
+> Parameters do not support external data fetching via HTTP endpoints at workspace build time.
+>
+> External fetching would introduce unpredictability in workspace builds after publishing a template.
+> Instead, we recommend that template administrators pull in any required data for a workspace build as a [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file, then reference that data in Terraform.
+>
+> If you have a use case for external data fetching, file an issue or create a discussion in the [Coder GitHub repository](https://github.com/coder/coder).
 
 ## Types
 
@@ -131,7 +197,7 @@ data "coder_parameter" "docker_host" {
 }
 ```
 
-### Incompatibility in Parameter Options for Workspace Builds
+### Option changes across template versions
 
 When creating Coder templates, authors have the flexibility to modify parameter options associated with rich parameters.
 Such modifications can involve adding, substituting, or removing a parameter option.
@@ -226,161 +292,8 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
-<a id="validating-parameters"></a>
+## Autofill parameters from a URL
 
-## Validate parameters
+When the template doesn't specify default values, Coder looks for URL query parameters with the form `param.<name>=<value>` to autofill parameters.
 
-Coder supports parameters with multiple validation modes: min, max, monotonic numbers, and regular expressions.
-
-### Number
-
-You can limit a `number` parameter to `min` and `max` boundaries.
-
-You can also specify its monotonicity as `increasing` or `decreasing` to verify the current and new values.
-Use the `monotonic` attribute for resources that can't be shrunk or grown without implications, like disk volume size.
-
-```tf
-data "coder_parameter" "instances" {
-  name        = "Instances"
-  type        = "number"
-  description = "Number of compute instances"
-  validation {
-    min       = 1
-    max       = 8
-    monotonic = "increasing"
-  }
-}
-```
-
-It is possible to override the default `error` message for a `number` parameter, along with its associated `min` and/or `max` properties.
-The following message placeholders are available `{min}`, `{max}`, and `{value}`.
-
-```tf
-data "coder_parameter" "instances" {
-  name        = "Instances"
-  type        = "number"
-  description = "Number of compute instances"
-  validation {
-    min       = 1
-    max       = 4
-    error     = "Sorry, we can't provision too many instances - maximum limit: {max}, wanted: {value}."
-  }
-}
-```
-
-> [!NOTE]
-> As of [`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs), `options` can be specified in `number` parameters; this also works with validations such as `monotonic`.
-
-### String
-
-You can validate a `string` parameter to match a regular expression.
-The `regex` property requires a corresponding `error` property.
-
-```tf
-data "coder_parameter" "project_id" {
-  name        = "Project ID"
-  description = "Alpha-numeric project ID"
-  validation {
-    regex = "^[a-z0-9]+$"
-    error = "Unfortunately, this isn't a valid project ID"
-  }
-}
-```
-
-## Workspace presets
-
-Workspace presets allow you to configure commonly used combinations of parameters into a single option, which makes it easier for developers to pick one that fits their needs.
-
-![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
-
-Use the [`coder_workspace_preset`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset) data source to define the preset parameters.
-After you save the template file, the presets will be available for all new workspace deployments.
-
-### Optional preset fields
-
-In addition to the required `name` and `parameters` fields, you can enhance your workspace presets with optional `description` and `icon` fields:
-
-- **description**:
-  A helpful text description that provides additional context about the preset.
-  This helps users understand what the preset is for and when to use it.
-- **icon**:
-  A visual icon displayed alongside the preset name in the UI.
-  Use emoji icons with the format `/emojis/{code}.png` (e.g., `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
-
-For a complete list of all available fields, see the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
-
-<details><summary>Expand for an example</summary>
-
-```tf
-data "coder_workspace_preset" "goland-gpu" {
-  name        = "GoLand with GPU"
-  description = "Development workspace with GPU acceleration for GoLand IDE"
-  icon        = "/emojis/1f680.png"
-  parameters = {
-    "machine_type"  = "n1-standard-1"
-    "attach_gpu"    = "true"
-    "gcp_region"    = "europe-west4-c"
-    "jetbrains_ide" = "GO"
-  }
-}
-
-data "coder_workspace_preset" "pittsburgh" {
-  name        = "Pittsburgh"
-  description = "Development workspace hosted in United States"
-  icon        = "/emojis/1f1fa-1f1f8.png"
-  parameters = {
-    "region"       = "us-pittsburgh"
-    "machine_type" = "n1-standard-2"
-  }
-}
-
-data "coder_parameter" "machine_type" {
-  name          = "machine_type"
-  display_name  = "Machine Type"
-  type          = "string"
-  default       = "n1-standard-2"
-}
-
-data "coder_parameter" "attach_gpu" {
-  name          = "attach_gpu"
-  display_name  = "Attach GPU?"
-  type          = "bool"
-  default       = "false"
-}
-
-data "coder_parameter" "gcp_region" {
-  name          = "gcp_region"
-  display_name  = "GCP Region"
-  type          = "string"
-  default       = "us-central1-a"
-}
-
-data "coder_parameter" "jetbrains_ide" {
-  name          = "jetbrains_ide"
-  display_name  = "JetBrains IDE"
-  type          = "string"
-  default       = "IU"
-}
-
-data "coder_parameter" "region" {
-  name          = "region"
-  display_name  = "Region"
-  type          = "string"
-  default       = "us-east-1"
-}
-```
-
-</details>
-
-## Create Autofill
-
-When the template doesn't specify default values, Coder will look for URL query parameters with form `param.<name>=<value>` to autofill parameters.
-
-This feature enables platform teams to create pre-filled template creation links.
-
-## Dynamic Parameters
-
-Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with conditional form controls, enriched input types, and user identity awareness.
-This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
-
-You can read more in the [Dynamic Parameters documentation](./dynamic-parameters.md) and try it out in the [Parameters Playground](https://playground.coder.app/parameters).
+This feature enables platform teams to create pre-filled workspace creation links.
