@@ -4403,6 +4403,7 @@ func TestStructuredLogging(t *testing.T) {
 					OutputTokens:          200,
 					CacheReadInputTokens:  50,
 					CacheWriteInputTokens: 10,
+					PromptTokens:          400,
 					Metadata:              metadataProto,
 					CreatedAt:             timestamppb.Now(),
 				})
@@ -4415,6 +4416,7 @@ func TestStructuredLogging(t *testing.T) {
 				"output_tokens":            float64(200),
 				"cache_read_input_tokens":  float64(50),
 				"cache_write_input_tokens": float64(10),
+				"prompt_tokens":            float64(400),
 			},
 		},
 		{
