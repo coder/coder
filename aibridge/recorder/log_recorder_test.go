@@ -19,10 +19,12 @@ func TestLogRecorderStructuredTokenUsage(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rec := recorder.NewLogRecorder(slog.Make(slogjson.Sink(buf)), true, nil)
 	err := rec.RecordTokenUsage(t.Context(), &recorder.TokenUsageRecord{
-		InterceptionID: "interception-1",
-		MsgID:          "msg-1",
-		Output:         200,
-		PromptTokens:   400,
+		InterceptionID:          "interception-1",
+		MsgID:                   "msg-1",
+		Output:                  200,
+		CacheWriteInputTokens:   50,
+		CacheWrite1hInputTokens: 30,
+		PromptTokens:            400,
 	})
 	require.NoError(t, err)
 
@@ -41,5 +43,6 @@ func TestLogRecorderStructuredTokenUsage(t *testing.T) {
 	require.NotNil(t, fields, "no structured record was logged")
 	require.Equal(t, recorder.RecordTypeTokenUsage, fields["record_type"])
 	require.Equal(t, float64(200), fields["output_tokens"]) // JSON numbers are float64.
+	require.Equal(t, float64(30), fields["cache_write_one_hour_input_tokens"])
 	require.Equal(t, float64(400), fields["prompt_tokens"])
 }

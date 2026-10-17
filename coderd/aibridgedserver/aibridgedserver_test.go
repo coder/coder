@@ -4397,26 +4397,28 @@ func TestStructuredLogging(t *testing.T) {
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-					InterceptionId:        intcID.String(),
-					MsgId:                 "msg_123",
-					InputTokens:           100,
-					OutputTokens:          200,
-					CacheReadInputTokens:  50,
-					CacheWriteInputTokens: 10,
-					PromptTokens:          400,
-					Metadata:              metadataProto,
-					CreatedAt:             timestamppb.Now(),
+					InterceptionId:               intcID.String(),
+					MsgId:                        "msg_123",
+					InputTokens:                  100,
+					OutputTokens:                 200,
+					CacheReadInputTokens:         50,
+					CacheWriteInputTokens:        10,
+					CacheWriteOneHourInputTokens: 4,
+					PromptTokens:                 400,
+					Metadata:                     metadataProto,
+					CreatedAt:                    timestamppb.Now(),
 				})
 				return err
 			},
 			expectedFields: map[string]any{
-				"record_type":              "token_usage",
-				"interception_id":          interceptionID.String(),
-				"input_tokens":             float64(100), // JSON numbers are float64.
-				"output_tokens":            float64(200),
-				"cache_read_input_tokens":  float64(50),
-				"cache_write_input_tokens": float64(10),
-				"prompt_tokens":            float64(400),
+				"record_type":                       "token_usage",
+				"interception_id":                   interceptionID.String(),
+				"input_tokens":                      float64(100), // JSON numbers are float64.
+				"output_tokens":                     float64(200),
+				"cache_read_input_tokens":           float64(50),
+				"cache_write_input_tokens":          float64(10),
+				"cache_write_one_hour_input_tokens": float64(4),
+				"prompt_tokens":                     float64(400),
 			},
 		},
 		{
