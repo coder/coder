@@ -209,6 +209,7 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 		slog.F("output_tokens", req.Output),
 		slog.F("cache_read_input_tokens", req.CacheReadInputTokens),
 		slog.F("cache_write_input_tokens", req.CacheWriteInputTokens),
+		slog.F("prompt_tokens", req.PromptTokens),
 		slog.F("created_at", req.CreatedAt),
 		slog.F("metadata", req.Metadata),
 	)
