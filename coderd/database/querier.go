@@ -1796,8 +1796,8 @@ type sqlcQuerier interface {
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
 	// Upsert a batch of model prices from a JSON array, all recorded under the
 	// given source. Each element must have provider, model, and the four price
-	// fields, and null prices are written as SQL NULL. tiers is optional; an
-	// absent or null tiers key means no tiers.
+	// fields, and null prices are written as SQL NULL. cache_write_1h_price and
+	// tiers are optional; an absent or null tiers key means no tiers.
 	// Each source keeps its own row, so the price book and a custom price never
 	// overwrite each other. A conflicting row is only rewritten when a price
 	// differs, so updated_at records when a price last changed. Prices are

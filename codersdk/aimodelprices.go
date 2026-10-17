@@ -12,14 +12,16 @@ import (
 // Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
 // million tokens. A nil price means the price is not known, which the cost
 // calculation treats the same as zero. Distinguish that from an explicit 0,
-// which declares the model free of charge.
+// which declares the model free of charge. A nil CacheWrite1hPrice instead
+// uses CacheWritePrice.
 type AIModelPrice struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
+	Provider          string `json:"provider"`
+	Model             string `json:"model"`
+	InputPrice        *int64 `json:"input_price"`
+	OutputPrice       *int64 `json:"output_price"`
+	CacheReadPrice    *int64 `json:"cache_read_price"`
+	CacheWritePrice   *int64 `json:"cache_write_price"`
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 	// Tiers are long-context prices, sorted by ThresholdTokens.
 	Tiers     []AIModelPriceTier `json:"tiers"`
 	Source    AIModelPriceSource `json:"source"`
@@ -36,6 +38,9 @@ type AIModelPriceTier struct {
 	OutputPrice     *int64 `json:"output_price"`
 	CacheReadPrice  *int64 `json:"cache_read_price"`
 	CacheWritePrice *int64 `json:"cache_write_price"`
+	// CacheWrite1hPrice falls back to the cache write price that applies to
+	// the tier when nil, not to the base CacheWrite1hPrice.
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 }
 
 // AIModelPriceSource is where a model price came from.
@@ -72,15 +77,17 @@ type UpsertAIModelPricesRequest struct {
 }
 
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
-// only the writable fields of AIModelPrice. Omitting Tiers clears them.
+// only the writable fields of AIModelPrice. Omitting CacheWrite1hPrice or
+// Tiers clears them.
 type AIModelPriceUpsert struct {
-	Provider        string             `json:"provider"`
-	Model           string             `json:"model"`
-	InputPrice      *int64             `json:"input_price"`
-	OutputPrice     *int64             `json:"output_price"`
-	CacheReadPrice  *int64             `json:"cache_read_price"`
-	CacheWritePrice *int64             `json:"cache_write_price"`
-	Tiers           []AIModelPriceTier `json:"tiers,omitempty"`
+	Provider          string             `json:"provider"`
+	Model             string             `json:"model"`
+	InputPrice        *int64             `json:"input_price"`
+	OutputPrice       *int64             `json:"output_price"`
+	CacheReadPrice    *int64             `json:"cache_read_price"`
+	CacheWritePrice   *int64             `json:"cache_write_price"`
+	CacheWrite1hPrice *int64             `json:"cache_write_1h_price,omitempty"`
+	Tiers             []AIModelPriceTier `json:"tiers,omitempty"`
 }
 
 // AIModelPricesFilter narrows the listed model prices. An empty field does not

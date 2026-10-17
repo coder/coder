@@ -200,7 +200,7 @@ type modelKey struct {
 // validateAIModelPrices reports every problem with the requested prices: a
 // supported provider, a model, all four price keys, non-negative prices with
 // at least one set, positive and strictly ascending tier thresholds, and no
-// repeated model. The tiers are optional.
+// repeated model. The 1h price and tiers are optional.
 func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -319,6 +319,7 @@ func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpse
 			})
 		}
 	}
+	negative(field+".cache_write_1h_price", price.CacheWrite1hPrice)
 	for j, tier := range price.Tiers {
 		tierField := fmt.Sprintf("%s.tiers[%d]", field, j)
 		switch {
@@ -337,6 +338,7 @@ func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpse
 		negative(tierField+".output_price", tier.OutputPrice)
 		negative(tierField+".cache_read_price", tier.CacheReadPrice)
 		negative(tierField+".cache_write_price", tier.CacheWritePrice)
+		negative(tierField+".cache_write_1h_price", tier.CacheWrite1hPrice)
 	}
 	return validations
 }

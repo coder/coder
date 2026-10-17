@@ -664,7 +664,7 @@ export const CostEstimateFieldsAreImmutable: Story = {
 			[/^input$/i, "3"],
 			[/^output$/i, "15"],
 			[/cache read/i, "0.30"],
-			[/cache write/i, "3.75"],
+			[/^cache write$/i, "3.75"],
 		];
 		for (const [name, value] of expectedValues) {
 			const field = canvas.getByLabelText(name);
@@ -711,7 +711,7 @@ export const CostEstimateFromLivePriceBook: Story = {
 		await expect(canvas.getByLabelText(/^input$/i)).toHaveValue("1.25");
 		await expect(canvas.getByLabelText(/^output$/i)).toHaveValue("10");
 		await expect(canvas.getByLabelText(/cache read/i)).toHaveValue("0.125");
-		await expect(canvas.getByLabelText(/cache write/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/^cache write$/i)).toHaveValue("");
 	},
 };
 
@@ -838,7 +838,7 @@ export const CostEstimateClearingModelDiscardsStalePrices: Story = {
 };
 
 // A price book row is the deployment's own pricing, so it wins outright. A
-// null category on the row means the model is unpriced there and bills as
+// null input, output, cache read, or cache write price on the row bills as
 // zero, so the field stays blank instead of falling back to the catalog.
 // The catalog only fills in when the model has no row at all.
 export const CostEstimateRowWinsOverCatalog: Story = {
@@ -859,6 +859,7 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 						output_price: null,
 						cache_read_price: null,
 						cache_write_price: null,
+						cache_write_1h_price: null,
 						tiers: [],
 						created_at: "2026-02-18T12:00:00.000Z",
 						updated_at: "2026-02-18T12:00:00.000Z",
@@ -878,11 +879,11 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 		await expect(canvas.getByLabelText(/^input$/i)).toHaveValue("4");
 		await expect(canvas.getByLabelText(/^output$/i)).toHaveValue("");
 		await expect(canvas.getByLabelText(/cache read/i)).toHaveValue("");
-		await expect(canvas.getByLabelText(/cache write/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/^cache write$/i)).toHaveValue("");
 	},
 };
 
-export const CostEstimateWithTiers: Story = {
+export const CostEstimateWithCacheWrite1hAndTiers: Story = {
 	args: {
 		editingModel: mockClaude,
 		selectedProviderState: MockAnthropicProviderState,
