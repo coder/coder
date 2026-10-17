@@ -1221,6 +1221,10 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	compactionModel := prepared.StageModel
+	logger := s.server.logger.With(
+		slog.F("chat_id", prepared.Chat.ID),
+		slog.F("owner_id", prepared.Chat.OwnerID),
+	)
 	if override := prepared.Compaction.Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
 		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
@@ -1234,10 +1238,6 @@ func (s *taskStarter) generateCompaction(
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
-		logger := s.server.logger.With(
-			slog.F("chat_id", prepared.Chat.ID),
-			slog.F("owner_id", prepared.Chat.OwnerID),
-		)
 		compactionModel = overrideModel.stageModel()
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
@@ -1274,6 +1274,7 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
 	compactionOpts.Clock = s.opts.Clock
+	compactionOpts.Logger = logger
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
