@@ -9907,6 +9907,21 @@ func (mr *MockStoreMockRecorder) LockChatAndBumpSnapshotVersion(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatAndBumpSnapshotVersion", reflect.TypeOf((*MockStore)(nil).LockChatAndBumpSnapshotVersion), ctx, id)
 }
 
+// LockChatAndBumpSnapshotVersionNoWait mocks base method.
+func (m *MockStore) LockChatAndBumpSnapshotVersionNoWait(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatAndBumpSnapshotVersionNoWait", ctx, id)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockChatAndBumpSnapshotVersionNoWait indicates an expected call of LockChatAndBumpSnapshotVersionNoWait.
+func (mr *MockStoreMockRecorder) LockChatAndBumpSnapshotVersionNoWait(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatAndBumpSnapshotVersionNoWait", reflect.TypeOf((*MockStore)(nil).LockChatAndBumpSnapshotVersionNoWait), ctx, id)
+}
+
 // LockChatByID mocks base method.
 func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()

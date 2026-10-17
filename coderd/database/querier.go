@@ -1432,6 +1432,11 @@ type sqlcQuerier interface {
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
+	// LockChatAndBumpSnapshotVersion for worker acquisition: fails with
+	// lock_not_available instead of waiting when another transaction holds
+	// the row. NO KEY UPDATE still conflicts with every transition lock but
+	// not with foreign key checks from inserts that reference the chat.
+	LockChatAndBumpSnapshotVersionNoWait(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
 	// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member

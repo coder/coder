@@ -261,7 +261,7 @@ func (w *chatWorker) acquireCandidate(
 ) (bool, error) {
 	runnerID := uuid.New()
 	var takenOver bool
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithNonBlockingLock()
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -318,7 +318,8 @@ func (w *chatWorker) acquireCandidate(
 	if errors.Is(err, errCapacityRefused) {
 		return false, errCapacityRefused
 	}
-	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
+	// A chat skipped while locked is retried on the next acquisition pass.
+	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, chatstate.ErrChatLocked) {
 		return false, nil
 	}
 	if err != nil {
