@@ -4,13 +4,14 @@ package pricebook
 import (
 	"encoding/json"
 	"io"
+	"slices"
 )
 
 // Row is one provider and model entry in the generated price book. Pointer
 // fields preserve the distinction between a missing price and an explicit zero.
 //
-// NOTE: the batch SQL upsert extracts these fields from the raw JSON by name,
-// so the tags here and that query must stay in sync. TestSeedFromBytes/
+// NOTE: the batch SQL upsert extracts the fields it seeds from the raw JSON by
+// name, so the tags here and that query must stay in sync. TestSeedFromBytes/
 // RowTagsMatchSQLColumns in the parent package guards that.
 type Row struct {
 	Provider        string `json:"provider"`
@@ -19,6 +20,22 @@ type Row struct {
 	OutputPrice     *int64 `json:"output_price"`
 	CacheReadPrice  *int64 `json:"cache_read_price"`
 	CacheWritePrice *int64 `json:"cache_write_price"`
+	// CacheWrite1hPrice is nil when a 1h write costs the cache write price.
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
+	// Tiers are sorted by ThresholdTokens.
+	Tiers []Tier `json:"tiers,omitempty"`
+}
+
+// Tier holds the prices for a request whose prompt is over ThresholdTokens
+// tokens. A nil price uses the price of the Row, but a nil CacheWrite1hPrice
+// uses the cache write price that applies to the tier.
+type Tier struct {
+	ThresholdTokens   int64  `json:"threshold_tokens"`
+	InputPrice        *int64 `json:"input_price"`
+	OutputPrice       *int64 `json:"output_price"`
+	CacheReadPrice    *int64 `json:"cache_read_price"`
+	CacheWritePrice   *int64 `json:"cache_write_price"`
+	CacheWrite1hPrice *int64 `json:"cache_write_1h_price"`
 }
 
 // Key identifies a model within a provider.
@@ -60,7 +77,18 @@ func (r Row) SamePrices(other Row) bool {
 	return equalPrice(r.InputPrice, other.InputPrice) &&
 		equalPrice(r.OutputPrice, other.OutputPrice) &&
 		equalPrice(r.CacheReadPrice, other.CacheReadPrice) &&
-		equalPrice(r.CacheWritePrice, other.CacheWritePrice)
+		equalPrice(r.CacheWritePrice, other.CacheWritePrice) &&
+		equalPrice(r.CacheWrite1hPrice, other.CacheWrite1hPrice) &&
+		slices.EqualFunc(r.Tiers, other.Tiers, Tier.samePrices)
+}
+
+func (t Tier) samePrices(other Tier) bool {
+	return t.ThresholdTokens == other.ThresholdTokens &&
+		equalPrice(t.InputPrice, other.InputPrice) &&
+		equalPrice(t.OutputPrice, other.OutputPrice) &&
+		equalPrice(t.CacheReadPrice, other.CacheReadPrice) &&
+		equalPrice(t.CacheWritePrice, other.CacheWritePrice) &&
+		equalPrice(t.CacheWrite1hPrice, other.CacheWrite1hPrice)
 }
 
 func equalPrice(a, b *int64) bool {
