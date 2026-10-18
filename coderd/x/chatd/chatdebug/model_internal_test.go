@@ -1185,119 +1185,103 @@ func float64Ptr(v float64) *float64 { return &v }
 func TestLaunchHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	t.Run("fires_touch_step_on_tick", func(t *testing.T) {
-		t.Parallel()
+	stepID, runID, chatID := uuid.New(), uuid.New(), uuid.New()
+	launchers := []struct {
+		name          string
+		tag           string
+		launch        func(context.Context, *Service, <-chan struct{})
+		expectTouches func(*dbmock.MockStore, chan<- any)
+		wantTouch     func(now time.Time) any
+	}{
+		{
+			name: "step",
+			tag:  "heartbeat",
+			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
+				launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
+			},
+			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
+				db.EXPECT().TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
+						touched <- params
+						return nil
+					}).Times(2)
+			},
+			wantTouch: func(now time.Time) any {
+				return database.TouchChatDebugStepAndRunParams{Now: now, StepID: stepID, RunID: runID, ChatID: chatID}
+			},
+		},
+		{
+			name: "run",
+			tag:  "run-heartbeat",
+			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
+				svc.LaunchRunHeartbeat(ctx, runID, chatID, done)
+			},
+			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
+				db.EXPECT().TouchChatDebugRunUpdatedAt(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, params database.TouchChatDebugRunUpdatedAtParams) error {
+						touched <- params
+						return nil
+					}).Times(2)
+			},
+			wantTouch: func(now time.Time) any {
+				return database.TouchChatDebugRunUpdatedAtParams{Now: now, ID: runID, ChatID: chatID}
+			},
+		},
+	}
+	stoppers := []struct {
+		name string
+		stop func(cancel context.CancelFunc, done chan struct{})
+	}{
+		{name: "done", stop: func(_ context.CancelFunc, done chan struct{}) { close(done) }},
+		{name: "ctx", stop: func(cancel context.CancelFunc, _ chan struct{}) { cancel() }},
+	}
+	for _, launcher := range launchers {
+		for _, stopper := range stoppers {
+			t.Run(launcher.name+"_touches_until_"+stopper.name, func(t *testing.T) {
+				t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
+				ctrl := gomock.NewController(t)
+				db := dbmock.NewMockStore(ctrl)
+				mClock := quartz.NewMock(t)
+				svc := NewService(db, testutil.Logger(t), nil)
+				svc.clock = mClock
+				touched := make(chan any)
+				launcher.expectTouches(db, touched)
 
-		// Use a small stale threshold so the heartbeat interval is
-		// short enough to test easily (threshold/2 = 5s, clamped ≥1s).
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
+				newTicker := mClock.Trap().NewTicker("chatdebug", launcher.tag)
+				defer newTicker.Close()
+				stopTicker := mClock.Trap().TickerStop()
+				defer stopTicker.Close()
 
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				heartbeatCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				done := make(chan struct{})
+				launcher.launch(heartbeatCtx, svc, done)
 
-		done := make(chan struct{})
-		defer close(done)
-
-		// Trap the ticker creation so we can control it.
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Expect atomic TouchStep calls via TouchChatDebugStepAndRun.
-		touchCalled := make(chan struct{}, 5)
-		db.EXPECT().
-			TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
-				require.Equal(t, stepID, params.StepID)
-				require.Equal(t, runID, params.RunID)
-				require.Equal(t, chatID, params.ChatID)
-				select {
-				case touchCalled <- struct{}{}:
-				default:
+				call := newTicker.MustWait(ctx)
+				require.Equal(t, DefaultStaleThreshold/2, call.Duration)
+				call.MustRelease(ctx)
+				for range 2 {
+					mClock.Advance(DefaultStaleThreshold / 2).MustWait(ctx)
+					require.Equal(t, launcher.wantTouch(mClock.Now()), testutil.RequireReceive(ctx, t, touched))
 				}
-				return nil
-			}).
-			AnyTimes()
 
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-
-		// Wait for the ticker to be created.
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Advance the clock past one heartbeat interval (5s for a
-		// 10s stale threshold) and verify TouchStep fires.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for first heartbeat touch")
+				stopper.stop(cancel, done)
+				stopTicker.MustWait(ctx).MustRelease(ctx)
+			})
 		}
-
-		// Advance again to verify repeated heartbeats.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for second heartbeat touch")
-		}
-	})
-
-	t.Run("stops_on_done_channel", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Close done to signal the heartbeat to stop.
-		close(done)
-
-		// Give the goroutine a moment to observe the close.
-		// No TouchStep calls should happen after done is closed.
-		// (gomock would fail if TouchChatDebugStepAndRun was
-		// called without a matching expectation.)
-	})
+	}
 
 	t.Run("nil_service_noop", func(t *testing.T) {
 		t.Parallel()
 
 		done := make(chan struct{})
 		defer close(done)
-
 		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Should not panic.
-		launchHeartbeat(ctx, nil, uuid.New(), uuid.New(), uuid.New(), done)
+		for _, launcher := range launchers {
+			launcher.launch(ctx, nil, done)
+		}
 	})
 
 	t.Run("resets_ticker_on_threshold_change", func(t *testing.T) {
