@@ -100,15 +100,17 @@ func TestChatClientRequestErrors(t *testing.T) {
 	t.Run("UnexpectedStatus", func(t *testing.T) {
 		t.Parallel()
 
-		client := newClient(t, respond(http.StatusInternalServerError, `{"message":"Internal error."}`))
-		model, modelErr := client.ChatModel(t.Context(), uuid.New(), uuid.New())
-		require.Zero(t, model)
-		deleteErr := client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
-		for _, err := range []error{modelErr, deleteErr} {
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
-			require.Equal(t, "Internal error.", sdkErr.Message)
+		for _, status := range []int{http.StatusAccepted, http.StatusInternalServerError} {
+			client := newClient(t, respond(status, `{"message":"Unexpected status."}`))
+			model, modelErr := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+			require.Zero(t, model)
+			deleteErr := client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+			for _, err := range []error{modelErr, deleteErr} {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, status, sdkErr.StatusCode())
+				require.Equal(t, "Unexpected status.", sdkErr.Message)
+			}
 		}
 	})
 
