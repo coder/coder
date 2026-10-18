@@ -16424,22 +16424,6 @@ func TestChatAdvisorConfig_NegativeValuesRejected(t *testing.T) {
 	}
 }
 
-func TestChatAdvisorConfig_StaleModelWriteRejected(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newChatClient(t)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-	modelID := uuid.New()
-	for _, req := range []codersdk.UpdateAdvisorConfigRequest{
-		{DeprecatedModelConfigID: &modelID},
-		{DeprecatedReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh)},
-	} {
-		err := adminClient.UpdateChatAdvisorConfig(ctx, req)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.", sdkErr.Message)
-	}
-}
-
 func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -16473,21 +16457,6 @@ func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.False(t, resp.Enabled)
-}
-
-func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient, db := newChatClientWithDatabase(t)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-	stored := `{"enabled":true,"max_uses_per_run":-3,"max_output_tokens":-99}`
-	require.NoError(t, db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), stored))
-	resp, err := adminClient.GetChatAdvisorConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{Enabled: true}, resp)
-	raw, err := db.GetChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx))
-	require.NoError(t, err)
-	require.JSONEq(t, stored, raw)
 }
 
 func TestChatAdvisorConfig_IgnoresLegacyReasoningEffort(t *testing.T) {
