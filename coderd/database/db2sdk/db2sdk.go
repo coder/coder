@@ -2426,6 +2426,29 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	return result
 }
 
+// WorkspaceBuildSecret converts workspace secret metadata to an SDK
+// WorkspaceSecret. Build secrets have no description, cannot be disabled,
+// and are never updated, so Enabled is true and UpdatedAt is CreatedAt.
+func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersdk.WorkspaceSecret {
+	out := codersdk.WorkspaceSecret{
+		UserSecret: codersdk.UserSecret{
+			ID:        secret.ID,
+			Name:      secret.Name,
+			EnvName:   secret.EnvName,
+			FilePath:  secret.FilePath,
+			Enabled:   true,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.CreatedAt,
+		},
+		WorkspaceBuildID: secret.WorkspaceBuildID,
+		Ephemeral:        secret.Ephemeral,
+	}
+	if secret.ClearedAt.Valid {
+		out.ClearedAt = &secret.ClearedAt.Time
+	}
+	return out
+}
+
 // Skill converts a database Skill to an SDK Skill.
 func Skill(skill database.Skill) codersdk.Skill {
 	return codersdk.Skill{
@@ -2439,6 +2462,23 @@ func Skill(skill database.Skill) codersdk.Skill {
 		},
 		Content: skill.Content,
 	}
+}
+
+// ProjectSkillMetadataList converts chat project skill metadata rows to SDK
+// values.
+func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return metadata
 }
 
 // OrganizationSkillMetadataList converts organization skill metadata rows to

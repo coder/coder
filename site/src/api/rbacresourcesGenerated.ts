@@ -84,6 +84,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat project",
 		delete: "delete a chat project",
 		read: "read chat projects",
+		share: "share a chat project with other users or groups",
 		update: "update a chat project",
 	},
 	chat_project_memory: {
@@ -310,5 +311,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete a workspace proxy",
 		read: "read and use a workspace proxy",
 		update: "update a workspace proxy",
+	},
+	workspace_secret: {
+		create: "set a workspace secret on a workspace build",
+		read: "read workspace secret metadata, never the value",
+		read_secret:
+			"read decrypted workspace secret values, granted only to the workspace secret manager actor",
+		update: "clear or re-encrypt workspace secret values",
 	},
 };

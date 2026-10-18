@@ -752,6 +752,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -1939,6 +1940,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)

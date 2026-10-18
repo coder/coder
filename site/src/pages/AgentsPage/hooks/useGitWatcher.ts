@@ -88,6 +88,10 @@ export function useGitWatcher({
 			connect() {
 				const socket = watchChatGit(chatId);
 				socketRef.current = socket;
+				// The agent sends the full state as the first message of each
+				// connection. It replaces whatever an earlier connection left
+				// behind, such as repos deleted while disconnected.
+				let isFirstChanges = true;
 
 				socket.addEventListener("message", (event) => {
 					// Ignore messages from superseded connections.
@@ -106,6 +110,10 @@ export function useGitWatcher({
 
 					if (data.type === "changes") {
 						setHasReceivedChanges(true);
+						if (isFirstChanges) {
+							isFirstChanges = false;
+							setRepositories((prev) => (prev.size === 0 ? prev : new Map()));
+						}
 						if (data.repositories) {
 							setRepositories((prev) => {
 								let changed = false;

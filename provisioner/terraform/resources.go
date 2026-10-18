@@ -167,6 +167,10 @@ type State struct {
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 	HasExternalAgents     bool
 	agentCatalog          scriptOrderAgentCatalog
+	// scriptsByAddress holds every script that was bound to a workspace
+	// agent or devcontainer, by resource address, so script order
+	// dependencies can be attached after the order is finalized.
+	scriptsByAddress map[string]*proto.Script
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -201,6 +205,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	resources := make([]*proto.Resource, 0)
 	resourceAgents := map[string][]*proto.Agent{}
 	agentCatalog := scriptOrderAgentCatalog{}
+	scriptsByAddress := map[string]*proto.Script{}
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
@@ -672,12 +677,14 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				// Find agents with the matching ID and associate them!
 				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
 					agent.Scripts = append(agent.Scripts, script)
+					scriptsByAddress[resource.Address] = script
 					break scriptAgentLoop
 				}
 
 				for _, dc := range agent.GetDevcontainers() {
 					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
 						dc.Scripts = append(dc.Scripts, script)
+						scriptsByAddress[resource.Address] = script
 						break scriptAgentLoop
 					}
 				}
@@ -1054,6 +1061,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		ExternalAuthProviders: externalAuthProviders,
 		HasExternalAgents:     hasExternalAgentResources(graph),
 		agentCatalog:          agentCatalog,
+		scriptsByAddress:      scriptsByAddress,
 	}, nil
 }
 
