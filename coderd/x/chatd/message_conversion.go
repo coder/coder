@@ -563,23 +563,15 @@ func summaryRecordedUnderOtherTrigger(boundary database.ChatMessage, thresholdPe
 		if part.ToolName != "chat_summarized" || part.Type != codersdk.ChatMessagePartTypeToolResult {
 			continue
 		}
-		// Results written before trigger_context_limit_tokens stored the
-		// trigger's window in context_limit_tokens. A result without these
-		// keys compares equal to the current trigger.
-		const noTriggerContextLimit = -1
+		// A result without these keys compares equal to the current trigger.
 		recorded := chatloop.CompactionToolResult{
 			ThresholdPercent:          thresholdPercent,
-			ContextLimitTokens:        triggerContextLimit,
-			TriggerContextLimitTokens: noTriggerContextLimit,
+			TriggerContextLimitTokens: triggerContextLimit,
 		}
 		if err := json.Unmarshal(part.Result, &recorded); err != nil {
 			return false
 		}
-		recordedLimit := recorded.TriggerContextLimitTokens
-		if recordedLimit == noTriggerContextLimit {
-			recordedLimit = recorded.ContextLimitTokens
-		}
-		return recorded.ThresholdPercent != thresholdPercent || recordedLimit != triggerContextLimit
+		return recorded.ThresholdPercent != thresholdPercent || recorded.TriggerContextLimitTokens != triggerContextLimit
 	}
 	return false
 }
