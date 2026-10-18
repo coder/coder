@@ -61,10 +61,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-// newChatTestOptions builds coderdtest options for chat runtime tests. Unless
-// a test sets ChatProviderAPIKeys explicitly, it installs a fake
-// OpenAI-compatible provider before coderd starts so background chat work stays
-// local, and the fake server outlives chatd during cleanup.
+// newChatTestOptions builds coderdtest options for chat runtime tests.
 func newChatTestOptions(
 	t testing.TB,
 	values *codersdk.DeploymentValues,
@@ -87,10 +84,6 @@ func newChatTestOptions(
 	}
 	for _, override := range overrides {
 		override(opts)
-	}
-	if opts.ChatProviderAPIKeys == nil {
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-		opts.ChatProviderAPIKeys = &providerKeys
 	}
 	return opts
 }
@@ -6741,12 +6734,10 @@ func TestPatchChat(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-				DeploymentValues:    coderdtest.DeploymentValues(t),
-				Database:            db,
-				Pubsub:              ps,
-				ChatProviderAPIKeys: &providerKeys,
+				DeploymentValues: coderdtest.DeploymentValues(t),
+				Database:         db,
+				Pubsub:           ps,
 			})
 			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 			client := codersdk.NewExperimentalClient(clientRaw)
