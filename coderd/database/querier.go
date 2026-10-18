@@ -249,6 +249,7 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
+	DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error
@@ -849,6 +850,8 @@ type sqlcQuerier interface {
 	GetPresetsBackoff(ctx context.Context, lookback time.Time) ([]GetPresetsBackoffRow, error)
 	GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPreset, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
+	GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error)
+	GetProjectSkillByProjectIDAndName(ctx context.Context, arg GetProjectSkillByProjectIDAndNameParams) (Skill, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error)
 	// Current job information.
@@ -1280,6 +1283,7 @@ type sqlcQuerier interface {
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
 	InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error)
+	InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
 	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)
@@ -1412,6 +1416,7 @@ type sqlcQuerier interface {
 	// ExportOrganizationAISpend so both report the same token usage.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error)
+	ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	// Used by the usage generator to find missing heartbeat buckets.
@@ -1703,6 +1708,7 @@ type sqlcQuerier interface {
 	UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]UpdatePrebuildProvisionerJobWithCancelRow, error)
 	UpdatePresetPrebuildStatus(ctx context.Context, arg UpdatePresetPrebuildStatusParams) error
 	UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]UpdatePresetsLastInvalidatedAtRow, error)
+	UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg UpdateProjectSkillByProjectIDAndNameParams) (Skill, error)
 	UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg UpdateProvisionerDaemonLastSeenAtParams) error
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error
 	UpdateProvisionerJobLogsLength(ctx context.Context, arg UpdateProvisionerJobLogsLengthParams) error

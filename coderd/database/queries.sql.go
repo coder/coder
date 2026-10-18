@@ -28721,6 +28721,37 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 	return i, err
 }
 
+const deleteProjectSkillByProjectIDAndName = `-- name: DeleteProjectSkillByProjectIDAndName :one
+DELETE FROM skills
+WHERE project_id = $1::uuid AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type DeleteProjectSkillByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, deleteProjectSkillByProjectIDAndName, arg.ProjectID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
@@ -28792,6 +28823,64 @@ type GetOrganizationSkillByOrganizationIDAndNameParams struct {
 
 func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationSkillByOrganizationIDAndName, arg.OrganizationID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE id = $1::uuid AND project_id IS NOT NULL
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getProjectSkillByIDForUpdate, id)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const getProjectSkillByProjectIDAndName = `-- name: GetProjectSkillByProjectIDAndName :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE project_id = $1::uuid AND name = $2
+`
+
+type GetProjectSkillByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg GetProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getProjectSkillByProjectIDAndName, arg.ProjectID, arg.Name)
 	var i Skill
 	err := row.Scan(
 		&i.ID,
@@ -28885,6 +28974,46 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 	return i, err
 }
 
+const insertProjectSkill = `-- name: InsertProjectSkill :one
+INSERT INTO skills (id, project_id, name, description, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type InsertProjectSkillParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectSkill,
+		arg.ID,
+		arg.ProjectID,
+		arg.Name,
+		arg.Description,
+		arg.Content,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const insertUserSkill = `-- name: InsertUserSkill :one
 INSERT INTO skills (id, user_id, name, description, content)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
@@ -28957,6 +29086,55 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectSkillMetadataByProjectID = `-- name: ListProjectSkillMetadataByProjectID :many
+SELECT
+    id, project_id, name, description, enabled, created_at, updated_at
+FROM skills
+WHERE project_id = $1::uuid
+ORDER BY name ASC
+`
+
+type ListProjectSkillMetadataByProjectIDRow struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
+	Name        string        `db:"name" json:"name"`
+	Description string        `db:"description" json:"description"`
+	Enabled     bool          `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSkillMetadataByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectSkillMetadataByProjectIDRow
+	for rows.Next() {
+		var i ListProjectSkillMetadataByProjectIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
@@ -29086,6 +29264,51 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		arg.Content,
 		arg.Enabled,
 		arg.OrganizationID,
+		arg.Name,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const updateProjectSkillByProjectIDAndName = `-- name: UpdateProjectSkillByProjectIDAndName :one
+UPDATE skills
+SET
+    description = COALESCE($1::text, description),
+    content     = COALESCE($2::text, content),
+    enabled     = COALESCE($3::boolean, enabled),
+    updated_at  = now()
+WHERE project_id = $4::uuid AND name = $5
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type UpdateProjectSkillByProjectIDAndNameParams struct {
+	Description sql.NullString `db:"description" json:"description"`
+	Content     sql.NullString `db:"content" json:"content"`
+	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
+	ProjectID   uuid.UUID      `db:"project_id" json:"project_id"`
+	Name        string         `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg UpdateProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateProjectSkillByProjectIDAndName,
+		arg.Description,
+		arg.Content,
+		arg.Enabled,
+		arg.ProjectID,
 		arg.Name,
 	)
 	var i Skill
