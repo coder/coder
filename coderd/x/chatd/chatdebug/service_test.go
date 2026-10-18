@@ -899,6 +899,7 @@ func TestService_StartRun(t *testing.T) {
 						require.Equal(t, runID, got.ID)
 						require.Equal(t, params.ChatID, got.ChatID)
 						require.Equal(t, sql.NullString{String: string(chatdebug.StatusError), Valid: true}, got.Status)
+						require.Contains(t, string(got.Summary.RawMessage), `"first_message":"hello"`)
 						return database.ChatDebugRun{}, tc.finalizeErr
 					})
 			}
