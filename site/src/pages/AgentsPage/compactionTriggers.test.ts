@@ -60,7 +60,7 @@ describe("compaction triggers", () => {
 	});
 
 	// Binding cases must match TestBindingCompactionTriggerSource in
-	// coderd/x/chatd/generation_preparer_internal_test.go.
+	// coderd/x/chatd/turn_environment_internal_test.go.
 	const override = (contextLimit: number) => ({
 		thresholdPercent: compactionOverrideWindowPercent,
 		contextLimit,

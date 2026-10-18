@@ -502,8 +502,6 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.AuditableOrganizationSkill:
 		return true
 	case database.AuditableChatProjectSkill:
-		// Project skills belong to a project, which belongs to an
-		// organization.
 		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.

@@ -593,7 +593,8 @@ resource "docker_container" "workspace" {
 
 You finished the Customize your template series, and your workspaces can now clone private repositories.
 
-This is the last guide in the series. To keep going, explore more of what Coder offers:
+This is the last guide in the series.
+To keep going, explore more of what Coder offers:
 
 - [Manage workspaces for your team](../../user-guides/workspace-management.md).
 - [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
