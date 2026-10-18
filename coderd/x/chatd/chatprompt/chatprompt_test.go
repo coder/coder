@@ -30,16 +30,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// testMsg builds a database.ChatMessage for ParseContent tests.
-// ContentVersion defaults to 0 (legacy), which exercises the
-// heuristic detection path.
-func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.ChatMessage {
-	return database.ChatMessage{
-		Role:    database.ChatMessageRole(role),
-		Content: raw,
-	}
-}
-
 func TestConvertMessagesWithFilesPreservesEmptyReplayableReasoning(t *testing.T) {
 	t.Parallel()
 
@@ -527,101 +517,6 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 			"Reported MIME type: application/pdf. If you need to inspect it, ask the user to re-upload.",
 		textPart.Text,
 	)
-}
-
-func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
-	t.Parallel()
-
-	// A legacy message with inline data and a file_id: ParseContent
-	// extracts the file_id and clears inline data (resolved at LLM
-	// dispatch time). When a resolver provides data, the file part
-	// in the LLM prompt should contain the resolved data.
-	fileID := uuid.New()
-	resolvedData := []byte("resolved-image-data")
-
-	rawContent := mustJSON(t, []json.RawMessage{
-		mustJSON(t, map[string]any{
-			"type": "file",
-			"data": map[string]any{
-				"media_type": "image/png",
-				"data":       []byte("inline-image-data"),
-				"file_id":    fileID.String(),
-			},
-		}),
-	})
-
-	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
-		result := make(map[uuid.UUID]chatprompt.FileData)
-		for _, id := range ids {
-			if id == fileID {
-				result[id] = chatprompt.FileData{
-					Data:      resolvedData,
-					MediaType: "image/png",
-				}
-			}
-		}
-		return result, nil
-	}
-
-	prompt, err := chatprompt.ConvertMessagesWithFiles(
-		context.Background(),
-		[]database.ChatMessage{
-			{
-				Role:       database.ChatMessageRoleUser,
-				Visibility: database.ChatMessageVisibilityBoth,
-				Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
-			},
-		},
-		resolver,
-		slogtest.Make(t, nil),
-		nil,
-		uuid.NullUUID{},
-	)
-	require.NoError(t, err)
-	require.Len(t, prompt, 1)
-	require.Len(t, prompt[0].Content, 1)
-
-	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
-	require.True(t, ok, "expected FilePart")
-	require.Equal(t, resolvedData, filePart.Data)
-	require.Equal(t, "image/png", filePart.MediaType)
-}
-
-func TestInjectFileID_StripsInlineData(t *testing.T) {
-	t.Parallel()
-
-	fileID := uuid.New()
-	imageData := []byte("raw-image-bytes")
-
-	// Marshal a file content block with inline data, then inject
-	// a file_id. The result should have file_id but no data.
-	content, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.FileContent{
-			MediaType: "image/png",
-			Data:      imageData,
-		},
-	}, map[int]uuid.UUID{0: fileID})
-	require.NoError(t, err)
-
-	// Parse the stored content to verify shape.
-	var blocks []json.RawMessage
-	require.NoError(t, json.Unmarshal(content.RawMessage, &blocks))
-	require.Len(t, blocks, 1)
-
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			MediaType string           `json:"media_type"`
-			Data      *json.RawMessage `json:"data,omitempty"`
-			FileID    string           `json:"file_id"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(blocks[0], &envelope))
-	require.Equal(t, "file", envelope.Type)
-	require.Equal(t, "image/png", envelope.Data.MediaType)
-	require.Equal(t, fileID.String(), envelope.Data.FileID)
-	// Data should be nil (omitted) since injectFileID strips it.
-	require.Nil(t, envelope.Data.Data, "inline data should be stripped")
 }
 
 // TestInjectMissingToolResults_SkipsProviderExecuted verifies that
@@ -1130,223 +1025,9 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	require.Equal(t, []string{"toolu_exec"}, toolIDs)
 }
 
-// TestSDKPartsNeverProduceFantasyEnvelopeShape guards the structural
-// invariant that isFantasyEnvelopeFormat relies on: no SDK part type
-// serializes with a top-level "data" field containing a JSON object
-// (starting with '{'). Fantasy envelopes always have
-// "data":{object}, while ChatMessagePart.Data is []byte which
-// serializes to a base64 string or is omitted. If this test fails,
-// the format discriminator can no longer distinguish legacy fantasy
-// content from SDK parts, and parseAssistantRole / parseUserRole
-// would silently lose data on legacy rows.
-func TestSDKPartsNeverProduceFantasyEnvelopeShape(t *testing.T) {
-	t.Parallel()
-
-	parts := []codersdk.ChatMessagePart{
-		{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
-		{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, MediaType: "image/png"},
-		{Type: codersdk.ChatMessagePartTypeFile, MediaType: "image/png", Data: []byte("fake-image-data")},
-		{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
-		{Type: codersdk.ChatMessagePartTypeReasoning, Text: "thinking..."},
-		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "abc", ToolName: "read_file", Args: json.RawMessage(`{"path":"main.go"}`)},
-		{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "abc", ToolName: "read_file", Result: json.RawMessage(`{"output":"code"}`)},
-		{Type: codersdk.ChatMessagePartTypeSource, SourceID: "s1", URL: "https://example.com", Title: "Example"},
-	}
-	for _, part := range parts {
-		raw, err := json.Marshal(part)
-		require.NoError(t, err)
-		var fields map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal(raw, &fields))
-		if data, ok := fields["data"]; ok {
-			trimmed := bytes.TrimSpace(data)
-			require.NotEmpty(t, trimmed)
-			assert.NotEqual(t, byte('{'), trimmed[0],
-				"SDK part type %q serializes with data field starting with '{', "+
-					"would be misidentified as fantasy envelope by isFantasyEnvelopeFormat",
-				part.Type)
-		}
-	}
-}
-
 // nullRaw wraps raw JSON bytes in a NullRawMessage for test input.
 func nullRaw(data json.RawMessage) pqtype.NullRawMessage {
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
-}
-
-func TestParseContent_BackwardCompat(t *testing.T) {
-	t.Parallel()
-
-	fileID := uuid.New()
-
-	// Build legacy fantasy assistant content using MarshalContent.
-	legacyAssistantReasoning, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.ReasoningContent{
-			Text: "let me think...",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				"anthropic": &fantasyanthropic.ProviderCacheControlOptions{
-					CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
-				},
-			},
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	legacyAssistantSource, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.SourceContent{
-			ID:    "src_001",
-			URL:   "https://example.com/doc",
-			Title: "Example Doc",
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	legacyAssistantToolCall, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.ToolCallContent{
-			ToolCallID: "call_123",
-			ToolName:   "read_file",
-			Input:      `{"path":"main.go"}`,
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name  string
-		role  codersdk.ChatMessageRole
-		raw   pqtype.NullRawMessage
-		check func(t *testing.T, parts []codersdk.ChatMessagePart)
-	}{
-		{
-			name: "system/plain_string",
-			role: codersdk.ChatMessageRoleSystem,
-			raw:  nullRaw(mustJSON(t, "You are helpful.")),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "You are helpful.", parts[0].Text)
-			},
-		},
-		{
-			name: "user/fantasy_text",
-			role: codersdk.ChatMessageRoleUser,
-			raw: nullRaw(mustJSON(t, []json.RawMessage{
-				mustJSON(t, map[string]any{
-					"type": "text",
-					"data": map[string]any{"text": "hello from user"},
-				}),
-			})),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "hello from user", parts[0].Text)
-			},
-		},
-		{
-			name: "assistant/fantasy_text",
-			role: codersdk.ChatMessageRoleAssistant,
-			raw: nullRaw(mustJSON(t, []json.RawMessage{
-				mustJSON(t, map[string]any{
-					"type": "text",
-					"data": map[string]any{"text": "hello from assistant"},
-				}),
-			})),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "hello from assistant", parts[0].Text)
-			},
-		},
-		{
-			name: "user/plain_string",
-			role: codersdk.ChatMessageRoleUser,
-			raw:  nullRaw(mustJSON(t, "just a plain string")),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "just a plain string", parts[0].Text)
-			},
-		},
-		{
-			name: "user/fantasy_file_with_file_id",
-			role: codersdk.ChatMessageRoleUser,
-			raw: nullRaw(mustJSON(t, []json.RawMessage{
-				mustJSON(t, map[string]any{
-					"type": "file",
-					"data": map[string]any{
-						"media_type": "image/png",
-						"file_id":    fileID.String(),
-					},
-				}),
-			})),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
-				assert.Equal(t, "image/png", parts[0].MediaType)
-				assert.True(t, parts[0].FileID.Valid)
-				assert.Equal(t, fileID, parts[0].FileID.UUID)
-				assert.Nil(t, parts[0].Data, "inline data cleared when file_id present")
-			},
-		},
-		{
-			name: "assistant/fantasy_reasoning_with_metadata",
-			role: codersdk.ChatMessageRoleAssistant,
-			raw:  legacyAssistantReasoning,
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeReasoning, parts[0].Type)
-				assert.Equal(t, "let me think...", parts[0].Text)
-				require.NotNil(t, parts[0].ProviderMetadata, "ProviderMetadata must be preserved")
-				assert.Contains(t, string(parts[0].ProviderMetadata), "anthropic")
-			},
-		},
-		{
-			name: "assistant/fantasy_source",
-			role: codersdk.ChatMessageRoleAssistant,
-			raw:  legacyAssistantSource,
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeSource, parts[0].Type)
-				assert.Equal(t, "src_001", parts[0].SourceID)
-				assert.Equal(t, "https://example.com/doc", parts[0].URL)
-				assert.Equal(t, "Example Doc", parts[0].Title)
-			},
-		},
-		{
-			name: "assistant/fantasy_tool_call",
-			role: codersdk.ChatMessageRoleAssistant,
-			raw:  legacyAssistantToolCall,
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
-				assert.Equal(t, "call_123", parts[0].ToolCallID)
-				assert.Equal(t, "read_file", parts[0].ToolName)
-				assert.JSONEq(t, `{"path":"main.go"}`, string(parts[0].Args))
-			},
-		},
-		{
-			name: "tool/legacy_result_row",
-			role: codersdk.ChatMessageRoleTool,
-			raw: nullRaw(mustJSON(t, []map[string]any{{
-				"tool_call_id": "call_123",
-				"tool_name":    "read_file",
-				"result":       json.RawMessage(`{"output":"package main"}`),
-			}})),
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
-				assert.Equal(t, "call_123", parts[0].ToolCallID)
-				assert.Equal(t, "read_file", parts[0].ToolName)
-				assert.JSONEq(t, `{"output":"package main"}`, string(parts[0].Result))
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			parts, err := chatprompt.ParseContent(testMsg(tc.role, tc.raw))
-			require.NoError(t, err)
-			tc.check(t, parts)
-		})
-	}
 }
 
 func TestParseContent_V1(t *testing.T) {
@@ -1493,59 +1174,6 @@ func TestParseContent_V1(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported content version")
 	})
-}
-
-// TestProviderMetadataRoundTrip verifies that Anthropic cache
-// control hints survive the full path: legacy fantasy DB row →
-// ParseContent → SDK part (ProviderMetadata) → partsToMessageParts
-// → fantasy.MessagePart (ProviderOptions).
-func TestProviderMetadataRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	legacyContent, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.TextContent{
-			Text: "cached response",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				"anthropic": &fantasyanthropic.ProviderCacheControlOptions{
-					CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
-				},
-			},
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	// Step 1: ParseContent preserves metadata on the SDK part.
-	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, legacyContent))
-	require.NoError(t, err)
-	require.Len(t, parts, 1)
-	require.NotNil(t, parts[0].ProviderMetadata,
-		"ProviderMetadata must survive ParseContent")
-
-	// Step 2: ConvertMessagesWithFiles reconstructs typed
-	// ProviderOptions on the fantasy part.
-	prompt, err := chatprompt.ConvertMessagesWithFiles(
-		context.Background(),
-		[]database.ChatMessage{{
-			Role:       database.ChatMessageRoleAssistant,
-			Visibility: database.ChatMessageVisibilityBoth,
-			Content:    legacyContent,
-		}},
-		nil,
-		slogtest.Make(t, nil),
-		nil,
-		uuid.NullUUID{},
-	)
-	require.NoError(t, err)
-	require.Len(t, prompt, 1)
-	require.Len(t, prompt[0].Content, 1)
-
-	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
-	require.True(t, ok, "expected TextPart")
-	require.Equal(t, "cached response", textPart.Text)
-
-	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
-	require.NotNil(t, cc, "Anthropic cache control must survive round-trip")
-	require.Equal(t, "ephemeral", cc.Type)
 }
 
 // TestFileReferencePreservation verifies file-reference parts
@@ -1890,13 +1518,6 @@ func TestParseContent_ErrorPaths(t *testing.T) {
 		assert.Nil(t, parts)
 	})
 
-	t.Run("unknown_role", func(t *testing.T) {
-		t.Parallel()
-		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRole("banana"), nullRaw(json.RawMessage(`"hello"`))))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported chat message role")
-	})
-
 	t.Run("system/malformed_json", func(t *testing.T) {
 		t.Parallel()
 		_, err := chatprompt.ParseContent(testMsgV1(codersdk.ChatMessageRoleSystem, nullRaw(json.RawMessage(`not json`))))
@@ -1921,13 +1542,6 @@ func TestParseContent_ErrorPaths(t *testing.T) {
 		_, err := chatprompt.ParseContent(testMsgV1(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
-}
-
-func mustJSON(t *testing.T, v any) json.RawMessage {
-	t.Helper()
-	data, err := json.Marshal(v)
-	require.NoError(t, err)
-	return data
 }
 
 func mustMarshalParts(t *testing.T, parts ...codersdk.ChatMessagePart) pqtype.NullRawMessage {
