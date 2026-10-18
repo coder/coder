@@ -52,7 +52,7 @@ func WithAlwaysEnable(always bool) ServiceOption {
 
 // WithClock overrides the default real clock. Tests inject
 // quartz.NewMock(t) to control time-dependent behavior such as
-// heartbeat tickers and FinalizeStale timestamps.
+// FinalizeStale timestamps.
 func WithClock(c quartz.Clock) ServiceOption {
 	return func(s *Service) {
 		if c != nil {
