@@ -61,7 +61,6 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-// newChatTestOptions builds coderdtest options for chat runtime tests.
 func newChatTestOptions(
 	t testing.TB,
 	values *codersdk.DeploymentValues,
