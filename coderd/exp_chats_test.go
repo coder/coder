@@ -6049,7 +6049,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CreatedBy:           []uuid.UUID{user.UserID},
 			ModelConfigID:       []uuid.UUID{modelConfig.ID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-			ContentVersion:      []int16{chatprompt.ContentVersionV0},
+			ContentVersion:      []int16{0},
 			Content:             []string{`"plain text from V0"`},
 			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
 			InputTokens:         []int64{0},
