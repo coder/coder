@@ -351,55 +351,13 @@ func (d *debugModel) Model() string {
 	return d.inner.Model()
 }
 
-// launchHeartbeat starts a goroutine that periodically calls TouchStep
-// to keep the step and run rows alive during long-running streams.  The
-// goroutine also listens on the service's threshold-change channel so
-// that a runtime SetStaleAfter call immediately resets the ticker
-// instead of waiting for the old (possibly longer) period to elapse.
-// The goroutine exits when done is closed or ctx is canceled.
 func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uuid.UUID, done <-chan struct{}) {
 	if svc == nil {
 		return
 	}
-	go func() {
-		// Subscribe before reading the interval. The channel invalidates
-		// the interval, so any concurrent SetStaleAfter either happened
-		// before this interval read or will close thresholdCh below.
-		thresholdCh := svc.thresholdChan()
-		interval := svc.heartbeatInterval()
-		ticker := svc.clock.NewTicker(interval, "chatdebug", "heartbeat")
-		defer ticker.Stop()
-		resetTicker := func() {
-			if newInterval := svc.heartbeatInterval(); newInterval != interval {
-				interval = newInterval
-				ticker.Reset(interval, "chatdebug", "heartbeat")
-			}
-		}
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-done:
-				return
-			case <-thresholdCh:
-				// SetStaleAfter was called; re-read the interval
-				// and reset the ticker immediately.
-				thresholdCh = svc.thresholdChan()
-				resetTicker()
-			case <-ticker.C:
-				if err := svc.TouchStep(ctx, stepID, runID, chatID); err != nil {
-					svc.log.Debug(ctx, "heartbeat touch failed",
-						slog.Error(err),
-						slog.F("step_id", stepID),
-					)
-				}
-				// Also re-read interval on every tick as a
-				// secondary check.
-				resetTicker()
-			}
-		}
-	}()
+	svc.heartbeat(ctx, done, "heartbeat", func(ctx context.Context) error {
+		return svc.TouchStep(ctx, stepID, runID, chatID)
+	}, slog.F("step_id", stepID))
 }
 
 func wrapStreamSeq(

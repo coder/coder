@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,17 +31,7 @@ type Service struct {
 	pubsub       pubsub.Pubsub
 	clock        quartz.Clock
 	alwaysEnable bool
-	// staleAfterNanos stores the stale threshold as nanoseconds in an
-	// atomic.Int64 so SetStaleAfter and FinalizeStale can be called
-	// from concurrent goroutines without a data race.
-	staleAfterNanos atomic.Int64
-
-	// thresholdMu protects thresholdChanged.
-	thresholdMu sync.Mutex
-	// thresholdChanged is closed by SetStaleAfter to wake heartbeat
-	// goroutines so they can re-read the (possibly shorter) interval
-	// immediately instead of waiting for the old ticker to fire.
-	thresholdChanged chan struct{}
+	staleAfter   time.Duration
 }
 
 // ServiceOption configures optional Service behavior.
@@ -58,13 +46,13 @@ func WithAlwaysEnable(always bool) ServiceOption {
 	}
 }
 
-// WithClock overrides the default real clock. Tests inject
-// quartz.NewMock(t) to control time-dependent behavior such as
-// heartbeat tickers and FinalizeStale timestamps.
-func WithClock(c quartz.Clock) ServiceOption {
+// WithStaleAfter overrides DefaultStaleThreshold for FinalizeStale and
+// heartbeat timing (half the threshold, with a 1ms minimum).
+// Nonpositive durations are ignored.
+func WithStaleAfter(staleAfter time.Duration) ServiceOption {
 	return func(s *Service) {
-		if c != nil {
-			s.clock = c
+		if staleAfter > 0 {
+			s.staleAfter = staleAfter
 		}
 	}
 }
@@ -136,55 +124,16 @@ func NewService(db database.Store, log slog.Logger, ps pubsub.Pubsub, opts ...Se
 	}
 
 	s := &Service{
-		db:               db,
-		log:              log,
-		pubsub:           ps,
-		clock:            quartz.NewReal(),
-		thresholdChanged: make(chan struct{}),
+		db:         db,
+		log:        log,
+		pubsub:     ps,
+		clock:      quartz.NewReal(),
+		staleAfter: DefaultStaleThreshold,
 	}
-	s.staleAfterNanos.Store(DefaultStaleThreshold.Nanoseconds())
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
-}
-
-// SetStaleAfter overrides the in-flight stale threshold used when
-// finalizing abandoned debug rows. Zero or negative durations are
-// ignored, leaving the current threshold (initial or previously
-// overridden) unchanged. Active heartbeat goroutines are woken so
-// they can re-read the (possibly shorter) interval immediately.
-func (s *Service) SetStaleAfter(staleAfter time.Duration) {
-	if s == nil || staleAfter <= 0 {
-		return
-	}
-	s.staleAfterNanos.Store(staleAfter.Nanoseconds())
-
-	// Wake all heartbeat goroutines by closing the current channel
-	// and replacing it with a fresh one for the next update.
-	s.thresholdMu.Lock()
-	close(s.thresholdChanged)
-	s.thresholdChanged = make(chan struct{})
-	s.thresholdMu.Unlock()
-}
-
-// thresholdChan returns the current threshold-change notification
-// channel. Heartbeat goroutines select on this to detect runtime
-// stale-threshold updates.
-func (s *Service) thresholdChan() <-chan struct{} {
-	s.thresholdMu.Lock()
-	defer s.thresholdMu.Unlock()
-	return s.thresholdChanged
-}
-
-// staleThreshold returns the current stale timeout.
-func (s *Service) staleThreshold() time.Duration {
-	ns := s.staleAfterNanos.Load()
-	d := time.Duration(ns)
-	if d <= 0 {
-		return DefaultStaleThreshold
-	}
-	return d
 }
 
 // heartbeatInterval returns a safe ticker interval for stream heartbeats.
@@ -194,7 +143,7 @@ func (s *Service) staleThreshold() time.Duration {
 // pathologically small thresholds, while still staying well below any
 // practical stale timeout.
 func (s *Service) heartbeatInterval() time.Duration {
-	return max(s.staleThreshold()/2, time.Millisecond)
+	return max(s.staleAfter/2, time.Millisecond)
 }
 
 func chatdContext(ctx context.Context) context.Context {
@@ -535,34 +484,31 @@ func (s *Service) LaunchRunHeartbeat(ctx context.Context, runID uuid.UUID, chatI
 	if s == nil || runID == uuid.Nil || chatID == uuid.Nil || done == nil {
 		return
 	}
+	s.heartbeat(ctx, done, "run-heartbeat", func(ctx context.Context) error {
+		return s.TouchRun(ctx, runID, chatID)
+	}, slog.F("run_id", runID))
+}
+
+func (s *Service) heartbeat(
+	ctx context.Context,
+	done <-chan struct{},
+	tag string,
+	touch func(context.Context) error,
+	rowField slog.Field,
+) {
 	go func() {
-		thresholdCh := s.thresholdChan()
-		interval := s.heartbeatInterval()
-		ticker := s.clock.NewTicker(interval, "chatdebug", "run-heartbeat")
+		ticker := s.clock.NewTicker(s.heartbeatInterval(), "chatdebug", tag)
 		defer ticker.Stop()
-		maybeResetTicker := func() {
-			if newInterval := s.heartbeatInterval(); newInterval != interval {
-				interval = newInterval
-				ticker.Reset(interval, "chatdebug", "run-heartbeat")
-			}
-		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-done:
 				return
-			case <-thresholdCh:
-				thresholdCh = s.thresholdChan()
-				maybeResetTicker()
 			case <-ticker.C:
-				if err := s.TouchRun(ctx, runID, chatID); err != nil {
-					s.log.Debug(ctx, "run heartbeat touch failed",
-						slog.Error(err),
-						slog.F("run_id", runID),
-					)
+				if err := touch(ctx); err != nil {
+					s.log.Debug(ctx, "heartbeat touch failed", slog.Error(err), rowField)
 				}
-				maybeResetTicker()
 			}
 		}
 	}()
@@ -629,7 +575,7 @@ func (s *Service) FinalizeStale(
 		chatdContext(ctx),
 		database.FinalizeStaleChatDebugRowsParams{
 			Now:           now,
-			UpdatedBefore: now.Add(-s.staleThreshold()),
+			UpdatedBefore: now.Add(-s.staleAfter),
 		},
 	)
 	if err != nil {

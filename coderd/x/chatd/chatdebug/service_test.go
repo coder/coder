@@ -665,8 +665,7 @@ func TestService_FinalizeStale_UsesConfiguredThreshold(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	svc.SetStaleAfter(42 * time.Second)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil, chatdebug.WithStaleAfter(42*time.Second))
 
 	db.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
