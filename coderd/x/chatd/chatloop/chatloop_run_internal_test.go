@@ -1168,12 +1168,13 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	calls := []fantasy.ToolCallContent{
 		{ToolCallID: "a", ToolName: "serial_tool", Input: "{}"},
 		{ToolCallID: "p", ToolName: "parallel_tool", Input: "{}"},
-		{ToolCallID: "b", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "b", ToolName: "serial_alias", Input: "{}"},
 		{ToolCallID: "c", ToolName: "serial_tool", Input: "{}"},
 	}
 	results := newToolBatch(ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{serial, parallel},
-		Clock: quartz.NewReal(),
+		Tools:           []fantasy.AgentTool{serial, parallel},
+		ToolNameAliases: map[string]string{"serial_alias": "serial_tool"},
+		Clock:           quartz.NewReal(),
 	}, "fake", "fake-model").run(context.Background(), calls, time.Time{})
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,

@@ -1219,12 +1219,19 @@ func newToolBatch(opts ExecuteLocalToolsOptions, provider, model string) *toolBa
 	}
 }
 
+func (b *toolBatch) resolve(name string) string {
+	if alias, ok := b.opts.ToolNameAliases[name]; ok {
+		return alias
+	}
+	return name
+}
+
 func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallContent, batchStart time.Time) []toolExecutionResult {
 	observed := b.opts.ObservedToolCalls
 	if observed == nil {
 		observed = localToolCalls
 	}
-	notifyStepToolCallObservers(b.tools, b.opts.ToolNameAliases, observed)
+	b.notifyStepToolCallObservers(observed)
 
 	recorder := b.opts.BillingRecorder
 	executions := make([]toolExecutionResult, len(localToolCalls))
@@ -1272,7 +1279,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 	var serialIndexes []int
 	var wg sync.WaitGroup
 	for i, tc := range localToolCalls {
-		if isSerialToolCall(b.tools, b.opts.ToolNameAliases, tc.ToolName) {
+		if b.isSerialToolCall(tc.ToolName) {
 			serialIndexes = append(serialIndexes, i)
 			continue
 		}
@@ -1295,7 +1302,7 @@ func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallCo
 			settled = append(settled, executions[i].content)
 		}
 	}
-	notifyStepToolResultObservers(b.tools, b.opts.ToolNameAliases, localToolCalls, observed, settled)
+	b.notifyStepToolResultObservers(localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
 		// Stamp serial calls at launch, not batch start.
@@ -1415,10 +1422,7 @@ func (b *toolBatch) runOne(
 	// Resolve backward-compatible tool aliases (for example a renamed
 	// tool whose old name still appears in chat history) to the canonical
 	// tool before the active-tool and dispatch lookups.
-	resolvedName := tc.ToolName
-	if alias, ok := b.opts.ToolNameAliases[tc.ToolName]; ok {
-		resolvedName = alias
-	}
+	resolvedName := b.resolve(tc.ToolName)
 
 	_, isProviderRunner := b.providerRunners[resolvedName]
 	if !isProviderRunner && !isToolActive(resolvedName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[resolvedName] {
@@ -1520,7 +1524,7 @@ func (b *toolBatch) runOne(
 		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
-		if callback := b.resultMetadata[tc.ToolName]; callback != nil {
+		if callback := b.resultMetadata[resolvedName]; callback != nil {
 			metadata := callback(resp)
 			if len(metadata) > 0 {
 				result.ProviderMetadata = metadata
@@ -1568,14 +1572,10 @@ type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
 
 // notifyStepToolCallObservers passes the step's resolved tool-call
 // names to each distinct called tool that observes them.
-func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent) {
+func (b *toolBatch) notifyStepToolCallObservers(calls []fantasy.ToolCallContent) {
 	names := make([]string, 0, len(calls))
 	for _, tc := range calls {
-		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
-		names = append(names, name)
+		names = append(names, b.resolve(tc.ToolName))
 	}
 	notified := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -1583,11 +1583,7 @@ func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameA
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolCallObserver); ok {
+		if observer, ok := b.tools[name].(stepToolCallObserver); ok {
 			observer.ObserveStepToolCalls(names)
 		}
 	}
@@ -1611,13 +1607,7 @@ type stepToolResultObserver interface {
 // results always carry IsError. Serial calls have not run yet, so
 // their own outcomes are reported as not errored; observers only need
 // the concurrent siblings they share state with.
-func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
-	resolve := func(name string) string {
-		if alias, ok := toolNameAliases[name]; ok {
-			return alias
-		}
-		return name
-	}
+func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
 	erroredByID := make(map[string]bool, len(settled))
 	for _, tr := range settled {
 		_, isErr := tr.Result.(fantasy.ToolResultOutputContentError)
@@ -1630,7 +1620,7 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	names := make([]string, 0, len(observed))
 	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		names = append(names, resolve(tc.ToolName))
+		names = append(names, b.resolve(tc.ToolName))
 		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
 			errored = append(errored, isErr)
 			continue
@@ -1640,33 +1630,19 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	}
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
-		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
+		name := b.resolve(tc.ToolName)
 		if _, dup := notified[name]; dup {
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolResultObserver); ok {
+		if observer, ok := b.tools[name].(stepToolResultObserver); ok {
 			observer.ObserveStepToolResults(names, errored)
 		}
 	}
 }
 
-func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
-	if alias, ok := toolNameAliases[name]; ok {
-		name = alias
-	}
-	tool, ok := toolMap[name]
-	if !ok {
-		return false
-	}
-	serial, ok := tool.(serialToolCaller)
+func (b *toolBatch) isSerialToolCall(name string) bool {
+	serial, ok := b.tools[b.resolve(name)].(serialToolCaller)
 	return ok && serial.SerialToolCalls()
 }
 
