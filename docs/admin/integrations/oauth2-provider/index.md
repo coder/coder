@@ -66,10 +66,16 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
 1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
 2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
-   - **Name**: Your application name
-   - **Default callback**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop). Select **Add redirect URI** for additional callback URLs.
-   - **Icon**: Optional icon URL
-   - **Allowed scopes**: Optional. Refer to [Scopes](./scopes.md).
+   - **Name**:
+     Your application name
+   - **Default callback**:
+     `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop).
+     Select **Add redirect URI** for additional callback URLs.
+   - **Icon**:
+     Optional icon URL
+   - **Allowed scopes**:
+     Optional.
+     Refer to [Scopes](./scopes.md).
 4. Select **Create application**.
 
 Coder creates the application and takes you to its details page, which prompts you to generate a client secret.
@@ -95,9 +101,11 @@ curl -X POST \
   "$CODER_URL/api/v2/oauth2-provider/apps"
 ```
 
-`callback_url` is still accepted and still returned, but it is deprecated: it is equal to the first entry in `redirect_uris`. New scripts should send and read `redirect_uris` instead.
+`callback_url` is still accepted and still returned, but it is deprecated: it is equal to the first entry in `redirect_uris`.
+New scripts should send and read `redirect_uris` instead.
 
-Update an application with `PUT`. Fetch it first and edit the fields you want to change, then send the result back:
+Update an application with `PUT`.
+Fetch it first and edit the fields you want to change, then send the result back:
 
 ```sh
 curl -X PUT \
@@ -126,13 +134,15 @@ curl -X POST \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
 
-The response includes `client_secret_full`, the plaintext secret. Save it now: later reads of this application return only a truncated version.
+The response includes `client_secret_full`, the plaintext secret.
+Save it now: later reads of this application return only a truncated version.
 
 Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
 
 ## Dynamic Client Registration
 
-Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually.
+It's **disabled by default**; an owner must turn it on before any client can self-register.
 
 Change the setting in the web UI:
 
@@ -169,9 +179,8 @@ curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/v2/oauth2-provider/settings"
 ```
 
-Disabling only blocks *new* self-registrations. Applications that already
-registered while it was enabled keep authorizing and exchanging tokens
-normally; disabling does not revoke or otherwise affect them.
+Disabling only blocks *new* self-registrations.
+Applications that already registered while it was enabled keep authorizing and exchanging tokens normally; disabling does not revoke or otherwise affect them.
 
 An application may list several `redirect_uris`, whether it registered itself or an admin created it.
 A request may present any of them, and the code it receives can only be exchanged with that same URI.

@@ -42,16 +42,28 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	method, appName, err := sdk2db.ConnectionLogFromAgentType(req.GetConnection().GetType())
+	method, appName, err := sdk2db.ConnectionLogFromAgentConnection(req.GetConnection())
 	if err != nil {
 		return nil, err
 	}
 
-	var code sql.NullInt32
+	var (
+		code    sql.NullInt32
+		rxBytes sql.NullInt64
+		txBytes sql.NullInt64
+	)
 	if action == database.ConnectionStatusDisconnected {
 		code = sql.NullInt32{
 			Int32: req.GetConnection().GetStatusCode(),
 			Valid: true,
+		}
+		rxBytes = sql.NullInt64{
+			Int64: req.GetConnection().GetRxBytes(),
+			Valid: req.GetConnection().RxBytes != nil,
+		}
+		txBytes = sql.NullInt64{
+			Int64: req.GetConnection().GetTxBytes(),
+			Valid: req.GetConnection().TxBytes != nil,
 		}
 	}
 
@@ -118,6 +130,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		},
 		// N/A
 		UserAgent: sql.NullString{},
+		RxBytes:   rxBytes,
+		TxBytes:   txBytes,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)
