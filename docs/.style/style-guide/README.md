@@ -22,9 +22,9 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 80 rules.
+The guide documents 88 rules.
 Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
-The other 71 are yours to apply by reading, 72 on published pages, where the one-sentence-per-line rule is off.
+The other 79 are yours to apply by reading, 80 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -54,14 +54,14 @@ The markdownlint and emdash checks do fail the build.
 | Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
 |-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
 | [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
-| [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
-| [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
-| [Word choice](./word-choice.md)                                       | 17    | 2            | 10      | 5                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
+| [Voice and tone](./voice-and-tone.md)                                 | 12    | 0            | 4       | 8                  |
+| [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
+| [Word choice](./word-choice.md)                                       | 20    | 2            | 12      | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 2            | 5       | 7                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 2            | 8       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 80    | 9            | 25      | 46                 |
+| **Total**                                                             | 88    | 9            | 34      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -88,7 +88,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 6 rows in the table above name 9 checks, because the markdownlint row bundles 4, and those 9 checks cover 8 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 7 rows in the table above name 10 checks, because the markdownlint row bundles 4, and those 10 checks cover 9 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.
@@ -101,17 +101,17 @@ This section is the only place that states the counts; the agent-facing guides l
 
 ## Sections
 
-| Page                                                                  | Covers                                                                                                                                                                                                                         |
-|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Audience and scope](./audience-and-scope.md)                         | One audience per page; one outcome per page; declare both up front; Coder personas                                                                                                                                             |
-| [Voice and tone](./voice-and-tone.md)                                 | Second person; no first-person singular; "we" as the company, not the software; active voice; present tense; sentence and paragraph budgets; verbs over noun forms; pronoun referents                                          |
-| [Procedural writing](./procedural-writing.md)                         | One instruction per step; condition before instruction; step length; callouts inform, steps instruct; warnings state the consequence                                                                                           |
-| [Word choice](./word-choice.md)                                       | Canonical brand and product names; one term per concept; "refer to" over "see"; "select" over "click"; weasel words; compliance claims; plain English for product actions; keep internal-only references out of published docs |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | WCAG target; inclusive pronouns and substitutions; descriptive link text; alt text; page descriptions; heading structure; reading level                                                                                        |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | Sentence-case headings; no gerund leads; no em-dashes; commas; US-style quotation                                                                                                                                              |
-| [Formatting](./formatting.md)                                         | Bold for UI; italics for emphasis; code font for identifiers; language fences on code blocks; callouts; tabs; lists; tables; links; images; screenshots sparingly                                                              |
-| [Numbers, units, and dates](./numbers-units-and-dates.md)             | Digits for 6 and higher, either way for 0-5; "more than X"/"X or more" always spelled out below 6; non-breaking space between number and unit; `Month Day, Year` dates; 12-hour time with AM/PM                                |
-| [Editor setup](./editor-setup.md)                                     | Vale editor integration for VS Code, Cursor, JetBrains, and Neovim (placeholder)                                                                                                                                               |
+| Page                                                                  | Covers                                                                                                                                                                                                                                                                                                                                   |
+|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Audience and scope](./audience-and-scope.md)                         | One audience per page; one outcome per page; declare both up front; Coder personas                                                                                                                                                                                                                                                       |
+| [Voice and tone](./voice-and-tone.md)                                 | Second person; no first-person singular; "we" as the company, not the software; active voice; present tense; sentence and paragraph budgets; how to count words; verbs over noun forms; pronoun referents; spelled-out negative instructions; no "please"                                                                                |
+| [Procedural writing](./procedural-writing.md)                         | One instruction per step; condition before instruction; 20-word step limit; full clauses instead of `-ing` clauses; callouts inform, steps instruct; warnings state the consequence                                                                                                                                                      |
+| [Word choice](./word-choice.md)                                       | Canonical brand and product names; feature versus instance; one term per concept; words that have one meaning; US spelling; noun stacks; "refer to" or "visit" over "see" or "check out"; "select" over "click"; weasel words; compliance claims; plain English for product actions; keep internal-only references out of published docs |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | WCAG target; inclusive pronouns, substitutions, and LGBTQ terms; descriptive link text; alt text; page descriptions; heading structure; reading level                                                                                                                                                                                    |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | Sentence-case headings; no gerund leads; no em-dashes; no semicolons in prose; no periods in acronyms; commas; US-style quotation                                                                                                                                                                                                        |
+| [Formatting](./formatting.md)                                         | Bold for UI; italics for emphasis; code font for identifiers; language fences on code blocks; callouts; tabs; lists; tables; links; images; screenshots sparingly                                                                                                                                                                        |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | Digits for 6 and higher, either way for 0-5; "more than X"/"X or more" always spelled out below 6; non-breaking space between number and unit; `Month Day, Year` dates; 12-hour time with AM/PM                                                                                                                                          |
+| [Editor setup](./editor-setup.md)                                     | Vale editor integration for VS Code, Cursor, JetBrains, and Neovim (placeholder)                                                                                                                                                                                                                                                         |
 
 ## Conventions for editing Coder docs
 
@@ -146,7 +146,7 @@ Headings, fenced code blocks, and tables are out of scope: headings are single l
 ### The style guide doesn't use "see" for navigation
 
 The [Word choice page](./word-choice.md) bans "see" as a navigational verb across all docs.
-The style guide itself follows the rule: "refer to" for formal cross-references, "check out" for informal pointers in tutorial-style passages, "visit" for external URLs.
+The style guide itself follows the rule: "refer to" for formal cross-references and "visit" for any other pointer, including external URLs.
 Reserve "see" for the rare case where the prose describes what a reader observes in the product UI.
 
 ## Vale enforcement
@@ -159,6 +159,7 @@ Third-party rules from Google, alex, and write-good aren't enabled until a per-r
 Each enabled rule lands via a dedicated PR that:
 
 1. Cleans the corpus to zero baseline findings.
+   A rule at `suggestion` severity is the exception: it can land while existing findings remain, and the PR states the baseline count.
 2. Adds the rule line in `.vale.ini` at the rule author's chosen severity.
 3. Adds the corresponding section to the appropriate subpage of this guide.
 
@@ -179,10 +180,9 @@ Run `make lint/prose` to reproduce the baseline locally.
 ## Relationship to `contributing/documentation.md`
 
 A public-facing prose summary lives today at [`contributing/documentation.md`](https://github.com/coder/coder/blob/main/contributing/documentation.md) in the repository.
-A follow-up PR will fold that page into this guide.
-Until then, follow the public summary for anything the subpages of this guide don't cover.
+That page is frozen.
+Follow it for anything the subpages of this guide don't cover.
 New prose rules land here.
-The public page is frozen pending that move.
 
 ## Third-party references
 

@@ -132,6 +132,18 @@ describe("getAgentScriptIssues", () => {
 		);
 	});
 
+	it("does not return issues for skipped or canceled scripts", () => {
+		const issues = getAgentScriptIssues(
+			buildAgent(MockWorkspaceAgentStartError),
+		);
+		expect(issues).not.toContainEqual(
+			expect.objectContaining({ title: expect.stringContaining("skipped") }),
+		);
+		expect(issues).not.toContainEqual(
+			expect.objectContaining({ title: expect.stringContaining("canceled") }),
+		);
+	});
+
 	it("does not return connectivity issues", () => {
 		const issues = getAgentScriptIssues(buildAgent({ status: "disconnected" }));
 		expect(issues).not.toContainEqual(

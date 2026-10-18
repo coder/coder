@@ -1595,7 +1595,7 @@ export interface AgentScriptTiming {
 	readonly ended_at: string;
 	readonly exit_code: number;
 	readonly stage: TimingStage;
-	readonly status: string;
+	readonly status: WorkspaceAgentScriptStatus;
 	readonly display_name: string;
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
@@ -12438,15 +12438,19 @@ export const WorkspaceAgentScriptDependencyRequirements: WorkspaceAgentScriptDep
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
+	| "canceled"
 	| "exit_failure"
 	| "ok"
 	| "pipes_left_open"
+	| "skipped"
 	| "timed_out";
 
 export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"canceled",
 	"exit_failure",
 	"ok",
 	"pipes_left_open",
+	"skipped",
 	"timed_out",
 ];
 
