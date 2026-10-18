@@ -2895,8 +2895,8 @@ func TestMediaToolResultConversion(t *testing.T) {
 		},
 		{
 			name:     "IsMediaTrueButMissingMimeType",
-			result:   codersdk.ChatMessageToolResult("call-media-no-mime", toolName, json.RawMessage(`{"data":"some_base64","text":""}`), false, true),
-			wantText: `{"data":"some_base64","text":""}`,
+			result:   codersdk.ChatMessageToolResult("call-media-no-mime", toolName, json.RawMessage(`{"data":"aGVsbG8=","text":""}`), false, true),
+			wantText: `{"data":"aGVsbG8=","text":""}`,
 		},
 		{
 			name:     "IsMediaTrueButMissingData",
@@ -2937,7 +2937,7 @@ func TestMediaToolResultConversion(t *testing.T) {
 			if tt.wantError != "" {
 				errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](resultPart.Output)
 				require.True(t, ok, "expected ToolResultOutputContentError, got %T", resultPart.Output)
-				require.Contains(t, errOutput.Error.Error(), tt.wantError)
+				require.Equal(t, tt.wantError, errOutput.Error.Error())
 				return
 			}
 
