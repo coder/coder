@@ -2,7 +2,7 @@ import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { chatProjectsByOrganization } from "#/api/queries/chatProjects";
+import { chatProjects } from "#/api/queries/chatProjects";
 import { moveChatToProject } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import type {
@@ -72,8 +72,15 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const [open, setOpen] = useState(false);
-	const projectsQuery = useQuery(chatProjectsByOrganization());
-	const projects = projectsQuery.data?.[chat.organization_id] ?? [];
+	// The sidebar keeps the list current and the project mutations invalidate
+	// it, so opening the menu sends no request.
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+	const projects = (projectsQuery.data ?? []).filter(
+		(project) => project.organization_id === chat.organization_id,
+	);
 	const mutation = useMoveChatToProject();
 	const move = (projectId: string | null) =>
 		mutation.mutate({ chatId: chat.id, projectId });
