@@ -145,7 +145,7 @@ func TestApplySessionStartResponseNoOp(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, chat.SnapshotVersion, result.Chat.SnapshotVersion)
-	require.Empty(t, f.pubsub.events())
+	require.Empty(t, f.pubsub.published())
 }
 
 func hookMessageTextInternal(t *testing.T, message database.ChatMessage) string {
