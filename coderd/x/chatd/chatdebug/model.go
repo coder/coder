@@ -13,10 +13,8 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
@@ -217,13 +215,7 @@ func (d *debugModel) Generate(
 		return d.inner.Generate(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.Generate(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
@@ -286,13 +278,7 @@ func (d *debugModel) GenerateObject(
 		return d.inner.GenerateObject(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.GenerateObject(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
@@ -351,15 +337,6 @@ func (d *debugModel) Model() string {
 	return d.inner.Model()
 }
 
-func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uuid.UUID, done <-chan struct{}) {
-	if svc == nil {
-		return
-	}
-	svc.heartbeat(ctx, done, "heartbeat", func(ctx context.Context) error {
-		return svc.TouchStep(ctx, stepID, runID, chatID)
-	}, slog.F("step_id", stepID))
-}
-
 func wrapStreamSeq(
 	ctx context.Context,
 	handle *stepHandle,
@@ -380,10 +357,6 @@ func wrapStreamSeq(
 		streamComplete atomic.Bool
 	)
 
-	// heartbeatDone is closed when the stream finalizes (either
-	// normally or via the safety net) to stop the heartbeat goroutine.
-	heartbeatDone := make(chan struct{})
-
 	// Safety net: if the caller drops the returned iterator without
 	// consuming it (or abandons mid-stream and the context is
 	// canceled), finalize the step so it does not remain permanently
@@ -398,20 +371,10 @@ func wrapStreamSeq(
 			return
 		}
 		finalized = true
-		close(heartbeatDone)
 		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
 	})
 
-	// startHeartbeat launches the heartbeat goroutine on first call.
-	// Deferring the start until the caller begins consuming the stream
-	// prevents leaked goroutines when the iterator is dropped without
-	// being iterated.
-	startHeartbeat := sync.OnceFunc(func() {
-		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-	})
-
 	return func(yield func(fantasy.StreamPart) bool) {
-		startHeartbeat()
 		var (
 			summary          streamSummary
 			latestUsage      fantasy.Usage
@@ -429,7 +392,7 @@ func wrapStreamSeq(
 		)
 
 		finalize := func(status Status) {
-			// Cancel the safety net and heartbeat since we're finalizing.
+			// Cancel the safety net since we're finalizing.
 			if stop != nil {
 				stop()
 			}
@@ -439,7 +402,6 @@ func wrapStreamSeq(
 				return
 			}
 			finalized = true
-			close(heartbeatDone)
 
 			summary.FinishReason = string(finishReason)
 			materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
@@ -553,8 +515,6 @@ func wrapObjectStreamSeq(
 		streamComplete atomic.Bool
 	)
 
-	heartbeatDone := make(chan struct{})
-
 	stop := context.AfterFunc(ctx, func() {
 		mu.Lock()
 		defer mu.Unlock()
@@ -562,18 +522,10 @@ func wrapObjectStreamSeq(
 			return
 		}
 		finalized = true
-		close(heartbeatDone)
 		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
 	})
 
-	// Deferred heartbeat: start the heartbeat goroutine only when the
-	// caller begins consuming the stream.
-	startHeartbeat := sync.OnceFunc(func() {
-		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-	})
-
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
-		startHeartbeat()
 		var (
 			summary       = objectStreamSummary{StructuredOutput: true}
 			latestUsage   fantasy.Usage
@@ -596,7 +548,6 @@ func wrapObjectStreamSeq(
 				return
 			}
 			finalized = true
-			close(heartbeatDone)
 
 			summary.FinishReason = string(finishReason)
 

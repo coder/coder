@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -23,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type testError struct{ message string }
@@ -73,9 +71,6 @@ func expectCreateStepNumberWithRequestValidity(
 				Status:     params.Status,
 			}, nil
 		})
-
-	// The INSERT CTE atomically bumps the parent run's updated_at,
-	// so no separate TouchChatDebugRunUpdatedAt call is needed.
 
 	return stepID
 }
@@ -1232,106 +1227,3 @@ func recordedStream(t *testing.T, handle *stepHandle) streamRecord {
 func int64Ptr(v int64) *int64 { return &v }
 
 func float64Ptr(v float64) *float64 { return &v }
-
-func TestLaunchHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	stepID, runID, chatID := uuid.New(), uuid.New(), uuid.New()
-	launchers := []struct {
-		name          string
-		tag           string
-		launch        func(context.Context, *Service, <-chan struct{})
-		expectTouches func(*dbmock.MockStore, chan<- any)
-		wantTouch     func(now time.Time) any
-	}{
-		{
-			name: "step",
-			tag:  "heartbeat",
-			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
-				launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-			},
-			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
-				db.EXPECT().TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
-						touched <- params
-						return nil
-					}).Times(2)
-			},
-			wantTouch: func(now time.Time) any {
-				return database.TouchChatDebugStepAndRunParams{Now: now, StepID: stepID, RunID: runID, ChatID: chatID}
-			},
-		},
-		{
-			name: "run",
-			tag:  "run-heartbeat",
-			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
-				svc.LaunchRunHeartbeat(ctx, runID, chatID, done)
-			},
-			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
-				db.EXPECT().TouchChatDebugRunUpdatedAt(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, params database.TouchChatDebugRunUpdatedAtParams) error {
-						touched <- params
-						return nil
-					}).Times(2)
-			},
-			wantTouch: func(now time.Time) any {
-				return database.TouchChatDebugRunUpdatedAtParams{Now: now, ID: runID, ChatID: chatID}
-			},
-		},
-	}
-	stoppers := []struct {
-		name string
-		stop func(cancel context.CancelFunc, done chan struct{})
-	}{
-		{name: "done", stop: func(_ context.CancelFunc, done chan struct{}) { close(done) }},
-		{name: "ctx", stop: func(cancel context.CancelFunc, _ chan struct{}) { cancel() }},
-	}
-	for _, launcher := range launchers {
-		for _, stopper := range stoppers {
-			t.Run(launcher.name+"_touches_until_"+stopper.name, func(t *testing.T) {
-				t.Parallel()
-
-				ctrl := gomock.NewController(t)
-				db := dbmock.NewMockStore(ctrl)
-				mClock := quartz.NewMock(t)
-				svc := NewService(db, testutil.Logger(t), nil)
-				svc.clock = mClock
-				touched := make(chan any)
-				launcher.expectTouches(db, touched)
-
-				newTicker := mClock.Trap().NewTicker("chatdebug", launcher.tag)
-				defer newTicker.Close()
-				stopTicker := mClock.Trap().TickerStop()
-				defer stopTicker.Close()
-
-				ctx := testutil.Context(t, testutil.WaitShort)
-				heartbeatCtx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				done := make(chan struct{})
-				launcher.launch(heartbeatCtx, svc, done)
-
-				call := newTicker.MustWait(ctx)
-				require.Equal(t, DefaultStaleThreshold/2, call.Duration)
-				call.MustRelease(ctx)
-				for range 2 {
-					mClock.Advance(DefaultStaleThreshold / 2).MustWait(ctx)
-					require.Equal(t, launcher.wantTouch(mClock.Now()), testutil.RequireReceive(ctx, t, touched))
-				}
-
-				stopper.stop(cancel, done)
-				stopTicker.MustWait(ctx).MustRelease(ctx)
-			})
-		}
-	}
-
-	t.Run("nil_service_noop", func(t *testing.T) {
-		t.Parallel()
-
-		done := make(chan struct{})
-		defer close(done)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		for _, launcher := range launchers {
-			launcher.launch(ctx, nil, done)
-		}
-	})
-}

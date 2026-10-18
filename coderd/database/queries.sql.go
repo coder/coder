@@ -5580,65 +5580,6 @@ func (q *sqlQuerier) DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldCh
 	return result.RowsAffected()
 }
 
-const finalizeStaleChatDebugRows = `-- name: FinalizeStaleChatDebugRows :one
-WITH finalized_runs AS (
-    UPDATE chat_debug_runs
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE updated_at < $2::timestamptz
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING id
-), finalized_steps AS (
-    UPDATE chat_debug_steps
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE (
-            updated_at < $2::timestamptz
-            OR run_id IN (SELECT id FROM finalized_runs)
-        )
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING 1
-)
-SELECT
-    (SELECT COUNT(*) FROM finalized_runs)::bigint AS runs_finalized,
-    (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
-`
-
-type FinalizeStaleChatDebugRowsParams struct {
-	Now           time.Time `db:"now" json:"now"`
-	UpdatedBefore time.Time `db:"updated_before" json:"updated_before"`
-}
-
-type FinalizeStaleChatDebugRowsRow struct {
-	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
-	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
-}
-
-// Marks orphaned in-progress rows as interrupted so they do not stay
-// in a non-terminal state forever. The NOT IN list must match the
-// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
-//
-// The steps CTE also catches steps whose parent run was just finalized
-// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-// same snapshot and cannot see each other's row updates. Without this,
-// a step with a recent updated_at would survive its run's finalization
-// and remain in 'in_progress' state permanently.
-//
-// @now is the caller's clock timestamp so that mock-clock tests stay
-// consistent with the @updated_before cutoff.
-func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error) {
-	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, arg.Now, arg.UpdatedBefore)
-	var i FinalizeStaleChatDebugRowsRow
-	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
-	return i, err
-}
-
 const getChatDebugRunByID = `-- name: GetChatDebugRunByID :one
 SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 FROM chat_debug_runs
@@ -5931,11 +5872,10 @@ type InsertChatDebugStepParams struct {
 }
 
 // The CTE atomically locks the parent run via UPDATE, bumps its
-// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
-// call), and enforces the finalization guard: if the run is already
+// updated_at, and enforces the finalization guard: if the run is already
 // finished, the UPDATE returns zero rows, the INSERT gets no source
 // rows, and sql.ErrNoRows is returned. The UPDATE also serializes
-// with concurrent FinalizeStale under READ COMMITTED isolation.
+// with a concurrent run finalization under READ COMMITTED isolation.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,
@@ -5976,80 +5916,6 @@ func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebu
 		&i.FinishedAt,
 	)
 	return i, err
-}
-
-const touchChatDebugRunUpdatedAt = `-- name: TouchChatDebugRunUpdatedAt :exec
-UPDATE chat_debug_runs
-SET updated_at = $1::timestamptz
-WHERE id = $2::uuid
-    AND chat_id = $3::uuid
-`
-
-type TouchChatDebugRunUpdatedAtParams struct {
-	Now    time.Time `db:"now" json:"now"`
-	ID     uuid.UUID `db:"id" json:"id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-// Overrides updated_at on the parent run without touching any
-// other column. Used by tests that need to stamp a run with a
-// specific timestamp after the InsertChatDebugStep CTE has
-// already bumped it to NOW(), so stale-row finalization paths
-// can be exercised deterministically. The chatdebug service
-// itself does not call this: heartbeats go through
-// TouchChatDebugStepAndRun, and step creation updates the parent
-// run via the InsertChatDebugStep CTE.
-func (q *sqlQuerier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error {
-	_, err := q.db.ExecContext(ctx, touchChatDebugRunUpdatedAt, arg.Now, arg.ID, arg.ChatID)
-	return err
-}
-
-const touchChatDebugStepAndRun = `-- name: TouchChatDebugStepAndRun :exec
-WITH touched_run AS (
-    UPDATE chat_debug_runs
-    SET updated_at = $1::timestamptz
-    WHERE id = $3::uuid
-        AND chat_id = $4::uuid
-    RETURNING id, chat_id
-)
-UPDATE chat_debug_steps
-SET updated_at = $1::timestamptz
-FROM touched_run
-WHERE chat_debug_steps.id = $2::uuid
-    AND chat_debug_steps.run_id = touched_run.id
-    AND chat_debug_steps.chat_id = touched_run.chat_id
-`
-
-type TouchChatDebugStepAndRunParams struct {
-	Now    time.Time `db:"now" json:"now"`
-	StepID uuid.UUID `db:"step_id" json:"step_id"`
-	RunID  uuid.UUID `db:"run_id" json:"run_id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-// Atomically bumps updated_at on both the step and its parent run
-// in a single statement. This prevents FinalizeStale from
-// interleaving between the two touches and finalizing a run whose
-// step heartbeat was just written.
-//
-// The step UPDATE joins through touched_run (via FROM) and reads
-// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
-// is the only way to communicate values between a data-modifying
-// CTE and the main query, and consuming those rows forces the run
-// UPDATE to complete before the step UPDATE. That matches the
-// lock order used by FinalizeStaleChatDebugRows and avoids a
-// deadlock between concurrent heartbeats and stale sweeps. The
-// join also constrains the step update to the specified run so a
-// mismatched (run_id, step_id) pair cannot silently refresh an
-// unrelated step.
-func (q *sqlQuerier) TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error {
-	_, err := q.db.ExecContext(ctx, touchChatDebugStepAndRun,
-		arg.Now,
-		arg.StepID,
-		arg.RunID,
-		arg.ChatID,
-	)
-	return err
 }
 
 const updateChatDebugRun = `-- name: UpdateChatDebugRun :one
@@ -6177,8 +6043,7 @@ type UpdateChatDebugStepParams struct {
 // existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
 // or finalization and never cleared back to NULL. The @now
-// parameter keeps updated_at under the caller's clock, matching
-// the injectable quartz.Clock used by FinalizeStale sweeps.
+// parameter keeps updated_at under the caller's clock.
 func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
 		arg.Status,
