@@ -1,15 +1,58 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockUserMember,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
+type ProjectFoldersOptions = {
+	readonly error?: unknown;
+	readonly currentUserId?: string;
+};
+
+const projectFoldersElement = (
+	projects: readonly ChatProject[],
+	{ error, currentUserId = MockUserOwner.id }: ProjectFoldersOptions = {},
+) => (
+	<MemoryRouter>
+		<ProjectFolders
+			currentUserId={currentUserId}
+			projects={projects}
+			organizations={[MockDefaultOrganization]}
+			chatsByProjectId={new Map()}
+			expandedProjectIds={{}}
+			onToggle={vi.fn()}
+			onOpenProjectDialog={vi.fn()}
+			onDelete={vi.fn()}
+			emptyMessage="No agents yet"
+			isLoading={false}
+			error={error}
+			isLoadError={false}
+			onRetry={vi.fn()}
+		/>
+	</MemoryRouter>
+);
+
+const renderProjectFolders = (
+	projects: readonly ChatProject[],
+	options?: ProjectFoldersOptions,
+) => render(projectFoldersElement(projects, options));
+
+const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+
 describe("ProjectFolders", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
 	it("keeps cached folders usable when a refetch fails", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();
@@ -18,6 +61,7 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
+					currentUserId={MockUserOwner.id}
 					projects={[MockChatProject]}
 					organizations={[MockDefaultOrganization]}
 					chatsByProjectId={new Map()}
@@ -28,6 +72,7 @@ describe("ProjectFolders", () => {
 					emptyMessage="No agents yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
+					isLoadError={false}
 					onRetry={onRetry}
 				/>
 			</MemoryRouter>,
@@ -42,26 +87,26 @@ describe("ProjectFolders", () => {
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
+	it("keeps focus on the empty state's button when a refetch fails", async () => {
+		const user = userEvent.setup();
+		const { rerender } = renderProjectFolders([]);
+
+		await user.tab();
+		await user.tab();
+		const newProjectButton = screen.getByRole("button", {
+			name: "New project",
+		});
+		expect(newProjectButton).toHaveFocus();
+
+		rerender(
+			projectFoldersElement([], { error: new Error("Projects unavailable") }),
+		);
+		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
+	});
+
 	it("collapses and expands the whole Projects section", async () => {
 		const user = userEvent.setup();
-
-		render(
-			<MemoryRouter>
-				<ProjectFolders
-					projects={[MockChatProject]}
-					organizations={[MockDefaultOrganization]}
-					chatsByProjectId={new Map()}
-					expandedProjectIds={{}}
-					onToggle={vi.fn()}
-					onOpenProjectDialog={vi.fn()}
-					onDelete={vi.fn()}
-					emptyMessage="No agents yet"
-					isLoading={false}
-					error={undefined}
-					onRetry={vi.fn()}
-				/>
-			</MemoryRouter>,
-		);
+		renderProjectFolders([MockChatProject]);
 
 		const sectionToggle = screen.getByRole("button", { name: "Projects" });
 		await user.click(sectionToggle);
@@ -78,6 +123,34 @@ describe("ProjectFolders", () => {
 		).toBeVisible();
 	});
 
+	it("remembers the Projects section collapse state across mounts", async () => {
+		const user = userEvent.setup();
+		const firstMount = renderProjectFolders([]);
+
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(localStorage.getItem(collapsedKey)).toBe("true");
+		firstMount.unmount();
+
+		renderProjectFolders([]);
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(localStorage.getItem(collapsedKey)).toBeNull();
+	});
+
+	it("keeps the saved collapse state separate per user", async () => {
+		const user = userEvent.setup();
+		const firstMount = renderProjectFolders([]);
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		firstMount.unmount();
+
+		renderProjectFolders([], { currentUserId: MockUserMember.id });
+		await user.click(screen.getByRole("button", { name: "Projects" }));
+		expect(
+			localStorage.getItem(
+				projectsSectionCollapsedStorageKey(MockUserMember.id),
+			),
+		).toBe("true");
+	});
+
 	it("names same-named projects by their organization", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();
@@ -90,6 +163,7 @@ describe("ProjectFolders", () => {
 		render(
 			<MemoryRouter>
 				<ProjectFolders
+					currentUserId={MockUserOwner.id}
 					projects={[MockChatProject, otherProject]}
 					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}
@@ -100,6 +174,7 @@ describe("ProjectFolders", () => {
 					emptyMessage="No agents yet"
 					isLoading={false}
 					error={undefined}
+					isLoadError={false}
 					onRetry={vi.fn()}
 				/>
 			</MemoryRouter>,

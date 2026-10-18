@@ -56,6 +56,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -392,1122 +393,63 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"subagent chat should NOT have ask_user_question")
 }
 
-func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
+// TestArchiveStateRejectsChildChat verifies that Server.ArchiveChat and
+// Server.UnarchiveChat refuse child chats with ErrArchiveRequiresRootChat
+// whatever the family's archive state, leaving parent and child unchanged.
+func TestArchiveStateRejectsChildChat(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon: true,
-	})
-	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	expClient := codersdk.NewExperimentalClient(client)
+	for _, tc := range []struct {
+		name           string
+		childArchived  bool
+		parentArchived bool
+		unarchive      bool
+	}{
+		{name: "ArchiveActiveChild"},
+		{name: "ArchiveArchivedChild", childArchived: true},
+		{name: "UnarchiveActiveChild", unarchive: true},
+		{name: "UnarchiveArchivedChild", childArchived: true, unarchive: true},
+		{name: "UnarchiveChildOfArchivedParent", childArchived: true, parentArchived: true, unarchive: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-	// Start an external MCP server whose tools should remain available to the
-	// root plan-mode chat but stay hidden from plan-mode subagents.
-	mcpSrv := newTestMCPServer("plan-root-mcp")
-	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
-	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
-	t.Cleanup(mcpTS.Close)
-
-	mcpConfig, err := client.CreateMCPServerConfig(ctx, user.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:     "Plan Root MCP",
-		Slug:            "plan-root-mcp",
-		Transport:       "streamable_http",
-		URL:             mcpTS.URL,
-		AuthType:        "none",
-		Availability:    "default_off",
-		Enabled:         true,
-		AllowInPlanMode: true,
-	})
-	require.NoError(t, err)
-
-	var toolsMu sync.Mutex
-	toolsByCall := make([][]string, 0, 2)
-	requestsByCall := make([]recordedOpenAIRequest, 0, 2)
-
-	var callCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		toolsByCall = append(toolsByCall, names)
-		requestsByCall = append(requestsByCall, recordOpenAIRequest(req))
-		toolsMu.Unlock()
-
-		if callCount.Add(1) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"inspect the codebase","title":"sub"}`),
-			)
-		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
-
-	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		PlanMode:       codersdk.ChatPlanModePlan,
-		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
-		Content: []codersdk.ChatInputPart{
-			{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "Spawn a subagent to inspect the codebase.",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := expClient.GetChat(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		if got.Status != codersdk.ChatStatusWaiting && got.Status != codersdk.ChatStatusError {
-			return false
-		}
-		toolsMu.Lock()
-		n := len(toolsByCall)
-		toolsMu.Unlock()
-		return n >= 3
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	toolsMu.Lock()
-	recorded := append([][]string(nil), toolsByCall...)
-	recordedRequests := append([]recordedOpenAIRequest(nil), requestsByCall...)
-	toolsMu.Unlock()
-
-	require.GreaterOrEqual(t, len(recorded), 2,
-		"expected at least 2 streamed LLM calls (root + subagent)")
-	require.Len(t, recordedRequests, len(recorded))
-
-	var rootCalls, childCalls [][]string
-	var rootRequests, childRequests []recordedOpenAIRequest
-	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_agent") {
-			rootCalls = append(rootCalls, tools)
-			rootRequests = append(rootRequests, recordedRequests[i])
-			continue
-		}
-		childCalls = append(childCalls, tools)
-		childRequests = append(childRequests, recordedRequests[i])
-	}
-
-	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
-	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
-	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
-	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
-	require.Contains(t, rootCalls[0], "ask_user_question",
-		"root plan-mode chat should have ask_user_question")
-	require.Contains(t, rootCalls[0], "write_file",
-		"root plan-mode chat should have write_file")
-	require.Contains(t, rootCalls[0], "edit_files",
-		"root plan-mode chat should have edit_files")
-	require.Contains(t, rootCalls[0], "execute",
-		"root plan-mode chat should have execute")
-	require.Contains(t, rootCalls[0], "process_output",
-		"root plan-mode chat should have process_output")
-	require.Contains(t, rootCalls[0], "plan-root-mcp__echo",
-		"root plan-mode chat should have approved external MCP tools")
-	require.NotContains(t, childCalls[0], "ask_user_question",
-		"plan-mode subagent should NOT have ask_user_question")
-	require.NotContains(t, childCalls[0], "write_file",
-		"plan-mode subagent should NOT have write_file")
-	require.NotContains(t, childCalls[0], "edit_files",
-		"plan-mode subagent should NOT have edit_files")
-	require.Contains(t, childCalls[0], "execute",
-		"plan-mode subagent should have execute")
-	require.Contains(t, childCalls[0], "process_output",
-		"plan-mode subagent should have process_output")
-	require.NotContains(t, childCalls[0], "plan-root-mcp__echo",
-		"plan-mode subagent should NOT have external MCP tools")
-	require.True(t, requestHasSystemSubstring(rootRequests[0], "You are in Plan Mode."))
-	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Plan Mode as a delegated sub-agent."))
-	require.False(t, requestHasSystemSubstring(childRequests[0], "When the plan is ready, call propose_plan"))
-}
-
-func TestExploreSubagentIsReadOnly(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon: true,
-	})
-	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	expClient := codersdk.NewExperimentalClient(client)
-
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.AutomaticUpdates = codersdk.AutomaticUpdatesNever
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-
-	var toolsMu sync.Mutex
-	toolsByCall := make([][]string, 0, 2)
-	requestsByCall := make([]recordedOpenAIRequest, 0, 2)
-
-	var callCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		toolsByCall = append(toolsByCall, names)
-		requestsByCall = append(requestsByCall, recordOpenAIRequest(req))
-		toolsMu.Unlock()
-
-		if callCount.Add(1) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"explore","prompt":"investigate the codebase","title":"sub"}`),
-			)
-		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
-
-	_, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		WorkspaceID:    &workspace.ID,
-		Content: []codersdk.ChatInputPart{
-			{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "Spawn an Explore subagent to inspect the codebase.",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		toolsMu.Lock()
-		defer toolsMu.Unlock()
-
-		sawRoot := false
-		sawChild := false
-		for _, tools := range toolsByCall {
-			if slice.Contains(tools, "spawn_agent") {
-				sawRoot = true
-				continue
+			db, ps := dbtestutil.NewDB(t)
+			replica := newTestServer(t, db, ps, uuid.New())
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+			parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+			child := dbgen.Chat(t, db, database.Chat{
+				OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID,
+				ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+				RootChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+			})
+			if tc.childArchived {
+				_, err := db.ArchiveChatByID(ctx, child.ID)
+				require.NoError(t, err)
 			}
-			sawChild = true
-		}
-		return sawRoot && sawChild
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	toolsMu.Lock()
-	recorded := append([][]string(nil), toolsByCall...)
-	recordedRequests := append([]recordedOpenAIRequest(nil), requestsByCall...)
-	toolsMu.Unlock()
-
-	require.GreaterOrEqual(t, len(recorded), 2,
-		"expected at least 2 streamed LLM calls (root + subagent)")
-	require.Len(t, recordedRequests, len(recorded))
-
-	var rootCalls, childCalls [][]string
-	var rootRequests, childRequests []recordedOpenAIRequest
-	for i, tools := range recorded {
-		if slice.Contains(tools, "spawn_agent") {
-			rootCalls = append(rootCalls, tools)
-			rootRequests = append(rootRequests, recordedRequests[i])
-			continue
-		}
-		childCalls = append(childCalls, tools)
-		childRequests = append(childRequests, recordedRequests[i])
-	}
-
-	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
-	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
-	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
-	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
-	require.Contains(t, rootCalls[0], "spawn_agent")
-	require.Contains(t, rootCalls[0], "write_file")
-	require.Contains(t, rootCalls[0], "edit_files")
-	require.NotContains(t, childCalls[0], "write_file")
-	require.NotContains(t, childCalls[0], "edit_files")
-	require.NotContains(t, childCalls[0], "spawn_agent")
-	require.NotContains(t, childCalls[0], "wait_agent")
-	require.Contains(t, childCalls[0], "read_file")
-	require.Contains(t, childCalls[0], "execute")
-	require.Contains(t, childCalls[0], "process_output")
-	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Explore Mode as a delegated sub-agent."))
-	require.False(t, requestHasSystemSubstring(rootRequests[0], "You are in Explore Mode as a delegated sub-agent."))
-
-	rootChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{
-		OwnedOnly: true,
-		ViewerID:  user.UserID,
-	})
-	require.NoError(t, err)
-	rootIDs := make([]uuid.UUID, 0, len(rootChats))
-	for _, root := range rootChats {
-		rootIDs = append(rootIDs, root.Chat.ID)
-	}
-	childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
-		ParentIds: rootIDs,
-	})
-	require.NoError(t, err)
-	var exploreChildren []database.Chat
-	for _, candidate := range childRows {
-		if candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
-			exploreChildren = append(exploreChildren, candidate.Chat)
-		}
-	}
-	require.Len(t, exploreChildren, 1)
-}
-
-func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	externalMCP := newTestMCPServer("external-snapshot-mcp")
-	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
-	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
-	defer externalMCPServer.Close()
-
-	secondMCP := newTestMCPServer("second-mcp")
-	addTestMCPTextTool(secondMCP, "echo", "Echoes the input", "echo: ")
-	secondMCPServer := httptest.NewServer(testMCPHTTPHandler(secondMCP))
-	defer secondMCPServer.Close()
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	webSearchEnabled := true
-	storeEnabled := true
-	// OpenAI only serializes web_search through the Responses API.
-	// Store=true routes there only for supported Responses models.
-	webSearchModel := insertChatModelConfigWithCallConfig(
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o",
-		codersdk.ChatModelCallConfig{
-			ProviderOptions: &codersdk.ChatModelProviderOptions{
-				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-					Store:            &storeEnabled,
-					WebSearchEnabled: &webSearchEnabled,
-				},
-			},
-		},
-	)
-	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "External Snapshot MCP",
-		Slug:           "external-snapshot-mcp",
-		Url:            externalMCPServer.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "Second MCP",
-		Slug:           "second-mcp",
-		Url:            secondMCPServer.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	rootChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		LastModelConfigID: webSearchModel.ID,
-		Title:             "root",
-		ClientType:        database.ChatClientTypeApi,
-	})
-
-	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("inspect the codebase"),
-	})
-	require.NoError(t, err)
-	createdExplore, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-		LastModelConfigID: webSearchModel.ID,
-		Title:             "explore",
-		Mode: database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
-		},
-		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
-		ClientType:    database.ChatClientTypeApi,
-		InitialStatus: database.ChatStatusRunning,
-		InitialMessages: []chatstate.Message{
-			{
-				Role:           database.ChatMessageRoleUser,
-				Content:        userContent,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ModelConfigID:  uuid.NullUUID{UUID: webSearchModel.ID, Valid: true},
-			},
-		},
-	})
-	require.NoError(t, err)
-	exploreChat := createdExplore.Chat
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	workspaceToolName := "workspace-snapshot-mcp__echo"
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-	_ = server
-
-	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
-	}
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 1)
-
-	tools := recorded[0].Tools
-	require.Contains(t, tools, "read_file")
-	require.Contains(t, tools, "execute")
-	require.Contains(t, tools, "process_output")
-	require.Contains(t, tools, "external-snapshot-mcp__echo")
-	require.Contains(t, tools, "web_search", "Explore provider tool filter should let web_search through when the current model supports it")
-	require.NotContains(t, tools, "second-mcp__echo")
-	require.NotContains(t, tools, workspaceToolName)
-	require.NotContains(t, tools, "write_file")
-	require.NotContains(t, tools, "edit_files")
-	require.NotContains(t, tools, "spawn_agent")
-}
-
-func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	externalMCP := newTestMCPServer("root-explore-runtime-mcp")
-	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
-	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
-	defer externalMCPServer.Close()
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "Root Explore Runtime MCP",
-		Slug:           "root-explore-runtime-mcp",
-		Url:            externalMCPServer.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
-
-	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "root-explore-builtin-only",
-		ModelConfigID:  model.ID,
-		ChatMode: database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
-		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Inspect the codebase."),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, exploreChat.ID, server)
-
-	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
-	require.NoError(t, err)
-	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
-	require.ElementsMatch(t, []uuid.UUID{mcpConfig.ID}, storedChat.MCPServerIDs)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 1)
-
-	tools := recorded[0].Tools
-	require.Contains(t, tools, "read_file")
-	require.Contains(t, tools, "execute")
-	require.NotContains(t, tools, "write_file")
-	require.NotContains(t, tools, "root-explore-runtime-mcp__echo",
-		"root Explore chats should strip persisted external MCP tools at runtime")
-}
-
-func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	webSearchEnabled := true
-	storeEnabled := true
-	// OpenAI only serializes web_search through the Responses API.
-	// Store=true routes there only for supported Responses models.
-	webSearchModel := insertChatModelConfigWithCallConfig(
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o",
-		codersdk.ChatModelCallConfig{
-			ProviderOptions: &codersdk.ChatModelProviderOptions{
-				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-					Store:            &storeEnabled,
-					WebSearchEnabled: &webSearchEnabled,
-				},
-			},
-		},
-	)
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
-
-	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "root-explore-no-provider-web-search",
-		ModelConfigID:  webSearchModel.ID,
-		ChatMode: database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
-		},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Inspect the codebase."),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, exploreChat.ID, server)
-
-	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
-	require.NoError(t, err)
-	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 1)
-
-	tools := recorded[0].Tools
-	require.Contains(t, tools, "read_file")
-	require.Contains(t, tools, "execute")
-	require.NotContains(t, tools, "web_search",
-		"root Explore chats should stay builtin-only and must not inherit provider-native web_search at runtime")
-	require.NotContains(t, tools, "write_file")
-}
-
-func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	newEchoMCPServer := func(name string) *httptest.Server {
-		t.Helper()
-
-		mcpSrv := newTestMCPServer(name)
-		addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
-		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
-		t.Cleanup(mcpTS.Close)
-		return mcpTS
-	}
-
-	parentTS := newEchoMCPServer("runtime-parent-mcp")
-	injectedTS := newEchoMCPServer("runtime-injected-mcp")
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-	childRequests := func() []recordedOpenAIRequest {
-		requestsMu.Lock()
-		defer requestsMu.Unlock()
-
-		filtered := make([]recordedOpenAIRequest, 0, len(requests))
-		for _, req := range requests {
-			if requestHasSystemSubstring(req, "You are in Explore Mode as a delegated sub-agent.") {
-				filtered = append(filtered, req)
+			if tc.parentArchived {
+				_, err := db.ArchiveChatByID(ctx, parent.ID)
+				require.NoError(t, err)
 			}
-		}
-		return filtered
-	}
+			child, err := db.GetChatByID(ctx, child.ID)
+			require.NoError(t, err)
 
-	var streamCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
+			if tc.unarchive {
+				err = replica.UnarchiveChat(ctx, child)
+			} else {
+				err = replica.ArchiveChat(ctx, child)
+			}
+			require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
 
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		if streamCallCount.Add(1) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"explore","prompt":"inspect the codebase","title":"sub"}`),
-			)
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	parentConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "Runtime Parent MCP",
-		Slug:           "runtime-parent-mcp",
-		Url:            parentTS.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-	injectedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "Runtime Injected MCP",
-		Slug:           "runtime-injected-mcp",
-		Url:            injectedTS.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
-
-	rootChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "runtime-parent",
-		ModelConfigID:  model.ID,
-		MCPServerIDs:   []uuid.UUID{parentConfig.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Spawn an Explore subagent to inspect the codebase."),
-		},
-	})
-	require.NoError(t, err)
-
-	var exploreChat database.Chat
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
-			ParentIds: []uuid.UUID{rootChat.ID},
+			dbChild, err := db.GetChatByID(ctx, child.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.childArchived, dbChild.Archived, "child archived flag must not change")
+			dbParent, err := db.GetChatByID(ctx, parent.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.parentArchived, dbParent.Archived, "parent archived flag must not change")
 		})
-		if err != nil {
-			return false
-		}
-		for _, candidate := range childRows {
-			if candidate.Chat.Mode.Valid && candidate.Chat.Mode.ChatMode == database.ChatModeExplore {
-				exploreChat = candidate.Chat
-				return true
-			}
-		}
-		return false
-	}, testutil.IntervalFast)
-
-	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
-
-	exploreChat, err = db.GetChatByID(ctx, exploreChat.ID)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []uuid.UUID{parentConfig.ID}, exploreChat.MCPServerIDs)
-
-	initialChildRequestCount := len(childRequests())
-	require.GreaterOrEqual(t, initialChildRequestCount, 1)
-
-	updatedMCPServerIDs := []uuid.UUID{injectedConfig.ID}
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       exploreChat.ID,
-		CreatedBy:    user.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("inspect the codebase again")},
-		MCPServerIDs: &updatedMCPServerIDs,
-	})
-	require.NoError(t, err)
-
-	storedExploreChat, err := db.GetChatByID(ctx, exploreChat.ID)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []uuid.UUID{parentConfig.ID}, storedExploreChat.MCPServerIDs)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return len(childRequests()) > initialChildRequestCount
-	}, testutil.IntervalFast)
-
-	chatResult = waitForTerminalChat(ctx, t, db, exploreChat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
-	}
-
-	recordedChildRequests := childRequests()
-	require.GreaterOrEqual(t, len(recordedChildRequests), initialChildRequestCount+1)
-
-	tools := recordedChildRequests[len(recordedChildRequests)-1].Tools
-	require.Contains(t, tools, "runtime-parent-mcp__echo")
-	require.NotContains(t, tools, "runtime-injected-mcp__echo",
-		"Explore child runtime should keep the spawn-time MCP snapshot after SendMessage")
-}
-
-func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	echoMCP := newTestMCPServer("plan-visibility-echo")
-	addTestMCPTextTool(echoMCP, "echo", "Echoes the input", "echo: ")
-	echoTS := httptest.NewServer(testMCPHTTPHandler(echoMCP))
-	t.Cleanup(echoTS.Close)
-
-	filteredMCP := newTestMCPServer("plan-visibility-filtered")
-	addTestMCPTextTool(filteredMCP, "visible", "Visible tool", "visible: ")
-	addTestMCPTextTool(filteredMCP, "hidden", "Hidden tool", "hidden: ")
-	filteredTS := httptest.NewServer(testMCPHTTPHandler(filteredMCP))
-	t.Cleanup(filteredTS.Close)
-
-	var (
-		requests   []recordedOpenAIRequest
-		requestsMu sync.Mutex
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Done.")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-
-	approvedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID:  org.ID,
-		DisplayName:     "Plan Approved MCP",
-		Slug:            "plan-approved-mcp",
-		Url:             echoTS.URL,
-		AllowInPlanMode: true,
-		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	blockedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID: org.ID,
-		DisplayName:    "Plan Blocked MCP",
-		Slug:           "plan-blocked-mcp",
-		Url:            echoTS.URL,
-		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	filteredConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID:  org.ID,
-		DisplayName:     "Plan Filtered MCP",
-		Slug:            "plan-filtered-mcp",
-		Url:             filteredTS.URL,
-		AllowInPlanMode: true,
-		ToolAllowList:   []string{"visible"},
-		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	// Workspace MCP tools now come from the agent's pinned snapshot, not live
-	// discovery. Seed the workspace MCP server so chats bound to the agent
-	// hydrate the "workspace-plan-mcp__echo" tool.
-	seedAgentMCPToolContext(ctx, t, db, agentMCPToolContext{
-		AgentID:         dbAgent.ID,
-		ServerName:      "workspace-plan-mcp",
-		ToolName:        "echo",
-		ToolDescription: "Workspace echo tool",
-	})
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	workspaceToolName := "workspace-plan-mcp__echo"
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-
-	planChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "plan-mode-root-mcp-visibility",
-		ModelConfigID:  model.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		MCPServerIDs:   []uuid.UUID{approvedConfig.ID, blockedConfig.ID, filteredConfig.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("List the available tools in plan mode."),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, planChat.ID, server)
-
-	planChatResult, err := db.GetChatByID(ctx, planChat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, planChatResult.Status)
-
-	askChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "ask-mode-root-mcp-visibility",
-		ModelConfigID:  model.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		MCPServerIDs:   []uuid.UUID{approvedConfig.ID, blockedConfig.ID, filteredConfig.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("List the available tools outside plan mode."),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, askChat.ID, server)
-
-	askChatResult, err := db.GetChatByID(ctx, askChat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, askChatResult.Status)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 2, "expected exactly one streamed model call per chat")
-
-	planTools := recorded[0].Tools
-	askTools := recorded[1].Tools
-
-	require.Contains(t, planTools, "plan-approved-mcp__echo",
-		"root plan mode should expose approved external MCP tools")
-	require.NotContains(t, planTools, "plan-blocked-mcp__echo",
-		"root plan mode should hide unapproved external MCP tools")
-	require.Contains(t, planTools, "plan-filtered-mcp__visible",
-		"root plan mode should keep allowlisted tools from approved MCP servers")
-	require.NotContains(t, planTools, "plan-filtered-mcp__hidden",
-		"root plan mode should still respect MCP tool allowlists")
-	require.NotContains(t, planTools, workspaceToolName,
-		"root plan mode should exclude workspace MCP tools")
-
-	require.Contains(t, askTools, "plan-approved-mcp__echo",
-		"ask mode should keep approved external MCP tools")
-	require.Contains(t, askTools, "plan-blocked-mcp__echo",
-		"ask mode should keep unapproved-for-plan external MCP tools")
-	require.Contains(t, askTools, "plan-filtered-mcp__visible",
-		"ask mode should keep allowlisted tools from external MCP servers")
-	require.NotContains(t, askTools, "plan-filtered-mcp__hidden",
-		"ask mode should continue respecting MCP tool allowlists")
-	require.Contains(t, askTools, workspaceToolName,
-		"ask mode should continue exposing workspace MCP tools")
-}
-
-// TestUnarchiveChildChat covers the deterministic branches of the
-// Server.UnarchiveChat child path: every child unarchive attempt is
-// rejected with chatd.ErrArchiveRequiresRootChat.
-func TestUnarchiveChildChat(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ChildWithActiveParentRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
-
-		err := replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child should remain archived")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active")
-	})
-
-	t.Run("ChildWithArchivedParentRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
-		_, err := db.ArchiveChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-
-		err = replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child should remain archived")
-	})
-
-	t.Run("ActiveChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		_, child := insertParentWithActiveChild(t, db, user, org, model)
-
-		err := replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should stay active")
-	})
-}
-
-// TestArchiveChat_RejectsChildChat verifies that Server.ArchiveChat
-// refuses every child chat with chatd.ErrArchiveRequiresRootChat
-// regardless of the family's current archive state. Archive state
-// changes must always be issued against the root chat so the whole
-// family flips together.
-func TestArchiveChat_RejectsChildChat(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ActiveChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithActiveChild(t, db, user, org, model)
-
-		err := replica.ArchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should stay active after rejected archive")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active after rejected child archive")
-	})
-
-	t.Run("AlreadyArchivedChildRejected", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		replica := newTestServer(t, db, ps, uuid.New())
-		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(t, db)
-
-		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
-
-		err := replica.ArchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat,
-			"child archive must be rejected even when the child is already archived")
-
-		dbChild, err := db.GetChatByID(ctx, child.ID)
-		require.NoError(t, err)
-		require.True(t, dbChild.Archived, "child archived flag should not change")
-
-		dbParent, err := db.GetChatByID(ctx, parent.ID)
-		require.NoError(t, err)
-		require.False(t, dbParent.Archived, "parent should stay active")
-	})
-}
-
-// insertParentWithActiveChild creates a parent chat and an active
-// child chat linked to it. Both are returned in their initial
-// (active) state.
-func insertParentWithActiveChild(
-	t *testing.T,
-	db database.Store,
-	user database.User,
-	org database.Organization,
-	model database.ChatModelConfig,
-) (parent database.Chat, child database.Chat) {
-	t.Helper()
-	parent = dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "parent",
-	})
-	child = dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "child",
-		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
-	})
-	return parent, child
-}
-
-// insertParentWithArchivedChild creates an active parent and an
-// individually-archived child. The returned child reflects its
-// current (archived) state in the DB.
-func insertParentWithArchivedChild(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	user database.User,
-	org database.Organization,
-	model database.ChatModelConfig,
-) (parent database.Chat, child database.Chat) {
-	t.Helper()
-	parent, child = insertParentWithActiveChild(t, db, user, org, model)
-	_, err := db.ArchiveChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	child, err = db.GetChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	return parent, child
 }
 
 func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
@@ -2057,7 +999,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	const text = "investigate the flaky workspace upload tests today"
 
-	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, *chatd.Server, database.Chat) {
+	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, dbpubsub.Pubsub, *chatd.Server, database.Chat) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		server := newTestServer(t, db, ps, uuid.New())
@@ -2071,7 +1013,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 			ModelConfigID:  model.ID,
 		})
 		require.NoError(t, err)
-		return ctx, db, server, chat
+		return ctx, db, ps, server, chat
 	}
 	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
 		t.Helper()
@@ -2086,7 +1028,16 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PlaceholderTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, ps, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		titleEvents := make(chan codersdk.ChatWatchEvent, 1)
+		cancel, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), func(_ context.Context, payload []byte) {
+			var event codersdk.ChatWatchEvent
+			if json.Unmarshal(payload, &event) == nil && event.Kind == codersdk.ChatWatchEventKindTitleChange {
+				titleEvents <- event
+			}
+		})
+		require.NoError(t, err)
+		defer cancel()
 
 		result := send(ctx, t, server, chat.ID)
 		require.True(t, result.FirstUserTurn)
@@ -2095,11 +1046,13 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		stored, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+		// The sidebar learns the fallback title from a title_change event.
+		require.Equal(t, chatprompt.FallbackTitle(text), testutil.RequireReceive(ctx, t, titleEvents).Chat.Title)
 	})
 
 	t.Run("ExistingTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
+		ctx, db, _, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
 
 		result := send(ctx, t, server, chat.ID)
 		require.False(t, result.FirstUserTurn)
@@ -2112,7 +1065,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PriorVisibleMessage", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
+		ctx, db, _, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		send(ctx, t, server, chat.ID)
 		// Reset to an idle chat that still carries the placeholder
@@ -2136,6 +1089,83 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
 	})
+}
+
+// TestArchivedChatRejectsMutations verifies that every mutation verb
+// refuses an archived chat with ErrChatArchived inside its transaction,
+// with hooks disabled so the pre-dispatch admission check cannot mask a
+// missing in-transaction check.
+func TestArchivedChatRejectsMutations(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	message := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
+	_, err := db.ArchiveChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	chat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	content := []codersdk.ChatMessagePart{codersdk.ChatMessageText("after archive")}
+	for name, call := range map[string]func(context.Context) error{
+		"SendMessage": func(ctx context.Context) error {
+			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{ChatID: chat.ID, Content: content})
+			return err
+		},
+		"EditMessage": func(ctx context.Context) error {
+			_, err := server.EditMessage(ctx, chatd.EditMessageOptions{ChatID: chat.ID, EditedMessageID: message.ID, Content: content})
+			return err
+		},
+		"PromoteQueued": func(ctx context.Context) error {
+			_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{ChatID: chat.ID, QueuedMessageID: 1})
+			return err
+		},
+		"SubmitToolResults": func(ctx context.Context) error {
+			return server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{ChatID: chat.ID, UserID: user.ID})
+		},
+		"CompactChat": func(ctx context.Context) error {
+			_, err := server.CompactChat(ctx, chat)
+			return err
+		},
+		"ClearChat": func(ctx context.Context) error {
+			_, err := server.ClearChat(ctx, chat)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			require.ErrorIs(t, call(ctx), chatd.ErrChatArchived)
+		})
+	}
+}
+
+// TestArchiveChatDeletesDebugRuns verifies that archiving schedules the
+// debug-row cleanup for the archived chat.
+func TestArchiveChatDeletesDebugRuns(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	// Stamped outside the clock-skew buffer so the cleanup deletes it
+	// instead of leaving it for the stale sweeper.
+	staleStart := sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID: chat.ID, Kind: "chat_turn", Status: "completed", StartedAt: staleStart, UpdatedAt: staleStart,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, replica.ArchiveChat(ctx, chat))
+	chatd.WaitUntilIdleForTest(replica)
+
+	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "archive must delete the chat's debug runs")
 }
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
@@ -3436,18 +2466,26 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		require.NoError(t, err)
 
 		testutil.TryReceive(ctx, t, streamStarted)
-		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:        chat.ID,
-			CreatedBy:     user.ID,
-			ModelConfigID: model.ID,
-			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
-		})
-		require.NoError(t, err)
-		require.True(t, queued.Queued)
+		for _, send := range []struct {
+			text     string
+			behavior chatd.SendMessageBusyBehavior
+		}{
+			{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
+			{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
+		} {
+			sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(send.text)},
+				BusyBehavior:  send.behavior,
+			})
+			require.NoError(t, err)
+			require.True(t, sent.Queued)
+		}
 
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		require.GreaterOrEqual(t, requestCount.Load(), int32(2))
+		require.GreaterOrEqual(t, requestCount.Load(), int32(3))
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
@@ -3472,7 +2510,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
+		require.Equal(t, []string{"start and call a tool", "interrupt", "queued"}, userTexts)
 		require.True(t, foundPartial)
 		// The interrupted attempt bills the model invocation window it
 		// opened, so the partial assistant row keeps a runtime.
@@ -4667,7 +3705,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 				return
 			}
 			var conflict *chatd.ToolResultStatusConflictError
-			if errors.As(submitErr, &conflict) {
+			if errors.As(submitErr, &conflict) && submitErr.Error() == conflict.Error() {
 				conflicts.Add(1)
 				return
 			}
@@ -4814,6 +3852,86 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+}
+
+func TestSubscribeAfterMessageIDWithEdit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "after-id-edit-test",
+		Status:            database.ChatStatusWaiting,
+	})
+
+	insertMessage := func(role database.ChatMessageRole, text string) database.ChatMessage {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(text),
+		})
+		require.NoError(t, err)
+		msg := database.ChatMessage{
+			ChatID:         chat.ID,
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           role,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Content:        content,
+		}
+		if role == database.ChatMessageRoleUser {
+			msg.CreatedBy = uuid.NullUUID{UUID: user.ID, Valid: true}
+		}
+		return dbgen.ChatMessage(t, db, msg)
+	}
+	first := insertMessage(database.ChatMessageRoleUser, "first")
+	firstReply := insertMessage(database.ChatMessageRoleAssistant, "first reply")
+	second := insertMessage(database.ChatMessageRoleUser, "second")
+	secondReply := insertMessage(database.ChatMessageRoleAssistant, "second reply")
+
+	// Editing the second user message deletes it and its reply.
+	edit, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: second.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("second edited")},
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{second.ID, secondReply.ID}, edit.DeletedMessageIDs)
+	require.NotEmpty(t, edit.InsertedMessages)
+	newest := edit.InsertedMessages[len(edit.InsertedMessages)-1]
+
+	isHistoryReset := func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	}
+
+	// A client that loaded after the edit gets neither a reset nor the
+	// messages it holds.
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, newest.ID)
+	require.True(t, ok)
+	cancel()
+	require.False(t, slices.ContainsFunc(snapshot, isHistoryReset))
+	require.Empty(t, filterMessageEvents(snapshot))
+
+	// A client that loaded before the edit holds deleted messages, so it
+	// gets a reset with the live history.
+	snapshot, _, cancel, ok = replica.Subscribe(ctx, chat.ID, nil, secondReply.ID)
+	require.True(t, ok)
+	cancel()
+	require.True(t, slices.ContainsFunc(snapshot, isHistoryReset))
+	wantIDs := []int64{first.ID, firstReply.ID}
+	for _, msg := range edit.InsertedMessages {
+		wantIDs = append(wantIDs, msg.ID)
+	}
+	var gotIDs []int64
+	for _, e := range filterMessageEvents(snapshot) {
+		gotIDs = append(gotIDs, e.Message.ID)
+	}
+	require.Equal(t, wantIDs, gotIDs)
 }
 
 // filterMessageEvents returns only the Message-type events from a

@@ -101,3 +101,30 @@ it("redirects an organization group member reader to Spend", async () => {
 	await screen.findByText("Spend");
 	expect(router.state.location.pathname).toBe("/ai/settings/spend");
 });
+
+it("redirects an organization skills reader to Skills", async () => {
+	permissions = { ...MockNoPermissions, viewAnyOrganizationSkills: true };
+	vi.spyOn(API.experimental, "getChatModels").mockRejectedValue({
+		isAxiosError: true,
+		response: { status: 403 },
+	});
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const router = createMemoryRouter(
+		[
+			{ path: "/ai/settings", element: <AISettingsIndexRedirect /> },
+			{ path: "/ai/settings/skills", element: <div>Skills</div> },
+		],
+		{ initialEntries: ["/ai/settings"] },
+	);
+
+	render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	);
+
+	await screen.findByText("Skills");
+	expect(router.state.location.pathname).toBe("/ai/settings/skills");
+});

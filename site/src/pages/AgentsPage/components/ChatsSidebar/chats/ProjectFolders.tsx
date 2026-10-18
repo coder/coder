@@ -21,6 +21,10 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
+import {
+	getPersistedProjectsSectionExpanded,
+	savePersistedProjectsSectionExpanded,
+} from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
@@ -35,6 +39,7 @@ export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
+	readonly currentUserId: string;
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
@@ -44,11 +49,17 @@ type ProjectFoldersProps = {
 	readonly onDelete: DeleteProject;
 	readonly isLoading: boolean;
 	readonly error: unknown;
+	/**
+	 * True when the first load failed. A failed refetch keeps cached
+	 * projects, including an empty list, so its empty state stays.
+	 */
+	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
+	currentUserId,
 	projects,
 	organizations,
 	chatsByProjectId,
@@ -58,12 +69,28 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	onDelete,
 	isLoading,
 	error,
+	isLoadError,
 	onRetry,
 	emptyMessage,
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const [isExpanded, setIsExpanded] = useState(true);
+	const [isExpanded, setIsExpanded] = useState(() =>
+		getPersistedProjectsSectionExpanded(currentUserId),
+	);
+	const toggleExpanded = () => {
+		const next = !isExpanded;
+		setIsExpanded(next);
+		savePersistedProjectsSectionExpanded(currentUserId, next);
+	};
+	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
+	const isShowingEmptyState =
+		isExpanded && !isLoading && !isLoadError && projects.length === 0;
+	// Also hidden while an expanded section loads: if the load comes back
+	// empty, the empty state's button would replace a focused header button
+	// and drop keyboard focus.
+	const isShowingHeaderNewProject =
+		!isShowingEmptyState && !(isExpanded && isLoading);
 
 	return (
 		<div>
@@ -71,18 +98,20 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 				title="Projects"
 				collapsible={{
 					expanded: isExpanded,
-					onToggle: () => setIsExpanded((expanded) => !expanded),
+					onToggle: toggleExpanded,
 				}}
 				actions={
-					<Button
-						variant="subtle"
-						size="icon"
-						className="size-7"
-						aria-label="New project"
-						onClick={() => onOpenProjectDialog({ mode: "create" })}
-					>
-						<PlusIcon />
-					</Button>
+					isShowingHeaderNewProject && (
+						<Button
+							variant="subtle"
+							size="icon"
+							className="size-7"
+							aria-label="New project"
+							onClick={openCreateDialog}
+						>
+							<PlusIcon />
+						</Button>
+					)
 				}
 			/>
 			{isExpanded && (
@@ -99,10 +128,16 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 						/>
 					)}
 					{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-					{!isLoading && !error && projects.length === 0 && (
-						<p className="m-0 px-2.5 py-1 text-xs text-content-secondary">
-							No projects yet
-						</p>
+					{isShowingEmptyState && (
+						<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border mx-1 px-8 py-5 text-center">
+							<p className="m-0 text-sm text-content-secondary">
+								Group related chats together, with shared members and history.
+							</p>
+							<Button variant="outline" size="sm" onClick={openCreateDialog}>
+								<PlusIcon />
+								New project
+							</Button>
+						</div>
 					)}
 					{projects.length > 0 && (
 						<div className="flex flex-col gap-0.5">

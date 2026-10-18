@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -171,6 +172,43 @@ func TestWaitForAgentReady(t *testing.T) {
 		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
 		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
 		require.NotContains(t, result, "agent_error")
+	})
+
+	t.Run("AttemptTimeoutCause", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name             string
+			firstConnectedAt sql.NullTime
+			wantProbeTimeout bool
+		}{
+			{name: "NewAgent", wantProbeTimeout: true},
+			{name: "ConnectedBefore", firstConnectedAt: sql.NullTime{Time: time.Now(), Valid: true}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				db := newCreateWorkspaceMockStore(ctrl)
+				agentID := uuid.New()
+
+				db.EXPECT().
+					GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+					Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+						LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+					}, nil)
+
+				var cause error
+				connFn := func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					<-ctx.Done()
+					cause = context.Cause(ctx)
+					return nil, func() {}, nil
+				}
+
+				agent := database.WorkspaceAgent{ID: agentID, FirstConnectedAt: tc.firstConnectedAt}
+				waitForAgentReady(context.Background(), db, agent, connFn)
+				require.Equal(t, tc.wantProbeTimeout, errors.Is(cause, workspacesdk.ErrReadinessProbeTimeout), "cause: %v", cause)
+			})
+		}
 	})
 
 	t.Run("AgentConnectsButStartupFails", func(t *testing.T) {

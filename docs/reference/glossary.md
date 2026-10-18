@@ -9,7 +9,8 @@ Each entry gives a short definition and, where it helps, links to the page that 
 > Several Coder terms share the word "agent" but mean different things:
 >
 > - [Coder Agents](#coder-agents) is the AI product for delegating development work to coding agents.
-> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces. It is not Coder Agents.
+> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces.
+>   It is not Coder Agents.
 > - A [workspace agent](#workspace-agent) is the process that runs inside a workspace to provide SSH, port forwarding, the web terminal, and other services.
 > - [`coder_agent`](#coder_agent) is the Terraform resource in a template that declares a workspace agent.
 
@@ -418,7 +419,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid enterprise tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics

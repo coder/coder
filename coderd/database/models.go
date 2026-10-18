@@ -539,6 +539,18 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeOrganizationSkill                   APIKeyScope = "organization_skill:*"
+	ApiKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	ApiKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
+	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
+	ApiKeyScopeWorkspaceSecret                     APIKeyScope = "workspace_secret:*"
+	ApiKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -829,7 +841,19 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -1089,6 +1113,18 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeWorkspaceSecret,
+		ApiKeyScopeWorkspaceSecretCreate,
+		ApiKeyScopeWorkspaceSecretRead,
+		ApiKeyScopeWorkspaceSecretReadSecret,
+		ApiKeyScopeWorkspaceSecretUpdate,
 	}
 }
 
@@ -3755,6 +3791,9 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
+	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3838,7 +3877,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill:
 		return true
 	}
 	return false
@@ -3891,6 +3933,9 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeChatProjectInstructions,
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill,
 	}
 }
 
@@ -4475,7 +4520,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
-// What the exit status of the script is.
+// The terminal outcome of a script execution.
 type WorkspaceAgentScriptTimingStatus string
 
 const (
@@ -4483,6 +4528,8 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
+	WorkspaceAgentScriptTimingStatusCanceled      WorkspaceAgentScriptTimingStatus = "canceled"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4525,7 +4572,9 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled:
 		return true
 	}
 	return false
@@ -4537,6 +4586,8 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled,
 	}
 }
 
@@ -4790,6 +4841,64 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 		WorkspaceAppStatusStateComplete,
 		WorkspaceAppStatusStateFailure,
 		WorkspaceAppStatusStateIdle,
+	}
+}
+
+type WorkspaceSecretSource string
+
+const (
+	WorkspaceSecretSourceRequest      WorkspaceSecretSource = "request"
+	WorkspaceSecretSourceCarryForward WorkspaceSecretSource = "carry_forward"
+)
+
+func (e *WorkspaceSecretSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceSecretSource(s)
+	case string:
+		*e = WorkspaceSecretSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceSecretSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceSecretSource struct {
+	WorkspaceSecretSource WorkspaceSecretSource `json:"workspace_secret_source"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceSecretSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceSecretSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceSecretSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceSecretSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceSecretSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceSecretSource), nil
+}
+
+func (e WorkspaceSecretSource) Valid() bool {
+	switch e {
+	case WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceSecretSourceValues() []WorkspaceSecretSource {
+	return []WorkspaceSecretSource{
+		WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward,
 	}
 }
 
@@ -5387,6 +5496,10 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
@@ -5533,6 +5646,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {
@@ -5733,6 +5850,7 @@ type MCPServerConfig struct {
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
 	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
+	OAuth2Resource          string         `db:"oauth2_resource" json:"oauth2_resource"`
 }
 
 type MCPServerUserToken struct {
@@ -6071,6 +6189,21 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
+type Skill struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Content        string        `db:"content" json:"content"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+}
+
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
 type TailnetCoordinator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
@@ -6232,23 +6365,25 @@ type TemplateUsageStatsSessionApp struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	Name                  string          `db:"name" json:"name"`
-	Readme                string          `db:"readme" json:"readme"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string          `db:"message" json:"message"`
-	Archived              bool            `db:"archived" json:"archived"`
-	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
-	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
-	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TemplateID                 uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	Name                       string          `db:"name" json:"name"`
+	Readme                     string          `db:"readme" json:"readme"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy                  uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders      json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message                    string          `db:"message" json:"message"`
+	Archived                   bool            `db:"archived" json:"archived"`
+	SourceExampleID            sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasExternalAgent           sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
+	CreatedByAvatarURL         string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername          string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName              string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -6337,6 +6472,10 @@ type TemplateVersionTable struct {
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -6490,16 +6629,6 @@ type UserSecret struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
-}
-
-type UserSkill struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes
@@ -7014,6 +7143,21 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceSecret struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt        time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime          `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {

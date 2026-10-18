@@ -53,6 +53,10 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/templates" replace />;
 	}
 
+	if (permissions.viewAnyOrganizationSkills) {
+		return <Navigate to="/ai/settings/skills" replace />;
+	}
+
 	if (accessibleOrgsQuery.isLoading) {
 		return <Loader fullscreen />;
 	}

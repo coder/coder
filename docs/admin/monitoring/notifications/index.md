@@ -2,17 +2,14 @@
 title: Notifications
 ---
 
-Notifications are sent by Coder in response to specific internal events, such as
-a workspace being deleted or a user being created.
+Notifications are sent by Coder in response to specific internal events, such as a workspace being deleted or a user being created.
 
 Available events may differ between versions.
-For a list of all events, visit your Coder deployment's
-`https://coder.example.com/deployment/notifications`.
+For a list of all events, visit your Coder deployment's `https://coder.example.com/deployment/notifications`.
 
 ## Event Types
 
-Notifications are sent in response to internal events, to alert the affected
-user(s) of the event.
+Notifications are sent in response to internal events, to alert the affected user(s) of the event.
 
 Coder supports the following list of events:
 
@@ -21,8 +18,7 @@ Coder supports the following list of events:
 These notifications are sent to users with **template admin** roles:
 
 - Report: Workspace builds failed for template
-  - This notification is delivered as part of a weekly cron job and summarizes
-    the failed builds for a given template.
+  - This notification is delivered as part of a weekly cron job and summarizes the failed builds for a given template.
 - Template deleted
 - Template deprecated
 
@@ -66,21 +62,15 @@ OOM/OOD notifications can be delivered to users in VS Code.
 
 You can configure:
 
-- SMTP or webhooks globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server/index.md#--notifications-method)
-(default: `smtp`).
-- Coder dashboard Inbox with
-[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server/index.md#--notifications-inbox-enabled)
-(default: `true`).
+- SMTP or webhooks globally with [`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server/index.md#--notifications-method) (default: `smtp`).
+- Coder dashboard Inbox with [`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server/index.md#--notifications-inbox-enabled) (default: `true`).
 
-Premium customers can configure which method to use for each of the supported
-[Events](#workspace-events).
+Premium customers can configure which method to use for each of the supported [Events](#workspace-events).
 See the [Preferences](#delivery-preferences) section for more details.
 
 ## Configuration
 
-You can modify the notification delivery behavior in your Coder deployment's
-`https://coder.example.com/settings/notifications`, or with the following server flags:
+You can modify the notification delivery behavior in your Coder deployment's `https://coder.example.com/settings/notifications`, or with the following server flags:
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
@@ -91,19 +81,16 @@ You can modify the notification delivery behavior in your Coder deployment's
 
 ### Configure OOM/OOD notifications
 
-You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
-when they overutilize memory and disk.
+You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users when they overutilize memory and disk.
 
 This can help prevent agent disconnects due to OOM/OOD issues.
 
-To enable OOM/OOD notifications on a template, follow the steps in the
-[resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
+To enable OOM/OOD notifications on a template, follow the steps in the [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
 
 ## SMTP (Email)
 
-Use the `smtp` method to deliver notifications by email to your users. Coder
-does not ship with an SMTP server, so you will need to configure Coder to use an
-existing one.
+Use the `smtp` method to deliver notifications by email to your users.
+Coder does not ship with an SMTP server, so you will need to configure Coder to use an existing one.
 
 **Server Settings:**
 
@@ -133,15 +120,14 @@ existing one.
 |    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |
 |    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                       |         |
 
-**NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
-on a port other than `465`.
+**NOTE:**
+you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS on a port other than `465`.
 
 ### Send emails using G-Suite
 
 After setting the required fields above:
 
-1. Create an [App Password](https://myaccount.google.com/apppasswords) using the
-   account you wish to send from.
+1. Create an [App Password](https://myaccount.google.com/apppasswords) using the account you wish to send from.
 
 1. Set the following configuration options:
 
@@ -151,11 +137,10 @@ After setting the required fields above:
    CODER_EMAIL_AUTH_PASSWORD="<app password created above (no spaces)>"
    ```
 
-   **Note:** The `CODER_EMAIL_AUTH_PASSWORD` must be entered without spaces.
+   **Note:**
+   The `CODER_EMAIL_AUTH_PASSWORD` must be entered without spaces.
 
-See
-[this help article from Google](https://support.google.com/a/answer/176600?hl=en)
-for more options.
+See [this help article from Google](https://support.google.com/a/answer/176600?hl=en) for more options.
 
 ### Send emails using Outlook.com
 
@@ -171,15 +156,12 @@ After setting the required fields above:
    CODER_EMAIL_AUTH_PASSWORD="<account password>"
    ```
 
-See
-[this help article from Microsoft](https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040)
-for more options.
+See [this help article from Microsoft](https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040) for more options.
 
 ## Webhook
 
 The webhook delivery method sends an HTTP POST request to the defined endpoint.
-The purpose of webhook notifications is to enable integrations with other
-systems.
+The purpose of webhook notifications is to enable integrations with other systems.
 
 **Settings**:
 
@@ -224,33 +206,27 @@ Here is an example payload for Coder's webhook notification:
 The top-level object has these keys:
 
 - `_version`: describes the version of this schema; follows semantic versioning
-- `msg_id`: the UUID of the notification (matches the ID in the
-  `notification_messages` table)
+- `msg_id`: the UUID of the notification (matches the ID in the `notification_messages` table)
 - `payload`: contains the specific details of the notification; described below
-- `title`: the title of the notification message (equivalent to a subject in
-  SMTP delivery)
-- `body`: the body of the notification message (equivalent to the message body
-  in SMTP delivery)
+- `title`: the title of the notification message (equivalent to a subject in SMTP delivery)
+- `body`: the body of the notification message (equivalent to the message body in SMTP delivery)
 
 The `payload` object has these keys:
 
-- `_version`: describes the version of this inner schema; follows semantic
-  versioning
+- `_version`: describes the version of this inner schema; follows semantic versioning
 - `notification_name`: name of the event which triggered the notification
 - `user_id`: Coder internal user identifier of the target user (UUID)
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
 - `user_username`: username of the target user
-- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP
-  delivery in which they're shown as buttons
-- `labels`: dynamic map of zero or more string key-value pairs; these vary from
-  event to event
+- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP delivery in which they're shown as buttons
+- `labels`: dynamic map of zero or more string key-value pairs; these vary from event to event
 
 ## User Preferences
 
-All users have the option to opt-out of any notifications. Go to **Account** ->
-**Notifications** to turn notifications on or off. The delivery method for each
-notification is indicated on the right hand side of this table.
+All users have the option to opt-out of any notifications.
+Go to **Account** -> **Notifications** to turn notifications on or off.
+The delivery method for each notification is indicated on the right hand side of this table.
 
 ![User Notification Preferences](../../../images/admin/monitoring/notifications/user-notification-preferences.png)
 
@@ -260,13 +236,11 @@ notification is indicated on the right hand side of this table.
 > Delivery preferences is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Administrators can configure which delivery methods are used for each different
-[event type](#event-types).
+Administrators can configure which delivery methods are used for each different [event type](#event-types).
 
 ![preferences](../../../images/admin/monitoring/notifications/notification-admin-prefs.png)
 
-You can find this page under
-`https://$CODER_ACCESS_URL/deployment/notifications?tab=events`.
+You can find this page under `https://$CODER_ACCESS_URL/deployment/notifications?tab=events`.
 
 ## Custom notifications
 
@@ -280,7 +254,8 @@ To send a custom notification, execute [`coder notifications custom <title> <mes
 	 Explain deduplication behaviour for multiple users/roles.
 	 See: https://github.com/coder/coder/issues/19768
 -->
-**Note:** The recipient is always the requesting user as targeting other users or groups isn’t supported yet.
+**Note:**
+The recipient is always the requesting user as targeting other users or groups isn’t supported yet.
 
 ### Examples
 
@@ -307,38 +282,31 @@ fi
 
 ## Stop sending notifications
 
-Administrators may wish to stop _all_ notifications across the deployment. We
-support a killswitch in the CLI for these cases.
+Administrators may wish to stop _all_ notifications across the deployment.
+We support a killswitch in the CLI for these cases.
 
-To pause sending notifications, execute
-[`coder notifications pause`](../../../reference/cli/notifications/pause.md).
+To pause sending notifications, execute [`coder notifications pause`](../../../reference/cli/notifications/pause.md).
 
-To resume sending notifications, execute
-[`coder notifications resume`](../../../reference/cli/notifications/resume.md).
+To resume sending notifications, execute [`coder notifications resume`](../../../reference/cli/notifications/resume.md).
 
 ## Troubleshooting
 
-If notifications are not being delivered, use the following methods to
-troubleshoot:
+If notifications are not being delivered, use the following methods to troubleshoot:
 
 1. Ensure notifications are being added to the `notification_messages` table.
 1. Review any available error messages in the `status_reason` column
-1. Review the logs. Search for the term `notifications` for diagnostic information.
+1. Review the logs.
+   Search for the term `notifications` for diagnostic information.
 
-   - If you do not see any relevant logs, set
-    `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
-1. If you are on version 2.15.x, notifications must be enabled using the
-    `notifications`
-    [experiment](../../../reference/feature-stages.md#early-access-features).
+   - If you do not see any relevant logs, set `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
+1. If you are on version 2.15.x, notifications must be enabled using the `notifications` [experiment](../../../reference/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 
 ## Internals
 
-The notification system is built to operate concurrently in a single- or
-multi-replica Coder deployment, and has a built-in retry mechanism. It uses the
-configured Postgres database to store notifications in a queue and facilitate
-concurrency.
+The notification system is built to operate concurrently in a single- or multi-replica Coder deployment, and has a built-in retry mechanism.
+It uses the configured Postgres database to store notifications in a queue and facilitate concurrency.
 
 All messages are stored in the `notification_messages` table.
 
@@ -348,24 +316,17 @@ Messages older than seven days are deleted.
 
 ![states](../../../images/admin/monitoring/notifications/notification-states.png)
 
-_A notifier here refers to a Coder replica which is responsible for dispatching
-the notification. All running replicas act as notifiers to process pending
-messages._
+_A notifier here refers to a Coder replica which is responsible for dispatching the notification.
+All running replicas act as notifiers to process pending messages._
 
 - a message begins in `pending` state
-- transitions to `leased` when a Coder replica acquires new messages from the
-  database
+- transitions to `leased` when a Coder replica acquires new messages from the database
   - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL` (default: `15s`)
 - if a message is delivered successfully, it transitions to `sent` state
-- if a message encounters a non-retryable error (e.g. misconfiguration), it
-  transitions to `permanent_failure`
-- if a message encounters a retryable error (e.g. temporary server outage), it
-  transitions to `temporary_failure`
-  - this message will be retried up to `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS`
-    (default: 5)
-  - this message will transition back to `pending` state after
-    `CODER_NOTIFICATIONS_RETRY_INTERVAL` (default: 5m) and be retried
-  - after `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` is exceeded, it transitions to
-    `permanent_failure`
+- if a message encounters a non-retryable error (e.g. misconfiguration), it transitions to `permanent_failure`
+- if a message encounters a retryable error (e.g. temporary server outage), it transitions to `temporary_failure`
+  - this message will be retried up to `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` (default: 5)
+  - this message will transition back to `pending` state after `CODER_NOTIFICATIONS_RETRY_INTERVAL` (default: 5m) and be retried
+  - after `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` is exceeded, it transitions to `permanent_failure`
 
 See [Troubleshooting](#troubleshooting) above for more details.
