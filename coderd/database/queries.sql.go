@@ -5580,65 +5580,6 @@ func (q *sqlQuerier) DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldCh
 	return result.RowsAffected()
 }
 
-const finalizeStaleChatDebugRows = `-- name: FinalizeStaleChatDebugRows :one
-WITH finalized_runs AS (
-    UPDATE chat_debug_runs
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE updated_at < $2::timestamptz
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING id
-), finalized_steps AS (
-    UPDATE chat_debug_steps
-    SET
-        status = 'interrupted',
-        updated_at = $1::timestamptz,
-        finished_at = $1::timestamptz
-    WHERE (
-            updated_at < $2::timestamptz
-            OR run_id IN (SELECT id FROM finalized_runs)
-        )
-        AND finished_at IS NULL
-        AND status NOT IN ('completed', 'error', 'interrupted')
-    RETURNING 1
-)
-SELECT
-    (SELECT COUNT(*) FROM finalized_runs)::bigint AS runs_finalized,
-    (SELECT COUNT(*) FROM finalized_steps)::bigint AS steps_finalized
-`
-
-type FinalizeStaleChatDebugRowsParams struct {
-	Now           time.Time `db:"now" json:"now"`
-	UpdatedBefore time.Time `db:"updated_before" json:"updated_before"`
-}
-
-type FinalizeStaleChatDebugRowsRow struct {
-	RunsFinalized  int64 `db:"runs_finalized" json:"runs_finalized"`
-	StepsFinalized int64 `db:"steps_finalized" json:"steps_finalized"`
-}
-
-// Marks orphaned in-progress rows as interrupted so they do not stay
-// in a non-terminal state forever. The NOT IN list must match the
-// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
-//
-// The steps CTE also catches steps whose parent run was just finalized
-// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-// same snapshot and cannot see each other's row updates. Without this,
-// a step with a recent updated_at would survive its run's finalization
-// and remain in 'in_progress' state permanently.
-//
-// @now is the caller's clock timestamp so that mock-clock tests stay
-// consistent with the @updated_before cutoff.
-func (q *sqlQuerier) FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error) {
-	row := q.db.QueryRowContext(ctx, finalizeStaleChatDebugRows, arg.Now, arg.UpdatedBefore)
-	var i FinalizeStaleChatDebugRowsRow
-	err := row.Scan(&i.RunsFinalized, &i.StepsFinalized)
-	return i, err
-}
-
 const getChatDebugRunByID = `-- name: GetChatDebugRunByID :one
 SELECT id, chat_id, root_chat_id, parent_chat_id, model_config_id, trigger_message_id, history_tip_message_id, kind, status, provider, model, summary, started_at, updated_at, finished_at
 FROM chat_debug_runs

@@ -1304,7 +1304,7 @@ type UpdateUserChatDebugLoggingRequest struct {
 
 // ChatDebugStatus enumerates the lifecycle states shared by debug
 // runs and steps. These values must match the literals used in
-// FinalizeStaleChatDebugRows and all insert/update callers.
+// insert/update callers.
 type ChatDebugStatus string
 
 const (
