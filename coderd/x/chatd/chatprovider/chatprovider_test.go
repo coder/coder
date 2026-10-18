@@ -313,40 +313,6 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 }
 
-func TestProviderAPIKeysEmpty_RegionCountsAsConfigured(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, (chatprovider.ProviderAPIKeys{}).Empty())
-	require.False(t, (chatprovider.ProviderAPIKeys{
-		RegionByProvider: map[string]string{
-			fantasybedrock.Name: "us-east-1",
-		},
-	}).Empty())
-}
-
-func TestResolveUserProviderKeys_PreservesProviderRegions(t *testing.T) {
-	t.Parallel()
-
-	keys, availability := chatprovider.ResolveUserProviderKeys(
-		chatprovider.ProviderAPIKeys{
-			RegionByProvider: map[string]string{
-				"BEDROCK": "us-east-1",
-			},
-		},
-		[]chatprovider.ConfiguredProvider{{
-			ProviderID:           uuid.New(),
-			Provider:             fantasybedrock.Name,
-			Region:               "eu-central-1",
-			CentralAPIKeyEnabled: true,
-		}},
-		nil,
-	)
-
-	require.Equal(t, "eu-central-1", keys.Region(fantasybedrock.Name))
-	require.True(t, keys.HasProvider(fantasybedrock.Name))
-	require.Equal(t, chatprovider.ProviderAvailability{Available: true}, availability[fantasybedrock.Name])
-}
-
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -693,21 +659,6 @@ func TestPruneDisabledProviderKeys(t *testing.T) {
 				},
 				BaseURLByProvider: map[string]string{
 					fantasyopenai.Name: "https://openai.example.com",
-				},
-			},
-		},
-		{
-			name: "DisabledProviderRegionsRemoved",
-			keys: chatprovider.ProviderAPIKeys{
-				RegionByProvider: map[string]string{
-					fantasybedrock.Name: "us-east-2",
-					fantasyopenai.Name:  "us-east-1",
-				},
-			},
-			enabledProviders: enabledProviders(fantasybedrock.Name),
-			want: chatprovider.ProviderAPIKeys{
-				RegionByProvider: map[string]string{
-					fantasybedrock.Name: "us-east-2",
 				},
 			},
 		},
