@@ -16373,7 +16373,7 @@ func TestChatDebugRun(t *testing.T) {
 	})
 }
 
-//nolint:tparallel,paralleltest // Subtests share one server and run in order.
+//nolint:tparallel,paralleltest // Subtests share one server and its advisor configuration.
 func TestChatAdvisorConfig(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -16381,6 +16381,13 @@ func TestChatAdvisorConfig(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	// Subtests that change the configuration restore the default when they
+	// finish, so no subtest depends on the ones that ran before it.
+	restoreDefault := func(t *testing.T) {
+		t.Cleanup(func() {
+			require.NoError(t, db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), "{}"))
+		})
+	}
 
 	t.Run("GetDefault", func(t *testing.T) {
 		resp, err := adminClient.GetChatAdvisorConfig(ctx)
@@ -16391,6 +16398,7 @@ func TestChatAdvisorConfig(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
+		restoreDefault(t)
 		req := codersdk.UpdateAdvisorConfigRequest{MaxUsesPerRun: 5, MaxOutputTokens: 1024}
 		require.NoError(t, adminClient.UpdateChatAdvisorConfig(ctx, req))
 		resp, err := adminClient.GetChatAdvisorConfig(ctx)
@@ -16399,6 +16407,7 @@ func TestChatAdvisorConfig(t *testing.T) {
 	})
 
 	t.Run("MemberCannotWriteButCanRead", func(t *testing.T) {
+		restoreDefault(t)
 		req := codersdk.UpdateAdvisorConfigRequest{MaxUsesPerRun: 2, MaxOutputTokens: 256}
 		require.NoError(t, adminClient.UpdateChatAdvisorConfig(ctx, req))
 		requireSDKError(t, memberClient.UpdateChatAdvisorConfig(ctx, req), http.StatusForbidden)
@@ -16416,6 +16425,7 @@ func TestChatAdvisorConfig(t *testing.T) {
 	})
 
 	t.Run("OverwriteClearsPreviousValues", func(t *testing.T) {
+		restoreDefault(t)
 		require.NoError(t, adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{MaxUsesPerRun: 5, MaxOutputTokens: 1024}))
 		require.NoError(t, adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{}))
 		resp, err := adminClient.GetChatAdvisorConfig(ctx)
@@ -16424,6 +16434,7 @@ func TestChatAdvisorConfig(t *testing.T) {
 	})
 
 	t.Run("IgnoresLegacyReasoningEffort", func(t *testing.T) {
+		restoreDefault(t)
 		stored := `{"enabled":true,"max_uses_per_run":3,"max_output_tokens":2048,"reasoning_effort":"high"}`
 		require.NoError(t, db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), stored))
 		resp, err := adminClient.GetChatAdvisorConfig(ctx)
@@ -16442,8 +16453,8 @@ func TestChatAdvisorConfig(t *testing.T) {
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
-	// Runs last because it leaves invalid JSON in the shared database.
 	t.Run("CorruptStoredJSONReturnsError", func(t *testing.T) {
+		restoreDefault(t)
 		require.NoError(t, db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), "not-json"))
 		_, err := adminClient.GetChatAdvisorConfig(ctx)
 		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
