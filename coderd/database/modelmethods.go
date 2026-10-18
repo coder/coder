@@ -86,6 +86,12 @@ type AuditableOrganizationSkill struct {
 	Skill
 }
 
+// AuditableChatProjectSkill is the audit-log representation of a chat
+// project skill.
+type AuditableChatProjectSkill struct {
+	Skill
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
