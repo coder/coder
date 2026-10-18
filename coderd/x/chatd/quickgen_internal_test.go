@@ -655,7 +655,6 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
 				_, chat := seedTitleChat(t, db, fallbackTitle, database.ChatTitleSourceFallback)
-				// The mock expects no calls, so a Publish on any channel fails the test.
 				ps := psmock.NewMockPubsub(gomock.NewController(t))
 
 				var rename func()
