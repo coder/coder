@@ -14151,6 +14151,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		streamedCallCount atomic.Int32
 		streamedCallsMu   sync.Mutex
 		advisorCallSeen   atomic.Bool
+		firstCallMessages []chattest.OpenAIMessage
 		advisorMessages   []chattest.OpenAIMessage
 		finalCallMessages []chattest.OpenAIMessage
 	)
@@ -14179,6 +14180,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		switch streamedCallCount.Add(1) {
 		case 1:
 			// Parent turn 1: call advisor solo.
+			streamedCallsMu.Lock()
+			firstCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			streamedCallsMu.Unlock()
 			chunk := chattest.OpenAIToolCallChunk(
 				"advisor",
 				`{"question":"how should I approach this refactor?"}`,
@@ -14315,6 +14319,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	streamedCallsMu.Lock()
+	gotFirstMessages := append([]chattest.OpenAIMessage(nil), firstCallMessages...)
 	gotAdvisorMessages := append([]chattest.OpenAIMessage(nil), advisorMessages...)
 	gotFinalMessages := append([]chattest.OpenAIMessage(nil), finalCallMessages...)
 	streamedCallsMu.Unlock()
@@ -14325,6 +14330,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		"advisor call must receive the nested prompt messages")
 	require.NotEmpty(t, gotFinalMessages,
 		"parent must make a follow-up call after the advisor result")
+	require.True(t, slices.ContainsFunc(gotFirstMessages, func(msg chattest.OpenAIMessage) bool {
+		return strings.Contains(msg.Content, chatadvisor.ParentGuidanceBlock)
+	}), "the parent's first request must carry the advisor guidance")
 
 	var advisorSawQuestion bool
 	var advisorSawUserTurn bool
