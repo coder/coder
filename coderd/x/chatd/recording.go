@@ -87,7 +87,51 @@ func (p *Server) stopAndStoreRecording(
 		return result
 	}
 
-	mr := multipart.NewReader(resp.Body, boundary)
+	videoData, thumbnailData := readRecordingParts(ctx, logger, resp.Body, boundary)
+
+	// Second pass: store the collected data in the database.
+	if videoData != nil {
+		attachment, err := p.storeRecordingArtifact(
+			chatdCtx,
+			parentChatID,
+			ownerID,
+			ws.OrganizationID,
+			fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+			"video/mp4",
+			videoData,
+		)
+		if err != nil {
+			logger.Warn(ctx, "failed to store recording in database",
+				slog.Error(err))
+		} else {
+			result.recordingFileID = attachment.FileID.String()
+		}
+	}
+	// The thumbnail is linked in its own transaction, so at a cap of one
+	// it would evict the recording that was just stored.
+	if thumbnailData != nil && result.recordingFileID != "" && p.chatLimits.MaxAttachmentsPerChat > 1 {
+		attachment, err := p.storeRecordingArtifact(
+			chatdCtx,
+			parentChatID,
+			ownerID,
+			ws.OrganizationID,
+			fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
+			"image/jpeg",
+			thumbnailData,
+		)
+		if err != nil {
+			logger.Warn(ctx, "failed to store thumbnail in database",
+				slog.Error(err))
+		} else {
+			result.thumbnailFileID = attachment.FileID.String()
+		}
+	}
+
+	return result
+}
+
+func readRecordingParts(ctx context.Context, logger slog.Logger, body io.Reader, boundary string) (videoData, thumbnailData []byte) {
+	mr := multipart.NewReader(body, boundary)
 	// Context cancellation is checked between parts. Within a
 	// part read, cancellation relies on Go's HTTP transport closing
 	// the underlying connection when the context is done, which
@@ -98,7 +142,6 @@ func (p *Server) stopAndStoreRecording(
 	// prevent a malicious or broken agent from forcing the server
 	// into an unbounded parsing loop.
 	const maxParts = 2
-	var videoData, thumbnailData []byte
 	for range maxParts {
 		if ctx.Err() != nil {
 			logger.Warn(ctx, "context canceled while reading recording parts", slog.Error(ctx.Err()))
@@ -167,46 +210,7 @@ func (p *Server) stopAndStoreRecording(
 				slog.F("content_type", contentType))
 		}
 	}
-
-	// Second pass: store the collected data in the database.
-	if videoData != nil {
-		attachment, err := p.storeRecordingArtifact(
-			chatdCtx,
-			parentChatID,
-			ownerID,
-			ws.OrganizationID,
-			fmt.Sprintf("recording-%s.mp4", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			"video/mp4",
-			videoData,
-		)
-		if err != nil {
-			logger.Warn(ctx, "failed to store recording in database",
-				slog.Error(err))
-		} else {
-			result.recordingFileID = attachment.FileID.String()
-		}
-	}
-	// The thumbnail is linked in its own transaction, so at a cap of one
-	// it would evict the recording that was just stored.
-	if thumbnailData != nil && result.recordingFileID != "" && p.chatLimits.MaxAttachmentsPerChat > 1 {
-		attachment, err := p.storeRecordingArtifact(
-			chatdCtx,
-			parentChatID,
-			ownerID,
-			ws.OrganizationID,
-			fmt.Sprintf("thumbnail-%s.jpg", p.clock.Now().UTC().Format("2006-01-02T15-04-05Z")),
-			"image/jpeg",
-			thumbnailData,
-		)
-		if err != nil {
-			logger.Warn(ctx, "failed to store thumbnail in database",
-				slog.Error(err))
-		} else {
-			result.thumbnailFileID = attachment.FileID.String()
-		}
-	}
-
-	return result
+	return videoData, thumbnailData
 }
 
 func recordingBoundary(ctx context.Context, logger slog.Logger, contentType string) (string, bool) {
