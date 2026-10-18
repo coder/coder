@@ -13,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -1024,6 +1025,94 @@ func TestService_FinalizeRun_DetachesFromParentCancellation(t *testing.T) {
 		Status: chatdebug.StatusCompleted,
 	})
 	require.NoError(t, err)
+}
+
+func TestService_StartRun(t *testing.T) {
+	t.Parallel()
+
+	params := chatdebug.CreateRunParams{
+		ChatID:              uuid.New(),
+		RootChatID:          uuid.New(),
+		ParentChatID:        uuid.New(),
+		ModelConfigID:       uuid.New(),
+		TriggerMessageID:    3,
+		HistoryTipMessageID: 5,
+		Kind:                chatdebug.KindQuickgen,
+		Status:              chatdebug.StatusInProgress,
+		Provider:            "openai",
+		Model:               "gpt-test",
+	}
+	tests := []struct {
+		name        string
+		createErr   error
+		finalizeErr error
+		wantWarning string
+	}{
+		{name: "Finalizes"},
+		{name: "CreateFails", createErr: xerrors.New("insert failed"), wantWarning: "failed to create debug run"},
+		{name: "FinalizeFails", finalizeErr: xerrors.New("update failed"), wantWarning: "failed to finalize debug run"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			sink := testutil.NewFakeSink(t)
+			svc := chatdebug.NewService(db, sink.Logger(slog.LevelWarn), nil)
+			callerCtx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+			runID := uuid.New()
+			db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, got database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+					cancel()
+					require.NoError(t, ctx.Err())
+					_, ok := ctx.Deadline()
+					require.True(t, ok)
+					require.JSONEq(t, `{"first_message":"hello"}`, string(got.Summary.RawMessage))
+					return database.ChatDebugRun{ID: runID, ChatID: got.ChatID}, tc.createErr
+				})
+			if tc.createErr == nil {
+				db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, nil)
+				db.EXPECT().UpdateChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(ctx context.Context, got database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.LessOrEqual(t, time.Until(deadline), time.Second)
+						require.Equal(t, runID, got.ID)
+						require.Equal(t, params.ChatID, got.ChatID)
+						require.Equal(t, sql.NullString{String: string(chatdebug.StatusError), Valid: true}, got.Status)
+						return database.ChatDebugRun{}, tc.finalizeErr
+					})
+			}
+
+			ctx, finish := svc.StartRun(callerCtx, params, map[string]any{"first_message": "hello"}, time.Second)
+			run, ok := chatdebug.RunFromContext(ctx)
+			require.Equal(t, tc.createErr == nil, ok)
+			if ok {
+				require.Equal(t, chatdebug.RunContext{
+					RunID:               runID,
+					ChatID:              params.ChatID,
+					RootChatID:          params.RootChatID,
+					ParentChatID:        params.ParentChatID,
+					ModelConfigID:       params.ModelConfigID,
+					TriggerMessageID:    params.TriggerMessageID,
+					HistoryTipMessageID: params.HistoryTipMessageID,
+					Provider:            params.Provider,
+					Model:               params.Model,
+				}, *run)
+			}
+			finish(xerrors.New("model failed"))
+
+			var warnings []string
+			for _, entry := range sink.Entries() {
+				warnings = append(warnings, entry.Message)
+			}
+			if tc.wantWarning == "" {
+				require.Empty(t, warnings)
+			} else {
+				require.Equal(t, []string{tc.wantWarning}, warnings)
+			}
+		})
+	}
 }
 
 func TestService_PublishesEvents(t *testing.T) {
