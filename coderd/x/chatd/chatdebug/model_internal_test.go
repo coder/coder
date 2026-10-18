@@ -52,6 +52,9 @@ func expectCreateStepWithRequestValidity(
 
 	stepID := uuid.New()
 
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+	db.EXPECT().AcquireLock(gomock.Any(), database.LockIDChatDebugRunSteps(runID)).Return(nil)
 	db.EXPECT().
 		InsertChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{})).
 		DoAndReturn(func(_ context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {

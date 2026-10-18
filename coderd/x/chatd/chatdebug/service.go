@@ -357,40 +357,34 @@ func (s *Service) CreateStep(
 		ChatID:              params.ChatID,
 	}
 
-	// Concurrent inserts can read the same highest step from their READ
-	// COMMITTED snapshots. The unique index rejects all but one, and a
-	// retried insert takes a fresh snapshot.
-	const maxCreateStepRetries = 10
-
-	for range maxCreateStepRetries {
-		if err := ctx.Err(); err != nil {
-			return database.ChatDebugStep{}, err
+	// The insert numbers the step from its statement snapshot, which it
+	// takes before it waits on the run row. Holding the run's step lock
+	// from an earlier statement makes that snapshot include every step
+	// that the previous holder committed.
+	var step database.ChatDebugStep
+	err := s.db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(chatdContext(ctx), database.LockIDChatDebugRunSteps(params.RunID)); err != nil {
+			return xerrors.Errorf("lock debug run steps: %w", err)
 		}
-
-		step, err := s.db.InsertChatDebugStep(chatdContext(ctx), insert)
-		if err == nil {
-			// The INSERT CTE atomically bumps the parent run's
-			// updated_at, so no separate touch call is needed.
-			s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
-			return step, nil
-		}
-		// The INSERT's locked_run CTE filters on id, chat_id, and
-		// finished_at IS NULL, so sql.ErrNoRows can mean "run not
-		// found", "chat_id mismatch", or "already finalized." Look
-		// the run up to disambiguate instead of conflating
-		// caller-side data bugs with the legitimate terminal case.
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.ChatDebugStep{}, s.classifyMissingRun(ctx, params)
-		}
-		if !database.IsUniqueViolation(err, database.UniqueIndexChatDebugStepsRunStep) {
-			return database.ChatDebugStep{}, err
-		}
+		var err error
+		step, err = tx.InsertChatDebugStep(chatdContext(ctx), insert)
+		return err
+	}, nil)
+	// The INSERT's locked_run CTE filters on id, chat_id, and
+	// finished_at IS NULL, so sql.ErrNoRows can mean "run not
+	// found", "chat_id mismatch", or "already finalized." Look
+	// the run up to disambiguate instead of conflating
+	// caller-side data bugs with the legitimate terminal case.
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatDebugStep{}, s.classifyMissingRun(ctx, params)
 	}
-
-	return database.ChatDebugStep{}, xerrors.Errorf(
-		"chatdebug: failed to create step after %d retries (run %s)",
-		maxCreateStepRetries, params.RunID,
-	)
+	if err != nil {
+		return database.ChatDebugStep{}, err
+	}
+	// The INSERT CTE atomically bumps the parent run's
+	// updated_at, so no separate touch call is needed.
+	s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
+	return step, nil
 }
 
 // classifyMissingRun disambiguates the sql.ErrNoRows returned by

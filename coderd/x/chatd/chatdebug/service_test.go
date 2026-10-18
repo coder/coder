@@ -333,10 +333,9 @@ func TestService_CreateStep_NumbersStepsPerRun(t *testing.T) {
 	}
 }
 
-// Inserts that start while the run row is locked read the same highest
-// step from their READ COMMITTED snapshots, so one hits the unique index
-// and CreateStep must retry it.
-func TestService_CreateStep_RetriesConcurrentNumbering(t *testing.T) {
+// Creates that wait on a locked run all start before any step exists.
+// Each must still get its own number, however many of them there are.
+func TestService_CreateStep_NumbersConcurrentSteps(t *testing.T) {
 	t.Parallel()
 
 	fixture := newFixture(t)
@@ -348,7 +347,7 @@ func TestService_CreateStep_RetriesConcurrentNumbering(t *testing.T) {
 	_, err = tx.ExecContext(fixture.ctx, "SELECT 1 FROM chat_debug_runs WHERE id = $1 FOR UPDATE", run.ID)
 	require.NoError(t, err)
 
-	const creates = 2
+	const creates = 20
 	errs := make(chan error, creates)
 	for range creates {
 		go func() {
@@ -361,15 +360,14 @@ func TestService_CreateStep_RetriesConcurrentNumbering(t *testing.T) {
 			errs <- err
 		}()
 	}
-	// Release the run only after both inserts wait on it, so both take
-	// their snapshots before either step exists.
+	// Release the run only after every create waits on a lock.
 	require.Eventually(t, func() bool {
 		if len(errs) > 0 {
 			return true
 		}
 		var waiting int
 		err := fixture.sqlDB.QueryRowContext(fixture.ctx, `SELECT count(*) FROM pg_stat_activity
-			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%INSERT INTO chat_debug_steps%'`).Scan(&waiting)
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting)
 		return err == nil && waiting == creates
 	}, testutil.WaitShort, testutil.IntervalFast)
 	require.NoError(t, tx.Commit())
@@ -379,8 +377,15 @@ func TestService_CreateStep_RetriesConcurrentNumbering(t *testing.T) {
 	}
 	steps, err := fixture.db.GetChatDebugStepsByRunID(fixture.ctx, run.ID)
 	require.NoError(t, err)
-	require.Len(t, steps, creates)
-	require.ElementsMatch(t, []int32{1, 2}, []int32{steps[0].StepNumber, steps[1].StepNumber})
+	got := make([]int32, 0, len(steps))
+	for _, step := range steps {
+		got = append(got, step.StepNumber)
+	}
+	want := make([]int32, 0, creates)
+	for n := range int32(creates) {
+		want = append(want, n+1)
+	}
+	require.Equal(t, want, got)
 }
 
 func TestService_CreateStep_RejectsFinalizedRun(t *testing.T) {
