@@ -1154,7 +1154,7 @@ func TestArchiveChatDeletesDebugRuns(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
 	// Stamped outside the clock-skew buffer so the cleanup deletes it
-	// instead of leaving it for the stale sweeper.
+	// instead of leaving it for dbpurge.
 	staleStart := sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
 	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID: chat.ID, Kind: "chat_turn", Status: "completed", StartedAt: staleStart, UpdatedAt: staleStart,
@@ -1549,7 +1549,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 
 	// Stale debug run tied to the pre-edit message branch. Stamped
 	// well outside the clock-skew buffer so the fast retry path
-	// deletes it instead of deferring to the stale sweeper.
+	// deletes it instead of deferring to dbpurge.
 	staleStart := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
 	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 		ChatID:              chat.ID,
@@ -1591,9 +1591,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	chatd.WaitUntilIdleForTest(replica)
 
 	// ErrNoRows on staleRun proves the fast-retry path DELETED the
-	// row: FinalizeStale (the only other debug-row writer on the
-	// server) only UPDATEs finished_at in place, it never deletes,
-	// so the row can only disappear via DeleteAfterMessageID which
+	// row: it can only disappear via DeleteAfterMessageID, which
 	// is reached solely from scheduleDebugCleanup.
 	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows,
@@ -1627,7 +1625,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 // TestEditMessageDebugCleanupPreservesRecentRuns verifies that the
 // clock-skew buffer in the edit-cleanup cutoff prevents the fast
 // retry from deleting debug runs that started within the buffer
-// window. The stale sweep handles those leftovers later.
+// window. dbpurge deletes those leftovers once they age out.
 func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 	t.Parallel()
 
