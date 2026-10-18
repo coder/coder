@@ -2,11 +2,8 @@
 title: Environment variables
 ---
 
-Use the
-[`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
-resource to inject environment variables into your workspace agents. This is
-useful for configuring tools, setting paths, and passing configuration to
-development environments.
+Use the [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) resource to inject environment variables into your workspace agents.
+This is useful for configuring tools, setting paths, and passing configuration to development environments.
 
 ## Basic usage
 
@@ -23,13 +20,12 @@ resource "coder_env" "go_path" {
 }
 ```
 
-Each `coder_env` resource sets a single environment variable on the specified
-agent. You can define multiple `coder_env` resources targeting the same agent.
+Each `coder_env` resource sets a single environment variable on the specified agent.
+You can define multiple `coder_env` resources targeting the same agent.
 
 ## Merge strategies
 
-When multiple `coder_env` resources define the same variable name, use the
-`merge_strategy` attribute to control how values are combined:
+When multiple `coder_env` resources define the same variable name, use the `merge_strategy` attribute to control how values are combined:
 
 | Strategy              | Behavior                                            |
 |-----------------------|-----------------------------------------------------|
@@ -38,8 +34,7 @@ When multiple `coder_env` resources define the same variable name, use the
 | `prepend`             | Prepends to the existing value with `:` separator.  |
 | `error`               | Fails the build if the variable is already defined. |
 
-The `append` and `prepend` strategies use `:` as a separator, which matches
-the convention for `PATH`-style variables on Unix systems.
+The `append` and `prepend` strategies use `:` as a separator, which matches the convention for `PATH`-style variables on Unix systems.
 
 ### Merges and the host environment
 
@@ -99,25 +94,19 @@ resource "coder_env" "editor" {
 }
 ```
 
-If another `coder_env` resource also sets `EDITOR`, the build fails with
-a clear error message.
+If another `coder_env` resource also sets `EDITOR`, the build fails with a clear error message.
 
 ## Ordering
 
-When multiple `coder_env` resources append or prepend to the same variable,
-they are processed in alphabetical order by their
-[Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
+When multiple `coder_env` resources append or prepend to the same variable, they are processed in alphabetical order by their [Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
 In the previous `PATH` example, `coder_env.path_cuda` is processed first, then `coder_env.path_go`, then `coder_env.path_rust_cargo`, because that is their alphabetical order.
 This is why only one resource in the chain needs the `$PATH` reference: the merged value is built as one string before it's expanded, so the reference works no matter where in the chain it appears.
 
 ## Agent env override
 
-The `env` block inside a `coder_agent` resource always takes final precedence
-over any `coder_env` resources. If both define the same variable, the
-`coder_agent` value wins regardless of `merge_strategy`. This override happens
-after `coder_env` resources are merged, so `merge_strategy = "error"` does not
-trigger when the conflict is with the agent's `env` block — only when two
-`coder_env` resources define the same key:
+The `env` block inside a `coder_agent` resource always takes final precedence over any `coder_env` resources.
+If both define the same variable, the `coder_agent` value wins regardless of `merge_strategy`.
+This override happens after `coder_env` resources are merged, so `merge_strategy = "error"` does not trigger when the conflict is with the agent's `env` block (it only triggers when two `coder_env` resources define the same key):
 
 ```tf
 resource "coder_agent" "dev" {
@@ -137,6 +126,4 @@ resource "coder_env" "extra_path" {
 }
 ```
 
-See the
-[Coder Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
-for the complete `coder_env` reference.
+See the [Coder Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) for the complete `coder_env` reference.

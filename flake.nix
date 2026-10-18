@@ -253,12 +253,37 @@
           tags = [ "postgres" ];
         });
 
+        googleChrome =
+          if pkgs.stdenv.isLinux then
+            pkgs.google-chrome.overrideAttrs (
+              finalAttrs: oldAttrs: {
+                version = "155.0.8059.84";
+                src = pkgs.fetchurl {
+                  url = "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${finalAttrs.version}-1_amd64.deb";
+                  hash = "sha256-j70q5pzffumLdRPDOWp7Xgb5dPhiX91ZDfMJHdDD6d4=";
+                };
+                # Chrome no longer ships standalone ANGLE libraries.
+                installPhase =
+                  builtins.replaceStrings
+                    [
+                      ''
+                        # Make sure that libGL and libvulkan are found by ANGLE libGLESv2.so
+                        patchelf --set-rpath $rpath $out/share/google/$appname/lib*GL*
+                      ''
+                    ]
+                    [ "" ]
+                    oldAttrs.installPhase;
+              }
+            )
+          else
+            pkgs.google-chrome;
+
         # The minimal set of packages to build Coder.
         devShellPackages =
           with pkgs;
           [
             # google-chrome is not available on aarch64 linux
-            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) googleChrome)
             # strace is not available on OSX
             (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
             bat
