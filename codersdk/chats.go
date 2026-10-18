@@ -2261,6 +2261,32 @@ type ListChatsOptions struct {
 	Pagination
 }
 
+func requestJSON[T any](ctx context.Context, c *Client, method, path string, wantStatus int, body any, opts ...RequestOption) (T, error) {
+	var out T
+	res, err := c.Request(ctx, method, path, body, opts...)
+	if err != nil {
+		return out, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != wantStatus {
+		return out, ReadBodyAsError(res)
+	}
+	err = ReadBodyAsJSON(res, &out)
+	return out, err
+}
+
+func requestNoContent(ctx context.Context, c *Client, method, path string, body any, opts ...RequestOption) error {
+	res, err := c.Request(ctx, method, path, body, opts...)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
 	var reqOpts []RequestOption
@@ -2334,30 +2360,12 @@ func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProjec
 
 // CreateChatProject creates a chat project in an organization.
 func (c *ExperimentalClient) CreateChatProject(ctx context.Context, organizationID uuid.UUID, req CreateChatProjectRequest) (ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodPost, chatProjectsPath(organizationID), req)
-	if err != nil {
-		return ChatProject{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatProject{}, ReadBodyAsError(res)
-	}
-	var project ChatProject
-	return project, ReadBodyAsJSON(res, &project)
+	return requestJSON[ChatProject](ctx, c.Client, http.MethodPost, chatProjectsPath(organizationID), http.StatusCreated, req)
 }
 
 // GetChatProject gets a chat project.
 func (c *ExperimentalClient) GetChatProject(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID), nil)
-	if err != nil {
-		return ChatProject{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProject{}, ReadBodyAsError(res)
-	}
-	var project ChatProject
-	return project, ReadBodyAsJSON(res, &project)
+	return requestJSON[ChatProject](ctx, c.Client, http.MethodGet, chatProjectPath(organizationID, projectID), http.StatusOK, nil)
 }
 
 // UpdateChatProject updates a chat project.
@@ -2404,85 +2412,33 @@ func (c *ExperimentalClient) ChatProjectInstructions(ctx context.Context, organi
 // UpdateChatProjectInstructions creates or replaces a chat project's
 // instructions.
 func (c *ExperimentalClient) UpdateChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectInstructionsRequest) (ChatProjectInstructions, error) {
-	res, err := c.Request(ctx, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", req)
-	if err != nil {
-		return ChatProjectInstructions{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProjectInstructions{}, ReadBodyAsError(res)
-	}
-	var instructions ChatProjectInstructions
-	return instructions, ReadBodyAsJSON(res, &instructions)
+	return requestJSON[ChatProjectInstructions](ctx, c.Client, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", http.StatusOK, req)
 }
 
 // DeleteChatProjectInstructions clears a chat project's instructions. It
 // succeeds when the project has no instructions.
 func (c *ExperimentalClient) DeleteChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c.Client, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
 }
 
 // ListChatProjectMemories lists memories for a chat project.
 func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/memories", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var memories []ChatProjectMemory
-	return memories, ReadBodyAsJSON(res, &memories)
+	return requestJSON[[]ChatProjectMemory](ctx, c.Client, http.MethodGet, chatProjectPath(organizationID, projectID)+"/memories", http.StatusOK, nil)
 }
 
 // CreateChatProjectMemory creates a project memory.
 func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, organizationID, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/memories", req)
-	if err != nil {
-		return ChatProjectMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatProjectMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatProjectMemory
-	return memory, ReadBodyAsJSON(res, &memory)
+	return requestJSON[ChatProjectMemory](ctx, c.Client, http.MethodPost, chatProjectPath(organizationID, projectID)+"/memories", http.StatusCreated, req)
 }
 
 // GetChatProjectMemory gets a project memory.
 func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
-	if err != nil {
-		return ChatProjectMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProjectMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatProjectMemory
-	return memory, ReadBodyAsJSON(res, &memory)
+	return requestJSON[ChatProjectMemory](ctx, c.Client, http.MethodGet, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), http.StatusOK, nil)
 }
 
 // DeleteChatProjectMemory deletes a project memory.
 func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c.Client, http.MethodDelete, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
 }
 
 // ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
@@ -2534,78 +2490,28 @@ func userAIProviderKeysPath(user string) string {
 // organization, plus the redacted provider descriptors the authoring page
 // needs, for org-scoped management and picker surfaces.
 func (c *Client) ChatModels(ctx context.Context, organizationID uuid.UUID) (OrganizationChatModelsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models", organizationID), nil)
-	if err != nil {
-		return OrganizationChatModelsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return OrganizationChatModelsResponse{}, ReadBodyAsError(res)
-	}
-
-	var resp OrganizationChatModelsResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[OrganizationChatModelsResponse](ctx, c, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models", organizationID), http.StatusOK, nil)
 }
 
 // ChatModel fetches one chat model config by ID in an organization.
 func (c *Client) ChatModel(ctx context.Context, organizationID, modelConfigID uuid.UUID) (ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelConfigID), nil)
-	if err != nil {
-		return ChatModel{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModel{}, ReadBodyAsError(res)
-	}
-
-	var config ChatModel
-	return config, ReadBodyAsJSON(res, &config)
+	return requestJSON[ChatModel](ctx, c, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelConfigID), http.StatusOK, nil)
 }
 
 // CreateChatModel creates a chat model config in the given organization.
 func (c *Client) CreateChatModel(ctx context.Context, organizationID uuid.UUID, req CreateChatModelRequest) (ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/chats/models", organizationID), req)
-	if err != nil {
-		return ChatModel{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatModel{}, ReadBodyAsError(res)
-	}
-
-	var model ChatModel
-	return model, ReadBodyAsJSON(res, &model)
+	return requestJSON[ChatModel](ctx, c, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/chats/models", organizationID), http.StatusCreated, req)
 }
 
 // UpdateChatModel updates a ChatModel in an organization.
 func (c *Client) UpdateChatModel(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelRequest) (ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelID), req)
-	if err != nil {
-		return ChatModel{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModel{}, ReadBodyAsError(res)
-	}
-
-	var model ChatModel
-	return model, ReadBodyAsJSON(res, &model)
+	return requestJSON[ChatModel](ctx, c, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelID), http.StatusOK, req)
 }
 
 // ChatModelACL returns the access control list for a chat model in an
 // organization.
 func (c *Client) ChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID) (ChatModelACL, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl", organizationID, modelID), nil)
-	if err != nil {
-		return ChatModelACL{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModelACL{}, ReadBodyAsError(res)
-	}
-
-	var modelACL ChatModelACL
-	return modelACL, ReadBodyAsJSON(res, &modelACL)
+	return requestJSON[ChatModelACL](ctx, c, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl", organizationID, modelID), http.StatusOK, nil)
 }
 
 // ChatModelACLAvailable returns available users and groups that can be assigned
@@ -2613,51 +2519,27 @@ func (c *Client) ChatModelACL(ctx context.Context, organizationID, modelID uuid.
 // to users. Groups reuse the user search query and q/limit semantics. Pass
 // codersdk.UsersRequest{} when no filtering is desired.
 func (c *Client) ChatModelACLAvailable(ctx context.Context, organizationID, modelID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
-	res, err := c.Request(
+	return requestJSON[ACLAvailable](
 		ctx,
+		c,
 		http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl/available", organizationID, modelID),
+		http.StatusOK,
 		nil,
 		req.Pagination.asRequestOption(),
 		req.asRequestOption(),
 	)
-	if err != nil {
-		return ACLAvailable{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ACLAvailable{}, ReadBodyAsError(res)
-	}
-
-	var acl ACLAvailable
-	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 // UpdateChatModelACL applies a sparse access control list update to a chat
 // model in an organization.
 func (c *Client) UpdateChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelACLRequest) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl", organizationID, modelID), req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl", organizationID, modelID), req)
 }
 
 // DeleteChatModel deletes a ChatModel in an organization.
 func (c *Client) DeleteChatModel(ctx context.Context, organizationID, modelID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s", organizationID, modelID), nil)
 }
 
 // ChatModelProviderDescriptor is the redacted view of an AI provider carried
