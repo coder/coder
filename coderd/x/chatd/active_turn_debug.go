@@ -28,8 +28,6 @@ type runnerDebugTurn struct {
 
 	status    chatdebug.Status
 	statusSet bool
-
-	heartbeatDone chan struct{}
 }
 
 func newRunnerDebugTurn(runnerCtx context.Context, logger slog.Logger) *runnerDebugTurn {
@@ -126,8 +124,6 @@ func (d *runnerDebugTurn) ensureLocked(
 	d.runContext = chatdebugRunContext(run)
 	d.seedSummary = seedSummary
 	d.created = true
-	d.heartbeatDone = make(chan struct{})
-	d.service.LaunchRunHeartbeat(d.runnerCtx, d.runContext.RunID, d.runContext.ChatID, d.heartbeatDone)
 	return d.contextLocked(ctx)
 }
 
@@ -237,10 +233,6 @@ func (d *runnerDebugTurn) Finalize(ctx context.Context) {
 		return
 	}
 	d.finalized = true
-	if d.heartbeatDone != nil {
-		close(d.heartbeatDone)
-		d.heartbeatDone = nil
-	}
 	if !d.created || d.service == nil || d.runContext.RunID == uuid.Nil {
 		d.mu.Unlock()
 		return

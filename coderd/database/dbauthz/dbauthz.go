@@ -7729,28 +7729,6 @@ func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID
 	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
 }
 
-func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugRunUpdatedAt(ctx, arg)
-}
-
-func (q *querier) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.TouchChatDebugStepAndRun(ctx, arg)
-}
-
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }

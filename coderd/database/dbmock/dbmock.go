@@ -10450,34 +10450,6 @@ func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
 }
 
-// TouchChatDebugRunUpdatedAt mocks base method.
-func (m *MockStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TouchChatDebugRunUpdatedAt", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// TouchChatDebugRunUpdatedAt indicates an expected call of TouchChatDebugRunUpdatedAt.
-func (mr *MockStoreMockRecorder) TouchChatDebugRunUpdatedAt(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugRunUpdatedAt", reflect.TypeOf((*MockStore)(nil).TouchChatDebugRunUpdatedAt), ctx, arg)
-}
-
-// TouchChatDebugStepAndRun mocks base method.
-func (m *MockStore) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TouchChatDebugStepAndRun", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// TouchChatDebugStepAndRun indicates an expected call of TouchChatDebugStepAndRun.
-func (mr *MockStoreMockRecorder) TouchChatDebugStepAndRun(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugStepAndRun", reflect.TypeOf((*MockStore)(nil).TouchChatDebugStepAndRun), ctx, arg)
-}
-
 // TryAcquireLock mocks base method.
 func (m *MockStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	m.ctrl.T.Helper()

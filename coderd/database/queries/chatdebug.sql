@@ -69,8 +69,7 @@ RETURNING *;
 
 -- name: InsertChatDebugStep :one
 -- The CTE atomically locks the parent run via UPDATE, bumps its
--- updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
--- call), and enforces the finalization guard: if the run is already
+-- updated_at, and enforces the finalization guard: if the run is already
 -- finished, the UPDATE returns zero rows, the INSERT gets no source
 -- rows, and sql.ErrNoRows is returned. The UPDATE also serializes
 -- with concurrent FinalizeStale under READ COMMITTED isolation.
@@ -143,50 +142,6 @@ SET
 WHERE id = @id::uuid
     AND chat_id = @chat_id::uuid
 RETURNING *;
-
--- name: TouchChatDebugRunUpdatedAt :exec
--- Overrides updated_at on the parent run without touching any
--- other column. Used by tests that need to stamp a run with a
--- specific timestamp after the InsertChatDebugStep CTE has
--- already bumped it to NOW(), so stale-row finalization paths
--- can be exercised deterministically. The chatdebug service
--- itself does not call this: heartbeats go through
--- TouchChatDebugStepAndRun, and step creation updates the parent
--- run via the InsertChatDebugStep CTE.
-UPDATE chat_debug_runs
-SET updated_at = @now::timestamptz
-WHERE id = @id::uuid
-    AND chat_id = @chat_id::uuid;
-
--- name: TouchChatDebugStepAndRun :exec
--- Atomically bumps updated_at on both the step and its parent run
--- in a single statement. This prevents FinalizeStale from
--- interleaving between the two touches and finalizing a run whose
--- step heartbeat was just written.
---
--- The step UPDATE joins through touched_run (via FROM) and reads
--- its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
--- is the only way to communicate values between a data-modifying
--- CTE and the main query, and consuming those rows forces the run
--- UPDATE to complete before the step UPDATE. That matches the
--- lock order used by FinalizeStaleChatDebugRows and avoids a
--- deadlock between concurrent heartbeats and stale sweeps. The
--- join also constrains the step update to the specified run so a
--- mismatched (run_id, step_id) pair cannot silently refresh an
--- unrelated step.
-WITH touched_run AS (
-    UPDATE chat_debug_runs
-    SET updated_at = @now::timestamptz
-    WHERE id = @run_id::uuid
-        AND chat_id = @chat_id::uuid
-    RETURNING id, chat_id
-)
-UPDATE chat_debug_steps
-SET updated_at = @now::timestamptz
-FROM touched_run
-WHERE chat_debug_steps.id = @step_id::uuid
-    AND chat_debug_steps.run_id = touched_run.id
-    AND chat_debug_steps.chat_id = touched_run.chat_id;
 
 -- name: GetChatDebugRunsByChatID :many
 -- Returns the most recent debug runs for a chat, ordered newest-first.
