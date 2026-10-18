@@ -3332,21 +3332,12 @@ func WithChatDiffStatusRef(ref DiffStatusRef) RequestOption {
 
 // UploadChatFile uploads a file for use in chat messages.
 func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
+	return requestJSON[UploadChatFileResponse](ctx, c, http.MethodPost, fmt.Sprintf("/api/v2/chats/files?organization=%s", organizationID), http.StatusCreated, rd, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 		if filename != "" {
 			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		}
 	})
-	if err != nil {
-		return UploadChatFileResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return UploadChatFileResponse{}, ReadBodyAsError(res)
-	}
-	var resp UploadChatFileResponse
-	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ChatFileDownloadURL creates a short-lived download URL for a chat file.
@@ -3359,7 +3350,7 @@ func (c *Client) ChatFileDownloadURL(ctx context.Context, fileID uuid.UUID) (Cha
 // cap; canceling ctx aborts the stream and no partial target file is
 // left behind (the agent removes the target when the write fails).
 func (c *Client) UploadChatWorkspaceFile(ctx context.Context, chatID uuid.UUID, contentType, filename string, rd io.Reader) (UploadChatWorkspaceFileResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/workspace-files", chatID), rd, func(r *http.Request) {
+	return requestJSON[UploadChatWorkspaceFileResponse](ctx, c, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/workspace-files", chatID), http.StatusCreated, rd, func(r *http.Request) {
 		if contentType != "" {
 			r.Header.Set("Content-Type", contentType)
 		} else {
@@ -3371,15 +3362,6 @@ func (c *Client) UploadChatWorkspaceFile(ctx context.Context, chatID uuid.UUID, 
 			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		}
 	})
-	if err != nil {
-		return UploadChatWorkspaceFileResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return UploadChatWorkspaceFileResponse{}, ReadBodyAsError(res)
-	}
-	var resp UploadChatWorkspaceFileResponse
-	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatFile retrieves a previously uploaded chat file by ID.
