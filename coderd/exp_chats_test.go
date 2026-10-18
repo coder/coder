@@ -762,112 +762,175 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 	})
 
-	t.Run("NonDefaultOrgDoesNotUseDeploymentDefault", func(t *testing.T) {
+	t.Run("Rejects", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: org.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "require a local model",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
-
-	t.Run("DisabledLocalDefaultDoesNotUseDefaultOrgDefault", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModel(t, client)
-		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
-			Model:          "disabled-local-default-" + uuid.NewString(),
-			OrganizationID: org.ID,
-			IsDefault:      true,
-		}, func(params *database.InsertChatModelConfigParams) {
-			params.Enabled = false
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		newOrgMember := func(t *testing.T) (uuid.UUID, *codersdk.ExperimentalClient) {
+			t.Helper()
+			org := dbgen.Organization(t, db, database.Organization{})
+			orgMemberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
+			return org.ID, codersdk.NewExperimentalClient(orgMemberRaw)
+		}
 
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: org.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "do not use the deployment default model",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
+		// Parallel cases share a deployment, so prepare must not mutate
+		// shared fixtures.
+		tests := []struct {
+			name        string
+			prepare     func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient
+			wantStatus  int
+			wantMessage string
+			wantDetail  string
+		}{
+			{
+				name: "NonDefaultOrgDoesNotUseDeploymentDefault",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "No chat model is available in this organization.",
+				wantDetail:  "Ask an organization administrator to configure and enable a chat model.",
+			},
+			{
+				name: "DisabledLocalDefaultDoesNotUseDefaultOrgDefault",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						Model:          "disabled-local-default-" + uuid.NewString(),
+						OrganizationID: orgID,
+						IsDefault:      true,
+					}, func(params *database.InsertChatModelConfigParams) {
+						params.Enabled = false
+					})
+					req.OrganizationID = orgID
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "No chat model is available in this organization.",
+				wantDetail:  "Ask an organization administrator to configure and enable a chat model.",
+			},
+			{
+				name: "DefaultOrgExplicitModelRejectedForNonDefaultOrg",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					req.ModelConfigID = ptr.Ref(defaultConfig.ID)
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "ThirdOrgExplicitModelRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					thirdOrg := dbgen.Organization(t, db, database.Organization{})
+					thirdConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						Model:          "third-org-" + uuid.NewString(),
+						Enabled:        true,
+						IsDefault:      true,
+						OrganizationID: thirdOrg.ID,
+					})
+					req.OrganizationID = orgID
+					req.ModelConfigID = ptr.Ref(thirdConfig.ID)
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "DisabledModelConfigRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					disabledConfig := createDisabledChatModel(
+						t,
+						client,
+						coderdtest.TestChatProviderOpenAICompat,
+						"gpt-4o-create-disabled-"+uuid.NewString(),
+					)
+					req.ModelConfigID = ptr.Ref(disabledConfig.ID)
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "ProviderDisabledModelConfigRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					providerDisabledConfig := createProviderDisabledChatModel(
+						t,
+						client,
+						"openai",
+						"gpt-4o-create-provider-disabled-"+uuid.NewString(),
+					)
+					req.ModelConfigID = ptr.Ref(providerDisabledConfig.ID)
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: provider is not enabled for this model.",
+			},
+			{
+				name: "DeniedSameOrganizationExplicitModelIsRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+					privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+						Model:          "private-explicit-" + uuid.NewString(),
+						Enabled:        true,
+						OrganizationID: firstUser.OrganizationID,
+						GroupACL:       database.ChatACL{},
+					})
+					req.ModelConfigID = ptr.Ref(privateConfig.ID)
+					return memberClient
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "NilOrganizationID",
+				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.OrganizationID = uuid.Nil
+					return memberClient
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "organization_id is required.",
+			},
+			{
+				name: "NonMemberOrganization",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.OrganizationID = dbgen.Organization(t, db, database.Organization{}).ID
+					return memberClient
+				},
+				wantStatus:  http.StatusForbidden,
+				wantMessage: "You are not a member of the specified organization.",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-	t.Run("DefaultOrgExplicitModelRejectedForNonDefaultOrg", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		defaultConfig := createChatModel(t, client)
-		otherOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: otherOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "reject an explicit deployment model",
-			}},
-			ModelConfigID: ptr.Ref(defaultConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
-	})
-
-	t.Run("ThirdOrgExplicitModelRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		defaultConfig := createChatModel(t, client)
-		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		thirdOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		thirdConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
-			Model:          "third-org-" + uuid.NewString(),
-			Enabled:        true,
-			IsDefault:      true,
-			OrganizationID: thirdOrg.ID,
-		})
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: chatOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "reject a third organization's model",
-			}},
-			ModelConfigID: ptr.Ref(thirdConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				req := codersdk.CreateChatRequest{
+					OrganizationID: firstUser.OrganizationID,
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello",
+					}},
+				}
+				chatClient := tt.prepare(t, &req)
+				_, err := chatClient.CreateChat(ctx, req)
+				sdkErr := requireSDKError(t, err, tt.wantStatus)
+				require.Equal(t, tt.wantMessage, sdkErr.Message)
+				require.Equal(t, tt.wantDetail, sdkErr.Detail)
+			})
+		}
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -1359,58 +1422,6 @@ func TestPostChats(t *testing.T) {
 		}
 	})
 
-	t.Run("DisabledModelConfigRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		disabledConfig := createDisabledChatModel(
-			t,
-			client,
-			coderdtest.TestChatProviderOpenAICompat,
-			"gpt-4o-create-disabled-"+uuid.NewString(),
-		)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			ModelConfigID: ptr.Ref(disabledConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
-	})
-
-	t.Run("ProviderDisabledModelConfigRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		providerDisabledConfig := createProviderDisabledChatModel(
-			t,
-			client,
-			"openai",
-			"gpt-4o-create-provider-disabled-"+uuid.NewString(),
-		)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			ModelConfigID: ptr.Ref(providerDisabledConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
-	})
-
 	t.Run("ProviderDisabledDefaultModelRejected", func(t *testing.T) {
 		t.Parallel()
 
@@ -1468,39 +1479,6 @@ func TestPostChats(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-	})
-
-	t.Run("DeniedSameOrganizationExplicitModelIsRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
-		privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-			Model:          "private-explicit-" + uuid.NewString(),
-			Enabled:        true,
-			OrganizationID: firstUser.OrganizationID,
-			GroupACL:       database.ChatACL{},
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(
-			t,
-			client.Client,
-			firstUser.OrganizationID,
-		)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "do not admit the private model",
-			}},
-			ModelConfigID: &privateConfig.ID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
 
 	t.Run("WithPerChatSystemPrompt", func(t *testing.T) {
@@ -1792,54 +1770,6 @@ func TestPostChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid input part.", sdkErr.Message)
 		require.Equal(t, `content[0].type "image" is not supported.`, sdkErr.Detail)
-	})
-
-	t.Run("NilOrganizationID", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: uuid.Nil,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "organization_id is required.", sdkErr.Message)
-	})
-
-	t.Run("NonMemberOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		// Create a second organization via the database since the
-		// API endpoint is enterprise-only.
-		secondOrg := dbgen.Organization(t, db, database.Organization{})
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Equal(t, "You are not a member of the specified organization.", sdkErr.Message)
 	})
 
 	t.Run("CrossOrgWorkspaceMismatch", func(t *testing.T) {
