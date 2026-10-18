@@ -1814,10 +1814,7 @@ func (q *querier) authorizeChatProjectMemories(ctx context.Context, action polic
 }
 
 // authorizeChatProjectConfig authorizes an action on a project's
-// configuration, such as its instructions and skills. Reading configuration
-// requires reading the project and changing it requires updating the project.
-// Skill.RBACObject denies project rows, so every project skill query must
-// authorize here instead.
+// configuration, such as its instructions and skills.
 func (q *querier) authorizeChatProjectConfig(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
 	project, err := q.db.GetChatProjectByID(ctx, projectID)
 	if err != nil {
