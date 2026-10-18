@@ -395,80 +395,153 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	require.True(t, foundToolResult, "tool result message must be visible in chat history")
 }
 
-func TestPatchChatChildArchive(t *testing.T) {
+// TestPatchChatArchiveChildRejected verifies that PATCH /api/v2/chats/{child}
+// with archived=true returns the root-only error regardless of the
+// child's current archived value, and does not change archive state on
+// any family member.
+func TestPatchChatArchiveChildRejected(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
 
-	createFamily := func(ctx context.Context, t *testing.T, childStatuses ...database.ChatStatus) []uuid.UUID {
-		t.Helper()
-		root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
-		})
-		require.NoError(t, err)
-		driveChatToWaiting(ctx, t, api, root.ID)
+	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
+	})
+	require.NoError(t, err)
+	driveChatToWaiting(ctx, t, api, root.ID)
 
-		family := []uuid.UUID{root.ID}
-		for _, status := range childStatuses {
-			child := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    firstUser.OrganizationID,
-				OwnerID:           firstUser.UserID,
-				LastModelConfigID: modelConfig.ID,
-				Status:            status,
-				ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-				RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-			})
-			family = append(family, child.ID)
-		}
-		return family
+	// Sibling child A and B; both unarchived.
+	childA := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "child-a",
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	childB := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "child-b",
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+
+	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(true)})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
+		got, gerr := loadChatRow(ctx, db, id)
+		require.NoError(t, gerr)
+		require.False(t, got.Archived, "no family member may flip archive state after a rejected child archive")
 	}
-	requireArchived := func(ctx context.Context, t *testing.T, family []uuid.UUID, want bool, msg string) {
-		t.Helper()
-		for _, id := range family {
-			got, err := loadChatRow(ctx, db, id)
-			require.NoError(t, err)
-			require.Equal(t, want, got.Archived, msg)
-		}
+}
+
+// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/v2/chats/{child}
+// with archived=false on an archived family is rejected with the
+// root-only error and leaves every family member archived. The child
+// already matches the requested value? No, the family is archived;
+// we are asking to unarchive a child individually.
+func TestPatchChatUnarchiveChildRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+
+	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
+	})
+	require.NoError(t, err)
+	driveChatToWaiting(ctx, t, api, root.ID)
+
+	childA := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "child-a",
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	childB := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "child-b",
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+
+	// Archive the whole family via the root.
+	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
+	require.NoError(t, err)
+	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
+		got, gerr := loadChatRow(ctx, db, id)
+		require.NoError(t, gerr)
+		require.True(t, got.Archived, "precondition: family archived after root archive")
 	}
 
-	t.Run("ArchiveChildRejected", func(t *testing.T) {
-		t.Parallel()
+	// Unarchiving a child must be rejected.
+	err = client.UpdateChat(ctx, childA.ID, codersdk.UpdateChatRequest{Archived: new(false)})
+	requireSDKError(t, err, http.StatusBadRequest)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		family := createFamily(ctx, t, database.ChatStatusWaiting, database.ChatStatusWaiting)
+	for _, id := range []uuid.UUID{root.ID, childA.ID, childB.ID} {
+		got, gerr := loadChatRow(ctx, db, id)
+		require.NoError(t, gerr)
+		require.True(t, got.Archived, "no family member may flip archive state after a rejected child unarchive")
+	}
+}
 
-		err := client.UpdateChat(ctx, family[1], codersdk.UpdateChatRequest{Archived: new(true)})
-		requireSDKError(t, err, http.StatusBadRequest)
-		requireArchived(ctx, t, family, false, "no family member may flip archive state after a rejected child archive")
+// TestPatchChatArchiveRootRollsBackWhenChildCannotArchive verifies the
+// family-archive atomicity guarantee surfaced through the endpoint:
+// when a child is in a state that rejects SetArchived (running here),
+// the whole cascade rolls back and no family member changes archive
+// state.
+func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+
+	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "root"}},
+	})
+	require.NoError(t, err)
+	driveChatToWaiting(ctx, t, api, root.ID)
+
+	// Child is running (R0) which is NOT archive-eligible.
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "child",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
 	})
 
-	t.Run("UnarchiveChildRejected", func(t *testing.T) {
-		t.Parallel()
+	err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: new(true)})
+	requireSDKError(t, err, http.StatusConflict)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		family := createFamily(ctx, t, database.ChatStatusWaiting, database.ChatStatusWaiting)
-		err := client.UpdateChat(ctx, family[0], codersdk.UpdateChatRequest{Archived: new(true)})
-		require.NoError(t, err)
-		requireArchived(ctx, t, family, true, "precondition: family archived after root archive")
-
-		err = client.UpdateChat(ctx, family[1], codersdk.UpdateChatRequest{Archived: new(false)})
-		requireSDKError(t, err, http.StatusBadRequest)
-		requireArchived(ctx, t, family, true, "no family member may flip archive state after a rejected child unarchive")
-	})
-
-	t.Run("RootArchiveRollsBackWhenChildCannotArchive", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		family := createFamily(ctx, t, database.ChatStatusRunning)
-
-		err := client.UpdateChat(ctx, family[0], codersdk.UpdateChatRequest{Archived: new(true)})
-		requireSDKError(t, err, http.StatusConflict)
-		requireArchived(ctx, t, family, false, "rolled-back family archive must not leave any member archived")
-	})
+	for _, id := range []uuid.UUID{root.ID, child.ID} {
+		got, gerr := loadChatRow(ctx, db, id)
+		require.NoError(t, gerr)
+		require.False(t, got.Archived, "rolled-back family archive must not leave any member archived")
+	}
 }
 
 func TestInvalidChatStateEndpoints(t *testing.T) {
