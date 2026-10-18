@@ -392,9 +392,6 @@ func TestOrganizationSkillQueries(t *testing.T) {
 	require.Equal(t, groupSkill.ID, deleted.ID)
 }
 
-// TestProjectSkillQueries checks that project skill access follows the parent
-// project with the real authorizer: reading needs project read and writing
-// needs project update.
 func TestProjectSkillQueries(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -468,7 +465,6 @@ func TestProjectSkillQueries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, skill.ProjectID)
 
-	// Reads stay scoped to the requested project.
 	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner})
 	_, err = authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
 		ID: uuid.New(), ProjectID: otherProject.ID, Name: "other", Description: "desc", Content: "body",
