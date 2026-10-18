@@ -63,7 +63,7 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 	}
 }
 
-func TestChatClientRequestErrors(t *testing.T) {
+func TestChatClientRequests(t *testing.T) {
 	t.Parallel()
 
 	newClient := func(t *testing.T, transport testutil.RoundTripperFunc) *codersdk.Client {
@@ -120,6 +120,23 @@ func TestChatClientRequestErrors(t *testing.T) {
 		client := newClient(t, respond(http.StatusOK, `{"id":`))
 		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
 		require.ErrorContains(t, err, "Received an invalid JSON response from the Coder API.")
+	})
+
+	t.Run("RequestOptions", func(t *testing.T) {
+		t.Parallel()
+
+		var query url.Values
+		client := newClient(t, func(req *http.Request) (*http.Response, error) {
+			query = req.URL.Query()
+			return respond(http.StatusOK, `{}`)(req)
+		})
+		_, err := client.ChatModelACLAvailable(t.Context(), uuid.New(), uuid.New(), codersdk.UsersRequest{
+			Search:     "alice",
+			Pagination: codersdk.Pagination{Limit: 5},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "alice", query.Get("q"))
+		require.Equal(t, "5", query.Get("limit"))
 	})
 }
 
