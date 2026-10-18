@@ -1352,7 +1352,7 @@ func (s *taskStarter) generateCompaction(
 		modelConfigID:       prepared.ModelConfigID,
 		toolCallID:          compactionOpts.ToolCallID,
 		toolName:            compactionOpts.ToolName,
-		compaction:          compactionOutcome(outcome),
+		compaction:          outcome,
 		contentVersion:      chatprompt.CurrentContentVersion,
 		pendingUserMessages: prepared.Compaction.PendingUserRows,
 	})
