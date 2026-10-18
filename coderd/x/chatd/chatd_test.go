@@ -10121,6 +10121,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		Model  string
 		Tools  []string
 		Stream bool
+		System []string
 	}
 	var anthropicMu sync.Mutex
 	var anthropicCalls []anthropicCall
@@ -10139,6 +10140,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				Tools  []struct {
 					Name string `json:"name"`
 				} `json:"tools"`
+				System []struct {
+					Text string `json:"text"`
+				} `json:"system"`
 			}
 			if err := json.Unmarshal(body, &req); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -10149,11 +10153,16 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			for i, tool := range req.Tools {
 				names[i] = tool.Name
 			}
+			system := make([]string, len(req.System))
+			for i, block := range req.System {
+				system[i] = block.Text
+			}
 			anthropicMu.Lock()
 			anthropicCalls = append(anthropicCalls, anthropicCall{
 				Model:  req.Model,
 				Tools:  names,
 				Stream: req.Stream,
+				System: system,
 			})
 			anthropicMu.Unlock()
 
@@ -10405,7 +10414,18 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				"tool %q", tool)
 	}
 
-	// 6. Verify the child chat has Mode = computer_use in
+	// 6. Verify the root-only advisor tool and guidance are NOT
+	//    present.
+	require.NotContains(t, childTools, chatadvisor.ToolName,
+		"computer use subagent should NOT have the advisor tool")
+	require.NotEmpty(t, childCall.System,
+		"expected the child request to carry a system prompt")
+	for _, text := range childCall.System {
+		require.NotContains(t, text, chatadvisor.ParentGuidanceBlock,
+			"computer use subagent should NOT get the advisor guidance")
+	}
+
+	// 7. Verify the child chat has Mode = computer_use in
 	//    the DB.
 	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 		ParentIds: []uuid.UUID{chat.ID},
