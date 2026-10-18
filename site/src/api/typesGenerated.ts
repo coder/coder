@@ -2731,31 +2731,12 @@ export interface ChatFileReferencePart {
 
 // From codersdk/chats.go
 /**
- * ChatGitChange represents a git file change detected during a chat session.
- */
-export interface ChatGitChange {
-	readonly id: string;
-	readonly chat_id: string;
-	readonly file_path: string;
-	readonly change_type: string; // added, modified, deleted, renamed
-	readonly old_path?: string;
-	readonly diff_summary?: string;
-	readonly detected_at: string;
-}
-
-// From codersdk/chats.go
-/**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  * ChatGitWatchAgentStatePrefix is the common prefix of the
- * message produced by ChatGitWatchAgentStateMessage. The CLI
- * uses it as a mechanical fingerprint for the "agent not yet
- * connected" case without depending on the formatted values.
+ * message produced by ChatGitWatchAgentStateMessage.
  */
 export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 
@@ -2764,10 +2745,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchNoEligibleAgentMessage =
 	"No eligible agent found for chat workspace.";
@@ -2777,10 +2755,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 
@@ -2789,10 +2764,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
  * /api/v2/chats/{id}/stream/git when the chat cannot be
- * observed through a workspace agent. They are exported so the CLI
- * (and any future consumer) can match them structurally via
- * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
- * Keep these in sync with coderd/exp_chats.go.
+ * observed through a workspace agent.
  */
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 

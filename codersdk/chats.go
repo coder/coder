@@ -719,16 +719,6 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
-// ChatMessageSource builds a source chat message part.
-func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
-	return ChatMessagePart{
-		Type:     ChatMessagePartTypeSource,
-		SourceID: sourceID,
-		URL:      sourceURL,
-		Title:    title,
-	}
-}
-
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
@@ -1862,17 +1852,6 @@ type UpdateChatModelRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// ChatGitChange represents a git file change detected during a chat session.
-type ChatGitChange struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
-	FilePath    string    `json:"file_path"`
-	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
-	OldPath     *string   `json:"old_path,omitempty"`
-	DiffSummary *string   `json:"diff_summary,omitempty"`
-	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
-}
-
 // ChatDiffStatus represents cached diff status for a chat. The URL
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
@@ -1927,18 +1906,13 @@ type ChatDiffContents struct {
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be
-// observed through a workspace agent. They are exported so the CLI
-// (and any future consumer) can match them structurally via
-// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
-// Keep these in sync with coderd/exp_chats.go.
+// observed through a workspace agent.
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
 	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
-	// message produced by ChatGitWatchAgentStateMessage. The CLI
-	// uses it as a mechanical fingerprint for the "agent not yet
-	// connected" case without depending on the formatted values.
+	// message produced by ChatGitWatchAgentStateMessage.
 	ChatGitWatchAgentStatePrefix = "Agent state is "
 )
 
@@ -1947,22 +1921,6 @@ const (
 // chat workspace's agent is not in the connected state.
 func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
 	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
-}
-
-// IsChatGitWatchFallbackMessage reports whether msg matches one of
-// the 400-response messages /api/v2/chats/{id}/stream/git
-// emits when the chat cannot be observed through a workspace agent.
-// Clients should treat these cases as "no diff available" and fall
-// back to the empty remote diff instead of surfacing a hard error.
-func IsChatGitWatchFallbackMessage(msg string) bool {
-	trimmed := strings.TrimSpace(msg)
-	switch trimmed {
-	case ChatGitWatchNoWorkspaceMessage,
-		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchNoEligibleAgentMessage:
-		return true
-	}
-	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
 }
 
 // ChatStreamEventType represents the kind of chat stream update.
