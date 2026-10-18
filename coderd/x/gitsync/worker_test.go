@@ -1186,7 +1186,6 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 		Url:             sql.NullString{},
 	})
 	require.NoError(t, err)
-	// The new ref is not stale, so a worker tick refreshes only the old ref.
 	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
 		ChatID:          chat.ID,
 		GitBranch:       "new",
