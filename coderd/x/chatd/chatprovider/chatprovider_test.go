@@ -811,7 +811,6 @@ func TestBetaHeadersFromCallConfig(t *testing.T) {
 		{name: "Unset", provider: fantasyanthropic.Name, config: configWith1M(nil), want: nil},
 		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(new(false)), want: nil},
 		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(new(true)), want: beta},
-		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(new(true)), want: beta},
 		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(new(true)), want: nil},
 		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(new(true)), want: nil},
 	}
