@@ -13,10 +13,8 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
@@ -217,13 +215,7 @@ func (d *debugModel) Generate(
 		return d.inner.Generate(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.Generate(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
@@ -286,13 +278,7 @@ func (d *debugModel) GenerateObject(
 		return d.inner.GenerateObject(ctx, call)
 	}
 
-	// Keep the step alive during the blocking provider call so the
-	// stale finalizer does not mark it as interrupted.
-	heartbeatDone := make(chan struct{})
-	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
-
 	resp, err := d.inner.GenerateObject(enrichedCtx, call)
-	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
@@ -351,15 +337,6 @@ func (d *debugModel) Model() string {
 	return d.inner.Model()
 }
 
-func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uuid.UUID, done <-chan struct{}) {
-	if svc == nil {
-		return
-	}
-	svc.heartbeat(ctx, done, "heartbeat", func(ctx context.Context) error {
-		return svc.TouchStep(ctx, stepID, runID, chatID)
-	}, slog.F("step_id", stepID))
-}
-
 type streamStep struct {
 	ctx    context.Context
 	handle *stepHandle
@@ -370,13 +347,11 @@ type streamStep struct {
 	finalized bool
 	complete  atomic.Bool
 
-	heartbeatDone  chan struct{}
-	stop           func() bool
-	startHeartbeat func()
+	stop func() bool
 }
 
 func newStreamStep(ctx context.Context, handle *stepHandle) *streamStep {
-	s := &streamStep{ctx: ctx, handle: handle, heartbeatDone: make(chan struct{})}
+	s := &streamStep{ctx: ctx, handle: handle}
 	// Finalize a dropped or abandoned stream when ctx ends so the step
 	// does not stay in progress.
 	s.stop = context.AfterFunc(ctx, func() {
@@ -386,11 +361,6 @@ func newStreamStep(ctx context.Context, handle *stepHandle) *streamStep {
 			return
 		}
 		s.finalizeLocked(StatusInterrupted, nil, nil, nil, nil)
-	})
-	// Delay the heartbeat until iteration begins to avoid a goroutine for
-	// an iterator that is never consumed.
-	s.startHeartbeat = sync.OnceFunc(func() {
-		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, s.heartbeatDone)
 	})
 	return s
 }
@@ -412,7 +382,6 @@ func (s *streamStep) finish(status Status, out *streamOutcome, payload func() (r
 
 func (s *streamStep) finalizeLocked(status Status, resp, usage, errPayload, metadata any) {
 	s.finalized = true
-	close(s.heartbeatDone)
 	s.handle.finish(s.ctx, status, resp, usage, errPayload, metadata)
 }
 
@@ -474,7 +443,6 @@ func wrapStreamSeq(
 ) fantasy.StreamResponse {
 	step := newStreamStep(ctx, handle)
 	return func(yield func(fantasy.StreamPart) bool) {
-		step.startHeartbeat()
 		var (
 			summary          streamSummary
 			out              = streamOutcome{status: StatusCompleted}
@@ -547,7 +515,6 @@ func wrapObjectStreamSeq(
 ) fantasy.ObjectStreamResponse {
 	step := newStreamStep(ctx, handle)
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
-		step.startHeartbeat()
 		var (
 			summary       = objectStreamSummary{StructuredOutput: true}
 			out           = streamOutcome{status: StatusCompleted}

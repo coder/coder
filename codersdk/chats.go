@@ -1304,7 +1304,7 @@ type UpdateUserChatDebugLoggingRequest struct {
 
 // ChatDebugStatus enumerates the lifecycle states shared by debug
 // runs and steps. These values must match the literals used in
-// FinalizeStaleChatDebugRows and all insert/update callers.
+// insert/update callers.
 type ChatDebugStatus string
 
 const (
@@ -1313,18 +1313,6 @@ const (
 	ChatDebugStatusError       ChatDebugStatus = "error"
 	ChatDebugStatusInterrupted ChatDebugStatus = "interrupted"
 )
-
-// ChatDebugTerminalStatuses returns the statuses that represent a
-// finished lifecycle. The SQL query FinalizeStaleChatDebugRows uses
-// a NOT IN list that must match these exactly. A test in
-// coderd/database asserts this alignment at CI time.
-func ChatDebugTerminalStatuses() []ChatDebugStatus {
-	return []ChatDebugStatus{
-		ChatDebugStatusCompleted,
-		ChatDebugStatusError,
-		ChatDebugStatusInterrupted,
-	}
-}
 
 // AllChatDebugStatuses contains every ChatDebugStatus value.
 // Update this when adding new constants above.

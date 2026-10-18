@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type testError struct{ message string }
@@ -73,9 +72,6 @@ func expectCreateStepNumberWithRequestValidity(
 				Status:     params.Status,
 			}, nil
 		})
-
-	// The INSERT CTE atomically bumps the parent run's updated_at,
-	// so no separate TouchChatDebugRunUpdatedAt call is needed.
 
 	return stepID
 }
@@ -510,6 +506,7 @@ func TestDebugModel_Stream(t *testing.T) {
 		require.NoError(t, json.Unmarshal(params.NormalizedResponse.RawMessage, &resp))
 		require.Equal(t, "stop", resp.FinishReason)
 		require.NotEmpty(t, resp.Content, "stream response should capture content parts")
+		require.Equal(t, "hel", resp.Content[0].Text, "stream response should capture the streamed text")
 
 		// Verify error payload comes from the stream error part.
 		var errPayload normalizedErrorPayload
@@ -1090,7 +1087,7 @@ type streamWrapperParts[P any] struct {
 func TestStreamWrapperStatus(t *testing.T) {
 	t.Parallel()
 
-	usage := fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4}
+	usage := fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4, ReasoningTokens: 2, CacheCreationTokens: 5, CacheReadTokens: 6}
 	t.Run("Stream", func(t *testing.T) {
 		t.Parallel()
 		runStreamWrapperStatusCases(t, wrapStreamSeq, streamWrapperParts[fantasy.StreamPart]{
@@ -1127,9 +1124,12 @@ func runStreamWrapperStatusCases[P any](
 	t.Helper()
 
 	failed := parts.withError(parts.errorPart, xerrors.New("chunk failed"))
-	finished := streamRecord{Status: StatusCompleted, FinishReason: "stop", InputTokens: 3}
-	failedThenFinished := streamRecord{Status: StatusError, FinishReason: "stop", InputTokens: 3, ErrorCount: 1, LastError: "chunk failed", HadError: true}
-	interrupted := streamRecord{Status: StatusInterrupted}
+	usage := &normalizedUsage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4, ReasoningTokens: 2, CacheCreationTokens: 5, CacheReadTokens: 6}
+	finished := streamRecord{Status: StatusCompleted, FinishReason: "stop", Usage: usage, Summarized: true}
+	failedThenFinished := streamRecord{Status: StatusError, FinishReason: "stop", Usage: usage, ErrorCount: 1, LastError: "chunk failed", HadError: true, Summarized: true}
+	interrupted := streamRecord{Status: StatusInterrupted, Summarized: true}
+	// The safety net finalizes without a response, usage or summary.
+	abandoned := streamRecord{Status: StatusInterrupted}
 	tests := []struct {
 		name                string
 		parts               []P
@@ -1143,12 +1143,12 @@ func runStreamWrapperStatusCases[P any](
 		{name: "EndedWithoutFinish", parts: []P{parts.delta}, want: interrupted},
 		{name: "ErrorPart", parts: []P{failed, parts.finish}, want: failedThenFinished},
 		{name: "ErrorOnOtherPart", parts: []P{parts.withError(parts.delta, xerrors.New("chunk failed")), parts.finish}, want: failedThenFinished},
-		{name: "ErrorPartWithoutError", parts: []P{parts.errorPart}, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "stream error part with nil error", HadError: true}},
-		{name: "StoppedAfterErrorPart", parts: []P{failed, parts.finish}, stopAfter: 1, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "chunk failed", HadError: true}},
-		{name: "CanceledErrorPart", parts: []P{parts.withError(parts.errorPart, context.Canceled)}, want: streamRecord{Status: StatusInterrupted, ErrorCount: 1, LastError: "context canceled", HadError: true}},
+		{name: "ErrorPartWithoutError", parts: []P{parts.errorPart}, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "stream error part with nil error", HadError: true, Summarized: true}},
+		{name: "StoppedAfterErrorPart", parts: []P{failed, parts.finish}, stopAfter: 1, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "chunk failed", HadError: true, Summarized: true}},
+		{name: "CanceledErrorPart", parts: []P{parts.withError(parts.errorPart, context.Canceled)}, want: streamRecord{Status: StatusInterrupted, ErrorCount: 1, LastError: "context canceled", HadError: true, Summarized: true}},
 		{name: "CanceledWhileYieldingFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 2, want: finished},
-		{name: "CanceledBeforeFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 1, want: interrupted},
-		{name: "DroppedThenCanceled", parts: []P{parts.delta, parts.finish}, dropped: true, want: interrupted},
+		{name: "CanceledBeforeFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 1, want: abandoned},
+		{name: "DroppedThenCanceled", parts: []P{parts.delta, parts.finish}, dropped: true, want: abandoned},
 	}
 
 	for _, tc := range tests {
@@ -1156,10 +1156,7 @@ func runStreamWrapperStatusCases[P any](
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				handle := &stepHandle{
-					stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-					sink:    &attemptSink{},
-				}
+				handle, store := newRecordedStep(t)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				cancelAndWait := func() {
@@ -1182,23 +1179,78 @@ func runStreamWrapperStatusCases[P any](
 				}
 				cancelAndWait()
 
-				require.Equal(t, tc.want, recordedStream(t, handle))
+				require.Equal(t, tc.want, recordedStream(t, handle, store))
 			})
 		})
 	}
+
+	// The consumer stops right after cancel, so the safety net and the
+	// consumer race to finalize. Either may win, but only one may write.
+	t.Run("StoppedRightAfterCancel", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			handle, store := newRecordedStep(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			seq := wrap(ctx, handle, slices.Values([]P{parts.delta, parts.finish}))
+			cancel()
+			for range seq {
+				break
+			}
+			synctest.Wait()
+
+			require.Equal(t, StatusInterrupted, recordedStream(t, handle, store).Status)
+		})
+	})
+}
+
+// stepWriteStore records the step updates that reach the database.
+type stepWriteStore struct {
+	database.Store
+	mu      sync.Mutex
+	updates []database.UpdateChatDebugStepParams
+}
+
+func (s *stepWriteStore) UpdateChatDebugStep(_ context.Context, params database.UpdateChatDebugStepParams) (database.ChatDebugStep, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates = append(s.updates, params)
+	return database.ChatDebugStep{ID: params.ID, ChatID: params.ChatID}, nil
+}
+
+func newRecordedStep(t *testing.T) (*stepHandle, *stepWriteStore) {
+	t.Helper()
+
+	store := &stepWriteStore{}
+	return &stepHandle{
+		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
+		sink:    &attemptSink{},
+		svc:     NewService(store, testutil.Logger(t), nil),
+	}, store
 }
 
 type streamRecord struct {
 	Status       Status
 	FinishReason string
-	InputTokens  int64
-	ErrorCount   int
-	LastError    string
-	HadError     bool
+	// Usage is the stored usage column, nil when it is NULL.
+	Usage      *normalizedUsage
+	ErrorCount int
+	LastError  string
+	HadError   bool
+	// Summarized is false when the safety net, not the wrapper,
+	// finalized the step and recorded no stream summary.
+	Summarized bool
 }
 
-func recordedStream(t *testing.T, handle *stepHandle) streamRecord {
+func recordedStream(t *testing.T, handle *stepHandle, store *stepWriteStore) streamRecord {
 	t.Helper()
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.Len(t, store.updates, 1, "the step must be finalized exactly once")
+	stored := store.updates[0]
 
 	handle.mu.Lock()
 	defer handle.mu.Unlock()
@@ -1219,119 +1271,25 @@ func recordedStream(t *testing.T, handle *stepHandle) streamRecord {
 		require.NoError(t, json.Unmarshal(raw, dst))
 	}
 	require.Equal(t, resp.FinishReason, meta.Summary.FinishReason)
+	var usage *normalizedUsage
+	if stored.Usage.Valid {
+		usage = &normalizedUsage{}
+		require.NoError(t, json.Unmarshal(stored.Usage.RawMessage, usage))
+		require.Equal(t, *usage, resp.Usage, "the response usage must match the stored usage")
+	} else {
+		require.Zero(t, resp.Usage)
+	}
 	return streamRecord{
 		Status:       handle.status,
 		FinishReason: resp.FinishReason,
-		InputTokens:  resp.Usage.InputTokens,
+		Usage:        usage,
 		ErrorCount:   meta.Summary.ErrorCount,
 		LastError:    meta.Summary.LastError,
 		HadError:     handle.hadError,
+		Summarized:   handle.metadata != nil,
 	}
 }
 
 func int64Ptr(v int64) *int64 { return &v }
 
 func float64Ptr(v float64) *float64 { return &v }
-
-func TestLaunchHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	stepID, runID, chatID := uuid.New(), uuid.New(), uuid.New()
-	launchers := []struct {
-		name          string
-		tag           string
-		launch        func(context.Context, *Service, <-chan struct{})
-		expectTouches func(*dbmock.MockStore, chan<- any)
-		wantTouch     func(now time.Time) any
-	}{
-		{
-			name: "step",
-			tag:  "heartbeat",
-			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
-				launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-			},
-			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
-				db.EXPECT().TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
-						touched <- params
-						return nil
-					}).Times(2)
-			},
-			wantTouch: func(now time.Time) any {
-				return database.TouchChatDebugStepAndRunParams{Now: now, StepID: stepID, RunID: runID, ChatID: chatID}
-			},
-		},
-		{
-			name: "run",
-			tag:  "run-heartbeat",
-			launch: func(ctx context.Context, svc *Service, done <-chan struct{}) {
-				svc.LaunchRunHeartbeat(ctx, runID, chatID, done)
-			},
-			expectTouches: func(db *dbmock.MockStore, touched chan<- any) {
-				db.EXPECT().TouchChatDebugRunUpdatedAt(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, params database.TouchChatDebugRunUpdatedAtParams) error {
-						touched <- params
-						return nil
-					}).Times(2)
-			},
-			wantTouch: func(now time.Time) any {
-				return database.TouchChatDebugRunUpdatedAtParams{Now: now, ID: runID, ChatID: chatID}
-			},
-		},
-	}
-	stoppers := []struct {
-		name string
-		stop func(cancel context.CancelFunc, done chan struct{})
-	}{
-		{name: "done", stop: func(_ context.CancelFunc, done chan struct{}) { close(done) }},
-		{name: "ctx", stop: func(cancel context.CancelFunc, _ chan struct{}) { cancel() }},
-	}
-	for _, launcher := range launchers {
-		for _, stopper := range stoppers {
-			t.Run(launcher.name+"_touches_until_"+stopper.name, func(t *testing.T) {
-				t.Parallel()
-
-				ctrl := gomock.NewController(t)
-				db := dbmock.NewMockStore(ctrl)
-				mClock := quartz.NewMock(t)
-				svc := NewService(db, testutil.Logger(t), nil)
-				svc.clock = mClock
-				touched := make(chan any)
-				launcher.expectTouches(db, touched)
-
-				newTicker := mClock.Trap().NewTicker("chatdebug", launcher.tag)
-				defer newTicker.Close()
-				stopTicker := mClock.Trap().TickerStop()
-				defer stopTicker.Close()
-
-				ctx := testutil.Context(t, testutil.WaitShort)
-				heartbeatCtx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				done := make(chan struct{})
-				launcher.launch(heartbeatCtx, svc, done)
-
-				call := newTicker.MustWait(ctx)
-				require.Equal(t, DefaultStaleThreshold/2, call.Duration)
-				call.MustRelease(ctx)
-				for range 2 {
-					mClock.Advance(DefaultStaleThreshold / 2).MustWait(ctx)
-					require.Equal(t, launcher.wantTouch(mClock.Now()), testutil.RequireReceive(ctx, t, touched))
-				}
-
-				stopper.stop(cancel, done)
-				stopTicker.MustWait(ctx).MustRelease(ctx)
-			})
-		}
-	}
-
-	t.Run("nil_service_noop", func(t *testing.T) {
-		t.Parallel()
-
-		done := make(chan struct{})
-		defer close(done)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		for _, launcher := range launchers {
-			launcher.launch(ctx, nil, done)
-		}
-	})
-}
