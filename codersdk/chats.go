@@ -719,6 +719,16 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
+// ChatMessageSource builds a source chat message part.
+func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:     ChatMessagePartTypeSource,
+		SourceID: sourceID,
+		URL:      sourceURL,
+		Title:    title,
+	}
+}
+
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
