@@ -1235,7 +1235,7 @@ type sqlcQuerier interface {
 	// updated_at, and enforces the finalization guard: if the run is already
 	// finished, the UPDATE returns zero rows, the INSERT gets no source
 	// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
-	// with concurrent FinalizeStale under READ COMMITTED isolation.
+	// with a concurrent run finalization under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
@@ -1582,8 +1582,7 @@ type sqlcQuerier interface {
 	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation
 	// or finalization and never cleared back to NULL. The @now
-	// parameter keeps updated_at under the caller's clock, matching
-	// the injectable quartz.Clock used by FinalizeStale sweeps.
+	// parameter keeps updated_at under the caller's clock.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error
 	// Atomically updates the execution-state-managed fields on a chat:

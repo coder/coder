@@ -5934,7 +5934,7 @@ type InsertChatDebugStepParams struct {
 // updated_at, and enforces the finalization guard: if the run is already
 // finished, the UPDATE returns zero rows, the INSERT gets no source
 // rows, and sql.ErrNoRows is returned. The UPDATE also serializes
-// with concurrent FinalizeStale under READ COMMITTED isolation.
+// with a concurrent run finalization under READ COMMITTED isolation.
 func (q *sqlQuerier) InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugStep,
 		arg.RunID,
@@ -6102,8 +6102,7 @@ type UpdateChatDebugStepParams struct {
 // existing value." This is intentional: debug rows follow a
 // write-once-finalize pattern where fields are set at creation
 // or finalization and never cleared back to NULL. The @now
-// parameter keeps updated_at under the caller's clock, matching
-// the injectable quartz.Clock used by FinalizeStale sweeps.
+// parameter keeps updated_at under the caller's clock.
 func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error) {
 	row := q.db.QueryRowContext(ctx, updateChatDebugStep,
 		arg.Status,

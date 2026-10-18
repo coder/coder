@@ -1450,18 +1450,12 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
-			debugSvc := chatdebug.NewService(
+			return chatdebug.NewService(
 				cfg.Database,
 				cfg.Logger.Named("chatdebug"),
 				ps,
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
 			)
-			// Debug runs do not heartbeat during model streams; their
-			// updated_at is only touched on step/run completion. Use a
-			// longer stale window so long-running turns are not falsely
-			// finalized as stale while still executing.
-			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
-			return debugSvc
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
