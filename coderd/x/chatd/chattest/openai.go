@@ -57,7 +57,7 @@ type OpenAIRequest struct {
 	Store    *bool           `json:"store,omitempty"`
 	// RawBody holds the original request body so callers can inspect
 	// fields the typed struct does not expose, such as the Responses
-	// API "input" payload. It is populated before JSON decoding.
+	// API "input" payload.
 	RawBody []byte `json:"-"`
 }
 
