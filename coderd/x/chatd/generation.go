@@ -1118,7 +1118,6 @@ func (s *taskStarter) executeLocalTools(
 			ModelProvider:      provider,
 			ModelName:          modelName,
 			ContextLimit:       prepared.ContextLimitFallback,
-			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
 			ToolCallContext: func(ctx context.Context, tc fantasy.ToolCallContent) context.Context {

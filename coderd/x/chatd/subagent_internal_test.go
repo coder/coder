@@ -4166,9 +4166,6 @@ func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
 	for _, tool := range tools {
 		catalog[tool.Info().Name] = true
 	}
-	for alias := range subagentToolNameAliases {
-		catalog[alias] = true
-	}
 	require.Equal(t, catalog, unbilledSubagentToolNames)
 }
 

@@ -55,11 +55,6 @@ func validateOverriddenToolInputs(prepared turnEnvironment, preflight chathooks.
 // decodes itself. Dynamic calls are executed by the client and MCP calls by
 // their own server, and a dynamic tool cannot shadow a builtin name.
 func validateBuiltinToolInput(prepared turnEnvironment, toolName string, input []byte) error {
-	// Execution resolves a deprecated alias to its canonical tool, so
-	// skipping that here would let the old name bypass validation.
-	if canonical, aliased := subagentToolNameAliases[toolName]; aliased {
-		toolName = canonical
-	}
 	if !prepared.BuiltinToolNames[toolName] {
 		return nil
 	}
