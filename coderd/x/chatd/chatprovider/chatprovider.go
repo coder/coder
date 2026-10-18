@@ -151,14 +151,9 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	isPDF := baseType == "application/pdf"
 
 	switch NormalizeProvider(m.Provider()) {
-	case fantasygoogle.Name:
-		// Google passes any file part through unfiltered.
-		return true
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		// Bedrock wraps the anthropic client, so it shares the same
-		// file-part acceptance, including text/* as native documents.
+	case fantasyanthropic.Name:
 		return isImage || isText || isPDF
-	case fantasyopenai.Name, fantasyazure.Name:
+	case fantasyopenai.Name:
 		// Chat Completions accepts text and audio as native file parts.
 		if m.transport.UsesResponses() {
 			return isImage || isPDF
@@ -166,8 +161,6 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 		return isImage || isText || isAudio || isPDF
 	case fantasyopenaicompat.Name:
 		return isImage || isText || isAudio || isPDF
-	case fantasyopenrouter.Name, fantasyvercel.Name:
-		return isImage || isAudio || isPDF
 	default:
 		return false
 	}
@@ -622,8 +615,7 @@ const AnthropicBetaContext1M = "context-1m-2025-08-07"
 // HeaderAnthropicBeta names Anthropic's beta feature header.
 const HeaderAnthropicBeta = "Anthropic-Beta"
 
-// BetaHeadersFromCallConfig returns beta feature headers for Anthropic and
-// Bedrock calls.
+// BetaHeadersFromCallConfig returns beta feature headers for Anthropic calls.
 func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCallConfig) map[string]string {
 	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.Anthropic == nil {
 		return nil
@@ -632,12 +624,10 @@ func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCa
 	if enabled == nil || !*enabled {
 		return nil
 	}
-	switch NormalizeProvider(providerName) {
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
-	default:
+	if NormalizeProvider(providerName) != fantasyanthropic.Name {
 		return nil
 	}
+	return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
 }
 
 // openAIResponsesAPIOverride returns the configured OpenAI Responses API
