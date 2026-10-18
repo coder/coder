@@ -95,6 +95,7 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 
 // InlineImageCapBytes returns the per-image byte cap for inline
 // image parts, or (0, false) when no documented cap applies.
+// Bedrock shares Anthropic's cap because its Anthropic models use the Anthropic client.
 func InlineImageCapBytes(provider string) (int, bool) {
 	switch NormalizeProvider(provider) {
 	case fantasyanthropic.Name, fantasybedrock.Name:
