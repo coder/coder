@@ -9370,6 +9370,15 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				require.True(t, runs[0].FinishedAt.Valid)
 				require.True(t, runs[0].HistoryTipMessageID.Valid)
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
+				require.False(t, runs[0].TriggerMessageID.Valid)
+				require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, runs[0].ModelConfigID)
+				require.Equal(t, sql.NullString{String: model.Model, Valid: true}, runs[0].Model)
+				var summary map[string]any
+				require.NoError(t, json.Unmarshal(runs[0].Summary, &summary))
+				require.Equal(t, "summarize debug title generation", summary["first_message"])
+				steps, err := db.GetChatDebugStepsByRunID(ctx, runs[0].ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, steps)
 			}
 			if !tt.wantErr {
 				// Title generation must not write accounting rows to
