@@ -18409,7 +18409,7 @@
 					"format": "date-time"
 				},
 				"status": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
 				},
 				"workspace_agent_id": {
 					"type": "string"
@@ -31556,12 +31556,21 @@
 		},
 		"codersdk.WorkspaceAgentScriptStatus": {
 			"type": "string",
-			"enum": ["ok", "exit_failure", "timed_out", "pipes_left_open"],
+			"enum": [
+				"ok",
+				"exit_failure",
+				"timed_out",
+				"pipes_left_open",
+				"skipped",
+				"canceled"
+			],
 			"x-enum-varnames": [
 				"WorkspaceAgentScriptStatusOK",
 				"WorkspaceAgentScriptStatusExitFailure",
 				"WorkspaceAgentScriptStatusTimedOut",
-				"WorkspaceAgentScriptStatusPipesLeftOpen"
+				"WorkspaceAgentScriptStatusPipesLeftOpen",
+				"WorkspaceAgentScriptStatusSkipped",
+				"WorkspaceAgentScriptStatusCanceled"
 			]
 		},
 		"codersdk.WorkspaceAgentStartupScriptBehavior": {

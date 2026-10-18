@@ -22,8 +22,10 @@ Use the dashboard, CLI, or API:
    Provisioners are organization-specific.
    If you have more than one organization, select it first.
 
-- **CLI**: `coder provisioner jobs list`
-- **API**: `/api/v2/provisioner/jobs`
+- **CLI**:
+  `coder provisioner jobs list`
+- **API**:
+  `/api/v2/provisioner/jobs`
 
 ## Manage provisioner jobs from the dashboard
 

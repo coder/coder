@@ -2733,17 +2733,17 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                     |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                           |
-| `open_in`                 | `slim-window`, `tab`                                                                                                         |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `requirement`             | `completion`, `success`                                                                                                      |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
+| Property                  | Value(s)                                                                                                                          |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                |
+| `open_in`                 | `slim-window`, `tab`                                                                                                              |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                          |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`      |
+| `requirement`             | `completion`, `success`                                                                                                           |
+| `status`                  | `canceled`, `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                        |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3440,17 +3440,17 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                     |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                           |
-| `open_in`                 | `slim-window`, `tab`                                                                                                         |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `requirement`             | `completion`, `success`                                                                                                      |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
+| Property                  | Value(s)                                                                                                                          |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                |
+| `open_in`                 | `slim-window`, `tab`                                                                                                              |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                          |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`      |
+| `requirement`             | `completion`, `success`                                                                                                           |
+| `status`                  | `canceled`, `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout` |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                        |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
