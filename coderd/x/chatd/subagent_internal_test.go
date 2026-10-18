@@ -4088,9 +4088,6 @@ func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
 	for _, tool := range server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID) {
 		catalog[tool.Info().Name] = true
 	}
-	for alias := range subagentToolNameAliases {
-		catalog[alias] = true
-	}
 	require.Equal(t, catalog, unbilledSubagentToolNames)
 }
 
