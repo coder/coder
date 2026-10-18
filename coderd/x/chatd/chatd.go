@@ -1134,7 +1134,7 @@ func (p *Server) generateManualTitleCandidate(
 	titleCtx := ctx
 	finishDebugRun := func(error) {}
 	if resolved.debugEnabled {
-		titleCtx, finishDebugRun = p.prepareManualTitleDebugRun(
+		titleCtx, finishDebugRun = prepareManualTitleDebugRun(
 			ctx,
 			p.debugService(),
 			chat,
@@ -1159,17 +1159,13 @@ func (p *Server) generateManualTitleCandidate(
 	return title, nil
 }
 
-func (p *Server) prepareManualTitleDebugRun(
+func prepareManualTitleDebugRun(
 	ctx context.Context,
 	debugSvc *chatdebug.Service,
 	chat database.Chat,
 	resolved resolvedModelCall,
 	messages []database.ChatMessage,
 ) (context.Context, func(error)) {
-	titleCtx := ctx
-	finishDebugRun := func(error) {}
-	modelConfig := resolved.dbConfig
-
 	var historyTipMessageID int64
 	if len(messages) > 0 {
 		historyTipMessageID = messages[len(messages)-1].ID
@@ -1192,75 +1188,16 @@ func (p *Server) prepareManualTitleDebugRun(
 		chatdebug.TruncateLabel(firstUserLabel, chatdebug.MaxLabelLength),
 	)
 
-	createRunCtx, createRunCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	debugRun, createRunErr := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return debugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
-		ModelConfigID:       modelConfig.ID,
+		ModelConfigID:       resolved.dbConfig.ID,
 		Provider:            string(resolved.route.Provider.Type),
-		Model:               modelConfig.Model,
+		Model:               resolved.dbConfig.Model,
 		Kind:                chatdebug.KindTitleGeneration,
 		Status:              chatdebug.StatusInProgress,
 		HistoryTipMessageID: historyTipMessageID,
 		TriggerMessageID:    0,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if createRunErr != nil {
-		p.logger.Warn(ctx, "failed to create manual title debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", modelConfig.Model),
-			slog.Error(createRunErr),
-		)
-		return titleCtx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(debugRun)
-	titleCtx = chatdebug.ContextWithRun(titleCtx, &runContext)
-	finishDebugRun = func(generateErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       debugRun.ID,
-			ChatID:      debugRun.ChatID,
-			Status:      chatdebug.ClassifyError(generateErr),
-			SeedSummary: seedSummary,
-		}); finalizeErr != nil {
-			p.logger.Warn(ctx, "failed to finalize manual title debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_id", debugRun.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-
-	return titleCtx, finishDebugRun
-}
-
-func chatdebugRunContext(run database.ChatDebugRun) chatdebug.RunContext {
-	runContext := chatdebug.RunContext{
-		RunID:  run.ID,
-		ChatID: run.ChatID,
-	}
-	if run.RootChatID.Valid {
-		runContext.RootChatID = run.RootChatID.UUID
-	}
-	if run.ParentChatID.Valid {
-		runContext.ParentChatID = run.ParentChatID.UUID
-	}
-	if run.ModelConfigID.Valid {
-		runContext.ModelConfigID = run.ModelConfigID.UUID
-	}
-	if run.TriggerMessageID.Valid {
-		runContext.TriggerMessageID = run.TriggerMessageID.Int64
-	}
-	if run.HistoryTipMessageID.Valid {
-		runContext.HistoryTipMessageID = run.HistoryTipMessageID.Int64
-	}
-	if run.Provider.Valid {
-		runContext.Provider = run.Provider.String
-	}
-	if run.Model.Valid {
-		runContext.Model = run.Model.String
-	}
-	return runContext
+	}, seedSummary, debugFinalizeTimeout)
 }
 
 func deriveChatDebugSeed(messages []database.ChatMessage) (

@@ -96,10 +96,7 @@ func (d *runnerDebugTurn) ensureLocked(
 		parentChatID = chat.ParentChatID.UUID
 	}
 
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), debugCreateRunTimeout,
-	)
-	run, createRunErr := debug.Service.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	runContext, ok := debug.Service.BeginRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
 		RootChatID:          rootChatID,
 		ParentChatID:        parentChatID,
@@ -112,18 +109,13 @@ func (d *runnerDebugTurn) ensureLocked(
 		Model:               debug.Model,
 		Summary:             seedSummary,
 	})
-	createRunCancel()
-	if createRunErr != nil {
+	if !ok {
 		d.disabled = true
-		d.logger.Warn(ctx, "failed to create chat debug run",
-			slog.F("chat_id", chat.ID),
-			slog.Error(createRunErr),
-		)
 		return ctx
 	}
 
 	d.service = debug.Service
-	d.runContext = chatdebugRunContext(run)
+	d.runContext = runContext
 	d.seedSummary = seedSummary
 	d.created = true
 	d.heartbeatDone = make(chan struct{})
