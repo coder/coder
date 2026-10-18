@@ -3,7 +3,7 @@ import { cn } from "cn";
 import type { Chat } from "#/api/typesGenerated";
 import { type ChatDragData, canDragChatToProject } from "../chats/projectDrag";
 import { useChatTree } from "./ChatTreeContext";
-import { ChatTreeNode } from "./ChatTreeNode";
+import { ChatTreeNode, chatLinkDragHandleProps } from "./ChatTreeNode";
 
 type DraggableChatTreeNodeProps = {
 	readonly chat: Chat;
@@ -29,10 +29,13 @@ export const DraggableChatTreeNode: React.FC<DraggableChatTreeNodeProps> = ({
 		<div ref={setNodeRef} className={cn(isDragging && "opacity-50")}>
 			<ChatTreeNode
 				chat={chat}
-				// Rows that cannot move get no drag role for screen readers.
 				dragHandleProps={
 					canDrag
-						? { ref: setActivatorNodeRef, ...attributes, ...listeners }
+						? chatLinkDragHandleProps(
+								setActivatorNodeRef,
+								attributes,
+								listeners,
+							)
 						: undefined
 				}
 			/>

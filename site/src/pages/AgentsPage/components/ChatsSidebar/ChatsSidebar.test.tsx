@@ -1232,7 +1232,7 @@ describe("ChatsSidebar project drops", () => {
 		);
 		layoutDropTargets("Fix invoice dates", rowTop);
 
-		screen.getByRole("button", { description: DRAG_INSTRUCTIONS }).focus();
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
 		await waitFor(() =>
@@ -1248,6 +1248,39 @@ describe("ChatsSidebar project drops", () => {
 		expect(update).toHaveBeenCalledTimes(1);
 		expect(screen.getByRole("status")).toHaveTextContent(
 			`Chat Fix invoice dates was dropped on ${to}.`,
+		);
+	});
+
+	// The chat link is the drag handle, so the row wrapper adds no tab stop
+	// and Enter opens the chat instead of picking it up.
+	it("opens the next chat with Tab and Enter", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({ id: "c1", title: "Fix invoice dates" }),
+						buildChat({ id: "c2", title: "Draft release notes" }),
+					]}
+				/>
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		(await screen.findByRole("link", { name: /Fix invoice dates/ })).focus();
+		// The first Tab stops on the row's actions button.
+		await user.tab();
+		await user.tab();
+		await user.keyboard("[Enter]");
+
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				"/agents/c2",
+			),
 		);
 	});
 
@@ -1296,13 +1329,15 @@ describe("ChatsSidebar pinned reordering", () => {
 	// dnd-kit's keyboard sensor picks the drop target from measured
 	// rects, which jsdom reports as all zeros. Lay the sortable rows out
 	// vertically in document order so ArrowDown resolves to the next row.
+	// A node gets a row's box when it holds only that row's chat link.
 	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("button", {
+		const rows = screen.getAllByRole("link", {
 			description: DRAG_INSTRUCTIONS,
 		});
 		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
 			function (this: Element) {
-				const index = rows.findIndex((row) => row.contains(this));
+				const held = rows.filter((row) => this.contains(row));
+				const index = held.length === 1 ? rows.indexOf(held[0]) : -1;
 				const top = index === -1 ? 0 : index * ROW_HEIGHT;
 				const height = index === -1 ? 0 : ROW_HEIGHT;
 				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });

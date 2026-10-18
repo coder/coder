@@ -2922,7 +2922,7 @@ export const ProjectFolderCollapsed: Story = {
 };
 
 const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
-	const row = await within(canvasElement).findByRole("button", {
+	const row = await within(canvasElement).findByRole("link", {
 		name: title,
 		description: /pick up a draggable item/i,
 	});

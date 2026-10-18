@@ -2,6 +2,7 @@ import {
 	DndContext,
 	type DragEndEvent,
 	DragOverlay,
+	KeyboardCode,
 	KeyboardSensor,
 	MouseSensor,
 	TouchSensor,
@@ -288,6 +289,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: dragKeyboardCoordinates,
+			// The chat link is the drag handle, so only Space picks a chat up
+			// and Enter still opens it.
+			keyboardCodes: {
+				start: [KeyboardCode.Space],
+				cancel: [KeyboardCode.Esc],
+				end: [KeyboardCode.Space, KeyboardCode.Enter, KeyboardCode.Tab],
+			},
 		}),
 	);
 

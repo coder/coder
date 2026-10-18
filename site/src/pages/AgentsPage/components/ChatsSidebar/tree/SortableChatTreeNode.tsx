@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import type { Chat } from "#/api/typesGenerated";
-import { ChatTreeNode } from "./ChatTreeNode";
+import { ChatTreeNode, chatLinkDragHandleProps } from "./ChatTreeNode";
 
 export const SortableChatTreeNode: React.FC<{
 	chat: Chat;
@@ -11,6 +11,7 @@ export const SortableChatTreeNode: React.FC<{
 		attributes,
 		listeners,
 		setNodeRef,
+		setActivatorNodeRef,
 		transform,
 		transition,
 		isDragging,
@@ -38,10 +39,15 @@ export const SortableChatTreeNode: React.FC<{
 			ref={setNodeRef}
 			style={style}
 			className={cn(isDragging && "opacity-50")}
-			{...attributes}
-			{...listeners}
 		>
-			<ChatTreeNode chat={chat} />
+			<ChatTreeNode
+				chat={chat}
+				dragHandleProps={chatLinkDragHandleProps(
+					setActivatorNodeRef,
+					attributes,
+					listeners,
+				)}
+			/>
 		</div>
 	);
 };
