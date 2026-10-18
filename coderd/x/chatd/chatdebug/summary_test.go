@@ -1,14 +1,21 @@
 package chatdebug_test
 
 import (
+	"context"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTruncateLabel(t *testing.T) {
@@ -63,9 +70,27 @@ func TestService_AggregateRunSummary(t *testing.T) {
 
 	t.Run("NilRunID", func(t *testing.T) {
 		t.Parallel()
-		fixture := newFixture(t)
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, uuid.Nil, nil)
+		svc := chatdebug.NewService(dbmock.NewMockStore(gomock.NewController(t)), testutil.Logger(t), nil)
+		base := map[string]any{"first_message": "hello world"}
+		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitShort), uuid.Nil, base)
 		require.NoError(t, err)
+		require.Equal(t, base, got)
+	})
+
+	t.Run("QueryAsChatdReturnsError", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		runID := uuid.New()
+		db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).DoAndReturn(
+			func(ctx context.Context, _ uuid.UUID) ([]database.ChatDebugStep, error) {
+				actor, ok := dbauthz.ActorFromContext(ctx)
+				require.True(t, ok)
+				require.Equal(t, rbac.SubjectTypeChatd, actor.Type)
+				return nil, xerrors.New("boom")
+			})
+		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitShort), runID, nil)
+		require.ErrorContains(t, err, "boom")
 		require.Nil(t, got)
 	})
 
@@ -74,122 +99,60 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		fixture := newFixture(t)
 		run := createRun(t, fixture)
 
-		step1 := createTestStep(t, fixture, run.ID)
-		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-			ID:     step1.ID,
-			ChatID: fixture.chat.ID,
-			Status: chatdebug.StatusError,
-			Attempts: []chatdebug.Attempt{{
-				Number: 1,
-				Status: "failed",
-				Method: "POST",
-				Path:   "/failed",
-			}},
-		})
+		// Step 2 is inserted first so the label proves the query
+		// orders rows by step_number rather than insertion.
+		for _, step := range []struct {
+			number   int32
+			status   chatdebug.Status
+			attempts []chatdebug.Attempt
+			usage    map[string]any
+		}{
+			{
+				number:   2,
+				status:   chatdebug.StatusCompleted,
+				attempts: []chatdebug.Attempt{{Number: 1, Status: "completed", Method: "POST", Path: "/second"}},
+				usage:    map[string]any{"input_tokens": 15, "output_tokens": 7, "reasoning_tokens": 30, "cache_creation_tokens": 1, "cache_read_tokens": 4},
+			},
+			{
+				number: 1,
+				status: chatdebug.StatusError,
+				attempts: []chatdebug.Attempt{
+					{Number: 1, Status: "failed", Method: "POST", Path: "/failed"},
+					{Number: 2, Status: "completed", Method: "POST", Path: "/v1/messages"},
+				},
+				usage: map[string]any{"input_tokens": 10, "output_tokens": 5, "reasoning_tokens": 20, "cache_creation_tokens": 2, "cache_read_tokens": 3},
+			},
+		} {
+			created, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+				RunID:      run.ID,
+				ChatID:     fixture.chat.ID,
+				StepNumber: step.number,
+				Operation:  chatdebug.OperationGenerate,
+				Status:     chatdebug.StatusInProgress,
+			})
+			require.NoError(t, err)
+			_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
+				ID:       created.ID,
+				ChatID:   fixture.chat.ID,
+				Status:   step.status,
+				Usage:    step.usage,
+				Attempts: step.attempts,
+			})
+			require.NoError(t, err)
+		}
+
+		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, map[string]any{"first_message": "hello world"})
 		require.NoError(t, err)
-
-		step2 := createTestStepN(t, fixture, run.ID, 2)
-		_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-			ID:     step2.ID,
-			ChatID: fixture.chat.ID,
-			Status: chatdebug.StatusCompleted,
-			Attempts: []chatdebug.Attempt{{
-				Number: 1,
-				Status: "completed",
-				Method: "POST",
-				Path:   "/v1/messages",
-			}},
-		})
-		require.NoError(t, err)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, true, got["has_error"])
-		require.Equal(t, "POST /v1/messages", got["endpoint_label"])
+		require.Equal(t, map[string]any{
+			"first_message":               "hello world",
+			"step_count":                  2,
+			"total_input_tokens":          int64(25),
+			"total_output_tokens":         int64(12),
+			"total_reasoning_tokens":      int64(50),
+			"total_cache_creation_tokens": int64(3),
+			"total_cache_read_tokens":     int64(7),
+			"has_error":                   true,
+			"endpoint_label":              "POST /v1/messages",
+		}, got)
 	})
-
-	t.Run("MultipleStepsSumTokens", func(t *testing.T) {
-		t.Parallel()
-		fixture := newFixture(t)
-		run := createRun(t, fixture)
-
-		step1 := createTestStep(t, fixture, run.ID)
-		updateTestStepWithUsage(t, fixture, step1.ID, 10, 5, 2, 3)
-
-		step2 := createTestStepN(t, fixture, run.ID, 2)
-		updateTestStepWithUsage(t, fixture, step2.ID, 15, 7, 1, 4)
-
-		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
-		require.NoError(t, err)
-		require.EqualValues(t, 2, got["step_count"])
-		require.EqualValues(t, int64(25), got["total_input_tokens"])
-		require.EqualValues(t, int64(12), got["total_output_tokens"])
-		require.EqualValues(t, int64(3), got["total_cache_creation_tokens"])
-		require.EqualValues(t, int64(7), got["total_cache_read_tokens"])
-	})
-}
-
-// createTestStep is a thin helper that creates a debug step with
-// step number 1 for the given run.
-func createTestStep(
-	t *testing.T,
-	fixture testFixture,
-	runID uuid.UUID,
-) database.ChatDebugStep {
-	t.Helper()
-	return createTestStepN(t, fixture, runID, 1)
-}
-
-// createTestStepN creates a debug step with the given step number.
-func createTestStepN(
-	t *testing.T,
-	fixture testFixture,
-	runID uuid.UUID,
-	stepNumber int32,
-) database.ChatDebugStep {
-	t.Helper()
-	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      runID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: stepNumber,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
-	})
-	require.NoError(t, err)
-	return step
-}
-
-// updateTestStepWithUsage completes a step and sets token usage fields.
-func updateTestStepWithUsage(
-	t *testing.T,
-	fixture testFixture,
-	stepID uuid.UUID,
-	input, output, cacheCreation, cacheRead int64,
-) {
-	t.Helper()
-	updateTestStepWithFullUsage(t, fixture, stepID, input, output, 0, cacheCreation, cacheRead)
-}
-
-// updateTestStepWithFullUsage completes a step with all token usage
-// fields, including reasoning tokens.
-func updateTestStepWithFullUsage(
-	t *testing.T,
-	fixture testFixture,
-	stepID uuid.UUID,
-	input, output, reasoning, cacheCreation, cacheRead int64,
-) {
-	t.Helper()
-	_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
-		ID:     stepID,
-		ChatID: fixture.chat.ID,
-		Status: chatdebug.StatusCompleted,
-		Usage: map[string]any{
-			"input_tokens":          input,
-			"output_tokens":         output,
-			"reasoning_tokens":      reasoning,
-			"cache_creation_tokens": cacheCreation,
-			"cache_read_tokens":     cacheRead,
-		},
-	})
-	require.NoError(t, err)
 }
