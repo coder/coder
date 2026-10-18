@@ -149,6 +149,45 @@ func TestAnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
 	})
+
+	t.Run("invalid pair in latest signed assistant fails closed", func(t *testing.T) {
+		t.Parallel()
+
+		logSink := testutil.NewFakeSink(t)
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
+			context.Background(),
+			logSink.Logger(),
+			fantasyanthropic.Name,
+			"claude-test",
+			[]fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						signedReasoningPartForTest("sig-latest"),
+						providerPair("ws-signed")[0],
+						fantasy.ToolResultPart{
+							ToolCallID:       "ws-signed",
+							Output:           fantasy.ToolResultOutputContentText{Text: "ok"},
+							ProviderExecuted: true,
+						},
+					},
+				},
+			},
+		)
+		require.ErrorIs(t, err, chatsanitize.ErrAnthropicProviderToolPromptUnsafe)
+		require.Nil(t, guarded)
+
+		entries := logSink.Entries()
+		require.Len(t, entries, 1)
+		require.Equal(t, slog.LevelError, entries[0].Level)
+		require.Equal(t, "pre_request_guard_postcondition_failed", requireLogField(t, entries[0], "phase"))
+		require.Equal(t, 2, requireLogField(t, entries[0], "validation_violations"))
+		require.Equal(t, []map[string]any{
+			{"message_index": 0, "part_index": 1, "id": "ws-signed", "reason": "invalid_provider_executed_tool_result"},
+			{"message_index": 0, "part_index": 2, "id": "ws-signed", "reason": "invalid_provider_executed_tool_result"},
+		}, requireLogField(t, entries[0], "validation_violation_details"))
+		require.Equal(t, false, requireLogField(t, entries[0], "truncated_violations"))
+	})
 }
 
 func validWebSearchProviderMetadataForTest() fantasy.ProviderMetadata {
