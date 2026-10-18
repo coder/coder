@@ -38,7 +38,6 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 	otherOpenAIInstance := source(uuid.NewString())
 	openAIInstanceOtherModel := reasoningProvenance{ProviderIdentity: openAIInstance.ProviderIdentity, Model: "model-b"}
 	openAIInstanceCfg := uuid.New()
-	openAIInstanceOtherCfg := uuid.New()
 	openAIInstanceOtherModelCfg := uuid.New()
 
 	peCall := func(id string) codersdk.ChatMessagePart {
@@ -95,11 +94,10 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		vllmCfg:      vllm,
 
 		openAIInstanceCfg:           openAIInstance,
-		openAIInstanceOtherCfg:      openAIInstance,
 		openAIInstanceOtherModelCfg: openAIInstanceOtherModel,
 	}
-	resolver := func(id uuid.NullUUID) reasoningProvenance {
-		return sourceByConfig[id.UUID]
+	resolver := func(id uuid.NullUUID) string {
+		return sourceByConfig[id.UUID].ProviderIdentity
 	}
 
 	partsOf := func(t *testing.T, row database.ChatMessage) []codersdk.ChatMessagePart {
@@ -215,17 +213,6 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1, RemovedToolResults: 1}, stats)
 	})
 
-	t.Run("same instance different config keeps OpenAI reasoning", func(t *testing.T) {
-		t.Parallel()
-		rows := []database.ChatMessage{
-			userRow(t, "hi"),
-			assistantRow(t, openAIInstanceOtherCfg, openAIReasoning, localCall("local")),
-		}
-		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
-		require.Equal(t, rows, got)
-		require.Zero(t, stats)
-	})
-
 	t.Run("foreign instance drops OpenAI reasoning", func(t *testing.T) {
 		t.Parallel()
 		legacyReasoning := chatprompt.PartFromContent(fantasy.ReasoningContent{
@@ -234,9 +221,12 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs_legacy"},
 			},
 		})
+		nativeReasoning := openAIReasoning
+		stampReasoningProvenance(&nativeReasoning, openAIInstance)
+		stampReasoningProvenance(&legacyReasoning, openAIInstance)
 		rows := []database.ChatMessage{
 			userRow(t, "hi"),
-			assistantRow(t, openAIInstanceCfg, openAIReasoning, legacyReasoning, codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")),
+			assistantRow(t, openAIInstanceCfg, nativeReasoning, legacyReasoning, codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")),
 		}
 		got, stats := stripForeignProviderStateRows(rows, otherOpenAIInstance, resolver)
 		require.Len(t, got, 2)
@@ -245,10 +235,10 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
 	})
 
-	t.Run("unknown origin drops OpenAI reasoning", func(t *testing.T) {
+	t.Run("unstamped OpenAI reasoning dropped", func(t *testing.T) {
 		t.Parallel()
 		rows := []database.ChatMessage{
-			assistantRow(t, unknownCfg, openAIReasoning, text("done")),
+			assistantRow(t, openAIInstanceCfg, openAIReasoning, text("done")),
 		}
 		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
 		require.Len(t, got, 1)
@@ -296,32 +286,6 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
 	})
 
-	t.Run("unstamped reasoning from another model on same instance dropped", func(t *testing.T) {
-		t.Parallel()
-		rows := []database.ChatMessage{
-			assistantRow(t, openAIInstanceOtherModelCfg, openAIReasoning, peCall("ws"), text("done")),
-		}
-		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
-		require.Len(t, got, 1)
-		require.Equal(t, []codersdk.ChatMessagePart{peCall("ws"), text("done")}, partsOf(t, got[0]))
-		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
-	})
-
-	t.Run("unstamped reasoning follows row origin", func(t *testing.T) {
-		t.Parallel()
-		rows := []database.ChatMessage{
-			assistantRow(t, openAIInstanceCfg, stampedReasoning(openAIInstance), openAIReasoning, text("done")),
-		}
-		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
-		require.Equal(t, rows, got)
-		require.Zero(t, stats)
-
-		got, stats = stripForeignProviderStateRows(rows, otherOpenAIInstance, resolver)
-		require.Len(t, got, 1)
-		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
-		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
-	})
-
 	t.Run("same instance keeps provider blocks", func(t *testing.T) {
 		t.Parallel()
 		rows := []database.ChatMessage{
@@ -362,16 +326,14 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		current := openAIInstance
 		current.Epoch = 1
 		rows := []database.ChatMessage{
-			assistantRow(t, openAIInstanceCfg, openAIReasoning, text("unstamped")),
 			assistantRow(t, openAIInstanceCfg, stampedFull(openAIInstance), text("rejected")),
 			assistantRow(t, openAIInstanceCfg, stampedFull(current), text("current")),
 		}
 		got, stats := stripForeignProviderStateRows(rows, current, resolver)
-		require.Len(t, got, 3)
-		require.Equal(t, []codersdk.ChatMessagePart{text("unstamped")}, partsOf(t, got[0]))
-		require.Equal(t, []codersdk.ChatMessagePart{text("rejected")}, partsOf(t, got[1]))
-		require.Equal(t, rows[2], got[2])
-		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
+		require.Len(t, got, 2)
+		require.Equal(t, []codersdk.ChatMessagePart{text("rejected")}, partsOf(t, got[0]))
+		require.Equal(t, rows[1], got[1])
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
 	})
 
 	t.Run("current epoch is per provider model and credential", func(t *testing.T) {
@@ -420,8 +382,8 @@ func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T)
 		{Role: database.ChatMessageRoleUser, Content: userContent("pending"), ContentVersion: chatprompt.ContentVersionV1},
 	}
 
-	origin := func(uuid.NullUUID) reasoningProvenance {
-		return reasoningProvenance{ProviderIdentity: "openai"}
+	origin := func(uuid.NullUUID) string {
+		return "openai"
 	}
 
 	// Segment first: only the truly unanswered tail is pending, and the

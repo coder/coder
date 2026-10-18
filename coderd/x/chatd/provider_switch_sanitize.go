@@ -68,17 +68,6 @@ func reasoningCredential(auth aiGatewayProviderAuth) string {
 	return reasoningCredentialDeployment
 }
 
-// unstampedReasoningProvenance is the provenance assumed for reasoning saved
-// without a stamp: the row's model config, the target's credential, and the
-// first epoch.
-func unstampedReasoningProvenance(rowOrigin, target reasoningProvenance) reasoningProvenance {
-	return reasoningProvenance{
-		ProviderIdentity: rowOrigin.ProviderIdentity,
-		Model:            rowOrigin.Model,
-		Credential:       target.Credential,
-	}
-}
-
 // currentReasoningEpoch returns the highest epoch recorded in rows for the
 // provider, model, and credential of target. A rejected request only
 // replayed reasoning from that source, so the rejection says nothing about
@@ -104,19 +93,18 @@ func currentReasoningEpoch(rows []database.ChatMessage, target reasoningProvenan
 
 // stripForeignProviderStateRows drops provider-executed tool blocks (calls and
 // results) from assistant rows whose producing provider differs from the
-// target's, and OpenAI reasoning state whose provenance differs from target.
-// A reasoning part's recorded provenance takes precedence over its row's
-// origin, since the row's model config may have been changed. Rows with an
-// unknown origin are treated as foreign (fail closed). Rows emptied by
-// stripping are dropped; rows that fail to parse or re-marshal are kept
-// unchanged.
+// target's, and OpenAI reasoning state whose recorded provenance differs from
+// target. Reasoning ignores its row's origin, since the row's model config may
+// have been changed. Rows with an unknown origin are treated as foreign (fail
+// closed). Rows emptied by stripping are dropped; rows that fail to parse or
+// re-marshal are kept unchanged.
 //
 // Provider identity is a model config's AI provider ID, so two providers of
 // the same type are distinct.
 func stripForeignProviderStateRows(
 	rows []database.ChatMessage,
 	target reasoningProvenance,
-	originOf func(uuid.NullUUID) reasoningProvenance,
+	originOf func(uuid.NullUUID) string,
 ) ([]database.ChatMessage, providerSwitchStripStats) {
 	var stats providerSwitchStripStats
 	if target.ProviderIdentity == "" || len(rows) == 0 {
@@ -129,14 +117,7 @@ func stripForeignProviderStateRows(
 			out = append(out, row)
 			continue
 		}
-		origin := originOf(row.ModelConfigID)
-		nativeRow := origin.ProviderIdentity == target.ProviderIdentity
-		// Only stamped reasoning parts can be foreign when the row origin matches.
-		if unstampedReasoningProvenance(origin, target) == target && !bytes.Contains(row.Content.RawMessage, []byte(`"provider_identity"`)) {
-			out = append(out, row)
-			continue
-		}
-
+		nativeRow := originOf(row.ModelConfigID) == target.ProviderIdentity
 		parts, err := chatprompt.ParseContent(row)
 		if err != nil {
 			out = append(out, row)
@@ -151,7 +132,7 @@ func stripForeignProviderStateRows(
 				removedCalls++
 			case !nativeRow && part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
 				removedResults++
-			case part.Type == codersdk.ChatMessagePartTypeReasoning && isForeignReasoning(part, origin, target):
+			case part.Type == codersdk.ChatMessagePartTypeReasoning && isForeignReasoning(part, target):
 				removedReasoning++
 			default:
 				kept = append(kept, part)
@@ -181,12 +162,8 @@ func stripForeignProviderStateRows(
 	return out, stats
 }
 
-func isForeignReasoning(part codersdk.ChatMessagePart, rowOrigin, target reasoningProvenance) bool {
-	source := unstampedReasoningProvenance(rowOrigin, target)
-	if part.ProviderIdentity != "" {
-		source = stampedReasoningProvenance(part)
-	}
-	return source != target && hasOpenAIReasoningState(part)
+func isForeignReasoning(part codersdk.ChatMessagePart, target reasoningProvenance) bool {
+	return hasOpenAIReasoningState(part) && stampedReasoningProvenance(part) != target
 }
 
 func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
@@ -212,9 +189,9 @@ func (server *Server) sanitizeForeignProviderStateRows(
 		return rows, nil
 	}
 
-	// An unavailable origin config maps to the zero provenance, so its rows
-	// are foreign.
-	origins := make(map[uuid.UUID]reasoningProvenance)
+	// An unavailable origin config maps to no identity, so its rows are
+	// foreign.
+	origins := make(map[uuid.UUID]string)
 	for _, row := range rows {
 		id := row.ModelConfigID
 		if row.Role != database.ChatMessageRoleAssistant || !id.Valid {
@@ -226,17 +203,14 @@ func (server *Server) sanitizeForeignProviderStateRows(
 		originCfg, _, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
 		switch {
 		case err == nil:
-			origins[id.UUID] = reasoningProvenance{
-				ProviderIdentity: originCfg.AIProviderID.UUID.String(),
-				Model:            originCfg.Model,
-			}
+			origins[id.UUID] = originCfg.AIProviderID.UUID.String()
 		case modelConfigUnavailable(err):
-			origins[id.UUID] = reasoningProvenance{}
+			origins[id.UUID] = ""
 		default:
 			return nil, xerrors.Errorf("resolve origin model config %s: %w", id.UUID, err)
 		}
 	}
-	originOf := func(id uuid.NullUUID) reasoningProvenance {
+	originOf := func(id uuid.NullUUID) string {
 		return origins[id.UUID]
 	}
 
