@@ -11,7 +11,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -213,11 +212,8 @@ type OpenAICompletion struct {
 
 // openAIServer is a test server that mocks the OpenAI API.
 type openAIServer struct {
-	mu      sync.Mutex
 	t       testing.TB
-	server  *httptest.Server
 	handler OpenAIHandler
-	request *OpenAIRequest
 }
 
 // OpenAI creates a fake OpenAI-compatible test server with a
@@ -256,54 +252,42 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	mux.HandleFunc("POST /chat/completions", s.handleChatCompletions)
 	mux.HandleFunc("POST /responses", s.handleResponses)
 
-	s.server = httptest.NewServer(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server.URL
+}
 
-	t.Cleanup(func() {
-		s.server.Close()
-	})
-
-	return s.server.URL
+func decodeOpenAIRequest(r *http.Request) (*OpenAIRequest, error) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	var req OpenAIRequest
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
+		return nil, err
+	}
+	req.Request = r
+	req.RawBody = body
+	return &req, nil
 }
 
 func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	req, err := decodeOpenAIRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var req OpenAIRequest
-	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	req.Request = r
-	req.RawBody = body
 
-	s.mu.Lock()
-	s.request = &req
-	s.mu.Unlock()
-
-	resp := s.handler(&req)
-	s.writeChatCompletionsResponse(w, &req, resp)
+	resp := s.handler(req)
+	s.writeChatCompletionsResponse(w, req, resp)
 }
 
 func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	req, err := decodeOpenAIRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var req OpenAIRequest
-	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	req.Request = r
-	req.RawBody = body
-
-	s.mu.Lock()
-	s.request = &req
-	s.mu.Unlock()
 
 	if req.Prompt != nil {
 		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
@@ -312,8 +296,8 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := s.handler(&req)
-	s.writeResponsesAPIResponse(w, &req, resp)
+	resp := s.handler(req)
+	s.writeResponsesAPIResponse(w, req, resp)
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
@@ -325,19 +309,9 @@ func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
-	switch {
-	case hasStreaming && hasNonStreaming:
-		http.Error(w, "handler returned both streaming and non-streaming responses", http.StatusInternalServerError)
-		return
-	case !hasStreaming && !hasNonStreaming:
-		http.Error(w, "handler returned empty response", http.StatusInternalServerError)
-		return
-	case req.Stream && !hasStreaming:
-		http.Error(w, "handler returned non-streaming response for streaming request", http.StatusInternalServerError)
-		return
-	case !req.Stream && !hasNonStreaming:
-		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
-		return
+	switch msg := responseShapeError(req.Stream, hasStreaming, hasNonStreaming); {
+	case msg != "":
+		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
 		writeChatCompletionsStreaming(w, req.Request, resp.StreamingChunks)
 	default:
@@ -354,19 +328,9 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
-	switch {
-	case hasStreaming && hasNonStreaming:
-		http.Error(w, "handler returned both streaming and non-streaming responses", http.StatusInternalServerError)
-		return
-	case !hasStreaming && !hasNonStreaming:
-		http.Error(w, "handler returned empty response", http.StatusInternalServerError)
-		return
-	case req.Stream && !hasStreaming:
-		http.Error(w, "handler returned non-streaming response for streaming request", http.StatusInternalServerError)
-		return
-	case !req.Stream && !hasNonStreaming:
-		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
-		return
+	switch msg := responseShapeError(req.Stream, hasStreaming, hasNonStreaming); {
+	case msg != "":
+		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
 		writeResponsesAPIStreaming(s.t, w, req, resp)
 	default:
