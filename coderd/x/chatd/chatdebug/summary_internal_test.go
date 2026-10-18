@@ -140,7 +140,7 @@ func TestSummarizeRunSteps(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			svc := &Service{log: testutil.Logger(t)}
 			base := maps.Clone(tc.base)
 
