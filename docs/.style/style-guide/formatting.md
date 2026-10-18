@@ -120,6 +120,8 @@ Use backticks (inline code font) for the following:
 - Configuration keys.
 - Code identifiers (function names, struct names, package names).
 - Placeholder variables.
+- Literal text the product displays that the reader matches, such as an error message or a status message.
+  Bold stays the format for UI elements the reader acts on, such as buttons and menu items (refer to [Bold for UI elements](#bold-for-ui-elements)).
 
 **Do**:
 
@@ -127,6 +129,8 @@ Use backticks (inline code font) for the following:
 > Set `CODER_URL` in your environment first.
 >
 > The server returns `404 Not Found` when the workspace doesn't exist.
+>
+> If the build fails with `Please try again later`, wait and run the build again.
 
 **Don't**:
 
@@ -134,6 +138,8 @@ Use backticks (inline code font) for the following:
 > Set CODER_URL in your environment first.
 >
 > The server returns 404 when the workspace doesn't exist.
+>
+> If the build fails with "Please try again later", wait and run the build again.
 
 *Documentation-only.
 No Vale rule.*
@@ -262,18 +268,19 @@ Use the GitHub callout syntax for asides.
 Use them sparingly.
 Prose should carry the message.
 
-| Callout          | Use for                                                                                                              |
-|------------------|----------------------------------------------------------------------------------------------------------------------|
-| `> [!NOTE]`      | Supplementary context the reader benefits from but doesn't need to act on before proceeding                          |
-| `> [!TIP]`       | An optional optimization, shortcut, or related feature                                                               |
-| `> [!IMPORTANT]` | A required step or prerequisite the reader will miss if they skim                                                    |
-| `> [!WARNING]`   | An action with a serious side effect (data loss, downtime, security exposure) that the reader must read before doing |
-| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` isn't strong enough                          |
+| Callout          | Use for                                                                                                                                             |
+|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `> [!NOTE]`      | Supplementary context the reader benefits from but doesn't need to act on before proceeding                                                         |
+| `> [!TIP]`       | An optional optimization, shortcut, or related feature                                                                                              |
+| `> [!IMPORTANT]` | Information the reader must know before they start, such as a required role or access level. Never an action: required actions go in numbered steps |
+| `> [!WARNING]`   | An action with a serious side effect (data loss, downtime, security exposure) that the reader must read before doing                                |
+| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` isn't strong enough                                                         |
 
-A follow-up PR will demonstrate each callout rendered against an existing docs page so reviewers can calibrate when each one fits.
+No callout carries a required action.
+Refer to [Callouts inform, steps instruct](./procedural-writing.md#callouts-inform-steps-instruct).
 
 *Documentation-only.
-No Vale rule.*
+No Vale rule: Vale can't tell whether a callout carries a required action, so reviewers check this rule.*
 
 ### Tabs for parallel content
 
@@ -434,7 +441,7 @@ Links to non-docs locations in the Coder codebase (source files, CI workflows, t
 The docs site renderer resolves those paths to the canonical GitHub URLs automatically.
 A relative link to [`scripts/develop.sh`](../../../scripts/develop.sh) reads correctly on GitHub when browsing the repo and on the docs site when reading the published page.
 
-Anchor links to a specific section use the GitHub-flavored slug: lowercase the heading, replace spaces with hyphens, and drop punctuation (`./word-choice.md#refer-to-check-out-visit-not-see`).
+Anchor links to a specific section use the GitHub-flavored slug: lowercase the heading, replace spaces with hyphens, and drop punctuation (`./word-choice.md#refer-to-or-visit-not-see-or-check-out`).
 
 External URLs use the full `https://` form.
 Do not strip the protocol.

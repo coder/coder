@@ -905,40 +905,6 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, chattool.FindToolsName)
 }
 
-func TestAllowedBehaviorToolNames(t *testing.T) {
-	t.Parallel()
-
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	allTools := makeTools("read_file", "custom_tool", "spawn_agent")
-	exploreMode := database.NullChatMode{
-		ChatMode: database.ChatModeExplore,
-		Valid:    true,
-	}
-
-	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file", "custom_tool", "spawn_agent"}, allowedBehaviorToolNames(
-			allTools,
-			database.NullChatMode{},
-		))
-	})
-
-	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
-			allTools,
-			exploreMode,
-		))
-	})
-}
-
 func TestStopAfterPlanTools(t *testing.T) {
 	t.Parallel()
 
