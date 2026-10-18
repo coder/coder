@@ -975,6 +975,272 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/skills": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project skills",
+                "operationId": "list-chat-project-skills",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.SkillMetadata"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project skill",
+                "operationId": "create-chat-project-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat project skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/skills/{skillName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project skill by name",
+                "operationId": "get-chat-project-skill-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project skill",
+                "operationId": "delete-chat-project-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project skill",
+                "operationId": "update-chat-project-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/skills": {
             "get": {
                 "produces": [
@@ -16472,6 +16738,45 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspacebuilds/{workspacebuild}/secrets": {
+            "get": {
+                "description": "Lists the metadata of the secrets linked to a workspace build,\nincluding secrets whose values a later build cleared. Values\nare never returned. env_replaces and file_replaces name the\nworkspace owner's user secrets that each live secret displaces,\nand are omitted when the caller cannot read those user secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build secrets",
+                "operationId": "get-workspace-build-secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspacebuilds/{workspacebuild}/state": {
             "get": {
                 "produces": [
@@ -19812,6 +20117,7 @@ const docTemplate = `{
                 "chat_project:create",
                 "chat_project:delete",
                 "chat_project:read",
+                "chat_project:share",
                 "chat_project:update",
                 "chat_project_memory:*",
                 "chat_project_memory:create",
@@ -20006,7 +20312,12 @@ const docTemplate = `{
                 "workspace_proxy:create",
                 "workspace_proxy:delete",
                 "workspace_proxy:read",
-                "workspace_proxy:update"
+                "workspace_proxy:update",
+                "workspace_secret:*",
+                "workspace_secret:create",
+                "workspace_secret:read",
+                "workspace_secret:read_secret",
+                "workspace_secret:update"
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
@@ -20074,6 +20385,7 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectCreate",
                 "APIKeyScopeChatProjectDelete",
                 "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectShare",
                 "APIKeyScopeChatProjectUpdate",
                 "APIKeyScopeChatProjectMemoryAll",
                 "APIKeyScopeChatProjectMemoryCreate",
@@ -20268,7 +20580,12 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceProxyCreate",
                 "APIKeyScopeWorkspaceProxyDelete",
                 "APIKeyScopeWorkspaceProxyRead",
-                "APIKeyScopeWorkspaceProxyUpdate"
+                "APIKeyScopeWorkspaceProxyUpdate",
+                "APIKeyScopeWorkspaceSecretAll",
+                "APIKeyScopeWorkspaceSecretCreate",
+                "APIKeyScopeWorkspaceSecretRead",
+                "APIKeyScopeWorkspaceSecretReadSecret",
+                "APIKeyScopeWorkspaceSecretUpdate"
             ]
         },
         "codersdk.AddLicenseRequest": {
@@ -20423,7 +20740,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
                 },
                 "workspace_agent_id": {
                     "type": "string"
@@ -23887,11 +24204,11 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "allow_user_autostart": {
-                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled with a\nPremium license.",
                     "type": "boolean"
                 },
                 "allow_user_autostop": {
-                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled with a\nPremium license.",
                     "type": "boolean"
                 },
                 "allow_user_cancel_workspace_jobs": {
@@ -23903,7 +24220,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "autostart_requirement": {
-                    "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is a Premium feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
@@ -23911,7 +24228,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is a Premium feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -24431,6 +24748,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "secrets": {
+                    "description": "Secrets sets or removes workspace secrets for this build. Previous\nsecrets that are not listed carry forward unless they were ephemeral or\na listed secret uses their env_name or file_path.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
+                    }
+                },
                 "state": {
                     "type": "array",
                     "items": {
@@ -24498,6 +24822,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "secrets": {
+                    "description": "Secrets sets the workspace's initial secrets.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
                     }
                 },
                 "template_id": {
@@ -29466,6 +29797,7 @@ const docTemplate = `{
                 "delete_agent",
                 "read",
                 "read_personal",
+                "read_secret",
                 "ssh",
                 "share",
                 "unassign",
@@ -29486,6 +29818,7 @@ const docTemplate = `{
                 "ActionDeleteAgent",
                 "ActionRead",
                 "ActionReadPersonal",
+                "ActionReadSecret",
                 "ActionSSH",
                 "ActionShare",
                 "ActionUnassign",
@@ -29555,7 +29888,8 @@ const docTemplate = `{
                 "workspace_agent_resource_monitor",
                 "workspace_build_orchestration",
                 "workspace_dormant",
-                "workspace_proxy"
+                "workspace_proxy",
+                "workspace_secret"
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
@@ -29612,7 +29946,8 @@ const docTemplate = `{
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceBuildOrchestration",
                 "ResourceWorkspaceDormant",
-                "ResourceWorkspaceProxy"
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceSecret"
             ]
         },
         "codersdk.RateLimitConfig": {
@@ -29843,6 +30178,7 @@ const docTemplate = `{
                 "chat_operational_settings",
                 "chat_organization_system_prompt",
                 "chat_project_instructions",
+                "chat_project_skill",
                 "experiment_rule"
             ],
             "x-enum-varnames": [
@@ -29892,6 +30228,7 @@ const docTemplate = `{
                 "ResourceTypeChatOperationalSettings",
                 "ResourceTypeChatOrganizationSystemPrompt",
                 "ResourceTypeChatProjectInstructions",
+                "ResourceTypeChatProjectSkill",
                 "ResourceTypeExperimentRule"
             ]
         },
@@ -30391,7 +30728,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "allow_user_autostart": {
-                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "AllowUserAutostart and AllowUserAutostop are Premium features. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "boolean"
                 },
                 "allow_user_autostop": {
@@ -30408,7 +30745,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement and AutostartRequirement are enterprise features. Its\nvalue is only used if your license is entitled to use the advanced template\nscheduling feature.",
+                    "description": "AutostopRequirement and AutostartRequirement are Premium features. Their\nvalues are only used if your license is entitled to use the advanced template\nscheduling feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -30455,7 +30792,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -34085,13 +34422,17 @@ const docTemplate = `{
                 "ok",
                 "exit_failure",
                 "timed_out",
-                "pipes_left_open"
+                "pipes_left_open",
+                "skipped",
+                "canceled"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentScriptStatusOK",
                 "WorkspaceAgentScriptStatusExitFailure",
                 "WorkspaceAgentScriptStatusTimedOut",
-                "WorkspaceAgentScriptStatusPipesLeftOpen"
+                "WorkspaceAgentScriptStatusPipesLeftOpen",
+                "WorkspaceAgentScriptStatusSkipped",
+                "WorkspaceAgentScriptStatusCanceled"
             ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {
@@ -34762,6 +35103,86 @@ const docTemplate = `{
                 "WorkspaceRoleUse",
                 "WorkspaceRoleDeleted"
             ]
+        },
+        "codersdk.WorkspaceSecret": {
+            "type": "object",
+            "properties": {
+                "cleared_at": {
+                    "description": "ClearedAt is set once a later build superseded the secret and its\nvalue was dropped. Cleared secrets are not delivered and replace\nnothing.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+                    "type": "boolean"
+                },
+                "env_name": {
+                    "type": "string"
+                },
+                "env_replaces": {
+                    "description": "EnvReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on env_name.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ephemeral": {
+                    "description": "Ephemeral secrets are delivered to their build only and not copied to\nthe next one.",
+                    "type": "boolean"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_replaces": {
+                    "description": "FileReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on file_path.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_build_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceSecretInput": {
+            "type": "object",
+            "properties": {
+                "env_name": {
+                    "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when file_path is empty and value is\nset.",
+                    "type": "string"
+                },
+                "ephemeral": {
+                    "description": "Ephemeral secrets are delivered to this build only and are not\ncarried forward to the next build.",
+                    "type": "boolean"
+                },
+                "file_path": {
+                    "description": "FilePath is the path to write the secret to inside the workspace.\nEmpty means no file is written. Deployments may disable file path\ndelivery.",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value is the plaintext secret. A null value removes the secret. An\nempty string sets an empty secret.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",

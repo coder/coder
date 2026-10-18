@@ -65,6 +65,79 @@ func TestConvertStateWithScriptOrderFinalizesAppliedDevcontainerOrder(t *testing
 	require.Equal(t, "coder_devcontainer.repo", conversion.order.Graphs[0].RuntimeAddress)
 }
 
+func TestConvertStateWithScriptOrderAttachesDependencies(t *testing.T) {
+	t.Parallel()
+
+	module := scriptOrderTestModule(
+		scriptOrderTestAgent("coder_agent.main", "main", "agent-id"),
+		scriptOrderTestDevcontainer(
+			"coder_devcontainer.repo", "repo", "agent-id", "subagent-id",
+		),
+		scriptOrderTestScript("coder_script.clone_repo", "clone_repo", "agent-id"),
+		scriptOrderTestScript("coder_script.install_tools", "install_tools", "agent-id"),
+		scriptOrderTestScript("coder_script.build", "build", "agent-id"),
+		scriptOrderTestScript("coder_script.dc_setup", "dc_setup", "subagent-id"),
+		scriptOrderTestScript("coder_script.dc_run", "dc_run", "subagent-id"),
+	)
+	module.Resources[len(module.Resources)-1].AttributeValues = map[string]any{
+		"rule": []any{
+			map[string]any{
+				"run":   []string{"coder_script.install_tools"},
+				"after": []string{"coder_script.clone_repo"},
+			},
+			map[string]any{
+				// Prerequisites are listed out of order on purpose.
+				"run":      []string{"coder_script.build"},
+				"after":    []string{"coder_script.install_tools", "coder_script.clone_repo"},
+				"requires": "completion",
+			},
+			map[string]any{
+				"run":   []string{"coder_script.dc_run"},
+				"after": []string{"coder_script.dc_setup"},
+			},
+		},
+	}
+	conversion, err := convertStateWithScriptOrder(
+		t.Context(),
+		[]*tfjson.StateModule{module},
+		scriptOrderTestConfig(module),
+		scriptOrderTestGraph("coder_agent.main"),
+		slogtest.Make(t, nil),
+		proto.GraphSource_SOURCE_STATE,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, conversion.order)
+
+	var agents []*proto.Agent
+	for _, resource := range conversion.state.Resources {
+		agents = append(agents, resource.Agents...)
+	}
+	require.Len(t, agents, 1)
+	agent := agents[0]
+	require.Len(t, agent.Devcontainers, 1)
+	agentScripts := scriptOrderTestScriptsByAddress(t, agent.Scripts,
+		"coder_script.build", "coder_script.clone_repo", "coder_script.install_tools",
+	)
+	devcontainerScripts := scriptOrderTestScriptsByAddress(t, agent.Devcontainers[0].Scripts,
+		"coder_script.dc_run", "coder_script.dc_setup",
+	)
+
+	success := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS
+	completion := proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION
+	require.Empty(t, agentScripts["coder_script.clone_repo"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.clone_repo", Requirement: success},
+	}, agentScripts["coder_script.install_tools"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.clone_repo", Requirement: completion},
+		{PrerequisiteResourceAddress: "coder_script.install_tools", Requirement: completion},
+	}, agentScripts["coder_script.build"].Dependencies)
+	require.Empty(t, devcontainerScripts["coder_script.dc_setup"].Dependencies)
+	require.Equal(t, []*proto.ScriptDependency{
+		{PrerequisiteResourceAddress: "coder_script.dc_setup", Requirement: success},
+	}, devcontainerScripts["coder_script.dc_run"].Dependencies)
+}
+
 func TestConvertStateWithScriptOrderValidatesPlanWithoutAgentBindings(t *testing.T) {
 	t.Parallel()
 
@@ -317,6 +390,25 @@ func scriptOrderTestConfig(module *tfjson.StateModule) *tfjson.Config {
 		})
 	}
 	return &tfjson.Config{RootModule: &tfjson.ConfigModule{Resources: resources}}
+}
+
+// scriptOrderTestScriptsByAddress checks that scripts carry exactly the given
+// resource addresses and returns them keyed by address.
+func scriptOrderTestScriptsByAddress(
+	t *testing.T,
+	scripts []*proto.Script,
+	addresses ...string,
+) map[string]*proto.Script {
+	t.Helper()
+
+	byAddress := make(map[string]*proto.Script, len(scripts))
+	got := make([]string, 0, len(scripts))
+	for _, script := range scripts {
+		byAddress[script.ResourceAddress] = script
+		got = append(got, script.ResourceAddress)
+	}
+	require.ElementsMatch(t, addresses, got)
+	return byAddress
 }
 
 func scriptOrderTestGraph(agentAddresses ...string) string {

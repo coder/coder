@@ -2,10 +2,9 @@
 title: Users
 ---
 
-By default, Coder is accessible via password authentication. For production
-deployments, we recommend using an SSO authentication provider with multi-factor
-authentication (MFA). It is your responsibility to ensure the auth provider
-enforces MFA correctly.
+By default, Coder is accessible via password authentication.
+For production deployments, we recommend using an SSO authentication provider with multi-factor authentication (MFA).
+It is your responsibility to ensure the auth provider enforces MFA correctly.
 
 <a id="configuring-sso"></a>
 
@@ -16,58 +15,46 @@ enforces MFA correctly.
 
 ## Groups
 
-Multiple users can be organized into logical groups to control which templates
-they can use. While groups can be manually created in Coder, we recommend
-syncing them from your identity provider.
+Multiple users can be organized into logical groups to control which templates they can use.
+While groups can be manually created in Coder, we recommend syncing them from your identity provider.
 
 - [Learn more about Groups](./groups-roles.md)
 - [Group & Role Sync](./idp-sync.md)
 
 ## Roles
 
-Roles determine which actions users can take within the platform. Typically,
-most developers in your organization have the `Member` role, allowing them to
-create workspaces. Other roles have administrative capabilities such as
-auditing, managing users, and managing templates.
+Roles determine which actions users can take within the platform.
+Typically, most developers in your organization have the `Member` role, allowing them to create workspaces.
+Other roles have administrative capabilities such as auditing, managing users, and managing templates.
 
 - [Learn more about Roles](./groups-roles.md)
 - [Group & Role Sync](./idp-sync.md)
 
 ## User status
 
-Coder user accounts can have different status types: active, dormant, and
-suspended.
+Coder user accounts can have different status types: active, dormant, and suspended.
 
 ### Active user
 
-An _active_ user account in Coder is the default and desired state for all
-users. When a user's account is marked as _active_, they have complete access to
-the Coder platform and can utilize all of its features and functionalities
-without any limitations. Active users can access workspaces, templates, and
-interact with Coder using CLI.
+An _active_ user account in Coder is the default and desired state for all users.
+When a user's account is marked as _active_, they have complete access to the Coder platform and can utilize all of its features and functionalities without any limitations.
+Active users can access workspaces, templates, and interact with Coder using CLI.
 
 ### Dormant user
 
 A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90&nbsp;days.
 Once the user logs in to the platform, the account status will switch to _active_.
 
-Dormant accounts do not count towards the total number of licensed seats in a
-Coder subscription, allowing organizations to optimize their license usage.
+Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage.
 
 ### Suspended user
 
-When a user's account is marked as _suspended_ in Coder, it means that the
-account has been temporarily deactivated, and the user is unable to access the
-platform.
+When a user's account is marked as _suspended_ in Coder, it means that the account has been temporarily deactivated, and the user is unable to access the platform.
 
-Only user administrators or owners have the necessary permissions to manage
-suspended accounts and decide whether to lift the suspension and allow the user
-back into the Coder environment. This level of control ensures that
-administrators can enforce security measures and handle any compliance-related
-issues promptly.
+Only user administrators or owners have the necessary permissions to manage suspended accounts and decide whether to lift the suspension and allow the user back into the Coder environment.
+This level of control ensures that administrators can enforce security measures and handle any compliance-related issues promptly.
 
-Similar to dormant users, suspended users do not count towards the total number
-of licensed seats.
+Similar to dormant users, suspended users do not count towards the total number of licensed seats.
 
 ## Create a user
 
@@ -89,8 +76,7 @@ coder users create
 
 When prompted, provide the **username** and **email** for the new user.
 
-You'll receive a response that includes the following; share the instructions
-with the user so that they can log into Coder:
+You'll receive a response that includes the following; share the instructions with the user so that they can log into Coder:
 
 ```console
 Download the Coder command line for your operating system:
@@ -111,8 +97,7 @@ User admins can suspend a user, removing the user's access to Coder.
 To suspend a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to suspend, select the vertical ellipsis to the right,
-   and select **Suspend**.
+2. Find the user you want to suspend, select the vertical ellipsis to the right, and select **Suspend**.
 3. In the confirmation dialog, select **Suspend**.
 
 To suspend a user via the CLI, run:
@@ -130,8 +115,7 @@ User admins can activate a suspended user, restoring their access to Coder.
 To activate a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to activate, select the vertical ellipsis to the right,
-   and select **Activate**.
+2. Find the user you want to activate, select the vertical ellipsis to the right, and select **Activate**.
 3. In the confirmation dialog, select **Activate**.
 
 To activate a user via the CLI, run:
@@ -144,21 +128,16 @@ Confirm the user activation by typing **yes** and pressing **enter**.
 
 ## Reset a password
 
-As of 2.17.0, users can reset their password independently on the login screen
-by selecting "Forgot Password." This feature requires
-[email notifications](../monitoring/notifications/index.md#smtp-email) to be
-configured on the deployment.
+As of 2.17.0, users can reset their password independently on the login screen by selecting "Forgot Password."
+This feature requires [email notifications](../monitoring/notifications/index.md#smtp-email) to be configured on the deployment.
 
 To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
-2. Find the user whose password you want to reset, select the vertical ellipsis
-   to the right, and select **Reset password**.
-3. Coder displays a temporary password that you can send to the user; copy the
-   password and select **Reset password**.
+2. Find the user whose password you want to reset, select the vertical ellipsis to the right, and select **Reset password**.
+3. Coder displays a temporary password that you can send to the user; copy the password and select **Reset password**.
 
-Coder will prompt the user to change their temporary password immediately after
-logging in.
+Coder will prompt the user to change their temporary password immediately after logging in.
 
 You can also reset a password via the CLI:
 
@@ -168,8 +147,7 @@ coder reset-password <username>
 ```
 
 > [!NOTE]
-> Resetting a user's password, e.g., the initial `owner` role-based user, only
-> works when run on the host running the Coder control plane.
+> Resetting a user's password, e.g., the initial `owner` role-based user, only works when run on the host running the Coder control plane.
 
 <a id="resetting-a-password-on-kubernetes"></a>
 
@@ -183,47 +161,39 @@ coder reset-password <username>
 
 ## User filtering
 
-In the Coder UI, you can filter your users using pre-defined filters or by
-utilizing the Coder's filter query. The examples provided below demonstrate how
-to use the Coder's filter query:
+In the Coder UI, you can filter your users using pre-defined filters or by utilizing the Coder's filter query.
+The examples provided below demonstrate how to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
 - To find admin users, use the filter `role:admin`.
-- To find users who have not been active since July 2023:
-  `status:active last_seen_before:"2023-07-01T00:00:00Z"`
-- To find users who were created between January 1 and January 18, 2023:
-  `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
-- To find users who login using Github:
-  `login_type:github`
+- To find users who have not been active since July 2023: `status:active last_seen_before:"2023-07-01T00:00:00Z"`
+- To find users who were created between January 1 and January 18, 2023: `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
+- To find users who login using Github: `login_type:github`
 - To find service accounts: `service_account:true`.
 
-Any text that is not part of a `key:value` filter is treated as a free-text
-search and matches against a user's username, email, and display name. For
-example, entering `jane` returns users whose username, email, or display name
-contains `jane`.
+Any text that is not part of a `key:value` filter is treated as a free-text search and matches against a user's username, email, and display name.
+For example, entering `jane` returns users whose username, email, or display name contains `jane`.
 
 The following filters are supported:
 
-- `username` - Matches the exact username of the user. The match ignores
-  letter case.
-- `email` - Matches the exact email address of the user. The match ignores
-  letter case.
-- `name` - Matches part of the display name of the user. The match ignores
-  letter case.
-- `status` - Indicates the status of the user. It can be either `active`,
-  `dormant` or `suspended`.
-- `role` - Represents the role of the user. You can refer to the
-  [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
-  for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a user has used the
-  platform (e.g. logging in, any API requests, connecting to workspaces). Uses
-  the RFC3339Nano format.
-- `created_before` and `created_after` - The time a user was created. Uses the
-  RFC3339Nano format.
-- `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
-- `service_account` - Can be either `true` to only include service accounts or
-  `false` to filter them out. If omitted, both service and regular accounts and
-  are returned.
+- `username` - Matches the exact username of the user.
+  The match ignores letter case.
+- `email` - Matches the exact email address of the user.
+  The match ignores letter case.
+- `name` - Matches part of the display name of the user.
+  The match ignores letter case.
+- `status` - Indicates the status of the user.
+  It can be either `active`, `dormant` or `suspended`.
+- `role` - Represents the role of the user.
+  You can refer to the [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole) for a list of supported user roles.
+- `last_seen_before` and `last_seen_after` - The last time a user has used the platform (e.g. logging in, any API requests, connecting to workspaces).
+  Uses the RFC3339Nano format.
+- `created_before` and `created_after` - The time a user was created.
+  Uses the RFC3339Nano format.
+- `login_type` - Represents the login type of the user.
+  Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
+- `service_account` - Can be either `true` to only include service accounts or `false` to filter them out.
+  If omitted, both service and regular accounts and are returned.
 
 ## Edit a user's profile
 

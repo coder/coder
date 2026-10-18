@@ -527,6 +527,14 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+		RxBytes: sql.NullInt64{
+			Int64: takeFirst(seed.RxBytes.Int64, 0),
+			Valid: takeFirst(seed.RxBytes.Valid, false),
+		},
+		TxBytes: sql.NullInt64{
+			Int64: takeFirst(seed.TxBytes.Int64, 0),
+			Valid: takeFirst(seed.TxBytes.Valid, false),
+		},
 	}
 
 	var disconnectTime sql.NullTime
@@ -553,6 +561,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
 		ClientSessionID:  []string{arg.ClientSessionID.String},
+		RxBytes:          []int64{arg.RxBytes.Int64},
+		RxBytesValid:     []bool{arg.RxBytes.Valid},
+		TxBytes:          []int64{arg.TxBytes.Int64},
+		TxBytesValid:     []bool{arg.TxBytes.Valid},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -1680,6 +1692,14 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
+		if orig.ScriptOrderDataSourceCount != 0 || orig.ScriptOrderRuleCount != 0 {
+			require.NoError(t, db.UpdateTemplateVersionScriptOrderUsageByJobID(genCtx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orig.ScriptOrderDataSourceCount,
+				ScriptOrderRuleCount:       orig.ScriptOrderRuleCount,
+				UpdatedAt:                  dbtime.Now(),
+			}))
+		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
 		if err != nil {
@@ -2058,6 +2078,27 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 	userSecret, err := db.CreateUserSecret(genCtx, params)
 	require.NoError(t, err, "failed to insert user secret")
 	return userSecret
+}
+
+func WorkspaceSecret(t testing.TB, db database.Store, seed database.WorkspaceSecret) database.WorkspaceSecret {
+	value := seed.Value
+	if !value.Valid {
+		value = sql.NullString{String: "secret value", Valid: true}
+	}
+	secret, err := db.InsertWorkspaceSecret(genCtx, database.InsertWorkspaceSecretParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceBuildID: takeFirst(seed.WorkspaceBuildID, uuid.New()),
+		Name:             takeFirst(seed.Name, "secret-name"),
+		Value:            value,
+		ValueKeyID:       seed.ValueKeyID,
+		EnvName:          takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
+		FilePath:         seed.FilePath,
+		Ephemeral:        seed.Ephemeral,
+		Source:           takeFirst(seed.Source, database.WorkspaceSecretSourceRequest),
+	})
+	require.NoError(t, err, "failed to insert workspace secret")
+	return secret
 }
 
 func ClaimPrebuild(

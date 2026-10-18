@@ -1193,6 +1193,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+  - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
 ## Endpoint lifecycle
 
@@ -1356,6 +1357,8 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 2. Emit the `history_reset` event.
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
+
+TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
 Required invariant:
 
