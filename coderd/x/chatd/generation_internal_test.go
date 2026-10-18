@@ -147,7 +147,7 @@ func TestRecordThinkingStages(t *testing.T) {
 	t.Parallel()
 
 	// For bedrock, provider is the wire protocol, not the provider type.
-	prepared := generationPrepared{
+	prepared := turnEnvironment{
 		StageModel: chatloop.StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"},
 	}
 
