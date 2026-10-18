@@ -188,3 +188,19 @@ func TestQuickgenDebugRun(t *testing.T) {
 		}
 	}
 }
+
+func TestPrepareManualTitleDebugRunCreateFailure(t *testing.T) {
+	t.Parallel()
+
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
+		Return(database.ChatDebugRun{}, xerrors.New("insert failed")).Times(1)
+	server := &Server{logger: testutil.Logger(t)}
+
+	ctx, finish := server.prepareManualTitleDebugRun(testutil.Context(t, testutil.WaitShort),
+		chatdebug.NewService(db, testutil.Logger(t), nil), database.Chat{ID: uuid.New()}, resolvedModelCall{}, nil)
+	_, ok := chatdebug.RunFromContext(ctx)
+	require.False(t, ok)
+	// The mock expects no finalize calls.
+	finish(nil)
+}
