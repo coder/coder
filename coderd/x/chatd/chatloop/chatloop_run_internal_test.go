@@ -993,11 +993,11 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		nil,
 		nil,
 		[]fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 		},
 		[]fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 			{ToolCallID: "3", ToolName: "denied_tool", Input: "{}"},
 		},
@@ -1006,7 +1006,6 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		defaultToolResultBytes,
-		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
 		nil,
@@ -1061,7 +1060,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 	)
 
 	executed := []fantasy.ToolCallContent{
-		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "1", ToolName: "observer_tool", Input: "{}"},
 		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
 		{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
 	}
@@ -1081,7 +1080,6 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		defaultToolResultBytes,
-		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
 		nil,
@@ -1091,7 +1089,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
 	require.Equal(t, []string{"observer_tool", "failing_tool", "missing_tool", "rejected_tool"}, gotNames,
-		"outcomes are reported per call in observed order with aliases resolved")
+		"outcomes are reported per call in observed order")
 	require.Equal(t, []bool{false, true, true, true}, gotErrored,
 		"error results, unresolvable tools, and observed calls rejected before execution all settle as errored outcomes")
 }
@@ -1162,7 +1160,6 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		defaultToolResultBytes,
-		nil,
 		time.Time{},
 		nil,
 		nil,
@@ -1233,7 +1230,6 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		defaultToolResultBytes,
-		nil,
 		time.Time{},
 		nil,
 		nil,
@@ -1325,7 +1321,6 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			defaultToolResultBytes,
-			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
 			nil,
@@ -1415,7 +1410,6 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			nil,
 			defaultToolResultBytes,
 			nil,
-			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1466,7 +1460,6 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			nil,
 			defaultToolResultBytes,
 			nil,
-			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1511,7 +1504,6 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
-			nil,
 			nil,
 		)
 
@@ -1564,7 +1556,6 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 				nil,
 				defaultToolResultBytes,
 				nil,
-				nil,
 			)
 
 			switch out := result.Result.(type) {
@@ -1581,59 +1572,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 	}
 }
 
-func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
-	t.Parallel()
-
-	metrics := NewMetrics(prometheus.NewRegistry())
-	logger := slog.Make()
-
-	var gotName string
-	tool := fantasy.NewAgentTool(
-		"interrupt_agent",
-		"interrupts an agent",
-		func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			gotName = call.Name
-			return fantasy.ToolResponse{Content: `{"interrupted":true}`}, nil
-		},
-	)
-	toolMap := map[string]fantasy.AgentTool{"interrupt_agent": tool}
-
-	// The model emits the deprecated name from old history; only the
-	// canonical name is advertised/active.
-	tc := fantasy.ToolCallContent{
-		ToolCallID: "call-alias",
-		ToolName:   "close_agent",
-		Input:      "{}",
-	}
-
-	result, _ := executeSingleTool(
-		context.Background(),
-		toolMap,
-		tc,
-		metrics,
-		logger,
-		"fake", "fake-model",
-		map[string]bool{},
-		[]string{"interrupt_agent"},
-		nil,
-		map[string]struct{}{},
-		nil,
-		defaultToolResultBytes,
-		map[string]string{"close_agent": "interrupt_agent"},
-		nil,
-	)
-
-	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
-	require.True(t, ok, "expected text output, got %T", result.Result)
-	require.Contains(t, textOutput.Text, "interrupted")
-	// The handler receives the resolved canonical name.
-	require.Equal(t, "interrupt_agent", gotName)
-	// The persisted result keeps the original alias so existing history
-	// renders consistently.
-	require.Equal(t, "close_agent", result.ToolName)
-}
-
-func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
+func TestExecuteSingleTool_RejectsUnknownTool(t *testing.T) {
 	t.Parallel()
 
 	metrics := NewMetrics(prometheus.NewRegistry())
@@ -1645,9 +1584,6 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		Input:      "{}",
 	}
 
-	// No alias provided: the deprecated name is neither active nor in the
-	// tool map, so it surfaces a clear not-active error and the model can
-	// self-correct to the advertised name.
 	result, _ := executeSingleTool(
 		context.Background(),
 		map[string]fantasy.AgentTool{},
@@ -1662,12 +1598,11 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		nil,
 		defaultToolResultBytes,
 		nil,
-		nil,
 	)
 
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
 	require.True(t, ok, "expected error output, got %T", result.Result)
-	require.Contains(t, errOutput.Error.Error(), "close_agent")
+	require.EqualError(t, errOutput.Error, "Tool not active in this turn: close_agent")
 }
 
 func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
@@ -1692,7 +1627,6 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
-		nil,
 		nil,
 	)
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)

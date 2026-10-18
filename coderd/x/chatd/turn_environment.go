@@ -1958,7 +1958,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -2041,7 +2041,6 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"wait_agent":           false,
 		"message_agent":        false,
 		"interrupt_agent":      false,
-		"close_agent":          false,
 		"list_agents":          false,
 		"list_subagent_models": false,
 		"read_skill":           true,
