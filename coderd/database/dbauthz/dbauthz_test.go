@@ -973,16 +973,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatDebugDataByChatID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
-	s.Run("FinalizeStaleChatDebugRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
-		arg := database.FinalizeStaleChatDebugRowsParams{
-			Now:           now,
-			UpdatedBefore: now.Add(-5 * time.Minute),
-		}
-		row := database.FinalizeStaleChatDebugRowsRow{RunsFinalized: 1, StepsFinalized: 2}
-		dbm.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), arg).Return(row, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(row)
-	}))
 	s.Run("GetChatDebugLoggingAllowUsers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatDebugLoggingAllowUsers(gomock.Any()).Return(true, nil).AnyTimes()
 		check.Args().Asserts().Returns(true)
