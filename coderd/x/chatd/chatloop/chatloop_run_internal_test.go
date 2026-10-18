@@ -1555,14 +1555,18 @@ func TestExecuteLocalTools_ProviderToolRunner(t *testing.T) {
 		ToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "call-search", ToolName: "web_search", Input: "{}", ProviderExecuted: true},
 			{ToolCallID: "call-computer", ToolName: "computer", Input: "{}"},
+			{ToolCallID: "call-alias", ToolName: "computer_alias", Input: "{}"},
 		},
-		Clock: quartz.NewReal(),
+		ToolNameAliases: map[string]string{"computer_alias": "computer"},
+		Clock:           quartz.NewReal(),
 	})
 	require.NoError(t, err)
-	require.Len(t, step.Content, 1, "provider-executed calls are skipped")
-	result, ok := step.Content[0].(fantasy.ToolResultContent)
-	require.True(t, ok)
-	require.Equal(t, "call-computer", result.ToolCallID)
-	require.Equal(t, fantasy.ToolResultOutputContentText{Text: "screenshot taken"}, result.Result)
-	require.Equal(t, metadata, result.ProviderMetadata)
+	require.Len(t, step.Content, 2, "provider-executed calls are skipped")
+	for i, id := range []string{"call-computer", "call-alias"} {
+		result, ok := step.Content[i].(fantasy.ToolResultContent)
+		require.True(t, ok)
+		require.Equal(t, id, result.ToolCallID)
+		require.Equal(t, fantasy.ToolResultOutputContentText{Text: "screenshot taken"}, result.Result)
+		require.Equal(t, metadata, result.ProviderMetadata)
+	}
 }
