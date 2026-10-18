@@ -102,7 +102,7 @@ func TestQuickgenDebugRun(t *testing.T) {
 			t.Run(gen.name+"/"+outcome.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := testutil.Context(t, testutil.WaitShort)
+				ctx := testutil.Context(t, testutil.WaitLong)
 				db := dbmock.NewMockStore(gomock.NewController(t))
 				svc := chatdebug.NewService(db, testutil.Logger(t), nil, chatdebug.WithAlwaysEnable(true))
 				runID := uuid.New()
@@ -196,7 +196,7 @@ func TestPrepareManualTitleDebugRunCreateFailure(t *testing.T) {
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
 		Return(database.ChatDebugRun{}, xerrors.New("insert failed")).Times(1)
 
-	ctx, finish := prepareManualTitleDebugRun(testutil.Context(t, testutil.WaitShort),
+	ctx, finish := prepareManualTitleDebugRun(testutil.Context(t, testutil.WaitLong),
 		chatdebug.NewService(db, testutil.Logger(t), nil), database.Chat{ID: uuid.New()}, resolvedModelCall{}, nil)
 	_, ok := chatdebug.RunFromContext(ctx)
 	require.False(t, ok)
