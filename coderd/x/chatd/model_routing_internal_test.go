@@ -307,6 +307,37 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		require.Equal(t, "Bearer sk-user", route.ProviderAuth.Headers["Authorization"])
 	})
 
+	t.Run("UserKeyHeaderFollowsProviderAndModel", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			providerType database.AIProviderType
+			model        string
+			wantHeaders  map[string]string
+		}{
+			{providerType: database.AIProviderTypeOpenaiCompat, model: "qwen/qwen3", wantHeaders: map[string]string{"Authorization": "Bearer sk-user"}},
+			{providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-sonnet-4-6", wantHeaders: map[string]string{"X-Api-Key": "sk-user"}},
+		} {
+			typedProvider := provider
+			typedProvider.Type = tt.providerType
+			typedConfig := modelConfig
+			typedConfig.Model = tt.model
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(typedProvider, nil)
+			db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
+				UserID:       ownerID,
+				AIProviderID: providerID,
+			}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
+
+			server := &Server{db: db, allowBYOK: true}
+			route, err := server.resolveModelRouteForConfig(ctx, ownerID, typedConfig)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantHeaders, route.ProviderAuth.Headers, "%s %s", tt.providerType, tt.model)
+		}
+	})
+
 	t.Run("CentralProviderCredentialsNotForwarded", func(t *testing.T) {
 		t.Parallel()
 
