@@ -2,10 +2,8 @@
 title: Dynamic parameters
 ---
 
-Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
-enriched input types, and user identity awareness.
-This allows template authors to create interactive workspace creation forms with more environment customization,
-and that means fewer templates to maintain.
+Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls, enriched input types, and user identity awareness.
+This allows template authors to create interactive workspace creation forms with more environment customization, and that means fewer templates to maintain.
 
 ![Dynamic Parameters in Action](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-in-action.gif)
 
@@ -18,14 +16,12 @@ Administrators can use Dynamic Parameters to:
 - Only show parameters when other input criteria are met.
 - Only show select parameters to target Coder roles or groups.
 
-You can try the Dynamic Parameter syntax and any of the code examples below in the
-[Parameters Playground](https://playground.coder.app/parameters).
+You can try the Dynamic Parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters).
 You should experiment with parameters in the playground before you upgrade live templates.
 
 ## When You Should Upgrade to Dynamic Parameters
 
-While Dynamic parameters introduce a variety of new powerful tools, all functionality is backwards compatible with
-existing coder templates.
+While Dynamic parameters introduce a variety of new powerful tools, all functionality is backwards compatible with existing coder templates.
 When you opt-in to the new experience, no functional changes will be applied to your production parameters.
 
 Some reasons Coder template admins should try Dynamic Parameters:
@@ -72,11 +68,10 @@ If a template's active version was published before Dynamic Parameters, publish 
 ## Upgrade from parameter compatibility mode
 
 Parameter compatibility mode keeps a template on the classic parameter flow.
-Coder maintains a separate code path for that flow. It will be removed in a future release, so templates that
-use compatibility mode need to be upgraded before then.
+Coder maintains a separate code path for that flow.
+It will be removed in a future release, so templates that use compatibility mode need to be upgraded before then.
 
-To find templates that use compatibility mode, open the **Templates** page and select the
-**Templates using compatibility mode** filter, or search for `compatibility_mode:true`.
+To find templates that use compatibility mode, open the **Templates** page and select the **Templates using compatibility mode** filter, or search for `compatibility_mode:true`.
 
 For each template:
 
@@ -85,20 +80,16 @@ For each template:
    - `coder/coder`: >= [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0)
    - `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
 
-1. Select **Settings** > **Parameters** on the template, then clear
-   **Use parameter compatibility mode for workspace builds**.
+1. Select **Settings** > **Parameters** on the template, then clear **Use parameter compatibility mode for workspace builds**.
 
 1. Publish a new template version so Coder can resolve the parameter metadata.
-   If you don't need to change the Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data)
-   to publish a new version from the existing source files.
+   If you don't need to change the Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data) to publish a new version from the existing source files.
 
 1. Open the workspace creation form and confirm the parameters render as expected.
 
-You can make the same change through the `use_classic_parameter_flow` field in the
-[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+You can make the same change through the `use_classic_parameter_flow` field in the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
-If a template does not work after the switch, you can [revert it to compatibility mode](#revert-to-classic-parameters)
-and [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
+If a template does not work after the switch, you can [revert it to compatibility mode](#revert-to-classic-parameters) and [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ## Data sources and cached template data
 
@@ -141,12 +132,9 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 > Dynamic Parameters does not support external data fetching via HTTP endpoints at workspace build time.
 >
 > External fetching would introduce unpredictability in workspace builds after publishing a template.
-> Instead, we recommend that template administrators pull in any required data for a workspace build as a
-> [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file,
-> then reference that data in Terraform.
+> Instead, we recommend that template administrators pull in any required data for a workspace build as a [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file, then reference that data in Terraform.
 >
-> If you have a use case for external data fetching, please file an issue or create a discussion in the
-> [Coder GitHub repository](https://github.com/coder/coder).
+> If you have a use case for external data fetching, please file an issue or create a discussion in the [Coder GitHub repository](https://github.com/coder/coder).
 
 ## Available Form Input Types
 
@@ -155,12 +143,10 @@ Dynamic Parameters supports a variety of form types to create rich, interactive 
 ![Old vs New Parameters](../../../images/admin/templates/extend-templates/dyn-params/dynamic-params-compare.png)
 
 Different parameter types support different form types.
-You can specify the form type using the
-[`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
+You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 
 The **Options** column in the table below indicates whether the form type supports options (**Yes**) or doesn't support them (**No**).
-When supported, you can specify options using one or more `option` blocks in your parameter definition,
-where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
+When supported, you can specify options using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
 | Form Type      | Parameter Types                            | Options | Notes                                                                                                                   |
 |----------------|--------------------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------|
@@ -175,8 +161,7 @@ where each option has a `name` (displayed to the user) and a `value` (used in yo
 
 ### Available Styling Options
 
-The `coder_parameter` resource supports an additional `styling` attribute for special cosmetic changes that can be used
-to further customize the workspace creation form.
+The `coder_parameter` resource supports an additional `styling` attribute for special cosmetic changes that can be used to further customize the workspace creation form.
 
 This can be used for:
 
@@ -184,8 +169,7 @@ This can be used for:
 - Marking inputs as read-only
 - Setting placeholder text
 
-Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive
-form is displayed.
+Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive form is displayed.
 Users can avoid restrictions like `disabled` if they create a workspace via the CLI.
 
 This attribute accepts JSON like so:
@@ -211,9 +195,7 @@ Not all styling attributes are supported by all form types, use the reference be
 
 ### New Form Types
 
-The following examples show some basic usage of the
-[`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1)
-attribute [explained above](#available-form-input-types).
+The following examples show some basic usage of the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute [explained above](#available-form-input-types).
 These are used to change the input style of form controls in the create workspace form.
 
 <div class="tabs">
@@ -681,20 +663,16 @@ data "coder_parameter" "cpu_cores" {
 ## Identity-Aware Parameters (Premium)
 
 Premium users can leverage our roles and groups to conditionally expose or change parameters based on user identity.
-This is helpful for establishing governance policy directly in the workspace creation form,
-rather than creating multiple templates to manage RBAC.
+This is helpful for establishing governance policy directly in the workspace creation form, rather than creating multiple templates to manage RBAC.
 
-User identity is referenced in Terraform by reading the
-[`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
+User identity is referenced in Terraform by reading the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
 <div class="tabs">
 
 ### Role-aware Options
 
 Template administrators often want to expose certain experimental or unstable options only to those with elevated roles.
-You can now do this by setting `count` based on a user's group or role, referencing the
-[`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
-data source.
+You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
@@ -823,10 +801,9 @@ data "coder_parameter" "your_groups" {
 
 ## Troubleshooting
 
-Dynamic Parameters is now in general availability. We're tracking a list of known issues [here in Github](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc%20is%3Aissue%20is%3Aopen%20label%3Aparameters) as we continue to polish and improve the workflow.
-If you have any issues during upgrade, please file an issue in our
-[GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label and include a
-[Playground link](https://playground.coder.app/parameters) where applicable.
+Dynamic Parameters is now in general availability.
+We're tracking a list of known issues [here in Github](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc%20is%3Aissue%20is%3Aopen%20label%3Aparameters) as we continue to polish and improve the workflow.
+If you have any issues during upgrade, please file an issue in our [GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label and include a [Playground link](https://playground.coder.app/parameters) where applicable.
 We appreciate the feedback and look forward to what the community creates with this system!
 
 You can also [search or track the list of known issues](https://github.com/coder/coder/issues?q=is%3Aissue%20state%3Aopen%20label%3Aparameters).
@@ -849,17 +826,17 @@ To publish one without editing the template's Terraform, [refresh the template d
 The classic parameter flow is deprecated and will be removed in a future release.
 If a template does not work with Dynamic Parameters, you can opt that template out.
 Select **Settings** > **Parameters** on the template, then select **Use parameter compatibility mode for workspace builds**.
-You can also set the `use_classic_parameter_flow` field through the
-[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+You can also set the `use_classic_parameter_flow` field through the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
-If your template's parameters do not work with Dynamic Parameters, please
-[file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
+If your template's parameters do not work with Dynamic Parameters, please [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ### Template variables not showing up
 
-Dynamic Parameters are GA as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0). Template variables are fully supported in Dynamic Parameters.
+Dynamic Parameters are GA as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0).
+Template variables are fully supported in Dynamic Parameters.
 
-If you are experiencing issues with template variables, try upgrading to the latest version. Otherwise, please file an issue in our Github.
+If you are experiencing issues with template variables, try upgrading to the latest version.
+Otherwise, please file an issue in our Github.
 
 ### Can I use registry modules with Dynamic Parameters?
 
@@ -872,7 +849,9 @@ In the meantime, you can safely convert existing templates and build new paramet
 
 ### "Module not loaded" errors when using Dynamic Parameters
 
-Dynamic Parameters require Terraform modules to be archived and stored in the database. Coder limits module archives to **20&nbsp;MB total** to prevent database bloat. If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
+Dynamic Parameters require Terraform modules to be archived and stored in the database.
+Coder limits module archives to **20&nbsp;MB total** to prevent database bloat.
+If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
 
 **Symptoms:**
 
@@ -884,23 +863,16 @@ You may see warnings in the provisioner logs:
 
 If encountered, reduce the size of the module by removing unnecessary files.
 
-You can hit the same error for a different reason: if the active template
-version has no cached module archive at all, the workspace creation form
-shows a warning for every module in the template, for example:
+You can hit the same error for a different reason: if the active template version has no cached module archive at all, the workspace creation form shows a warning for every module in the template, for example:
 
 ```txt
 Module not loaded. Did you run `terraform init`?
 Module 'jetbrains' in file "main.tf:149,1-19" cannot be resolved. This module will be ignored.
 ```
 
-This happens for template versions published before Coder started archiving
-modules for Dynamic Parameters. **Workspace builds still succeed**, since
-Terraform fetches modules from their original sources during the build
-regardless of the cache; only the form's ability to evaluate module-backed
-parameter values is affected. To fix it,
-[publish a new template version](../managing-templates/index.md#refresh-template-data),
-which re-runs `terraform init` and populates the archive for that version.
+This happens for template versions published before Coder started archiving modules for Dynamic Parameters.
+**Workspace builds still succeed**, since Terraform fetches modules from their original sources during the build regardless of the cache; only the form's ability to evaluate module-backed parameter values is affected.
+To fix it, [publish a new template version](../managing-templates/index.md#refresh-template-data), which re-runs `terraform init` and populates the archive for that version.
 
-This archive is the same one Coder reuses across workspace builds to avoid
-re-downloading modules. See [module caching](./modules.md#module-caching) for
-how to disable that behavior for a template.
+This archive is the same one Coder reuses across workspace builds to avoid re-downloading modules.
+See [module caching](./modules.md#module-caching) for how to disable that behavior for a template.
