@@ -24,6 +24,7 @@ func TestScriptCompleted(t *testing.T) {
 		scriptID     uuid.UUID
 		timing       *agentproto.Timing
 		expectInsert bool
+		expectStatus database.WorkspaceAgentScriptTimingStatus
 		expectError  string
 	}{
 		{
@@ -36,6 +37,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusOk,
 		},
 		{
 			scriptID: uuid.New(),
@@ -47,6 +49,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusOk,
 		},
 		{
 			scriptID: uuid.New(),
@@ -58,6 +61,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 0,
 			},
 			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusOk,
 		},
 		{
 			scriptID: uuid.New(),
@@ -69,6 +73,7 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 255,
 			},
 			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusTimedOut,
 		},
 		{
 			scriptID: uuid.New(),
@@ -80,6 +85,65 @@ func TestScriptCompleted(t *testing.T) {
 				ExitCode: 1,
 			},
 			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusExitFailure,
+		},
+		{
+			// Equal start and end passes the start-after-end check.
+			scriptID: uuid.New(),
+			timing: func() *agentproto.Timing {
+				at := timestamppb.New(dbtime.Now())
+				return &agentproto.Timing{
+					Stage:    agentproto.Timing_START,
+					Start:    at,
+					End:      at,
+					Status:   agentproto.Timing_SKIPPED,
+					ExitCode: 0,
+				}
+			}(),
+			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusSkipped,
+		},
+		{
+			scriptID: uuid.New(),
+			timing: &agentproto.Timing{
+				Stage:    agentproto.Timing_START,
+				Start:    timestamppb.New(dbtime.Now()),
+				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
+				Status:   agentproto.Timing_CANCELED,
+				ExitCode: 255,
+			},
+			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusCanceled,
+		},
+		{
+			scriptID: uuid.New(),
+			timing: func() *agentproto.Timing {
+				at := timestamppb.New(dbtime.Now())
+				return &agentproto.Timing{
+					Stage:    agentproto.Timing_START,
+					Start:    at,
+					End:      at,
+					Status:   agentproto.Timing_CANCELED,
+					ExitCode: 0,
+				}
+			}(),
+			expectInsert: true,
+			expectStatus: database.WorkspaceAgentScriptTimingStatusCanceled,
+		},
+		{
+			// A status this coderd does not know fails before the insert.
+			// The value sits far outside the enum so a seventh status
+			// does not turn this row into a known one.
+			scriptID: uuid.New(),
+			timing: &agentproto.Timing{
+				Stage:    agentproto.Timing_START,
+				Start:    timestamppb.New(dbtime.Now()),
+				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
+				Status:   agentproto.Timing_Status(1000),
+				ExitCode: 0,
+			},
+			expectInsert: false,
+			expectError:  "unknown script timing status",
 		},
 		{
 			scriptID: uuid.New(),
@@ -152,7 +216,7 @@ func TestScriptCompleted(t *testing.T) {
 			mDB.EXPECT().InsertWorkspaceAgentScriptTimings(gomock.Any(), database.InsertWorkspaceAgentScriptTimingsParams{
 				ScriptID:  tt.scriptID,
 				Stage:     protoScriptTimingStageToDatabase(tt.timing.Stage),
-				Status:    protoScriptTimingStatusToDatabase(tt.timing.Status),
+				Status:    tt.expectStatus,
 				StartedAt: tt.timing.Start.AsTime(),
 				EndedAt:   tt.timing.End.AsTime(),
 				ExitCode:  tt.timing.ExitCode,
@@ -182,19 +246,4 @@ func protoScriptTimingStageToDatabase(stage agentproto.Timing_Stage) database.Wo
 		dbStage = database.WorkspaceAgentScriptTimingStageCron
 	}
 	return dbStage
-}
-
-func protoScriptTimingStatusToDatabase(stage agentproto.Timing_Status) database.WorkspaceAgentScriptTimingStatus {
-	var dbStatus database.WorkspaceAgentScriptTimingStatus
-	switch stage {
-	case agentproto.Timing_OK:
-		dbStatus = database.WorkspaceAgentScriptTimingStatusOk
-	case agentproto.Timing_EXIT_FAILURE:
-		dbStatus = database.WorkspaceAgentScriptTimingStatusExitFailure
-	case agentproto.Timing_TIMED_OUT:
-		dbStatus = database.WorkspaceAgentScriptTimingStatusTimedOut
-	case agentproto.Timing_PIPES_LEFT_OPEN:
-		dbStatus = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
-	}
-	return dbStatus
 }

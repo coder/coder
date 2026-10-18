@@ -6,15 +6,12 @@ Users can generate tokens to make API requests on behalf of themselves.
 
 ## Short-Lived Tokens (Sessions)
 
-The [Coder CLI](../../install/cli.md) and
-[Backstage Plugin](https://github.com/coder/backstage-plugins) use short-lived
-token to authenticate. To generate a short-lived session token on behalf of your
-account, visit the following URL: `https://coder.example.com/cli-auth`
+The [Coder CLI](../../install/cli.md) and [Backstage Plugin](https://github.com/coder/backstage-plugins) use short-lived token to authenticate.
+To generate a short-lived session token on behalf of your account, visit the following URL: `https://coder.example.com/cli-auth`
 
 ### Retrieve the current session token
 
-If you're already logged in with the CLI, you can retrieve your current session
-token for use in scripts and automation:
+If you're already logged in with the CLI, you can retrieve your current session token for use in scripts and automation:
 
 ```sh
 coder login token
@@ -33,8 +30,8 @@ You can configure [`CODER_SESSION_DURATION`](../../reference/cli/server/index.md
 
 ## Long-Lived Tokens (API Tokens)
 
-Users can create long lived tokens. We refer to these as "API tokens" in the
-product.
+Users can create long lived tokens.
+We refer to these as "API tokens" in the product.
 
 ### Generate a long-lived API token on behalf of yourself
 
@@ -44,8 +41,7 @@ Use a unique name for each token.
 
 #### UI
 
-Visit your account settings in the top right of the dashboard or by navigating
-to `https://coder.example.com/settings/account`
+Visit your account settings in the top right of the dashboard or by navigating to `https://coder.example.com/settings/account`
 
 Navigate to the tokens page in the sidebar and create a new token:
 
@@ -59,8 +55,7 @@ Use the following command:
 coder tokens create --name=my-token --lifetime=720h
 ```
 
-See the help docs for
-[`coder tokens create`](../../reference/cli/tokens/create.md) for more info.
+See the help docs for [`coder tokens create`](../../reference/cli/tokens/create.md) for more info.
 
 </div>
 
@@ -68,8 +63,8 @@ See the help docs for
 
 You must have the `Owner` role to generate a token for another user.
 
-As of Coder v2.17+, you can use the CLI or API to create long-lived tokens on
-behalf of other users. Use the API for earlier versions of Coder.
+As of Coder v2.17+, you can use the CLI or API to create long-lived tokens on behalf of other users.
+Use the API for earlier versions of Coder.
 
 <div class="tabs">
 
@@ -79,35 +74,29 @@ behalf of other users. Use the API for earlier versions of Coder.
 coder tokens create --name my-token --user <username>
 ```
 
-See the full CLI reference for
-[`coder tokens create`](../../reference/cli/tokens/create.md)
+See the full CLI reference for [`coder tokens create`](../../reference/cli/tokens/create.md)
 
 #### API
 
-Use our API reference for more information on how to
-[create token API key](../../reference/api/users.md#create-token-api-key)
+Use our API reference for more information on how to [create token API key](../../reference/api/users.md#create-token-api-key)
 
 </div>
 
 ### Set max token length
 
-You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server/index.md#--max-token-lifetime)
-server flag to set the maximum duration for long-lived tokens in your
-deployment.
+You can use the [`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server/index.md#--max-token-lifetime) server flag to set the maximum duration for long-lived tokens in your deployment.
 
 ### Remove or expire a token
 
-You can remove a token using the CLI or the API. By default, `coder tokens remove`
-expires the token, (soft-delete):
+You can remove a token using the CLI or the API.
+By default, `coder tokens remove` expires the token, (soft-delete):
 
 ```console
 coder tokens remove <name|id>
 ```
 
-Expired tokens can no longer be used for authentication and are hidden from
-token listings by default. To include expired tokens, use the
-`--include-expired` flag:
+Expired tokens can no longer be used for authentication and are hidden from token listings by default.
+To include expired tokens, use the `--include-expired` flag:
 
 ```console
 coder tokens list --include-expired
@@ -123,11 +112,15 @@ Deleting the user that owns a token revokes every token that user holds at the s
 
 ## API Key Scopes
 
-API key scopes allow you to limit the permissions of a token to specific operations. By default, a token gets the scopes of the credential that creates it, which is `coder:all`, full access to all actions the user can perform, for a browser or `coder login` session. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
+API key scopes allow you to limit the permissions of a token to specific operations.
+By default, a token gets the scopes of the credential that creates it, which is `coder:all`, full access to all actions the user can perform, for a browser or `coder login` session.
+For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
 
-A token's scopes and allow list never exceed those of the token that creates it. A token created with a scoped token inherits that token's scopes and allow list unless you name narrower ones, requesting more is rejected with a `403` response, and it expires no later than that token.
+A token's scopes and allow list never exceed those of the token that creates it.
+A token created with a scoped token inherits that token's scopes and allow list unless you name narrower ones, requesting more is rejected with a `403` response, and it expires no later than that token.
 
-Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
+Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`).
+You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
 
 <a id="creating-tokens-with-scopes"></a>
 
@@ -151,16 +144,16 @@ Common scope examples include:
 - `api_key:read` - View API keys (useful for automation)
 - `coder:application_connect` - Connect to workspace applications
 
-For every scope a token can request, including the composite `coder:` scopes and
-the permissions each one grants, refer to the
-[API key scopes reference](../../reference/api-key-scopes.md). Coder rejects any
-other scope name with a `400` response.
+For every scope a token can request, including the composite `coder:` scopes and the permissions each one grants, refer to the [API key scopes reference](../../reference/api-key-scopes.md).
+Coder rejects any other scope name with a `400` response.
 
-Coder accepts deprecated scope names for backward compatibility. Refer to the [Deprecated scope names](../../reference/api-key-scopes.md#deprecated-scope-names) section of the API key scopes reference.
+Coder accepts deprecated scope names for backward compatibility.
+Refer to the [Deprecated scope names](../../reference/api-key-scopes.md#deprecated-scope-names) section of the API key scopes reference.
 
 ### Allow lists (advanced)
 
-For additional security, you can combine scopes with allow lists to restrict tokens to specific resources. Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their UUID:
+For additional security, you can combine scopes with allow lists to restrict tokens to specific resources.
+Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their UUID:
 
 ```sh
 # Create a token limited to a specific workspace
@@ -169,7 +162,10 @@ coder tokens create --name "workspace-token" \
   --allow "workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab"
 ```
 
-**Important:** Allow lists are exclusive - the token can **only** perform actions on resources explicitly listed. In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, etc.). To maintain access to other resources, you must explicitly add them to the allow list:
+**Important:**
+Allow lists are exclusive - the token can **only** perform actions on resources explicitly listed.
+In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, etc.).
+To maintain access to other resources, you must explicitly add them to the allow list:
 
 ```sh
 # Token that can read one workspace AND access templates and user info
