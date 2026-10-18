@@ -663,21 +663,34 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 func TestService_FinalizeStale_UsesConfiguredThreshold(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	svc := chatdebug.NewService(db, testutil.Logger(t), nil, chatdebug.WithStaleAfter(42*time.Second))
+	tests := []struct {
+		name       string
+		staleAfter time.Duration
+		want       time.Duration
+	}{
+		{name: "Configured", staleAfter: 42 * time.Second, want: 42 * time.Second},
+		{name: "ZeroKeepsDefault", staleAfter: 0, want: chatdebug.DefaultStaleThreshold},
+		{name: "NegativeKeepsDefault", staleAfter: -time.Second, want: chatdebug.DefaultStaleThreshold},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	db.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, params database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-			require.WithinDuration(t, time.Now().Add(-42*time.Second), params.UpdatedBefore, 2*time.Second)
-			return database.FinalizeStaleChatDebugRowsRow{}, nil
-		},
-	)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			svc := chatdebug.NewService(db, testutil.Logger(t), nil, chatdebug.WithStaleAfter(tc.staleAfter))
+			db.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, params database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
+					require.WithinDuration(t, time.Now().Add(-tc.want), params.UpdatedBefore, 2*time.Second)
+					return database.FinalizeStaleChatDebugRowsRow{}, nil
+				},
+			)
 
-	result, err := svc.FinalizeStale(context.Background())
-	require.NoError(t, err)
-	require.Zero(t, result.RunsFinalized)
-	require.Zero(t, result.StepsFinalized)
+			result, err := svc.FinalizeStale(context.Background())
+			require.NoError(t, err)
+			require.Zero(t, result.RunsFinalized)
+			require.Zero(t, result.StepsFinalized)
+		})
+	}
 }
 
 func TestService_FinalizeStale(t *testing.T) {
