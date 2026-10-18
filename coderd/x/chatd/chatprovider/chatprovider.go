@@ -851,36 +851,15 @@ func providerOptionsFromChatModelConfig(
 			options.Anthropic,
 		)
 	}
-	if options.Google != nil {
-		var modelID string
-		if model.Valid() {
-			modelID = model.ModelID()
-		}
-		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
-			modelID,
-			options.Google,
-		)
-	}
 	if options.OpenAICompat != nil {
 		result[fantasyopenaicompat.Name] = openAICompatProviderOptionsFromChatConfig(
 			options.OpenAICompat,
 		)
 	}
-	if options.OpenRouter != nil {
-		result[fantasyopenrouter.Name] = openRouterProviderOptionsFromChatConfig(
-			options.OpenRouter,
-		)
-	}
-	if options.Vercel != nil {
-		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
-			options.Vercel,
-		)
-	}
 
-	// Google models backed by an AI Provider route through the
-	// OpenAI-compatible client, which ignores the fantasygoogle options key,
-	// so a pinned thinking configuration must also travel as the compat
-	// request's extra_body for the transport patch to honor it.
+	// Google models route through the OpenAI-compatible client, so a pinned
+	// thinking configuration travels as the compat request's extra_body for
+	// the transport patch to honor it.
 	if options.Google != nil && options.Google.ThinkingConfig != nil &&
 		model.Valid() && NormalizeProvider(model.Provider()) == fantasyopenaicompat.Name {
 		if extraBody := googleCompatExtraBodyFromThinkingConfig(model.ModelID(), options.Google.ThinkingConfig); extraBody != nil {
@@ -911,112 +890,10 @@ func anthropicProviderOptionsFromChatConfig(
 	return result
 }
 
-func googleProviderOptionsFromChatConfig(
-	modelID string,
-	options *codersdk.ChatModelGoogleProviderOptions,
-) *fantasygoogle.ProviderOptions {
-	result := &fantasygoogle.ProviderOptions{
-		CachedContent: strings.TrimSpace(options.CachedContent),
-		Threshold:     strings.TrimSpace(options.Threshold),
-	}
-	if options.ThinkingConfig != nil {
-		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
-			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
-			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
-		}
-		// Each Gemini model accepts a different thinking_level subset and
-		// pre-Gemini-3 models reject the field entirely, so clamp a pinned
-		// level into the model's supported set and drop it for models
-		// without support. Gating here rather than at config save time
-		// also covers updates that switch a config's model without
-		// resubmitting options.
-		if pinned := GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel); pinned != nil {
-			if supported := googleSupportedThinkingLevels(modelID); len(supported) > 0 {
-				level := clampGoogleThinkingLevel(*pinned, supported)
-				result.ThinkingConfig.ThinkingLevel = &level
-			}
-		}
-	}
-	if options.SafetySettings != nil {
-		result.SafetySettings = make(
-			[]fantasygoogle.SafetySetting,
-			0,
-			len(options.SafetySettings),
-		)
-		for _, setting := range options.SafetySettings {
-			result.SafetySettings = append(result.SafetySettings, fantasygoogle.SafetySetting{
-				Category:  strings.TrimSpace(setting.Category),
-				Threshold: strings.TrimSpace(setting.Threshold),
-			})
-		}
-	}
-	return result
-}
-
 func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
 		User: chatutil.NormalizedStringPointer(options.User),
 	}
-}
-
-func openRouterProviderOptionsFromChatConfig(
-	options *codersdk.ChatModelOpenRouterProviderOptions,
-) *fantasyopenrouter.ProviderOptions {
-	result := &fantasyopenrouter.ProviderOptions{
-		ExtraBody:         options.ExtraBody,
-		IncludeUsage:      options.IncludeUsage,
-		LogitBias:         options.LogitBias,
-		LogProbs:          options.LogProbs,
-		ParallelToolCalls: options.ParallelToolCalls,
-		User:              chatutil.NormalizedStringPointer(options.User),
-	}
-	if options.Reasoning != nil {
-		result.Reasoning = &fantasyopenrouter.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			Exclude:   options.Reasoning.Exclude,
-			MaxTokens: options.Reasoning.MaxTokens,
-		}
-	}
-	if options.Provider != nil {
-		result.Provider = &fantasyopenrouter.Provider{
-			Order:             options.Provider.Order,
-			AllowFallbacks:    options.Provider.AllowFallbacks,
-			RequireParameters: options.Provider.RequireParameters,
-			DataCollection:    chatutil.NormalizedStringPointer(options.Provider.DataCollection),
-			Only:              options.Provider.Only,
-			Ignore:            options.Provider.Ignore,
-			Quantizations:     options.Provider.Quantizations,
-			Sort:              chatutil.NormalizedStringPointer(options.Provider.Sort),
-		}
-	}
-	return result
-}
-
-func vercelProviderOptionsFromChatConfig(
-	options *codersdk.ChatModelVercelProviderOptions,
-) *fantasyvercel.ProviderOptions {
-	result := &fantasyvercel.ProviderOptions{
-		User:              chatutil.NormalizedStringPointer(options.User),
-		LogitBias:         options.LogitBias,
-		LogProbs:          options.LogProbs,
-		TopLogProbs:       options.TopLogProbs,
-		ParallelToolCalls: options.ParallelToolCalls,
-		ExtraBody:         options.ExtraBody,
-	}
-	if options.Reasoning != nil {
-		result.Reasoning = &fantasyvercel.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			MaxTokens: options.Reasoning.MaxTokens,
-			Exclude:   options.Reasoning.Exclude,
-		}
-	}
-	if options.ProviderOptions != nil {
-		result.ProviderOptions = &fantasyvercel.GatewayProviderOptions{
-			Order:  options.ProviderOptions.Order,
-			Models: options.ProviderOptions.Models,
-		}
-	}
-	return result
 }
