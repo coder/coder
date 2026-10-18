@@ -8071,7 +8071,8 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		require.True(t, readResult.IsError)
 		require.Contains(t, string(advisorResult.Result), "advisor must be called alone, without other tools in the same batch")
 		require.Contains(t, string(readResult.Result), "this tool was skipped because advisor must run alone in its batch")
-		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+		// A third streamed call would be the advisor's nested model call.
+		require.Equal(t, int32(2), streamedCallCount.Load())
 	})
 
 	t.Run("mixed exclusive and dynamic tools commit policy errors", func(t *testing.T) {
@@ -8128,42 +8129,6 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		require.Contains(t, string(advisorResult.Result), "advisor must be called alone, without other tools in the same batch")
 		require.Contains(t, string(dynamicResult.Result), "this tool was skipped because advisor must run alone in its batch")
 		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
-	})
-
-	t.Run("solo exclusive tool executes", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, ps := dbtestutil.NewDB(t)
-		var streamedCallCount atomic.Int32
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-			switch streamedCallCount.Add(1) {
-			case 1:
-				return chattest.OpenAIStreamingResponse(
-					chattest.OpenAIToolCallChunk("advisor", `{"question":"help me decide"}`),
-				)
-			case 2:
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("nested advice")...)
-			default:
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-			}
-		})
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "advise only")
-		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-
-		parts := chatToolParts(ctx, t, db, chat.ID)
-		result := requireToolResultPart(t, parts, "advisor")
-		require.False(t, result.IsError)
-		require.Contains(t, string(result.Result), "nested advice")
-		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(3))
 	})
 
 	t.Run("exclusive tool with provider executed tool executes", func(t *testing.T) {
@@ -14146,145 +14111,11 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
 }
 
-func TestAdvisorGating_RootChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var streamedCallCount atomic.Int32
-	var streamedCallsMu sync.Mutex
-	var firstCallTools []string
-	var firstCallMessages []chattest.OpenAIMessage
-	var secondCallMessages []chattest.OpenAIMessage
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		switch streamedCallCount.Add(1) {
-		case 1:
-			names := make([]string, 0, len(req.Tools))
-			for _, tool := range req.Tools {
-				names = append(names, tool.Function.Name)
-			}
-			streamedCallsMu.Lock()
-			firstCallTools = names
-			firstCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-			streamedCallsMu.Unlock()
-
-			advisorChunk := chattest.OpenAIToolCallChunk(
-				"advisor",
-				`{"question":"help me plan"}`,
-			)
-			readChunk := chattest.OpenAIToolCallChunk(
-				"read_file",
-				`{"path":"/tmp/test.txt"}`,
-			)
-			mergedChunk := advisorChunk
-			readCall := readChunk.Choices[0].ToolCalls[0]
-			readCall.Index = 1
-			mergedChunk.Choices[0].ToolCalls = append(
-				mergedChunk.Choices[0].ToolCalls,
-				readCall,
-			)
-			return chattest.OpenAIStreamingResponse(mergedChunk)
-		case 2:
-			streamedCallsMu.Lock()
-			secondCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-			streamedCallsMu.Unlock()
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-root",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("help me plan this"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		if got.Status != database.ChatStatusWaiting &&
-			got.Status != database.ChatStatusError {
-			return false
-		}
-		return streamedCallCount.Load() >= 2
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	streamedCallsMu.Lock()
-	tools := append([]string(nil), firstCallTools...)
-	messages := append([]chattest.OpenAIMessage(nil), firstCallMessages...)
-	secondMessages := append([]chattest.OpenAIMessage(nil), secondCallMessages...)
-	streamedCallsMu.Unlock()
-
-	// Exactly two streamed LLM calls are expected: the first that
-	// returned the mixed advisor + read_file batch, and the second
-	// that received the exclusive-policy rejection. A third call
-	// would indicate that either tool had slipped past the exclusive
-	// policy; the >= 2 wait would have missed that regression.
-	require.Equal(t, int32(2), streamedCallCount.Load(),
-		"exclusive policy must block execution of both tools; no third call expected")
-	require.NotEmpty(t, messages, "expected a first streamed LLM request")
-	require.NotEmpty(t, secondMessages, "expected a second streamed LLM request")
-	require.Contains(t, tools, "advisor",
-		"advisor tool should be registered for root chats when enabled")
-
-	var hasGuidance bool
-	for _, msg := range messages {
-		if strings.Contains(msg.Content, chatadvisor.ParentGuidanceBlock) {
-			hasGuidance = true
-			break
-		}
-	}
-	require.True(t, hasGuidance,
-		"root chat should contain advisor guidance in the prompt")
-
-	var hasExclusiveAdvisorError bool
-	var hasSkippedToolError bool
-	for _, msg := range secondMessages {
-		if strings.Contains(msg.Content, "advisor must be called alone") {
-			hasExclusiveAdvisorError = true
-		}
-		if strings.Contains(msg.Content, "this tool was skipped because advisor must run alone") {
-			hasSkippedToolError = true
-		}
-	}
-	require.True(t, hasExclusiveAdvisorError,
-		"mixed advisor batches should surface the exclusive advisor error")
-	require.True(t, hasSkippedToolError,
-		"mixed advisor batches should skip sibling tools with an explanatory error")
-}
-
 // TestAdvisorHappyPath_RootChat walks the advisor tool end-to-end:
 // parent calls advisor alone, the nested advisor call produces text, and
-// the structured result flows back into the parent conversation. The
-// exclusive-policy test above only proves the rejection path; this test
-// covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
+// the structured result flows back into the parent conversation.
+// TestActiveServer_ExclusiveToolPolicy covers mixed-batch rejection; this
+// test covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
 // nested model call -> structured result back to the outer model.
 func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	t.Parallel()
@@ -14534,6 +14365,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), chatadvisor.ToolName)
+	require.False(t, result.IsError)
+	require.Contains(t, string(result.Result), advisorReply)
 }
 
 // TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
