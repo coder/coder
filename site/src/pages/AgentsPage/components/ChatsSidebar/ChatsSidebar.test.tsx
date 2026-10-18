@@ -828,7 +828,7 @@ describe("ChatsSidebar pin actions", () => {
 	);
 });
 
-const DRAG_INSTRUCTIONS = /pick up a draggable item/i;
+const DRAG_INSTRUCTIONS = /pick up a chat/i;
 
 describe("ChatsSidebar move to project", () => {
 	const mockBillingProject = {
@@ -974,7 +974,65 @@ describe("ChatsSidebar move to project", () => {
 	});
 });
 
+// dnd-kit uses browser APIs that jsdom lacks. spyOn cannot stub a missing
+// member, so stubDragDom adds them and removes them after each test.
+const stubDragDom = () => {
+	vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+	const stubs = [
+		[document, { getAnimations: () => [], elementFromPoint: () => null }],
+		[
+			Element.prototype,
+			{
+				getAnimations: () => [],
+				animate: () => ({ finished: Promise.resolve() }),
+			},
+		],
+	] as const;
+	for (const [target, members] of stubs) {
+		Object.assign(target, members);
+	}
+	return () => {
+		for (const [target, members] of stubs) {
+			for (const key of Object.keys(members)) {
+				Reflect.deleteProperty(target, key);
+			}
+		}
+		vi.unstubAllGlobals();
+	};
+};
+
+const nextFrame = () =>
+	act(
+		() =>
+			new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+	);
+
+// jsdom has no layout. dnd-kit measures the dragged element on each move to
+// find the target under it, so its box follows dnd-kit's --dnd-* properties.
+const mockLayout = (layout: (element: Element) => DOMRect) => {
+	vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+		function (this: Element) {
+			if (!(this instanceof HTMLElement) || !this.dataset.dndDragging) {
+				return layout(this);
+			}
+			const px = (name: string) =>
+				Number.parseFloat(this.style.getPropertyValue(`--dnd-${name}`)) || 0;
+			const [, translateY = "0"] = this.style
+				.getPropertyValue("--dnd-translate")
+				.split(" ");
+			return DOMRect.fromRect({
+				x: px("left"),
+				y: px("top") + Number.parseFloat(translateY),
+				width: px("width"),
+				height: px("height"),
+			});
+		},
+	);
+};
+
 describe("ChatsSidebar project drops", () => {
+	beforeEach(stubDragDom);
+
 	const mockBillingProject = {
 		...MockChatProject,
 		id: "billing",
@@ -1003,15 +1061,11 @@ describe("ChatsSidebar project drops", () => {
 	const box = (y: number, height: number) =>
 		DOMRect.fromRect({ x: 0, y, width: 300, height });
 
-	// jsdom has no layout, so dnd-kit measures zero rects. Only a node that
-	// holds exactly one landmark gets a box, and the DragOverlay copy, which
-	// holds none, gets the row box.
+	// dnd-kit clips each target by its ancestors' boxes, so an ancestor of
+	// several targets gets a box around all of them.
 	const layoutDropTargets = (row: string, rowTop: number) => {
-		const landmarks = [
-			{
-				node: screen.getByRole("link", { name: new RegExp(row) }),
-				box: box(rowTop, 40),
-			},
+		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
+		const targets = [
 			{ node: screen.getByRole("link", { name: "Billing" }), box: box(0, 80) },
 			{ node: screen.getByRole("link", { name: "Ops" }), box: box(100, 40) },
 			{
@@ -1019,27 +1073,36 @@ describe("ChatsSidebar project drops", () => {
 				box: box(200, 300),
 			},
 		];
-		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-			function (this: Element) {
-				const held = landmarks.filter(({ node }) => this.contains(node));
-				if (held.length === 1) {
-					return held[0].box;
-				}
-				return this.textContent === row ? landmarks[0].box : box(0, 0);
-			},
-		);
+		mockLayout((element) => {
+			const held = targets.filter(({ node }) => element.contains(node));
+			if (held.length > 1) {
+				return box(0, 600);
+			}
+			if (held.length === 1) {
+				return held[0].box;
+			}
+			return element.contains(rowLink) ? box(rowTop, 40) : box(0, 0);
+		});
 	};
 
 	// user-event's pointer API leaves dnd-kit's updates outside act, and its
 	// drop sends no request, so the gesture uses fireEvent.
 	const mouseDragRow = async (row: string, dropY: number) => {
-		fireEvent.mouseDown(screen.getByRole("link", { name: new RegExp(row) }), {
+		const pointer = { pointerId: 1, isPrimary: true, pointerType: "mouse" };
+		fireEvent.pointerDown(screen.getByRole("link", { name: new RegExp(row) }), {
+			...pointer,
 			clientX: 10,
 			clientY: 250,
 		});
-		fireEvent.mouseMove(document, { clientX: 10, clientY: 260 });
-		fireEvent.mouseMove(document, { clientX: 10, clientY: dropY });
-		fireEvent.mouseUp(document, { clientX: 10, clientY: dropY });
+		fireEvent.pointerMove(document, { ...pointer, clientX: 10, clientY: 260 });
+		await nextFrame();
+		fireEvent.pointerMove(document, {
+			...pointer,
+			clientX: 10,
+			clientY: dropY,
+		});
+		await nextFrame();
+		fireEvent.pointerUp(document, { ...pointer, clientX: 10, clientY: dropY });
 		// The request goes out after the mutation's async onMutate.
 		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 	};
@@ -1146,14 +1209,12 @@ describe("ChatsSidebar project drops", () => {
 		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
 		// Chats holds the row here and needs its own box, and the folder links
 		// that layoutDropTargets needs do not render.
-		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-			function (this: Element) {
-				if (this.contains(chatsHeading)) {
-					return box(200, 300);
-				}
-				return this.contains(chatLink) ? box(240, 40) : box(0, 0);
-			},
-		);
+		mockLayout((element) => {
+			if (element.contains(chatsHeading)) {
+				return box(200, 300);
+			}
+			return element.contains(chatLink) ? box(240, 40) : box(0, 0);
+		});
 
 		// The drop lands in the Chats box, and the announcement proves that it
 		// ran, so the no-request check cannot pass without reaching the rule.
@@ -1243,12 +1304,14 @@ describe("ChatsSidebar project drops", () => {
 		await user.keyboard("[Space]");
 
 		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates was dropped on ${to}.`,
+			),
+		);
+		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
 		);
 		expect(update).toHaveBeenCalledTimes(1);
-		expect(screen.getByRole("status")).toHaveTextContent(
-			`Chat Fix invoice dates was dropped on ${to}.`,
-		);
 	});
 
 	// The chat link is the drag handle, so the row wrapper adds no tab stop
@@ -1324,25 +1387,26 @@ describe("ChatsSidebar project drops", () => {
 });
 
 describe("ChatsSidebar pinned reordering", () => {
+	beforeEach(stubDragDom);
+
 	const ROW_HEIGHT = 40;
 
-	// dnd-kit's keyboard sensor picks the drop target from measured
-	// rects, which jsdom reports as all zeros. Lay the sortable rows out
-	// vertically in document order so ArrowDown resolves to the next row.
-	// A node gets a row's box when it holds only that row's chat link.
+	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
+	// the rows stack in document order and ArrowDown reaches the next row.
 	const layoutSortableRows = () => {
 		const rows = screen.getAllByRole("link", {
 			description: DRAG_INSTRUCTIONS,
 		});
-		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-			function (this: Element) {
-				const held = rows.filter((row) => this.contains(row));
-				const index = held.length === 1 ? rows.indexOf(held[0]) : -1;
-				const top = index === -1 ? 0 : index * ROW_HEIGHT;
-				const height = index === -1 ? 0 : ROW_HEIGHT;
-				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
-			},
-		);
+		mockLayout((element) => {
+			const held = rows.filter((row) => element.contains(row));
+			if (held.length > 1) {
+				return DOMRect.fromRect({ width: 300, height: 600 });
+			}
+			const index = held.length === 1 ? rows.indexOf(held[0]) : -1;
+			const top = index === -1 ? 0 : index * ROW_HEIGHT;
+			const height = index === -1 ? 0 : ROW_HEIGHT;
+			return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+		});
 		return rows;
 	};
 
@@ -1393,6 +1457,13 @@ describe("ChatsSidebar pinned reordering", () => {
 			sortableRows[0].focus();
 			await user.keyboard("[Space]");
 			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Own first pinned chat is at position 2 of 2.",
+				),
+			);
+			// dnd-kit moves the dragged pin's element, which drops its focus.
+			await waitFor(() => expect(sortableRows[0]).toHaveFocus());
 			await user.keyboard("[Space]");
 
 			await waitFor(() =>

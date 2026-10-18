@@ -57,7 +57,6 @@ type ProjectFoldersProps = {
 	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
-	readonly draggedChat: Chat | undefined;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
@@ -74,7 +73,6 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	isLoadError,
 	onRetry,
 	emptyMessage,
-	draggedChat,
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
@@ -156,7 +154,6 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
 									onDelete={() => onDelete(project)}
 									emptyMessage={emptyMessage}
-									draggedChat={draggedChat}
 								/>
 							))}
 						</div>
@@ -177,7 +174,6 @@ type ProjectFolderProps = {
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
 	readonly emptyMessage: string;
-	readonly draggedChat: Chat | undefined;
 };
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
@@ -190,7 +186,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onEdit,
 	onDelete,
 	emptyMessage,
-	draggedChat,
 }) => {
 	const projectPath: To = {
 		pathname: buildAgentProjectPath({ projectId: project.id }),
@@ -207,7 +202,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				organizationId: project.organization_id,
 				label: projectLabel,
 			}}
-			draggedChat={draggedChat}
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>

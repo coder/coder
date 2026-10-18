@@ -1,9 +1,13 @@
-import { useDraggable } from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/react";
 import { cn } from "cn";
 import type { Chat } from "#/api/typesGenerated";
-import { type ChatDragData, canDragChatToProject } from "../chats/projectDrag";
+import {
+	CHAT_ROW_DRAG_TYPE,
+	type ChatDragData,
+	canDragChatToProject,
+} from "../chats/projectDrag";
 import { useChatTree } from "./ChatTreeContext";
-import { ChatTreeNode, chatLinkDragHandleProps } from "./ChatTreeNode";
+import { ChatTreeNode } from "./ChatTreeNode";
 
 type DraggableChatTreeNodeProps = {
 	readonly chat: Chat;
@@ -17,27 +21,22 @@ type DraggableChatTreeNodeProps = {
 export const DraggableChatTreeNode: React.FC<DraggableChatTreeNodeProps> = ({
 	chat,
 }) => {
-	const { currentUserId } = useChatTree();
+	const { currentUserId, dragInstructionsId } = useChatTree();
 	const canDrag = canDragChatToProject(chat, currentUserId);
-	const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
-		useDraggable({
-			id: `move:${chat.id}`,
-			data: { chat } satisfies ChatDragData,
-			disabled: !canDrag,
-		});
+	const { ref, handleRef, isDragging } = useDraggable({
+		id: `move:${chat.id}`,
+		type: CHAT_ROW_DRAG_TYPE,
+		data: { chat } satisfies ChatDragData,
+		disabled: !canDrag,
+	});
 	return (
-		<div ref={setNodeRef} className={cn(isDragging && "opacity-50")}>
+		<div ref={ref} className={cn(isDragging && "opacity-50")}>
 			<ChatTreeNode
 				chat={chat}
-				dragHandleProps={
-					canDrag
-						? chatLinkDragHandleProps(
-								setActivatorNodeRef,
-								attributes,
-								listeners,
-							)
-						: undefined
-				}
+				dragHandleProps={{
+					ref: handleRef,
+					"aria-describedby": canDrag ? dragInstructionsId : undefined,
+				}}
 			/>
 		</div>
 	);

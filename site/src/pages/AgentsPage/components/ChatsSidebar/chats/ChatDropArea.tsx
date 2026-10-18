@@ -1,15 +1,14 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDragOperation, useDroppable } from "@dnd-kit/react";
 import { cn } from "cn";
-import type { Chat } from "#/api/typesGenerated";
 import {
 	type DropTarget,
 	type DropTargetData,
+	movedChatOf,
 	projectIdForTarget,
 } from "./projectDrag";
 
 type ChatDropAreaProps = React.PropsWithChildren<{
 	readonly target: DropTarget;
-	readonly draggedChat: Chat | undefined;
 }>;
 
 /**
@@ -19,24 +18,24 @@ type ChatDropAreaProps = React.PropsWithChildren<{
  */
 export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 	target,
-	draggedChat,
 	children,
 }) => {
+	const movedChat = movedChatOf(useDragOperation().source);
 	const unavailable =
-		draggedChat !== undefined &&
-		projectIdForTarget(draggedChat, target) === undefined;
-	const { setNodeRef, isOver } = useDroppable({
+		movedChat !== undefined &&
+		projectIdForTarget(movedChat, target) === undefined;
+	const { ref, isDropTarget } = useDroppable({
 		id: target.kind === "project" ? `project:${target.projectId}` : "unfiled",
 		data: { dropTarget: target } satisfies DropTargetData,
-		disabled: !draggedChat || unavailable,
+		disabled: !movedChat || unavailable,
 	});
 	return (
 		<div
-			ref={setNodeRef}
+			ref={ref}
 			data-drop={unavailable ? "unavailable" : undefined}
 			className={cn(
 				"group/drop rounded-md",
-				isOver &&
+				isDropTarget &&
 					"outline-solid outline-1 -outline-offset-1 outline-content-link",
 			)}
 		>

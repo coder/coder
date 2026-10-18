@@ -1,7 +1,3 @@
-import type {
-	DraggableAttributes,
-	DraggableSyntheticListeners,
-} from "@dnd-kit/core";
 import { cn } from "cn";
 import {
 	ChevronDownIcon,
@@ -43,29 +39,12 @@ import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
-/**
- * Puts a row's drag handle on its chat link. It keeps dnd-kit's activator
- * ref, instructions, and listeners, but not its role, tabIndex, or role
- * description, so the link stays a link and no button wraps the row's other
- * controls.
- */
-export const chatLinkDragHandleProps = (
-	ref: (element: HTMLElement | null) => void,
-	attributes: DraggableAttributes,
-	listeners: DraggableSyntheticListeners,
-): React.ComponentProps<"a"> => ({
-	ref,
-	"aria-describedby": attributes["aria-describedby"],
-	...listeners,
-});
-
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
 	/**
-	 * Drag handle props for this row's chat link, from
-	 * chatLinkDragHandleProps. Subagent rows get none, so pressing on one does
-	 * not drag its root chat.
+	 * Drag handle props for this row's chat link. Subagent rows get none, so
+	 * pressing on one does not drag its root chat.
 	 */
 	readonly dragHandleProps?: React.ComponentProps<"a">;
 };
