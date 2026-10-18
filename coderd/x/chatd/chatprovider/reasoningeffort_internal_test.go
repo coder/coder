@@ -226,6 +226,7 @@ func TestGoogleCompatReasoningEffort(t *testing.T) {
 		// disable thinking.
 		{modelID: "gemini-2.5-flash", effort: "none", want: "none", wantOK: true},
 		{modelID: "gemini-2.5-flash", effort: "minimal", want: "low", wantOK: true},
+		{modelID: "gemini-2.5-flash", effort: "medium", want: "medium", wantOK: true},
 		{modelID: "gemini-2.5-flash", effort: "xhigh", want: "high", wantOK: true},
 		{modelID: "gemini-2.5-pro", effort: "none", want: "low", wantOK: true},
 		{modelID: "gemini-2.5-pro", effort: "high", want: "high", wantOK: true},
