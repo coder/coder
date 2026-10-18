@@ -93,18 +93,8 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 	return unsupported
 }
 
-// ProviderAllowsAmbientCredentials reports whether a direct client for
-// the provider type can use ambient credentials from the Coder server
-// instead of an explicit API key. Individual provider configs can also
-// support ambient credentials through ConfiguredProvider.SupportsAmbientCredentials.
-func ProviderAllowsAmbientCredentials(provider string) bool {
-	return NormalizeProvider(provider) == fantasybedrock.Name
-}
-
 // InlineImageCapBytes returns the per-image byte cap for inline
 // image parts, or (0, false) when no documented cap applies.
-// Bedrock shares Anthropic's cap because fantasy's bedrock provider
-// wraps the anthropic client.
 func InlineImageCapBytes(provider string) (int, bool) {
 	switch NormalizeProvider(provider) {
 	case fantasyanthropic.Name, fantasybedrock.Name:
@@ -763,8 +753,7 @@ func ModelFromConfig(
 	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
-	if apiKey == "" &&
-		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
+	if apiKey == "" {
 		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -803,26 +792,6 @@ func ModelFromConfig(
 			azureOpts = append(azureOpts, fantasyazure.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyazure.New(azureOpts...)
-	case fantasybedrock.Name:
-		bedrockOpts := []fantasybedrock.Option{
-			fantasybedrock.WithUserAgent(userAgent),
-		}
-		if region := providerKeys.Region(provider); region != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithRegion(region))
-		}
-		if apiKey != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
-		}
-		if len(extraHeaders) > 0 {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasybedrock.New(bedrockOpts...)
 	case fantasygoogle.Name:
 		options := []fantasygoogle.Option{
 			fantasygoogle.WithGeminiAPIKey(apiKey),
@@ -924,9 +893,6 @@ func ModelFromConfig(
 	return NewModel(model, openAIConfig), nil
 }
 
-// Providers that allow ambient credentials, such as Bedrock, bypass
-// this helper only after ResolveUserProviderKeys marks them
-// available.
 func missingProviderAPIKeyError(provider string) error {
 	switch provider {
 	case fantasyanthropic.Name:
