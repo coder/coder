@@ -417,7 +417,6 @@ func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat dat
 			messages,
 			pasteText,
 			resolved,
-			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
 		)
@@ -442,7 +441,6 @@ func (p *Server) maybeGenerateChatTitle(
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	resolved resolvedModelCall,
-	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 ) {
@@ -523,7 +521,6 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 		return
 	}
-	generatedTitle.Store(title)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
