@@ -20,10 +20,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// DefaultStaleThreshold is the fallback stale timeout for debug rows
-// when no caller-provided value is supplied.
-const DefaultStaleThreshold = 5 * time.Minute
-
 // Service persists chat debug rows and fans out lightweight change events.
 type Service struct {
 	db           database.Store
@@ -31,7 +27,6 @@ type Service struct {
 	pubsub       pubsub.Pubsub
 	clock        quartz.Clock
 	alwaysEnable bool
-	staleAfter   time.Duration
 }
 
 // ServiceOption configures optional Service behavior.
@@ -43,17 +38,6 @@ type ServiceOption func(*Service)
 func WithAlwaysEnable(always bool) ServiceOption {
 	return func(s *Service) {
 		s.alwaysEnable = always
-	}
-}
-
-// WithStaleAfter overrides DefaultStaleThreshold for FinalizeStale and
-// heartbeat timing (half the threshold, with a 1ms minimum).
-// Nonpositive durations are ignored.
-func WithStaleAfter(staleAfter time.Duration) ServiceOption {
-	return func(s *Service) {
-		if staleAfter > 0 {
-			s.staleAfter = staleAfter
-		}
 	}
 }
 
@@ -124,26 +108,15 @@ func NewService(db database.Store, log slog.Logger, ps pubsub.Pubsub, opts ...Se
 	}
 
 	s := &Service{
-		db:         db,
-		log:        log,
-		pubsub:     ps,
-		clock:      quartz.NewReal(),
-		staleAfter: DefaultStaleThreshold,
+		db:     db,
+		log:    log,
+		pubsub: ps,
+		clock:  quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
-}
-
-// heartbeatInterval returns a safe ticker interval for stream heartbeats.
-// It is half the stale threshold so at least one touch lands before the
-// stale sweep considers the row abandoned.  The result is clamped to a
-// minimum of 1 ms to prevent panics from time.NewTicker(0) with
-// pathologically small thresholds, while still staying well below any
-// practical stale timeout.
-func (s *Service) heartbeatInterval() time.Duration {
-	return max(s.staleAfter/2, time.Millisecond)
 }
 
 func chatdContext(ctx context.Context) context.Context {
@@ -345,7 +318,7 @@ func (s *Service) UpdateRun(
 // errRunFinalized is returned by CreateStep when the parent run has
 // already reached a terminal state (finished_at IS NOT NULL). This
 // prevents delayed retries from appending in-progress steps to runs
-// that FinalizeStale already marked as interrupted.
+// that were already finalized.
 var errRunFinalized = xerrors.New("parent run is already finalized")
 
 // errRunNotFound is returned by CreateStep when the parent run cannot
@@ -359,7 +332,7 @@ var errRunNotFound = xerrors.New("parent run not found")
 // or errRunNotFound if the run_id/chat_id pair does not match an
 // existing run. The finalization guard is enforced atomically by the
 // INSERT's CTE, which issues an UPDATE on the parent run (taking a
-// row lock). This prevents concurrent FinalizeStale from setting
+// row lock). This prevents a concurrent finalization from setting
 // finished_at between the check and the INSERT.
 func (s *Service) CreateStep(
 	ctx context.Context,
@@ -469,8 +442,8 @@ func (s *Service) classifyMissingRun(
 
 // UpdateStep updates an existing debug step and emits a step update event.
 // When a terminal status is set without an explicit FinishedAt, the
-// service auto-fills the timestamp so the stale sweep does not leave
-// terminal rows with finished_at = NULL.
+// service auto-fills the timestamp so terminal rows do not keep
+// finished_at = NULL.
 func (s *Service) UpdateStep(
 	ctx context.Context,
 	params UpdateStepParams,
@@ -500,83 +473,6 @@ func (s *Service) UpdateStep(
 
 	s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
 	return step, nil
-}
-
-// TouchStep bumps the step's and its parent run's updated_at timestamps
-// without changing any other fields. This prevents long-running operations
-// (e.g. streaming) from being prematurely swept by FinalizeStale, which
-// first marks runs stale by chat_debug_runs.updated_at and then cascades
-// to steps whose run_id was just finalized.
-func (s *Service) TouchStep(
-	ctx context.Context,
-	stepID uuid.UUID,
-	runID uuid.UUID,
-	chatID uuid.UUID,
-) error {
-	// Atomically bump both the step and its parent run so
-	// FinalizeStale cannot interleave between the two touches.
-	return s.db.TouchChatDebugStepAndRun(chatdContext(ctx),
-		database.TouchChatDebugStepAndRunParams{
-			Now:    s.clock.Now(),
-			StepID: stepID,
-			RunID:  runID,
-			ChatID: chatID,
-		})
-}
-
-// TouchRun bumps the run's updated_at timestamp without changing any
-// other fields. Runner-owned debug turns use this while no model step is
-// active, such as requires-action waits. It is a no-op when the service
-// is nil or either ID is uuid.Nil, since debug tracking is optional and
-// callers may not have an open run.
-func (s *Service) TouchRun(ctx context.Context, runID uuid.UUID, chatID uuid.UUID) error {
-	if s == nil || runID == uuid.Nil || chatID == uuid.Nil {
-		return nil
-	}
-	return s.db.TouchChatDebugRunUpdatedAt(chatdContext(ctx),
-		database.TouchChatDebugRunUpdatedAtParams{
-			Now:    s.clock.Now(),
-			ID:     runID,
-			ChatID: chatID,
-		})
-}
-
-// LaunchRunHeartbeat starts a goroutine that periodically touches an
-// open run until done is closed or ctx is canceled. It is a no-op when
-// the service is nil, either ID is uuid.Nil, or done is nil, since debug
-// tracking is optional and callers may not have an open run.
-func (s *Service) LaunchRunHeartbeat(ctx context.Context, runID uuid.UUID, chatID uuid.UUID, done <-chan struct{}) {
-	if s == nil || runID == uuid.Nil || chatID == uuid.Nil || done == nil {
-		return
-	}
-	s.heartbeat(ctx, done, "run-heartbeat", func(ctx context.Context) error {
-		return s.TouchRun(ctx, runID, chatID)
-	}, slog.F("run_id", runID))
-}
-
-func (s *Service) heartbeat(
-	ctx context.Context,
-	done <-chan struct{},
-	tag string,
-	touch func(context.Context) error,
-	rowField slog.Field,
-) {
-	go func() {
-		ticker := s.clock.NewTicker(s.heartbeatInterval(), "chatdebug", tag)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-done:
-				return
-			case <-ticker.C:
-				if err := touch(ctx); err != nil {
-					s.log.Debug(ctx, "heartbeat touch failed", slog.Error(err), rowField)
-				}
-			}
-		}
-	}()
 }
 
 // DeleteByChatID deletes debug data for a chat and emits a delete event.
@@ -629,28 +525,6 @@ func (s *Service) DeleteAfterMessageID(
 
 	s.publishEvent(ctx, chatID, EventKindDelete, uuid.Nil, uuid.Nil)
 	return deleted, nil
-}
-
-// FinalizeStale finalizes stale in-flight debug rows and emits a broadcast.
-func (s *Service) FinalizeStale(
-	ctx context.Context,
-) (database.FinalizeStaleChatDebugRowsRow, error) {
-	now := s.clock.Now()
-	result, err := s.db.FinalizeStaleChatDebugRows(
-		chatdContext(ctx),
-		database.FinalizeStaleChatDebugRowsParams{
-			Now:           now,
-			UpdatedBefore: now.Add(-s.staleAfter),
-		},
-	)
-	if err != nil {
-		return database.FinalizeStaleChatDebugRowsRow{}, err
-	}
-
-	if result.RunsFinalized > 0 || result.StepsFinalized > 0 {
-		s.publishEvent(ctx, uuid.Nil, EventKindFinalize, uuid.Nil, uuid.Nil)
-	}
-	return result, nil
 }
 
 // FinalizeRunParams bundles the arguments for FinalizeRun.

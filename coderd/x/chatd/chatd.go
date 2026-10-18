@@ -1392,7 +1392,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 				cfg.Logger.Named("chatdebug"),
 				ps,
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
-				chatdebug.WithStaleAfter(inFlightChatStaleAfter*3),
 			)
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,

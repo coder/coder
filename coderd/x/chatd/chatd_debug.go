@@ -25,9 +25,9 @@ const (
 	// even though the insert physically happened after commit.
 	// Subtracting this buffer ensures the fast retry path cannot
 	// delete replacement rows when clocks drift by up to this
-	// amount; rows within the buffer survive the fast cleanup but
-	// are still finalized (and eligible for stale-sweep cleanup) by
-	// the existing FinalizeStale background loop.
+	// amount; rows within the buffer survive the fast cleanup, and
+	// dbpurge deletes them once they age past the debug retention
+	// window.
 	debugCleanupClockSkew = 30 * time.Second
 )
 
