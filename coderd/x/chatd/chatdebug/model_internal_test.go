@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"iter"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"charm.land/fantasy"
@@ -728,92 +731,80 @@ func TestDebugModel_StreamInterruptedBeforeFinish(t *testing.T) {
 func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	runID := uuid.New()
+	tests := []struct {
+		name  string
+		inner *chattest.FakeModel
 
-	expectDebugLoggingEnabled(t, db, ownerID)
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
-		require.False(t, params.NormalizedResponse.Valid)
-		require.False(t, params.Usage.Valid)
-		require.True(t, params.Attempts.Valid)
-		require.True(t, params.Error.Valid)
-		require.False(t, params.Metadata.Valid)
-
-		var errPayload normalizedErrorPayload
-		require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
-		require.Contains(t, errPayload.Message, "nil")
-	})
-
-	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{
-		inner: &chattest.FakeModel{
-			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-				var nilStream fantasy.StreamResponse
-				return nilStream, nil
+		stream       func(context.Context, *debugModel) (bool, error)
+		wantMetadata map[string]any
+	}{
+		{
+			name: "Stream",
+			inner: &chattest.FakeModel{
+				StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+					var nilStream fantasy.StreamResponse
+					return nilStream, nil
+				},
+			},
+			stream: func(ctx context.Context, model *debugModel) (bool, error) {
+				seq, err := model.Stream(ctx, fantasy.Call{})
+				return seq == nil, err
 			},
 		},
-		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
-	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-
-	seq, err := model.Stream(ctx, fantasy.Call{})
-	require.Nil(t, seq)
-	require.ErrorIs(t, err, ErrNilModelResult)
-}
-
-func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	runID := uuid.New()
-
-	expectDebugLoggingEnabled(t, db, ownerID)
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
-		require.False(t, params.NormalizedResponse.Valid)
-		require.False(t, params.Usage.Valid)
-		require.True(t, params.Attempts.Valid)
-		require.True(t, params.Error.Valid)
-		require.True(t, params.Metadata.Valid)
-
-		var errPayload normalizedErrorPayload
-		require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
-		require.Contains(t, errPayload.Message, "nil")
-
-		// Object stream always passes structured_output metadata.
-		var meta map[string]any
-		require.NoError(t, json.Unmarshal(params.Metadata.RawMessage, &meta))
-		require.Equal(t, true, meta["structured_output"])
-	})
-
-	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{
-		inner: &chattest.FakeModel{
-			StreamObjectFn: func(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-				var nilStream fantasy.ObjectStreamResponse
-				return nilStream, nil
+		{
+			name: "StreamObject",
+			inner: &chattest.FakeModel{
+				StreamObjectFn: func(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+					var nilStream fantasy.ObjectStreamResponse
+					return nilStream, nil
+				},
 			},
+			stream: func(ctx context.Context, model *debugModel) (bool, error) {
+				seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
+				return seq == nil, err
+			},
+			wantMetadata: map[string]any{"structured_output": true},
 		},
-		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
-	require.Nil(t, seq)
-	require.ErrorIs(t, err, ErrNilModelResult)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			chatID, ownerID, runID := uuid.New(), uuid.New(), uuid.New()
+			expectDebugLoggingEnabled(t, db, ownerID)
+			stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+			expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+				require.False(t, params.NormalizedResponse.Valid)
+				require.False(t, params.Usage.Valid)
+				require.True(t, params.Attempts.Valid)
+				require.True(t, params.Error.Valid)
+				var errPayload normalizedErrorPayload
+				require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
+				require.Contains(t, errPayload.Message, "nil")
+
+				require.Equal(t, tc.wantMetadata != nil, params.Metadata.Valid)
+				if tc.wantMetadata != nil {
+					var meta map[string]any
+					require.NoError(t, json.Unmarshal(params.Metadata.RawMessage, &meta))
+					require.Equal(t, tc.wantMetadata, meta)
+				}
+			})
+
+			model := &debugModel{
+				inner: tc.inner,
+				svc:   NewService(db, testutil.Logger(t), nil),
+				opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+			}
+			t.Cleanup(func() { CleanupStepCounter(runID) })
+			ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+
+			gotNil, err := tc.stream(ctx, model)
+			require.True(t, gotNil)
+			require.ErrorIs(t, err, ErrNilModelResult)
+		})
+	}
 }
 
 func TestDebugModel_StreamEarlyStop(t *testing.T) {
@@ -1090,92 +1081,152 @@ func TestDebugModel_GenerateObjectRejectsNilResponse(t *testing.T) {
 	require.ErrorIs(t, err, ErrNilModelResult)
 }
 
-func TestWrapStreamSeq_CompletedNotDowngradedByCtxCancel(t *testing.T) {
-	t.Parallel()
-
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
-	}
-
-	// Create a context that we cancel after the stream finishes.
-	ctx, cancel := context.WithCancel(context.Background())
-
-	parts := []fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
-		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 5, OutputTokens: 1, TotalTokens: 6}},
-	}
-	seq := wrapStreamSeq(ctx, handle, partsToSeq(parts))
-
-	//nolint:revive // Intentionally consuming iterator to trigger side-effects.
-	for range seq {
-	}
-
-	// Cancel the context after the stream has been fully consumed
-	// and finalized. The status should remain completed.
-	cancel()
-
-	handle.mu.Lock()
-	status := handle.status
-	handle.mu.Unlock()
-	require.Equal(t, StatusCompleted, status)
+type streamWrapperParts[P any] struct {
+	delta, finish, errorPart P
+	withError                func(P, error) P
+	isFinish                 func(P) bool
 }
 
-func TestWrapObjectStreamSeq_CompletedNotDowngradedByCtxCancel(t *testing.T) {
+func TestStreamWrapperStatus(t *testing.T) {
 	t.Parallel()
 
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	parts := []fantasy.ObjectStreamPart{
-		{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "obj"},
-		{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4}},
-	}
-	seq := wrapObjectStreamSeq(ctx, handle, objectPartsToSeq(parts))
-
-	//nolint:revive // Intentionally consuming iterator to trigger side-effects.
-	for range seq {
-	}
-
-	cancel()
-
-	handle.mu.Lock()
-	status := handle.status
-	handle.mu.Unlock()
-	require.Equal(t, StatusCompleted, status)
+	usage := fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4}
+	t.Run("Stream", func(t *testing.T) {
+		t.Parallel()
+		runStreamWrapperStatusCases(t, wrapStreamSeq, streamWrapperParts[fantasy.StreamPart]{
+			delta:     fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
+			finish:    fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+			errorPart: fantasy.StreamPart{Type: fantasy.StreamPartTypeError},
+			withError: func(part fantasy.StreamPart, err error) fantasy.StreamPart {
+				part.Error = err
+				return part
+			},
+			isFinish: func(part fantasy.StreamPart) bool { return part.Type == fantasy.StreamPartTypeFinish },
+		})
+	})
+	t.Run("StreamObject", func(t *testing.T) {
+		t.Parallel()
+		runStreamWrapperStatusCases(t, wrapObjectStreamSeq, streamWrapperParts[fantasy.ObjectStreamPart]{
+			delta:     fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "obj"},
+			finish:    fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+			errorPart: fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeError},
+			withError: func(part fantasy.ObjectStreamPart, err error) fantasy.ObjectStreamPart {
+				part.Error = err
+				return part
+			},
+			isFinish: func(part fantasy.ObjectStreamPart) bool { return part.Type == fantasy.ObjectStreamPartTypeFinish },
+		})
+	})
 }
 
-func TestWrapStreamSeq_DroppedStreamFinalizedOnCtxCancel(t *testing.T) {
-	t.Parallel()
+func runStreamWrapperStatusCases[P any](
+	t *testing.T,
+	wrap func(context.Context, *stepHandle, iter.Seq[P]) iter.Seq[P],
+	parts streamWrapperParts[P],
+) {
+	t.Helper()
 
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
+	failed := parts.withError(parts.errorPart, xerrors.New("chunk failed"))
+	finished := streamRecord{Status: StatusCompleted, FinishReason: "stop", InputTokens: 3}
+	failedThenFinished := streamRecord{Status: StatusError, FinishReason: "stop", InputTokens: 3, ErrorCount: 1, LastError: "chunk failed", HadError: true}
+	interrupted := streamRecord{Status: StatusInterrupted}
+	tests := []struct {
+		name                string
+		parts               []P
+		stopAfter, cancelAt int
+		dropped             bool
+		want                streamRecord
+	}{
+		{name: "Finished", parts: []P{parts.delta, parts.finish}, want: finished},
+		{name: "StoppedAfterFinish", parts: []P{parts.finish, parts.delta}, stopAfter: 1, want: finished},
+		{name: "StoppedBeforeFinish", parts: []P{parts.delta, parts.finish}, stopAfter: 1, want: interrupted},
+		{name: "EndedWithoutFinish", parts: []P{parts.delta}, want: interrupted},
+		{name: "ErrorPart", parts: []P{failed, parts.finish}, want: failedThenFinished},
+		{name: "ErrorOnOtherPart", parts: []P{parts.withError(parts.delta, xerrors.New("chunk failed")), parts.finish}, want: failedThenFinished},
+		{name: "ErrorPartWithoutError", parts: []P{parts.errorPart}, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "stream error part with nil error", HadError: true}},
+		{name: "StoppedAfterErrorPart", parts: []P{failed, parts.finish}, stopAfter: 1, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "chunk failed", HadError: true}},
+		{name: "CanceledErrorPart", parts: []P{parts.withError(parts.errorPart, context.Canceled)}, want: streamRecord{Status: StatusInterrupted, ErrorCount: 1, LastError: "context canceled", HadError: true}},
+		{name: "CanceledWhileYieldingFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 2, want: finished},
+		{name: "CanceledBeforeFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 1, want: interrupted},
+		{name: "DroppedThenCanceled", parts: []P{parts.delta, parts.finish}, dropped: true, want: interrupted},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	parts := []fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
-		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				handle := &stepHandle{
+					stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
+					sink:    &attemptSink{},
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				cancelAndWait := func() {
+					cancel()
+					synctest.Wait()
+				}
+
+				seq := wrap(ctx, handle, slices.Values(tc.parts))
+				if !tc.dropped {
+					held := 0
+					for range seq {
+						held++
+						if held == tc.cancelAt {
+							cancelAndWait()
+						}
+						if held == tc.stopAfter {
+							break
+						}
+					}
+				}
+				cancelAndWait()
+
+				require.Equal(t, tc.want, recordedStream(t, handle))
+			})
+		})
 	}
+}
 
-	// Create the wrapped stream but never iterate it.
-	_ = wrapStreamSeq(ctx, handle, partsToSeq(parts))
+type streamRecord struct {
+	Status       Status
+	FinishReason string
+	InputTokens  int64
+	ErrorCount   int
+	LastError    string
+	HadError     bool
+}
 
-	// Cancel the context; the AfterFunc safety net should finalize
-	// the step as interrupted.
-	cancel()
+func recordedStream(t *testing.T, handle *stepHandle) streamRecord {
+	t.Helper()
 
-	// AfterFunc fires asynchronously; give it a moment.
-	require.Eventually(t, func() bool {
-		handle.mu.Lock()
-		defer handle.mu.Unlock()
-		return handle.status == StatusInterrupted
-	}, testutil.WaitShort, testutil.IntervalFast)
+	handle.mu.Lock()
+	defer handle.mu.Unlock()
+	var resp struct {
+		FinishReason string          `json:"finish_reason"`
+		Usage        normalizedUsage `json:"usage"`
+	}
+	var meta struct {
+		Summary struct {
+			FinishReason string `json:"finish_reason"`
+			ErrorCount   int    `json:"error_count"`
+			LastError    string `json:"last_error"`
+		} `json:"stream_summary"`
+	}
+	for dst, src := range map[any]any{&resp: handle.response, &meta: handle.metadata} {
+		raw, err := json.Marshal(src)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(raw, dst))
+	}
+	require.Equal(t, resp.FinishReason, meta.Summary.FinishReason)
+	return streamRecord{
+		Status:       handle.status,
+		FinishReason: resp.FinishReason,
+		InputTokens:  resp.Usage.InputTokens,
+		ErrorCount:   meta.Summary.ErrorCount,
+		LastError:    meta.Summary.LastError,
+		HadError:     handle.hadError,
+	}
 }
 
 func int64Ptr(v int64) *int64 { return &v }
