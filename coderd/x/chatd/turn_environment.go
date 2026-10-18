@@ -221,7 +221,6 @@ func (p *Server) buildTurnEnvironment(
 		return turnEnvironment{}, err
 	}
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
@@ -237,7 +236,7 @@ func (p *Server) buildTurnEnvironment(
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
