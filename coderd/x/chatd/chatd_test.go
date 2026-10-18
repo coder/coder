@@ -1591,8 +1591,8 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	chatd.WaitUntilIdleForTest(replica)
 
 	// ErrNoRows on staleRun proves the fast-retry path DELETED the
-	// row: it can only disappear via DeleteAfterMessageID, which
-	// is reached solely from scheduleDebugCleanup.
+	// row: in this test it can disappear only via DeleteAfterMessageID,
+	// which is reached solely from scheduleDebugCleanup.
 	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows,
 		"pre-edit run matching the message-id filter should be deleted")
