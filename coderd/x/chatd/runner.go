@@ -158,10 +158,7 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 		return
 	}
-	if r.hasAcceptedState && r.activeTaskSet {
-		r.cancelActiveTask()
-	}
-
+	r.cancelActiveTask()
 	r.spawnForState(state)
 	r.acceptState(state)
 }
