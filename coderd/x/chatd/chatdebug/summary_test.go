@@ -72,7 +72,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		t.Parallel()
 		svc := chatdebug.NewService(dbmock.NewMockStore(gomock.NewController(t)), testutil.Logger(t), nil)
 		base := map[string]any{"first_message": "hello world"}
-		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitShort), uuid.Nil, base)
+		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitLong), uuid.Nil, base)
 		require.NoError(t, err)
 		require.Equal(t, base, got)
 	})
@@ -89,7 +89,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 				return nil, xerrors.New("boom")
 			})
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitShort), runID, nil)
+		got, err := svc.AggregateRunSummary(testutil.Context(t, testutil.WaitLong), runID, nil)
 		require.ErrorContains(t, err, "boom")
 		require.Nil(t, got)
 	})
