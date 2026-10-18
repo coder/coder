@@ -2587,71 +2587,28 @@ func (c *Client) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, e
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
 func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/system-prompt", nil)
-	if err != nil {
-		return ChatSystemPromptResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatSystemPromptResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatSystemPromptResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/system-prompt", http.StatusOK, nil)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
 func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/system-prompt", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/system-prompt", req)
 }
 
 // GetChatPlanModeInstructions returns the deployment-wide plan mode instructions.
 func (c *Client) GetChatPlanModeInstructions(ctx context.Context) (ChatPlanModeInstructionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/plan-mode-instructions", nil)
-	if err != nil {
-		return ChatPlanModeInstructionsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatPlanModeInstructionsResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatPlanModeInstructionsResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatPlanModeInstructionsResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/plan-mode-instructions", http.StatusOK, nil)
 }
 
 // UpdateChatPlanModeInstructions updates the deployment-wide plan mode instructions.
 func (c *Client) UpdateChatPlanModeInstructions(ctx context.Context, req UpdateChatPlanModeInstructionsRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/plan-mode-instructions", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/plan-mode-instructions", req)
 }
 
 // OrganizationChatModelOverrides returns the configured chat model overrides for an organization.
 func (c *Client) OrganizationChatModelOverrides(ctx context.Context, organizationID uuid.UUID) (ChatModelOverridesResponse, error) {
 	path := fmt.Sprintf("/api/v2/organizations/%s/chats/model-overrides", organizationID)
-	res, err := c.Request(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return ChatModelOverridesResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModelOverridesResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatModelOverridesResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatModelOverridesResponse](ctx, c, http.MethodGet, path, http.StatusOK, nil)
 }
 
 // UpdateOrganizationChatModelOverride updates or clears a chat model override for an organization.
@@ -2661,16 +2618,7 @@ func (c *Client) UpdateOrganizationChatModelOverride(ctx context.Context, organi
 		organizationID,
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
-	if err != nil {
-		return ChatModelOverrideResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModelOverrideResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatModelOverrideResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatModelOverrideResponse](ctx, c, http.MethodPut, path, http.StatusOK, req)
 }
 
 // OrganizationChatSystemPrompt returns the organization's chat system
@@ -2678,60 +2626,26 @@ func (c *Client) UpdateOrganizationChatModelOverride(ctx context.Context, organi
 // system prompt.
 func (c *Client) OrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID) (OrganizationChatSystemPromptResponse, error) {
 	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
-	res, err := c.Request(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return OrganizationChatSystemPromptResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return OrganizationChatSystemPromptResponse{}, ReadBodyAsError(res)
-	}
-	var resp OrganizationChatSystemPromptResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[OrganizationChatSystemPromptResponse](ctx, c, http.MethodGet, path, http.StatusOK, nil)
 }
 
 // UpdateOrganizationChatSystemPrompt replaces the organization's chat system
 // prompt. An empty prompt clears it.
 func (c *Client) UpdateOrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID, req UpdateOrganizationChatSystemPromptRequest) error {
 	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, path, req)
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
 // personal model override admin settings.
 func (c *Client) GetChatPersonalModelOverridesAdminSettings(ctx context.Context) (ChatPersonalModelOverridesAdminSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/personal-model-overrides", nil)
-	if err != nil {
-		return ChatPersonalModelOverridesAdminSettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatPersonalModelOverridesAdminSettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatPersonalModelOverridesAdminSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatPersonalModelOverridesAdminSettings](ctx, c, http.MethodGet, "/api/v2/chats/config/personal-model-overrides", http.StatusOK, nil)
 }
 
 // UpdateChatPersonalModelOverridesAdminSettings updates the deployment-wide
 // personal model override admin settings.
 func (c *Client) UpdateChatPersonalModelOverridesAdminSettings(ctx context.Context, req UpdateChatPersonalModelOverridesAdminSettingsRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/personal-model-overrides", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/personal-model-overrides", req)
 }
 
 // UserChatPersonalModelOverrides returns a user's personal model overrides in an organization.
@@ -2741,16 +2655,7 @@ func (c *Client) UserChatPersonalModelOverrides(ctx context.Context, organizatio
 		organizationID,
 		url.PathEscape(user),
 	)
-	res, err := c.Request(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return UserChatPersonalModelOverridesResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatPersonalModelOverridesResponse{}, ReadBodyAsError(res)
-	}
-	var resp UserChatPersonalModelOverridesResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[UserChatPersonalModelOverridesResponse](ctx, c, http.MethodGet, path, http.StatusOK, nil)
 }
 
 // UpdateUserChatPersonalModelOverride updates a user's personal model override in an organization.
@@ -2761,251 +2666,97 @@ func (c *Client) UpdateUserChatPersonalModelOverride(ctx context.Context, organi
 		url.PathEscape(user),
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, path, req)
 }
 
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
 func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/user-prompt", nil)
-	if err != nil {
-		return UserChatCustomPrompt{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPrompt{}, ReadBodyAsError(res)
-	}
-	var resp UserChatCustomPrompt
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[UserChatCustomPrompt](ctx, c, http.MethodGet, "/api/v2/chats/config/user-prompt", http.StatusOK, nil)
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
 func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
-	if err != nil {
-		return AdvisorConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AdvisorConfig{}, ReadBodyAsError(res)
-	}
-	var resp AdvisorConfig
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[AdvisorConfig](ctx, c.Client, http.MethodGet, "/api/experimental/chats/config/advisor", http.StatusOK, nil)
 }
 
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
 func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c.Client, http.MethodPut, "/api/experimental/chats/config/advisor", req)
 }
 
 // GetChatComputerUseProvider returns the deployment-wide computer use provider.
 func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
-	if err != nil {
-		return ChatComputerUseProviderResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatComputerUseProviderResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatComputerUseProviderResponse](ctx, c.Client, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", http.StatusOK, nil)
 }
 
 // UpdateChatComputerUseProvider updates the deployment-wide computer use
 // provider.
 func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c.Client, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
 }
 
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *Client) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/workspace-ttl", nil)
-	if err != nil {
-		return ChatWorkspaceTTLResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatWorkspaceTTLResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatWorkspaceTTLResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatWorkspaceTTLResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/workspace-ttl", http.StatusOK, nil)
 }
 
 // UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
 func (c *Client) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/workspace-ttl", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/workspace-ttl", req)
 }
 
 // GetChatRetentionDays returns the configured chat retention period.
 func (c *Client) GetChatRetentionDays(ctx context.Context) (ChatRetentionDaysResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/retention-days", nil)
-	if err != nil {
-		return ChatRetentionDaysResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatRetentionDaysResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatRetentionDaysResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatRetentionDaysResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/retention-days", http.StatusOK, nil)
 }
 
 // UpdateChatRetentionDays updates the chat retention period.
 func (c *Client) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/retention-days", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/retention-days", req)
 }
 
 // GetChatDebugRetentionDays returns the configured chat debug run
 // retention period.
 func (c *Client) GetChatDebugRetentionDays(ctx context.Context) (ChatDebugRetentionDaysResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/debug-retention-days", nil)
-	if err != nil {
-		return ChatDebugRetentionDaysResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDebugRetentionDaysResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatDebugRetentionDaysResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatDebugRetentionDaysResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/debug-retention-days", http.StatusOK, nil)
 }
 
 // UpdateChatDebugRetentionDays updates the chat debug run retention period.
 func (c *Client) UpdateChatDebugRetentionDays(ctx context.Context, req UpdateChatDebugRetentionDaysRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/debug-retention-days", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/debug-retention-days", req)
 }
 
 // GetChatAutoArchiveDays returns the configured chat auto-archive period.
 func (c *Client) GetChatAutoArchiveDays(ctx context.Context) (ChatAutoArchiveDaysResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/auto-archive-days", nil)
-	if err != nil {
-		return ChatAutoArchiveDaysResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatAutoArchiveDaysResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatAutoArchiveDaysResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatAutoArchiveDaysResponse](ctx, c, http.MethodGet, "/api/v2/chats/config/auto-archive-days", http.StatusOK, nil)
 }
 
 // UpdateChatAutoArchiveDays updates the chat auto-archive period.
 func (c *Client) UpdateChatAutoArchiveDays(ctx context.Context, req UpdateChatAutoArchiveDaysRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/auto-archive-days", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/auto-archive-days", req)
 }
 
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.
 func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCustomPrompt) (UserChatCustomPrompt, error) {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/user-prompt", req)
-	if err != nil {
-		return UserChatCustomPrompt{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPrompt{}, ReadBodyAsError(res)
-	}
-	var resp UserChatCustomPrompt
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[UserChatCustomPrompt](ctx, c, http.MethodPut, "/api/v2/chats/config/user-prompt", http.StatusOK, req)
 }
 
 // GetUserChatCompactionThresholds fetches the user's per-model chat
 // compaction thresholds.
 func (c *Client) GetUserChatCompactionThresholds(ctx context.Context) (UserChatCompactionThresholds, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/user-compaction-thresholds", nil)
-	if err != nil {
-		return UserChatCompactionThresholds{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatCompactionThresholds{}, ReadBodyAsError(res)
-	}
-	var thresholds UserChatCompactionThresholds
-	return thresholds, ReadBodyAsJSON(res, &thresholds)
+	return requestJSON[UserChatCompactionThresholds](ctx, c, http.MethodGet, "/api/v2/chats/config/user-compaction-thresholds", http.StatusOK, nil)
 }
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
 // compaction threshold.
 func (c *Client) UpdateUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/chats/config/user-compaction-thresholds/%s", modelID), req)
-	if err != nil {
-		return UserChatCompactionThreshold{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatCompactionThreshold{}, ReadBodyAsError(res)
-	}
-	var threshold UserChatCompactionThreshold
-	return threshold, ReadBodyAsJSON(res, &threshold)
+	return requestJSON[UserChatCompactionThreshold](ctx, c, http.MethodPut, fmt.Sprintf("/api/v2/chats/config/user-compaction-thresholds/%s", modelID), http.StatusOK, req)
 }
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
 // compaction threshold override.
 func (c *Client) DeleteUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/config/user-compaction-thresholds/%s", modelID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodDelete, fmt.Sprintf("/api/v2/chats/config/user-compaction-thresholds/%s", modelID), nil)
 }
 
 // CreateChat creates a new chat.
@@ -3164,59 +2915,25 @@ func (c *Client) WatchChats(ctx context.Context) (<-chan ChatWatchEvent, io.Clos
 // GetChatDebugLogging returns the runtime admin setting that allows
 // users to opt into chat debug logging.
 func (c *Client) GetChatDebugLogging(ctx context.Context) (ChatDebugLoggingAdminSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/debug-logging", nil)
-	if err != nil {
-		return ChatDebugLoggingAdminSettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDebugLoggingAdminSettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatDebugLoggingAdminSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[ChatDebugLoggingAdminSettings](ctx, c, http.MethodGet, "/api/v2/chats/config/debug-logging", http.StatusOK, nil)
 }
 
 // UpdateChatDebugLogging updates the runtime admin setting that allows
 // users to opt into chat debug logging.
 func (c *Client) UpdateChatDebugLogging(ctx context.Context, req UpdateChatDebugLoggingAllowUsersRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/debug-logging", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/debug-logging", req)
 }
 
 // GetUserChatDebugLogging returns whether chat debug logging is active
 // for the current user and whether the user may change it.
 func (c *Client) GetUserChatDebugLogging(ctx context.Context) (UserChatDebugLoggingSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/user-debug-logging", nil)
-	if err != nil {
-		return UserChatDebugLoggingSettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatDebugLoggingSettings{}, ReadBodyAsError(res)
-	}
-	var resp UserChatDebugLoggingSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestJSON[UserChatDebugLoggingSettings](ctx, c, http.MethodGet, "/api/v2/chats/config/user-debug-logging", http.StatusOK, nil)
 }
 
 // UpdateUserChatDebugLogging updates the current user's chat debug
 // logging preference.
 func (c *Client) UpdateUserChatDebugLogging(ctx context.Context, req UpdateUserChatDebugLoggingRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/user-debug-logging", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	return requestNoContent(ctx, c, http.MethodPut, "/api/v2/chats/config/user-debug-logging", req)
 }
 
 // GetChatDebugRuns returns the debug runs for a chat.
