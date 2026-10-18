@@ -40,12 +40,11 @@ func expectDebugLoggingEnabled(
 	db.EXPECT().GetUserChatDebugLoggingEnabled(gomock.Any(), ownerID).Return(true, nil)
 }
 
-func expectCreateStepNumberWithRequestValidity(
+func expectCreateStepWithRequestValidity(
 	t *testing.T,
 	db *dbmock.MockStore,
 	runID uuid.UUID,
 	chatID uuid.UUID,
-	stepNumber int32,
 	op Operation,
 	normalizedRequestValid bool,
 ) uuid.UUID {
@@ -58,43 +57,21 @@ func expectCreateStepNumberWithRequestValidity(
 		DoAndReturn(func(_ context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
 			require.Equal(t, runID, params.RunID)
 			require.Equal(t, chatID, params.ChatID)
-			require.Equal(t, stepNumber, params.StepNumber)
+			require.Zero(t, params.StepNumber, "the database numbers the step")
 			require.Equal(t, string(op), params.Operation)
 			require.Equal(t, string(StatusInProgress), params.Status)
 			require.Equal(t, normalizedRequestValid, params.NormalizedRequest.Valid)
 
 			return database.ChatDebugStep{
-				ID:         stepID,
-				RunID:      runID,
-				ChatID:     chatID,
-				StepNumber: params.StepNumber,
-				Operation:  params.Operation,
-				Status:     params.Status,
+				ID:        stepID,
+				RunID:     runID,
+				ChatID:    chatID,
+				Operation: params.Operation,
+				Status:    params.Status,
 			}, nil
 		})
 
 	return stepID
-}
-
-func expectCreateStepNumber(
-	t *testing.T,
-	db *dbmock.MockStore,
-	runID uuid.UUID,
-	chatID uuid.UUID,
-	stepNumber int32,
-	op Operation,
-) uuid.UUID {
-	t.Helper()
-
-	return expectCreateStepNumberWithRequestValidity(
-		t,
-		db,
-		runID,
-		chatID,
-		stepNumber,
-		op,
-		true,
-	)
 }
 
 func expectCreateStep(
@@ -106,7 +83,7 @@ func expectCreateStep(
 ) uuid.UUID {
 	t.Helper()
 
-	return expectCreateStepNumber(t, db, runID, chatID, 1, op)
+	return expectCreateStepWithRequestValidity(t, db, runID, chatID, op, true)
 }
 
 func expectUpdateStep(

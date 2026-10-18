@@ -73,7 +73,6 @@ type UpdateRunParams struct {
 type CreateStepParams struct {
 	RunID               uuid.UUID
 	ChatID              uuid.UUID
-	StepNumber          int32
 	Operation           Operation
 	Status              Status
 	HistoryTipMessageID int64
@@ -341,7 +340,7 @@ func (s *Service) CreateStep(
 	now := s.clock.Now()
 	insert := database.InsertChatDebugStepParams{
 		RunID:               params.RunID,
-		StepNumber:          params.StepNumber,
+		StepNumber:          0, // Zero lets the database number the step.
 		Operation:           string(params.Operation),
 		Status:              string(params.Status),
 		HistoryTipMessageID: nullInt64(params.HistoryTipMessageID),
@@ -358,9 +357,9 @@ func (s *Service) CreateStep(
 		ChatID:              params.ChatID,
 	}
 
-	// Cap retry attempts to prevent infinite loops under
-	// pathological concurrency. Each iteration performs two DB
-	// round-trips (insert + list), so 10 retries is generous.
+	// Concurrent inserts can read the same highest step from their READ
+	// COMMITTED snapshots. The unique index rejects all but one, and a
+	// retried insert takes a fresh snapshot.
 	const maxCreateStepRetries = 10
 
 	for range maxCreateStepRetries {
@@ -386,18 +385,6 @@ func (s *Service) CreateStep(
 		if !database.IsUniqueViolation(err, database.UniqueIndexChatDebugStepsRunStep) {
 			return database.ChatDebugStep{}, err
 		}
-
-		steps, listErr := s.db.GetChatDebugStepsByRunID(chatdContext(ctx), params.RunID)
-		if listErr != nil {
-			return database.ChatDebugStep{}, listErr
-		}
-		nextStepNumber := insert.StepNumber + 1
-		for _, existing := range steps {
-			if existing.StepNumber >= nextStepNumber {
-				nextStepNumber = existing.StepNumber + 1
-			}
-		}
-		insert.StepNumber = nextStepNumber
 	}
 
 	return database.ChatDebugStep{}, xerrors.Errorf(

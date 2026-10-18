@@ -183,7 +183,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		step2 := createTestStepN(t, fixture, run.ID, 2)
+		step2 := createTestStep(t, fixture, run.ID)
 		_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
 			ID:     step2.ID,
 			ChatID: fixture.chat.ID,
@@ -259,7 +259,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		step1 := createTestStep(t, fixture, run.ID)
 		updateTestStepWithUsage(t, fixture, step1.ID, 10, 5, 2, 3)
 
-		step2 := createTestStepN(t, fixture, run.ID, 2)
+		step2 := createTestStep(t, fixture, run.ID)
 		updateTestStepWithUsage(t, fixture, step2.ID, 15, 7, 1, 4)
 
 		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
@@ -281,7 +281,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		updateTestStepWithUsage(t, fixture, step1.ID, 10, 5, 0, 0)
 
 		// Step without usage (just complete it, no usage).
-		step2 := createTestStepN(t, fixture, run.ID, 2)
+		step2 := createTestStep(t, fixture, run.ID)
 		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
 			ID:     step2.ID,
 			ChatID: fixture.chat.ID,
@@ -323,7 +323,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		step1 := createTestStep(t, fixture, run.ID)
 		updateTestStepWithFullUsage(t, fixture, step1.ID, 10, 5, 20, 0, 0)
 
-		step2 := createTestStepN(t, fixture, run.ID, 2)
+		step2 := createTestStep(t, fixture, run.ID)
 		updateTestStepWithFullUsage(t, fixture, step2.ID, 15, 7, 30, 0, 0)
 
 		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
@@ -364,7 +364,7 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		// expected). Write directly through the store so the jsonb
 		// cast succeeds while the Go unmarshal fails, exercising the
 		// "skipping malformed step usage JSON" log-and-continue path.
-		step2 := createTestStepN(t, fixture, run.ID, 2)
+		step2 := createTestStep(t, fixture, run.ID)
 		_, err := fixture.db.UpdateChatDebugStep(fixture.ctx, database.UpdateChatDebugStepParams{
 			ID:     step2.ID,
 			ChatID: fixture.chat.ID,
@@ -387,31 +387,18 @@ func TestService_AggregateRunSummary(t *testing.T) {
 	})
 }
 
-// createTestStep is a thin helper that creates a debug step with
-// step number 1 for the given run.
+// createTestStep creates the run's next debug step.
 func createTestStep(
 	t *testing.T,
 	fixture testFixture,
 	runID uuid.UUID,
 ) database.ChatDebugStep {
 	t.Helper()
-	return createTestStepN(t, fixture, runID, 1)
-}
-
-// createTestStepN creates a debug step with the given step number.
-func createTestStepN(
-	t *testing.T,
-	fixture testFixture,
-	runID uuid.UUID,
-	stepNumber int32,
-) database.ChatDebugStep {
-	t.Helper()
 	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      runID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: stepNumber,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     runID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationGenerate,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 	return step

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -28,6 +27,7 @@ import (
 type testFixture struct {
 	ctx      context.Context
 	db       database.Store
+	sqlDB    *sql.DB
 	svc      *chatdebug.Service
 	org      database.Organization
 	owner    database.User
@@ -288,7 +288,6 @@ func TestService_CreateStep(t *testing.T) {
 	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
 		RunID:               run.ID,
 		ChatID:              fixture.chat.ID,
-		StepNumber:          1,
 		Operation:           chatdebug.OperationStream,
 		Status:              chatdebug.StatusInProgress,
 		HistoryTipMessageID: historyTipMsg.ID,
@@ -312,60 +311,76 @@ func TestService_CreateStep(t *testing.T) {
 	require.Equal(t, step.ID, steps[0].ID)
 }
 
-func TestService_CreateStep_RetriesDuplicateStepNumbers(t *testing.T) {
+func TestService_CreateStep_NumbersStepsPerRun(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	first := createRun(t, fixture)
+	second := createRun(t, fixture)
+
+	for _, tc := range []struct {
+		runID uuid.UUID
+		want  int32
+	}{{first.ID, 1}, {second.ID, 1}, {first.ID, 2}} {
+		step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+			RunID:     tc.runID,
+			ChatID:    fixture.chat.ID,
+			Operation: chatdebug.OperationStream,
+			Status:    chatdebug.StatusInProgress,
+		})
+		require.NoError(t, err)
+		require.Equal(t, tc.want, step.StepNumber)
+	}
+}
+
+// Inserts that start while the run row is locked read the same highest
+// step from their READ COMMITTED snapshots, so one hits the unique index
+// and CreateStep must retry it.
+func TestService_CreateStep_RetriesConcurrentNumbering(t *testing.T) {
 	t.Parallel()
 
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
 
-	first, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
-	})
+	tx, err := fixture.sqlDB.BeginTx(fixture.ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(fixture.ctx, "SELECT 1 FROM chat_debug_runs WHERE id = $1 FOR UPDATE", run.ID)
 	require.NoError(t, err)
 
-	second, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
-	})
+	const creates = 2
+	errs := make(chan error, creates)
+	for range creates {
+		go func() {
+			_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+				RunID:     run.ID,
+				ChatID:    fixture.chat.ID,
+				Operation: chatdebug.OperationStream,
+				Status:    chatdebug.StatusInProgress,
+			})
+			errs <- err
+		}()
+	}
+	// Release the run only after both inserts wait on it, so both take
+	// their snapshots before either step exists.
+	require.Eventually(t, func() bool {
+		if len(errs) > 0 {
+			return true
+		}
+		var waiting int
+		err := fixture.sqlDB.QueryRowContext(fixture.ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%INSERT INTO chat_debug_steps%'`).Scan(&waiting)
+		return err == nil && waiting == creates
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, tx.Commit())
+
+	for range creates {
+		require.NoError(t, testutil.RequireReceive(fixture.ctx, t, errs))
+	}
+	steps, err := fixture.db.GetChatDebugStepsByRunID(fixture.ctx, run.ID)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, first.StepNumber)
-	require.EqualValues(t, 2, second.StepNumber)
-}
-
-func TestService_CreateStep_ListRetryErrorWins(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	runID := uuid.New()
-	chatID := uuid.New()
-	listErr := xerrors.New("list chat debug steps")
-
-	db.EXPECT().InsertChatDebugStep(
-		gomock.Any(),
-		gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{}),
-	).Return(database.ChatDebugStep{}, &pq.Error{
-		Code:       pq.ErrorCode("23505"),
-		Constraint: string(database.UniqueIndexChatDebugStepsRunStep),
-	})
-	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, listErr)
-
-	_, err := svc.CreateStep(context.Background(), chatdebug.CreateStepParams{
-		RunID:      runID,
-		ChatID:     chatID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
-	})
-	require.ErrorIs(t, err, listErr)
+	require.Len(t, steps, creates)
+	require.ElementsMatch(t, []int32{1, 2}, []int32{steps[0].StepNumber, steps[1].StepNumber})
 }
 
 func TestService_CreateStep_RejectsFinalizedRun(t *testing.T) {
@@ -385,11 +400,10 @@ func TestService_CreateStep_RejectsFinalizedRun(t *testing.T) {
 
 	// Creating a step on the finalized run must fail.
 	_, err = fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "already finalized")
@@ -404,11 +418,10 @@ func TestService_CreateStep_MissingRunReportsNotFound(t *testing.T) {
 	// returns zero rows, which must be classified as "not found"
 	// instead of being conflated with the already-finalized case.
 	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      uuid.New(),
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     uuid.New(),
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "not found",
@@ -430,11 +443,10 @@ func TestService_CreateStep_ChatIDMismatchReportsNotFound(t *testing.T) {
 		fixture.owner.ID, fixture.model.ID)
 
 	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     otherChat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    otherChat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "not found",
@@ -448,11 +460,10 @@ func TestService_UpdateStep(t *testing.T) {
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
 	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 
@@ -504,11 +515,10 @@ func TestService_UpdateStep_AutoFillsFinishedAtOnTerminalStatus(t *testing.T) {
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
 	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 
@@ -536,11 +546,10 @@ func TestService_UpdateStep_TypedNilAttemptsPreserveExistingValue(t *testing.T) 
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
 	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationStream,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationStream,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 
@@ -574,11 +583,10 @@ func TestService_DeleteByChatID(t *testing.T) {
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
 	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      run.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     run.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationGenerate,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 
@@ -611,11 +619,10 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 
 	runKeep := createRun(t, fixture)
 	stepKeep, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      runKeep.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     runKeep.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationGenerate,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 	_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
@@ -627,11 +634,10 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 
 	runDelete := createRun(t, fixture)
 	stepDelete, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
-		RunID:      runDelete.ID,
-		ChatID:     fixture.chat.ID,
-		StepNumber: 1,
-		Operation:  chatdebug.OperationGenerate,
-		Status:     chatdebug.StatusInProgress,
+		RunID:     runDelete.ID,
+		ChatID:    fixture.chat.ID,
+		Operation: chatdebug.OperationGenerate,
+		Status:    chatdebug.StatusInProgress,
 	})
 	require.NoError(t, err)
 	_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
@@ -990,13 +996,14 @@ func newFixture(t *testing.T) testFixture {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	org, owner, chat, model := seedChat(t, db)
 	prov, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
 	require.NoError(t, err)
 	return testFixture{
 		ctx:      ctx,
 		db:       db,
+		sqlDB:    sqlDB,
 		svc:      chatdebug.NewService(db, testutil.Logger(t), nil),
 		org:      org,
 		owner:    owner,
