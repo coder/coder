@@ -34,7 +34,7 @@
 		"test:ci": "vitest run --project=unit",
 		"test:watch": "vitest --project=unit",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
 	},
 	"imports": {
 		"#/*": "./src/*"
@@ -43,8 +43,6 @@
 		"@dnd-kit/core": "6.3.1",
 		"@dnd-kit/sortable": "10.0.0",
 		"@dnd-kit/utilities": "3.2.2",
-		"@emoji-mart/data": "1.2.1",
-		"@emoji-mart/react": "1.1.1",
 		"@fontsource-variable/geist": "5.3.0",
 		"@fontsource-variable/geist-mono": "5.3.0",
 		"@fontsource/fira-code": "5.3.0",
@@ -74,10 +72,11 @@
 		"dayjs": "1.11.23",
 		"diff": "8.0.4",
 		"dompurify": "3.4.16",
-		"emoji-mart": "5.6.0",
+		"emojibase-data": "17.0.0",
 		"fancy-ansi": "0.1.3",
 		"file-saver": "2.0.5",
 		"formik": "2.4.9",
+		"frimousse": "0.4.0",
 		"front-matter": "4.0.2",
 		"humanize-duration": "3.34.0",
 		"jszip": "3.10.1",
@@ -156,6 +155,7 @@
 		"@vitest/browser-playwright": "4.1.10",
 		"babel-plugin-react-compiler": "1.0.0",
 		"dpdm": "3.15.1",
+		"emojibase": "17.0.0",
 		"express": "4.22.2",
 		"jest-canvas-mock": "2.5.2",
 		"jest-websocket-mock": "2.5.0",
