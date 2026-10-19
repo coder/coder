@@ -896,6 +896,14 @@ func (m queryMetricsStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteProjectSkillByProjectIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteProvisionerKey(ctx, id)
@@ -2976,6 +2984,22 @@ func (m queryMetricsStore) GetPreviousTemplateVersion(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProjectSkillByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProjectSkillByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProjectSkillByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProjectSkillByProjectIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerDaemons(ctx)
@@ -4672,6 +4696,14 @@ func (m queryMetricsStore) InsertPresetPrebuildSchedule(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProjectSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProjectSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertProjectSkill").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertProvisionerJob(ctx, arg)
@@ -5133,6 +5165,14 @@ func (m queryMetricsStore) ListOrganizationSkillMetadataByOrganizationID(ctx con
 	r0, r1 := m.s.ListOrganizationSkillMetadataByOrganizationID(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("ListOrganizationSkillMetadataByOrganizationID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationSkillMetadataByOrganizationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListProjectSkillMetadataByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("ListProjectSkillMetadataByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListProjectSkillMetadataByProjectID").Inc()
 	return r0, r1
 }
 
@@ -5966,6 +6006,14 @@ func (m queryMetricsStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, a
 	r0, r1 := m.s.UpdatePresetsLastInvalidatedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePresetsLastInvalidatedAt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdatePresetsLastInvalidatedAt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateProjectSkillByProjectIDAndName").Inc()
 	return r0, r1
 }
 

@@ -1542,6 +1542,21 @@ func (mr *MockStoreMockRecorder) DeleteOrganizationSkillByOrganizationIDAndName(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationSkillByOrganizationIDAndName", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationSkillByOrganizationIDAndName), ctx, arg)
 }
 
+// DeleteProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteProjectSkillByProjectIDAndName indicates an expected call of DeleteProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) DeleteProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).DeleteProjectSkillByProjectIDAndName), ctx, arg)
+}
+
 // DeleteProvisionerKey mocks base method.
 func (m *MockStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -5589,6 +5604,36 @@ func (mr *MockStoreMockRecorder) GetPreviousTemplateVersion(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPreviousTemplateVersion", reflect.TypeOf((*MockStore)(nil).GetPreviousTemplateVersion), ctx, arg)
 }
 
+// GetProjectSkillByIDForUpdate mocks base method.
+func (m *MockStore) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectSkillByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectSkillByIDForUpdate indicates an expected call of GetProjectSkillByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetProjectSkillByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectSkillByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProjectSkillByIDForUpdate), ctx, id)
+}
+
+// GetProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectSkillByProjectIDAndName indicates an expected call of GetProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) GetProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).GetProjectSkillByProjectIDAndName), ctx, arg)
+}
+
 // GetProvisionerDaemons mocks base method.
 func (m *MockStore) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	m.ctrl.T.Helper()
@@ -8808,6 +8853,21 @@ func (mr *MockStoreMockRecorder) InsertPresetPrebuildSchedule(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuildSchedule", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuildSchedule), ctx, arg)
 }
 
+// InsertProjectSkill mocks base method.
+func (m *MockStore) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertProjectSkill", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertProjectSkill indicates an expected call of InsertProjectSkill.
+func (mr *MockStoreMockRecorder) InsertProjectSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProjectSkill", reflect.TypeOf((*MockStore)(nil).InsertProjectSkill), ctx, arg)
+}
+
 // InsertProvisionerJob mocks base method.
 func (m *MockStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -9740,6 +9800,21 @@ func (m *MockStore) ListOrganizationSkillMetadataByOrganizationID(ctx context.Co
 func (mr *MockStoreMockRecorder) ListOrganizationSkillMetadataByOrganizationID(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationSkillMetadataByOrganizationID", reflect.TypeOf((*MockStore)(nil).ListOrganizationSkillMetadataByOrganizationID), ctx, organizationID)
+}
+
+// ListProjectSkillMetadataByProjectID mocks base method.
+func (m *MockStore) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProjectSkillMetadataByProjectID", ctx, projectID)
+	ret0, _ := ret[0].([]database.ListProjectSkillMetadataByProjectIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListProjectSkillMetadataByProjectID indicates an expected call of ListProjectSkillMetadataByProjectID.
+func (mr *MockStoreMockRecorder) ListProjectSkillMetadataByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjectSkillMetadataByProjectID", reflect.TypeOf((*MockStore)(nil).ListProjectSkillMetadataByProjectID), ctx, projectID)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.
@@ -11300,6 +11375,21 @@ func (m *MockStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) UpdatePresetsLastInvalidatedAt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePresetsLastInvalidatedAt", reflect.TypeOf((*MockStore)(nil).UpdatePresetsLastInvalidatedAt), ctx, arg)
+}
+
+// UpdateProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateProjectSkillByProjectIDAndName indicates an expected call of UpdateProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) UpdateProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).UpdateProjectSkillByProjectIDAndName), ctx, arg)
 }
 
 // UpdateProvisionerDaemonLastSeenAt mocks base method.

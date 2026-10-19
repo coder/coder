@@ -2479,6 +2479,23 @@ func Skill(skill database.Skill) codersdk.Skill {
 	}
 }
 
+// ProjectSkillMetadataList converts chat project skill metadata rows to SDK
+// values.
+func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return metadata
+}
+
 // OrganizationSkillMetadataList converts organization skill metadata rows to
 // SDK values.
 func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadataByOrganizationIDRow) []codersdk.SkillMetadata {

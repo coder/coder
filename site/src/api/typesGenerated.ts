@@ -9121,6 +9121,7 @@ export type ResourceType =
 	| "chat_project"
 	| "chat_project_instructions"
 	| "chat_project_memory"
+	| "chat_project_skill"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9170,6 +9171,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_project",
 	"chat_project_instructions",
 	"chat_project_memory",
+	"chat_project_skill",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
