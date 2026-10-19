@@ -59,11 +59,19 @@ export const templates = (
 	};
 };
 
+const agentTemplatesOptions = (organizationId: string): GetTemplatesQuery => ({
+	q: `organization:${organizationId} agents-allowed:true deprecated:false`,
+});
+
+/** Query key for {@link agentTemplates}. */
+export const agentTemplatesKey = (organizationId: string) =>
+	getTemplatesQueryKey(agentTemplatesOptions(organizationId));
+
 /** Templates in the organization that agents may use. */
-export const agentTemplates = (organizationId: string) =>
-	templates({
-		q: `organization:${organizationId} agents-allowed:true deprecated:false`,
-	});
+export const agentTemplates = (organizationId: string) => ({
+	queryKey: agentTemplatesKey(organizationId),
+	queryFn: () => API.getTemplates(agentTemplatesOptions(organizationId)),
+});
 
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({

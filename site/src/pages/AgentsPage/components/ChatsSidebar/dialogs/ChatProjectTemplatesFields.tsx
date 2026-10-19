@@ -20,6 +20,10 @@ import {
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
+/**
+ * Form state for a project's templates and the defaults its chats use.
+ * `chatProjectTemplatesRequest` sends only the defaults of `defaultsKind`.
+ */
 export type ChatProjectTemplatesValues = {
 	templateIds: readonly string[];
 	/** Empty when the project has no default template. */
@@ -31,6 +35,7 @@ export type ChatProjectTemplatesValues = {
 
 const noDefaultTemplate = "none";
 
+/** Returns the form state for saved templates, or an empty form when none. */
 export const chatProjectTemplatesValues = (
 	templates: ChatProjectTemplates | undefined,
 ): ChatProjectTemplatesValues => ({
@@ -88,6 +93,10 @@ type ChatProjectTemplatesFieldsProps = {
 	readonly disabled: boolean;
 };
 
+/**
+ * Fields that pick a project's templates, an optional default template, and
+ * that template's default preset or parameter values.
+ */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
 > = ({ templates, templatesError, saveError, value, onChange, disabled }) => {

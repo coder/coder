@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { agentTemplates } from "#/api/queries/templates";
+import { agentTemplatesKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -13,14 +13,14 @@ import {
 } from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
-const dockerTemplate: Template = {
+const mockDockerTemplate: Template = {
 	...MockTemplate,
 	id: "template-docker",
 	name: "docker",
 	display_name: "Docker",
 	active_version_id: "version-docker",
 };
-const kubernetesTemplate: Template = {
+const mockKubernetesTemplate: Template = {
 	...MockTemplate,
 	id: "template-kubernetes",
 	name: "kubernetes",
@@ -40,11 +40,10 @@ const meta = {
 		onSubmit: fn(),
 	},
 	parameters: {
-		// Every story with an organization loads its templates.
 		queries: [MockDefaultOrganization, MockOrganization2].map(
 			(organization) => ({
-				key: agentTemplates(organization.id).queryKey,
-				data: [dockerTemplate, kubernetesTemplate],
+				key: agentTemplatesKey(organization.id),
+				data: [mockDockerTemplate, mockKubernetesTemplate],
 			}),
 		),
 	},
@@ -178,11 +177,11 @@ export const NarrowOpenOrganizationDropdown: Story = {
 export const CreateTemplatesSaveError: Story = {
 	args: {
 		error: mockApiError({
-			message: `Template ${kubernetesTemplate.id} is not available to agents in this organization.`,
+			message: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
 			validations: [
 				{
 					field: "templates.template_ids",
-					detail: `Template ${kubernetesTemplate.id} is not available to agents in this organization.`,
+					detail: `Template ${mockKubernetesTemplate.id} is not available to agents in this organization.`,
 				},
 			],
 		}),
@@ -193,7 +192,7 @@ export const NoEligibleTemplates: Story = {
 	parameters: {
 		queries: [
 			{
-				key: agentTemplates(MockDefaultOrganization.id).queryKey,
+				key: agentTemplatesKey(MockDefaultOrganization.id),
 				data: [],
 			},
 		],
@@ -214,4 +213,58 @@ export const TemplatesLoadError: Story = {
 			mockApiError({ message: "Failed to load templates." }),
 		);
 	},
+};
+
+/** Selects every template and makes Docker the default. */
+const pickDefaultTemplate: Story["play"] = async ({ canvasElement }) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("button", { name: "Select all" }),
+	);
+	await userEvent.click(
+		body.getByRole("combobox", { name: "Default template" }),
+	);
+	await userEvent.click(await body.findByRole("option", { name: "Docker" }));
+};
+
+const pickDefaultParameters: Story["play"] = async (context) => {
+	await pickDefaultTemplate(context);
+	const body = within(context.canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("radio", { name: "Parameter values" }),
+	);
+};
+
+export const DefaultTemplateWithoutPresets: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplatePresetsLoadError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+			mockApiError({ message: "Failed to load presets." }),
+		);
+	},
+	play: pickDefaultTemplate,
+};
+
+export const DefaultTemplateWithoutParameters: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+	},
+	play: pickDefaultParameters,
+};
+
+export const DefaultTemplateParametersLoadError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(
+			mockApiError({ message: "Failed to load parameters." }),
+		);
+	},
+	play: pickDefaultParameters,
 };
