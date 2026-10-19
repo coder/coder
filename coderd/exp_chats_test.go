@@ -47,14 +47,17 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
@@ -1877,6 +1880,210 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+func TestCreateChatAsUser(t *testing.T) {
+	t.Parallel()
+
+	mAudit := audit.NewMock()
+	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModel(t, client)
+
+	helloRequest := func(organizationID uuid.UUID) codersdk.CreateChatRequest {
+		return codersdk.CreateChatRequest{
+			OrganizationID: organizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello from CreateChatAsUser",
+			}},
+		}
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		chat, err := api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+		require.Equal(t, "hello from CreateChatAsUser", chat.Title)
+
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chat.ID,
+			UserID:         member.ID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusCreated,
+		}))
+	})
+
+	t.Run("RefusedUser", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name        string
+			refuse      func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID
+			wantMessage string
+		}{
+			{
+				name: "SuspendedUser",
+				refuse: func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID {
+					_, err := client.UpdateUserStatus(ctx, userID.String(), codersdk.UserStatusSuspended)
+					require.NoError(t, err)
+					return userID
+				},
+				wantMessage: "not active",
+			},
+			{
+				name: "DeletedUser",
+				refuse: func(ctx context.Context, t *testing.T, userID uuid.UUID) uuid.UUID {
+					require.NoError(t, client.DeleteUser(ctx, userID))
+					return userID
+				},
+				wantMessage: "User is deleted.",
+			},
+			{
+				name: "MissingUser",
+				refuse: func(context.Context, *testing.T, uuid.UUID) uuid.UUID {
+					return uuid.New()
+				},
+				wantMessage: "User does not exist.",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+				userID := tc.refuse(ctx, t, member.ID)
+
+				_, err := api.CreateChatAsUser(ctx, userID, helloRequest(firstUser.OrganizationID))
+				responder, ok := httperror.IsResponder(err)
+				require.True(t, ok, "want a responder error, got %v", err)
+				status, resp := responder.Response()
+				require.Equal(t, http.StatusForbidden, status)
+				require.Contains(t, resp.Message, tc.wantMessage)
+
+				chats, err := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
+					OwnedOnly: true,
+					ViewerID:  userID,
+				})
+				require.NoError(t, err)
+				require.Empty(t, chats)
+				for _, log := range mAudit.AuditLogs() {
+					require.False(t, log.ResourceType == database.ResourceTypeChat && log.UserID == userID, "refused user got a chat audit entry")
+				}
+			})
+		}
+	})
+
+	t.Run("AccountStatus", func(t *testing.T) {
+		t.Parallel()
+
+		activationAudits := func(userID uuid.UUID) int {
+			count := 0
+			for _, log := range mAudit.AuditLogs() {
+				if log.ResourceType == database.ResourceTypeUser && log.ResourceID == userID && log.Action == database.AuditActionWrite {
+					count++
+				}
+			}
+			return count
+		}
+		cases := []struct {
+			name        string
+			status      database.UserStatus
+			lastSeenAgo time.Duration
+			wantSeen    bool
+		}{
+			{name: "DormantIsActivated", status: database.UserStatusDormant, lastSeenAgo: 100 * 24 * time.Hour, wantSeen: true},
+			{name: "SeenRecentlyKeepsLastSeen", status: database.UserStatusActive, lastSeenAgo: 30 * time.Minute},
+			{name: "SeenOverAnHourAgoUpdatesLastSeen", status: database.UserStatusActive, lastSeenAgo: 2 * time.Hour, wantSeen: true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+				systemCtx := dbauthz.AsSystemRestricted(ctx)
+				now := dbtime.Now()
+				lastSeen := now.Add(-tc.lastSeenAgo)
+				_, err := api.Database.UpdateUserLastSeenAt(systemCtx, database.UpdateUserLastSeenAtParams{
+					ID:         member.ID,
+					LastSeenAt: lastSeen,
+					UpdatedAt:  now,
+				})
+				require.NoError(t, err)
+				_, err = api.Database.UpdateUserStatus(systemCtx, database.UpdateUserStatusParams{
+					ID:        member.ID,
+					Status:    tc.status,
+					UpdatedAt: now,
+				})
+				require.NoError(t, err)
+				auditsBefore := activationAudits(member.ID)
+
+				_, err = api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
+				require.NoError(t, err)
+
+				user, err := api.Database.GetUserByID(systemCtx, member.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.UserStatusActive, user.Status)
+				if tc.wantSeen {
+					require.True(t, user.LastSeenAt.After(lastSeen), "last_seen_at stayed at %s", user.LastSeenAt)
+				} else {
+					require.True(t, lastSeen.Equal(user.LastSeenAt), "last_seen_at changed from %s to %s", lastSeen, user.LastSeenAt)
+				}
+				wantAudits := auditsBefore
+				if tc.status == database.UserStatusDormant {
+					wantAudits++
+				}
+				require.Equal(t, wantAudits, activationAudits(member.ID))
+			})
+		}
+	})
+
+	t.Run("HookDenied", func(t *testing.T) {
+		t.Parallel()
+
+		const hookSecret = "test-hook-secret-32-bytes-minimum!!"
+		consumer := newHookConsumer(t, hookSecret, agenthooks.Hooks{
+			UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+				return agenthooks.Response{
+					Permission:  &agenthooks.Permission{Decision: agenthooks.PermissionDeny},
+					UserMessage: "blocked by policy",
+				}, nil
+			},
+		})
+		t.Cleanup(consumer.Close)
+		hookClient, hookAPI := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+			opts.ChatWorkerDisabled = true
+			require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+			opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(hookSecret)
+			opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(testutil.WaitShort)
+			opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+		})
+		hookUser := coderdtest.CreateFirstUser(t, hookClient.Client)
+		createChatModel(t, hookClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := hookAPI.CreateChatAsUser(ctx, hookUser.UserID, helloRequest(hookUser.OrganizationID))
+		responder, ok := httperror.IsResponder(err)
+		require.True(t, ok, "want a responder error, got %v", err)
+		status, resp := responder.Response()
+		require.Equal(t, http.StatusForbidden, status)
+		require.Equal(t, "blocked by policy", resp.Message)
+		denied, ok := stderrors.AsType[*chathooks.UserPromptDeniedError](err)
+		require.True(t, ok, "want a hook denial, got %v", err)
+		require.Equal(t, "blocked by policy", denied.UserMessage)
+	})
+}
+
 func TestPostChats_OwnerID(t *testing.T) {
 	t.Parallel()
 
@@ -3556,7 +3763,7 @@ func TestWatchChats(t *testing.T) {
 		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		chatDaemon := api.ChatDaemonForTest()
+		chatDaemon := api.ChatDaemon()
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
@@ -16615,6 +16822,29 @@ func TestChatWorkspaceTTL(t *testing.T) {
 		WorkspaceTTLMillis: 2_595_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
+}
+
+func TestChatCreateWorkspace_BindFailureCreatesNoWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+	user := coderdtest.CreateFirstUser(t, rawClient)
+	tv := dbfake.TemplateVersion(t, api.Database).Seed(database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	}).Do()
+
+	// The chat does not exist, so the bind inside the create transaction fails.
+	_, _, err := coderd.ChatCreateWorkspace(api, ctx, user.UserID, uuid.New(), codersdk.CreateWorkspaceRequest{
+		TemplateID: tv.Template.ID,
+		Name:       "chat-bind-fails",
+	})
+	require.ErrorContains(t, err, "bind chat to workspace")
+
+	workspaces, err := rawClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+	require.NoError(t, err)
+	require.Empty(t, workspaces.Workspaces)
 }
 
 //nolint:tparallel,paralleltest // Subtests share one auditor and coderdtest instance.
