@@ -700,11 +700,6 @@
 		@apply font-sans;
 	}
 
-	:focus-visible {
-		outline: 2px solid hsl(var(--content-link));
-		outline-offset: 0;
-	}
-
 	input:-webkit-autofill,
 	input:-webkit-autofill:hover,
 	input:-webkit-autofill:focus,
