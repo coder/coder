@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent } from "storybook/test";
+import type { ConnectionLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,
@@ -24,10 +26,17 @@ const meta: Meta<typeof ConnectionLogRow> = {
 export default meta;
 type Story = StoryObj<typeof ConnectionLogRow>;
 
+const openConnectionDetails = async () => {
+	await userEvent.click(
+		screen.getByRole("button", { name: "Connection details" }),
+	);
+};
+
 export const Web: Story = {
 	args: {
 		connectionLog: MockWebConnectionLog,
 	},
+	play: openConnectionDetails,
 };
 
 export const WebUnauthenticatedFail: Story = {
@@ -48,14 +57,14 @@ export const ConnectedSSH: Story = {
 	args: {
 		connectionLog: MockConnectedSSHConnectionLog,
 	},
+	play: openConnectionDetails,
 };
 
 export const DisconnectedSSH: Story = {
 	args: {
-		connectionLog: {
-			...MockDisconnectedSSHConnectionLog,
-		},
+		connectionLog: MockDisconnectedSSHConnectionLog,
 	},
+	play: openConnectionDetails,
 };
 
 export const DisconnectedSSHError: Story = {
@@ -63,9 +72,42 @@ export const DisconnectedSSHError: Story = {
 		connectionLog: {
 			...MockDisconnectedSSHConnectionLog,
 			ssh_info: {
-				...MockDisconnectedSSHConnectionLog.ssh_info!,
+				...MockDisconnectedSSHConnectionLog.ssh_info,
 				exit_code: 130, // 128 + SIGINT
 			},
 		},
+	},
+};
+
+// A standalone disconnect stores its own timestamp as the connect time.
+const mockNoConnectRecorded: ConnectionLog = {
+	...MockDisconnectedSSHConnectionLog,
+	connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,
+	ssh_info: {
+		...MockDisconnectedSSHConnectionLog.ssh_info,
+		duration_seconds: undefined,
+		duration_status: "missing_connect",
+	},
+};
+
+export const NoConnectRecorded: Story = {
+	args: {
+		connectionLog: mockNoConnectRecorded,
+	},
+};
+
+const mockDurationUnavailable: ConnectionLog = {
+	...MockDisconnectedSSHConnectionLog,
+	ssh_info: {
+		...MockDisconnectedSSHConnectionLog.ssh_info,
+		disconnect_time: "2022-05-19T16:40:57.122Z",
+		duration_seconds: undefined,
+		duration_status: "invalid",
+	},
+};
+
+export const DurationUnavailable: Story = {
+	args: {
+		connectionLog: mockDurationUnavailable,
 	},
 };

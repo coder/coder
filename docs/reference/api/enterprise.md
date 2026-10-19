@@ -500,9 +500,12 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
+        "duration_seconds": 0,
+        "duration_status": "recorded",
         "exit_code": 0
       },
       "type": "string",

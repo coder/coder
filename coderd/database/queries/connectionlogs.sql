@@ -124,6 +124,11 @@ WHERE
 			connection_logs.connection_id = @connection_id
 		ELSE true
 	END
+	AND CASE
+		WHEN @client_session_id :: text != '' THEN
+			connection_logs.client_session_id = @client_session_id
+		ELSE true
+	END
 	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN @status :: text != '' THEN
@@ -252,6 +257,11 @@ SELECT COUNT(*) AS count FROM (
 		AND CASE
 			WHEN @connection_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 				connection_logs.connection_id = @connection_id
+			ELSE true
+		END
+		AND CASE
+			WHEN @client_session_id :: text != '' THEN
+				connection_logs.client_session_id = @client_session_id
 			ELSE true
 		END
 		-- Filter by whether the session has a disconnect_time

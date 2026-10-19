@@ -683,6 +683,23 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Equal(t, expected, values)
 	})
 
+	t.Run("ClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		const sessionID = "0123456789abcdef0123456789abcdef"
+		// Queries are lowercased, so uppercase IDs match too.
+		values, count, errs := searchquery.ConnectionLogs(t.Context(), nil, "client_session_id:"+strings.ToUpper(sessionID), database.APIKey{})
+		require.Empty(t, errs)
+		require.Equal(t, sessionID, values.ClientSessionID)
+		require.Equal(t, sessionID, count.ClientSessionID)
+		for _, query := range []string{
+			"client_session_id:invalid",
+			"client_session_id:",
+		} {
+			_, _, errs := searchquery.ConnectionLogs(t.Context(), nil, query, database.APIKey{})
+			require.NotEmpty(t, errs, query)
+		}
+	})
+
 	// type: is the legacy filter. No query has an organization term, so no
 	// database is needed.
 	t.Run("Type", func(t *testing.T) {

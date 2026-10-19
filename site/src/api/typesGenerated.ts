@@ -4239,6 +4239,20 @@ export interface ConnectionLog {
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
 
+// From codersdk/connectionlog.go
+export type ConnectionLogDurationStatus =
+	| "invalid"
+	| "missing_connect"
+	| "no_disconnect"
+	| "recorded";
+
+export const ConnectionLogDurationStatuses: ConnectionLogDurationStatus[] = [
+	"invalid",
+	"missing_connect",
+	"no_disconnect",
+	"recorded",
+];
+
 // From codersdk/dbenums_gen.go
 export type ConnectionLogMethod =
 	| "port_forwarding"
@@ -4265,6 +4279,17 @@ export interface ConnectionLogResponse {
 // From codersdk/connectionlog.go
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
+	/**
+	 * ClientSessionID is an optional client-supplied correlation label, not a
+	 * unique IDE-instance identifier. Related rows may overlap or have gaps.
+	 */
+	readonly client_session_id?: string;
+	/**
+	 * DurationSeconds is the stored connect-to-disconnect interval. It is
+	 * omitted unless DurationStatus is recorded.
+	 */
+	readonly duration_seconds?: number;
+	readonly duration_status: ConnectionLogDurationStatus;
 	/**
 	 * DisconnectTime is omitted if a disconnect event with the same connection ID
 	 * has not yet been seen.

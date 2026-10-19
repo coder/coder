@@ -4786,6 +4786,10 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	})
 
 	now := dbtime.Now()
+	const (
+		sessionA = "0123456789abcdef0123456789abcdef"
+		sessionB = "fedcba9876543210fedcba9876543210"
+	)
 	log1ConnID := uuid.New()
 	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 		Time:             now.Add(-4 * time.Hour),
@@ -4812,6 +4816,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Mark log2 as disconnected
@@ -4837,6 +4842,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionB, Valid: true},
 	})
 
 	// Mark log3 as disconnected
@@ -4861,6 +4867,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Tunnel events are point-in-time (no disconnect event is ever
@@ -5056,6 +5063,13 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log1.ID},
 		},
 		{
+			name: "ClientSessionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ClientSessionID: sessionA,
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
 			name: "StatusOngoing",
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
@@ -5100,6 +5114,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 				ConnectedBefore:     tc.params.ConnectedBefore,
 				WorkspaceID:         tc.params.WorkspaceID,
 				ConnectionID:        tc.params.ConnectionID,
+				ClientSessionID:     tc.params.ClientSessionID,
 				Status:              tc.params.Status,
 				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
 				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,

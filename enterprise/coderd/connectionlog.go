@@ -98,6 +98,24 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 	return clogs
 }
 
+// connectionLogDuration derives a duration from the stored timestamps. A
+// standalone disconnect stores its own timestamp as connect_time until the
+// matching connect arrives, so equal timestamps mean the connect is missing.
+func connectionLogDuration(log database.ConnectionLog) (*float64, codersdk.ConnectionLogDurationStatus) {
+	if !log.DisconnectTime.Valid {
+		return nil, codersdk.ConnectionLogDurationNoDisconnect
+	}
+	start, end := log.ConnectTime, log.DisconnectTime.Time
+	if start.Equal(end) {
+		return nil, codersdk.ConnectionLogDurationMissingConnect
+	}
+	if start.IsZero() || end.Before(start) {
+		return nil, codersdk.ConnectionLogDurationInvalid
+	}
+	seconds := end.Sub(start).Seconds()
+	return &seconds, codersdk.ConnectionLogDurationRecorded
+}
+
 func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.ConnectionLog {
 	var ip *netip.Addr
 	if dblog.ConnectionLog.Ip.Valid {
@@ -139,9 +157,13 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if appName != "" {
 			appDisplayName = codersdk.AppDisplayName(appName)
 		}
+		seconds, status := connectionLogDuration(dblog.ConnectionLog)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
+			ClientSessionID:  dblog.ConnectionLog.ClientSessionID.String,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
+			DurationSeconds:  seconds,
+			DurationStatus:   status,
 		}
 		if dblog.ConnectionLog.DisconnectTime.Valid {
 			sshInfo.DisconnectTime = &dblog.ConnectionLog.DisconnectTime.Time
