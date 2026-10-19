@@ -10888,6 +10888,20 @@ func (mr *MockStoreMockRecorder) UpdateChatProjectByID(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectByID), ctx, arg)
 }
 
+// UpdateChatProjectIDByID mocks base method.
+func (m *MockStore) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatProjectIDByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatProjectIDByID indicates an expected call of UpdateChatProjectIDByID.
+func (mr *MockStoreMockRecorder) UpdateChatProjectIDByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectIDByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectIDByID), ctx, arg)
+}
+
 // UpdateChatRetryState mocks base method.
 func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

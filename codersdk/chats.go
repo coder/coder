@@ -2230,6 +2230,10 @@ const (
 	// stays usable; a refresh re-pins a drifted chat to the latest
 	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
+	// ChatWatchEventKindProjectChange is published for each chat of a
+	// family after its root chat moves into, between or out of projects.
+	// Take project_id only from this kind.
+	ChatWatchEventKindProjectChange ChatWatchEventKind = "project_change"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.

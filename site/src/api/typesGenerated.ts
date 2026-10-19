@@ -3962,6 +3962,7 @@ export type ChatWatchEventKind =
 	| "created"
 	| "deleted"
 	| "diff_status_change"
+	| "project_change"
 	| "status_change"
 	| "summary_change"
 	| "title_change";
@@ -3973,6 +3974,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"created",
 	"deleted",
 	"diff_status_change",
+	"project_change",
 	"status_change",
 	"summary_change",
 	"title_change",
