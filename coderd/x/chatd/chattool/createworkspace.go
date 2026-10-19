@@ -268,7 +268,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				)
 			}
 			if project.isDefault(tmpl.ID) {
-				applyProjectDefaults(ctx, options.Logger, db, project, tmpl.ActiveVersionID, args, &createReq)
+				if err := applyProjectDefaults(ctx, options.Logger, db, project, tmpl.ActiveVersionID, args, &createReq); err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
 			}
 
 			workspace, updatedChat, err := createWorkspaceWithNameRetry(ctx, ownerID, chatID, createReq, options.CreateFn)

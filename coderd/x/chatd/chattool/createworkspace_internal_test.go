@@ -2424,6 +2424,46 @@ func TestCreateWorkspace_PresetFromOtherTemplate(t *testing.T) {
 	require.Equal(t, presetNotInTemplateMessage, resp.Content)
 }
 
+func TestCreateWorkspace_ProjectDefaultPresetLookupFails(t *testing.T) {
+	t.Parallel()
+
+	// The tool returns the bound workspace on later calls, so building
+	// without the project's default preset could not be retried.
+	s := setupCreateWorkspacePresetTest(t)
+	projectID := uuid.New()
+	s.DB.EXPECT().
+		GetChatProjectByID(gomock.Any(), projectID).
+		Return(database.ChatProject{
+			ID:                             projectID,
+			TemplateIDs:                    []uuid.UUID{s.TemplateID},
+			DefaultTemplateID:              uuid.NullUUID{UUID: s.TemplateID, Valid: true},
+			DefaultTemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}, nil)
+	s.DB.EXPECT().
+		GetPresetsByTemplateVersionID(gomock.Any(), s.VersionID).
+		Return(nil, xerrors.New("connection reset"))
+
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
+		OwnerID:   s.OwnerID,
+		ProjectID: uuid.NullUUID{UUID: projectID, Valid: true},
+		CreateFn: func(context.Context, uuid.UUID, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, database.Chat, error) {
+			t.Fatal("CreateFn should not be called when the default preset lookup fails")
+			return codersdk.Workspace{}, database.Chat{}, nil
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-default-preset-lookup",
+		Name:  "create_workspace",
+		Input: fmt.Sprintf(`{"template_id":%q,"name":"test-ws"}`, s.TemplateID.String()),
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "connection reset")
+}
+
 func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 	t.Parallel()
 

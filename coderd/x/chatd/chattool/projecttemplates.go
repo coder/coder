@@ -70,7 +70,9 @@ func (p *projectTemplates) isDefault(templateID uuid.UUID) bool {
 // values that the model did not pass. A preset the model chooses replaces
 // the defaults entirely. The default preset is skipped when it no longer
 // belongs to the template's active version, or when it sets a parameter the
-// model passed, since preset values override build values.
+// model passed, since preset values override build values. Lookup failures
+// are returned so the model can retry instead of getting a workspace built
+// without the project's defaults.
 func applyProjectDefaults(
 	ctx context.Context,
 	logger slog.Logger,
@@ -79,21 +81,24 @@ func applyProjectDefaults(
 	activeVersionID uuid.UUID,
 	args createWorkspaceArgs,
 	req *codersdk.CreateWorkspaceRequest,
-) {
+) error {
 	if req.TemplateVersionPresetID != uuid.Nil {
-		return
+		return nil
 	}
 	if project.defaultPresetID.Valid {
 		presets, err := db.GetPresetsByTemplateVersionID(ctx, activeVersionID)
-		switch {
-		case err != nil:
-			logger.Warn(ctx, "failed to load presets for project default preset", slog.Error(err))
-		case slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool { return p.ID == project.defaultPresetID.UUID }):
-			if presetSetsParameter(ctx, logger, db, activeVersionID, project.defaultPresetID.UUID, args.Parameters) {
-				break
+		if err != nil {
+			return xerrors.Errorf("load presets for project default preset: %w", err)
+		}
+		if slices.ContainsFunc(presets, func(p database.TemplateVersionPreset) bool { return p.ID == project.defaultPresetID.UUID }) {
+			overridden, err := presetSetsParameter(ctx, db, activeVersionID, project.defaultPresetID.UUID, args.Parameters)
+			if err != nil {
+				return err
 			}
-			req.TemplateVersionPresetID = project.defaultPresetID.UUID
-		default:
+			if !overridden {
+				req.TemplateVersionPresetID = project.defaultPresetID.UUID
+			}
+		} else {
 			logger.Warn(ctx, "project default preset is not in the template's active version",
 				slog.F("preset_id", project.defaultPresetID.UUID),
 				slog.F("template_version_id", activeVersionID),
@@ -109,28 +114,26 @@ func applyProjectDefaults(
 			Value: project.defaultParameters[name],
 		})
 	}
+	return nil
 }
 
 // presetSetsParameter reports whether the preset sets any of the given
-// parameters. It also reports true when the preset's parameters cannot be
-// loaded, so an explicit value is never silently overridden.
+// parameters.
 func presetSetsParameter(
 	ctx context.Context,
-	logger slog.Logger,
 	db database.Store,
 	versionID, presetID uuid.UUID,
 	parameters map[string]string,
-) bool {
+) (bool, error) {
 	if len(parameters) == 0 {
-		return false
+		return false, nil
 	}
 	presetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, versionID)
 	if err != nil {
-		logger.Warn(ctx, "failed to load project default preset parameters", slog.Error(err))
-		return true
+		return false, xerrors.Errorf("load project default preset parameters: %w", err)
 	}
 	return slices.ContainsFunc(presetParameters, func(p database.TemplateVersionPresetParameter) bool {
 		_, ok := parameters[p.Name]
 		return p.TemplateVersionPresetID == presetID && ok
-	})
+	}), nil
 }
