@@ -53,6 +53,33 @@ const DIFF_STYLE_KEY = "agents.diff-view-style";
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
 const HUNK_SEPARATOR_HEIGHT = 28;
+// Space between file cards and around the list, in pixels.
+const FILE_CARD_GAP = 2;
+const FILE_LIST_PADDING = 8;
+
+// Renders each file as a rounded card: the header row and the code sit on a
+// surface-secondary background, and the code is inset 4px from the card
+// edges so its horizontal scrollbar stays inside the card. A collapsed file
+// has no <pre>, so its header takes the full card radius.
+const FILE_CARD_CSS = [
+	":host {",
+	"  display: block;",
+	"  border-radius: 6px;",
+	"  background-color: hsl(var(--surface-secondary));",
+	"}",
+	"[data-diffs-header] {",
+	"  border-radius: 6px 6px 0 0;",
+	"  background-color: hsl(var(--surface-secondary)) !important;",
+	"}",
+	"[data-diffs-header]:not(:has(~ pre[data-diff])) {",
+	"  border-radius: 6px;",
+	"}",
+	"pre[data-diff] {",
+	"  margin: 0 4px 4px;",
+	"  border-radius: 4px;",
+	"  overflow: hidden;",
+	"}",
+].join(" ");
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
 // shown alongside the diff. Below this the diff takes the full width unless the
@@ -209,7 +236,7 @@ function HeaderContent({
 }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 px-1 font-sans text-sm">
 			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 				<button
 					type="button"
@@ -245,16 +272,12 @@ function HeaderContent({
 				</div>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
-					{deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{deletions}
-						</span>
-					)}
+				<span className="flex shrink-0 items-center gap-1.5 pr-1 text-xs font-medium tabular-nums">
 					{additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{additions}
-						</span>
+						<span className="text-git-added-bright">+{additions}</span>
+					)}
+					{deletions > 0 && (
+						<span className="text-git-deleted-bright">&minus;{deletions}</span>
 					)}
 				</span>
 			)}
@@ -378,15 +401,15 @@ function SkeletonSeparator() {
 
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
-		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
+		<div className="overflow-hidden rounded-md bg-surface-secondary">
+			<div className="flex h-8 items-center justify-between gap-3 px-2">
 				<div className="flex items-center gap-2">
 					<Skeleton className="size-3 rounded-[2px]" />
 					<Skeleton className="h-3 w-44" />
 				</div>
-				<Skeleton className="h-5 w-14 rounded-[3px]" />
+				<Skeleton className="h-3 w-14" />
 			</div>
-			<div className="py-1">
+			<div className="mx-1 mb-1 rounded bg-surface-primary py-1">
 				{groups.map((lines, groupIndex) => (
 					<Fragment key={groupIndex}>
 						{groupIndex > 0 && <SkeletonSeparator />}
@@ -413,7 +436,12 @@ const DIFF_SKELETON_FILES = [
 
 function DiffViewerSkeleton() {
 	return (
-		<div role="status" aria-label="Loading diff" aria-busy>
+		<div
+			role="status"
+			aria-label="Loading diff"
+			aria-busy
+			className="flex flex-col gap-0.5 p-2"
+		>
 			{DIFF_SKELETON_FILES.map((groups, fileIndex) => (
 				<SkeletonFile key={fileIndex} groups={groups} />
 			))}
@@ -485,10 +513,14 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		diffIndicators: "bars",
 		overflow: "scroll",
 		stickyHeaders: true,
-		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+		layout: {
+			paddingTop: FILE_LIST_PADDING,
+			paddingBottom: FILE_LIST_PADDING,
+			gap: FILE_CARD_GAP,
+		},
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: `${SEPARATOR_CSS} ${FILE_CARD_CSS}`,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
@@ -606,7 +638,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				items={items}
 				options={options}
 				selectedLines={selectedLines}
-				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
+				className="h-full min-h-0 min-w-0 flex-1 overflow-auto px-2"
 				style={diffViewerStyle}
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
