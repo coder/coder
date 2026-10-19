@@ -14203,7 +14203,8 @@ type UpdateChatExecutionStateParams struct {
 // status, archived, last_error, ownership identifiers, the
 // requires-action deadline, and the manual compaction request marker.
 // Callers compose this with transition mutations inside a single
-// ChatMachine.Update transaction.
+// ChatMachine.Update transaction. ArchiveChatsOfDeletedChatProject copies
+// its SET list, so update both together.
 //
 // grant_history_epoch gives a turn that inserts no history the same
 // fresh retry budget and message part episode keys a history change

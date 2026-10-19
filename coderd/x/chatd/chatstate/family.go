@@ -88,10 +88,10 @@ func SetFamilyArchived(
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
 		}
-		// A family archived by its project delete must stay archived. The
-		// cleanup skips archived roots, so hold the project FOR SHARE: a
-		// delete then waits for this unarchive, and its cleanup sees the
-		// family unarchived.
+		// A deleted project's families stay archived. The cleanup skips
+		// archived roots, so hold the project FOR SHARE: a delete then
+		// waits for this unarchive, and its cleanup sees the family
+		// unarchived.
 		if !input.Archived && root.ProjectID.Valid {
 			//nolint:gocritic // The caller authorized the root chat, not its project.
 			_, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
