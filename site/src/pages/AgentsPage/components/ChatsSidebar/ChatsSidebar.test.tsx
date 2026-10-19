@@ -39,6 +39,7 @@ import {
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
 import { NIL_UUID } from "../../utils/modelOptions";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -1395,6 +1396,101 @@ describe("ChatsSidebar project drops", () => {
 		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith("c1", { project_id: NIL_UUID }),
 		);
+	});
+
+	// A drag over the collapsed Projects section opens it, so that its folders
+	// can take the drop.
+	describe("with Projects collapsed", () => {
+		const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		beforeEach(() => {
+			localStorage.setItem(collapsedKey, "true");
+			return () => localStorage.removeItem(collapsedKey);
+		});
+
+		const renderCollapsedProjects = async () => {
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			renderSidebar(
+				[
+					buildChat({
+						id: "c1",
+						title: "Free chat",
+						organization_id: mockBillingProject.organization_id,
+					}),
+				],
+				[mockBillingProject],
+			);
+			const sectionToggle = await screen.findByRole("button", {
+				name: "Projects",
+			});
+			const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+			const rowLink = screen.getByRole("link", { name: /Free chat/ });
+			// The Billing folder renders only once the section opens.
+			mockLayout((element) => {
+				const billing = screen.queryByRole("link", { name: "Billing" });
+				const held = [sectionToggle, billing, chatsHeading].filter(
+					(node) => node && element.contains(node),
+				);
+				if (held.length > 1) {
+					return box(0, 600);
+				}
+				if (element.contains(sectionToggle)) {
+					return box(0, 50);
+				}
+				if (billing && element.contains(billing)) {
+					return box(60, 40);
+				}
+				if (element.contains(chatsHeading)) {
+					return box(200, 300);
+				}
+				return element.contains(rowLink) ? box(240, 40) : box(0, 0);
+			});
+			return { update, sectionToggle };
+		};
+
+		it("opens on a mouse drag over its header, where a drop moves nothing", async () => {
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			await mouseDragRow("Free chat", 25);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat was dropped. It did not move.",
+				),
+			);
+
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			expect(localStorage.getItem(collapsedKey)).toBeNull();
+			expect(update).not.toHaveBeenCalled();
+		});
+
+		it("lets a keyboard drag reach a folder through its header", async () => {
+			const user = userEvent.setup();
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowUp]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over Projects.",
+				),
+			);
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over project Billing.",
+				),
+			);
+			await user.keyboard("[Space]");
+
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("c1", {
+					project_id: mockBillingProject.id,
+				}),
+			);
+		});
 	});
 
 	// The chat link is the drag handle, so the row wrapper adds no tab stop

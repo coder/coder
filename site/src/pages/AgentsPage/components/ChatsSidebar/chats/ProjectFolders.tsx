@@ -29,6 +29,7 @@ import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
 import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
+import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -79,10 +80,9 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	const [isExpanded, setIsExpanded] = useState(() =>
 		getPersistedProjectsSectionExpanded(currentUserId),
 	);
-	const toggleExpanded = () => {
-		const next = !isExpanded;
-		setIsExpanded(next);
-		savePersistedProjectsSectionExpanded(currentUserId, next);
+	const setExpanded = (expanded: boolean) => {
+		setIsExpanded(expanded);
+		savePersistedProjectsSectionExpanded(currentUserId, expanded);
 	};
 	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
 	const isShowingEmptyState =
@@ -95,26 +95,31 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 
 	return (
 		<div>
-			<SidebarSectionHeader
-				title="Projects"
-				collapsible={{
-					expanded: isExpanded,
-					onToggle: toggleExpanded,
-				}}
-				actions={
-					isShowingHeaderNewProject && (
-						<Button
-							variant="subtle"
-							size="icon"
-							className="size-7"
-							aria-label="New project"
-							onClick={openCreateDialog}
-						>
-							<PlusIcon />
-						</Button>
-					)
-				}
-			/>
+			<ProjectsSectionDropArea
+				isExpanded={isExpanded}
+				onExpand={() => setExpanded(true)}
+			>
+				<SidebarSectionHeader
+					title="Projects"
+					collapsible={{
+						expanded: isExpanded,
+						onToggle: () => setExpanded(!isExpanded),
+					}}
+					actions={
+						isShowingHeaderNewProject && (
+							<Button
+								variant="subtle"
+								size="icon"
+								className="size-7"
+								aria-label="New project"
+								onClick={openCreateDialog}
+							>
+								<PlusIcon />
+							</Button>
+						)
+					}
+				/>
+			</ProjectsSectionDropArea>
 			{isExpanded && (
 				<div className="px-2">
 					{Boolean(error) && (

@@ -38,6 +38,13 @@ export type ChatDragData = { readonly chat: Chat };
 /** The dnd-kit data of a chat drop target. */
 export type DropTargetData = { readonly dropTarget: DropTarget };
 
+/** The dnd-kit data of the Projects section header. */
+export type ProjectsSectionData = { readonly projectsSection: true };
+
+/** A drop on the Projects section header moves nothing. */
+export const isProjectsSection = (target: Droppable | null): boolean =>
+	target !== null && "projectsSection" in target.data;
+
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
 	"chat" in data;
 
@@ -97,6 +104,9 @@ export const projectIdForDrop = (
 ): string | null | undefined => projectIdForTarget(chat, dropTargetOf(target));
 
 const announcedTarget = (target: Droppable | null): string | undefined => {
+	if (isProjectsSection(target)) {
+		return "Projects";
+	}
 	const dropTarget = dropTargetOf(target);
 	if (!dropTarget) {
 		return undefined;
@@ -145,7 +155,7 @@ export const chatDragAnnouncements = {
 			return `Chat ${chat.title} was dropped.`;
 		}
 		const over = announcedTarget(target);
-		return over
+		return over && projectIdForDrop(chat, target) !== undefined
 			? `Chat ${chat.title} was dropped on ${over}.`
 			: `Chat ${chat.title} was dropped. It did not move.`;
 	},

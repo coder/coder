@@ -3102,6 +3102,24 @@ export const ProjectsSectionCollapsed: Story = {
 	},
 };
 
+export const ChatDraggedOverCollapsedProjects: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		await screen.findByText("Chat Loose chat is over Projects.");
+	},
+};
+
 export const ProjectsEmpty: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
