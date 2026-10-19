@@ -247,6 +247,9 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 		...richParameters(template.active_version_id),
 		enabled: value.defaultsKind === "parameters",
 	});
+	// The server returns null rather than [] for a version without presets.
+	const presets =
+		presetsQuery.data === undefined ? undefined : (presetsQuery.data ?? []);
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -278,8 +281,8 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 				</div>
 			</RadioGroup>
 			{value.defaultsKind === "preset" ? (
-				presetsQuery.data ? (
-					presetsQuery.data.length === 0 ? (
+				presets ? (
+					presets.length === 0 ? (
 						<p className="m-0 text-sm text-content-secondary">
 							This template has no presets.
 						</p>
@@ -297,7 +300,7 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 									<SelectValue placeholder="Select a preset" />
 								</SelectTrigger>
 								<SelectContent>
-									{presetsQuery.data.map((preset) => (
+									{presets.map((preset) => (
 										<SelectItem key={preset.ID} value={preset.ID}>
 											{preset.Name}
 										</SelectItem>
