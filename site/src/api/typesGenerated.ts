@@ -863,6 +863,12 @@ export type APIKeyScope =
 	| "organization_member:read"
 	| "organization_member:update"
 	| "organization:read"
+	| "organization_skill:*"
+	| "organization_skill:create"
+	| "organization_skill:delete"
+	| "organization_skill:read"
+	| "organization_skill:share"
+	| "organization_skill:update"
 	| "organization:update"
 	| "prebuilt_workspace:*"
 	| "prebuilt_workspace:delete"
@@ -956,6 +962,11 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace_secret:*"
+	| "workspace_secret:create"
+	| "workspace_secret:read"
+	| "workspace_secret:read_secret"
+	| "workspace_secret:update"
 	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
@@ -1120,6 +1131,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"organization_member:read",
 	"organization_member:update",
 	"organization:read",
+	"organization_skill:*",
+	"organization_skill:create",
+	"organization_skill:delete",
+	"organization_skill:read",
+	"organization_skill:share",
+	"organization_skill:update",
 	"organization:update",
 	"prebuilt_workspace:*",
 	"prebuilt_workspace:delete",
@@ -1213,6 +1230,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace_secret:*",
+	"workspace_secret:create",
+	"workspace_secret:read",
+	"workspace_secret:read_secret",
+	"workspace_secret:update",
 	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
@@ -1573,7 +1595,7 @@ export interface AgentScriptTiming {
 	readonly ended_at: string;
 	readonly exit_code: number;
 	readonly stage: TimingStage;
-	readonly status: string;
+	readonly status: WorkspaceAgentScriptStatus;
 	readonly display_name: string;
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
@@ -3478,9 +3500,9 @@ export interface ChatProjectGroup extends Group {
 // From codersdk/chats.go
 /**
  * ChatProjectInstructions are instructions added to the system prompt of
- * every chat in a project, for every user who chats there. A project without
- * instructions has an empty Instructions string and nil UpdatedBy and
- * UpdatedAt.
+ * every chat in a project, except chats whose owner can no longer use the
+ * project. A project without instructions has an empty Instructions
+ * string and nil UpdatedBy and UpdatedAt.
  */
 export interface ChatProjectInstructions {
 	readonly project_id: string;
@@ -4417,6 +4439,11 @@ export interface CreateMCPServerConfigRequest {
 	 * endpoint; auto-populated by OAuth2 discovery when omitted.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
+	 * requests when set. Auto-discovery fills it if empty.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -4459,6 +4486,19 @@ export interface CreateProvisionerKeyRequest {
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyResponse {
 	readonly key: string;
+}
+
+// From codersdk/skills.go
+/**
+ * CreateSkillRequest is the payload for creating a skill.
+ */
+export interface CreateSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
 }
 
 // From codersdk/organizations.go
@@ -4512,12 +4552,12 @@ export interface CreateTemplateRequest {
 	readonly time_til_autostop_notify_ms?: number;
 	/**
 	 * AutostopRequirement allows optionally specifying the autostop requirement
-	 * for workspaces created from this template. This is an enterprise feature.
+	 * for workspaces created from this template. This is a Premium feature.
 	 */
 	readonly autostop_requirement?: TemplateAutostopRequirement;
 	/**
 	 * AutostartRequirement allows optionally specifying the autostart allowed days
-	 * for workspaces created from this template. This is an enterprise feature.
+	 * for workspaces created from this template. This is a Premium feature.
 	 */
 	readonly autostart_requirement?: TemplateAutostartRequirement;
 	/**
@@ -4527,15 +4567,15 @@ export interface CreateTemplateRequest {
 	readonly allow_user_cancel_workspace_jobs: boolean | null;
 	/**
 	 * AllowUserAutostart allows users to set a schedule for autostarting their
-	 * workspace. By default this is true. This can only be disabled when using
-	 * an enterprise license.
+	 * workspace. By default this is true. This can only be disabled with a
+	 * Premium license.
 	 */
 	readonly allow_user_autostart?: boolean;
 	/**
 	 * AllowUserAutostop allows users to set a custom workspace TTL to use in
 	 * place of the template's DefaultTTL field. By default this is true. If
-	 * false, the DefaultTTL will always be used. This can only be disabled when
-	 * using an enterprise license.
+	 * false, the DefaultTTL will always be used. This can only be disabled with a
+	 * Premium license.
 	 */
 	readonly allow_user_autostop?: boolean;
 	/**
@@ -4736,19 +4776,6 @@ export interface CreateUserSecretRequest {
 	readonly enabled?: boolean;
 }
 
-// From codersdk/userskills.go
-/**
- * CreateUserSkillRequest is the payload for creating a user skill.
- */
-export interface CreateUserSkillRequest {
-	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
-	 */
-	readonly content: string;
-}
-
 // From codersdk/workspaces.go
 /**
  * CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
@@ -4820,6 +4847,12 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
+	 * Secrets sets or removes workspace secrets for this build. Previous
+	 * secrets that are not listed carry forward unless they were ephemeral or
+	 * a listed secret uses their env_name or file_path.
+	 */
+	readonly secrets?: readonly WorkspaceSecretInput[];
+	/**
 	 * Log level changes the default logging verbosity of a provider ("info" if empty).
 	 */
 	readonly log_level?: ProvisionerLogLevel;
@@ -4878,6 +4911,10 @@ export interface CreateWorkspaceRequest {
 	 * during the initial provision.
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
+	/**
+	 * Secrets sets the workspace's initial secrets.
+	 */
+	readonly secrets?: readonly WorkspaceSecretInput[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
 }
@@ -6618,6 +6655,7 @@ export interface MCPServerConfig {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	readonly oauth2_revocation_url?: string;
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	/**
 	 * API key fields (only populated for admins).
@@ -7973,6 +8011,37 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly Initiator: string;
 }
 
+// From codersdk/skills.go
+/**
+ * OrganizationSkillACL is the resolved access control list of an
+ * organization skill.
+ */
+export interface OrganizationSkillACL {
+	readonly users: readonly OrganizationSkillUser[];
+	readonly groups: readonly OrganizationSkillGroup[];
+}
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillGroup is a group entry in an organization skill ACL.
+ */
+export interface OrganizationSkillGroup extends Group {
+	readonly role: OrganizationSkillRole;
+}
+
+// From codersdk/skills.go
+export type OrganizationSkillRole = "" | "read";
+
+export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillUser is a user entry in an organization skill ACL.
+ */
+export interface OrganizationSkillUser extends MinimalUser {
+	readonly role: OrganizationSkillRole;
+}
+
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	/**
@@ -8783,6 +8852,7 @@ export type RBACAction =
 	| "delete_agent"
 	| "read"
 	| "read_personal"
+	| "read_secret"
 	| "ssh"
 	| "share"
 	| "unassign"
@@ -8803,6 +8873,7 @@ export const RBACActions: RBACAction[] = [
 	"delete_agent",
 	"read",
 	"read_personal",
+	"read_secret",
 	"ssh",
 	"share",
 	"unassign",
@@ -8852,6 +8923,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "organization_skill"
 	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
@@ -8870,7 +8942,8 @@ export type RBACResource =
 	| "workspace_agent_resource_monitor"
 	| "workspace_build_orchestration"
 	| "workspace_dormant"
-	| "workspace_proxy";
+	| "workspace_proxy"
+	| "workspace_secret";
 
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
@@ -8908,6 +8981,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"organization_skill",
 	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
@@ -8927,6 +9001,7 @@ export const RBACResources: RBACResource[] = [
 	"workspace_build_orchestration",
 	"workspace_dormant",
 	"workspace_proxy",
+	"workspace_secret",
 ];
 
 // From codersdk/deployment.go
@@ -9048,6 +9123,7 @@ export type ResourceType =
 	| "chat_project"
 	| "chat_project_instructions"
 	| "chat_project_memory"
+	| "chat_project_skill"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9067,6 +9143,7 @@ export type ResourceType =
 	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
+	| "organization_skill"
 	| "prebuilds_settings"
 	| "task"
 	| "template"
@@ -9096,6 +9173,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_project",
 	"chat_project_instructions",
 	"chat_project_memory",
+	"chat_project_skill",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
@@ -9115,6 +9193,7 @@ export const ResourceTypes: ResourceType[] = [
 	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
+	"organization_skill",
 	"prebuilds_settings",
 	"task",
 	"template",
@@ -9643,6 +9722,29 @@ export const SignedAppTokenCookie = "coder_signed_app_token";
  */
 export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
 
+// From codersdk/skills.go
+/**
+ * Skill represents a personal or organization skill with its raw Markdown
+ * content.
+ */
+export interface Skill extends SkillMetadata {
+	readonly content: string;
+}
+
+// From codersdk/skills.go
+/**
+ * SkillMetadata represents a personal or organization skill without its raw
+ * Markdown content.
+ */
+export interface SkillMetadata {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/roles.go
 /**
  * SlimRole omits permission information from a role.
@@ -9919,8 +10021,8 @@ export interface Template {
 	 */
 	readonly time_til_autostop_notify_ms: number;
 	/**
-	 * AutostopRequirement and AutostartRequirement are enterprise features. Its
-	 * value is only used if your license is entitled to use the advanced template
+	 * AutostopRequirement and AutostartRequirement are Premium features. Their
+	 * values are only used if your license is entitled to use the advanced template
 	 * scheduling feature.
 	 */
 	readonly autostop_requirement: TemplateAutostopRequirement;
@@ -9928,7 +10030,7 @@ export interface Template {
 	readonly created_by_id: string;
 	readonly created_by_name: string;
 	/**
-	 * AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
+	 * AllowUserAutostart and AllowUserAutostop are Premium features. Their
 	 * values are only used if your license is entitled to use the advanced
 	 * template scheduling feature.
 	 */
@@ -9936,7 +10038,7 @@ export interface Template {
 	readonly allow_user_autostop: boolean;
 	readonly allow_user_cancel_workspace_jobs: boolean;
 	/**
-	 * FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
+	 * FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their
 	 * values are used if your license is entitled to use the advanced
 	 * template scheduling feature.
 	 */
@@ -10830,6 +10932,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * validate tag would reject the pointer to "" that clears it.
 	 */
 	readonly oauth2_revocation_url?: string;
+	/**
+	 * OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
+	 * the stored value; send "" to clear it.
+	 */
+	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -10879,9 +10986,35 @@ export interface UpdateOrganizationRequest {
 	readonly default_org_member_roles?: string[];
 }
 
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillACLRequest is a sparse update of an organization
+ * skill ACL: only the listed principals change, and
+ * OrganizationSkillRoleDeleted removes an entry.
+ */
+export interface UpdateOrganizationSkillACLRequest {
+	readonly user_roles?: Record<string, OrganizationSkillRole>;
+	readonly group_roles?: Record<string, OrganizationSkillRole>;
+}
+
 // From codersdk/users.go
 export interface UpdateRoles {
 	readonly roles: readonly string[];
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateSkillRequest is the payload for updating a skill. At least one field
+ * must be set.
+ */
+export interface UpdateSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/templates.go
@@ -11135,19 +11268,6 @@ export interface UpdateUserSecretRequest {
 	readonly env_name?: string;
 	readonly file_path?: string;
 	readonly enabled?: boolean;
-}
-
-// From codersdk/userskills.go
-/**
- * UpdateUserSkillRequest is the payload for updating a user skill.
- */
-export interface UpdateUserSkillRequest {
-	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
-	 */
-	readonly content: string;
 }
 
 // From codersdk/workspaces.go
@@ -11725,26 +11845,6 @@ export interface UserSecretsCapabilities {
 	 * into workspaces. Stored paths are preserved either way.
 	 */
 	readonly file_path_delivery_enabled: boolean;
-}
-
-// From codersdk/userskills.go
-/**
- * UserSkill represents a user skill with its raw Markdown content.
- */
-export interface UserSkill extends UserSkillMetadata {
-	readonly content: string;
-}
-
-// From codersdk/userskills.go
-/**
- * UserSkillMetadata represents a user skill without its raw Markdown content.
- */
-export interface UserSkillMetadata {
-	readonly id: string;
-	readonly name: string;
-	readonly description: string;
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/users.go
@@ -12326,15 +12426,19 @@ export const WorkspaceAgentScriptDependencyRequirements: WorkspaceAgentScriptDep
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
+	| "canceled"
 	| "exit_failure"
 	| "ok"
 	| "pipes_left_open"
+	| "skipped"
 	| "timed_out";
 
 export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"canceled",
 	"exit_failure",
 	"ok",
 	"pipes_left_open",
+	"skipped",
 	"timed_out",
 ];
 
@@ -12722,6 +12826,97 @@ export interface WorkspaceResourceMetadata {
 export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecret is the metadata of a secret linked to a workspace build.
+ * Workspace secrets have no description, cannot be disabled, and are never
+ * updated, so Description is empty, Enabled is true, and UpdatedAt equals
+ * CreatedAt. The secret value is never included in API responses.
+ */
+export interface WorkspaceSecret extends UserSecret {
+	readonly workspace_build_id: string;
+	/**
+	 * Ephemeral secrets are delivered to their build only and not copied to
+	 * the next one.
+	 */
+	readonly ephemeral: boolean;
+	/**
+	 * ClearedAt is set once a later build superseded the secret and its
+	 * value was dropped. Cleared secrets are not delivered and replace
+	 * nothing.
+	 */
+	readonly cleared_at?: string;
+	/**
+	 * EnvReplaces is the ID of the workspace owner's user secret that this
+	 * secret displaces on env_name.
+	 */
+	readonly env_replaces?: string;
+	/**
+	 * FileReplaces is the ID of the workspace owner's user secret that this
+	 * secret displaces on file_path.
+	 */
+	readonly file_replaces?: string;
+}
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretInjectionTargetRequiredDetail explains that a workspace
+ * secret has no disabled state, so every set request needs a delivery
+ * target.
+ */
+export const WorkspaceSecretInjectionTargetRequiredDetail =
+	"A workspace secret must have at least one of env_name or file_path set."; //nolint:gosec // G101: message text, not a hardcoded credential.
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretInput sets or removes a workspace secret as part of a
+ * workspace or workspace build request.
+ *
+ * Workspace secrets are delivered to the workspace only through the agent
+ * manifest (as an environment variable, a file, or both). They are never
+ * passed to the provisioner, so they do not appear in workspace build
+ * parameters or Terraform state, and they cannot be read back through the
+ * API. Every build holds its own copy of the secrets it receives.
+ * Non-ephemeral secrets carry forward to later builds until a request
+ * replaces them by name, removes them with a null value, or sets another
+ * secret on their env_name or file_path. A secret applies as a whole, so
+ * taking over either of its targets drops it entirely. Ephemeral secrets
+ * are delivered to that build only.
+ */
+export interface WorkspaceSecretInput {
+	readonly name: string;
+	/**
+	 * Value is the plaintext secret. A null value removes the secret. An
+	 * empty string sets an empty secret.
+	 */
+	readonly value: string | null;
+	/**
+	 * EnvName is the environment variable to inject the secret as. Empty
+	 * means no env injection. Required when file_path is empty and value is
+	 * set.
+	 */
+	readonly env_name?: string;
+	/**
+	 * FilePath is the path to write the secret to inside the workspace.
+	 * Empty means no file is written. Deployments may disable file path
+	 * delivery.
+	 */
+	readonly file_path?: string;
+	/**
+	 * Ephemeral secrets are delivered to this build only and are not
+	 * carried forward to the next build.
+	 */
+	readonly ephemeral?: boolean;
+}
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretRemovalWithFieldsDetail explains that a removal carries
+ * only a name.
+ */
+export const WorkspaceSecretRemovalWithFieldsDetail =
+	"A null value removes the secret, so env_name, file_path, and ephemeral must not be set. Set value to set the secret."; //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // From codersdk/workspacesharing.go
 /**

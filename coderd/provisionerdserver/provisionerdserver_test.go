@@ -1803,7 +1803,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan: []byte("{}"),
+						Plan: []byte(`{"configuration":{"root_module":{"resources":[
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{},{}]}},
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{}]}}
+						]}}}`),
 					},
 				},
 			})
@@ -1819,6 +1822,12 @@ func TestCompleteJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resources, 1, "Expected one resource to be created")
 			require.Equal(t, "test-resource", resources[0].Name)
+
+			// Verify script-order counts were persisted.
+			version, err := db.GetTemplateVersionByID(ctx, versionID)
+			require.NoError(t, err)
+			require.Equal(t, int32(2), version.ScriptOrderDataSourceCount)
+			require.Equal(t, int32(3), version.ScriptOrderRuleCount)
 		})
 
 		// Test TemplateDryRun transaction

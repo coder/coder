@@ -18,8 +18,9 @@ import (
 // the cost of one extra lookup. Instructions are read on every turn so edits
 // reach existing chats on their next turn.
 //
-// Lookups fail open: a chat keeps working without project instructions when
-// they cannot be loaded or its owner can no longer use the project.
+// A chat runs without project instructions when the project or its
+// instructions cannot be loaded, when the access check fails, or when the
+// chat owner can no longer use the project.
 func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Logger, chat database.Chat) string {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return ""
@@ -42,23 +43,7 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 		return ""
 	}
 
-	project, err := p.db.GetChatProjectByID(ctx, projectID.UUID)
-	if err != nil {
-		logger.Warn(ctx, "failed to load chat project for instructions",
-			slog.F("project_id", projectID.UUID),
-			slog.Error(err),
-		)
-		return ""
-	}
-	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
-	if err != nil {
-		logger.Warn(ctx, "failed to check chat project access for instructions",
-			slog.F("project_id", projectID.UUID),
-			slog.Error(err),
-		)
-		return ""
-	}
-	if !usable {
+	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
 		return ""
 	}
 

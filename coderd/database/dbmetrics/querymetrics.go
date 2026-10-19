@@ -320,6 +320,22 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	start := time.Now()
+	r0 := m.s.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsBeforeBuild").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsBeforeBuild").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsByWorkspaceID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -888,6 +904,22 @@ func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.DeleteOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteProjectSkillByProjectIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteProvisionerKey(ctx, id)
@@ -992,7 +1024,7 @@ func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -2864,6 +2896,22 @@ func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationSkillByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOrganizationSkillByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationSkillByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizations(ctx context.Context, arg database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizations(ctx, arg)
@@ -2981,6 +3029,22 @@ func (m queryMetricsStore) GetPreviousTemplateVersion(ctx context.Context, arg d
 	r0, r1 := m.s.GetPreviousTemplateVersion(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetPreviousTemplateVersion").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPreviousTemplateVersion").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProjectSkillByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProjectSkillByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProjectSkillByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProjectSkillByProjectIDAndName").Inc()
 	return r0, r1
 }
 
@@ -3165,6 +3229,14 @@ func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (st
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
 	m.queryLatencies.WithLabelValues("GetRuntimeConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetRuntimeConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetScriptOrderTelemetrySummary(ctx)
+	m.queryLatencies.WithLabelValues("GetScriptOrderTelemetrySummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetScriptOrderTelemetrySummary").Inc()
 	return r0, r1
 }
 
@@ -3688,7 +3760,7 @@ func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, user
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -4184,6 +4256,22 @@ func (m queryMetricsStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceSecrets(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceSecrets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSecrets").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceSecretsHistory(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceSecretsHistory").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSecretsHistory").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
@@ -4624,6 +4712,14 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOrganizationSkill(ctx context.Context, arg database.InsertOrganizationSkillParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOrganizationSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOrganizationSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationSkill").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertPreset(ctx, arg)
@@ -4645,6 +4741,14 @@ func (m queryMetricsStore) InsertPresetPrebuildSchedule(ctx context.Context, arg
 	r0, r1 := m.s.InsertPresetPrebuildSchedule(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertPresetPrebuildSchedule").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertPresetPrebuildSchedule").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProjectSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProjectSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertProjectSkill").Inc()
 	return r0, r1
 }
 
@@ -4784,7 +4888,7 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
+func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertUserSkill(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserSkill").Observe(time.Since(start).Seconds())
@@ -4952,6 +5056,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.IsChatHeartbeatStale(ctx, arg)
@@ -4960,11 +5072,11 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+func (m queryMetricsStore) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
 	start := time.Now()
-	r0, r1 := m.s.IsChatProjectAccessibleByUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("IsChatProjectAccessibleByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectAccessibleByUserID").Inc()
+	r0, r1 := m.s.IsChatProjectUsableByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("IsChatProjectUsableByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectUsableByUserID").Inc()
 	return r0, r1
 }
 
@@ -5064,6 +5176,14 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
+	m.queryLatencies.WithLabelValues("ListActiveWorkspaceSecrets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListActiveWorkspaceSecrets").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
@@ -5085,6 +5205,22 @@ func (m queryMetricsStore) ListOrganizationAISpendUsers(ctx context.Context, arg
 	r0, r1 := m.s.ListOrganizationAISpendUsers(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListOrganizationAISpendUsers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationAISpendUsers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListOrganizationSkillMetadataByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ListOrganizationSkillMetadataByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationSkillMetadataByOrganizationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListProjectSkillMetadataByProjectID(ctx, projectID)
+	m.queryLatencies.WithLabelValues("ListProjectSkillMetadataByProjectID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListProjectSkillMetadataByProjectID").Inc()
 	return r0, r1
 }
 
@@ -5182,6 +5318,14 @@ func (m queryMetricsStore) LockChatProjectRootChats(ctx context.Context, project
 	m.queryLatencies.WithLabelValues("LockChatProjectRootChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectRootChats").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockOrganizationMembersByUserIDsForShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockOrganizationMembersByUserIDsForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockOrganizationMembersByUserIDsForShare").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -5753,6 +5897,14 @@ func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedWorkspaceSecretValue(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedWorkspaceSecretValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedWorkspaceSecretValue").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateExternalAuthLink(ctx, arg)
@@ -5873,6 +6025,22 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
+func (m queryMetricsStore) UpdateOrganizationSkillACLByID(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationSkillACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationSkillACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationSkillACLByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.UpdateOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganizationWorkspaceSharingSettings(ctx, arg)
@@ -5902,6 +6070,14 @@ func (m queryMetricsStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, a
 	r0, r1 := m.s.UpdatePresetsLastInvalidatedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePresetsLastInvalidatedAt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdatePresetsLastInvalidatedAt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateProjectSkillByProjectIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProjectSkillByProjectIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateProjectSkillByProjectIDAndName").Inc()
 	return r0, r1
 }
 
@@ -6054,6 +6230,14 @@ func (m queryMetricsStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context
 	r0 := m.s.UpdateTemplateVersionFlagsByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionFlagsByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionFlagsByJobID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionScriptOrderUsageByJobID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateVersionScriptOrderUsageByJobID").Inc()
 	return r0
 }
 
@@ -6241,7 +6425,7 @@ func (m queryMetricsStore) UpdateUserShellToolDisplayMode(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -7174,5 +7358,13 @@ func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, or
 	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedOrganizationSkillMetadata(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedOrganizationSkillMetadata(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedOrganizationSkillMetadata").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedOrganizationSkillMetadata").Inc()
 	return r0, r1
 }

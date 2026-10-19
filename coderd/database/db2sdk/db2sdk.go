@@ -1022,8 +1022,8 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 }
 
 // ChatProjectRoleActions returns the chat project actions a role grants.
-// Project read also grants reading its memories, and update grants creating
-// and deleting them.
+// Project read also grants instructions read and memory read and write;
+// update grants instructions write.
 func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
 	switch role {
 	case codersdk.ChatProjectRoleAdmin:
@@ -2441,13 +2441,37 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	return result
 }
 
-// UserSkill converts a database UserSkill to an SDK UserSkill.
-func UserSkill(skill database.UserSkill) codersdk.UserSkill {
-	return codersdk.UserSkill{
-		UserSkillMetadata: codersdk.UserSkillMetadata{
+// WorkspaceBuildSecret converts workspace secret metadata to an SDK
+// WorkspaceSecret. Build secrets have no description, cannot be disabled,
+// and are never updated, so Enabled is true and UpdatedAt is CreatedAt.
+func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersdk.WorkspaceSecret {
+	out := codersdk.WorkspaceSecret{
+		UserSecret: codersdk.UserSecret{
+			ID:        secret.ID,
+			Name:      secret.Name,
+			EnvName:   secret.EnvName,
+			FilePath:  secret.FilePath,
+			Enabled:   true,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.CreatedAt,
+		},
+		WorkspaceBuildID: secret.WorkspaceBuildID,
+		Ephemeral:        secret.Ephemeral,
+	}
+	if secret.ClearedAt.Valid {
+		out.ClearedAt = &secret.ClearedAt.Time
+	}
+	return out
+}
+
+// Skill converts a database Skill to an SDK Skill.
+func Skill(skill database.Skill) codersdk.Skill {
+	return codersdk.Skill{
+		SkillMetadata: codersdk.SkillMetadata{
 			ID:          skill.ID,
 			Name:        skill.Name,
 			Description: skill.Description,
+			Enabled:     skill.Enabled,
 			CreatedAt:   skill.CreatedAt,
 			UpdatedAt:   skill.UpdatedAt,
 		},
@@ -2455,22 +2479,52 @@ func UserSkill(skill database.UserSkill) codersdk.UserSkill {
 	}
 }
 
-// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
-func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
-	return codersdk.UserSkillMetadata{
-		ID:          skill.ID,
-		Name:        skill.Name,
-		Description: skill.Description,
-		CreatedAt:   skill.CreatedAt,
-		UpdatedAt:   skill.UpdatedAt,
+// ProjectSkillMetadataList converts chat project skill metadata rows to SDK
+// values.
+func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
+	return metadata
 }
 
-// UserSkillMetadataList converts database user skill metadata rows to SDK values.
-func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
-	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+// OrganizationSkillMetadataList converts organization skill metadata rows to
+// SDK values.
+func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadataByOrganizationIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
-		metadata = append(metadata, UserSkillMetadata(row))
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return metadata
+}
+
+// UserSkillMetadataList converts personal skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
 	}
 	return metadata
 }

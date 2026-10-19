@@ -263,9 +263,11 @@ type UpdateChatProjectRequest struct {
 type ChatProjectRole string
 
 const (
-	// ChatProjectRoleUse can start chats, whose agents read and write memories.
+	// ChatProjectRoleUse can start chats and read and write memories.
 	ChatProjectRoleUse ChatProjectRole = "use"
-	// ChatProjectRoleAdmin can also edit and share the project, but not delete it.
+	// ChatProjectRoleAdmin can also edit the project and its instructions,
+	// which every chat in the project gets as system prompt, and share it, but
+	// not delete it.
 	ChatProjectRoleAdmin   ChatProjectRole = "admin"
 	ChatProjectRoleDeleted ChatProjectRole = ""
 )
@@ -295,9 +297,9 @@ type UpdateChatProjectACL struct {
 }
 
 // ChatProjectInstructions are instructions added to the system prompt of
-// every chat in a project, for every user who chats there. A project without
-// instructions has an empty Instructions string and nil UpdatedBy and
-// UpdatedAt.
+// every chat in a project, except chats whose owner can no longer use the
+// project. A project without instructions has an empty Instructions
+// string and nil UpdatedBy and UpdatedAt.
 type ChatProjectInstructions struct {
 	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
 	Instructions string    `json:"instructions"`
@@ -927,10 +929,9 @@ const (
 	// ChatBusyBehaviorQueue queues the message for processing after
 	// the current run finishes.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt queues the message and interrupts
-	// the active run. The partial assistant response is persisted
-	// before the queued message is promoted, preserving correct
-	// conversation order.
+	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
+	// the partial response before this message runs ahead of queued messages.
+	// Further messages join the queue tail while the interruption is pending.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
@@ -2399,7 +2400,8 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists projects the user owns or that are shared with them.
+// ListChatProjects lists projects the user owns or that are shared with them,
+// across all organizations.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {

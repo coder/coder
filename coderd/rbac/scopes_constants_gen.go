@@ -118,6 +118,11 @@ const (
 	ScopeOrganizationMemberDelete            ScopeName = "organization_member:delete"
 	ScopeOrganizationMemberRead              ScopeName = "organization_member:read"
 	ScopeOrganizationMemberUpdate            ScopeName = "organization_member:update"
+	ScopeOrganizationSkillCreate             ScopeName = "organization_skill:create"
+	ScopeOrganizationSkillDelete             ScopeName = "organization_skill:delete"
+	ScopeOrganizationSkillRead               ScopeName = "organization_skill:read"
+	ScopeOrganizationSkillShare              ScopeName = "organization_skill:share"
+	ScopeOrganizationSkillUpdate             ScopeName = "organization_skill:update"
 	ScopePrebuiltWorkspaceDelete             ScopeName = "prebuilt_workspace:delete"
 	ScopePrebuiltWorkspaceUpdate             ScopeName = "prebuilt_workspace:update"
 	ScopeProvisionerDaemonCreate             ScopeName = "provisioner_daemon:create"
@@ -198,6 +203,10 @@ const (
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
 	ScopeWorkspaceProxyUpdate                ScopeName = "workspace_proxy:update"
+	ScopeWorkspaceSecretCreate               ScopeName = "workspace_secret:create"
+	ScopeWorkspaceSecretRead                 ScopeName = "workspace_secret:read"
+	ScopeWorkspaceSecretReadSecret           ScopeName = "workspace_secret:read_secret"
+	ScopeWorkspaceSecretUpdate               ScopeName = "workspace_secret:update"
 )
 
 // Valid reports whether the ScopeName matches one of the known scope values.
@@ -320,6 +329,11 @@ func (e ScopeName) Valid() bool {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,
@@ -399,7 +413,11 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
-		ScopeWorkspaceProxyUpdate:
+		ScopeWorkspaceProxyUpdate,
+		ScopeWorkspaceSecretCreate,
+		ScopeWorkspaceSecretRead,
+		ScopeWorkspaceSecretReadSecret,
+		ScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -523,6 +541,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeOrganizationMemberDelete,
 		ScopeOrganizationMemberRead,
 		ScopeOrganizationMemberUpdate,
+		ScopeOrganizationSkillCreate,
+		ScopeOrganizationSkillDelete,
+		ScopeOrganizationSkillRead,
+		ScopeOrganizationSkillShare,
+		ScopeOrganizationSkillUpdate,
 		ScopePrebuiltWorkspaceDelete,
 		ScopePrebuiltWorkspaceUpdate,
 		ScopeProvisionerDaemonCreate,
@@ -603,5 +626,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
 		ScopeWorkspaceProxyUpdate,
+		ScopeWorkspaceSecretCreate,
+		ScopeWorkspaceSecretRead,
+		ScopeWorkspaceSecretReadSecret,
+		ScopeWorkspaceSecretUpdate,
 	}
 }

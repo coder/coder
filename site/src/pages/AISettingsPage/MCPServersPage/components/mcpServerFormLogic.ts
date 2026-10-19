@@ -56,6 +56,7 @@ export type MCPServerFormValues = {
 	oauth2AuthURL: string;
 	oauth2TokenURL: string;
 	oauth2RevocationURL: string;
+	oauth2Resource: string;
 	oauth2Scopes: string;
 	apiKeyHeader: string;
 	apiKeyValue: string;
@@ -98,6 +99,7 @@ export const buildInitialMCPServerFormValues = (
 	oauth2AuthURL: server?.oauth2_auth_url ?? "",
 	oauth2TokenURL: server?.oauth2_token_url ?? "",
 	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
+	oauth2Resource: server?.oauth2_resource ?? "",
 	oauth2Scopes: server?.oauth2_scopes ?? "",
 	apiKeyHeader: server?.api_key_header || "Authorization",
 	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
@@ -186,6 +188,7 @@ export const buildCreateMCPServerConfigRequest = (
 			oauth2_auth_url: values.oauth2AuthURL.trim() || undefined,
 			oauth2_token_url: values.oauth2TokenURL.trim() || undefined,
 			oauth2_revocation_url: values.oauth2RevocationURL.trim() || undefined,
+			oauth2_resource: values.oauth2Resource.trim() || undefined,
 			oauth2_scopes: values.oauth2Scopes.trim() || undefined,
 		};
 	}
@@ -228,9 +231,10 @@ export const buildUpdateMCPServerConfigRequest = (
 	const { enabled: _enabled, ...updateFields } = base;
 	return {
 		...updateFields,
-		// Always sent: an omitted field keeps the stored value, "" clears it.
+		// Sent even when empty: an omitted field keeps the stored value, "" clears it.
 		...(values.authType === "oauth2" && {
 			oauth2_revocation_url: values.oauth2RevocationURL.trim(),
+			oauth2_resource: values.oauth2Resource.trim(),
 		}),
 		tool_allow_list: [...(base.tool_allow_list ?? [])],
 		tool_deny_list: [...(base.tool_deny_list ?? [])],

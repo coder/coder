@@ -140,6 +140,28 @@ Actions: `write`, `delete`
 </tbody>
 </table>
 
+### AuditableChatProjectSkill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### Group
 
 Actions: `create`, `write`, `delete`
@@ -186,6 +208,28 @@ Actions: `write`, `delete`
 <tr><td><code>updated_at</code></td><td>Yes</td></tr>
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>username</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### AuditableOrganizationSkill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -499,6 +543,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_revocation_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_scopes</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_token_url</code></td><td>Yes</td></tr>
@@ -652,6 +697,28 @@ Actions: `create`, `write`, `delete`
 </tbody>
 </table>
 
+### Skill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### Template
 
 Actions: `write`, `delete`
@@ -723,6 +790,8 @@ Actions: `create`, `write`
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
 <tr><td><code>readme</code></td><td>Yes</td></tr>
+<tr><td><code>script_order_data_source_count</code></td><td>No</td></tr>
+<tr><td><code>script_order_rule_count</code></td><td>No</td></tr>
 <tr><td><code>source_example_id</code></td><td>No</td></tr>
 <tr><td><code>template_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
@@ -777,23 +846,6 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>value</code></td><td>Yes</td></tr>
 <tr><td><code>value_key_id</code></td><td>No</td></tr>
-</tbody>
-</table>
-
-### UserSkill
-
-Actions: `create`, `write`, `delete`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>content</code></td><td>Yes</td></tr>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>description</code></td><td>Yes</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>updated_at</code></td><td>No</td></tr>
-<tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

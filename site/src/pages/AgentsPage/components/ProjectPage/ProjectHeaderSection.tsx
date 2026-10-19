@@ -1,13 +1,12 @@
 import { EllipsisVerticalIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	deleteChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
-import { user } from "#/api/queries/users";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -19,8 +18,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { draftStorageKeys } from "../AgentCreateForm";
 import {
 	hasProjectUpdateOrDeleteAction,
@@ -28,39 +25,19 @@ import {
 } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
-import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
 import { ProjectPageHeader } from "./ProjectPageHeader";
 
 type ProjectHeaderSectionProps = {
 	readonly project: ChatProject;
 };
 
-/** The project page header with its metadata and edit and delete actions. */
+/** The project page header with its edit and delete actions. */
 export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { user: me } = useAuthenticated();
-	const { organizations, showOrganizations } = useDashboard();
-	const isOwner = project.owner_id === me.id;
-	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
-	const ownerLabel = isOwner
-		? "you"
-		: ownerQuery.data
-			? ownerQuery.data.name || ownerQuery.data.username
-			: ownerQuery.isError
-				? "Unknown"
-				: undefined;
-	const organization = organizations.find(
-		(org) => org.id === project.organization_id,
-	);
-	const organizationLabel = showOrganizations
-		? organization
-			? organization.display_name || organization.name
-			: "Unknown"
-		: undefined;
 
 	const updateMutation = useMutation(updateChatProject(queryClient));
 	// The project list refetch after a delete unmounts this page, so the
@@ -136,13 +113,6 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 						</DropdownMenu>
 					)
 				}
-				metadata={
-					<ProjectMetadataBadges
-						ownerLabel={ownerLabel}
-						createdAt={project.created_at}
-						organizationLabel={organizationLabel}
-					/>
-				}
 			/>
 			<ChatProjectDialog
 				project={project}
@@ -164,7 +134,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Every chat in this project, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
+				info="Its memories and instructions will be deleted. Every chat in it, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 		</>
 	);

@@ -1,8 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
+import { userKey } from "#/api/queries/users";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockChatProjectInstructions,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -43,15 +51,21 @@ const meta: Meta<typeof ProjectPage> = {
 	parameters: {
 		user: MockUserOwner,
 		features: ["aibridge"],
-		queries: chatQueries([
-			{ ...MockChat, id: "chat-1", title: "Plan the launch" },
+		queries: [
+			...chatQueries([
+				{ ...MockChat, id: "chat-1", title: "Plan the launch" },
+				{
+					...MockChat,
+					id: "chat-2",
+					title: "Draft the announcement",
+					status: "running",
+				},
+			]),
 			{
-				...MockChat,
-				id: "chat-2",
-				title: "Draft the announcement",
-				status: "running",
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
 			},
-		]),
+		],
 	},
 };
 
@@ -65,13 +79,35 @@ export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
-		queries: chatQueries(
-			Array.from({ length: 12 }, (_, index) => ({
-				...MockChat,
-				id: `chat-${index}`,
-				title: `Chat ${index + 1}`,
-			})),
-		),
+		queries: [
+			...chatQueries(
+				Array.from({ length: 12 }, (_, index) => ({
+					...MockChat,
+					id: `chat-${index}`,
+					title: `Chat ${index + 1}`,
+				})),
+			),
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+		],
+	},
+};
+
+/** Another user's project in a multi-organization deployment. */
+export const OwnedByAnotherUser: Story = {
+	args: { project: { ...MockChatProject, owner_id: MockUserMember.id } },
+	parameters: {
+		showOrganizations: true,
+		queries: [
+			...chatQueries([{ ...MockChat, id: "chat-1", title: "Plan the launch" }]),
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{ key: userKey(MockUserMember.id), data: MockUserMember },
+		],
 	},
 };
 
@@ -81,6 +117,13 @@ export const WithoutUpdateOrDeletePermission: Story = {
 			...MockChatProject,
 			permissions: { update: false, delete: false, share: false },
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/Use TypeScript for new code/);
+		expect(
+			canvas.queryByRole("button", { name: "Edit instructions" }),
+		).not.toBeInTheDocument();
 	},
 };
 

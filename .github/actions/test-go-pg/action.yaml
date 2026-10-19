@@ -74,7 +74,7 @@ runs:
 
     - name: Download Go modules
       shell: bash
-      run: ./.github/scripts/retry.sh -- go mod download
+      run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'
@@ -167,6 +167,12 @@ runs:
         RACE_DETECTION: ${{ inputs.race-detection }}
         GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
         EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
+        # This limit assumes make's -tags=testsmallbatch. See testutil.MemoryLimitEnv.
+        # macOS gets a lower limit: the runner has 17 GiB and cli.test peaks
+        # at about 3.5 GiB there, so 5120 MiB keeps a 1.4x margin while
+        # tripping before a runaway allocation reaches the compressor and
+        # swap. See coder/internal#1365.
+        CODER_TEST_MEMORY_LIMIT_MIB: ${{ runner.os == 'macOS' && '5120' || '6144' }}
         TS_DEBUG_DISCO: "true"
         TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
@@ -246,6 +252,15 @@ runs:
         path: |
           ${{ runner.temp }}/vm_stat.log
           ${{ runner.temp }}/top.log
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload heap profiles
+      if: always() && !success()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: heap-profiles-${{ github.job }}-${{ runner.os }}
+        path: ${{ runner.temp }}/heap-*.pprof
         if-no-files-found: ignore
         retention-days: 7
 

@@ -40,8 +40,7 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 
-	// The read check runs before allowChatSharing so the disabled response
-	// does not reveal that a project exists.
+	// Read check first so the disabled response does not reveal the project.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -117,8 +116,7 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// ACL keys must be canonical UUIDs: RBAC matches them as strings, so
-	// any other spelling would grant nothing and could not be removed.
+	// RBAC matches ACL keys as strings, so only canonical UUIDs work.
 	userRoles, userKeyErrs := canonicalChatProjectRoles(req.UserRoles, "user_roles")
 	groupRoles, groupKeyErrs := canonicalChatProjectRoles(req.GroupRoles, "group_roles")
 	if len(userKeyErrs)+len(groupKeyErrs) > 0 {
@@ -142,23 +140,32 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs, err := api.validateChatProjectACLOrganization(ctx, project, userRoles, groupRoles)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if len(validErrs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update chat project ACL.",
-			Validations: validErrs,
-		})
-		return
-	}
-
-	err = api.Database.InTx(func(tx database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
+		// Lock granted users' memberships before the project row. A membership
+		// delete locks its row and then, through the 000629 trigger, the project
+		// row, so the reverse order could deadlock. Holding the membership lock
+		// also keeps a delete from missing the grant written below.
+		if userIDs := grantedChatProjectIDs(userRoles); len(userIDs) > 0 {
+			//nolint:gocritic // Validation below reports users that are not members.
+			_, err := tx.LockOrganizationMembersByUserIDsForShare(dbauthz.AsSystemRestricted(ctx), database.LockOrganizationMembersByUserIDsForShareParams{
+				OrganizationID: project.OrganizationID,
+				UserIds:        userIDs,
+			})
+			if err != nil {
+				return xerrors.Errorf("lock organization members: %w", err)
+			}
+		}
 		current, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
+		}
+		aReq.Old = current
+		validErrs, err := validateChatProjectACLOrganization(ctx, tx, project, userRoles, groupRoles)
+		if err != nil {
+			return err
+		}
+		if len(validErrs) > 0 {
+			return &chatProjectACLValidationError{validations: validErrs}
 		}
 		userACL := applyChatProjectRoles(current.UserACL, userRoles)
 		groupACL := applyChatProjectRoles(current.GroupACL, groupRoles)
@@ -177,6 +184,13 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
+		if validationErr, ok := errors.AsType[*chatProjectACLValidationError](err); ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid request to update chat project ACL.",
+				Validations: validationErr.validations,
+			})
+			return
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -231,8 +245,17 @@ func applyChatProjectRoles(current database.ChatACL, roles map[uuid.UUID]codersd
 	return next
 }
 
-func (api *API) validateChatProjectACLOrganization(
+type chatProjectACLValidationError struct {
+	validations []codersdk.ValidationError
+}
+
+func (*chatProjectACLValidationError) Error() string {
+	return "invalid chat project ACL"
+}
+
+func validateChatProjectACLOrganization(
 	ctx context.Context,
+	db database.Store,
 	project database.ChatProject,
 	userRoles, groupRoles map[uuid.UUID]codersdk.ChatProjectRole,
 ) ([]codersdk.ValidationError, error) {
@@ -242,7 +265,7 @@ func (api *API) validateChatProjectACLOrganization(
 
 	userIDs := grantedChatProjectIDs(userRoles)
 	if len(userIDs) > 0 {
-		memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
+		memberships, err := db.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get organization memberships: %w", err)
 		}
@@ -262,7 +285,7 @@ func (api *API) validateChatProjectACLOrganization(
 
 	groupIDs := grantedChatProjectIDs(groupRoles)
 	if len(groupIDs) > 0 {
-		groups, err := api.Database.GetGroups(sysCtx, database.GetGroupsParams{GroupIds: groupIDs})
+		groups, err := db.GetGroups(sysCtx, database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get groups: %w", err)
 		}
@@ -302,8 +325,25 @@ func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatPr
 		return []codersdk.ChatProjectUser{}, nil
 	}
 
-	//nolint:gocritic // Users who can read the project should see who it is shared with even without user read permission.
-	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
+	//nolint:gocritic // Project readers see who it is shared with without user read permission.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// Entries for users outside the organization grant nothing, because access
+	// requires membership, so hide them. The 000629 trigger and the membership
+	// lock in patchChatProjectACL keep such entries from being written.
+	memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get organization memberships: %w", err)
+	}
+	userIDs = userIDs[:0]
+	for _, membership := range memberships {
+		if slices.Contains(membership.OrganizationIDs, project.OrganizationID) {
+			userIDs = append(userIDs, membership.UserID)
+		}
+	}
+	if len(userIDs) == 0 {
+		return []codersdk.ChatProjectUser{}, nil
+	}
+	dbUsers, err := api.Database.GetUsersByIDs(sysCtx, userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get users: %w", err)
 	}
@@ -331,14 +371,16 @@ func (api *API) chatProjectACLGroups(ctx context.Context, project database.ChatP
 		return []codersdk.ChatProjectGroup{}, nil
 	}
 
-	//nolint:gocritic // Users who can read the project should see the groups it is shared with even without group read permission.
+	// Groups from other organizations stay listed because their members in
+	// this organization still get access.
+	//nolint:gocritic // Project readers see shared groups without group read permission.
 	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get groups: %w", err)
 	}
 	groups := make([]codersdk.ChatProjectGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		//nolint:gocritic // Users who can read the project should see shared group sizes even without group read permission.
+		//nolint:gocritic // Project readers see shared group sizes without group read permission.
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,

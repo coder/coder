@@ -306,28 +306,9 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 	return ids, nil
 }
 
-// requireQueueCapacity rejects the call when the chat already has
-// maxQueueSize queued messages with a *MessageQueueFullError that wraps
-// [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
-// inside the transaction immediately before inserting a new queued
-// message so the check is atomic with the insert.
-func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
-	if maxQueueSize <= 0 {
-		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
-	}
-	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
-	if err != nil {
-		return xerrors.Errorf("count queued messages: %w", err)
-	}
-	if count >= int64(maxQueueSize) {
-		return &MessageQueueFullError{Max: int64(maxQueueSize)}
-	}
-	return nil
-}
-
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSize int) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -335,9 +316,6 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSi
 	rawContent := m.Content.RawMessage
 	if !m.Content.Valid || len(rawContent) == 0 {
 		rawContent = json.RawMessage("null")
-	}
-	if err := tx.requireQueueCapacity(maxQueueSize); err != nil {
-		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          tx.chatID,
@@ -456,8 +434,8 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 }
 
 // BusyBehavior controls how SendMessage behaves when the chat is
-// currently busy (R*/I*/A*). From idle/error states the two behaviors
-// are equivalent.
+// currently busy (R*/I*/A*) or errored with a non-empty queue (E1).
+// From W and E0 the two behaviors are equivalent.
 type BusyBehavior string
 
 const (
@@ -513,12 +491,17 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 			"invalid BusyBehavior",
 		)
 	}
-	switch from {
-	// Idle / empty-queue error: insert directly into history, clear
-	// last_error, leave queue alone.
-	case StateW, StateE0:
+	queuedCount, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+	}
+	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.BusyBehavior, input.MaxQueueSize); err != nil {
+		return SendMessageResult{}, err
+	}
+	if sendMessageInsertsDirectly(from, input.BusyBehavior) {
 		return tx.sendMessageDirect(chat, input)
-
+	}
+	switch from {
 	// Error-with-queue: append to tail, promote previous head into
 	// history, clear last_error.
 	case StateE1:
@@ -532,15 +515,43 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Requires-action: queue keeps A*; interrupt cancels pending
-	// dynamic calls and resumes in running.
+	// Requires-action: queue keeps A*.
 	case StateA0, StateA1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRequiresAction(chat, input)
-		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
+}
+
+// sendMessageInsertsDirectly reports whether SendMessage from the state
+// inserts the message into history instead of the queue. W and E0 take
+// every send directly; E1 and A* take only interrupts directly.
+func sendMessageInsertsDirectly(from ExecutionState, behavior BusyBehavior) bool {
+	switch from {
+	case StateW, StateE0:
+		return true
+	case StateE1, StateA0, StateA1:
+		return behavior == BusyBehaviorInterrupt
+	default:
+		return false
+	}
+}
+
+// CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
+// SendMessage from chat, with queuedCount queued messages, would add to
+// a full queue. [Tx.SendMessage] calls it under the row lock; callers
+// outside a transaction can call it first to reject a send early.
+func CheckSendMessageQueueCapacity(chat database.Chat, queuedCount int64, behavior BusyBehavior, maxQueueSize int) error {
+	from := ClassifyExecutionState(chat, queuedCount > 0, true)
+	if sendMessageInsertsDirectly(from, behavior) {
+		return nil
+	}
+	if maxQueueSize <= 0 {
+		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
+	}
+	if queuedCount >= int64(maxQueueSize) {
+		return &MessageQueueFullError{Max: int64(maxQueueSize)}
+	}
+	return nil
 }
 
 func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
@@ -568,7 +579,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -615,7 +626,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -638,14 +649,26 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-// sendMessageInterrupt queues the message and lands the chat in I1.
-// An owned chat stays there until its runner finishes the
-// interruption. An unowned chat, which can be running or already
-// interrupting, finishes the interruption in the same transaction.
+// sendMessageInterrupt queues the message and lands the chat in I1. A send
+// that starts an interruption goes ahead of queued messages; sends during an
+// interruption join the tail to keep arrival order. An unowned chat has no
+// runner to finish the interruption, so this transaction finishes it.
 func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
 	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
-	if err != nil || chat.WorkerID.Valid {
-		return result, err
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	startsInterruption := from == StateR0 || from == StateR1
+	if startsInterruption {
+		if _, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
+			ID:     result.QueuedMessage.ID,
+			ChatID: tx.chatID,
+		}); err != nil {
+			return SendMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
+		}
+	}
+	if chat.WorkerID.Valid {
+		return result, nil
 	}
 	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message")
 	if err != nil {
@@ -654,30 +677,10 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 	result.InsertedMessages = finished.InsertedMessages
 	result.PromotedQueuedAt = finished.PromotedQueuedAt
 	result.FinishedInterruption = true
-	if from == StateR0 || from == StateI0 {
-		// The queue held only this message, so it was promoted into
-		// history instead of staying queued.
+	if startsInterruption || from == StateI0 {
+		// The interruption promoted this message, so it is no longer queued.
 		result.QueuedMessage = nil
 	}
-	return result, nil
-}
-
-func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by user message", true)
-	if err != nil {
-		return SendMessageResult{}, err
-	}
-	inserted, err := tx.insertMessages(cancels)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
-	}
-	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
-	if err != nil {
-		return SendMessageResult{}, err
-	}
-	// Report the cancellation rows so API clients receive every
-	// user-visible message this send inserted.
-	result.InsertedMessages = inserted
 	return result, nil
 }
 

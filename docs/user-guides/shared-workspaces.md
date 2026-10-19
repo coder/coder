@@ -24,7 +24,8 @@ This is helpful in a number of scenarios, including:
 
 Workspaces can be shared through either the Coder CLI or UI.
 
-Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces. This is true by default if you are an OSS user, but deployments with Premium licenses may be restricted by admins.
+Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
+This is true by default if you are an OSS user, but deployments with Premium licenses may be restricted by admins.
 
 ### CLI
 
@@ -58,8 +59,7 @@ To list shared workspaces:
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 
-To list the workspaces you own together with the ones shared with you,
-directly or through a group:
+To list the workspaces you own together with the ones shared with you, directly or through a group:
 
 - `coder list --search user:me`
 
@@ -77,7 +77,8 @@ For full command details, see [`coder sharing`](../reference/cli/sharing/index.m
 
 ![Sharing a workspace](../images/user-guides/workspace-sharing-button-highlight.png)
 
-1. Add the users or groups that you want to share the workspace with. For each one, select a role.
+1. Add the users or groups that you want to share the workspace with.
+   For each one, select a role.
 
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-roles.png)
 
@@ -98,26 +99,18 @@ Once a workspace is shared, you can find the shared workspace by filtering for "
 
 #### Access workspace apps in shared workspaces
 
-Sharing a workspace grants SSH and terminal access to other users. However,
-workspace apps like code-server may return a **404 page** for non-owners
-depending on how the app is routed.
+Sharing a workspace grants SSH and terminal access to other users.
+However, workspace apps like code-server may return a **404 page** for non-owners depending on how the app is routed.
 
-By default, workspace apps that don't set `subdomain = true` use **path-based
-routing** (e.g., `coder.example.com/@user/workspace/apps/code-server/`).
-Path-based apps share the same origin as the Coder dashboard, so Coder blocks
-non-owners from accessing them to prevent
-[cross-site scripting risks](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
-This restriction applies even when the user has been granted access through
-workspace sharing.
+By default, workspace apps that don't set `subdomain = true` use **path-based routing** (e.g., `coder.example.com/@user/workspace/apps/code-server/`).
+Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
+This restriction applies even when the user has been granted access through workspace sharing.
 
 To allow other users to access workspace apps, configure subdomain-based access:
 
-1. Set a
-   [wildcard access URL](../admin/networking/wildcard-access-url.md)
-   on your deployment
-   (e.g., `CODER_WILDCARD_ACCESS_URL=*.coder.example.com`).
-2. Set `subdomain = true` on the workspace app. For example, if you use the
-   [code-server module](https://registry.coder.com/modules/coder/code-server):
+1. Set a [wildcard access URL](../admin/networking/wildcard-access-url.md) on your deployment (e.g., `CODER_WILDCARD_ACCESS_URL=*.coder.example.com`).
+2. Set `subdomain = true` on the workspace app.
+   For example, if you use the [code-server module](https://registry.coder.com/modules/coder/code-server):
 
    ```tf
    module "code-server" {
@@ -128,16 +121,18 @@ To allow other users to access workspace apps, configure subdomain-based access:
    }
    ```
 
-Subdomain-based apps run in an isolated browser security context, so Coder
-allows other users to access them without additional configuration.
+Subdomain-based apps run in an isolated browser security context, so Coder allows other users to access them without additional configuration.
 
 ### Policies
 
 There are several sharing policy levels that can be selected on a per-organization basis.
 
-- **Everyone**: anybody can share their workspace with any individual or group in the same organization.
-- **Service Accounts Only**: only workspaces owned by service accounts can be shared with any individual or group in the same organization.
-- **Disabled**: workspaces within the organization cannot be shared.
+- **Everyone**:
+  anybody can share their workspace with any individual or group in the same organization.
+- **Service Accounts Only**:
+  only workspaces owned by service accounts can be shared with any individual or group in the same organization.
+- **Disabled**:
+  workspaces within the organization cannot be shared.
 
 The **Disabled** policy applies to every workspace in the organization.
 It overrides the sharing permission of any role held by a member of that organization, including Organization Admin.

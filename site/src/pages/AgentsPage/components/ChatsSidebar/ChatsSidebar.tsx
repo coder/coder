@@ -263,6 +263,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
+				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
@@ -345,7 +346,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Every chat in this project, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
+				info="Its memories and instructions will be deleted. Every chat in it, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -189,6 +189,13 @@ export const RBACResourceActions: Partial<
 		read: "read member",
 		update: "update an organization member",
 	},
+	organization_skill: {
+		create: "create an organization skill",
+		delete: "delete an organization skill",
+		read: "read organization skill metadata and content",
+		share: "share an organization skill with other users or groups",
+		update: "update an organization skill",
+	},
 	prebuilt_workspace: {
 		delete: "delete prebuilt workspace",
 		update: "update prebuilt workspace settings",
@@ -304,5 +311,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete a workspace proxy",
 		read: "read and use a workspace proxy",
 		update: "update a workspace proxy",
+	},
+	workspace_secret: {
+		create: "set a workspace secret on a workspace build",
+		read: "read workspace secret metadata, never the value",
+		read_secret:
+			"read decrypted workspace secret values, granted only to the workspace secret manager actor",
+		update: "clear or re-encrypt workspace secret values",
 	},
 };

@@ -2817,7 +2817,8 @@ export const chatUserCustomPrompt = () => ({
 
 export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	mutationFn: API.experimental.updateUserChatCustomPrompt,
-	onSuccess: async () => {
+	onSuccess: async (data: TypesGen.UserChatCustomPrompt) => {
+		queryClient.setQueryData(chatUserCustomPromptKey, data);
 		await queryClient.invalidateQueries({
 			queryKey: chatUserCustomPromptKey,
 		});

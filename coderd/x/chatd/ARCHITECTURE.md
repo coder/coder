@@ -124,7 +124,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
@@ -227,7 +227,7 @@ stateDiagram-v2
     A0 --> R0: Interrupt
     A0 --> R0: CancelRequiresAction
     A0 --> A1: SendMessage(queue)
-    A0 --> R1: SendMessage(interrupt)
+    A0 --> R0: SendMessage(interrupt)
     A0 --> R0: EditMessage
 
     A1 --> R1: CompleteRequiresAction
@@ -514,12 +514,12 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `R1 -> SendMessage(m, interrupt) -> I1`
 - `I0 -> SendMessage(m, interrupt) -> I1`
 - `I1 -> SendMessage(m, interrupt) -> I1`
-- `A0 -> SendMessage(m, interrupt) -> R1`
+- `A0 -> SendMessage(m, interrupt) -> R0`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the queue head is promoted immediately and the chat lands in `R0` or `R1` without an owner. From `R0` the promoted head is `m` itself, so the response returns it as `message` with `queued` set to false.
+When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the queue head is promoted immediately and the chat lands in `R0` or `R1` without an owner. From `R0` or `R1`, `m` goes to the queue head, so the promoted head is `m` itself and the response returns it as `message` with `queued` set to false.
 
-The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
+From `I1`, the promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
 Other input states are not supported.
 
@@ -1018,9 +1018,18 @@ Project instructions are loaded on every turn, so edits show up in existing chat
 
 ###### Project sharing
 
-A project owner can share a project with users, groups, or the Everyone group, whose ID is the organization ID. The `use` role lets a sharee view the project, its memories, and its instructions and start chats in it; the `admin` role also lets them edit the project, its memories, and its instructions directly and change its ACL. Project responses carry the caller's `permissions` (update, delete, share), counting role grants, so clients hide actions that would fail. No ACL role can delete the project; its owner and administrators whose roles hold `chat_project` delete can. Sharing a project does not share the chats in it: each chat stays private to whoever started it.
+Owners share a project with users, groups, or the Everyone group (ID = organization ID). Chats in a shared project stay private to their owners.
 
-A `use` sharee cannot change memories over HTTP, but the agents in their chats can, because memory tools run as chatd. That makes `ChatProjectUsableBy` the only gate on agent memory access. It allows the project owner, or a user whose ACL entry grants read directly, through a group, or through the Everyone group. Role grants, such as an administrator's, do not count, so an administrator cannot bind a chat to a project that was not shared with them. Sharing itself is plain RBAC, so an administrator whose role holds `share` can still grant a group they belong to; keeping access control simple was preferred over closing that path. Chat creation checks `ChatProjectUsableBy` before binding a chat to a project, and `resolveProjectMemory` and `resolveProjectInstructions` check it again for the chat owner at every generation. A chat whose owner lost the share, or any chat not owned by the project owner while `--disable-chat-sharing` is set, keeps its project binding but runs without memory or project instructions, starting with its next turn. Memory content already in its history stays there.
+| Role    | Project and instructions | Memories   | ACL  | Delete |
+|---------|--------------------------|------------|------|--------|
+| `use`   | read                     | read/write | read | no     |
+| `admin` | read/write               | read/write | edit | no     |
+
+Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
+
+Memory tools and instruction loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` and `resolveProjectInstructions` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
 ###### Project deletion
 
@@ -1209,6 +1218,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+  - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
 ## Endpoint lifecycle
 
@@ -1372,6 +1382,8 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 2. Emit the `history_reset` event.
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
+
+TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
 Required invariant:
 

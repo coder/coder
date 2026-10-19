@@ -28,18 +28,8 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return nil, "", false
 	}
-	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
-		return nil, "", false
-	}
-	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
-		return nil, "", false
-	}
-	if !usable {
-		p.logger.Debug(ctx, "chat owner cannot use chat project, memory disabled", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.F("owner_id", chat.OwnerID))
+	project, ok := p.usableChatProject(ctx, p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID)), chat.ProjectID.UUID, chat)
+	if !ok {
 		return nil, "", false
 	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true

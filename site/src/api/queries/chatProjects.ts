@@ -10,7 +10,8 @@ import {
 } from "./chats";
 
 /**
- * Lists chat projects the current user owns or that are shared with them.
+ * Lists chat projects the current user owns or that are shared with them,
+ * across all organizations.
  * @public
  */
 export const chatProjects = () =>
@@ -101,3 +102,68 @@ const resetDeletedProjectChats = (
 		}
 	}
 };
+export const chatProjectInstructionsKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "instructions"] as const;
+
+export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectInstructionsKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+		// Instructions are shared by every editor of the project, so refresh
+		// them when the tab regains focus to avoid editing stale text.
+		refetchOnWindowFocus: true,
+	});
+
+export const updateChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: (request: TypesGen.UpdateChatProjectInstructionsRequest) =>
+			API.experimental.updateChatProjectInstructions(
+				project.organization_id,
+				project.id,
+				request,
+			),
+		onSuccess: async (instructions) => {
+			// A refetch that started before the write would otherwise
+			// overwrite the saved value with the old one when it lands.
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
+			queryClient.setQueryData(
+				chatProjectInstructionsKey(project.id),
+				instructions,
+			);
+		},
+	});
+
+export const deleteChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: () =>
+			API.experimental.deleteChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+		onSuccess: async () => {
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
+			queryClient.setQueryData<TypesGen.ChatProjectInstructions>(
+				chatProjectInstructionsKey(project.id),
+				{
+					project_id: project.id,
+					instructions: "",
+					updated_by: null,
+					updated_at: null,
+				},
+			);
+		},
+	});
