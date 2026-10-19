@@ -4,15 +4,18 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -60,7 +63,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
@@ -573,6 +576,99 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 	},
 };
 
+const mockBillingProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "chat-project-billing",
+	name: "Billing",
+};
+
+const mockLaunchChat: TypesGen.Chat = {
+	...MockChat,
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+};
+
+const openMoveToProjectSubmenu = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+	);
+	await userEvent.click(
+		await within(document.body).findByRole("menuitem", {
+			name: "Move to project",
+		}),
+	);
+};
+
+export const MoveToProjectSubmenu: Story = {
+	args: { chat: mockLaunchChat },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuUnfiled: Story = {
+	args: {
+		chat: { ...MockChat, organization_id: MockChatProject.organization_id },
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectBlocked: Story = {
+	args: { chat: mockLaunchChat, liveChatStatus: "running" },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+export const MoveToProjectSubmenuNoProjects: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuLoading: Story = {
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuLoadError: Story = {
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await openMoveToProjectSubmenu(canvasElement);
+		await within(document.body).findByText("Failed to load projects.");
+	},
+};
+
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {
@@ -601,7 +697,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,
