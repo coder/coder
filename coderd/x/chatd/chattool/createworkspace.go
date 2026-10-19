@@ -49,12 +49,13 @@ const (
 	startupScriptPollInterval = 2 * time.Second
 )
 
-// CreateWorkspaceFn creates a workspace for the given owner.
+// CreateWorkspaceFn creates a workspace for the given owner and binds the
+// chat to it in one transaction.
 type CreateWorkspaceFn func(
 	ctx context.Context,
-	ownerID uuid.UUID,
+	ownerID, chatID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
-) (codersdk.Workspace, error)
+) (codersdk.Workspace, database.Chat, error)
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(
@@ -240,7 +241,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				)
 			}
 
-			workspace, err := createWorkspaceWithNameRetry(ctx, ownerID, createReq, options.CreateFn)
+			workspace, updatedChat, err := createWorkspaceWithNameRetry(ctx, ownerID, chatID, createReq, options.CreateFn)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
@@ -248,36 +249,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-
-			// Persist the workspace binding on the chat
-			// immediately so the frontend can start streaming
-			// build logs while the build is still running.
-			// Note: this binding is intentional even if the build
-			// later fails. The checkExistingWorkspace recovery
-			// path handles failed workspaces by allowing
-			// re-creation.
-			updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-				ID: chatID,
-				WorkspaceID: uuid.NullUUID{
-					UUID:  workspace.ID,
-					Valid: true,
-				},
-				BuildID: uuid.NullUUID{
-					UUID:  workspace.LatestBuild.ID,
-					Valid: workspace.LatestBuild.ID != uuid.Nil,
-				},
-				// AgentID is left null because the build hasn't
-				// completed yet. The chatd runtime binds it once
-				// the agent comes online.
-				AgentID: uuid.NullUUID{},
-			})
-			if err != nil {
-				options.Logger.Error(ctx, "failed to persist chat workspace association",
-					slog.F("chat_id", chatID),
-					slog.F("workspace_id", workspace.ID),
-					slog.Error(err),
-				)
-			} else if options.OnChatUpdated != nil {
+			if options.OnChatUpdated != nil {
 				options.OnChatUpdated(updatedChat)
 			}
 
@@ -714,20 +686,20 @@ func waitForAgentReady(
 
 func createWorkspaceWithNameRetry(
 	ctx context.Context,
-	ownerID uuid.UUID,
+	ownerID, chatID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 	createFn CreateWorkspaceFn,
-) (codersdk.Workspace, error) {
-	workspace, err := createFn(ctx, ownerID, req)
+) (codersdk.Workspace, database.Chat, error) {
+	workspace, chat, err := createFn(ctx, ownerID, chatID, req)
 	if err == nil {
-		return workspace, nil
+		return workspace, chat, nil
 	}
 	if !isWorkspaceNameConflict(err) {
-		return codersdk.Workspace{}, err
+		return codersdk.Workspace{}, database.Chat{}, err
 	}
 
 	req.Name = generatedWorkspaceName(req.Name)
-	return createFn(ctx, ownerID, req)
+	return createFn(ctx, ownerID, chatID, req)
 }
 
 func isWorkspaceNameConflict(err error) bool {

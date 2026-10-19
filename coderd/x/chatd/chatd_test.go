@@ -13120,11 +13120,11 @@ func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
-			_ uuid.UUID,
+			_, _ uuid.UUID,
 			_ codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("CreateWorkspace should not be called for a blocked template")
-			return codersdk.Workspace{}, xerrors.New("unexpected call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected call")
 		}
 	})
 
@@ -13273,10 +13273,11 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		cfg.CreateWorkspace = func(
 			context.Context,
 			uuid.UUID,
+			uuid.UUID,
 			codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
+		) (codersdk.Workspace, database.Chat, error) {
 			t.Error("create_workspace should not be called when list_templates requires user selection")
-			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+			return codersdk.Workspace{}, database.Chat{}, xerrors.New("unexpected create_workspace call")
 		}
 	})
 
