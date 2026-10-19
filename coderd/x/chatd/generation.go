@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -23,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -55,58 +53,6 @@ type generationPrepareInput struct {
 	// TurnExperiments holds the turn's user-scoped experiment
 	// decisions, shared by every step of the turn. Required.
 	TurnExperiments *turnExperimentDecisions
-}
-
-// generationPrepared contains the side-effect inputs for a generation task.
-type generationPrepared struct {
-	Chat     database.Chat
-	Messages []database.ChatMessage
-
-	Model              chatprovider.Model
-	Prompt             []fantasy.Message
-	Tools              []fantasy.AgentTool
-	ActiveTools        []string
-	AllowInactiveTools map[string]bool
-	ProviderTools      []chatloop.ProviderTool
-	ModelBuildOptions  modelBuildOptions
-
-	// ResolvedProvider is the configured provider identity used to label
-	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider    string
-	ReasoningProvenance reasoningProvenance
-	// ReasoningRejected reports whether the provider rejected the
-	// encrypted reasoning replayed into this step's model call.
-	ReasoningRejected *atomic.Bool
-
-	StageModel chatloop.StageModel
-
-	ModelConfigID        uuid.UUID
-	CallTemplate         fantasy.Call
-	ContextLimitFallback int64
-
-	DynamicToolNames   map[string]bool
-	StopAfterTools     map[string]struct{}
-	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
-
-	MaxSteps   int
-	Compaction *generationCompaction
-	// Cleanup is always non-nil when prepareGeneration succeeds.
-	Cleanup func()
-
-	Debug *generationDebug
-}
-
-// stepReasoningProvenance returns the provenance to stamp on the step's
-// reasoning. A rejection starts the provider's next epoch, so later steps
-// leave out the reasoning the rejected call replayed.
-func (p generationPrepared) stepReasoningProvenance() reasoningProvenance {
-	provenance := p.ReasoningProvenance
-	if p.ReasoningRejected != nil && p.ReasoningRejected.Load() {
-		provenance.Epoch++
-	}
-	return provenance
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -658,8 +604,8 @@ func (s *taskStarter) runGenerationStep(
 		TurnExperiments:           input.TurnExperiments,
 	}
 	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
-	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (generationPrepared, error) {
-		return s.server.prepareGeneration(prepareCtx, prepareInput)
+	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (turnEnvironment, error) {
+		return s.server.buildTurnEnvironment(prepareCtx, prepareInput)
 	})
 	if err == nil {
 		prepareSpan.SetModel(prepared.StageModel)
@@ -672,7 +618,7 @@ func (s *taskStarter) runGenerationStep(
 		}
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
-	cleanup := prepared.Cleanup
+	cleanup := prepared.Close
 	var decision generationDecision
 	if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
 		decision = generationDecision{kind: generationActionGenerateAssistant}
@@ -866,9 +812,9 @@ func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Durati
 }
 
 const (
-	// generationPhaseMaxAttempts bounds how many times prepareGeneration
+	// generationPhaseMaxAttempts bounds how many times buildTurnEnvironment
 	// and decideGenerationAction run before the turn finishes with an
-	// error. Both phases are retried because prepareGeneration performs
+	// error. Both phases are retried because buildTurnEnvironment performs
 	// I/O (DB reads, MCP connects, workspace dials) that can fail
 	// transiently.
 	generationPhaseMaxAttempts = 3
@@ -938,7 +884,7 @@ func (s *taskStarter) generateAssistant(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -999,7 +945,7 @@ func (s *taskStarter) generateAssistant(
 // by index.
 func (s *taskStarter) recordThinkingStages(
 	ctx context.Context,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	step chatloop.PersistedStep,
 ) {
 	for index, startedAt := range step.ReasoningStartedAt {
@@ -1020,7 +966,7 @@ func (s *taskStarter) recordThinkingStages(
 func (s *taskStarter) admitStepToolCalls(
 	ctx context.Context,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	content []fantasy.Content,
 ) (chathooks.PreToolUseExecutionResult, error) {
 	if !s.server.hooks.Enabled() {
@@ -1123,7 +1069,7 @@ func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	decision generationDecision,
 ) error {
 	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames)
@@ -1262,7 +1208,7 @@ func (s *taskStarter) generateCompaction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	source chatloop.CompactionSource,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)

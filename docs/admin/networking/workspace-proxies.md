@@ -5,42 +5,32 @@ title: Workspace proxies
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
 > [!NOTE]
-> Workspace proxies require a
-> [Premium license](https://coder.com/pricing#compare-plans).
+> Workspace proxies require a [Premium license](https://coder.com/pricing#compare-plans).
 > For more details, [contact your account team](https://coder.com/contact).
 
 Coder's networking does a best effort to make direct connections to a workspace.
-In situations where this is not possible, such as connections via the web
-terminal and
-[web IDEs](../../user-guides/workspace-access/index.md#other-web-ides),
-workspace proxies are able to reduce the amount of distance the network traffic
-needs to travel.
+In situations where this is not possible, such as connections via the web terminal and [web IDEs](../../user-guides/workspace-access/index.md#other-web-ides), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
-A workspace proxy is a relay connection a developer can choose to use when
-connecting with their workspace over SSH, a workspace app, port forwarding, etc.
-Dashboard connections and API calls (e.g. the workspaces list) are not served
-over workspace proxies.
+A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, etc.
+Dashboard connections and API calls (e.g. the workspaces list) are not served over workspace proxies.
 
 ## Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should two
-workspace proxy instances share the same authentication token. They only require
-port 443 to be open and are expected to have network connectivity to the control
-plane dashboard. Workspace proxies **do not** make any database connections.
+Each workspace proxy should be a unique instance.
+At no point should two workspace proxy instances share the same authentication token.
+They only require port 443 to be open and are expected to have network connectivity to the control plane dashboard.
+Workspace proxies **do not** make any database connections.
 
-Workspace proxies can be used in the browser by navigating to the user
-`Account -> Workspace Proxy`
+Workspace proxies can be used in the browser by navigating to the user `Account -> Workspace Proxy`
 
 ## Requirements
 
-- The [Coder CLI](../../reference/cli/index.md) must be installed and
-  authenticated as a user with the Owner role.
+- The [Coder CLI](../../reference/cli/index.md) must be installed and authenticated as a user with the Owner role.
 
 ## Step 1: Create the proxy
 
-Create the workspace proxy and make sure to save the returned authentication
-token for said proxy. This is the token the workspace proxy will use to
-authenticate back to primary coderd.
+Create the workspace proxy and make sure to save the returned authentication token for said proxy.
+This is the token the workspace proxy will use to authenticate back to primary coderd.
 
 ```sh
 $ coder wsproxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
@@ -58,9 +48,8 @@ newyork                             unregistered
 
 ## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy with the control
-plane and make the workspace proxy usable. If the proxy deployment is
-successful, `coder wsproxy ls` will show an `ok` status code:
+Deploying the workspace proxy will also register the proxy with the control plane and make the workspace proxy usable.
+If the proxy deployment is successful, `coder wsproxy ls` will show an `ok` status code:
 
 ```sh
 $ coder wsproxy ls
@@ -76,16 +65,14 @@ Other Status codes:
 - `unregistered` : The workspace proxy was created, and not yet deployed
 - `unreachable` : The workspace proxy was registered, but is not responding.
   Likely the proxy went offline.
-- `unhealthy` : The workspace proxy is reachable, but has some issue that is
-  preventing the proxy from being used. `coder wsproxy ls` should show the error
-  message.
+- `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used.
+  `coder wsproxy ls` should show the error message.
 - `ok` : The workspace proxy is healthy and working properly!
 
 ### Configuration
 
-Workspace proxy configuration overlaps with a subset of the `coderd`
-configuration. To see the full list of configuration options:
-`coder wsproxy server --help`
+Workspace proxy configuration overlaps with a subset of the `coderd` configuration.
+To see the full list of configuration options: `coder wsproxy server --help`
 
 ```sh
 # Proxy specific configuration. These are REQUIRED
@@ -115,8 +102,7 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 
 Make a `values-wsproxy.yaml` with the workspace proxy configuration.
 
-Notice the `workspaceProxy` configuration which is `false` by default in the
-Coder Helm chart:
+Notice the `workspaceProxy` configuration which is `false` by default in the Coder Helm chart:
 
 ```yaml
 coder:
@@ -146,9 +132,8 @@ Using Helm, install the workspace proxy chart
 helm install coder coder-v2/coder --namespace <your workspace proxy namespace> -f ./values-wsproxy.yaml
 ```
 
-Test that the workspace proxy is reachable with `curl -vvv`. If for some reason,
-the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down
-and up the deployment's replicas.
+Test that the workspace proxy is reachable with `curl -vvv`.
+If for some reason, the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down and up the deployment's replicas.
 
 <a id="running-on-a-vm"></a>
 
@@ -163,9 +148,7 @@ coder wsproxy server
 
 ### Run as a system service
 
-If you've installed Coder via a [system package](../../install/index.md), you
-can configure the workspace proxy by settings in
-`/etc/coder.d/coder-workspace-proxy.env`
+If you've installed Coder via a [system package](../../install/index.md), you can configure the workspace proxy by settings in `/etc/coder.d/coder-workspace-proxy.env`
 
 To run workspace proxy as a system service on the host:
 
@@ -187,14 +170,11 @@ sudo systemctl restart coder-workspace-proxy
 
 ### Run in Docker
 
-Modify the default entrypoint to run a workspace proxy server instead of a
-regular control plane.
+Modify the default entrypoint to run a workspace proxy server instead of a regular control plane.
 
 #### Docker Compose
 
-Change the provided
-[`compose.yml`](../../../compose.yaml)
-file to include a custom entrypoint:
+Change the provided [`compose.yml`](../../../compose.yaml) file to include a custom entrypoint:
 
 ```diff
   image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
@@ -236,11 +216,7 @@ When multiple workspace proxies are deployed:
 
 ## Observability
 
-Coder workspace proxy exports metrics via the HTTP endpoint, which can be
-enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the
-flag `--prometheus-enable`.
+Coder workspace proxy exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default. You can
-use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
-`--prometheus-address <network-interface>:<port>` to select a different listen
-address.
+The Prometheus endpoint address is `http://localhost:2112/` by default.
+You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
