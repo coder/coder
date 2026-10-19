@@ -47,7 +47,6 @@ Once the user logs in to the platform, the account status will switch to _active
 
 [Service accounts](./headless-auth.md) are an exception.
 They don't log in, so Coder creates them as _active_ by default and never marks them _dormant_.
-A request that creates a service account with the _dormant_ status fails with `400 Bad Request`.
 
 Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage.
 
