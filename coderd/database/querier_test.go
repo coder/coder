@@ -2269,7 +2269,7 @@ func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
 			// Subtests share the database, so match only a delete blocked by
 			// this subtest's writer.
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				return lockWaitCount(ctx, sqlDB, "GetChatProjectByIDForUpdate", tc.query) > 0
+				return lockWaitCount(ctx, t, sqlDB, "GetChatProjectByIDForUpdate", tc.query) > 0
 			}, testutil.IntervalFast, "the delete waits for the writer's project lock")
 			close(release)
 			require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
@@ -2348,7 +2348,7 @@ func TestInsertProjectSkillLocksProject(t *testing.T) {
 		// ConcurrentInserts also leaves inserts waiting, so match only one
 		// blocked by the delete.
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			return lockWaitCount(ctx, sqlDB, "InsertProjectSkill", "UpdateChatProjectDeletedByID") > 0
+			return lockWaitCount(ctx, t, sqlDB, "InsertProjectSkill", "UpdateChatProjectDeletedByID") > 0
 		}, testutil.IntervalFast, "the insert waits for the delete")
 		close(release)
 		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
@@ -2362,7 +2362,8 @@ func TestInsertProjectSkillLocksProject(t *testing.T) {
 
 // lockWaitCount counts waiterQuery backends blocked by a backend whose
 // latest query is blockerQuery.
-func lockWaitCount(ctx context.Context, sqlDB *sql.DB, waiterQuery, blockerQuery string) int {
+func lockWaitCount(ctx context.Context, t *testing.T, sqlDB *sql.DB, waiterQuery, blockerQuery string) int {
+	t.Helper()
 	var waits int
 	err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity waiter
 WHERE waiter.datname = current_database() AND waiter.wait_event_type = 'Lock'
@@ -2372,9 +2373,7 @@ WHERE waiter.datname = current_database() AND waiter.wait_event_type = 'Lock'
 		WHERE blocker.pid = ANY(pg_blocking_pids(waiter.pid))
 			AND blocker.query LIKE '%-- name: ' || $2 || ' %'
 	)`, waiterQuery, blockerQuery).Scan(&waits)
-	if err != nil {
-		return 0
-	}
+	require.NoError(t, err)
 	return waits
 }
 

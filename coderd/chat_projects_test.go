@@ -353,8 +353,8 @@ func TestPatchChatProject(t *testing.T) {
 		requireChatProjectID(ctx, t, client, chat.ID, nil)
 	})
 
-	// The source project is deleted after the request loaded the chat, so
-	// the chat is gone too.
+	// The wrapper deletes the chat's project after ExtractChatParam loaded
+	// the chat.
 	for _, tc := range []struct {
 		name    string
 		archive bool
