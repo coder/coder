@@ -98,7 +98,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="text-nowrap">Network Requests</TableHead>
+							<TableHead className="text-nowrap">Network</TableHead>
 							<TableHead className="flex items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>
