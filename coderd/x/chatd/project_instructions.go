@@ -14,9 +14,8 @@ import (
 
 // resolveProjectInstructions returns the system prompt block holding the
 // instructions of the chat's project, or "" when there are none. Subagent
-// chats do not carry a project, so they inherit the root chat's project at
-// the cost of one extra lookup. Instructions are read on every turn so edits
-// reach existing chats on their next turn.
+// chats carry their root's project. Instructions are read on every turn so
+// edits reach existing chats on their next turn.
 //
 // A chat runs without project instructions when the project or its
 // instructions cannot be loaded, when the access check fails, or when the
@@ -26,19 +25,6 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 		return ""
 	}
 	projectID := chat.ProjectID
-	if !projectID.Valid && chat.RootChatID.Valid && chat.RootChatID.UUID != chat.ID {
-		root, err := p.db.GetChatByID(ctx, chat.RootChatID.UUID)
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				logger.Warn(ctx, "failed to load root chat for project instructions",
-					slog.F("root_chat_id", chat.RootChatID.UUID),
-					slog.Error(err),
-				)
-			}
-			return ""
-		}
-		projectID = root.ProjectID
-	}
 	if !projectID.Valid {
 		return ""
 	}

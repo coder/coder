@@ -71,14 +71,12 @@ func TestResolveProjectInstructions(t *testing.T) {
 		}))
 	})
 
-	t.Run("SubagentInheritsRootProject", func(t *testing.T) {
+	t.Run("SubagentUsesItsOwnProject", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		projectID := uuid.New()
 		ownerID := uuid.New()
 		rootID := uuid.New()
-		db.EXPECT().GetChatByID(gomock.Any(), rootID).
-			Return(database.Chat{ID: rootID, ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}}, nil)
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{ID: projectID, OwnerID: ownerID}, nil)
 		db.EXPECT().GetChatProjectInstructionsByProjectID(gomock.Any(), projectID).
 			Return(instructionsRow(projectID, "Reply in French."), nil)
@@ -88,6 +86,7 @@ func TestResolveProjectInstructions(t *testing.T) {
 			OwnerID:      ownerID,
 			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
+			ProjectID:    uuid.NullUUID{UUID: projectID, Valid: true},
 		})
 		require.Contains(t, block, "Reply in French.")
 	})
