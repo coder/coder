@@ -13,6 +13,7 @@ import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
@@ -155,7 +156,8 @@ export function compareTreePaths(a: string, b: string): number {
 // unchanged, so the version must reflect annotation content rather than count.
 // Moving the active comment box to another line in the same file keeps the
 // count at 1 but must still re-render, so fold each annotation's side and line
-// into the version. Exported for unit tests.
+// into the version. The hash stays a 32-bit integer so later inputs are not
+// lost to floating-point precision. Exported for unit tests.
 export function annotationsVersion(
 	annotations: readonly DiffLineAnnotation<string>[],
 ): number {
@@ -164,11 +166,28 @@ export function annotationsVersion(
 	}
 	return annotations.reduce(
 		(version, annotation) =>
-			version * 31 +
-			annotation.lineNumber * 2 +
-			(annotation.side === "additions" ? 1 : 0),
+			(Math.imul(version, 31) +
+				annotation.lineNumber * 2 +
+				(annotation.side === "additions" ? 1 : 0)) |
+			0,
 		annotations.length,
 	);
+}
+
+// The full CodeView item version: it must change whenever anything that
+// affects rendering changes, including the diff content (cacheKey, a content
+// hash stamped by parseDiffString) and the collapsed flag. Exported for unit
+// tests.
+export function diffItemVersion(
+	fileDiff: FileDiffMetadata,
+	annotations: readonly DiffLineAnnotation<string>[],
+	collapsed: boolean,
+): number {
+	let version = annotationsVersion(annotations);
+	for (const char of fileDiff.cacheKey ?? "") {
+		version = (Math.imul(version, 31) + char.charCodeAt(0)) | 0;
+	}
+	return (Math.imul(version, 31) + (collapsed ? 1 : 0)) | 0;
 }
 
 // The library forces classic, space-reserving scrollbars via
@@ -205,26 +224,27 @@ function HeaderContent({
 }: {
 	fileDiff: FileDiffMetadata;
 	collapsed: boolean;
-	onToggleCollapsed: () => void;
+	onToggleCollapsed: (button: HTMLButtonElement) => void;
 }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
 		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
 			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="icon"
 					aria-expanded={!collapsed}
 					aria-label={`${collapsed ? "Expand" : "Collapse"} ${fileDiff.name}`}
-					onClick={onToggleCollapsed}
-					className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link"
+					onClick={(event) => onToggleCollapsed(event.currentTarget)}
+					className="size-5 min-w-0 shrink-0 rounded-sm p-0 hover:bg-surface-tertiary [&>svg]:p-0"
 				>
 					<ChevronDownIcon
 						className={cn(
-							"size-3.5 transition-transform",
+							"size-3.5! transition-transform",
 							collapsed && "-rotate-90",
 						)}
 					/>
-				</button>
+				</Button>
 				<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 					<span
 						className={cn(
@@ -277,7 +297,9 @@ function DiffFileTree({
 		status: gitStatusForFile(file),
 	}));
 	// Tracks the row currently selected in the model so scroll-driven syncing
-	// can skip redundant selects.
+	// can skip redundant selects. A null activePath clears the selection, so
+	// clicking the same row again counts as a change and fires
+	// onUserSelectPath.
 	const selectedPathRef = useRef<string | null>(null);
 	// Set while we replace the selection programmatically. The model emits
 	// selection events synchronously, so this drops the echoes from our own
@@ -315,7 +337,16 @@ function DiffFileTree({
 	// highlighted unless its selection is cleared. Replace the whole
 	// selection with just the active file, suppressing the echoed events.
 	useEffect(() => {
-		if (!activePath || selectedPathRef.current === activePath) return;
+		if (selectedPathRef.current === activePath) return;
+		if (!activePath) {
+			isSyncingSelectionRef.current = true;
+			for (const path of model.getSelectedPaths()) {
+				model.getItem(path)?.deselect();
+			}
+			isSyncingSelectionRef.current = false;
+			selectedPathRef.current = null;
+			return;
+		}
 		const item = model.getItem(activePath);
 		if (!item) return;
 		isSyncingSelectionRef.current = true;
@@ -379,8 +410,9 @@ function SkeletonSeparator() {
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
 		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
-				<div className="flex items-center gap-2">
+			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1">
+				<div className="flex items-center gap-1.5">
+					<div className="size-5 shrink-0" />
 					<Skeleton className="size-3 rounded-[2px]" />
 					<Skeleton className="h-3 w-44" />
 				</div>
@@ -439,10 +471,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 }) => {
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
+	// CodeView's scroll root, set through its containerRef prop.
+	const [scrollerEl, setScrollerEl] = useState<HTMLDivElement | null>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
-	// Files whose diff body is hidden, keyed by file name. Every file starts
-	// expanded.
+	// Names persist for the mount, so a file that leaves the diff and later
+	// returns keeps its collapsed state.
 	const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
@@ -457,6 +491,35 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			}
 			return next;
 		});
+	};
+	const toggleFileCollapsed = (
+		fileName: string,
+		collapsed: boolean,
+		button: HTMLButtonElement,
+	) => {
+		if (!collapsed) {
+			// A stuck header sits above the file's real top. Scroll the file to
+			// its start first, which leaves the header where it is on screen;
+			// otherwise CodeView keeps scrollTop and the collapsed header
+			// scrolls out of view.
+			const card = button.closest("diffs-container");
+			if (
+				card &&
+				scrollerEl &&
+				card.getBoundingClientRect().top <
+					scrollerEl.getBoundingClientRect().top
+			) {
+				codeViewRef.current?.scrollTo({
+					type: "item",
+					id: fileName,
+					align: "start",
+					behavior: "instant",
+				});
+			}
+			// Clear the tree selection so clicking this file's row expands it.
+			setActiveFile(null);
+		}
+		setFileCollapsed(fileName, !collapsed);
 	};
 
 	// Measure the diff container so the file tree only appears when there is
@@ -530,9 +593,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			fileDiff,
 			annotations,
 			collapsed,
-			// CodeView only re-syncs an item when its version changes, so the
-			// collapsed flag must be part of it.
-			version: annotationsVersion(annotations) * 2 + (collapsed ? 1 : 0),
+			version: diffItemVersion(fileDiff, annotations, collapsed),
 		};
 	});
 
@@ -552,6 +613,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		// null. Skip the scroll without signalling completion so the parent
 		// keeps the pending target and retries once the view is ready.
 		if (!canScroll || !codeViewRef.current) return;
+		// Expanding here rather than in the parent keeps collapse state owned
+		// by DiffViewer; a file reference must land on visible code.
 		setFileCollapsed(scrollToFile, false);
 		codeViewRef.current.scrollTo({
 			type: "item",
@@ -603,6 +666,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			)}
 			<CodeView
 				ref={codeViewRef}
+				containerRef={setScrollerEl}
 				items={items}
 				options={options}
 				selectedLines={selectedLines}
@@ -613,9 +677,9 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 					item.type === "diff" ? (
 						<HeaderContent
 							fileDiff={item.fileDiff}
-							collapsed={collapsedFiles.has(item.id)}
-							onToggleCollapsed={() =>
-								setFileCollapsed(item.id, !collapsedFiles.has(item.id))
+							collapsed={item.collapsed === true}
+							onToggleCollapsed={(button) =>
+								toggleFileCollapsed(item.id, item.collapsed === true, button)
 							}
 						/>
 					) : null
