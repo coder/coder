@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
-import { DiffViewer } from "../DiffViewer/DiffViewer";
+import { compareTreePaths, DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 import { generateLargeDiff } from "./testHelpers";
@@ -564,5 +564,92 @@ export const ScrollToFileExpandsCollapsedFile: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "jump to file" }));
 		await waitForDiffBody(canvasElement, firstFileLine);
+	},
+};
+
+// CodeView's scroll root is the nearest scrolling ancestor of a file card.
+const findScroller = (canvasElement: HTMLElement): HTMLElement => {
+	let el = canvasElement.querySelector("diffs-container")?.parentElement;
+	while (el && getComputedStyle(el).overflowY !== "auto") {
+		el = el.parentElement;
+	}
+	if (!el) {
+		throw new Error("CodeView scroll root not found");
+	}
+	return el;
+};
+
+const overflowFiles = parseDiffString(generateLargeDiff(30, 5));
+const lastOverflowFile = [...overflowFiles]
+	.sort((a, b) => compareTreePaths(a.name, b.name))
+	.at(-1);
+const lastOverflowLine = `context line 5 in ${lastOverflowFile?.name}`;
+
+// File heights come from itemMetrics, so they must account for the card's
+// code inset or the end of the list cannot be scrolled into view. A classic
+// scrollbar replaces the list's right padding.
+export const OverflowScrollsToLastCard: Story = {
+	args: {
+		parsedFiles: overflowFiles,
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(() => findScroller(canvasElement));
+		const scroller = findScroller(canvasElement);
+
+		await waitFor(() => {
+			scroller.scrollTop = scroller.scrollHeight;
+			const cards = canvasElement.querySelectorAll("diffs-container");
+			const lastCard = cards[cards.length - 1];
+			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
+				throw new Error("Last file has not rendered yet");
+			}
+			const cardBottom = lastCard.getBoundingClientRect().bottom;
+			const scrollerBottom = scroller.getBoundingClientRect().bottom;
+			if (cardBottom > scrollerBottom + 0.5) {
+				throw new Error(
+					`Last card ends ${cardBottom - scrollerBottom}px below the list`,
+				);
+			}
+		});
+
+		const hasClassicScrollbar = scroller.offsetWidth > scroller.clientWidth;
+		await waitFor(() => {
+			const paddingRight = getComputedStyle(scroller).paddingRight;
+			const expected = hasClassicScrollbar ? "0px" : "8px";
+			if (paddingRight !== expected) {
+				throw new Error(`padding-right is ${paddingRight}, want ${expected}`);
+			}
+		});
+	},
+};
+
+// A collapsed file has no code block, so its header rounds every corner.
+export const CollapsedHeaderIsFullyRounded: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+
+		await waitFor(() => {
+			const header = canvasElement
+				.querySelector("diffs-container")
+				?.shadowRoot?.querySelector<HTMLElement>("[data-diffs-header]");
+			if (!header) {
+				throw new Error("Header not rendered");
+			}
+			const style = getComputedStyle(header);
+			const radii = [
+				style.borderTopLeftRadius,
+				style.borderTopRightRadius,
+				style.borderBottomRightRadius,
+				style.borderBottomLeftRadius,
+			];
+			if (radii.some((radius) => radius !== "6px")) {
+				throw new Error(`Header radii are ${radii.join(" ")}`);
+			}
+		});
 	},
 };
