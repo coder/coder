@@ -35,7 +35,8 @@ const (
 	// compactionContextTooLargeMessage tells the user how to recover a
 	// conversation that is too large to summarize.
 	compactionContextTooLargeMessage = "This conversation is too large for the model to compact. " +
-		"Edit an earlier message, which deletes every message after it, or start a new conversation. " +
+		"Send /clear to keep the transcript and start the next message with a fresh context. " +
+		"You can also edit an earlier message, which deletes every message after it, or start a new conversation. " +
 		"If the conversation is short, ask an administrator to check the model's context limit."
 
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
