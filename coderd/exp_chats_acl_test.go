@@ -322,6 +322,9 @@ func TestChatACLValidation(t *testing.T) {
 	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "validation chat")
 	missingUserID := uuid.New()
 	missingGroupID := uuid.New()
+	_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	// The Everyone group shares its organization's ID.
+	everyoneGroupID := firstUser.OrganizationID
 
 	tests := []struct {
 		name           string
@@ -388,6 +391,32 @@ func TestChatACLValidation(t *testing.T) {
 				Detail: "group with ID " + missingGroupID.String() + " does not exist",
 			},
 		},
+		{
+			name: "DuplicateUserSpellings",
+			req: codersdk.UpdateChatACL{
+				UserRoles: map[string]codersdk.ChatRole{
+					otherUser.ID.String():                  codersdk.ChatRoleRead,
+					strings.ToUpper(otherUser.ID.String()): codersdk.ChatRoleDeleted,
+				},
+			},
+			wantValidation: codersdk.ValidationError{
+				Field:  "user_roles",
+				Detail: "duplicate entries for ID " + otherUser.ID.String(),
+			},
+		},
+		{
+			name: "DuplicateGroupSpellings",
+			req: codersdk.UpdateChatACL{
+				GroupRoles: map[string]codersdk.ChatRole{
+					everyoneGroupID.String():                  codersdk.ChatRoleRead,
+					strings.ToUpper(everyoneGroupID.String()): codersdk.ChatRoleDeleted,
+				},
+			},
+			wantValidation: codersdk.ValidationError{
+				Field:  "group_roles",
+				Detail: "duplicate entries for ID " + everyoneGroupID.String(),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -400,6 +429,43 @@ func TestChatACLValidation(t *testing.T) {
 			require.Equal(t, "Invalid request to update chat ACL.", sdkErr.Message)
 			require.Contains(t, sdkErr.Validations, tt.wantValidation)
 		})
+	}
+}
+
+func TestChatACLNoncanonicalIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "noncanonical ID chat")
+
+	userClient, user := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+	readers := []*codersdk.ExperimentalClient{
+		codersdk.NewExperimentalClient(userClient),
+		codersdk.NewExperimentalClient(groupMemberClient),
+	}
+	uppercaseRoles := func(role codersdk.ChatRole) codersdk.UpdateChatACL {
+		return codersdk.UpdateChatACL{
+			UserRoles:  map[string]codersdk.ChatRole{strings.ToUpper(user.ID.String()): role},
+			GroupRoles: map[string]codersdk.ChatRole{strings.ToUpper(group.ID.String()): role},
+		}
+	}
+
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, uppercaseRoles(codersdk.ChatRoleRead)))
+	for _, reader := range readers {
+		_, err := reader.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, uppercaseRoles(codersdk.ChatRoleDeleted)))
+	for _, reader := range readers {
+		_, err := reader.GetChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
 	}
 }
 

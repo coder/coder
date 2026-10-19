@@ -135,6 +135,11 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
+	var dupErrs []codersdk.ValidationError
+	req.UserRoles, dupErrs = canonicalACLRoles("user_roles", req.UserRoles)
+	validErrs = append(validErrs, dupErrs...)
+	req.GroupRoles, dupErrs = canonicalACLRoles("group_roles", req.GroupRoles)
+	validErrs = append(validErrs, dupErrs...)
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update chat ACL.",
