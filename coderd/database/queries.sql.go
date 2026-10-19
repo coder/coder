@@ -8010,10 +8010,10 @@ WHERE id = $1::uuid AND NOT deleted
 FOR SHARE
 `
 
-// Callers that add a chat to a project, move one out, unarchive one in it,
-// or write its memories hold this until commit, so a concurrent project
-// delete waits for them and the cleanup that follows archives their chats.
-// Returns no rows once the project is deleted.
+// Root chat creation, moves into or out of a project, unarchives, and
+// memory writes hold this until commit. A concurrent project delete waits
+// for them: the tombstone then deletes their memories, and the cleanup
+// archives their chats. Returns no rows once the project is deleted.
 func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
 	var i ChatProject
@@ -8512,12 +8512,10 @@ skills AS (
 SELECT id FROM project
 `
 
-// Irreversible. Call through chatstate.TombstoneChatProject, which locks
-// the project earlier in the same transaction: this statement's snapshot
-// predates any lock wait inside it, so without that lock a memory,
-// instructions or skill write it waited for survives. Deletes the
-// project's memories, instructions and skills; its chats keep running
-// until chatstate.ArchiveDeletedChatProject archives them.
+// Irreversible. Call only through chatstate.TombstoneChatProject, which
+// locks the project first; see its doc. Deletes the project's memories,
+// instructions and skills; its chats keep running until
+// chatstate.ArchiveDeletedChatProject archives them.
 func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, updateChatProjectDeletedByID, id)
 	var id_2 uuid.UUID

@@ -21,6 +21,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2280,6 +2281,84 @@ WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '
 			require.ErrorIs(t, tc.write(ctx, db, project.ID), sql.ErrNoRows, "a write after the delete stores nothing")
 		})
 	}
+}
+
+func TestInsertProjectSkillLocksProject(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	insert := func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+		id := uuid.New()
+		_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID: id, ProjectID: projectID, Name: "skill-" + id.String()[:8], Description: "d", Content: "c",
+		})
+		return err
+	}
+
+	// A shared lock the limit trigger then upgrades deadlocks two
+	// concurrent inserts.
+	t.Run("ConcurrentInserts", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+		var eg errgroup.Group
+		for range 8 {
+			eg.Go(func() error {
+				for range 5 {
+					if err := insert(ctx, db, project.ID); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		}
+		require.NoError(t, eg.Wait())
+	})
+
+	t.Run("WaitsForDelete", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+		deleted := make(chan struct{}, 1)
+		release := make(chan struct{})
+		deleteErr := make(chan error, 1)
+		go func() {
+			deleteErr <- db.InTx(func(tx database.Store) error {
+				if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+					return err
+				}
+				if _, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
+					return err
+				}
+				deleted <- struct{}{}
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.RequireReceive(ctx, t, deleted)
+
+		insertErr := make(chan error, 1)
+		go func() { insertErr <- insert(ctx, db, project.ID) }()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var waits int
+			err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%-- name: InsertProjectSkill %'`).Scan(&waits)
+			return err == nil && waits > 0
+		}, testutil.IntervalFast, "the insert waits for the delete")
+		close(release)
+		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, insertErr), sql.ErrNoRows)
+
+		var rows int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE project_id = $1", project.ID).Scan(&rows))
+		require.Zero(t, rows)
+	})
 }
 
 func TestChatProjectDeleteQueries(t *testing.T) {

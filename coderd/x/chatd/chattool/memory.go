@@ -55,9 +55,9 @@ var (
 // MaxMemories memories. The lock serializes writers so two of them cannot
 // both observe room and overshoot the cap, and the transaction means a
 // consolidation applies all of its deletes and saves or none of them. The
-// project lock and count run as the system because the caller has already been authorized
-// to write memories in this project, and a create-only scope may lack the
-// read they would otherwise require.
+// project lock and count run as the system because the caller has already
+// been authorized to write memories in this project, and a create-only
+// scope may lack the read they would otherwise require.
 func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
 	var count int64
 	err := db.InTx(func(tx database.Store) error {
@@ -135,9 +135,6 @@ func ConsolidateProjectMemories(ctx context.Context, db database.Store, projectI
 
 func insertProjectMemoryTx(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
 	memory, err := db.InsertChatProjectMemory(ctx, params)
-	if errors.Is(err, sql.ErrNoRows) {
-		return database.ChatProjectMemory{}, ErrMemoryProjectDeleted
-	}
 	if database.IsUniqueViolation(err) {
 		return database.ChatProjectMemory{}, xerrors.Errorf("%w: %q", ErrMemoryExists, params.Name)
 	}

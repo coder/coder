@@ -283,7 +283,8 @@ func SetFamilyProject(
 // TombstoneChatProject marks the project deleted and deletes its memories,
 // instructions and skills. It takes no chat locks, so it cannot fail on
 // them; [ArchiveDeletedChatProject] archives the chats afterwards. It
-// returns sql.ErrNoRows for a missing or deleted project.
+// returns sql.ErrNoRows for a missing or deleted project. ctx's actor must
+// be allowed to delete the project; dbauthz checks this on the tombstone.
 //
 // It locks the project before the tombstone statement because a
 // statement's snapshot predates any lock wait inside it: without the
@@ -302,7 +303,8 @@ func TombstoneChatProject(ctx context.Context, store database.Store, projectID u
 // ArchiveDeletedChatProject archives the unarchived chats of a deleted
 // project, sub-chats included, and returns them as archived, along with
 // every chat in the project read in the same transaction. ctx must allow
-// reading and updating every chat, as chatd does. Each chat moves from any
+// reading the project and reading and updating every chat in it, as chatd
+// does. Each chat moves from any
 // execution state to [StateXW], or [StateXE0] from error, with no worker or
 // runner and an empty queue. A chat:update per archived chat is published
 // after commit so its runner stops; if that fails, the committed result is

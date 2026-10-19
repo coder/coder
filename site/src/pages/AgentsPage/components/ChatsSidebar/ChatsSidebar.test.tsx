@@ -13,7 +13,10 @@ import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { chatEntityKey } from "#/api/queries/chats";
+import {
+	applyWatchedChatProjectDeleted,
+	chatEntityKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -529,17 +532,21 @@ describe("ChatsSidebar projects", () => {
 
 	it("leaves an open chat of the deleted project", async () => {
 		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const openChat = buildChat({ project_id: MockChatProject.id });
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
 			http.delete(
 				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
-				() => new HttpResponse(null, { status: 204 }),
+				() => {
+					// The watch event can reset the entity before the response.
+					applyWatchedChatProjectDeleted(queryClient, openChat);
+					return new HttpResponse(null, { status: 204 });
+				},
 			),
 		);
-		const queryClient = createTestQueryClient();
-		const openChat = buildChat({ project_id: MockChatProject.id });
 		queryClient.setQueryDefaults(chatEntityKey(openChat.id), {
 			gcTime: Number.POSITIVE_INFINITY,
 		});

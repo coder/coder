@@ -133,18 +133,25 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		...deleteProjectOptions,
 		// Leaves the deleted project's page, or one of its chats, before the
 		// caches refetch, so the page never shows "not found". A pending
-		// mutation picks up each render's options, so this reads the current
-		// location.
-		onSuccess: (...args) => {
-			const [, project] = args;
-			// Read before the shared onSuccess resets the chat entity.
-			const activeChat = activeChatId
+		// mutation picks up each render's options, so onSuccess reads the
+		// current location.
+		onMutate: (project) => {
+			// Read before the request, since a project_deleted event can
+			// reset the entity before the response arrives.
+			const openChat = activeChatId
 				? queryClient.getQueryData<Chat>(chatEntityKey(activeChatId))
 				: undefined;
-			deleteProjectOptions.onSuccess?.(...args);
+			return {
+				openChatId:
+					openChat?.project_id === project.id ? openChat.id : undefined,
+			};
+		},
+		onSuccess: (data, project, context) => {
+			deleteProjectOptions.onSuccess?.(data, project, context);
 			if (
 				viewedProjectId === project.id ||
-				activeChat?.project_id === project.id
+				(context?.openChatId !== undefined &&
+					context.openChatId === activeChatId)
 			) {
 				navigate(
 					{ pathname: "/agents", search: location.search },

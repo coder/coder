@@ -563,10 +563,10 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Callers that add a chat to a project, move one out, unarchive one in it,
-	// or write its memories hold this until commit, so a concurrent project
-	// delete waits for them and the cleanup that follows archives their chats.
-	// Returns no rows once the project is deleted.
+	// Root chat creation, moves into or out of a project, unarchives, and
+	// memory writes hold this until commit. A concurrent project delete waits
+	// for them: the tombstone then deletes their memories, and the cleanup
+	// archives their chats. Returns no rows once the project is deleted.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Locks FOR NO KEY UPDATE so sub-chat inserts, whose project_id foreign key
 	// check takes FOR KEY SHARE, do not wait for it.
@@ -1679,12 +1679,10 @@ type sqlcQuerier interface {
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
-	// Irreversible. Call through chatstate.TombstoneChatProject, which locks
-	// the project earlier in the same transaction: this statement's snapshot
-	// predates any lock wait inside it, so without that lock a memory,
-	// instructions or skill write it waited for survives. Deletes the
-	// project's memories, instructions and skills; its chats keep running
-	// until chatstate.ArchiveDeletedChatProject archives them.
+	// Irreversible. Call only through chatstate.TombstoneChatProject, which
+	// locks the project first; see its doc. Deletes the project's memories,
+	// instructions and skills; its chats keep running until
+	// chatstate.ArchiveDeletedChatProject archives them.
 	UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.

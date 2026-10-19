@@ -26,6 +26,8 @@ type memoryStore struct {
 	memories map[string]chattool.Memory
 	// getErr, when set, is returned by Get.
 	getErr error
+	// writeErr, when set, is returned by every write.
+	writeErr error
 }
 
 func newMemoryStore(n int) *memoryStore {
@@ -60,6 +62,9 @@ func (s *memoryStore) Delete(ctx context.Context, name string) error {
 }
 
 func (s *memoryStore) Consolidate(_ context.Context, deleteNames []string, saves []chattool.MemoryInput) (int64, error) {
+	if s.writeErr != nil {
+		return 0, s.writeErr
+	}
 	next := make(map[string]chattool.Memory, len(s.memories))
 	for name, memory := range s.memories {
 		next[name] = memory
@@ -228,6 +233,14 @@ func TestSaveMemory(t *testing.T) {
 		require.Contains(t, response.Content, "memory is full (200/200)")
 		require.Contains(t, response.Content, chattool.ConsolidateMemoryToolName)
 		require.Len(t, store.memories, chattool.MaxMemories)
+	})
+	t.Run("ProjectDeleted", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryStore(0)
+		store.writeErr = chattool.ErrMemoryProjectDeleted
+		response, _ := runMemoryTool(t, chattool.SaveMemory(store, "platform"), input)
+		require.True(t, response.IsError)
+		require.Contains(t, response.Content, "project was deleted")
 	})
 }
 
