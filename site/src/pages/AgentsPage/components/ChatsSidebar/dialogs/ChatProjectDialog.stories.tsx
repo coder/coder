@@ -219,7 +219,6 @@ export const TemplatesLoadError: Story = {
 	},
 };
 
-/** Selects every template and makes Docker the default. */
 const pickDefaultTemplate: Story["play"] = async () => {
 	await userEvent.click(
 		await screen.findByRole("button", { name: "Select all" }),
@@ -237,14 +236,15 @@ const pickDefaultParameters: Story["play"] = async (context) => {
 	);
 };
 
-const noDockerPresets = {
-	key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
-	data: [],
-};
-
 export const DefaultTemplateWithoutPresets: Story = {
 	parameters: {
-		queries: [...meta.parameters.queries, noDockerPresets],
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
 	},
 	play: pickDefaultTemplate,
 };
@@ -262,7 +262,10 @@ export const DefaultTemplateWithoutParameters: Story = {
 	parameters: {
 		queries: [
 			...meta.parameters.queries,
-			noDockerPresets,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
 			{
 				key: richParametersKey(mockDockerTemplate.active_version_id),
 				data: [],
@@ -274,7 +277,13 @@ export const DefaultTemplateWithoutParameters: Story = {
 
 export const DefaultTemplateParametersLoadError: Story = {
 	parameters: {
-		queries: [...meta.parameters.queries, noDockerPresets],
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(

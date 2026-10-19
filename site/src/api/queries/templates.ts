@@ -390,6 +390,7 @@ export const previousTemplateVersion = (
 	};
 };
 
+/** Query key for {@link templateVersionPresets}. */
 export const templateVersionPresetsKey = (versionId: string) => [
 	templateVersionRoot,
 	versionId,
