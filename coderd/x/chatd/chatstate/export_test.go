@@ -86,6 +86,7 @@ func (b *PublishBuffer) BufferedChannels() []string {
 var AllExecutionTransitions = []Transition{
 	TransitionCreateChat,
 	TransitionSetArchived,
+	TransitionSetProject,
 	TransitionSendMessage,
 	TransitionEditMessage,
 	TransitionRequestCompaction,

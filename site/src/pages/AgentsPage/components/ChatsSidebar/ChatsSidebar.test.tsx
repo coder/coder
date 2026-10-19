@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +29,7 @@ import {
 	MockEntitlements,
 	MockOrganization2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -36,6 +38,8 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { NIL_UUID } from "../../utils/modelOptions";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -825,25 +829,804 @@ describe("ChatsSidebar pin actions", () => {
 	);
 });
 
+const DRAG_INSTRUCTIONS = /pick up a chat/i;
+
+describe("ChatsSidebar move to project", () => {
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing-project",
+		name: "Billing",
+	};
+
+	const renderSidebar = (chats: Chat[]) =>
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+
+	let projectRequests = 0;
+	beforeEach(() => {
+		projectRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				projectRequests += 1;
+				return HttpResponse.json([MockChatProject, mockBillingProject]);
+			}),
+		);
+	});
+
+	afterEach(() => vi.restoreAllMocks());
+
+	const selectMoveTarget = async (user: MenuUser, target: string) => {
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await selectSubmenuItem(user, "Move to project", "menuitem", target);
+	};
+
+	it.each([
+		{ target: "Billing", projectId: mockBillingProject.id },
+		{ target: "Remove from project", projectId: NIL_UUID },
+	])("moves a chat with $target", async ({ target, projectId }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		// Folders start closed, and MockChatProject is the Launch folder.
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, target);
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
+		);
+		expect(projectRequests).toBe(1);
+	});
+
+	it("shows the server message when the server refuses a move", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		let refuseMove: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise((_, reject) => {
+				refuseMove = reject;
+			}),
+		);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+		// The menu closed on select, so the toast must outlive it.
+		refuseMove(mockApiError({ message: "Cannot move an active chat." }));
+
+		await waitFor(() =>
+			expect(toastError).toHaveBeenCalledWith("Cannot move an active chat."),
+		);
+	});
+
+	it("sends no request for the current project", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Launch" }),
+		);
+		await selectMoveTarget(user, "Launch");
+		await selectMoveTarget(user, "Billing");
+
+		// A request from Launch would come first and fail the exact call list.
+		await waitFor(() => expect(update).toHaveBeenCalled());
+		expect(update.mock.calls).toEqual([
+			["c1", { project_id: mockBillingProject.id }],
+		]);
+	});
+
+	it("lets keyboard users reach a blocked move and read why", async () => {
+		const user = userEvent.setup();
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "running",
+			}),
+		]);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open actions for Fix invoice dates",
+			}),
+		);
+		await focusMenuItem(user, "menuitem", "Move to project");
+		const trigger = screen.getByRole("menuitem", { name: "Move to project" });
+		expect(trigger).toHaveAccessibleDescription(
+			"Interrupt or wait for the agent to finish first.",
+		);
+		await user.keyboard("{ArrowRight}{Enter}");
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
+	});
+});
+
+// dnd-kit uses browser APIs that jsdom lacks. spyOn cannot stub a missing
+// member, so stubDragDom adds them and removes them after each test.
+const stubDragDom = () => {
+	vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+	const stubs = [
+		[document, { getAnimations: () => [], elementFromPoint: () => null }],
+		[
+			Element.prototype,
+			{
+				getAnimations: () => [],
+				animate: () => ({ finished: Promise.resolve() }),
+			},
+		],
+	] as const;
+	for (const [target, members] of stubs) {
+		Object.assign(target, members);
+	}
+	return () => {
+		for (const [target, members] of stubs) {
+			for (const key of Object.keys(members)) {
+				Reflect.deleteProperty(target, key);
+			}
+		}
+		vi.unstubAllGlobals();
+	};
+};
+
+const nextFrame = () =>
+	act(
+		() =>
+			new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+	);
+
+// jsdom has no layout. dnd-kit measures the dragged element on each move to
+// find the target under it, so its box follows dnd-kit's --dnd-* properties.
+const mockLayout = (layout: (element: Element) => DOMRect) => {
+	vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+		function (this: Element) {
+			if (!(this instanceof HTMLElement) || !this.dataset.dndDragging) {
+				return layout(this);
+			}
+			const px = (name: string) =>
+				Number.parseFloat(this.style.getPropertyValue(`--dnd-${name}`)) || 0;
+			const [, translateY = "0"] = this.style
+				.getPropertyValue("--dnd-translate")
+				.split(" ");
+			return DOMRect.fromRect({
+				x: px("left"),
+				y: px("top") + Number.parseFloat(translateY),
+				width: px("width"),
+				height: px("height"),
+			});
+		},
+	);
+};
+
+describe("ChatsSidebar project drops", () => {
+	beforeEach(stubDragDom);
+
+	const mockBillingProject = {
+		...MockChatProject,
+		id: "billing",
+		name: "Billing",
+	};
+	const mockOpsProject = {
+		...mockBillingProject,
+		id: "ops",
+		name: "Ops",
+		organization_id: "other-org",
+	};
+
+	const renderSidebar = (chats: Chat[], projects: TypesGen.ChatProject[]) => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(projects),
+			),
+		);
+		return render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+	};
+
+	const box = (y: number, height: number) =>
+		DOMRect.fromRect({ x: 0, y, width: 300, height });
+
+	// dnd-kit clips each target by its ancestors' boxes, so an ancestor of
+	// several targets gets a box around all of them.
+	const layoutDropTargets = (
+		row: string,
+		rowTop: number,
+		scrollTop = () => 0,
+	) => {
+		const rowLink = screen.getByRole("link", { name: new RegExp(row) });
+		const targets = [
+			{
+				node: screen.getByRole("link", { name: "Billing" }),
+				top: 0,
+				height: 80,
+			},
+			{ node: screen.getByRole("link", { name: "Ops" }), top: 100, height: 40 },
+			{
+				node: screen.getByRole("heading", { name: "Chats" }),
+				top: 200,
+				height: 300,
+			},
+		];
+		mockLayout((element) => {
+			const held = targets.filter(({ node }) => element.contains(node));
+			if (held.length > 1) {
+				return box(0, 600);
+			}
+			if (held.length === 1) {
+				return box(held[0].top - scrollTop(), held[0].height);
+			}
+			return element.contains(rowLink)
+				? box(rowTop - scrollTop(), 40)
+				: box(0, 0);
+		});
+	};
+
+	// user-event's pointer API leaves dnd-kit's updates outside act, and its
+	// drop sends no request, so the gesture uses fireEvent.
+	const mouseDragRow = async (
+		row: string,
+		dropY: number,
+		beforeDrop?: () => void,
+	) => {
+		const pointer = { pointerId: 1, isPrimary: true, pointerType: "mouse" };
+		fireEvent.pointerDown(screen.getByRole("link", { name: new RegExp(row) }), {
+			...pointer,
+			clientX: 10,
+			clientY: 250,
+		});
+		fireEvent.pointerMove(document, { ...pointer, clientX: 10, clientY: 260 });
+		await nextFrame();
+		fireEvent.pointerMove(document, {
+			...pointer,
+			clientX: 10,
+			clientY: dropY,
+		});
+		await nextFrame();
+		if (beforeDrop) {
+			beforeDrop();
+			await nextFrame();
+		}
+		fireEvent.pointerUp(document, { ...pointer, clientX: 10, clientY: dropY });
+		// The request goes out after the mutation's async onMutate.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+	};
+
+	const dragRowOntoBilling = async (row: string) => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		layoutDropTargets(row, 240);
+		await mouseDragRow(row, 40);
+		return update.mock.calls;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each<{ outcome: string; row: string; chat: Partial<Chat>; body?: string }>(
+		[
+			{
+				outcome: "moves",
+				row: "Free chat",
+				chat: {},
+				body: mockBillingProject.id,
+			},
+			{
+				outcome: "moves nothing",
+				row: "Pinned chat",
+				// A pinned row drags only to reorder the pins.
+				chat: { pin_order: 1 },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Shared chat",
+				chat: { owner_id: "sharing-user-id", shared: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Busy chat",
+				chat: { status: "running" },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Archived chat",
+				chat: { archived: true },
+			},
+			{
+				outcome: "moves nothing",
+				row: "Parent chat",
+				// A running subagent blocks the move, as it blocks archiving.
+				chat: {
+					children: [
+						buildChat({ id: "c2", parent_chat_id: "c1", status: "running" }),
+					],
+				},
+			},
+		],
+	)("$outcome on a mouse drag of $row", async ({ row, chat, body }) => {
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: row,
+					organization_id: mockBillingProject.organization_id,
+					...chat,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+
+	// A failed projects request shows project chats under Chats, where a drop
+	// would remove them from their project.
+	it("moves nothing on a mouse drag into Chats of a chat whose project did not load", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "Projects unavailable" }, { status: 500 }),
+			),
+		);
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("button", { name: "Retry" });
+		const chatLink = screen.getByRole("link", { name: /Fix invoice dates/ });
+		const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+		// Chats holds the row here and needs its own box, and the folder links
+		// that layoutDropTargets needs do not render.
+		mockLayout((element) => {
+			if (element.contains(chatsHeading)) {
+				return box(200, 300);
+			}
+			return element.contains(chatLink) ? box(240, 40) : box(0, 0);
+		});
+
+		// The drop lands in the Chats box, and the announcement proves that it
+		// ran, so the no-request check cannot pass without reaching the rule.
+		await mouseDragRow("Fix invoice dates", 270);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(/was dropped/),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	// The pointer picks the target, so a drop on a muted folder moves nothing.
+	it("moves nothing on a mouse drop on another organization's folder", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		// The press lands 30 pixels below the row's top, so with the pointer on
+		// Ops the dragged row reaches into Billing.
+		layoutDropTargets("Free chat", 220);
+
+		await mouseDragRow("Free chat", 102);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	// A wheel turn scrolls the list under a still pointer, so the drop must
+	// follow what is under the pointer after the scroll.
+	it("moves nothing when the list scrolls another organization's folder under the pointer", async () => {
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Free chat",
+					organization_id: mockBillingProject.organization_id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await screen.findByRole("link", { name: "Billing" });
+		let scrollTop = 0;
+		layoutDropTargets("Free chat", 240, () => scrollTop);
+
+		await mouseDragRow("Free chat", 40, () => {
+			scrollTop = 80;
+			fireEvent.scroll(document);
+		});
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Free chat was dropped. It did not move.",
+			),
+		);
+
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("keeps a row mounted when its chat starts running", async () => {
+		const user = userEvent.setup();
+		const chat = buildChat({ id: "c1", title: "Fix invoice dates" });
+		const StatusChange: React.FC = () => {
+			const [status, setStatus] = useState<TypesGen.ChatStatus>("waiting");
+			return (
+				<>
+					<button type="button" onClick={() => setStatus("running")}>
+						Start
+					</button>
+					<ChatsSidebar {...defaultProps} chats={[{ ...chat, status }]} />
+				</>
+			);
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<StatusChange />
+			</Wrapper>,
+		);
+		const link = await screen.findByRole("link", { name: /Fix invoice dates/ });
+
+		await user.click(screen.getByRole("button", { name: "Start" }));
+
+		expect(screen.getByRole("link", { name: /Fix invoice dates/ })).toBe(link);
+	});
+
+	// Ops sits between Billing and Chats but belongs to another organization,
+	// so each key must skip it.
+	it.each([
+		{
+			rowTop: 240,
+			key: "[ArrowUp]",
+			projectId: undefined,
+			body: mockBillingProject.id,
+			to: "project Billing",
+		},
+		{
+			rowTop: 40,
+			key: "[ArrowDown]",
+			projectId: mockBillingProject.id,
+			body: NIL_UUID,
+			to: "Chats",
+		},
+	])("drops a chat with $key", async ({ rowTop, key, projectId, body, to }) => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: projectId,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		layoutDropTargets("Fix invoice dates", rowTop);
+
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard(key);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates is over ${to}.`,
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Chat Fix invoice dates was dropped on ${to}.`,
+			),
+		);
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: body }),
+		);
+		expect(update).toHaveBeenCalledTimes(1);
+	});
+
+	// A long Chats section can start below the window, so the key scrolls it
+	// into view before the drag moves onto it.
+	it("drops a chat on Chats that the key scrolls into view", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Fix invoice dates",
+					organization_id: mockBillingProject.organization_id,
+					project_id: mockBillingProject.id,
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Expand Billing" }),
+		);
+		let scrollTop = 0;
+		layoutDropTargets("Fix invoice dates", 40, () => scrollTop);
+		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {
+			scrollTop = 150;
+		});
+
+		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Chat Fix invoice dates is over Chats.",
+			),
+		);
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", { project_id: NIL_UUID }),
+		);
+	});
+
+	// A drag over the collapsed Projects section opens it, so that its folders
+	// can take the drop.
+	describe("with Projects collapsed", () => {
+		const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		beforeEach(() => {
+			localStorage.setItem(collapsedKey, "true");
+			return () => localStorage.removeItem(collapsedKey);
+		});
+
+		const renderCollapsedProjects = async () => {
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			renderSidebar(
+				[
+					buildChat({
+						id: "c1",
+						title: "Free chat",
+						organization_id: mockBillingProject.organization_id,
+					}),
+				],
+				[mockBillingProject],
+			);
+			const sectionToggle = await screen.findByRole("button", {
+				name: "Projects",
+			});
+			const chatsHeading = screen.getByRole("heading", { name: "Chats" });
+			const rowLink = screen.getByRole("link", { name: /Free chat/ });
+			// The Billing folder renders only once the section opens.
+			mockLayout((element) => {
+				const billing = screen.queryByRole("link", { name: "Billing" });
+				const held = [sectionToggle, billing, chatsHeading].filter(
+					(node) => node && element.contains(node),
+				);
+				if (held.length > 1) {
+					return box(0, 600);
+				}
+				if (element.contains(sectionToggle)) {
+					return box(0, 50);
+				}
+				if (billing && element.contains(billing)) {
+					return box(60, 40);
+				}
+				if (element.contains(chatsHeading)) {
+					return box(200, 300);
+				}
+				return element.contains(rowLink) ? box(240, 40) : box(0, 0);
+			});
+			return { update, sectionToggle };
+		};
+
+		it("opens on a mouse drag over its header, where a drop moves nothing", async () => {
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			await mouseDragRow("Free chat", 25);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat was dropped. It did not move.",
+				),
+			);
+
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			expect(localStorage.getItem(collapsedKey)).toBeNull();
+			expect(update).not.toHaveBeenCalled();
+		});
+
+		it("lets a keyboard drag reach a folder through its header", async () => {
+			const user = userEvent.setup();
+			const { update, sectionToggle } = await renderCollapsedProjects();
+
+			screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowUp]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over Projects.",
+				),
+			);
+			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Free chat is over project Billing.",
+				),
+			);
+			await user.keyboard("[Space]");
+
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("c1", {
+					project_id: mockBillingProject.id,
+				}),
+			);
+		});
+	});
+
+	// The chat link is the drag handle, so the row wrapper adds no tab stop
+	// and Enter opens the chat instead of picking it up.
+	it("opens the next chat with Tab and Enter", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({ id: "c1", title: "Fix invoice dates" }),
+						buildChat({ id: "c2", title: "Draft release notes" }),
+					]}
+				/>
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		(await screen.findByRole("link", { name: /Fix invoice dates/ })).focus();
+		// The first Tab stops on the row's actions button.
+		await user.tab();
+		await user.tab();
+		await user.keyboard("[Enter]");
+
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				"/agents/c2",
+			),
+		);
+	});
+
+	// Subagent chats follow their root's project, so only the root row drags.
+	it.each([
+		{
+			row: "Spawner chat",
+			outcome: "moves",
+			body: mockBillingProject.id,
+		},
+		{
+			row: "Simple task",
+			outcome: "moves nothing",
+			body: undefined,
+		},
+	])("$outcome on a mouse drag of $row", async ({ row, body }) => {
+		const user = userEvent.setup();
+		const child = buildChat({
+			id: "c2",
+			title: "Simple task",
+			parent_chat_id: "c1",
+			organization_id: mockBillingProject.organization_id,
+		});
+		renderSidebar(
+			[
+				buildChat({
+					id: "c1",
+					title: "Spawner chat",
+					organization_id: mockBillingProject.organization_id,
+					children: [child],
+				}),
+			],
+			[mockBillingProject, mockOpsProject],
+		);
+		await user.click(await screen.findByRole("button", { name: "Expand" }));
+
+		expect(await dragRowOntoBilling(row)).toEqual(
+			body ? [["c1", { project_id: body }]] : [],
+		);
+	});
+});
+
 describe("ChatsSidebar pinned reordering", () => {
-	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
+	beforeEach(stubDragDom);
+
 	const ROW_HEIGHT = 40;
 
-	// dnd-kit's keyboard sensor picks the drop target from measured
-	// rects, which jsdom reports as all zeros. Lay the sortable rows out
-	// vertically in document order so ArrowDown resolves to the next row.
+	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
+	// the rows stack in document order and ArrowDown reaches the next row.
 	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("button", {
-			description: SORTABLE_INSTRUCTIONS,
+		const rows = screen.getAllByRole("link", {
+			description: DRAG_INSTRUCTIONS,
 		});
-		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
-			function (this: Element) {
-				const index = rows.findIndex((row) => row.contains(this));
-				const top = index === -1 ? 0 : index * ROW_HEIGHT;
-				const height = index === -1 ? 0 : ROW_HEIGHT;
-				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
-			},
-		);
+		mockLayout((element) => {
+			const held = rows.filter((row) => element.contains(row));
+			if (held.length > 1) {
+				return DOMRect.fromRect({ width: 300, height: 600 });
+			}
+			const index = held.length === 1 ? rows.indexOf(held[0]) : -1;
+			const top = index === -1 ? 0 : index * ROW_HEIGHT;
+			const height = index === -1 ? 0 : ROW_HEIGHT;
+			return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+		});
 		return rows;
 	};
 
@@ -894,6 +1677,13 @@ describe("ChatsSidebar pinned reordering", () => {
 			sortableRows[0].focus();
 			await user.keyboard("[Space]");
 			await user.keyboard("[ArrowDown]");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Chat Own first pinned chat is at position 2 of 2.",
+				),
+			);
+			// dnd-kit moves the dragged pin's element, which drops its focus.
+			await waitFor(() => expect(sortableRows[0]).toHaveFocus());
 			await user.keyboard("[Space]");
 
 			await waitFor(() =>
@@ -931,16 +1721,25 @@ const focusMenuItem = async (
 	expect(item).toHaveFocus();
 };
 
+const selectSubmenuItem = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	role: "menuitem" | "menuitemcheckbox",
+	name: string,
+) => {
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, role, name);
+	await user.keyboard("{Enter}");
+};
+
 const toggleSubmenuOption = async (
 	user: MenuUser,
 	submenu: string | RegExp,
 	name: string,
 ) => {
 	await openFilterMenu(user);
-	await focusMenuItem(user, "menuitem", submenu);
-	await user.keyboard("{ArrowRight}");
-	await focusMenuItem(user, "menuitemcheckbox", name);
-	await user.keyboard("{Enter}");
+	await selectSubmenuItem(user, submenu, "menuitemcheckbox", name);
 	await user.keyboard("{Escape}{Escape}");
 };
 

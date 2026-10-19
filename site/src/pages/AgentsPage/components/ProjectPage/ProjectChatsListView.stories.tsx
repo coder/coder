@@ -1,13 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ProjectChatsListView } from "./ProjectChatsListView";
 
 const chats: Chat[] = [
@@ -70,6 +73,7 @@ const meta: Meta<typeof ProjectChatsListView> = {
 				<Story />
 			</div>
 		),
+		withDashboardProvider,
 	],
 	args: {
 		chats,
@@ -87,10 +91,14 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		showCost: true,
 	},
 	parameters: {
-		queries: chats.map((chat, index) => ({
-			key: chatCostTreeKey(chat.id),
-			data: mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
-		})),
+		experiments: ["chat-projects"],
+		queries: [
+			...chats.map((chat, index) => ({
+				key: chatCostTreeKey(chat.id),
+				data: mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
+			})),
+			{ key: chatProjectsKey, data: [MockChatProject] },
+		],
 	},
 };
 
