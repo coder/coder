@@ -2039,6 +2039,62 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
+func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	stays := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, sharee, stays} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	for _, user := range []database.User{owner, sharee} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	}
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
+	admin := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}}
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin, stays.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       otherProject.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+
+	// The trigger only drops grants in the organization the user left.
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: otherOrg.ID, UserID: sharee.ID}))
+	gotOther, err := db.GetChatProjectByID(ctx, otherProject.ID)
+	require.NoError(t, err)
+	require.NotContains(t, gotOther.UserACL, sharee.ID.String())
+	got, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Contains(t, got.UserACL, sharee.ID.String())
+	usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.True(t, usable)
+
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: org.ID, UserID: sharee.ID}))
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: sharee.ID, OrganizationID: org.ID})
+
+	got, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatACL{stays.ID.String(): admin}, got.UserACL, "rejoining does not restore the grant")
+	usable, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.False(t, usable)
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2128,7 +2184,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
 
 		for _, projectID := range all {
-			accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{
+			accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{
 				ProjectID: projectID,
 				UserID:    tc.user.ID,
 			})
@@ -2141,7 +2197,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, all, ids(projects))
 	for _, projectID := range all {
-		accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: projectID, UserID: owner.ID})
 		require.NoError(t, err)
 		require.True(t, accessible)
 	}
@@ -5132,6 +5188,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5171,6 +5231,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5195,6 +5259,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5207,6 +5275,8 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
 		require.Equal(t, "test disconnect", row.DisconnectReason.String)
 		require.Equal(t, int32(1), row.Code.Int32)
+		require.Equal(t, int64(10), row.RxBytes.Int64)
+		require.Equal(t, int64(20), row.TxBytes.Int64)
 	})
 
 	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
@@ -5237,6 +5307,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			}
 		}
 
@@ -5297,6 +5371,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5320,6 +5398,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5338,7 +5420,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connID := uuid.New()
 		disconnectTime := dbtime.Now()
 
-		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
+		mkDisconnect := func(reason string, code int32, rxBytes, txBytes int64) database.BatchUpsertConnectionLogsParams {
 			return database.BatchUpsertConnectionLogsParams{
 				ID:               []uuid.UUID{uuid.New()},
 				ConnectTime:      []time.Time{disconnectTime},
@@ -5358,14 +5440,18 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{rxBytes},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{txBytes},
+				TxBytesValid:     []bool{true},
 			}
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
+		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1, 33, 44))
 		require.NoError(t, err)
 
-		// Second disconnect with different reason and code.
-		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
+		// Second disconnect with different reason, code, and bytes.
+		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2, 55, 66))
 		require.NoError(t, err)
 
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
@@ -5376,6 +5462,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
 			"code should not be overwritten")
+		require.Equal(t, int64(33), row.RxBytes.Int64,
+			"rx bytes should not be overwritten")
+		require.Equal(t, int64(44), row.TxBytes.Int64,
+			"tx bytes should not be overwritten")
 	})
 
 	// A later report for the same connection, such as its disconnect, cannot
@@ -5447,6 +5537,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			})
 			require.NoError(t, err)
 		}
@@ -5482,84 +5576,103 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{"invalid"},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "violates check constraint")
 	})
 
-	t.Run("CodeZeroPreserved", func(t *testing.T) {
+	// Test that nullable fields can properly differentiate between a value, the
+	// empty value, and null.  For null tests, specifically set a non-empty value,
+	// just as a sanity check that it properly comes back as {empty value, false}
+	// rather than {original value, false} somehow.
+	t.Run("NullableFields", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
 
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{0},
-			CodeValid:        []bool{true},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"normal"},
-			DisconnectTime:   []time.Time{now},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
-		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
-			"code=0 should be preserved, not treated as NULL")
-	})
-
-	t.Run("CodeNullWhenInvalid", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := context.Background()
-		ws := createWorkspace(t, db)
-		connID := uuid.New()
-		now := dbtime.Now()
-
-		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{now},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
-			Code:             []int32{99},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			AppNameOrPort:    []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{""},
-			DisconnectTime:   []time.Time{zeroTime},
-			ClientSessionID:  []string{""},
-		})
-		require.NoError(t, err)
-
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.False(t, rows[0].ConnectionLog.Code.Valid,
-			"code should be NULL when code_valid is false")
+		tests := []struct {
+			name string
+			seed func(*database.UpsertConnectionLogParams)
+		}{
+			{
+				name: "CodeNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 10, Valid: false}
+				},
+			},
+			{
+				name: "CodeZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.Code = sql.NullInt32{Int32: 0, Valid: true}
+				},
+			},
+			{
+				name: "RxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 20, Valid: false}
+				},
+			},
+			{
+				name: "RxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.RxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+			{
+				name: "TxBytesNull",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 30, Valid: false}
+				},
+			},
+			{
+				name: "TxBytesZero",
+				seed: func(seed *database.UpsertConnectionLogParams) {
+					seed.TxBytes = sql.NullInt64{Int64: 0, Valid: true}
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ws := createWorkspace(t, db)
+				connID := uuid.New()
+				// Base seed has non-null and > 0 values for every field.
+				seed := database.UpsertConnectionLogParams{
+					OrganizationID:   ws.OrganizationID,
+					WorkspaceOwnerID: ws.OwnerID,
+					WorkspaceID:      ws.ID,
+					WorkspaceName:    ws.Name,
+					AgentName:        "agent",
+					ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+					UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+					UserID:           uuid.NullUUID{UUID: uuid.Nil, Valid: true},
+					ConnectionMethod: database.ConnectionLogMethodSSH,
+					AppNameOrPort:    sql.NullString{String: "test", Valid: true},
+					ClientSessionID:  sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true},
+					DisconnectReason: sql.NullString{String: "test", Valid: true},
+					Code:             sql.NullInt32{Int32: 10, Valid: true},
+					RxBytes:          sql.NullInt64{Int64: 20, Valid: true},
+					TxBytes:          sql.NullInt64{Int64: 30, Valid: true},
+				}
+				tc.seed(&seed)
+				log := dbgen.ConnectionLog(t, db, seed)
+				if !seed.Code.Valid {
+					seed.Code.Int32 = 0
+				}
+				require.Equal(t, seed.Code, log.Code)
+				if !seed.RxBytes.Valid {
+					seed.RxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.RxBytes, log.RxBytes)
+				if !seed.TxBytes.Valid {
+					seed.TxBytes.Int64 = 0
+				}
+				require.Equal(t, seed.TxBytes, log.TxBytes)
+			})
+		}
 	})
 
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
@@ -5591,6 +5704,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{true},
 			})
 			require.NoError(t, err)
 		}
@@ -5627,6 +5744,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
 		clientSessionIDs := make([]string, n)
+		rxBytes := make([]int64, n)
+		rxBytesValids := make([]bool, n)
+		txBytes := make([]int64, n)
+		txBytesValids := make([]bool, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5647,6 +5768,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
 			clientSessionIDs[i] = ""
+			rxBytes[i] = 0
+			rxBytesValids[i] = false
+			txBytes[i] = 0
+			txBytesValids[i] = false
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5668,6 +5793,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
 			ClientSessionID:  clientSessionIDs,
+			RxBytes:          rxBytes,
+			RxBytesValid:     rxBytesValids,
+			TxBytes:          txBytes,
+			TxBytesValid:     txBytesValids,
 		})
 		require.NoError(t, err)
 
@@ -11738,61 +11867,66 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		CreatedBy:      owner.ID,
 	})
 
-	t.Run("DuringStopBuild", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        owner.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
+	for name, transition := range map[string]database.WorkspaceTransition{
+		"Stop":   database.WorkspaceTransitionStop,
+		"Delete": database.WorkspaceTransitionDelete,
+	} {
+		t.Run("During"+name+"Build", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        owner.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tpl.ID,
+			})
 
-		// Create start build with succeeded job (already completed).
-		startJob := database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-		}
-		setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
-		startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
-		startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID:      startJob.ID,
-			Transition: database.WorkspaceTransitionStart,
-		})
-		startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       owner.ID,
-			JobID:             startJob.ID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: startResource.ID,
-		})
+			// Create start build with succeeded job (already completed).
+			startJob := database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+			}
+			setJobStatus(t, database.ProvisionerJobStatusSucceeded, &startJob)
+			startJob = dbgen.ProvisionerJob(t, db, nil, startJob)
+			startResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID:      startJob.ID,
+				Transition: database.WorkspaceTransitionStart,
+			})
+			startBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       owner.ID,
+				JobID:             startJob.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: startResource.ID,
+			})
 
-		// Create stop build (becomes latest).
-		stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			InitiatorID:    owner.ID,
-			OrganizationID: org.ID,
-			JobStatus:      database.ProvisionerJobStatusRunning,
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: ver.ID,
-			BuildNumber:       2,
-			Transition:        database.WorkspaceTransitionStop,
-			InitiatorID:       owner.ID,
-			JobID:             stopJob.ID,
-		})
+			// Create the stop or delete build (becomes latest).
+			stopJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    owner.ID,
+				OrganizationID: org.ID,
+				JobStatus:      database.ProvisionerJobStatusRunning,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: ver.ID,
+				BuildNumber:       2,
+				Transition:        transition,
+				InitiatorID:       owner.ID,
+				JobID:             stopJob.ID,
+			})
 
-		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
-		require.NoError(t, err, "agent should authenticate during stop build execution")
-		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
-		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
-	})
+			// Agent should still authenticate during stop build execution.
+			row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
+			require.NoError(t, err, "agent should authenticate during %s build execution", transition)
+			require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
+			require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not %s build", transition)
+		})
+	}
 
 	t.Run("AfterStopJobCompletes", func(t *testing.T) {
 		t.Parallel()

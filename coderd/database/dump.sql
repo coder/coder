@@ -650,7 +650,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project_memory',
     'chat_organization_system_prompt',
     'chat_project_instructions',
-    'organization_skill'
+    'organization_skill',
+    'chat_project_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -729,10 +730,12 @@ CREATE TYPE workspace_agent_script_timing_status AS ENUM (
     'ok',
     'exit_failure',
     'timed_out',
-    'pipes_left_open'
+    'pipes_left_open',
+    'skipped',
+    'canceled'
 );
 
-COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'The terminal outcome of a script execution.';
 
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
@@ -962,6 +965,21 @@ END;
 $$;
 
 COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
+
+CREATE FUNCTION delete_chat_project_user_acl_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Drop the departing member's direct grants so adding them back to the
+    -- organization does not silently restore access.
+    UPDATE chat_projects
+    SET
+        user_acl = user_acl - OLD.user_id::text,
+        updated_at = now()
+    WHERE organization_id = OLD.organization_id AND user_acl ? OLD.user_id::text;
+    RETURN OLD;
+END;
+$$;
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -2587,6 +2605,8 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    rx_bytes bigint,
+    tx_bytes bigint,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2607,6 +2627,10 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.rx_bytes IS 'Total bytes received by the agent on this connection. Null for web events and non-disconnect events.';
+
+COMMENT ON COLUMN connection_logs.tx_bytes IS 'Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -5379,6 +5403,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

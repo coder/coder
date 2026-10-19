@@ -121,8 +121,10 @@ All prompts, token usage, and tool invocations are recorded for compliance and c
 
 AI Gateway supports 2 deployment topologies:
 
-- **Embedded:** `coderd` runs the AI Gateway data plane in the same process.
-- **Standalone:** gateway replicas run outside `coderd`, serve AI traffic, and send requests directly to upstream providers.
+- **Embedded:**
+  `coderd` runs the AI Gateway data plane in the same process.
+- **Standalone:**
+  gateway replicas run outside `coderd`, serve AI traffic, and send requests directly to upstream providers.
 
 Standalone replicas have no authoritative database state.
 They keep ephemeral provider snapshots, caches, and metrics in memory, and can optionally write API dumps to local disk.

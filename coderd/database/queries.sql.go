@@ -7951,47 +7951,6 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 	return i, err
 }
 
-const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
-FROM chat_projects
-WHERE owner_id = $1::uuid
-ORDER BY lower(name), id
-`
-
-func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProject
-	for rows.Next() {
-		var i ChatProject
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.OwnerID,
-			&i.Name,
-			&i.Description,
-			&i.Icon,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UserACL,
-			&i.GroupACL,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
 FROM chat_projects
@@ -8102,7 +8061,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 	return i, err
 }
 
-const isChatProjectAccessibleByUserID = `-- name: IsChatProjectAccessibleByUserID :one
+const isChatProjectUsableByUserID = `-- name: IsChatProjectUsableByUserID :one
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects
@@ -8131,13 +8090,13 @@ SELECT EXISTS (
 )::boolean
 `
 
-type IsChatProjectAccessibleByUserIDParams struct {
+type IsChatProjectUsableByUserIDParams struct {
 	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
 	UserID    uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, isChatProjectAccessibleByUserID, arg.ProjectID, arg.UserID)
+func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChatProjectUsableByUserIDParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatProjectUsableByUserID, arg.ProjectID, arg.UserID)
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -9944,6 +9903,51 @@ WHERE
 
 func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatMessageByID, id)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+		&i.ContentVersion,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.Deleted,
+		&i.ProviderResponseID,
+		&i.Revision,
+		&i.ReasoningEffort,
+		&i.SearchTsv,
+		&i.SearchTsvConfig,
+		&i.QueuedMessageID,
+	)
+	return i, err
+}
+
+const getChatMessageByIDForStream = `-- name: GetChatMessageByIDForStream :one
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
+FROM
+    chat_messages
+WHERE
+    id = $1::bigint
+`
+
+// Includes deleted rows so the stream can resolve which chat a deleted cursor
+// belongs to.
+func (q *sqlQuerier) GetChatMessageByIDForStream(ctx context.Context, id int64) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, getChatMessageByIDForStream, id)
 	var i ChatMessage
 	err := row.Scan(
 		&i.ID,
@@ -14653,6 +14657,28 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 	return i, err
 }
 
+const updateChatProjectIDByID = `-- name: UpdateChatProjectIDByID :exec
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    project_id = $1::uuid
+WHERE
+    id = $2::uuid
+`
+
+type UpdateChatProjectIDByIDParams struct {
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+// Sets the project of one chat. A NULL project_id removes the chat from
+// its project.
+func (q *sqlQuerier) UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectIDByID, arg.ProjectID, arg.ID)
+	return err
+}
+
 const updateChatRetryState = `-- name: UpdateChatRetryState :one
 WITH updated_chat AS (
     UPDATE chats
@@ -15511,7 +15537,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
-    client_session_id
+    client_session_id, rx_bytes, tx_bytes
 )
 SELECT
     u.id,
@@ -15532,7 +15558,9 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    CASE WHEN u.rx_bytes_valid THEN u.rx_bytes ELSE NULL END,
+    CASE WHEN u.tx_bytes_valid THEN u.tx_bytes ELSE NULL END
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -15552,7 +15580,11 @@ FROM (
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time,
-        unnest($18::text[]) AS client_session_id
+        unnest($18::text[]) AS client_session_id,
+        unnest($19::bigint[]) AS rx_bytes,
+        unnest($20::bool[]) AS rx_bytes_valid,
+        unnest($21::bigint[]) AS tx_bytes,
+        unnest($22::bool[]) AS tx_bytes_valid
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -15580,6 +15612,16 @@ DO UPDATE SET
         WHEN connection_logs.code IS NULL
         THEN EXCLUDED.code
         ELSE connection_logs.code
+    END,
+    rx_bytes = CASE
+        WHEN connection_logs.rx_bytes IS NULL
+        THEN EXCLUDED.rx_bytes
+        ELSE connection_logs.rx_bytes
+    END,
+    tx_bytes = CASE
+        WHEN connection_logs.tx_bytes IS NULL
+        THEN EXCLUDED.tx_bytes
+        ELSE connection_logs.tx_bytes
     END
 `
 
@@ -15602,6 +15644,10 @@ type BatchUpsertConnectionLogsParams struct {
 	DisconnectReason []string              `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time           `db:"disconnect_time" json:"disconnect_time"`
 	ClientSessionID  []string              `db:"client_session_id" json:"client_session_id"`
+	RxBytes          []int64               `db:"rx_bytes" json:"rx_bytes"`
+	RxBytesValid     []bool                `db:"rx_bytes_valid" json:"rx_bytes_valid"`
+	TxBytes          []int64               `db:"tx_bytes" json:"tx_bytes"`
+	TxBytesValid     []bool                `db:"tx_bytes_valid" json:"tx_bytes_valid"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -15624,6 +15670,10 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
 		pq.Array(arg.ClientSessionID),
+		pq.Array(arg.RxBytes),
+		pq.Array(arg.RxBytesValid),
+		pq.Array(arg.TxBytes),
+		pq.Array(arg.TxBytesValid),
 	)
 	return err
 }
@@ -15824,7 +15874,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id, connection_logs.rx_bytes, connection_logs.tx_bytes,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -16057,6 +16107,8 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.RxBytes,
+			&i.ConnectionLog.TxBytes,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -17958,7 +18010,8 @@ WITH
 			ws.template_id,
 			app.slug,
 			app.display_name,
-			app.icon
+			app.icon,
+			app.created_at
 		FROM
 			workspaces ws
 		JOIN
@@ -17994,8 +18047,6 @@ WITH
 			tus.template_id,
 			tus.user_id,
 			apps.slug,
-			apps.display_name,
-			apps.icon,
 			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
@@ -18017,22 +18068,18 @@ WITH
 		SELECT
 			user_id,
 			slug,
-			display_name,
-			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			start_time, user_id, slug, display_name, icon
+			start_time, user_id, slug
 	),
 	-- Analyze the users unique app usage across all templates. Count
 	-- usage across consecutive intervals as continuous usage.
 	times_used AS (
-		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+		SELECT DISTINCT ON (user_id, slug, uniq)
 			slug,
-			display_name,
-			icon,
 			-- Turn start_time into a unique identifier that identifies a users
 			-- continuous app usage. The value of uniq is otherwise garbage.
 			--
@@ -18042,7 +18089,7 @@ WITH
 			start_time - (
 				dense_rank() OVER (
 					PARTITION BY
-						user_id, slug, display_name, icon
+						user_id, slug
 					ORDER BY
 						start_time
 				) * '30 minutes'::interval
@@ -18056,21 +18103,36 @@ WITH
 	templates AS (
 		SELECT
 			slug,
-			display_name,
-			icon,
 			array_agg(DISTINCT template_id)::uuid[] AS template_ids
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			slug, display_name, icon
+			slug
+	),
+	-- Apps merge across templates by slug, so show the newest app's
+	-- display name and icon among the templates with usage.
+	presentation AS (
+		SELECT DISTINCT ON (apps.slug)
+			apps.slug,
+			apps.display_name,
+			apps.icon
+		FROM
+			apps
+		JOIN
+			templates
+		ON
+			templates.slug = apps.slug
+			AND apps.template_id = ANY(templates.template_ids)
+		ORDER BY
+			apps.slug, apps.created_at DESC, apps.template_id
 	)
 
 SELECT
 	t.template_ids,
 	COUNT(DISTINCT ai.user_id) AS active_users,
 	ai.slug,
-	ai.display_name,
-	ai.icon,
+	p.display_name,
+	p.icon,
 	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
 	COALESCE((
 		SELECT
@@ -18079,8 +18141,6 @@ SELECT
 			times_used
 		WHERE
 			times_used.slug = ai.slug
-			AND times_used.display_name = ai.display_name
-			AND times_used.icon = ai.icon
 	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
@@ -18088,10 +18148,12 @@ JOIN
 	templates AS t
 ON
 	t.slug = ai.slug
-	AND t.display_name = ai.display_name
-	AND t.icon = ai.icon
+JOIN
+	presentation AS p
+ON
+	p.slug = ai.slug
 GROUP BY
-	t.template_ids, ai.slug, ai.display_name, ai.icon
+	t.template_ids, ai.slug, p.display_name, p.icon
 `
 
 type GetTemplateAppInsightsParams struct {
@@ -18370,23 +18432,90 @@ WITH
 			app_usage_by_template
 		GROUP BY
 			app_name
+	),
+	folded_apps AS (
+		SELECT
+			app_name
+		FROM
+			app_usage
+		WHERE
+			NOT (app_name = ANY(COALESCE($4::text[], '{}'::text[])))
+			AND app_name NOT IN ('unknown', 'overflow')
+		ORDER BY
+			usage_seconds DESC, app_name COLLATE "C"
+		OFFSET GREATEST($5::bigint, 0)
+	),
+	-- The overflow row is only rebuilt when something folds into it.
+	folded_names AS (
+		SELECT app_name FROM folded_apps
+		UNION ALL
+		SELECT 'overflow' WHERE EXISTS (SELECT 1 FROM folded_apps)
+	),
+	-- Overlap between folded apps is not stored. Cap their summed minutes at
+	-- each user's active time to bound overflow, and skip the scan if none fold.
+	folded_minutes AS (
+		SELECT
+			sessions.start_time,
+			sessions.user_id,
+			SUM(sessions.usage_mins) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			EXISTS (SELECT 1 FROM folded_apps)
+			AND sessions.start_time >= $1::timestamptz
+			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
+			AND sessions.app_name IN (SELECT app_name FROM folded_names)
+		GROUP BY
+			sessions.start_time, sessions.user_id
+	),
+	response_apps AS (
+		SELECT
+			app_usage.app_name,
+			app_usage.usage_seconds,
+			app_templates.template_ids
+		FROM
+			app_usage
+		JOIN
+			app_templates USING (app_name)
+		WHERE
+			app_usage.app_name NOT IN (SELECT app_name FROM folded_names)
+		UNION ALL
+		SELECT
+			'overflow',
+			(
+				SELECT (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint
+				FROM folded_minutes AS folded
+				JOIN users
+				ON users.start_time = folded.start_time
+					AND users.user_id = folded.user_id
+			),
+			(
+				SELECT array_agg(DISTINCT template_id)
+				FROM app_usage_by_template
+				WHERE app_name IN (SELECT app_name FROM folded_names)
+			)
+		WHERE
+			EXISTS (SELECT 1 FROM folded_apps)
 	)
 
 SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	-- Keyed by app name; callers fold both into families.
-	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
-	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FILTER (WHERE usage_seconds IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FILTER (WHERE template_ids IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_template_ids,
+	(SELECT COUNT(*) FROM folded_apps)::bigint AS session_folded_app_count
 FROM
 	users
 `
 
 type GetTemplateInsightsParams struct {
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
-	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	StartTime           time.Time   `db:"start_time" json:"start_time"`
+	EndTime             time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs         []uuid.UUID `db:"template_ids" json:"template_ids"`
+	RegisteredAppNames  []string    `db:"registered_app_names" json:"registered_app_names"`
+	MaxUnregisteredApps int64       `db:"max_unregistered_apps" json:"max_unregistered_apps"`
 }
 
 type GetTemplateInsightsRow struct {
@@ -18395,21 +18524,23 @@ type GetTemplateInsightsRow struct {
 	UsageTotalSeconds      int64           `db:"usage_total_seconds" json:"usage_total_seconds"`
 	SessionAppUsageSeconds json.RawMessage `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
 	SessionAppTemplateIds  json.RawMessage `db:"session_app_template_ids" json:"session_app_template_ids"`
+	SessionFoldedAppCount  int64           `db:"session_folded_app_count" json:"session_folded_app_count"`
 }
 
-// GetTemplateInsights returns the aggregate user-produced usage of all
-// workspaces in a given timeframe. The template IDs, active users, and
-// usage_seconds all reflect any usage in the template, including apps.
+// GetTemplateInsights aggregates workspace usage, including apps.
+// Session apps are reported individually; excess unregistered apps fold into
+// overflow. Registered apps and accounting rows do not count toward the limit.
 //
-// Session usage comes out per app name; callers group the names into families.
-//
-// When combining data from multiple templates, we must make a guess at
-// how the user behaved for the 30 minute interval. In this case we make
-// the assumption that if the user used two workspaces for 15 minutes,
-// they did so sequentially, thus we sum the usage up to a maximum of
-// 30 minutes with LEAST(SUM(n), 30).
+// Per-user minutes are summed across templates and capped at 30 per half hour,
+// assuming workspaces were used sequentially rather than concurrently.
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	row := q.db.QueryRowContext(ctx, getTemplateInsights,
+		arg.StartTime,
+		arg.EndTime,
+		pq.Array(arg.TemplateIDs),
+		pq.Array(arg.RegisteredAppNames),
+		arg.MaxUnregisteredApps,
+	)
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
@@ -18417,6 +18548,7 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 		&i.UsageTotalSeconds,
 		&i.SessionAppUsageSeconds,
 		&i.SessionAppTemplateIds,
+		&i.SessionFoldedAppCount,
 	)
 	return i, err
 }
@@ -28695,6 +28827,37 @@ func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.
 	return i, err
 }
 
+const deleteProjectSkillByProjectIDAndName = `-- name: DeleteProjectSkillByProjectIDAndName :one
+DELETE FROM skills
+WHERE project_id = $1::uuid AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type DeleteProjectSkillByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, deleteProjectSkillByProjectIDAndName, arg.ProjectID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
@@ -28766,6 +28929,64 @@ type GetOrganizationSkillByOrganizationIDAndNameParams struct {
 
 func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationSkillByOrganizationIDAndName, arg.OrganizationID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE id = $1::uuid AND project_id IS NOT NULL
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getProjectSkillByIDForUpdate, id)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const getProjectSkillByProjectIDAndName = `-- name: GetProjectSkillByProjectIDAndName :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE project_id = $1::uuid AND name = $2
+`
+
+type GetProjectSkillByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProjectSkillByProjectIDAndName(ctx context.Context, arg GetProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getProjectSkillByProjectIDAndName, arg.ProjectID, arg.Name)
 	var i Skill
 	err := row.Scan(
 		&i.ID,
@@ -28859,6 +29080,46 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 	return i, err
 }
 
+const insertProjectSkill = `-- name: InsertProjectSkill :one
+INSERT INTO skills (id, project_id, name, description, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type InsertProjectSkillParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectSkill,
+		arg.ID,
+		arg.ProjectID,
+		arg.Name,
+		arg.Description,
+		arg.Content,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const insertUserSkill = `-- name: InsertUserSkill :one
 INSERT INTO skills (id, user_id, name, description, content)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
@@ -28931,6 +29192,55 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectSkillMetadataByProjectID = `-- name: ListProjectSkillMetadataByProjectID :many
+SELECT
+    id, project_id, name, description, enabled, created_at, updated_at
+FROM skills
+WHERE project_id = $1::uuid
+ORDER BY name ASC
+`
+
+type ListProjectSkillMetadataByProjectIDRow struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
+	Name        string        `db:"name" json:"name"`
+	Description string        `db:"description" json:"description"`
+	Enabled     bool          `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]ListProjectSkillMetadataByProjectIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSkillMetadataByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectSkillMetadataByProjectIDRow
+	for rows.Next() {
+		var i ListProjectSkillMetadataByProjectIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
@@ -29060,6 +29370,51 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 		arg.Content,
 		arg.Enabled,
 		arg.OrganizationID,
+		arg.Name,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const updateProjectSkillByProjectIDAndName = `-- name: UpdateProjectSkillByProjectIDAndName :one
+UPDATE skills
+SET
+    description = COALESCE($1::text, description),
+    content     = COALESCE($2::text, content),
+    enabled     = COALESCE($3::boolean, enabled),
+    updated_at  = now()
+WHERE project_id = $4::uuid AND name = $5
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type UpdateProjectSkillByProjectIDAndNameParams struct {
+	Description sql.NullString `db:"description" json:"description"`
+	Content     sql.NullString `db:"content" json:"content"`
+	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
+	ProjectID   uuid.UUID      `db:"project_id" json:"project_id"`
+	Name        string         `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg UpdateProjectSkillByProjectIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateProjectSkillByProjectIDAndName,
+		arg.Description,
+		arg.Content,
+		arg.Enabled,
+		arg.ProjectID,
 		arg.Name,
 	)
 	var i Skill
@@ -36118,11 +36473,12 @@ WHERE
 			WHERE
 				workspace_id = workspace_build_with_user.workspace_id
 		) THEN TRUE
-		-- Shutdown case: Agent from previous START build during STOP build execution.
+		-- Shutdown case: Agent from previous START build during STOP or DELETE
+		-- build execution.
 		WHEN workspace_build_with_user.transition = 'start'
 			-- Agent's START build job succeeded.
 			AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
-			-- Latest build is a STOP build whose job is still active,
+			-- Latest build is a STOP or DELETE build whose job is still active,
 			-- and agent's build is immediately previous.
 			AND EXISTS (
 				SELECT 1
@@ -36135,7 +36491,7 @@ WHERE
 					FROM workspace_builds l2
 					WHERE l2.workspace_id = latest.workspace_id
 				)
-				AND latest.transition = 'stop'
+				AND latest.transition IN ('stop', 'delete')
 				AND pj.job_status IN ('pending', 'running')
 			) THEN TRUE
 		ELSE FALSE
@@ -36151,8 +36507,9 @@ type GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow struct {
 // GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 // workspace agent and its associated build. During normal operation, this is
 // the latest build. During shutdown, this may be the previous START build while
-// the STOP build is executing, allowing shutdown scripts to authenticate (see
-// issue #19467).
+// the STOP or DELETE build is executing, allowing shutdown scripts and final
+// connection reports to authenticate (see issue #19467). The agent connection
+// monitor in coderd/workspaceagentsrpc.go applies the same rule.
 func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthenticatedWorkspaceAgentAndBuildByAuthToken, authToken)
 	var i GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow

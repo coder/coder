@@ -1,7 +1,7 @@
 export type SectionHeaderLevel = "page" | "section";
 
 type SectionHeaderProps = {
-	label: string;
+	label: React.ReactNode;
 	description?: string;
 	badge?: React.ReactNode;
 	action?: React.ReactNode;
