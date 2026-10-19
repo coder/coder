@@ -830,7 +830,7 @@ const RepoHeader: React.FC<{
 	onCommit: () => void;
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
