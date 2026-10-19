@@ -55,10 +55,10 @@ var (
 // so two writers cannot both observe room under MaxMemories, and then the
 // project row FOR SHARE, so a project delete runs after the write commits
 // or the write returns ErrMemoryProjectDeleted. It returns ErrMemoryLimit if
-// the write left more than MaxMemories memories, and otherwise the
-// project's memory count after the write. The project lock and count
-// run as the system because the caller is already authorized to write this
-// project's memories, and a create-only scope may lack the read they need.
+// the write left more than MaxMemories memories, and otherwise the project's
+// memory count after the write. The project lock and count run as the system
+// because the caller is already authorized to write this project's memories,
+// and a create-only scope may lack the read they need.
 func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
 	var count int64
 	err := db.InTx(func(tx database.Store) error {
