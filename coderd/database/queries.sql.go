@@ -15658,11 +15658,16 @@ SELECT COUNT(*) AS count FROM (
 				connection_logs.connection_id = $14
 			ELSE true
 		END
-		-- Filter by whether the session has a disconnect_time
 		AND CASE
 			WHEN $15 :: text != '' THEN
-				(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-				($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+				connection_logs.client_session_id = $15
+			ELSE true
+		END
+		-- Filter by whether the session has a disconnect_time
+		AND CASE
+			WHEN $16 :: text != '' THEN
+				(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+				($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
 				connection_method IN ('ssh', 'reconnecting_pty')
@@ -15672,7 +15677,7 @@ SELECT COUNT(*) AS count FROM (
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
 	-- NOTE: See the CountAuditLogs LIMIT note.
-	LIMIT NULLIF($16::int, 0) + 1
+	LIMIT NULLIF($17::int, 0) + 1
 ) AS limited_count
 `
 
@@ -15691,6 +15696,7 @@ type CountConnectionLogsParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
@@ -15711,6 +15717,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.CountCap,
 	)
@@ -15871,11 +15878,16 @@ WHERE
 			connection_logs.connection_id = $14
 		ELSE true
 	END
-	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN $15 :: text != '' THEN
-			(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-			($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			connection_logs.client_session_id = $15
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $16 :: text != '' THEN
+			(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+			($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
 			connection_method IN ('ssh', 'reconnecting_pty')
@@ -15890,9 +15902,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($17 :: int, 0), 100)
+	COALESCE(NULLIF($18 :: int, 0), 100)
 OFFSET
-	$16
+	$17
 `
 
 type GetConnectionLogsOffsetParams struct {
@@ -15910,6 +15922,7 @@ type GetConnectionLogsOffsetParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
@@ -15951,6 +15964,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
