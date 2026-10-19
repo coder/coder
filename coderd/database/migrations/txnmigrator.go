@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/lib/pq"
@@ -25,6 +26,8 @@ type pgTxnDriver struct {
 	ctx context.Context
 	db  *sql.DB
 	tx  *sql.Tx
+
+	reporter *reporter
 }
 
 func (*pgTxnDriver) Open(string) (database.Driver, error) {
@@ -42,6 +45,9 @@ func (d *pgTxnDriver) Lock() error {
 	if err != nil {
 		return err
 	}
+	if d.reporter != nil {
+		return d.lockWithReporting()
+	}
 	const q = `
 SELECT pg_advisory_xact_lock($1)
 `
@@ -53,7 +59,45 @@ SELECT pg_advisory_xact_lock($1)
 	return nil
 }
 
+// lockWithReporting acquires the same transaction-scoped advisory lock as
+// Lock, and reports when it has to wait for another instance.
+// Logs only when it has to wait, a free lock is taken silently.
+func (d *pgTxnDriver) lockWithReporting() error {
+	if d.reporter.appName != "" {
+		// Transaction-local, so the pooled connection is unaffected afterwards.
+		if _, err := d.tx.ExecContext(d.ctx, `SELECT set_config('application_name', $1, true)`, d.reporter.appName); err != nil {
+			return xerrors.Errorf("set application name: %w", err)
+		}
+	}
+	var pid int
+	if err := d.tx.QueryRowContext(d.ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		return xerrors.Errorf("get backend pid: %w", err)
+	}
+	d.reporter.setBackend(pid)
+
+	var acquired bool
+	if err := d.tx.QueryRowContext(d.ctx, `SELECT pg_try_advisory_xact_lock($1)`, lockID).Scan(&acquired); err != nil {
+		return xerrors.Errorf("try advisory lock: %w", err)
+	}
+	if acquired {
+		return nil
+	}
+
+	start := time.Now()
+	stop := d.reporter.lockWaitStarted(pid)
+	_, err := d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
+	stop()
+	if err != nil {
+		return xerrors.Errorf("exec select: %w", err)
+	}
+
+	d.reporter.lockAcquired(time.Since(start))
+
+	return nil
+}
+
 func (d *pgTxnDriver) Unlock() error {
+	d.reporter.stopRunningHeartbeat()
 	err := d.tx.Commit()
 	d.tx = nil
 	if err != nil {
@@ -81,6 +125,7 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 		return nil
 	}
 	if _, err := d.tx.ExecContext(ctx, query); err != nil {
+		d.reporter.statementFailed(err)
 		var pgErr *pq.Error
 		if xerrors.As(err, &pgErr) {
 			var line uint
@@ -109,6 +154,11 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 		}
 	}
 
+	if dirty {
+		d.reporter.migrationStarted(version)
+	} else {
+		d.reporter.migrationApplied(version)
+	}
 	return nil
 }
 
@@ -128,20 +178,27 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 	err = q.QueryRowContext(context.Background(), query).Scan(&version, &dirty)
 	switch {
 	case err == sql.ErrNoRows:
-		return database.NilVersion, false, nil
+		version, dirty = database.NilVersion, false
 
 	case err != nil:
 		var pgErr *pq.Error
-		if xerrors.As(err, &pgErr) {
-			if pgErr.Code.Name() == "undefined_table" {
-				return database.NilVersion, false, nil
-			}
+		if !xerrors.As(err, &pgErr) || pgErr.Code.Name() != "undefined_table" {
+			return 0, false, &database.Error{OrigErr: err, Query: []byte(query)}
 		}
-		return 0, false, &database.Error{OrigErr: err, Query: []byte(query)}
-
-	default:
-		return version, dirty, nil
+		version, dirty = database.NilVersion, false
 	}
+
+	// golang-migrate reads the version once per run, right after taking the
+	// lock. Capture the transaction ID there so the outcome can later be read
+	// from PostgreSQL with pg_xact_status.
+	if d.tx != nil && d.reporter != nil {
+		var xid string
+		if err := d.tx.QueryRowContext(context.Background(), `SELECT pg_current_xact_id()::text`).Scan(&xid); err != nil {
+			return 0, false, &database.Error{OrigErr: err, Query: []byte(`SELECT pg_current_xact_id()`)}
+		}
+		d.reporter.inventory(version, dirty, xid)
+	}
+	return version, dirty, nil
 }
 
 func (*pgTxnDriver) Drop() error {

@@ -18,6 +18,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 //go:embed *.sql
@@ -74,6 +76,10 @@ func GetMigrationsHash() string {
 }
 
 func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
+	return setupWithReporter(db, migs, nil)
+}
+
+func setupWithReporter(db *sql.DB, migs fs.FS, r *reporter) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
@@ -91,7 +97,10 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
+	if r != nil {
+		r.source = sourceDriver
+	}
+	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, reporter: r}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
@@ -146,6 +155,39 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 	}
 
 	return nil
+}
+
+// UpWithReporter runs SQL migrations and reports progress and the outcome to opts.Logger.
+// Reporting only adds read-only queries on separate connections.
+func UpWithReporter(db *sql.DB, opts ReporterOptions) (retErr error) {
+	migs := opts.FS
+	if migs == nil {
+		migs = migrations
+	}
+	r := newReporter(db, opts)
+	_, m, err := setupWithReporter(db, migs, r)
+	if err != nil {
+		r.logger.Error(context.Background(), "database migration setup failed", slog.Error(err))
+		return xerrors.Errorf("migrate setup: %w", err)
+	}
+	defer func() {
+		srcErr, dbErr := m.Close()
+		if retErr != nil {
+			return
+		}
+		if dbErr != nil {
+			retErr = dbErr
+			return
+		}
+		retErr = srcErr
+	}()
+
+	err = m.Up()
+	if errors.Is(err, migrate.ErrNoChange) {
+		err = nil
+	}
+
+	return r.finish(err)
 }
 
 // Down runs all down SQL migrations.

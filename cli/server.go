@@ -3243,7 +3243,13 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up, opts...)
+	migrate := func(db *sql.DB) error {
+		return migrations.UpWithReporter(db, migrations.ReporterOptions{
+			Logger:  logger.Named("migrations"),
+			AppName: "coder-migrate/" + buildinfo.Version(),
+		})
+	}
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrate, opts...)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}
