@@ -99,14 +99,14 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
       {
         "display_name": "VS Code",
         "icon": "string",
+        "method": "ssh",
         "seconds": 80500,
         "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
         ],
-        "times_used": 2,
-        "type": "builtin"
+        "times_used": 2
       }
     ],
     "end_time": "2019-08-24T14:15:22Z",

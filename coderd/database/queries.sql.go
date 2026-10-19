@@ -17984,7 +17984,8 @@ WITH
 			ws.template_id,
 			app.slug,
 			app.display_name,
-			app.icon
+			app.icon,
+			app.created_at
 		FROM
 			workspaces ws
 		JOIN
@@ -18020,8 +18021,6 @@ WITH
 			tus.template_id,
 			tus.user_id,
 			apps.slug,
-			apps.display_name,
-			apps.icon,
 			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
@@ -18043,22 +18042,18 @@ WITH
 		SELECT
 			user_id,
 			slug,
-			display_name,
-			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			start_time, user_id, slug, display_name, icon
+			start_time, user_id, slug
 	),
 	-- Analyze the users unique app usage across all templates. Count
 	-- usage across consecutive intervals as continuous usage.
 	times_used AS (
-		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+		SELECT DISTINCT ON (user_id, slug, uniq)
 			slug,
-			display_name,
-			icon,
 			-- Turn start_time into a unique identifier that identifies a users
 			-- continuous app usage. The value of uniq is otherwise garbage.
 			--
@@ -18068,7 +18063,7 @@ WITH
 			start_time - (
 				dense_rank() OVER (
 					PARTITION BY
-						user_id, slug, display_name, icon
+						user_id, slug
 					ORDER BY
 						start_time
 				) * '30 minutes'::interval
@@ -18082,21 +18077,36 @@ WITH
 	templates AS (
 		SELECT
 			slug,
-			display_name,
-			icon,
 			array_agg(DISTINCT template_id)::uuid[] AS template_ids
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			slug, display_name, icon
+			slug
+	),
+	-- Apps merge across templates by slug, so show the newest app's
+	-- display name and icon among the templates with usage.
+	presentation AS (
+		SELECT DISTINCT ON (apps.slug)
+			apps.slug,
+			apps.display_name,
+			apps.icon
+		FROM
+			apps
+		JOIN
+			templates
+		ON
+			templates.slug = apps.slug
+			AND apps.template_id = ANY(templates.template_ids)
+		ORDER BY
+			apps.slug, apps.created_at DESC, apps.template_id
 	)
 
 SELECT
 	t.template_ids,
 	COUNT(DISTINCT ai.user_id) AS active_users,
 	ai.slug,
-	ai.display_name,
-	ai.icon,
+	p.display_name,
+	p.icon,
 	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
 	COALESCE((
 		SELECT
@@ -18105,8 +18115,6 @@ SELECT
 			times_used
 		WHERE
 			times_used.slug = ai.slug
-			AND times_used.display_name = ai.display_name
-			AND times_used.icon = ai.icon
 	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
@@ -18114,10 +18122,12 @@ JOIN
 	templates AS t
 ON
 	t.slug = ai.slug
-	AND t.display_name = ai.display_name
-	AND t.icon = ai.icon
+JOIN
+	presentation AS p
+ON
+	p.slug = ai.slug
 GROUP BY
-	t.template_ids, ai.slug, ai.display_name, ai.icon
+	t.template_ids, ai.slug, p.display_name, p.icon
 `
 
 type GetTemplateAppInsightsParams struct {

@@ -30882,6 +30882,15 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
+                "method": {
+                    "description": "Method is how the app connected. Method and Slug identify an app.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogMethod"
+                        }
+                    ],
+                    "example": "ssh"
+                },
                 "seconds": {
                     "type": "integer",
                     "example": 80500
@@ -30905,27 +30914,8 @@ const docTemplate = `{
                 "times_used": {
                     "type": "integer",
                     "example": 2
-                },
-                "type": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateAppsType"
-                        }
-                    ],
-                    "example": "builtin"
                 }
             }
-        },
-        "codersdk.TemplateAppsType": {
-            "type": "string",
-            "enum": [
-                "builtin",
-                "app"
-            ],
-            "x-enum-varnames": [
-                "TemplateAppsTypeBuiltin",
-                "TemplateAppsTypeApp"
-            ]
         },
         "codersdk.TemplateAutostartRequirement": {
             "type": "object",

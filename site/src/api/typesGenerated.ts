@@ -10048,7 +10048,10 @@ export interface TemplateACL {
  */
 export interface TemplateAppUsage {
 	readonly template_ids: readonly string[];
-	readonly type: TemplateAppsType;
+	/**
+	 * Method is how the app connected. Method and Slug identify an app.
+	 */
+	readonly method: ConnectionLogMethod;
 	readonly display_name: string;
 	readonly slug: string;
 	readonly icon: string;
@@ -10060,11 +10063,6 @@ export interface TemplateAppUsage {
 	 */
 	readonly seconds_is_upper_bound?: boolean;
 }
-
-// From codersdk/insights.go
-export type TemplateAppsType = "app" | "builtin";
-
-export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
 
 // From codersdk/templates.go
 export interface TemplateAutostartRequirement {

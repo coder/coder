@@ -105,7 +105,7 @@ export const Loaded: Story = {
 					apps_usage: [
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "VS Code",
 							slug: "vscode",
 							icon: "/icon/code.svg",
@@ -114,7 +114,7 @@ export const Loaded: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "JetBrains",
 							slug: "jetbrains",
 							icon: "/icon/intellij.svg",
@@ -123,7 +123,7 @@ export const Loaded: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "reconnecting_pty",
 							display_name: "Web Terminal",
 							slug: "reconnecting_pty",
 							icon: "/icon/terminal.svg",
@@ -132,7 +132,7 @@ export const Loaded: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "SSH",
 							slug: "ssh",
 							icon: "/icon/terminal.svg",
@@ -970,7 +970,7 @@ export const AppUsageAccounting: Story = {
 					apps_usage: [
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "VS Code",
 							slug: "vscode",
 							icon: "/icon/code.svg",
@@ -979,7 +979,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "Cursor",
 							slug: "cursor",
 							icon: "/icon/cursor.svg",
@@ -988,7 +988,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "future_ide",
 							slug: "future_ide",
 							icon: "",
@@ -997,7 +997,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "Other apps",
 							slug: "overflow",
 							icon: "",
@@ -1007,7 +1007,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "builtin",
+							method: "ssh",
 							display_name: "Unknown",
 							slug: "unknown",
 							icon: "",
@@ -1016,7 +1016,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "app",
+							method: "workspace_app",
 							display_name: "VS Code Web",
 							slug: "vscode",
 							icon: "/icon/code.svg",
@@ -1025,7 +1025,7 @@ export const AppUsageAccounting: Story = {
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-							type: "app",
+							method: "workspace_app",
 							display_name: "Overflow Dashboard",
 							slug: "overflow",
 							icon: "",

@@ -194,24 +194,16 @@ type TemplateInsightsIntervalReport struct {
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
-// TemplateAppsType defines the type of app reported.
-type TemplateAppsType string
-
-// TemplateAppsType enums.
-const (
-	TemplateAppsTypeBuiltin TemplateAppsType = "builtin"
-	TemplateAppsTypeApp     TemplateAppsType = "app"
-)
-
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
-	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
-	Type        TemplateAppsType `json:"type" example:"builtin"`
-	DisplayName string           `json:"display_name" example:"VS Code"`
-	Slug        string           `json:"slug" example:"vscode"`
-	Icon        string           `json:"icon"`
-	Seconds     int64            `json:"seconds" example:"80500"`
-	TimesUsed   int64            `json:"times_used" example:"2"`
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+	// Method is how the app connected. Method and Slug identify an app.
+	Method      ConnectionLogMethod `json:"method" example:"ssh"`
+	DisplayName string              `json:"display_name" example:"VS Code"`
+	Slug        string              `json:"slug" example:"vscode"`
+	Icon        string              `json:"icon"`
+	Seconds     int64               `json:"seconds" example:"80500"`
+	TimesUsed   int64               `json:"times_used" example:"2"`
 	// SecondsIsUpperBound marks overflow usage that includes folded apps.
 	// Their overlap is not stored, so Seconds may overestimate active time.
 	SecondsIsUpperBound bool `json:"seconds_is_upper_bound,omitempty" example:"false"`

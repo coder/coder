@@ -15116,43 +15116,29 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "display_name": "VS Code",
   "icon": "string",
+  "method": "ssh",
   "seconds": 80500,
   "seconds_is_upper_bound": false,
   "slug": "vscode",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
-  "times_used": 2,
-  "type": "builtin"
+  "times_used": 2
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                   | Required | Restrictions | Description                                                                                                                                  |
-|--------------------------|--------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `display_name`           | string                                                 | false    |              |                                                                                                                                              |
-| `icon`                   | string                                                 | false    |              |                                                                                                                                              |
-| `seconds`                | integer                                                | false    |              |                                                                                                                                              |
-| `seconds_is_upper_bound` | boolean                                                | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
-| `slug`                   | string                                                 | false    |              |                                                                                                                                              |
-| `template_ids`           | array of string                                        | false    |              |                                                                                                                                              |
-| `times_used`             | integer                                                | false    |              |                                                                                                                                              |
-| `type`                   | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |                                                                                                                                              |
-
-## codersdk.TemplateAppsType
-
-```json
-"builtin"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)         |
-|------------------|
-| `app`, `builtin` |
+| Name                     | Type                                                         | Required | Restrictions | Description                                                                                                                                  |
+|--------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `display_name`           | string                                                       | false    |              |                                                                                                                                              |
+| `icon`                   | string                                                       | false    |              |                                                                                                                                              |
+| `method`                 | [codersdk.ConnectionLogMethod](#codersdkconnectionlogmethod) | false    |              | Method is how the app connected. Method and Slug identify an app.                                                                            |
+| `seconds`                | integer                                                      | false    |              |                                                                                                                                              |
+| `seconds_is_upper_bound` | boolean                                                      | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
+| `slug`                   | string                                                       | false    |              |                                                                                                                                              |
+| `template_ids`           | array of string                                              | false    |              |                                                                                                                                              |
+| `times_used`             | integer                                                      | false    |              |                                                                                                                                              |
 
 ## codersdk.TemplateAutostartRequirement
 
@@ -15795,14 +15781,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     {
       "display_name": "VS Code",
       "icon": "string",
+      "method": "ssh",
       "seconds": 80500,
       "seconds_is_upper_bound": false,
       "slug": "vscode",
       "template_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
-      "times_used": 2,
-      "type": "builtin"
+      "times_used": 2
     }
   ],
   "end_time": "2019-08-24T14:15:22Z",
@@ -15872,14 +15858,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       {
         "display_name": "VS Code",
         "icon": "string",
+        "method": "ssh",
         "seconds": 80500,
         "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
         ],
-        "times_used": 2,
-        "type": "builtin"
+        "times_used": 2
       }
     ],
     "end_time": "2019-08-24T14:15:22Z",

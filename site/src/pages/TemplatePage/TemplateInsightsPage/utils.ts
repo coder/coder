@@ -12,12 +12,9 @@ export const lastWeeks = (numberOfWeeks: number) => {
 	return { startDate, endDate };
 };
 
-/**
- * Keys an app usage row. Session and template apps can share a slug, and
- * template apps are grouped by slug, display name, and icon.
- */
+/** Keys an app usage row. Apps reached by different methods can share a slug. */
 export const appUsageKey = (usage: TemplateAppUsage): string =>
-	JSON.stringify([usage.type, usage.slug, usage.display_name, usage.icon]);
+	`${usage.method}/${usage.slug}`;
 
 /** Returns an app's percentage of the users' active time, capped at 100. */
 export const activeTimePercentage = (
@@ -31,13 +28,13 @@ export const activeTimePercentage = (
 };
 
 /**
- * Explains a builtin accounting row, which totals usage without naming an
- * app. Template apps never get one, even when their slug matches.
+ * Explains a session accounting row, which totals usage without naming an
+ * app. Workspace apps never get one, even when their slug matches.
  */
 export const accountingRowDescription = (
 	usage: TemplateAppUsage,
 ): string | undefined => {
-	if (usage.type !== "builtin") {
+	if (usage.method === "workspace_app") {
 		return undefined;
 	}
 	switch (usage.slug) {

@@ -14,11 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/codersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // templateInsightsParams passes the registry's app names and the response
@@ -402,4 +404,58 @@ func TestSessionUsageResponseCap(t *testing.T) {
 		require.Zero(t, usage.SessionFoldedAppCount)
 		require.JSONEq(t, `{"cursor":60,"fold_y":120}`, string(usage.SessionAppUsageSeconds))
 	})
+}
+
+// TestTemplateAppInsightsMergesBySlug checks that apps sharing a slug across
+// templates form one row, presented by the newest app.
+func TestTemplateAppInsightsMergesBySlug(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	start := dbtime.Now().Add(-2 * time.Hour).Truncate(30 * time.Minute)
+
+	addTemplate := func(displayName, icon string, createdAt time.Time, usageMins int) uuid.UUID {
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+			agents[0].Apps = []*sdkproto.App{{Slug: "code-server", DisplayName: displayName, Icon: icon}}
+			return agents
+		}).Do()
+		_, err := sqlDB.ExecContext(ctx, `UPDATE workspace_apps SET created_at = $1 WHERE agent_id = $2`,
+			createdAt, ws.Agents[0].ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats
+			(start_time, end_time, template_id, user_id, usage_mins, app_usage_mins)
+			VALUES ($1, $2, $3, $4, $5::smallint, jsonb_build_object('code-server', $5::smallint))`,
+			start, start.Add(30*time.Minute), ws.Workspace.TemplateID, user.ID, usageMins)
+		require.NoError(t, err)
+		return ws.Workspace.TemplateID
+	}
+	older := addTemplate("Old Name", "/icon/old.svg", start.Add(-time.Hour), 10)
+	newer := addTemplate("code-server", "/icon/code.svg", start, 5)
+
+	rows, err := db.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		StartTime: start,
+		EndTime:   start.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.ElementsMatch(t, []uuid.UUID{older, newer}, rows[0].TemplateIDs)
+	require.Equal(t, "code-server", rows[0].DisplayName)
+	require.Equal(t, "/icon/code.svg", rows[0].Icon)
+	require.EqualValues(t, 15*60, rows[0].UsageSeconds)
+
+	// Filtering to the older template presents its own app.
+	rows, err = db.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		StartTime:   start,
+		EndTime:     start.Add(time.Hour),
+		TemplateIDs: []uuid.UUID{older},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, "Old Name", rows[0].DisplayName)
+	require.EqualValues(t, 10*60, rows[0].UsageSeconds)
 }

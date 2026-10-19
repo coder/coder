@@ -14,7 +14,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "builtin",
+        "method": "ssh",
         "display_name": "JetBrains",
         "slug": "jetbrains",
         "icon": "/icon/jetbrains.svg",
@@ -25,7 +25,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "builtin",
+        "method": "ssh",
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
@@ -36,7 +36,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "builtin",
+        "method": "ssh",
         "display_name": "VS Code",
         "slug": "vscode",
         "icon": "/icon/code.svg",
@@ -48,7 +48,7 @@
           "00000000-0000-0000-0000-000000000001",
           "00000000-0000-0000-0000-000000000002"
         ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
@@ -59,7 +59,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "app3",
         "slug": "app3",
         "icon": "/icon2.png",
@@ -70,7 +70,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000003"
         ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "otherapp1",
         "slug": "otherapp1",
         "icon": "/icon1.png",

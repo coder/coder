@@ -577,8 +577,8 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// convertTemplateInsightsApps lists each session app with usage as a builtin
-// app, followed by the template apps.
+// convertTemplateInsightsApps lists each session app with usage, followed by
+// the template apps.
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, templateAppUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
 	sessionAppSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
 	if err != nil {
@@ -605,7 +605,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, template
 		}
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs:         templateIDs,
-			Type:                codersdk.TemplateAppsTypeBuiltin,
+			Method:              sessionAppMethod(appName),
 			DisplayName:         displayName,
 			Slug:                appName,
 			Icon:                icon,
@@ -616,20 +616,14 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, template
 
 	// Sort here to keep row order independent of the database collation.
 	slices.SortFunc(templateAppUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.Slug != b.Slug {
-			return strings.Compare(a.Slug, b.Slug)
-		}
-		if a.DisplayName != b.DisplayName {
-			return strings.Compare(a.DisplayName, b.DisplayName)
-		}
-		return strings.Compare(a.Icon, b.Icon)
+		return strings.Compare(a.Slug, b.Slug)
 	})
 
 	// Template apps.
 	for _, app := range templateAppUsage {
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
-			Type:        codersdk.TemplateAppsTypeApp,
+			Method:      codersdk.ConnectionLogMethodWorkspaceApp,
 			DisplayName: app.DisplayName,
 			Slug:        app.Slug,
 			Icon:        app.Icon,
@@ -639,6 +633,19 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, template
 	}
 
 	return apps, nil
+}
+
+// sessionAppMethod derives a session app's method from its name.
+// TODO(EhabY): Store the method instead (#31012).
+func sessionAppMethod(appName string) codersdk.ConnectionLogMethod {
+	switch codersdk.AppFamilyName(appName) {
+	case codersdk.AppFamilyReconnectingPTY:
+		return codersdk.ConnectionLogMethodReconnectingPTY
+	case codersdk.AppFamilyPortForwarding:
+		return codersdk.ConnectionLogMethodPortForwarding
+	default:
+		return codersdk.ConnectionLogMethodSSH
+	}
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters

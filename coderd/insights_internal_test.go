@@ -351,7 +351,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 
 		sharedTemplateID, cursorTemplateID := uuid.New(), uuid.New()
 		apps, err := convertTemplateInsightsApps(database.GetTemplateInsightsRow{
-			SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "some_new_ide": 60, "overflow": 120, "unknown": 60}`),
+			SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "some_new_ide": 60, "overflow": 120, "unknown": 60, "reconnecting_pty": 90, "port_forwarding": 30}`),
 			SessionAppTemplateIds: json.RawMessage(`{
 				"vscode": ["` + sharedTemplateID.String() + `"],
 				"cursor": ["` + sharedTemplateID.String() + `", "` + cursorTemplateID.String() + `"],
@@ -367,7 +367,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 		require.Equal(t, []codersdk.TemplateAppUsage{
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID, cursorTemplateID},
-				Type:        codersdk.TemplateAppsTypeBuiltin,
+				Method:      codersdk.ConnectionLogMethodSSH,
 				DisplayName: "Cursor",
 				Slug:        "cursor",
 				Icon:        "/icon/cursor.svg",
@@ -375,28 +375,43 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			},
 			{
 				TemplateIDs: []uuid.UUID{},
-				Type:        codersdk.TemplateAppsTypeBuiltin,
+				Method:      codersdk.ConnectionLogMethodSSH,
 				DisplayName: "Other apps",
 				Slug:        codersdk.AppNameOverflow,
 				Seconds:     120,
 			},
 			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodPortForwarding,
+				DisplayName: "Port Forwarding",
+				Slug:        "port_forwarding",
+				Seconds:     30,
+			},
+			{
+				TemplateIDs: []uuid.UUID{},
+				Method:      codersdk.ConnectionLogMethodReconnectingPTY,
+				DisplayName: "Web Terminal",
+				Slug:        "reconnecting_pty",
+				Icon:        "/icon/terminal.svg",
+				Seconds:     90,
+			},
+			{
 				TemplateIDs: []uuid.UUID{cursorTemplateID},
-				Type:        codersdk.TemplateAppsTypeBuiltin,
+				Method:      codersdk.ConnectionLogMethodSSH,
 				DisplayName: "some_new_ide",
 				Slug:        "some_new_ide",
 				Seconds:     60,
 			},
 			{
 				TemplateIDs: []uuid.UUID{},
-				Type:        codersdk.TemplateAppsTypeBuiltin,
+				Method:      codersdk.ConnectionLogMethodSSH,
 				DisplayName: "Unknown",
 				Slug:        "unknown",
 				Seconds:     60,
 			},
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID},
-				Type:        codersdk.TemplateAppsTypeBuiltin,
+				Method:      codersdk.ConnectionLogMethodSSH,
 				DisplayName: "VS Code",
 				Slug:        "vscode",
 				Icon:        "/icon/code.svg",
@@ -404,7 +419,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			},
 			{
 				TemplateIDs: []uuid.UUID{sharedTemplateID},
-				Type:        codersdk.TemplateAppsTypeApp,
+				Method:      codersdk.ConnectionLogMethodWorkspaceApp,
 				DisplayName: "File Browser",
 				Slug:        "filebrowser",
 				Seconds:     30,
@@ -415,7 +430,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 	t.Run("FoldedOverflowIsUpperBound", func(t *testing.T) {
 		t.Parallel()
 
-		// Only the builtin overflow row carries the folded apps, so only it
+		// Only the session overflow row carries the folded apps, so only it
 		// is an upper bound. A template app may still use overflow as its
 		// slug, and it is not an accounting row.
 		templateID := uuid.New()
@@ -432,13 +447,13 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 		require.NoError(t, err)
 		upperBound := map[string]bool{}
 		for _, app := range apps {
-			upperBound[string(app.Type)+"/"+app.Slug] = app.SecondsIsUpperBound
+			upperBound[string(app.Method)+"/"+app.Slug] = app.SecondsIsUpperBound
 		}
 		require.Equal(t, map[string]bool{
-			"builtin/future_ide": false,
-			"builtin/overflow":   true,
-			"builtin/unknown":    false,
-			"app/overflow":       false,
+			"ssh/future_ide":         false,
+			"ssh/overflow":           true,
+			"ssh/unknown":            false,
+			"workspace_app/overflow": false,
 		}, upperBound)
 	})
 

@@ -12,7 +12,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000003"
         ],
-        "type": "builtin",
+        "method": "reconnecting_pty",
         "display_name": "Web Terminal",
         "slug": "reconnecting_pty",
         "icon": "/icon/terminal.svg",
@@ -23,7 +23,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000003"
         ],
-        "type": "builtin",
+        "method": "ssh",
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
@@ -34,7 +34,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000003"
         ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "otherapp1",
         "slug": "otherapp1",
         "icon": "/icon1.png",

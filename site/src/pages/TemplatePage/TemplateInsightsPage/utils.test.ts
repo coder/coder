@@ -8,7 +8,7 @@ import {
 
 const usage = (overrides: Partial<TemplateAppUsage>): TemplateAppUsage => ({
 	template_ids: [],
-	type: "builtin",
+	method: "ssh",
 	display_name: "VS Code",
 	slug: "vscode",
 	icon: "/icon/code.svg",
@@ -18,16 +18,11 @@ const usage = (overrides: Partial<TemplateAppUsage>): TemplateAppUsage => ({
 });
 
 describe("appUsageKey", () => {
-	it("keeps a session app and a template app sharing a slug apart", () => {
+	it("keeps apps sharing a slug apart by method", () => {
 		const keys = [
 			usage({}),
-			usage({ type: "app", display_name: "VS Code Web" }),
-			usage({ type: "app", display_name: "VS Code" }),
-			usage({
-				type: "app",
-				display_name: "VS Code",
-				icon: "/icon/other.svg",
-			}),
+			usage({ method: "workspace_app" }),
+			usage({ method: "reconnecting_pty" }),
 		].map(appUsageKey);
 		expect(new Set(keys).size).toBe(keys.length);
 	});
@@ -54,20 +49,20 @@ describe("accountingRowDescription", () => {
 
 	it.each<[string, Partial<TemplateAppUsage>, string | undefined]>([
 		[
-			"builtin unknown",
+			"session unknown",
 			{ slug: "unknown" },
 			"Includes all apps that did not report a name, or tried to use a reserved name.",
 		],
-		["builtin overflow", { slug: "overflow" }, pastBusiest],
+		["session overflow", { slug: "overflow" }, pastBusiest],
 		[
-			"builtin overflow with folded apps",
+			"session overflow with folded apps",
 			{ slug: "overflow", seconds_is_upper_bound: true },
 			`${pastBusiest} Overlapping time isn't tracked, so this is the most time they could have been open.`,
 		],
-		["builtin app", {}, undefined],
+		["session app", {}, undefined],
 		[
 			"template app with an accounting slug",
-			{ type: "app", slug: "overflow" },
+			{ method: "workspace_app", slug: "overflow" },
 			undefined,
 		],
 	])("%s", (_, overrides, expected) => {
