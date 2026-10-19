@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -50,7 +51,7 @@ type spawnAgentArgs struct {
 type subagentDefinition struct {
 	id                string
 	description       string
-	unavailableReason func(context.Context, *Server, database.Chat) string
+	unavailableReason func(context.Context, *Server, database.Chat) (string, error)
 	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, *uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
@@ -128,22 +129,25 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeComputerUse,
 			description: "desktop GUI interaction, screenshots, and browser or app automation",
-			unavailableReason: func(ctx context.Context, p *Server, currentChat database.Chat) string {
+			unavailableReason: func(ctx context.Context, p *Server, currentChat database.Chat) (string, error) {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
-					return `type "computer_use" is unavailable in plan mode`
+					return `type "computer_use" is unavailable in plan mode`, nil
 				}
 				if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
-					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`
+					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`, nil
 				}
-				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				rawProvider, err := p.db.GetChatComputerUseProvider(computerUseConfigContext(ctx))
 				if err != nil {
+					return "", xerrors.Errorf("get computer use provider: %w", err)
+				}
+				if _, _, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider))); !ok {
 					p.logger.Warn(ctx, "computer-use provider config is unavailable",
 						slog.F("chat_id", currentChat.ID),
-						slog.Error(err),
+						slog.F("provider", rawProvider),
 					)
-					return `type "computer_use" is unavailable because its provider configuration could not be loaded`
+					return `type "computer_use" is unavailable because its provider configuration could not be loaded`, nil
 				}
-				return ""
+				return "", nil
 			},
 			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
@@ -195,37 +199,44 @@ func availableSubagentDefinitions(
 	ctx context.Context,
 	p *Server,
 	currentChat database.Chat,
-) []subagentDefinition {
+) ([]subagentDefinition, error) {
 	defs := allSubagentDefinitions()
 	available := make([]subagentDefinition, 0, len(defs))
 	for _, def := range defs {
-		if def.unavailableReasonText(ctx, p, currentChat) == "" {
+		reason, err := def.unavailableReasonText(ctx, p, currentChat)
+		if err != nil {
+			return nil, err
+		}
+		if reason == "" {
 			available = append(available, def)
 		}
 	}
-	return available
+	return available, nil
 }
 
 func availableSubagentTypeIDs(
 	ctx context.Context,
 	p *Server,
 	currentChat database.Chat,
-) []string {
-	defs := availableSubagentDefinitions(ctx, p, currentChat)
+) ([]string, error) {
+	defs, err := availableSubagentDefinitions(ctx, p, currentChat)
+	if err != nil {
+		return nil, err
+	}
 	ids := make([]string, 0, len(defs))
 	for _, def := range defs {
 		ids = append(ids, def.id)
 	}
-	return ids
+	return ids, nil
 }
 
 func (d subagentDefinition) unavailableReasonText(
 	ctx context.Context,
 	p *Server,
 	currentChat database.Chat,
-) string {
+) (string, error) {
 	if d.unavailableReason == nil {
-		return ""
+		return "", nil
 	}
 	return d.unavailableReason(ctx, p, currentChat)
 }
@@ -239,12 +250,20 @@ func resolveSubagentDefinition(
 	subagentType := strings.TrimSpace(rawSubagentType)
 	def, ok := lookupSubagentDefinition(subagentType)
 	if !ok {
+		ids, err := availableSubagentTypeIDs(ctx, p, currentChat)
+		if err != nil {
+			return subagentDefinition{}, err
+		}
 		return subagentDefinition{}, xerrors.Errorf(
 			"type must be one of: %s",
-			strings.Join(availableSubagentTypeIDs(ctx, p, currentChat), ", "),
+			strings.Join(ids, ", "),
 		)
 	}
-	if reason := def.unavailableReasonText(ctx, p, currentChat); reason != "" {
+	reason, err := def.unavailableReasonText(ctx, p, currentChat)
+	if err != nil {
+		return subagentDefinition{}, err
+	}
+	if reason != "" {
 		return subagentDefinition{}, xerrors.New(reason)
 	}
 	return def, nil
@@ -295,8 +314,11 @@ func buildSpawnAgentDescription(
 	ctx context.Context,
 	p *Server,
 	currentChat database.Chat,
-) string {
-	availableDefs := availableSubagentDefinitions(ctx, p, currentChat)
+) (string, error) {
+	availableDefs, err := availableSubagentDefinitions(ctx, p, currentChat)
+	if err != nil {
+		return "", err
+	}
 	description := "Assign a clearly scoped, independent task to a child agent, " +
 		"including the criteria that complete it. Spawn only once you can define " +
 		"the assignment; gather missing context first rather than investigating " +
@@ -347,7 +369,7 @@ func buildSpawnAgentDescription(
 			"\" should be used for cloning repositories or non-local investigation. " +
 			"They must not implement changes or intentionally modify workspace files."
 	}
-	return description
+	return description, nil
 }
 
 func formatSubagentDefinitionsWithDescriptionOverrides(

@@ -1595,7 +1595,7 @@ export interface AgentScriptTiming {
 	readonly ended_at: string;
 	readonly exit_code: number;
 	readonly stage: TimingStage;
-	readonly status: string;
+	readonly status: WorkspaceAgentScriptStatus;
 	readonly display_name: string;
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
@@ -3479,14 +3479,30 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly permissions: ChatProjectPermissions;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectACL lists who a chat project is shared with. The Everyone
+ * group's ID is the organization ID.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectUser[];
+	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+export interface ChatProjectGroup extends Group {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
 /**
  * ChatProjectInstructions are instructions added to the system prompt of
- * every chat in a project, for every user who chats there. A project without
- * instructions has an empty Instructions string and nil UpdatedBy and
- * UpdatedAt.
+ * every chat in a project, except chats whose owner can no longer use the
+ * project. A project without instructions has an empty Instructions
+ * string and nil UpdatedBy and UpdatedAt.
  */
 export interface ChatProjectInstructions {
 	readonly project_id: string;
@@ -3513,6 +3529,26 @@ export interface ChatProjectMemory {
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectPermissions are the actions the caller may take on a project.
+ */
+export interface ChatProjectPermissions {
+	readonly update: boolean;
+	readonly delete: boolean;
+	readonly share: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "admin" | "" | "use";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+export interface ChatProjectUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -9087,6 +9123,7 @@ export type ResourceType =
 	| "chat_project"
 	| "chat_project_instructions"
 	| "chat_project_memory"
+	| "chat_project_skill"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9136,6 +9173,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_project",
 	"chat_project_instructions",
 	"chat_project_memory",
+	"chat_project_skill",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
@@ -10724,6 +10762,16 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatProjectACL changes only the listed principals.
+ * ChatProjectRoleDeleted removes an entry.
+ */
+export interface UpdateChatProjectACL {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatProjectInstructionsRequest sets a project's instructions. Use
  * DeleteChatProjectInstructions to clear them.
  */
@@ -10758,8 +10806,9 @@ export interface UpdateChatRequest {
 	 * ProjectID moves a root chat, and with it its subagent chats.
 	 * - nil: no change.
 	 * - uuid.Nil: remove the chat from its project.
-	 * - other: move the chat into that project. The project must belong
-	 *   to the chat's owner and organization.
+	 * - other: move the chat into that project. The chat's owner must own
+	 *   the project or have it shared with them, and the project must be
+	 *   in the chat's organization.
 	 * The server returns 409 while the chat or a subagent chat is not idle.
 	 */
 	readonly project_id?: string;
@@ -12387,15 +12436,19 @@ export const WorkspaceAgentScriptDependencyRequirements: WorkspaceAgentScriptDep
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
+	| "canceled"
 	| "exit_failure"
 	| "ok"
 	| "pipes_left_open"
+	| "skipped"
 	| "timed_out";
 
 export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"canceled",
 	"exit_failure",
 	"ok",
 	"pipes_left_open",
+	"skipped",
 	"timed_out",
 ];
 
