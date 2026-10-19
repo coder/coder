@@ -117,6 +117,11 @@ export const DefaultParameters: Story = {
 				key: richParametersKey(dockerTemplate.active_version_id),
 				data: [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
 			},
+			// Lets the story switch to a preset without a request.
+			{
+				key: templateVersionPresetsKey(dockerTemplate.active_version_id),
+				data: [smallPreset],
+			},
 		],
 	},
 };
