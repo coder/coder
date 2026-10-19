@@ -185,7 +185,7 @@ type SetFamilyProjectInput struct {
 // project, inside one transaction. Every family member must be in W,
 // E0 or E1, or the move rolls back, so no step of the family runs with
 // the old project's memory tools after the move. Subagent chats move with
-// the root, so a project delete archives the whole family.
+// the root, so the project cleanup archives the whole family.
 //
 // Like [SetFamilyArchived], it locks the root first and then each
 // member in GetChatFamilyIDsByRootID order, and it publishes only after
@@ -280,6 +280,25 @@ func SetFamilyProject(
 	return familyChats, nil
 }
 
+// TombstoneChatProject marks the project deleted and deletes its memories,
+// instructions and skills. It takes no chat locks, so it cannot fail on
+// them; [ArchiveDeletedChatProject] archives the chats afterwards. It
+// returns sql.ErrNoRows for a missing or deleted project.
+//
+// It locks the project before the tombstone statement because a
+// statement's snapshot predates any lock wait inside it: without the
+// earlier lock, content committed by a writer the tombstone waited for
+// would survive.
+func TombstoneChatProject(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+	return store.InTx(func(tx database.Store) error {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
+			return err
+		}
+		_, err := tx.UpdateChatProjectDeletedByID(ctx, projectID)
+		return err
+	}, nil)
+}
+
 // ArchiveDeletedChatProject archives the unarchived chats of a deleted
 // project, sub-chats included, and returns them as archived, along with
 // every chat in the project read in the same transaction. ctx must allow
@@ -287,7 +306,7 @@ func SetFamilyProject(
 // execution state to [StateXW], or [StateXE0] from error, with no worker or
 // runner and an empty queue. A chat:update per archived chat is published
 // after commit so its runner stops; if that fails, the committed result is
-// returned with [ErrChatUpdatePublishFailed]. A live project archives
+// returned with [ErrChatUpdatePublishFailed]. A live project returns
 // nothing.
 func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) (archived []database.Chat, projectChats []database.Chat, err error) {
 	if store == nil {
@@ -299,6 +318,12 @@ func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publis
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err = store.InTx(func(tx database.Store) error {
+		// A live project's chats must not get project_deleted events.
+		if _, err := tx.GetChatProjectByID(ctx, projectID); err == nil {
+			return nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("check project: %w", err)
+		}
 		if err := tx.LockChatProjectUnarchivedRootChats(ctx, projectID); err != nil {
 			return xerrors.Errorf("lock project root chats: %w", err)
 		}

@@ -48,10 +48,6 @@ func (p *Server) cleanupDeletedChatProject(ctx context.Context, projectID uuid.U
 	return nil
 }
 
-// ChatProjectUsableBy reports whether userID owns project or holds a grant
-// in its ACL. Role grants do not count, because the chat would read memory
-// the owner did not share. Memory tools run as chatd, so callers must use
-// this check, not dbauthz.
 // usableChatProject loads the project and reports whether the chat owner can
 // use it. It reports false when the project is missing, the lookup or access
 // check fails, or the owner cannot use it, and logs every case except a

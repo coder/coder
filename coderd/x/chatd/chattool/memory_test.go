@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -360,4 +361,69 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	require.NoError(t, store.Delete(ctx, "alpha"))
 	require.ErrorIs(t, store.Delete(ctx, "alpha"), chattool.ErrMemoryNotFound)
 	require.Equal(t, []string{"delete alpha"}, takeAudited())
+}
+
+// pauseAfterMemoryDeleteStore blocks a consolidation after it deletes a
+// memory row, the point where it holds that row's lock.
+type pauseAfterMemoryDeleteStore struct {
+	database.Store
+	deleted chan<- struct{}
+	release <-chan struct{}
+}
+
+func (s pauseAfterMemoryDeleteStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(pauseAfterMemoryDeleteStore{Store: tx, deleted: s.deleted, release: s.release})
+	}, txOpts)
+}
+
+func (s pauseAfterMemoryDeleteStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
+	memory, err := s.Store.DeleteChatProjectMemoryByName(ctx, arg)
+	s.deleted <- struct{}{}
+	<-s.release
+	return memory, err
+}
+
+// TestConsolidateProjectMemoriesDuringProjectDelete checks that a
+// consolidation and a project delete that overlap both finish: the
+// consolidation locks the project before any memory row, as the delete
+// does, so they cannot deadlock.
+func TestConsolidateProjectMemoriesDuringProjectDelete(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "old"})
+
+	deleted := make(chan struct{}, 1)
+	release := make(chan struct{})
+	store := pauseAfterMemoryDeleteStore{Store: db, deleted: deleted, release: release}
+	consolidateErr := make(chan error, 1)
+	go func() {
+		_, _, _, err := chattool.ConsolidateProjectMemories(ctx, store, project.ID, []string{"old"}, []database.InsertChatProjectMemoryParams{{
+			ProjectID: project.ID, OrganizationID: org.ID, Name: "new", Body: "b", CreatedBy: user.ID,
+		}})
+		consolidateErr <- err
+	}()
+	testutil.RequireReceive(ctx, t, deleted)
+
+	deleteErr := make(chan error, 1)
+	go func() {
+		deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
+	}()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waits int
+		err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waits)
+		return err == nil && waits > 0
+	}, testutil.IntervalFast, "the delete waits for the consolidation")
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, consolidateErr))
+	require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+
+	memories, err := db.GetChatProjectMemoriesByProjectID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Empty(t, memories)
 }

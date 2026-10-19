@@ -82,7 +82,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The project was deleted after the request loaded it.
-	if httpapi.Is404Error(err) {
+	if errors.Is(err, chattool.ErrMemoryProjectDeleted) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

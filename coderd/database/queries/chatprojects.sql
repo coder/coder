@@ -98,10 +98,12 @@ WHERE id = @id::uuid AND NOT deleted
 RETURNING *;
 
 -- name: UpdateChatProjectDeletedByID :one
--- Irreversible. Waits for root chat creations holding
--- GetChatProjectByIDForShare. Deletes the project's memories,
--- instructions and skills; its chats keep running until
--- chatstate.ArchiveDeletedChatProject archives them.
+-- Irreversible. Call through chatstate.TombstoneChatProject, which locks
+-- the project earlier in the same transaction: this statement's snapshot
+-- predates any lock wait inside it, so without that lock a memory,
+-- instructions or skill write it waited for survives. Deletes the
+-- project's memories, instructions and skills; its chats keep running
+-- until chatstate.ArchiveDeletedChatProject archives them.
 WITH project AS (
     UPDATE chat_projects
     SET deleted = true, updated_at = now()
@@ -128,9 +130,10 @@ FROM chat_projects
 WHERE owner_id = @owner_id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForShare :one
--- Root chat creation in a project must hold this until its insert commits,
--- so a concurrent project delete either waits and then archives the new
--- chat in its cleanup, or makes this return no rows.
+-- Callers that add a chat to a project, move one out, unarchive one in it,
+-- or write its memories hold this until commit, so a concurrent project
+-- delete waits for them and the cleanup that follows archives their chats.
+-- Returns no rows once the project is deleted.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted

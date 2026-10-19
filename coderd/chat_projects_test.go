@@ -339,7 +339,7 @@ func TestPatchChatProject(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, ps := dbtestutil.NewDB(t)
 		client, api := newChatProjectClientWithAPI(t, func(opts *coderdtest.Options) {
-			opts.Database = deleteProjectBeforeInsertChatStore{Store: rawDB}
+			opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
 			opts.Pubsub = ps
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)

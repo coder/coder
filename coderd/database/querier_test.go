@@ -2204,79 +2204,82 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	}
 }
 
-// TestChatProjectDeleteWaitsForContentWriters holds a transaction that
-// wrote project content and checks that the delete, which locks the
-// project before its tombstone, waits for it and removes what it wrote.
+// TestChatProjectDeleteWaitsForContentWriters holds each project content
+// write open and checks that the delete waits for it and removes what it
+// wrote, and that the same write stores nothing afterwards.
 func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
-	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 
-	write := func(store database.Store) error {
-		if _, err := store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
-			ProjectID: project.ID, OrganizationID: org.ID, Name: "racing", Body: "b", CreatedBy: owner.ID,
-		}); err != nil {
+	for _, tc := range []struct {
+		table string
+		write func(ctx context.Context, store database.Store, projectID uuid.UUID) error
+	}{
+		{"chat_project_memories", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
+				ProjectID: projectID, OrganizationID: org.ID, Name: "racing", Body: "b", CreatedBy: owner.ID,
+			})
 			return err
-		}
-		if _, err := store.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
-			ProjectID: project.ID, Instructions: "i", UpdatedBy: owner.ID,
-		}); err != nil {
+		}},
+		{"chat_project_instructions", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+				ProjectID: projectID, Instructions: "i", UpdatedBy: owner.ID,
+			})
 			return err
-		}
-		_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID: uuid.New(), ProjectID: project.ID, Name: "racing", Description: "d", Content: "c",
+		}},
+		{"skills", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+			_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+				ID: uuid.New(), ProjectID: projectID, Name: "racing", Description: "d", Content: "c",
+			})
+			return err
+		}},
+	} {
+		t.Run(tc.table, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+			wrote := make(chan struct{}, 1)
+			release := make(chan struct{})
+			writeErr := make(chan error, 1)
+			go func() {
+				writeErr <- db.InTx(func(tx database.Store) error {
+					if err := tc.write(ctx, tx, project.ID); err != nil {
+						return err
+					}
+					wrote <- struct{}{}
+					<-release
+					return nil
+				}, nil)
+			}()
+			testutil.RequireReceive(ctx, t, wrote)
+
+			deleteErr := make(chan error, 1)
+			go func() {
+				deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
+			}()
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waits int
+				err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%-- name: GetChatProjectByIDForUpdate %'`).Scan(&waits)
+				return err == nil && waits > 0
+			}, testutil.IntervalFast, "the delete waits for the writer's project lock")
+			close(release)
+			require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
+			require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+
+			var rows int
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tc.table+" WHERE project_id = $1", project.ID).Scan(&rows))
+			require.Zero(t, rows, "the delete removes the write")
+			require.ErrorIs(t, tc.write(ctx, db, project.ID), sql.ErrNoRows, "a write after the delete stores nothing")
 		})
-		return err
 	}
-
-	wrote := make(chan struct{}, 1)
-	release := make(chan struct{})
-	writeErr := make(chan error, 1)
-	go func() {
-		writeErr <- db.InTx(func(tx database.Store) error {
-			if err := write(tx); err != nil {
-				return err
-			}
-			wrote <- struct{}{}
-			<-release
-			return nil
-		}, nil)
-	}()
-	testutil.RequireReceive(ctx, t, wrote)
-
-	deleteErr := make(chan error, 1)
-	go func() {
-		deleteErr <- db.InTx(func(tx database.Store) error {
-			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
-				return err
-			}
-			_, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID)
-			return err
-		}, nil)
-	}()
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		var waits int
-		err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
-WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%FOR NO KEY UPDATE%'`).Scan(&waits)
-		return err == nil && waits > 0
-	}, testutil.IntervalFast, "the delete waits for the writer's project lock")
-	close(release)
-	require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
-	require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
-
-	for _, table := range []string{"chat_project_memories", "chat_project_instructions", "skills"} {
-		var rows int
-		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE project_id = $1", project.ID).Scan(&rows))
-		require.Zero(t, rows, "the delete removes rows from %s", table)
-	}
-	require.ErrorIs(t, write(db), sql.ErrNoRows, "writes after the delete store nothing")
 }
 
 func TestChatProjectDeleteQueries(t *testing.T) {

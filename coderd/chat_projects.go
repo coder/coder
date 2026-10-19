@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -255,16 +256,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	// Only the tombstone runs in the request, so the delete cannot fail on
-	// chat locks. Locking the project first waits for content writers
-	// holding it FOR SHARE, so the tombstone's snapshot sees their rows.
-	err := api.Database.InTx(func(tx database.Store) error {
-		if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
-			return err
-		}
-		_, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID)
-		return err
-	}, nil)
+	err := chatstate.TombstoneChatProject(ctx, api.Database, project.ID)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

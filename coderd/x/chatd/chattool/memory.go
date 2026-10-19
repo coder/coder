@@ -45,6 +45,9 @@ var (
 	// ErrMemoryLimit is returned when a write would leave a project with
 	// more than MaxMemories memories.
 	ErrMemoryLimit = xerrors.New("memory limit reached")
+	// ErrMemoryProjectDeleted is returned when the project was deleted, so
+	// its memories can no longer change.
+	ErrMemoryProjectDeleted = xerrors.New("chat project was deleted")
 )
 
 // writeProjectMemories runs a memory write in one transaction behind a
@@ -52,14 +55,23 @@ var (
 // MaxMemories memories. The lock serializes writers so two of them cannot
 // both observe room and overshoot the cap, and the transaction means a
 // consolidation applies all of its deletes and saves or none of them. The
-// count runs as the system because the caller has already been authorized
+// project lock and count run as the system because the caller has already been authorized
 // to write memories in this project, and a create-only scope may lack the
-// read the count would otherwise require.
+// read they would otherwise require.
 func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
 	var count int64
 	err := db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.GenLockID("chat-project-memory:"+projectID.String())); err != nil {
 			return xerrors.Errorf("lock memories: %w", err)
+		}
+		// Lock the project before any memory row, the order a project
+		// delete takes, so the two cannot deadlock.
+		//nolint:gocritic // See writeProjectMemories.
+		if _, err := tx.GetChatProjectByIDForShare(dbauthz.AsSystemRestricted(ctx), projectID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrMemoryProjectDeleted
+			}
+			return xerrors.Errorf("lock project: %w", err)
 		}
 		if err := write(tx); err != nil {
 			return err
@@ -123,6 +135,9 @@ func ConsolidateProjectMemories(ctx context.Context, db database.Store, projectI
 
 func insertProjectMemoryTx(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
 	memory, err := db.InsertChatProjectMemory(ctx, params)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatProjectMemory{}, ErrMemoryProjectDeleted
+	}
 	if database.IsUniqueViolation(err) {
 		return database.ChatProjectMemory{}, xerrors.Errorf("%w: %q", ErrMemoryExists, params.Name)
 	}
@@ -517,6 +532,8 @@ func SaveMemory(store MemoryStore, projectName string) fantasy.AgentTool {
 			// The agent resolves a full project itself, in this turn, with
 			// the tools it already has; there is no background cleanup.
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("memory is full (%d/%d); use %s to merge overlapping memories and drop stale ones, and include this memory in its save list", MaxMemories, MaxMemories, ConsolidateMemoryToolName)), nil
+		case errors.Is(err, ErrMemoryProjectDeleted):
+			return fantasy.NewTextErrorResponse("this chat's project was deleted, so memories can't be saved"), nil
 		case err != nil:
 			return fantasy.NewTextErrorResponse("failed to save memory"), nil
 		}
@@ -586,6 +603,8 @@ func ConsolidateMemory(store MemoryStore, projectName string) fantasy.AgentTool 
 			return fantasy.NewTextErrorResponse(err.Error() + "; no changes were applied"), nil
 		case errors.Is(err, ErrMemoryLimit):
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("this would leave more than %d memories; delete more and retry. No changes were applied", MaxMemories)), nil
+		case errors.Is(err, ErrMemoryProjectDeleted):
+			return fantasy.NewTextErrorResponse("this chat's project was deleted, so memories can't be changed. No changes were applied"), nil
 		case err != nil:
 			return fantasy.NewTextErrorResponse("failed to consolidate memory; no changes were applied"), nil
 		}

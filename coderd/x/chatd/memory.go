@@ -83,8 +83,9 @@ func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 // follow it directly.
 //
 // A root chat outside a project has an empty index, so a chat that left its
-// project, or whose project was deleted, has the memories it saw removed at
-// its next turn start. That removal is all that can be due for such a chat,
+// project has the memories it saw removed at its next turn start. A chat
+// whose project was deleted gets no update; the project cleanup archives
+// it. That removal is all that can be due for such a chat,
 // so it reads the prompt only at a turn start, which history (the chat's
 // user-visible messages) shows without a query.
 func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat, history []database.ChatMessage) (chatstate.Message, bool, error) {

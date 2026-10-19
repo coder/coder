@@ -507,9 +507,9 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 
 // MoveChatToProject moves a root chat into a project, or out of its
 // project when projectID is NULL. Its subagent chats move with it. While
-// the chat or a subagent chat is not idle,
-// it returns [chatstate.ErrTransitionNotAllowed], unless the chat is
-// already in that project, which changes nothing.
+// the chat or a subagent chat is not idle, it returns
+// [chatstate.ErrTransitionNotAllowed], unless the chat is already in that
+// project, which changes nothing.
 func (p *Server) MoveChatToProject(ctx context.Context, chat database.Chat, projectID uuid.NullUUID) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")

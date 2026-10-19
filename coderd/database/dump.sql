@@ -2351,7 +2351,7 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Its memories, instructions and skills are deleted with the tombstone. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.';
+COMMENT ON COLUMN chat_projects.deleted IS 'True once the project is deleted; never reset to false. The delete removes the project''s memories, instructions and skills at once. Its chats are archived and follow chat retention (kept forever when retention is 0); dbpurge deletes this row once no chats reference it.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1

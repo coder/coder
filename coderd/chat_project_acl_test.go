@@ -524,23 +524,32 @@ func TestChatProjectSharing(t *testing.T) {
 	})
 }
 
-// deleteProjectBeforeInsertChatStore deletes the chat's project right before
-// CreateChat locks it, as a concurrent project delete would.
-type deleteProjectBeforeInsertChatStore struct {
+// deleteProjectBeforeShareLockStore deletes the project right before a
+// statement locks it FOR SHARE, as a concurrent project delete would.
+type deleteProjectBeforeShareLockStore struct {
 	database.Store
 }
 
-func (s deleteProjectBeforeInsertChatStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+func (s deleteProjectBeforeShareLockStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return function(deleteProjectBeforeInsertChatStore{Store: tx})
+		return function(deleteProjectBeforeShareLockStore{Store: tx})
 	}, txOpts)
 }
 
-func (s deleteProjectBeforeInsertChatStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
-	if _, err := s.UpdateChatProjectDeletedByID(ctx, id); err != nil {
+func (s deleteProjectBeforeShareLockStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	//nolint:gocritic // The test deletes the project the way the delete request would.
+	if _, err := s.UpdateChatProjectDeletedByID(dbauthz.AsSystemRestricted(ctx), id); err != nil {
 		return database.ChatProject{}, err
 	}
 	return s.Store.GetChatProjectByIDForShare(ctx, id)
+}
+
+func (s deleteProjectBeforeShareLockStore) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
+	//nolint:gocritic // See GetChatProjectByIDForShare.
+	if _, err := s.UpdateChatProjectDeletedByID(dbauthz.AsSystemRestricted(ctx), arg.ProjectID); err != nil {
+		return database.ChatProjectInstruction{}, err
+	}
+	return s.Store.UpsertChatProjectInstructions(ctx, arg)
 }
 
 func TestPostChatsProjectDeletedBeforeInsert(t *testing.T) {
@@ -549,7 +558,7 @@ func TestPostChatsProjectDeletedBeforeInsert(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	rawDB, ps := dbtestutil.NewDB(t)
 	client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
-		opts.Database = deleteProjectBeforeInsertChatStore{Store: rawDB}
+		opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
 		opts.Pubsub = ps
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -563,6 +572,41 @@ func TestPostChatsProjectDeletedBeforeInsert(t *testing.T) {
 	})
 	sdkErr := requireSDKError(t, err, http.StatusNotFound)
 	require.Equal(t, "Chat project not found.", sdkErr.Message)
+}
+
+// TestChatProjectContentWritesAfterDelete checks that a memory or
+// instructions write that loaded the project before a concurrent delete
+// returns 404.
+func TestChatProjectContentWritesAfterDelete(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T) (*codersdk.ExperimentalClient, codersdk.ChatProject) {
+		rawDB, ps := dbtestutil.NewDB(t)
+		client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
+			opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
+			opts.Pubsub = ps
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		return client, createChatProject(t, client, firstUser.OrganizationID, "Racing Project")
+	}
+
+	t.Run("Memory", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, project := newClient(t)
+		_, err := client.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
+			Name: "racing", Description: "d", Body: "b",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("Instructions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, project := newClient(t)
+		_, err := client.UpdateChatProjectInstructions(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "i"})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
 }
 
 func TestChatProjectACLMemberRemovalBeforeGrant(t *testing.T) {

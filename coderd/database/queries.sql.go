@@ -7643,7 +7643,8 @@ type UpsertChatProjectInstructionsParams struct {
 
 // The organization comes from the project row, so the stored scope always
 // matches the project's organization. Locks the live project FOR SHARE, so
-// a project delete waits for this write and then deletes it.
+// a project delete waits for this write and then deletes it. Returns no
+// rows once the project is deleted.
 func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions, arg.Instructions, arg.UpdatedBy, arg.ProjectID)
 	var i ChatProjectInstruction
@@ -8009,9 +8010,10 @@ WHERE id = $1::uuid AND NOT deleted
 FOR SHARE
 `
 
-// Root chat creation in a project must hold this until its insert commits,
-// so a concurrent project delete either waits and then archives the new
-// chat in its cleanup, or makes this return no rows.
+// Callers that add a chat to a project, move one out, unarchive one in it,
+// or write its memories hold this until commit, so a concurrent project
+// delete waits for them and the cleanup that follows archives their chats.
+// Returns no rows once the project is deleted.
 func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
 	var i ChatProject
@@ -8510,10 +8512,12 @@ skills AS (
 SELECT id FROM project
 `
 
-// Irreversible. Waits for root chat creations holding
-// GetChatProjectByIDForShare. Deletes the project's memories,
-// instructions and skills; its chats keep running until
-// chatstate.ArchiveDeletedChatProject archives them.
+// Irreversible. Call through chatstate.TombstoneChatProject, which locks
+// the project earlier in the same transaction: this statement's snapshot
+// predates any lock wait inside it, so without that lock a memory,
+// instructions or skill write it waited for survives. Deletes the
+// project's memories, instructions and skills; its chats keep running
+// until chatstate.ArchiveDeletedChatProject archives them.
 func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, updateChatProjectDeletedByID, id)
 	var id_2 uuid.UUID
@@ -29336,7 +29340,7 @@ INSERT INTO skills (id, project_id, name, description, content)
 SELECT $1::uuid, chat_projects.id, $2::text, $3::text, $4::text
 FROM chat_projects
 WHERE chat_projects.id = $5::uuid AND NOT chat_projects.deleted
-FOR SHARE
+FOR NO KEY UPDATE
 RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
@@ -29348,8 +29352,10 @@ type InsertProjectSkillParams struct {
 	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
 }
 
-// Locks the live project FOR SHARE, so a project delete waits for this
-// insert and then deletes the skill. Returns no rows once it is deleted.
+// Locks the live project FOR NO KEY UPDATE, the mode the skill limit
+// trigger takes, so concurrent inserts never upgrade a shared lock and
+// deadlock. A project delete waits for this insert and then deletes the
+// skill. Returns no rows once the project is deleted.
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, insertProjectSkill,
 		arg.ID,

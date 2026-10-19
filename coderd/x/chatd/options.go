@@ -29,10 +29,8 @@ const (
 	// once per day, so hourly runs are more than enough to keep up
 	// while still catching chats that cross the threshold shortly
 	// after midnight.
-	defaultArchiveInterval  = time.Hour
-	defaultArchiveBatchSize = int32(1000)
-	// The delete request schedules its own cleanup, so the sweep only
-	// catches cleanups that did not run or failed.
+	defaultArchiveInterval                  = time.Hour
+	defaultArchiveBatchSize                 = int32(1000)
 	defaultDeletedChatProjectSweepInterval  = time.Minute
 	defaultDeletedChatProjectSweepBatchSize = int32(100)
 	defaultStateChannelSize                 = 64

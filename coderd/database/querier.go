@@ -563,9 +563,10 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Root chat creation in a project must hold this until its insert commits,
-	// so a concurrent project delete either waits and then archives the new
-	// chat in its cleanup, or makes this return no rows.
+	// Callers that add a chat to a project, move one out, unarchive one in it,
+	// or write its memories hold this until commit, so a concurrent project
+	// delete waits for them and the cleanup that follows archives their chats.
+	// Returns no rows once the project is deleted.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Locks FOR NO KEY UPDATE so sub-chat inserts, whose project_id foreign key
 	// check takes FOR KEY SHARE, do not wait for it.
@@ -1300,8 +1301,10 @@ type sqlcQuerier interface {
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
 	InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error)
-	// Locks the live project FOR SHARE, so a project delete waits for this
-	// insert and then deletes the skill. Returns no rows once it is deleted.
+	// Locks the live project FOR NO KEY UPDATE, the mode the skill limit
+	// trigger takes, so concurrent inserts never upgrade a shared lock and
+	// deadlock. A project delete waits for this insert and then deletes the
+	// skill. Returns no rows once the project is deleted.
 	InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
@@ -1676,10 +1679,12 @@ type sqlcQuerier interface {
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
-	// Irreversible. Waits for root chat creations holding
-	// GetChatProjectByIDForShare. Deletes the project's memories,
-	// instructions and skills; its chats keep running until
-	// chatstate.ArchiveDeletedChatProject archives them.
+	// Irreversible. Call through chatstate.TombstoneChatProject, which locks
+	// the project earlier in the same transaction: this statement's snapshot
+	// predates any lock wait inside it, so without that lock a memory,
+	// instructions or skill write it waited for survives. Deletes the
+	// project's memories, instructions and skills; its chats keep running
+	// until chatstate.ArchiveDeletedChatProject archives them.
 	UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.
@@ -1875,7 +1880,8 @@ type sqlcQuerier interface {
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	// The organization comes from the project row, so the stored scope always
 	// matches the project's organization. Locks the live project FOR SHARE, so
-	// a project delete waits for this write and then deletes it.
+	// a project delete waits for this write and then deletes it. Returns no
+	// rows once the project is deleted.
 	UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error

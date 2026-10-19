@@ -2469,10 +2469,11 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	return project, ReadBodyAsJSON(res, &project)
 }
 
-// DeleteChatProject deletes a chat project. Its chats, including those of
-// users it is shared with, can no longer be read or unarchived; they are
-// archived in the background and removed by conversation retention, or kept
-// when retention is disabled.
+// DeleteChatProject deletes a chat project and, at once, its memories,
+// instructions and skills. Its chats, including those of users it is shared
+// with, can no longer be read or unarchived; they are archived in the
+// background and removed by chat retention, or kept when retention is
+// disabled.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {

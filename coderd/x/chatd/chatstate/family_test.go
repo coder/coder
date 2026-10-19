@@ -542,10 +542,9 @@ func TestChatProjectDeleteWaitsForUnarchive(t *testing.T) {
 
 	deleteErr := make(chan error, 1)
 	go func() {
-		_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
-		deleteErr <- err
+		deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
 	}()
-	waitForLockWaiter(ctx, t, sqlDB, "UpdateChatProjectDeletedByID")
+	waitForLockWaiter(ctx, t, sqlDB, "GetChatProjectByIDForUpdate")
 	require.NoError(t, hold.Commit())
 	require.NoError(t, testutil.RequireReceive(ctx, t, unarchiveErr))
 	require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
@@ -553,6 +552,55 @@ func TestChatProjectDeleteWaitsForUnarchive(t *testing.T) {
 	archived, _, err := chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
 	require.NoError(t, err)
 	require.Len(t, archived, 2, "the cleanup archives the unarchived family")
+}
+
+// TestChatProjectDeleteWaitsForMoveOut pauses a move out of a project
+// after its project check and checks that a project delete waits for it,
+// so a family cannot leave a project after its tombstone commits.
+func TestChatProjectDeleteWaitsForMoveOut(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+
+	// Holding the child stops the move after it checked the project.
+	hold, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = hold.Rollback() })
+	_, err = hold.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, child.ID)
+	require.NoError(t, err)
+
+	moveErr := make(chan error, 1)
+	go func() {
+		_, err := chatstate.SetFamilyProject(ctx, db, newRecordingPubsub(), chatstate.SetFamilyProjectInput{RootID: root.ID})
+		moveErr <- err
+	}()
+	waitForLockWaiter(ctx, t, sqlDB, "LockChatAndBumpSnapshotVersion")
+
+	deleteErr := make(chan error, 1)
+	go func() {
+		deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
+	}()
+	waitForLockWaiter(ctx, t, sqlDB, "GetChatProjectByIDForUpdate")
+	require.NoError(t, hold.Commit())
+	require.NoError(t, testutil.RequireReceive(ctx, t, moveErr))
+	require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
 }
 
 func TestSetFamilyArchivedKeepsDeletedProjectArchived(t *testing.T) {
@@ -721,10 +769,9 @@ func TestChatProjectDeleteWaitsForRootCreation(t *testing.T) {
 
 	deleteErr := make(chan error, 1)
 	go func() {
-		_, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
-		deleteErr <- err
+		deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
 	}()
-	waitForLockWaiter(ctx, t, sqlDB, "UpdateChatProjectDeletedByID")
+	waitForLockWaiter(ctx, t, sqlDB, "GetChatProjectByIDForUpdate")
 	close(release)
 	require.NoError(t, testutil.TryReceive(ctx, t, createErr))
 	require.NoError(t, testutil.TryReceive(ctx, t, deleteErr))
@@ -791,9 +838,10 @@ func TestArchiveDeletedChatProjectSkipsLiveProject(t *testing.T) {
 		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
 	})
 
-	archived, _, err := chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
+	archived, projectChats, err := chatstate.ArchiveDeletedChatProject(ctx, db, newRecordingPubsub(), project.ID)
 	require.NoError(t, err)
 	require.Empty(t, archived)
+	require.Empty(t, projectChats, "a live project's chats get no project_deleted events")
 	chat, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.False(t, chat.Archived)

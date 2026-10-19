@@ -1,6 +1,6 @@
 ALTER TABLE chat_projects ADD COLUMN deleted boolean NOT NULL DEFAULT false;
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Its memories, instructions and skills are deleted with the tombstone. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.';
+COMMENT ON COLUMN chat_projects.deleted IS 'True once the project is deleted; never reset to false. The delete removes the project''s memories, instructions and skills at once. Its chats are archived and follow chat retention (kept forever when retention is 0); dbpurge deletes this row once no chats reference it.';
 
 -- Project queries match sub-chats on project_id alone. The trigger sets it on
 -- every sub-chat insert, including from older replicas during a rolling

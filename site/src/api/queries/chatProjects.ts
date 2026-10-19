@@ -64,7 +64,7 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
-/** Callers that add an onSuccess must call this one first. */
+/** Callers that add an onSuccess must also call this one. */
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>

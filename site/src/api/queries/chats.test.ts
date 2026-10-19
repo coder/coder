@@ -5682,17 +5682,25 @@ describe("applyWatchedChatProjectDeleted", () => {
 			expect(observer.getCurrentResult().isSuccess).toBe(true),
 		);
 
-		for (const id of ["chat-1", "chat-2", "chat-3"]) {
+		// The refetch finishes between events, so later events must not
+		// start another one.
+		applyWatchedChatProjectDeleted(queryClient, {
+			id: "chat-1",
+			project_id: "project-1",
+		});
+		refetch.resolve([]);
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isFetching).toBe(false),
+		);
+		for (const id of ["chat-2", "chat-3"]) {
 			applyWatchedChatProjectDeleted(queryClient, {
 				id,
 				project_id: "project-1",
 			});
 		}
-		refetch.resolve([]);
-		await vi.waitFor(() =>
-			expect(observer.getCurrentResult().isFetching).toBe(false),
-		);
+		await Promise.resolve();
 
+		expect(observer.getCurrentResult().isFetching).toBe(false);
 		expect(fetches).toBe(2);
 		unsubscribe();
 	});

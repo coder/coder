@@ -527,6 +527,59 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
+	it("leaves an open chat of the deleted project", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				() => new HttpResponse(null, { status: 204 }),
+			),
+		);
+		const queryClient = createTestQueryClient();
+		const openChat = buildChat({ project_id: MockChatProject.id });
+		queryClient.setQueryDefaults(chatEntityKey(openChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(openChat.id), openChat);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${openChat.id}`}
+				queryClient={queryClient}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId?"
+						element={<ChatsSidebar {...defaultProps} />}
+					/>
+				</Routes>
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				/^\/agents$/,
+			),
+		);
+	});
+
 	it("reports a failed project deletion", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");

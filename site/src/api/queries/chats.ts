@@ -564,11 +564,11 @@ export const applyWatchedChatProjectDeleted = (
 	void resetChatEntity(queryClient, chatId);
 	// A fetch that started before the delete can still return these chats,
 	// so the first event of a project delete restarts in-flight fetches.
-	// The rest of its burst, one event per chat, reuses those fetches.
-	const cancelRefetch = claimFirstProjectDeleteEvent(
-		queryClient,
-		chat.project_id,
-	);
+	// The server publishes after the delete commits, so those fetches
+	// already exclude every chat in the rest of the burst.
+	if (!claimFirstProjectDeleteEvent(queryClient, chat.project_id)) {
+		return;
+	}
 	for (const queryKey of [
 		chatListFamilyKey,
 		chatProjectListFamilyKey,
@@ -576,7 +576,7 @@ export const applyWatchedChatProjectDeleted = (
 		chatSearchFamilyKey,
 		chatProjectsKey,
 	]) {
-		void queryClient.invalidateQueries({ queryKey }, { cancelRefetch });
+		void queryClient.invalidateQueries({ queryKey });
 	}
 };
 

@@ -8,7 +8,7 @@ import {
 	deleteChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
-import { userChatProviderConfigs } from "#/api/queries/chats";
+import { chatEntityKey, userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { toast } from "#/components/Toaster/toast";
@@ -123,16 +123,29 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const { agentId, chatId } = useParams<{
+		agentId?: string;
+		chatId?: string;
+	}>();
+	const activeChatId = agentId ?? chatId;
 	const deleteProjectOptions = deleteChatProject(queryClient);
 	const deleteProjectMutation = useMutation({
 		...deleteProjectOptions,
-		// Leaves the deleted project's page before the project list refetches,
-		// so the page never shows "Project not found". A pending mutation picks
-		// up each render's options, so this reads the current location.
+		// Leaves the deleted project's page, or one of its chats, before the
+		// caches refetch, so the page never shows "not found". A pending
+		// mutation picks up each render's options, so this reads the current
+		// location.
 		onSuccess: (...args) => {
-			deleteProjectOptions.onSuccess?.(...args);
 			const [, project] = args;
-			if (viewedProjectId === project.id) {
+			// Read before the shared onSuccess resets the chat entity.
+			const activeChat = activeChatId
+				? queryClient.getQueryData<Chat>(chatEntityKey(activeChatId))
+				: undefined;
+			deleteProjectOptions.onSuccess?.(...args);
+			if (
+				viewedProjectId === project.id ||
+				activeChat?.project_id === project.id
+			) {
 				navigate(
 					{ pathname: "/agents", search: location.search },
 					{ replace: true },
@@ -230,11 +243,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		});
 	};
 
-	const { agentId, chatId } = useParams<{
-		agentId?: string;
-		chatId?: string;
-	}>();
-	const activeChatId = agentId ?? chatId;
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
@@ -349,7 +357,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Its memories and instructions are deleted now. Every chat in it, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
+				info="Its memories, instructions and skills are deleted now. Every chat in it, including chats started by people it is shared with, is stopped and can't be opened again. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog
