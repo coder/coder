@@ -2954,6 +2954,56 @@ export const ProjectsEmpty: Story = {
 	},
 };
 
+export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
+export const ProjectActionsWithoutDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: true, delete: false, share: true },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
 export const ProjectChatWithoutLoadedProject: Story = {
 	args: {
 		chats: [

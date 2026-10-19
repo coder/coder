@@ -1028,6 +1028,21 @@ A moved root chat uses the instructions and memory of its new project from its n
 
 Project instructions are loaded on every turn, so edits show up in existing chats on their next turn. They're loaded alongside the rest of the turn setup, sanitized again, and added to the system prompt by `buildSystemPrompt` as a `<project-instructions>` block, after the memory guidance and before the user prompt. Subagents get them from their root chat.
 
+###### Project sharing
+
+Owners share a project with users, groups, or the Everyone group (ID = organization ID). Chats in a shared project stay private to their owners.
+
+| Role    | Project and instructions | Memories   | ACL  | Delete |
+|---------|--------------------------|------------|------|--------|
+| `use`   | read                     | read/write | read | no     |
+| `admin` | read/write               | read/write | edit | no     |
+
+Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
+
+Memory tools and instruction loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` and `resolveProjectInstructions` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
@@ -1207,6 +1222,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+  - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
 ## Endpoint lifecycle
 
@@ -1370,6 +1386,8 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 2. Emit the `history_reset` event.
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
+
+TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 
 Required invariant:
 
