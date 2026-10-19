@@ -1572,7 +1572,7 @@ None
   "exit_code": 0,
   "stage": "init",
   "started_at": "2019-08-24T14:15:22Z",
-  "status": "string",
+  "status": "ok",
   "workspace_agent_id": "string",
   "workspace_agent_name": "string"
 }
@@ -1580,16 +1580,16 @@ None
 
 ### Properties
 
-| Name                   | Type                                         | Required | Restrictions | Description |
-|------------------------|----------------------------------------------|----------|--------------|-------------|
-| `display_name`         | string                                       | false    |              |             |
-| `ended_at`             | string                                       | false    |              |             |
-| `exit_code`            | integer                                      | false    |              |             |
-| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
-| `started_at`           | string                                       | false    |              |             |
-| `status`               | string                                       | false    |              |             |
-| `workspace_agent_id`   | string                                       | false    |              |             |
-| `workspace_agent_name` | string                                       | false    |              |             |
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name`         | string                                                                     | false    |              |             |
+| `ended_at`             | string                                                                     | false    |              |             |
+| `exit_code`            | integer                                                                    | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage)                               | false    |              |             |
+| `started_at`           | string                                                                     | false    |              |             |
+| `status`               | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `workspace_agent_id`   | string                                                                     | false    |              |             |
+| `workspace_agent_name` | string                                                                     | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -4854,22 +4854,139 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "permissions": {
+    "delete": true,
+    "share": true,
+    "update": true
+  },
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                   |
-|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string | false    |              |                                                                                               |
-| `description`     | string | false    |              |                                                                                               |
-| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string | false    |              |                                                                                               |
-| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string | false    |              |                                                                                               |
-| `owner_id`        | string | false    |              |                                                                                               |
-| `updated_at`      | string | false    |              |                                                                                               |
+| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
+|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                             | false    |              |                                                                                               |
+| `description`     | string                                                             | false    |              |                                                                                               |
+| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string                                                             | false    |              |                                                                                               |
+| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
+| `organization_id` | string                                                             | false    |              |                                                                                               |
+| `owner_id`        | string                                                             | false    |              |                                                                                               |
+| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
+| `updated_at`      | string                                                             | false    |              |                                                                                               |
+
+## codersdk.ChatProjectACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "use",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "use",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                            | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+
+## codersdk.ChatProjectGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "use",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatProjectRole](#codersdkchatprojectrole)  | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatProjectInstructions
 
@@ -4925,6 +5042,66 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                | string | false    |              |             |
 | `organization_id`     | string | false    |              |             |
 | `project_id`          | string | false    |              |             |
+
+## codersdk.ChatProjectPermissions
+
+```json
+{
+  "delete": true,
+  "share": true,
+  "update": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `delete` | boolean | false    |              |             |
+| `share`  | boolean | false    |              |             |
+| `update` | boolean | false    |              |             |
+
+## codersdk.ChatProjectRole
+
+```json
+"use"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| ``, `admin`, `use` |
+
+## codersdk.ChatProjectUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "use",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                 | Required | Restrictions | Description |
+|--------------|------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                               | false    |              |             |
+| `id`         | string                                               | true     |              |             |
+| `name`       | string                                               | false    |              |             |
+| `role`       | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `username`   | string                                               | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatPrompt
 
@@ -14360,9 +14537,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -16806,6 +16983,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                     | Type   | Required | Restrictions | Description |
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.UpdateChatProjectACL
+
+```json
+{
+  "group_roles": {
+    "property1": "use",
+    "property2": "use"
+  },
+  "user_roles": {
+    "property1": "use",
+    "property2": "use"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                 | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `user_roles`       | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
 
 ## codersdk.UpdateChatProjectInstructionsRequest
 
@@ -19645,9 +19846,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                             |
-|------------------------------------------------------|
-| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
+| Value(s)                                                                    |
+|-----------------------------------------------------------------------------|
+| `canceled`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -20155,7 +20356,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }

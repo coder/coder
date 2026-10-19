@@ -30,8 +30,7 @@ curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock
 
 `GET /debug/magicsock`
 
-See
-[Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.ServeHTTPDebug).
+See [Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.ServeHTTPDebug).
 
 ## Toggle debug logging for magicsock
 
@@ -43,9 +42,8 @@ curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock/debug-logging/true
 
 `GET /debug/magicsock/debug-logging/{state}`
 
-Set whether debug logging is enabled. See
-[Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.SetDebugLoggingEnabled)
-for more information.
+Set whether debug logging is enabled.
+See [Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.SetDebugLoggingEnabled) for more information.
 
 ### Parameters
 
