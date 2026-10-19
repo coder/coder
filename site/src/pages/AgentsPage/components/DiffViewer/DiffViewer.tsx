@@ -1,3 +1,4 @@
+import { DEFAULT_CODE_VIEW_FILE_METRICS } from "@pierre/diffs";
 import type {
 	CodeViewHandle,
 	CodeViewItem,
@@ -60,13 +61,12 @@ const DIFF_HEADER_HEIGHT = 32;
 const HUNK_SEPARATOR_HEIGHT = 28;
 // Vertical gap between file cards, in pixels.
 const FILE_CARD_GAP = 2;
-// Padding on every side of the file list, in pixels.
+// Padding around the file list, in pixels. The right side is 0 while a
+// classic scrollbar is shown.
 const FILE_LIST_PADDING = 8;
 const FILE_CARD_RADIUS = 6;
 // Inset of the code block from the card's sides and bottom, in pixels.
 const FILE_CODE_INSET = 4;
-// CodeView's default per-file bottom padding (VirtualFileMetrics.spacing).
-const DIFF_FILE_SPACING = 8;
 
 // The code block is inset so its horizontal scrollbar stays inside the card.
 // A collapsed file renders no <pre>, so its header takes the full radius.
@@ -128,7 +128,7 @@ const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
 	// CodeView computes file heights from these metrics, so they must include
 	// the code block's bottom inset from FILE_CARD_CSS.
-	paddingBottom: DIFF_FILE_SPACING + FILE_CODE_INSET,
+	paddingBottom: DEFAULT_CODE_VIEW_FILE_METRICS.spacing + FILE_CODE_INSET,
 };
 
 const fileTreeStyle = {
@@ -435,10 +435,8 @@ export function saveDiffStyle(style: DiffStyle): void {
 	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
-// The loading state mirrors the real diff layout: rounded file cards with a
-// change badge and plain-text line stats, gutter-aligned code lines, and
-// centered hunk separators. Keeping the same shape avoids a jarring swap
-// when the parsed diff replaces the placeholder.
+// The loading state mirrors the real file card layout so the parsed diff
+// replaces it without a visible jump. Change both together.
 function SkeletonLine({ width }: { width: string }) {
 	return (
 		<div
@@ -592,9 +590,6 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	// enough horizontal room, rather than keying off the viewport width.
 	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
 	const [containerWidth, setContainerWidth] = useState(0);
-	// A classic scrollbar already separates the cards from the panel edge, so
-	// the list drops its right padding while one is shown.
-	const [hasClassicScrollbar, setHasClassicScrollbar] = useState(false);
 	useEffect(() => {
 		if (!containerEl) return;
 		setContainerWidth(containerEl.getBoundingClientRect().width);
@@ -604,6 +599,10 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		observer.observe(containerEl);
 		return () => observer.disconnect();
 	}, [containerEl]);
+
+	// A classic scrollbar already separates the cards from the panel edge, so
+	// the list drops its right padding while one is shown.
+	const [hasClassicScrollbar, setHasClassicScrollbar] = useState(false);
 	useLayoutEffect(() => {
 		if (!scrollerEl) return;
 		const update = () =>
