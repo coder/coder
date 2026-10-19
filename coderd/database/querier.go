@@ -440,8 +440,9 @@ type sqlcQuerier interface {
 	// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 	// workspace agent and its associated build. During normal operation, this is
 	// the latest build. During shutdown, this may be the previous START build while
-	// the STOP build is executing, allowing shutdown scripts to authenticate (see
-	// issue #19467).
+	// the STOP or DELETE build is executing, allowing shutdown scripts and final
+	// connection reports to authenticate (see issue #19467). The agent connection
+	// monitor in coderd/workspaceagentsrpc.go applies the same rule.
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
