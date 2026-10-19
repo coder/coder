@@ -436,15 +436,19 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
+	store, pubsub := dbtestutil.NewDB(t)
+	client := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Database = store
+		opts.Pubsub = pubsub
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "noncanonical ID chat")
 
 	userClient, user := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
-	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+	group := dbgen.Group(t, store, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, store, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
 	readers := []*codersdk.ExperimentalClient{
 		codersdk.NewExperimentalClient(userClient),
 		codersdk.NewExperimentalClient(groupMemberClient),
@@ -467,6 +471,24 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 		_, err := reader.GetChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	}
+
+	// Older servers stored request keys as sent. Such an entry must be
+	// removable by its own spelling or by the canonical one.
+	readEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	err := store.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       chat.ID,
+		UserACL:  database.ChatACL{strings.ToUpper(user.ID.String()): readEntry},
+		GroupACL: database.ChatACL{strings.ToUpper(group.ID.String()): readEntry},
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles:  map[string]codersdk.ChatRole{strings.ToUpper(user.ID.String()): codersdk.ChatRoleDeleted},
+		GroupRoles: map[string]codersdk.ChatRole{group.ID.String(): codersdk.ChatRoleDeleted},
+	}))
+	acl, err := client.GetChatACL(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, acl.Users)
+	require.Empty(t, acl.Groups)
 }
 
 func TestSharedReaderStreamChat(t *testing.T) {
