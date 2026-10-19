@@ -368,6 +368,14 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 	return xerrors.Errorf("role %q is not a valid chat role", role)
 }
 
+func chatACLUser(user codersdk.MinimalUser, entry database.ChatACLEntry) codersdk.ChatUser {
+	return codersdk.ChatUser{MinimalUser: user, Role: convertToChatRole(entry.Permissions)}
+}
+
+func chatACLGroup(group codersdk.Group, entry database.ChatACLEntry) codersdk.ChatGroup {
+	return codersdk.ChatGroup{Group: group, Role: convertToChatRole(entry.Permissions)}
+}
+
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead
