@@ -232,6 +232,37 @@ export const ViewSwitcherOpen: Story = {
 	},
 };
 
+/** Collapse state does not carry over to another repo with the same path. */
+export const CollapseStateResetsPerRepo: Story = {
+	args: {
+		chatId: "test-chat",
+		repositories: new Map([
+			["/home/coder/coder", makeRepo()],
+			[
+				"/home/coder/other-project",
+				makeRepo({
+					repo_root: "/home/coder/other-project",
+					branch: "main",
+					remote_origin: "https://github.com/coder/other-project.git",
+				}),
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Collapse src/main.ts" }),
+		);
+		await canvas.findByRole("button", { name: "Expand src/main.ts" });
+
+		await userEvent.click(canvas.getByTestId("git-panel-view-switcher"));
+		const menu = await within(document.body).findByRole("menu");
+		await userEvent.click(within(menu).getByText("other-project"));
+
+		await canvas.findByRole("button", { name: "Collapse src/main.ts" });
+	},
+};
+
 /** Draft PR with head/base branches. */
 export const DraftPullRequest: Story = {
 	args: {
