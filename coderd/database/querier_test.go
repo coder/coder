@@ -2220,21 +2220,22 @@ func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
 
 	for _, tc := range []struct {
 		table string
+		query string
 		write func(ctx context.Context, store database.Store, projectID uuid.UUID) error
 	}{
-		{"chat_project_memories", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+		{"chat_project_memories", "InsertChatProjectMemory", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
 			_, err := store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
 				ProjectID: projectID, OrganizationID: org.ID, Name: "racing", Body: "b", CreatedBy: owner.ID,
 			})
 			return err
 		}},
-		{"chat_project_instructions", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+		{"chat_project_instructions", "UpsertChatProjectInstructions", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
 			_, err := store.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
 				ProjectID: projectID, Instructions: "i", UpdatedBy: owner.ID,
 			})
 			return err
 		}},
-		{"skills", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
+		{"skills", "InsertProjectSkill", func(ctx context.Context, store database.Store, projectID uuid.UUID) error {
 			_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
 				ID: uuid.New(), ProjectID: projectID, Name: "racing", Description: "d", Content: "c",
 			})
@@ -2265,11 +2266,10 @@ func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
 			go func() {
 				deleteErr <- chatstate.TombstoneChatProject(ctx, db, project.ID)
 			}()
+			// Subtests share the database, so match only a delete blocked by
+			// this subtest's writer.
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				var waits int
-				err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
-WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%-- name: GetChatProjectByIDForUpdate %'`).Scan(&waits)
-				return err == nil && waits > 0
+				return lockWaitCount(ctx, sqlDB, "GetChatProjectByIDForUpdate", tc.query) > 0
 			}, testutil.IntervalFast, "the delete waits for the writer's project lock")
 			close(release)
 			require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
@@ -2345,11 +2345,10 @@ func TestInsertProjectSkillLocksProject(t *testing.T) {
 
 		insertErr := make(chan error, 1)
 		go func() { insertErr <- insert(ctx, db, project.ID) }()
+		// ConcurrentInserts also leaves inserts waiting, so match only one
+		// blocked by the delete.
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			var waits int
-			err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
-WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%-- name: InsertProjectSkill %'`).Scan(&waits)
-			return err == nil && waits > 0
+			return lockWaitCount(ctx, sqlDB, "InsertProjectSkill", "UpdateChatProjectDeletedByID") > 0
 		}, testutil.IntervalFast, "the insert waits for the delete")
 		close(release)
 		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
@@ -2359,6 +2358,24 @@ WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '
 		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE project_id = $1", project.ID).Scan(&rows))
 		require.Zero(t, rows)
 	})
+}
+
+// lockWaitCount counts backends running the named query that wait on a
+// lock held by a backend whose latest query is blockerQuery.
+func lockWaitCount(ctx context.Context, sqlDB *sql.DB, waiterQuery, blockerQuery string) int {
+	var waits int
+	err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity waiter
+WHERE waiter.datname = current_database() AND waiter.wait_event_type = 'Lock'
+	AND waiter.query LIKE '%-- name: ' || $1 || ' %'
+	AND EXISTS (
+		SELECT 1 FROM pg_stat_activity blocker
+		WHERE blocker.pid = ANY(pg_blocking_pids(waiter.pid))
+			AND blocker.query LIKE '%-- name: ' || $2 || ' %'
+	)`, waiterQuery, blockerQuery).Scan(&waits)
+	if err != nil {
+		return 0
+	}
+	return waits
 }
 
 func TestChatProjectDeleteQueries(t *testing.T) {

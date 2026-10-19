@@ -288,6 +288,14 @@ func TestConsolidateMemory(t *testing.T) {
 			require.Contains(t, store.memories, "seeded-000", input)
 		}
 	})
+	t.Run("ProjectDeleted", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryStore(1)
+		store.writeErr = chattool.ErrMemoryProjectDeleted
+		response, _ := runMemoryTool(t, chattool.ConsolidateMemory(store, "platform"), `{"delete": ["seeded-000"]}`)
+		require.True(t, response.IsError)
+		require.Contains(t, response.Content, "project was deleted")
+	})
 }
 
 // TestProjectMemoryStoreConsolidateIsAtomic runs against Postgres because the

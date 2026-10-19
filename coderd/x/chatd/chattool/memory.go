@@ -50,14 +50,17 @@ var (
 	ErrMemoryProjectDeleted = xerrors.New("chat project was deleted")
 )
 
-// writeProjectMemories runs a memory write in one transaction behind a
-// per-project advisory lock, then rejects it if it left more than
-// MaxMemories memories. The lock serializes writers so two of them cannot
-// both observe room and overshoot the cap, and the transaction means a
-// consolidation applies all of its deletes and saves or none of them. The
-// project lock and count run as the system because the caller has already
-// been authorized to write memories in this project, and a create-only
-// scope may lack the read they would otherwise require.
+// writeProjectMemories runs a memory write in one transaction that holds a
+// per-project advisory lock and then the project row FOR SHARE, and
+// rejects it if it left more than MaxMemories memories. It returns
+// ErrMemoryProjectDeleted if the project is deleted. The advisory lock
+// serializes writers so two of them cannot both observe room and
+// overshoot the cap, the row lock orders the write before a project
+// delete, and the transaction means a consolidation applies all of its
+// deletes and saves or none of them. The project lock and count run as
+// the system because the caller has already been authorized to write
+// memories in this project, and a create-only scope may lack the read
+// they would otherwise require.
 func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
 	var count int64
 	err := db.InTx(func(tx database.Store) error {

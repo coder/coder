@@ -530,10 +530,14 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
-	it("leaves an open chat of the deleted project", async () => {
+	it.each([
+		["leaves an open chat of the deleted project", MockChatProject.id, true],
+		["stays on an open chat of another project", "other-project", false],
+	])("%s", async (_, chatProjectId, leaves) => {
 		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
-		const openChat = buildChat({ project_id: MockChatProject.id });
+		const openChat = buildChat({ project_id: chatProjectId });
+		let deleteRequests = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
@@ -541,8 +545,11 @@ describe("ChatsSidebar projects", () => {
 			http.delete(
 				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
 				() => {
+					deleteRequests++;
 					// The watch event can reset the entity before the response.
-					applyWatchedChatProjectDeleted(queryClient, openChat);
+					if (leaves) {
+						applyWatchedChatProjectDeleted(queryClient, openChat);
+					}
 					return new HttpResponse(null, { status: 204 });
 				},
 			),
@@ -580,10 +587,15 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
+		// The dialog closes after the sidebar's own onSuccess has run.
 		await waitFor(() =>
-			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
-				/^\/agents$/,
-			),
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		expect(deleteRequests).toBe(1);
+		// Router navigations render in a transition, after the dialog closes.
+		await act(async () => {});
+		expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+			leaves ? /^\/agents$/ : `/agents/${openChat.id}`,
 		);
 	});
 
