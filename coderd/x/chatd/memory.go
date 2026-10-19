@@ -19,8 +19,8 @@ import (
 
 // resolveProjectMemory returns the durable-memory store and project name for
 // a chat. Only root chats inside a project have memory; chats outside a
-// project, subagents, the disabled experiment, and transient lookup failures
-// all report ok=false.
+// project, subagents, chats whose owner cannot use the project, the disabled
+// experiment, and transient lookup failures all report ok=false.
 func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (store chattool.MemoryStore, projectName string, ok bool) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return nil, "", false
@@ -28,17 +28,16 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return nil, "", false
 	}
-	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
+	project, ok := p.usableChatProject(ctx, p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID)), chat.ProjectID.UUID, chat)
+	if !ok {
 		return nil, "", false
 	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
 }
 
 // memoryAuditor records memory changes made by a chat's tools. There is no
-// HTTP request, so entries are attributed to the chat owner, whose
-// permissions the change ran with, and name the chat that made it.
+// HTTP request, so entries are attributed to the chat owner and name the
+// chat that made it.
 func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 	return func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
 		if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
@@ -82,9 +81,24 @@ func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 // writes reach the model on its next turn and never mid-turn. Nothing is sent
 // while the latest assistant step has tool calls without results, which must
 // follow it directly.
-func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (chatstate.Message, bool, error) {
-	store, _, ok := p.resolveProjectMemory(ctx, chat)
-	if !ok {
+//
+// A root chat outside a project has an empty index, so a chat that left its
+// project, or whose project was deleted, has the memories it saw removed at
+// its next turn start. That removal is all that can be due for such a chat,
+// so it reads the prompt only at a turn start, which history (the chat's
+// user-visible messages) shows without a query.
+func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat, history []database.ChatMessage) (chatstate.Message, bool, error) {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid {
+		return chatstate.Message{}, false, nil
+	}
+	var store chattool.MemoryStore
+	if chat.ProjectID.Valid {
+		var ok bool
+		store, _, ok = p.resolveProjectMemory(ctx, chat)
+		if !ok {
+			return chatstate.Message{}, false, nil
+		}
+	} else if currentTurnStepCount(history) > 0 {
 		return chatstate.Message{}, false, nil
 	}
 	// Prompt rows include the model-only rows this sends, and exclude rows
@@ -112,9 +126,12 @@ func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (ch
 	}
 	messages := promptRows
 	snapshotOnly := !turnStart
-	current, err := store.List(ctx)
-	if err != nil {
-		return chatstate.Message{}, false, xerrors.Errorf("list project memories: %w", err)
+	var current []chattool.MemoryIndexEntry
+	if store != nil {
+		current, err = store.List(ctx)
+		if err != nil {
+			return chatstate.Message{}, false, xerrors.Errorf("list project memories: %w", err)
+		}
 	}
 	seen, hasSnapshot := chattool.ReplayMemoryIndex(memoryIndexTexts(messages))
 	var text string
