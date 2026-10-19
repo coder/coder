@@ -5078,6 +5078,7 @@ type AIGatewayKey struct {
 
 // AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
 type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
 	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
 	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
 	Model           string        `db:"model" json:"model"`
@@ -5087,6 +5088,8 @@ type AIModelConfig struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.

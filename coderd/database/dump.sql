@@ -1711,6 +1711,7 @@ COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway st
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
 
 CREATE TABLE ai_model_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     provider_id uuid NOT NULL,
     model text NOT NULL,
@@ -1720,6 +1721,7 @@ CREATE TABLE ai_model_configs (
     cache_write_price bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT ai_model_configs_cache_read_price_check CHECK ((cache_read_price >= 0)),
     CONSTRAINT ai_model_configs_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_configs_input_price_check CHECK ((input_price >= 0)),
@@ -1728,6 +1730,8 @@ CREATE TABLE ai_model_configs (
 );
 
 COMMENT ON TABLE ai_model_configs IS 'AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.';
+
+COMMENT ON COLUMN ai_model_configs.deleted IS 'Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -4557,7 +4561,7 @@ ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_configs
-    ADD CONSTRAINT ai_model_configs_pkey PRIMARY KEY (organization_id, provider_id, model);
+    ADD CONSTRAINT ai_model_configs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
@@ -5011,6 +5015,8 @@ CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING b
 CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
 
 CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
+
+CREATE UNIQUE INDEX ai_model_configs_organization_provider_model_unique ON ai_model_configs USING btree (organization_id, provider_id, model) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
