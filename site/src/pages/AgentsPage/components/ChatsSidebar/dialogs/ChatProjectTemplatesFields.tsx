@@ -20,14 +20,15 @@ import {
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
-/**
- * Form state for a project's templates and the defaults its chats use.
- * `chatProjectTemplatesRequest` sends only the defaults of `defaultsKind`.
- */
+/** Form state for a project's templates and the defaults its chats use. */
 export type ChatProjectTemplatesValues = {
 	templateIds: readonly string[];
 	/** Empty when the project has no default template. */
 	defaultTemplateId: string;
+	/**
+	 * Picks which of `defaultPresetId` or `defaultParameters` is saved; the
+	 * other is ignored.
+	 */
 	defaultsKind: "preset" | "parameters";
 	defaultPresetId: string;
 	defaultParameters: Readonly<Record<string, string>>;

@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn, spyOn, userEvent, within } from "storybook/test";
+import { fn, screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import { agentTemplatesKey } from "#/api/queries/templates";
+import {
+	agentTemplatesKey,
+	richParametersKey,
+	templateVersionPresetsKey,
+} from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -216,28 +220,31 @@ export const TemplatesLoadError: Story = {
 };
 
 /** Selects every template and makes Docker the default. */
-const pickDefaultTemplate: Story["play"] = async ({ canvasElement }) => {
-	const body = within(canvasElement.ownerDocument.body);
+const pickDefaultTemplate: Story["play"] = async () => {
 	await userEvent.click(
-		await body.findByRole("button", { name: "Select all" }),
+		await screen.findByRole("button", { name: "Select all" }),
 	);
 	await userEvent.click(
-		body.getByRole("combobox", { name: "Default template" }),
+		screen.getByRole("combobox", { name: "Default template" }),
 	);
-	await userEvent.click(await body.findByRole("option", { name: "Docker" }));
+	await userEvent.click(await screen.findByRole("option", { name: "Docker" }));
 };
 
 const pickDefaultParameters: Story["play"] = async (context) => {
 	await pickDefaultTemplate(context);
-	const body = within(context.canvasElement.ownerDocument.body);
 	await userEvent.click(
-		await body.findByRole("radio", { name: "Parameter values" }),
+		await screen.findByRole("radio", { name: "Parameter values" }),
 	);
 };
 
+const noDockerPresets = {
+	key: templateVersionPresetsKey(mockDockerTemplate.active_version_id),
+	data: [],
+};
+
 export const DefaultTemplateWithoutPresets: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+	parameters: {
+		queries: [...meta.parameters.queries, noDockerPresets],
 	},
 	play: pickDefaultTemplate,
 };
@@ -252,16 +259,24 @@ export const DefaultTemplatePresetsLoadError: Story = {
 };
 
 export const DefaultTemplateWithoutParameters: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
-		spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			noDockerPresets,
+			{
+				key: richParametersKey(mockDockerTemplate.active_version_id),
+				data: [],
+			},
+		],
 	},
 	play: pickDefaultParameters,
 };
 
 export const DefaultTemplateParametersLoadError: Story = {
+	parameters: {
+		queries: [...meta.parameters.queries, noDockerPresets],
+	},
 	beforeEach: () => {
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		spyOn(API, "getTemplateVersionRichParameters").mockRejectedValue(
 			mockApiError({ message: "Failed to load parameters." }),
 		);
