@@ -49,17 +49,17 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey            = xerrors.New("invalid key")
-	ErrUnknownKey            = xerrors.New("unknown key")
-	ErrExpired               = xerrors.New("expired")
-	ErrUnknownUser           = xerrors.New("unknown user")
-	ErrDeletedUser           = xerrors.New("deleted user")
-	ErrInactiveUser          = xerrors.New("inactive user")
-	ErrSystemUser            = xerrors.New("system user")
-	ErrAmbiguousAuth         = xerrors.New("both key and key_id set; exactly one required")
-	ErrWorkspaceAttribution  = xerrors.New("invalid workspace attribution")
-	ErrUnknownWorkspace      = xerrors.New("unknown workspace")
-	ErrNotOrganizationMember = xerrors.New("user is not a member of the workspace organization")
+	ErrInvalidKey                = xerrors.New("invalid key")
+	ErrUnknownKey                = xerrors.New("unknown key")
+	ErrExpired                   = xerrors.New("expired")
+	ErrUnknownUser               = xerrors.New("unknown user")
+	ErrDeletedUser               = xerrors.New("deleted user")
+	ErrInactiveUser              = xerrors.New("inactive user")
+	ErrSystemUser                = xerrors.New("system user")
+	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
+	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
+	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
+	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -769,7 +769,7 @@ externalAuthLoop:
 }
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
-// It also returns the organization the request resolves to, as determined by [orgResolver], and
+// It also returns the organization the request resolves to, as determined by [Server.resolveOrganization], and
 // rejects the request when that resolution fails.
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
@@ -872,7 +872,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		}
 	}
 
-	orgID, err := orgResolver{store: s.store}.resolve(ctx, user.ID, workspaceID)
+	orgID, err := s.resolveOrganization(ctx, user.ID, workspaceID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 		return nil, err

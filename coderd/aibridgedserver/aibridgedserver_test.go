@@ -600,7 +600,7 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 				}))
 				return token
 			},
-			wantErr: aibridgedserver.ErrNotOrganizationMember,
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
 		},
 	}
 

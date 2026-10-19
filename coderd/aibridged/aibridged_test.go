@@ -923,8 +923,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
 			// Return authorization response with user ID, API key ID, username,
-			// email, and a resolved organization. The organization is not used
-			// downstream yet and must not change request handling.
+			// email, and a resolved organization.
 			authResponse := &proto.IsAuthorizedResponse{
 				OwnerId:        testUserID.String(),
 				ApiKeyId:       uuid.NewString(),
