@@ -448,8 +448,7 @@ const reparseSecondBody = [
 	"+const c = 3;",
 ].join("\n");
 
-// FileDiff renders hunks synchronously enough for play tests; CodeView
-// virtualizes and never paints lines in this environment.
+// FileDiff renders hunks synchronously enough for play tests.
 const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
@@ -503,6 +502,33 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 	},
 };
 
+const ReparseInDiffViewer: React.FC<React.ComponentProps<typeof DiffViewer>> = (
+	props,
+) => {
+	const [body, setBody] = useState(reparseFirstBody);
+	return (
+		<div className="flex h-full flex-col">
+			<button type="button" onClick={() => setBody(reparseSecondBody)}>
+				next body
+			</button>
+			<DiffViewer {...props} parsedFiles={parseDiffString(body)} />
+		</div>
+	);
+};
+
+// The same path with new content must re-render, so the CodeView item
+// version has to change with the file content.
+export const ReparseSamePathInDiffViewer: Story = {
+	render: (args) => <ReparseInDiffViewer {...args} />,
+	play: async ({ canvasElement }) => {
+		await waitForDiffBody(canvasElement, "const v = 2");
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "next body" }),
+		);
+		await waitForDiffBody(canvasElement, "const v = 3");
+	},
+};
+
 const waitForNoDiffBody = (canvasElement: HTMLElement, text: string) =>
 	waitFor(() => {
 		const rendered = Array.from(
@@ -551,7 +577,6 @@ const ScrollToCollapsedFile: React.FC<
 	);
 };
 
-// A file reference jump must land on visible code, so it expands the file.
 export const ScrollToFileExpandsCollapsedFile: Story = {
 	render: (args) => <ScrollToCollapsedFile {...args} />,
 	play: async ({ canvasElement }) => {
@@ -579,76 +604,116 @@ const findScroller = (canvasElement: HTMLElement): HTMLElement => {
 	return el;
 };
 
-const overflowFiles = parseDiffString(generateLargeDiff(30, 5));
-const lastOverflowFile = [...overflowFiles]
-	.sort((a, b) => compareTreePaths(a.name, b.name))
-	.at(-1);
-const lastOverflowLine = `context line 5 in ${lastOverflowFile?.name}`;
+// The file tree renders its rows in a shadow root.
+const treeRows = (canvasElement: HTMLElement): HTMLElement[] =>
+	Array.from(canvasElement.querySelectorAll("*")).flatMap((el) =>
+		el.shadowRoot
+			? Array.from(
+					el.shadowRoot.querySelectorAll<HTMLElement>("[data-item-path]"),
+				)
+			: [],
+	);
 
-// File heights come from itemMetrics, so they must account for the card's
-// code inset or the end of the list cannot be scrolled into view. A classic
-// scrollbar replaces the list's right padding.
-export const OverflowScrollsToLastCard: Story = {
+const selectedTreePaths = (canvasElement: HTMLElement): string[] =>
+	treeRows(canvasElement)
+		.filter((row) => row.getAttribute("aria-selected") === "true")
+		.map((row) => row.dataset.itemPath ?? "");
+
+// CodeView disables pointer events while a scroll is in progress.
+const clickAfterScroll = async (element: HTMLElement) => {
+	await waitFor(() => {
+		if (getComputedStyle(element).pointerEvents === "none") {
+			throw new Error("Scroll still in progress");
+		}
+	});
+	await userEvent.click(element);
+};
+
+const longFiles = parseDiffString(generateLargeDiff(4, 300));
+const firstLongFile =
+	[...longFiles].sort((a, b) => compareTreePaths(a.name, b.name))[0]?.name ??
+	"";
+
+// Collapsing from a sticky header scrolls the file to its start, and the
+// resulting scroll event must not leave the collapsed file selected in the
+// tree, or clicking its row would not expand it.
+export const TreeClickExpandsFileCollapsedFromStickyHeader: Story = {
 	args: {
-		parsedFiles: overflowFiles,
+		parsedFiles: longFiles,
+		isExpanded: true,
 	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 600, width: 1000 }}>
+				<Story />
+			</div>
+		),
+	],
 	play: async ({ canvasElement }) => {
-		await waitFor(() => findScroller(canvasElement));
+		const canvas = within(canvasElement);
+		const bodyText = `in ${firstLongFile}`;
+		await waitForDiffBody(canvasElement, bodyText);
 		const scroller = findScroller(canvasElement);
+		scroller.scrollTop = 2000;
 
+		await clickAfterScroll(
+			await canvas.findByRole("button", { name: `Collapse ${firstLongFile}` }),
+		);
+		await waitForNoDiffBody(canvasElement, bodyText);
 		await waitFor(() => {
-			scroller.scrollTop = scroller.scrollHeight;
-			const cards = canvasElement.querySelectorAll("diffs-container");
-			const lastCard = cards[cards.length - 1];
-			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
-				throw new Error("Last file has not rendered yet");
-			}
-			const cardBottom = lastCard.getBoundingClientRect().bottom;
-			const scrollerBottom = scroller.getBoundingClientRect().bottom;
-			if (cardBottom > scrollerBottom + 0.5) {
-				throw new Error(
-					`Last card ends ${cardBottom - scrollerBottom}px below the list`,
-				);
+			if (selectedTreePaths(canvasElement).includes(firstLongFile)) {
+				throw new Error("Collapsed file is still selected in the tree");
 			}
 		});
 
-		const hasClassicScrollbar = scroller.offsetWidth > scroller.clientWidth;
-		await waitFor(() => {
-			const paddingRight = getComputedStyle(scroller).paddingRight;
-			const expected = hasClassicScrollbar ? "0px" : "8px";
-			if (paddingRight !== expected) {
-				throw new Error(`padding-right is ${paddingRight}, want ${expected}`);
-			}
-		});
+		const row = treeRows(canvasElement).find(
+			(r) => r.dataset.itemPath === firstLongFile,
+		);
+		if (!row) {
+			throw new Error(`Tree row not found: ${firstLongFile}`);
+		}
+		await userEvent.click(row);
+		await waitForDiffBody(canvasElement, bodyText);
 	},
 };
 
-// A collapsed file has no code block, so its header rounds every corner.
-export const CollapsedHeaderIsFullyRounded: Story = {
+const shortFiles = parseDiffString(generateLargeDiff(20, 3));
+const sortedShortFiles = [...shortFiles]
+	.sort((a, b) => compareTreePaths(a.name, b.name))
+	.map((file) => file.name);
+
+// Collapsing a file other than the active one keeps the tree highlight.
+export const CollapsingAnotherFileKeepsTreeSelection: Story = {
+	args: {
+		parsedFiles: shortFiles,
+		isExpanded: true,
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 600, width: 1000 }}>
+				<Story />
+			</div>
+		),
+	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitForDiffBody(canvasElement, firstFileLine);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
-		);
-		await waitForNoDiffBody(canvasElement, firstFileLine);
-
+		const [activeName, otherName] = sortedShortFiles;
+		await waitForDiffBody(canvasElement, `in ${otherName}`);
+		findScroller(canvasElement).scrollTop = 5;
 		await waitFor(() => {
-			const header = canvasElement
-				.querySelector("diffs-container")
-				?.shadowRoot?.querySelector<HTMLElement>("[data-diffs-header]");
-			if (!header) {
-				throw new Error("Header not rendered");
+			if (!selectedTreePaths(canvasElement).includes(activeName)) {
+				throw new Error(`${activeName} is not selected yet`);
 			}
-			const style = getComputedStyle(header);
-			const radii = [
-				style.borderTopLeftRadius,
-				style.borderTopRightRadius,
-				style.borderBottomRightRadius,
-				style.borderBottomLeftRadius,
-			];
-			if (radii.some((radius) => radius !== "6px")) {
-				throw new Error(`Header radii are ${radii.join(" ")}`);
+		});
+
+		await clickAfterScroll(
+			await canvas.findByRole("button", { name: `Collapse ${otherName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, `in ${otherName}`);
+		await waitFor(() => {
+			const selected = selectedTreePaths(canvasElement);
+			if (selected.length !== 1 || selected[0] !== activeName) {
+				throw new Error(`Tree selection is ${JSON.stringify(selected)}`);
 			}
 		});
 	},
