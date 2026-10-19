@@ -2204,6 +2204,81 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	}
 }
 
+// TestChatProjectDeleteWaitsForContentWriters holds a transaction that
+// wrote project content and checks that the delete, which locks the
+// project before its tombstone, waits for it and removes what it wrote.
+func TestChatProjectDeleteWaitsForContentWriters(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+	write := func(store database.Store) error {
+		if _, err := store.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{
+			ProjectID: project.ID, OrganizationID: org.ID, Name: "racing", Body: "b", CreatedBy: owner.ID,
+		}); err != nil {
+			return err
+		}
+		if _, err := store.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+			ProjectID: project.ID, Instructions: "i", UpdatedBy: owner.ID,
+		}); err != nil {
+			return err
+		}
+		_, err := store.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID: uuid.New(), ProjectID: project.ID, Name: "racing", Description: "d", Content: "c",
+		})
+		return err
+	}
+
+	wrote := make(chan struct{}, 1)
+	release := make(chan struct{})
+	writeErr := make(chan error, 1)
+	go func() {
+		writeErr <- db.InTx(func(tx database.Store) error {
+			if err := write(tx); err != nil {
+				return err
+			}
+			wrote <- struct{}{}
+			<-release
+			return nil
+		}, nil)
+	}()
+	testutil.RequireReceive(ctx, t, wrote)
+
+	deleteErr := make(chan error, 1)
+	go func() {
+		deleteErr <- db.InTx(func(tx database.Store) error {
+			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+				return err
+			}
+			_, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID)
+			return err
+		}, nil)
+	}()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waits int
+		err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%FOR NO KEY UPDATE%'`).Scan(&waits)
+		return err == nil && waits > 0
+	}, testutil.IntervalFast, "the delete waits for the writer's project lock")
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
+	require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+
+	for _, table := range []string{"chat_project_memories", "chat_project_instructions", "skills"} {
+		var rows int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE project_id = $1", project.ID).Scan(&rows))
+		require.Zero(t, rows, "the delete removes rows from %s", table)
+	}
+	require.ErrorIs(t, write(db), sql.ErrNoRows, "writes after the delete store nothing")
+}
+
 func TestChatProjectDeleteQueries(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2298,21 +2373,14 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	archivedIDs, err := db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 	require.NoError(t, err)
 	require.Empty(t, archivedIDs, "a live project's chats are not archived")
-	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
-		ChatIds:   projectChatIDs,
-		ProjectID: project.ID,
-	}))
 	pending, err := db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, pending, "a live project needs no cleanup")
-	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
-		queued, err := db.CountChatQueuedMessages(ctx, id)
-		require.NoError(t, err)
-		require.EqualValues(t, 1, queued, "a live project's queues are kept")
-	}
 
 	dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: project.OrganizationID, CreatedBy: project.OwnerID})
 	skill, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{ID: uuid.New(), ProjectID: project.ID, Name: "deleted-project-skill", Description: "d", Content: "c"})
+	require.NoError(t, err)
+	_, err = db.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{ProjectID: project.ID, Instructions: "i", UpdatedBy: owner.ID})
 	require.NoError(t, err)
 	deletedID, err := db.UpdateChatProjectDeletedByID(ctx, project.ID)
 	require.NoError(t, err)
@@ -2325,17 +2393,16 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	var skills int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM skills WHERE id = $1", skill.ID).Scan(&skills))
 	require.Zero(t, skills, "the tombstone deletes the project's skills")
+	_, err = db.GetChatProjectInstructionsByProjectID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the tombstone deletes the project's instructions")
 	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{project.ID}, pending)
-	require.NoError(t, db.LockChatProjectRootChats(ctx, project.ID))
+	require.NoError(t, db.LockChatProjectUnarchivedRootChats(ctx, project.ID))
 	archivedIDs, err = db.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, projectChatIDs, archivedIDs)
-	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
-		ChatIds:   archivedIDs,
-		ProjectID: project.ID,
-	}))
+	require.NoError(t, db.DeleteChatQueuedMessagesByChatIDs(ctx, archivedIDs))
 	pending, err = db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, pending, "a cleaned up project is not returned again")

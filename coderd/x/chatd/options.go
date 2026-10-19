@@ -248,17 +248,16 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval              time.Duration
-	CapacityMetricsInterval          time.Duration
-	AcquisitionBatchSize             int32
-	ArchiveInterval                  time.Duration
-	ArchiveBatchSize                 int32
-	DeletedChatProjectSweepInterval  time.Duration
-	DeletedChatProjectSweepBatchSize int32
-	RunnerSyncInterval               time.Duration
-	HeartbeatInterval                time.Duration
-	HeartbeatCleanupInterval         time.Duration
-	HeartbeatStaleSeconds            int32
+	AcquisitionInterval             time.Duration
+	CapacityMetricsInterval         time.Duration
+	AcquisitionBatchSize            int32
+	ArchiveInterval                 time.Duration
+	ArchiveBatchSize                int32
+	DeletedChatProjectSweepInterval time.Duration
+	RunnerSyncInterval              time.Duration
+	HeartbeatInterval               time.Duration
+	HeartbeatCleanupInterval        time.Duration
+	HeartbeatStaleSeconds           int32
 	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
 	// stay well below the stale threshold so a slow tick fails and
 	// retries instead of letting every lease go stale.
@@ -306,9 +305,6 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.DeletedChatProjectSweepInterval <= 0 {
 		o.DeletedChatProjectSweepInterval = defaultDeletedChatProjectSweepInterval
-	}
-	if o.DeletedChatProjectSweepBatchSize <= 0 {
-		o.DeletedChatProjectSweepBatchSize = defaultDeletedChatProjectSweepBatchSize
 	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()

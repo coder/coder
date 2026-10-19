@@ -7626,7 +7626,8 @@ SELECT
     $1::text,
     $2::uuid
 FROM chat_projects
-WHERE chat_projects.id = $3::uuid
+WHERE chat_projects.id = $3::uuid AND NOT chat_projects.deleted
+FOR SHARE
 ON CONFLICT (project_id) DO UPDATE SET
     instructions = EXCLUDED.instructions,
     updated_by = EXCLUDED.updated_by,
@@ -7641,7 +7642,8 @@ type UpsertChatProjectInstructionsParams struct {
 }
 
 // The organization comes from the project row, so the stored scope always
-// matches the project's organization.
+// matches the project's organization. Locks the live project FOR SHARE, so
+// a project delete waits for this write and then deletes it.
 func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions, arg.Instructions, arg.UpdatedBy, arg.ProjectID)
 	var i ChatProjectInstruction
@@ -7833,37 +7835,41 @@ INSERT INTO chat_project_memories (
     body,
     created_by
 )
-VALUES (
+SELECT
     COALESCE($1::uuid, gen_random_uuid()),
+    chat_projects.id,
     $2::uuid,
-    $3::uuid,
+    $3::text,
     $4::text,
     $5::text,
-    $6::text,
-    $7::uuid
-)
+    $6::uuid
+FROM chat_projects
+WHERE chat_projects.id = $7::uuid AND NOT chat_projects.deleted
+FOR SHARE
 RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
 `
 
 type InsertChatProjectMemoryParams struct {
 	ID             uuid.NullUUID `db:"id" json:"id"`
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
 	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 	Body           string        `db:"body" json:"body"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
 }
 
+// Locks the live project FOR SHARE, so a project delete waits for this
+// insert and then deletes the memory. Returns no rows once it is deleted.
 func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error) {
 	row := q.db.QueryRowContext(ctx, insertChatProjectMemory,
 		arg.ID,
-		arg.ProjectID,
 		arg.OrganizationID,
 		arg.Name,
 		arg.Description,
 		arg.Body,
 		arg.CreatedBy,
+		arg.ProjectID,
 	)
 	var i ChatProjectMemory
 	err := row.Scan(
@@ -7903,8 +7909,8 @@ RETURNING chats.id
 // Execution-state transition outside the chatstate machine; keep the SET
 // list in sync with UpdateChatExecutionState. Publishes nothing, so callers
 // publish chat:update per chat. Run it before
-// DeleteChatQueuedMessagesOfDeletedChatProject so a send waiting on a chat
-// lock reads the archived state and is refused.
+// DeleteChatQueuedMessagesByChatIDs so a send waiting on a chat lock reads
+// the archived state and is refused.
 func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, archiveChatsOfDeletedChatProject, projectID)
 	if err != nil {
@@ -7941,24 +7947,13 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
-const deleteChatQueuedMessagesOfDeletedChatProject = `-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
+const deleteChatQueuedMessagesByChatIDs = `-- name: DeleteChatQueuedMessagesByChatIDs :exec
 DELETE FROM chat_queued_messages
 WHERE chat_id = ANY($1::uuid[])
-    AND chat_id IN (
-        SELECT chats.id
-        FROM chats
-        JOIN chat_projects ON chat_projects.id = chats.project_id
-        WHERE chat_projects.id = $2::uuid AND chat_projects.deleted
-    )
 `
 
-type DeleteChatQueuedMessagesOfDeletedChatProjectParams struct {
-	ChatIds   []uuid.UUID `db:"chat_ids" json:"chat_ids"`
-	ProjectID uuid.UUID   `db:"project_id" json:"project_id"`
-}
-
-func (q *sqlQuerier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesOfDeletedChatProject, pq.Array(arg.ChatIds), arg.ProjectID)
+func (q *sqlQuerier) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByChatIDs, pq.Array(chatIds))
 	return err
 }
 
@@ -8043,7 +8038,7 @@ WHERE id = $1::uuid AND NOT deleted
 FOR NO KEY UPDATE
 `
 
-// Locks FOR NO KEY UPDATE so chat inserts, whose project_id foreign key
+// Locks FOR NO KEY UPDATE so sub-chat inserts, whose project_id foreign key
 // check takes FOR KEY SHARE, do not wait for it.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
@@ -8416,7 +8411,7 @@ func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChat
 	return column_1, err
 }
 
-const lockChatProjectRootChats = `-- name: LockChatProjectRootChats :exec
+const lockChatProjectUnarchivedRootChats = `-- name: LockChatProjectUnarchivedRootChats :exec
 SELECT id
 FROM chats
 WHERE project_id = $1::uuid AND parent_chat_id IS NULL AND NOT archived
@@ -8427,8 +8422,8 @@ FOR UPDATE
 // Sub-chat creation holds its root FOR SHARE, so this waits for it. At
 // READ COMMITTED, the default isolation, a later statement then sees every
 // child committed during the wait.
-func (q *sqlQuerier) LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, lockChatProjectRootChats, projectID)
+func (q *sqlQuerier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectUnarchivedRootChats, projectID)
 	return err
 }
 
@@ -29337,25 +29332,30 @@ func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrga
 
 const insertProjectSkill = `-- name: InsertProjectSkill :one
 INSERT INTO skills (id, project_id, name, description, content)
-VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+SELECT $1::uuid, chat_projects.id, $2::text, $3::text, $4::text
+FROM chat_projects
+WHERE chat_projects.id = $5::uuid AND NOT chat_projects.deleted
+FOR SHARE
 RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type InsertProjectSkillParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
 	Content     string    `db:"content" json:"content"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
 }
 
+// Locks the live project FOR SHARE, so a project delete waits for this
+// insert and then deletes the skill. Returns no rows once it is deleted.
 func (q *sqlQuerier) InsertProjectSkill(ctx context.Context, arg InsertProjectSkillParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, insertProjectSkill,
 		arg.ID,
-		arg.ProjectID,
 		arg.Name,
 		arg.Description,
 		arg.Content,
+		arg.ProjectID,
 	)
 	var i Skill
 	err := row.Scan(

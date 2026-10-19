@@ -1412,14 +1412,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetDeletedChatProjectIDsWithUnarchivedChats(gomock.Any(), int32(10)).Return(ids, nil).AnyTimes()
 		check.Args(int32(10)).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(ids)
 	}))
-	s.Run("DeleteChatQueuedMessagesOfDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{ChatIds: []uuid.UUID{uuid.New()}, ProjectID: uuid.New()}
-		dbm.EXPECT().DeleteChatQueuedMessagesOfDeletedChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	s.Run("DeleteChatQueuedMessagesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().DeleteChatQueuedMessagesByChatIDs(gomock.Any(), ids).Return(nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("LockChatProjectRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("LockChatProjectUnarchivedRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().LockChatProjectRootChats(gomock.Any(), id).Return(nil).AnyTimes()
+		dbm.EXPECT().LockChatProjectUnarchivedRootChats(gomock.Any(), id).Return(nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteEmptyDeletedChatProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

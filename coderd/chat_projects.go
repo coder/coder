@@ -256,8 +256,15 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = project
 
 	// Only the tombstone runs in the request, so the delete cannot fail on
-	// chat locks.
-	_, err := api.Database.UpdateChatProjectDeletedByID(ctx, project.ID)
+	// chat locks. Locking the project first waits for content writers
+	// holding it FOR SHARE, so the tombstone's snapshot sees their rows.
+	err := api.Database.InTx(func(tx database.Store) error {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+			return err
+		}
+		_, err := tx.UpdateChatProjectDeletedByID(ctx, project.ID)
+		return err
+	}, nil)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

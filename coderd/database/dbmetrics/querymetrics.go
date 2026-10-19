@@ -632,11 +632,11 @@ func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg database.DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
+func (m queryMetricsStore) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessagesOfDeletedChatProject").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessagesOfDeletedChatProject").Inc()
+	r0 := m.s.DeleteChatQueuedMessagesByChatIDs(ctx, chatIds)
+	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessagesByChatIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessagesByChatIDs").Inc()
 	return r0
 }
 
@@ -5312,11 +5312,11 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error {
+func (m queryMetricsStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.LockChatProjectRootChats(ctx, projectID)
-	m.queryLatencies.WithLabelValues("LockChatProjectRootChats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectRootChats").Inc()
+	r0 := m.s.LockChatProjectUnarchivedRootChats(ctx, projectID)
+	m.queryLatencies.WithLabelValues("LockChatProjectUnarchivedRootChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectUnarchivedRootChats").Inc()
 	return r0
 }
 

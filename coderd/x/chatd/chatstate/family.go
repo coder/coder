@@ -89,11 +89,12 @@ func SetFamilyArchived(
 			return ErrChatNotRoot
 		}
 		// A family archived by its project delete must stay archived. The
-		// root lock serializes this check with the project cleanup, which
-		// re-archives a family unarchived before the tombstone committed.
+		// cleanup skips archived roots, so hold the project FOR SHARE: a
+		// delete then waits for this unarchive, and its cleanup sees the
+		// family unarchived.
 		if !input.Archived && root.ProjectID.Valid {
 			//nolint:gocritic // The caller authorized the root chat, not its project.
-			_, err := tx.GetChatProjectByID(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
+			_, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
@@ -225,11 +226,11 @@ func SetFamilyProject(
 		if root.ProjectID == input.ProjectID {
 			return nil
 		}
-		// The root lock serializes this with the project cleanup, so a
-		// family cannot leave a deleted project before it is archived.
+		// Held until commit, so a family cannot leave a deleted project
+		// before its cleanup archives it.
 		if root.ProjectID.Valid {
 			//nolint:gocritic // The caller authorized the root chat, not its project.
-			_, err := tx.GetChatProjectByID(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
+			_, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
@@ -280,56 +281,58 @@ func SetFamilyProject(
 }
 
 // ArchiveDeletedChatProject archives the unarchived chats of a deleted
-// project, sub-chats included, and returns them as archived. ctx must allow
+// project, sub-chats included, and returns them as archived, along with
+// every chat in the project read in the same transaction. ctx must allow
 // reading and updating every chat, as chatd does. Each chat moves from any
 // execution state to [StateXW], or [StateXE0] from error, with no worker or
-// runner and an empty queue. A chat:update per chat is published after
-// commit so its runner stops; if that fails, the committed chats are
+// runner and an empty queue. A chat:update per archived chat is published
+// after commit so its runner stops; if that fails, the committed result is
 // returned with [ErrChatUpdatePublishFailed]. A live project archives
 // nothing.
-func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) ([]database.Chat, error) {
+func ArchiveDeletedChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) (archived []database.Chat, projectChats []database.Chat, err error) {
 	if store == nil {
-		return nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil store")
+		return nil, nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil store")
 	}
 	if publisher == nil {
-		return nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil publisher")
+		return nil, nil, xerrors.New("chatstate: ArchiveDeletedChatProject called with nil publisher")
 	}
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
-	var archived []database.Chat
-	err := store.InTx(func(tx database.Store) error {
-		if err := tx.LockChatProjectRootChats(ctx, projectID); err != nil {
+	err = store.InTx(func(tx database.Store) error {
+		if err := tx.LockChatProjectUnarchivedRootChats(ctx, projectID); err != nil {
 			return xerrors.Errorf("lock project root chats: %w", err)
 		}
 		ids, err := tx.ArchiveChatsOfDeletedChatProject(ctx, projectID)
 		if err != nil {
 			return xerrors.Errorf("archive project chats: %w", err)
 		}
-		if len(ids) == 0 {
-			return nil
-		}
-		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, database.DeleteChatQueuedMessagesOfDeletedChatProjectParams{
-			ChatIds:   ids,
-			ProjectID: projectID,
-		}); err != nil {
-			return xerrors.Errorf("clear project chat queues: %w", err)
-		}
-		archived, err = tx.GetChatsByIDs(ctx, ids)
-		if err != nil {
-			return xerrors.Errorf("reload archived project chats: %w", err)
-		}
-		for _, chat := range archived {
-			if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
-				return xerrors.Errorf("buffer chat update: %w", err)
+		if len(ids) > 0 {
+			if err := tx.DeleteChatQueuedMessagesByChatIDs(ctx, ids); err != nil {
+				return xerrors.Errorf("clear project chat queues: %w", err)
 			}
+			archived, err = tx.GetChatsByIDs(ctx, ids)
+			if err != nil {
+				return xerrors.Errorf("reload archived project chats: %w", err)
+			}
+			for _, chat := range archived {
+				if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
+					return xerrors.Errorf("buffer chat update: %w", err)
+				}
+			}
+		}
+		// Read here, not after commit, so a failure cannot lose the watch
+		// events: the sweep only retries projects with unarchived chats.
+		projectChats, err = tx.GetChatsByProjectID(ctx, projectID)
+		if err != nil {
+			return xerrors.Errorf("list project chats: %w", err)
 		}
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := buffer.Flush(); err != nil {
-		return archived, errors.Join(ErrChatUpdatePublishFailed, err)
+		return archived, projectChats, errors.Join(ErrChatUpdatePublishFailed, err)
 	}
-	return archived, nil
+	return archived, projectChats, nil
 }

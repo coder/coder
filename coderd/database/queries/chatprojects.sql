@@ -16,7 +16,7 @@ FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForUpdate :one
--- Locks FOR NO KEY UPDATE so chat inserts, whose project_id foreign key
+-- Locks FOR NO KEY UPDATE so sub-chat inserts, whose project_id foreign key
 -- check takes FOR KEY SHARE, do not wait for it.
 SELECT *
 FROM chat_projects
@@ -148,7 +148,7 @@ FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id;
 
--- name: LockChatProjectRootChats :exec
+-- name: LockChatProjectUnarchivedRootChats :exec
 -- Sub-chat creation holds its root FOR SHARE, so this waits for it. At
 -- READ COMMITTED, the default isolation, a later statement then sees every
 -- child committed during the wait.
@@ -162,8 +162,8 @@ FOR UPDATE;
 -- Execution-state transition outside the chatstate machine; keep the SET
 -- list in sync with UpdateChatExecutionState. Publishes nothing, so callers
 -- publish chat:update per chat. Run it before
--- DeleteChatQueuedMessagesOfDeletedChatProject so a send waiting on a chat
--- lock reads the archived state and is refused.
+-- DeleteChatQueuedMessagesByChatIDs so a send waiting on a chat lock reads
+-- the archived state and is refused.
 UPDATE chats
 SET
     archived = true,
@@ -183,15 +183,9 @@ WHERE chats.project_id = @project_id::uuid
     AND chat_projects.deleted
 RETURNING chats.id;
 
--- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
+-- name: DeleteChatQueuedMessagesByChatIDs :exec
 DELETE FROM chat_queued_messages
-WHERE chat_id = ANY(@chat_ids::uuid[])
-    AND chat_id IN (
-        SELECT chats.id
-        FROM chats
-        JOIN chat_projects ON chat_projects.id = chats.project_id
-        WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
-    );
+WHERE chat_id = ANY(@chat_ids::uuid[]);
 
 -- name: GetDeletedChatProjectIDsWithUnarchivedChats :many
 SELECT chat_projects.id

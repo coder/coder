@@ -48,9 +48,6 @@ const (
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
-	// Each deleted project cascades up to chattool.MaxMemories memories of
-	// up to chattool.MaxMemoryBodyBytes, so the batch stays small.
-	deletedChatProjectsBatchSize = 100
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
@@ -330,7 +327,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 		// Runs after the chat purge so a project whose last archived chats
 		// just aged out goes in the same tick.
-		purgedDeletedChatProjects, err := tx.DeleteEmptyDeletedChatProjects(ctx, deletedChatProjectsBatchSize)
+		purgedDeletedChatProjects, err := tx.DeleteEmptyDeletedChatProjects(ctx, chatsBatchSize)
 		if err != nil {
 			return xerrors.Errorf("failed to delete chat projects marked deleted with no chats left: %w", err)
 		}

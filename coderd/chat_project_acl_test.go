@@ -465,7 +465,7 @@ func TestChatProjectSharing(t *testing.T) {
 					delete(pending, event.Chat.ID)
 				}
 			case <-ctx.Done():
-				t.Fatalf("missing removed events for %v", pending)
+				t.Fatalf("missing project_deleted events for %v", pending)
 			}
 		}
 	})

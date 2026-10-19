@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
@@ -132,4 +134,34 @@ func TestSweepDeletedChatProjects(t *testing.T) {
 	pending, err := f.db.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, pending)
+}
+
+func TestDeletedChatProjectsLoopSweepsOnTick(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.user.ID})
+	chat := dbgen.Chat(t, f.db, database.Chat{
+		OrganizationID:    f.org.ID,
+		OwnerID:           f.user.ID,
+		LastModelConfigID: f.model.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+	_, err := f.db.UpdateChatProjectDeletedByID(ctx, project.ID)
+	require.NoError(t, err)
+
+	mClock := quartz.NewMock(t)
+	tickerTrap := mClock.Trap().NewTicker("chatworker", "deleted-chat-projects")
+	defer tickerTrap.Close()
+	opts := testOptions(t, f, nil)
+	opts.Clock = mClock
+	opts.DeletedChatProjectSweepInterval = time.Minute
+	startWorker(t, opts)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	mClock.Advance(time.Minute).MustWait(ctx)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		chat, err := f.db.GetChatByID(ctx, chat.ID)
+		return err == nil && chat.Archived
+	}, testutil.IntervalFast, "the ticker sweeps the deleted project")
 }

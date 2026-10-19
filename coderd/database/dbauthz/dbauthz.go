@@ -2419,12 +2419,12 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
-// Project chats can belong to sharees, so update is checked on all chats.
-func (q *querier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, arg database.DeleteChatQueuedMessagesOfDeletedChatProjectParams) error {
+// The chats can belong to any user, so update is checked on all chats.
+func (q *querier) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, arg)
+	return q.db.DeleteChatQueuedMessagesByChatIDs(ctx, chatIDs)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -7498,11 +7498,11 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 }
 
 // Project chats can belong to sharees, so update is checked on all chats.
-func (q *querier) LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error {
+func (q *querier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.LockChatProjectRootChats(ctx, projectID)
+	return q.db.LockChatProjectUnarchivedRootChats(ctx, projectID)
 }
 
 func (q *querier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {

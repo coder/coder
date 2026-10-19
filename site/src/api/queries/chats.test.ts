@@ -5500,7 +5500,10 @@ describe("applyWatchedChatProjectDeleted", () => {
 		});
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 
-		applyWatchedChatProjectDeleted(queryClient, chatId);
+		applyWatchedChatProjectDeleted(queryClient, {
+			id: chatId,
+			project_id: "project-1",
+		});
 
 		expect(readInfiniteChats(queryClient)?.map((c) => c.id)).toEqual([
 			other.id,
@@ -5538,8 +5541,11 @@ describe("applyWatchedChatProjectDeleted", () => {
 			expect(observer.getCurrentResult().isSuccess).toBe(true),
 		);
 
-		for (const chatId of ["chat-1", "chat-2", "chat-3"]) {
-			applyWatchedChatProjectDeleted(queryClient, chatId);
+		for (const id of ["chat-1", "chat-2", "chat-3"]) {
+			applyWatchedChatProjectDeleted(queryClient, {
+				id,
+				project_id: "project-1",
+			});
 		}
 		refetch.resolve([]);
 		await vi.waitFor(() =>
@@ -5547,6 +5553,38 @@ describe("applyWatchedChatProjectDeleted", () => {
 		);
 
 		expect(fetches).toBe(2);
+		unsubscribe();
+	});
+
+	it("restarts a list fetch that started before the delete", async () => {
+		const queryClient = createTestQueryClient();
+		const queryKey = [...chatSearchFamilyKey, "stale"];
+		const stale = createDeferred<TypesGen.Chat[]>();
+		let fetches = 0;
+		const observer = new QueryObserver<TypesGen.Chat[]>(queryClient, {
+			queryKey,
+			queryFn: () => {
+				fetches++;
+				return fetches === 2 ? stale.promise : Promise.resolve([]);
+			},
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isSuccess).toBe(true),
+		);
+		void observer.refetch();
+
+		applyWatchedChatProjectDeleted(queryClient, {
+			id: "chat-1",
+			project_id: "project-1",
+		});
+		stale.resolve([makeChat("chat-1")]);
+		await vi.waitFor(() => expect(fetches).toBe(3));
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isFetching).toBe(false),
+		);
+
+		expect(queryClient.getQueryData(queryKey)).toEqual([]);
 		unsubscribe();
 	});
 
@@ -5567,7 +5605,10 @@ describe("applyWatchedChatProjectDeleted", () => {
 		});
 		const unsubscribe = observer.subscribe(() => {});
 
-		applyWatchedChatProjectDeleted(queryClient, chatId);
+		applyWatchedChatProjectDeleted(queryClient, {
+			id: chatId,
+			project_id: "project-1",
+		});
 		first.resolve(makeChat(chatId));
 		await vi.waitFor(() =>
 			expect(observer.getCurrentResult().isError).toBe(true),

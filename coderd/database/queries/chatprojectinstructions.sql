@@ -13,7 +13,8 @@ WHERE chat_project_instructions.project_id = @project_id::uuid;
 
 -- name: UpsertChatProjectInstructions :one
 -- The organization comes from the project row, so the stored scope always
--- matches the project's organization.
+-- matches the project's organization. Locks the live project FOR SHARE, so
+-- a project delete waits for this write and then deletes it.
 INSERT INTO chat_project_instructions (
     project_id,
     organization_id,
@@ -26,7 +27,8 @@ SELECT
     @instructions::text,
     @updated_by::uuid
 FROM chat_projects
-WHERE chat_projects.id = @project_id::uuid
+WHERE chat_projects.id = @project_id::uuid AND NOT chat_projects.deleted
+FOR SHARE
 ON CONFLICT (project_id) DO UPDATE SET
     instructions = EXCLUDED.instructions,
     updated_by = EXCLUDED.updated_by,

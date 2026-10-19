@@ -345,7 +345,7 @@ const AgentsPageLayout: React.FC = () => {
 					}
 
 					if (chatEvent.kind === "project_deleted") {
-						applyWatchedChatProjectDeleted(queryClient, updatedChat.id);
+						applyWatchedChatProjectDeleted(queryClient, updatedChat);
 						return;
 					}
 					if (chatEvent.kind === "deleted") {

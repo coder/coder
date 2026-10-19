@@ -562,8 +562,9 @@ export const applyWatchedChatArchived = (
  */
 export const applyWatchedChatProjectDeleted = (
 	queryClient: QueryClient,
-	chatId: string,
+	chat: Pick<TypesGen.Chat, "id" | "project_id">,
 ) => {
+	const chatId = chat.id;
 	removeChildFromParentInCache(queryClient, chatId);
 	const withoutChat = (page: TypesGen.Chat[]) => {
 		const next = page.filter((row) => row.id !== chatId);
@@ -580,8 +581,10 @@ export const applyWatchedChatProjectDeleted = (
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});
-	// A project delete sends one event per chat, so in-flight refetches,
-	// which already exclude these chats, are kept.
+	// A fetch that started before the delete can still return these chats,
+	// so the first event of a project delete restarts in-flight fetches.
+	// The rest of its burst, one event per chat, reuses those fetches.
+	const cancelRefetch = isFirstProjectDeleteEvent(queryClient, chat.project_id);
 	for (const queryKey of [
 		chatListFamilyKey,
 		chatProjectListFamilyKey,
@@ -589,8 +592,29 @@ export const applyWatchedChatProjectDeleted = (
 		chatSearchFamilyKey,
 		chatProjectsKey,
 	]) {
-		void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+		void queryClient.invalidateQueries({ queryKey }, { cancelRefetch });
 	}
+};
+
+const seenProjectDeletes = new WeakMap<QueryClient, Set<string>>();
+
+const isFirstProjectDeleteEvent = (
+	queryClient: QueryClient,
+	projectId: string | undefined,
+) => {
+	if (!projectId) {
+		return true;
+	}
+	let seen = seenProjectDeletes.get(queryClient);
+	if (!seen) {
+		seen = new Set();
+		seenProjectDeletes.set(queryClient, seen);
+	}
+	if (seen.has(projectId)) {
+		return false;
+	}
+	seen.add(projectId);
+	return true;
 };
 
 /**

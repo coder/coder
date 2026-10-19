@@ -23,7 +23,7 @@ func (w *chatWorker) deletedChatProjectsLoop(ctx context.Context) {
 }
 
 func (w *chatWorker) sweepDeletedChatProjects(ctx context.Context) {
-	ids, err := w.opts.Store.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, w.opts.DeletedChatProjectSweepBatchSize)
+	ids, err := w.opts.Store.GetDeletedChatProjectIDsWithUnarchivedChats(ctx, defaultDeletedChatProjectSweepBatchSize)
 	if err != nil {
 		if ctx.Err() == nil {
 			w.opts.Logger.Warn(ctx, "chatworker deleted chat project query failed", slogError(err))

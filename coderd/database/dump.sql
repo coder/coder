@@ -2351,7 +2351,7 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Its memories and instructions are deleted with the tombstone. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.';
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Its memories, instructions and skills are deleted with the tombstone. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row once none are left.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -2491,7 +2491,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.project_id IS 'Sub-chats carry their root chat''s project; an insert trigger sets it and replaces any passed value.';
+COMMENT ON COLUMN chats.project_id IS 'Optional project the chat belongs to. Sub-chats carry their root chat''s project; an insert trigger sets it and replaces any passed value.';
 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
@@ -5170,7 +5170,7 @@ CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
-CREATE INDEX idx_chats_project_id_unarchived ON chats USING btree (project_id) WHERE (NOT archived);
+CREATE INDEX idx_chats_project_id_unarchived ON chats USING btree (project_id) WHERE ((NOT archived) AND (project_id IS NOT NULL));
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
