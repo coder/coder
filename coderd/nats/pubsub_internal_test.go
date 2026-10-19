@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/xnet"
@@ -518,7 +519,7 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("ClusterAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
-		ps := newTestPubsub(t, clusterTestOptions(t))
+		ps := newTestPubsub(t, clusterTestOptions(t), natsserver.ErrAuthentication.Error())
 		routeURL := clusterRouteAddress(t, ps)
 
 		_, err := natsgo.Connect(routeURL,
@@ -545,7 +546,7 @@ func TestPubsubCluster(t *testing.T) {
 		t.Parallel()
 
 		opts := clusterTestOptions(t)
-		ps := newTestPubsub(t, opts)
+		ps := newTestPubsub(t, opts, natsserver.ErrAuthentication.Error())
 		clientURL := ps.Server.ClientURL()
 
 		_, err := natsgo.Connect(clientURL,
@@ -678,9 +679,9 @@ func clusterTestOptions(t *testing.T) Options {
 	}
 }
 
-func newTestPubsub(t *testing.T, opts Options) *Pubsub {
+func newTestPubsub(t *testing.T, opts Options, expectedServerErrors ...string) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, ignoreServerErrors(t, expectedServerErrors...))
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)
@@ -688,6 +689,30 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 		_ = ps.Close()
 	})
 	return ps
+}
+
+const routeConnectError = "Error trying to connect to route"
+
+func ignoreServerErrors(t *testing.T, expected ...string) *slogtest.Options {
+	// t.Context is canceled just before cleanup functions run.
+	testCtx := t.Context()
+	return &slogtest.Options{
+		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
+			if !slices.Contains(ent.LoggerNames, "server") {
+				return false
+			}
+			contains := func(s string) bool { return strings.Contains(ent.Message, s) }
+			// NATS closes duplicate routes as the mesh forms.
+			if contains("Error flushing") && contains("connection reset by peer") {
+				return true
+			}
+			// Peers shut down sequentially, interrupting dials and handshakes.
+			if testCtx.Err() != nil && (contains(routeConnectError) || contains("processRemoteSub Parse Error")) {
+				return true
+			}
+			return slices.ContainsFunc(expected, contains)
+		},
+	}
 }
 
 // requireAuthRejected asserts that a connection attempt failed the server's

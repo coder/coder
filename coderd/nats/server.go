@@ -1,11 +1,15 @@
 package nats
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 const readyTimeout = 10 * time.Second
@@ -68,11 +72,14 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 }
 
 // startEmbeddedServer starts an in-process NATS server.
-func startEmbeddedServer(opts *natsserver.Options) (*natsserver.Server, error) {
+func startEmbeddedServer(logger slog.Logger, opts *natsserver.Options) (*natsserver.Server, error) {
 	ns, err := natsserver.NewServer(opts)
 	if err != nil {
 		return nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
+	// Let slog filter debug messages. Protocol tracing is disabled because it
+	// includes message payloads.
+	ns.SetLoggerV2(serverLogger{logger: logger.Named("server")}, true, false, false)
 	go ns.Start()
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
@@ -80,6 +87,43 @@ func startEmbeddedServer(opts *natsserver.Options) (*natsserver.Server, error) {
 		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
 	return ns, nil
+}
+
+var _ natsserver.Logger = serverLogger{}
+
+type serverLogger struct {
+	logger slog.Logger
+}
+
+func (l serverLogger) Noticef(format string, args ...any) {
+	slog.Helper()
+	l.logger.Info(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l serverLogger) Warnf(format string, args ...any) {
+	slog.Helper()
+	l.logger.Warn(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l serverLogger) Fatalf(format string, args ...any) {
+	slog.Helper()
+	// The embedded server must not terminate the Coder process.
+	l.logger.Critical(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l serverLogger) Errorf(format string, args ...any) {
+	slog.Helper()
+	l.logger.Error(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l serverLogger) Debugf(format string, args ...any) {
+	slog.Helper()
+	l.logger.Debug(context.Background(), fmt.Sprintf(format, args...))
+}
+
+func (l serverLogger) Tracef(format string, args ...any) {
+	slog.Helper()
+	l.logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 }
 
 type connHandlers struct {
