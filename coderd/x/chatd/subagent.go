@@ -425,12 +425,16 @@ func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	manager := newSubagentManager(p, currentChat, currentModelConfigID)
+	spawnAgentDescription, err := buildSpawnAgentDescription(ctx, p, manager.currentChatSnapshot)
+	if err != nil {
+		return nil, xerrors.Errorf("build spawn agent description: %w", err)
+	}
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			spawnAgentToolName,
-			buildSpawnAgentDescription(ctx, p, manager.currentChatSnapshot),
+			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				chat, err := manager.Spawn(ctx, args)
 				// A failed hook dispatch must fail closed instead of
@@ -517,7 +521,7 @@ func (p *Server) subagentTools(
 				return subagentManagerToolResponse(result, err)
 			},
 		),
-	}
+	}, nil
 }
 
 func spawnAgentResult(chat database.Chat) any {
