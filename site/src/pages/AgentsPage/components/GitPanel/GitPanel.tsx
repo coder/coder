@@ -562,6 +562,9 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 					/>
 				) : (
 					<LocalRepoContent
+						// A remount per repo keeps collapsed files and any open
+						// inline comment box from carrying over to another repo.
+						key={effectiveView.repoRoot}
 						repoRoot={effectiveView.repoRoot}
 						repo={repositories.get(effectiveView.repoRoot)}
 						diffStats={
