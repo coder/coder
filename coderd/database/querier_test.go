@@ -2360,8 +2360,8 @@ func TestInsertProjectSkillLocksProject(t *testing.T) {
 	})
 }
 
-// lockWaitCount counts backends running the named query that wait on a
-// lock held by a backend whose latest query is blockerQuery.
+// lockWaitCount counts waiterQuery backends blocked by a backend whose
+// latest query is blockerQuery.
 func lockWaitCount(ctx context.Context, sqlDB *sql.DB, waiterQuery, blockerQuery string) int {
 	var waits int
 	err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity waiter

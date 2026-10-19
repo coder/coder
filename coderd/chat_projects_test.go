@@ -353,6 +353,41 @@ func TestPatchChatProject(t *testing.T) {
 		requireChatProjectID(ctx, t, client, chat.ID, nil)
 	})
 
+	// The source project is deleted after the request loaded the chat, so
+	// the chat is gone too.
+	for _, tc := range []struct {
+		name    string
+		archive bool
+		request codersdk.UpdateChatRequest
+	}{
+		{"ProjectDeletedBeforeMoveOut", false, codersdk.UpdateChatRequest{ProjectID: new(uuid.Nil)}},
+		{"ProjectDeletedBeforeUnarchive", true, codersdk.UpdateChatRequest{Archived: new(false)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			rawDB, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			client, api := newChatProjectClientWithAPI(t, func(opts *coderdtest.Options) {
+				opts.Database = deleteProjectBeforeShareLockStore{Store: rawDB}
+				opts.Pubsub = ps
+			})
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModel(t, client)
+			project := createChatProject(t, client, firstUser.OrganizationID, "Racing Project")
+			chat := createIdleChat(ctx, t, client, api, firstUser.OrganizationID)
+			// Moving in through the API would trip the wrapper's delete.
+			_, err := sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, chat.ID)
+			require.NoError(t, err)
+			if tc.archive {
+				require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)}))
+			}
+
+			err = client.UpdateChat(ctx, chat.ID, tc.request)
+			requireSDKError(t, err, http.StatusNotFound)
+		})
+	}
+
 	t.Run("MoveBackWaitsForAPendingMove", func(t *testing.T) {
 		t.Parallel()
 

@@ -587,7 +587,8 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
-		// The dialog closes after the sidebar's own onSuccess has run.
+		// The dialog closes in mutate's onSuccess, after useMutation's
+		// onSuccess decides whether to navigate.
 		await waitFor(() =>
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
 		);
