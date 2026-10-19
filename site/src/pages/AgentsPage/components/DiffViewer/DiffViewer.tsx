@@ -10,6 +10,7 @@ import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { cn } from "cn";
+import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -197,27 +198,51 @@ function gitStatusForFile(
 	}
 }
 
-function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
+function HeaderContent({
+	fileDiff,
+	collapsed,
+	onToggleCollapsed,
+}: {
+	fileDiff: FileDiffMetadata;
+	collapsed: boolean;
+	onToggleCollapsed: () => void;
+}) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
-			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
-				<span
-					className={cn(
-						"shrink-0 text-[11px] font-semibold leading-none",
-						changeColor(fileDiff.type),
-					)}
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-1 font-sans text-sm">
+			<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+				<button
+					type="button"
+					aria-expanded={!collapsed}
+					aria-label={`${collapsed ? "Expand" : "Collapse"} ${fileDiff.name}`}
+					onClick={onToggleCollapsed}
+					className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link"
 				>
-					{changeLabel(fileDiff.type)}
-				</span>
-				{fileDiff.prevName && fileDiff.prevName !== fileDiff.name && (
-					<span className="truncate text-xs text-content-secondary">
-						{fileDiff.prevName}
+					<ChevronDownIcon
+						className={cn(
+							"size-3.5 transition-transform",
+							collapsed && "-rotate-90",
+						)}
+					/>
+				</button>
+				<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
+					<span
+						className={cn(
+							"shrink-0 text-[11px] font-semibold leading-none",
+							changeColor(fileDiff.type),
+						)}
+					>
+						{changeLabel(fileDiff.type)}
 					</span>
-				)}
-				<span className="truncate text-xs font-medium text-content-primary">
-					{fileDiff.name}
-				</span>
+					{fileDiff.prevName && fileDiff.prevName !== fileDiff.name && (
+						<span className="truncate text-xs text-content-secondary">
+							{fileDiff.prevName}
+						</span>
+					)}
+					<span className="truncate text-xs font-medium text-content-primary">
+						{fileDiff.name}
+					</span>
+				</div>
 			</div>
 			{(additions > 0 || deletions > 0) && (
 				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
@@ -416,6 +441,23 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
+	// Files whose diff body is hidden, keyed by file name. Every file starts
+	// expanded.
+	const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
+	const setFileCollapsed = (fileName: string, collapsed: boolean) => {
+		setCollapsedFiles((current) => {
+			if (current.has(fileName) === collapsed) return current;
+			const next = new Set(current);
+			if (collapsed) {
+				next.add(fileName);
+			} else {
+				next.delete(fileName);
+			}
+			return next;
+		});
+	};
 
 	// Measure the diff container so the file tree only appears when there is
 	// enough horizontal room, rather than keying off the viewport width.
@@ -481,12 +523,16 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 
 	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
 		const annotations = getLineAnnotations(fileDiff.name);
+		const collapsed = collapsedFiles.has(fileDiff.name);
 		return {
 			id: fileDiff.name,
 			type: "diff",
 			fileDiff,
 			annotations,
-			version: annotationsVersion(annotations),
+			collapsed,
+			// CodeView only re-syncs an item when its version changes, so the
+			// collapsed flag must be part of it.
+			version: annotationsVersion(annotations) * 2 + (collapsed ? 1 : 0),
 		};
 	});
 
@@ -506,6 +552,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		// null. Skip the scroll without signalling completion so the parent
 		// keeps the pending target and retries once the view is ready.
 		if (!canScroll || !codeViewRef.current) return;
+		setFileCollapsed(scrollToFile, false);
 		codeViewRef.current.scrollTo({
 			type: "item",
 			id: scrollToFile,
@@ -543,6 +590,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 						activePath={activeFile}
 						onUserSelectPath={(fileName) => {
 							setActiveFile(fileName);
+							setFileCollapsed(fileName, false);
 							codeViewRef.current?.scrollTo({
 								type: "item",
 								id: fileName,
@@ -563,7 +611,13 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
 					item.type === "diff" ? (
-						<HeaderContent fileDiff={item.fileDiff} />
+						<HeaderContent
+							fileDiff={item.fileDiff}
+							collapsed={collapsedFiles.has(item.id)}
+							onToggleCollapsed={() =>
+								setFileCollapsed(item.id, !collapsedFiles.has(item.id))
+							}
+						/>
 					) : null
 				}
 				renderAnnotation={(annotation) =>
