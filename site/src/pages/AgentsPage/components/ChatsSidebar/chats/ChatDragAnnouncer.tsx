@@ -1,5 +1,5 @@
 import { useDragDropMonitor } from "@dnd-kit/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { chatDragAnnouncements } from "./projectDrag";
 
 type ChatDragAnnouncerProps = {
@@ -22,11 +22,23 @@ export const ChatDragAnnouncer: React.FC<ChatDragAnnouncerProps> = ({
 			setAnnouncement(text);
 		}
 	};
+	// dnd-kit can report a new target after the drag ends, until React renders
+	// the end, and that must not replace the drop or cancel announcement.
+	const dragHasEnded = useRef(false);
 	useDragDropMonitor({
-		onDragStart: (event) => announce(chatDragAnnouncements.dragstart(event)),
-		onDragOver: (event) =>
-			announce(chatDragAnnouncements.dragover(event, pinCount)),
-		onDragEnd: (event) => announce(chatDragAnnouncements.dragend(event)),
+		onDragStart: (event) => {
+			dragHasEnded.current = false;
+			announce(chatDragAnnouncements.dragstart(event));
+		},
+		onDragOver: (event) => {
+			if (!dragHasEnded.current) {
+				announce(chatDragAnnouncements.dragover(event, pinCount));
+			}
+		},
+		onDragEnd: (event) => {
+			dragHasEnded.current = true;
+			announce(chatDragAnnouncements.dragend(event));
+		},
 	});
 	return (
 		<>

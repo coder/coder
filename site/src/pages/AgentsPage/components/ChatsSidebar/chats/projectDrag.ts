@@ -255,10 +255,15 @@ export const moveKeyboardChatDrag = (
 	if (!next) {
 		return;
 	}
+
+	// A check made before the move can change the target, and dnd-kit then
+	// drops collisions until React renders, so the checks stay off until the
+	// move's queued position update has run.
+	const { collisionObserver } = manager;
+	collisionObserver.disable();
 	next.element.scrollIntoView({ block: "nearest" });
-	// dnd-kit measures the scrolled targets again only after this move, and it
-	// does not recheck a drag position that has not changed, so without a new
-	// measure the drag stays over nothing.
+	// dnd-kit measures the scrolled targets only later, so the final check
+	// would see them where they were before the scroll.
 	for (const target of targets) {
 		target.refreshShape();
 	}
@@ -268,6 +273,13 @@ export const moveKeyboardChatDrag = (
 	// of a shorter target, so that the pointer is inside the target.
 	manager.actions.move({
 		to: { x, y: rect.top + Math.min(rect.height, rowHeight) / 2 },
+	});
+
+	// Queued after the move's position update. Enabling alone does not make
+	// dnd-kit act on the collisions again.
+	queueMicrotask(() => {
+		collisionObserver.enable();
+		collisionObserver.forceUpdate();
 	});
 };
 
