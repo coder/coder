@@ -309,6 +309,11 @@ func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T)
 			expected: "{}",
 		},
 		{
+			name:     "null json",
+			input:    "null",
+			expected: "{}",
+		},
+		{
 			name:     "valid object json",
 			input:    "{\"command\":\"ls\"}",
 			expected: "{\"command\":\"ls\"}",
@@ -1084,7 +1089,7 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	t.Parallel()
 
 	// Assistant with PE web_search + regular tool call.
-	assistantContent := mustMarshalContent(t, []fantasy.Content{
+	assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID:       "srvtoolu_WS",
 			ToolName:         "web_search",
@@ -1097,25 +1102,34 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 			Input:      `{"command":"ls"}`,
 		},
 		fantasy.TextContent{Text: "Results."},
-	})
+	}, nil)
+	require.NoError(t, err)
 
 	// Legacy: PE result stored as separate tool-role message.
-	peResult := mustMarshalToolResult(t,
+	peResult, err := chatprompt.MarshalToolResult(
 		"srvtoolu_WS", "web_search",
 		json.RawMessage(`{"results":"cached"}`),
 		false, false, true, // providerExecuted is true.
+		nil,
 	)
-	execResult := mustMarshalToolResult(t,
+	require.NoError(t, err)
+	execResult, err := chatprompt.MarshalToolResult(
 		"toolu_exec", "execute",
 		json.RawMessage(`{"output":"file.txt"}`),
 		false, false, false,
+		nil,
 	)
+	require.NoError(t, err)
+	userContent, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.TextContent{Text: "next"},
+	}, nil)
+	require.NoError(t, err)
 
 	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
-		testMsgV1(codersdk.ChatMessageRoleAssistant, assistantContent),
-		testMsgV1(codersdk.ChatMessageRoleTool, peResult),
-		testMsgV1(codersdk.ChatMessageRoleTool, execResult),
-		testMsgV1(codersdk.ChatMessageRoleUser, mustMarshalParts(t, codersdk.ChatMessageText("next"))),
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: execResult},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: userContent},
 	})
 
 	// The PE tool result should be dropped by injectMissingToolUses,
@@ -1207,6 +1221,32 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 			Input:      `{"path":"main.go"}`,
 		},
 	}, nil)
+	require.NoError(t, err)
+
+	// Build new SDK format using MarshalParts.
+	sdkMetadata := json.RawMessage(`{"anthropic":{"type":"anthropic.cache_control_options","data":{"cache_control":{"type":"ephemeral"}}}}`)
+
+	newAssistantWithMeta, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:             codersdk.ChatMessagePartTypeText,
+		Text:             "here is my answer",
+		ProviderMetadata: sdkMetadata,
+	}})
+	require.NoError(t, err)
+
+	newAssistantToolCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: "call_456",
+		ToolName:   "execute",
+		Args:       json.RawMessage(`{"cmd":"ls"}`),
+	}})
+	require.NoError(t, err)
+
+	newToolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: "call_456",
+		ToolName:   "execute",
+		Result:     json.RawMessage(`{"output":"file1.go"}`),
+	}})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1338,6 +1378,82 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 				assert.JSONEq(t, `{"output":"package main"}`, string(parts[0].Result))
 			},
 		},
+		{
+			name: "user/sdk_text",
+			role: codersdk.ChatMessageRoleUser,
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello sdk"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "hello sdk", parts[0].Text)
+			},
+		},
+		{
+			name: "user/sdk_file_reference",
+			role: codersdk.ChatMessageRoleUser,
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
+				assert.Equal(t, "main.go", parts[0].FileName)
+				assert.Equal(t, 1, parts[0].StartLine)
+				assert.Equal(t, 10, parts[0].EndLine)
+				assert.Equal(t, "func main() {}", parts[0].Content)
+			},
+		},
+		{
+			name: "user/sdk_file",
+			role: codersdk.ChatMessageRoleUser,
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: fileID, Valid: true}, MediaType: "image/png"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
+				assert.True(t, parts[0].FileID.Valid)
+				assert.Equal(t, fileID, parts[0].FileID.UUID)
+				assert.Equal(t, "image/png", parts[0].MediaType)
+			},
+		},
+		{
+			name: "assistant/sdk_text_with_metadata",
+			role: codersdk.ChatMessageRoleAssistant,
+			raw:  newAssistantWithMeta,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "here is my answer", parts[0].Text)
+				assert.JSONEq(t, string(sdkMetadata), string(parts[0].ProviderMetadata))
+			},
+		},
+		{
+			name: "assistant/sdk_tool_call",
+			role: codersdk.ChatMessageRoleAssistant,
+			raw:  newAssistantToolCall,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
+				assert.Equal(t, "call_456", parts[0].ToolCallID)
+				assert.Equal(t, "execute", parts[0].ToolName)
+				assert.JSONEq(t, `{"cmd":"ls"}`, string(parts[0].Args))
+			},
+		},
+		{
+			name: "tool/sdk_tool_result",
+			role: codersdk.ChatMessageRoleTool,
+			raw:  newToolResult,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+				assert.Equal(t, "call_456", parts[0].ToolCallID)
+				assert.Equal(t, "execute", parts[0].ToolName)
+				assert.JSONEq(t, `{"output":"file1.go"}`, string(parts[0].Result))
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1351,115 +1467,6 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 
 func TestParseContent_V1(t *testing.T) {
 	t.Parallel()
-
-	fileID := uuid.New()
-	sdkMetadata := json.RawMessage(`{"anthropic":{"type":"anthropic.cache_control_options","data":{"cache_control":{"type":"ephemeral"}}}}`)
-
-	tests := []struct {
-		name  string
-		role  codersdk.ChatMessageRole
-		parts []codersdk.ChatMessagePart
-		check func(t *testing.T, parts []codersdk.ChatMessagePart)
-	}{
-		{
-			name: "user/sdk_text",
-			role: codersdk.ChatMessageRoleUser,
-			parts: []codersdk.ChatMessagePart{
-				{Type: codersdk.ChatMessagePartTypeText, Text: "hello sdk"},
-			},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "hello sdk", parts[0].Text)
-			},
-		},
-		{
-			name: "user/sdk_file_reference",
-			role: codersdk.ChatMessageRoleUser,
-			parts: []codersdk.ChatMessagePart{
-				{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
-			},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
-				assert.Equal(t, "main.go", parts[0].FileName)
-				assert.Equal(t, 1, parts[0].StartLine)
-				assert.Equal(t, 10, parts[0].EndLine)
-				assert.Equal(t, "func main() {}", parts[0].Content)
-			},
-		},
-		{
-			name: "user/sdk_file",
-			role: codersdk.ChatMessageRoleUser,
-			parts: []codersdk.ChatMessagePart{
-				{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: fileID, Valid: true}, MediaType: "image/png"},
-			},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
-				assert.True(t, parts[0].FileID.Valid)
-				assert.Equal(t, fileID, parts[0].FileID.UUID)
-				assert.Equal(t, "image/png", parts[0].MediaType)
-			},
-		},
-		{
-			name: "assistant/sdk_text_with_metadata",
-			role: codersdk.ChatMessageRoleAssistant,
-			parts: []codersdk.ChatMessagePart{{
-				Type:             codersdk.ChatMessagePartTypeText,
-				Text:             "here is my answer",
-				ProviderMetadata: sdkMetadata,
-			}},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-				assert.Equal(t, "here is my answer", parts[0].Text)
-				assert.JSONEq(t, string(sdkMetadata), string(parts[0].ProviderMetadata))
-			},
-		},
-		{
-			name: "assistant/sdk_tool_call",
-			role: codersdk.ChatMessageRoleAssistant,
-			parts: []codersdk.ChatMessagePart{{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: "call_456",
-				ToolName:   "execute",
-				Args:       json.RawMessage(`{"cmd":"ls"}`),
-			}},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
-				assert.Equal(t, "call_456", parts[0].ToolCallID)
-				assert.Equal(t, "execute", parts[0].ToolName)
-				assert.JSONEq(t, `{"cmd":"ls"}`, string(parts[0].Args))
-			},
-		},
-		{
-			name: "tool/sdk_tool_result",
-			role: codersdk.ChatMessageRoleTool,
-			parts: []codersdk.ChatMessagePart{{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: "call_456",
-				ToolName:   "execute",
-				Result:     json.RawMessage(`{"output":"file1.go"}`),
-			}},
-			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
-				require.Len(t, parts, 1)
-				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
-				assert.Equal(t, "call_456", parts[0].ToolCallID)
-				assert.Equal(t, "execute", parts[0].ToolName)
-				assert.JSONEq(t, `{"output":"file1.go"}`, string(parts[0].Result))
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			parts, err := chatprompt.ParseContent(testMsgV1(tc.role, mustMarshalParts(t, tc.parts...)))
-			require.NoError(t, err)
-			tc.check(t, parts)
-		})
-	}
 
 	t.Run("system", func(t *testing.T) {
 		t.Parallel()
