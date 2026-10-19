@@ -57,7 +57,7 @@ Eviction means that a persisted message may reference a file that no longer exis
 
 TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
 
-Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project.
+Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -124,6 +124,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
+- `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0` or `E1`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption, or cancels a pending dynamic-tool action and inserts the message directly.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
@@ -169,12 +170,14 @@ stateDiagram-v2
     W --> W: ClearContext
     W --> E0: FinishError
     W --> XW: SetArchived(true)
+    W --> W: SetProject
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
     E0 --> XE0: SetArchived(true)
+    E0 --> E0: SetProject
 
     E1 --> R1: SendMessage
     E1 --> R0: EditMessage
@@ -184,6 +187,7 @@ stateDiagram-v2
     E1 --> R0: PromoteQueuedMessage / promoted last queued
     E1 --> R1: PromoteQueuedMessage / queue still non-empty
     E1 --> XE1: SetArchived(true)
+    E1 --> E1: SetProject
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
@@ -480,9 +484,17 @@ For `archived` updates, the supported input and output states are:
 - `XE0 -> SetArchived(false) -> E0`
 - `XE1 -> SetArchived(false) -> E1`
 
-If the request does not change `archived`, this endpoint doesn't emit any state transitions.
+If the request changes neither `archived` nor `project_id`, this endpoint doesn't emit any state transitions.
 
 Other execution-state classes are not supported for archive/unarchive.
+
+Setting `project_id` on a root chat moves it into that project, and the nil UUID moves it out of its project. The move applies `SetProject(project)` to the root and all descendants atomically, with the same root-first lock as an archive. It's the request's last write, so a refused move keeps the request's other changes. The supported input and output states are:
+
+- `W -> SetProject(project) -> W`
+- `E0 -> SetProject(project) -> E0`
+- `E1 -> SetProject(project) -> E1`
+
+A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
 
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
@@ -1012,7 +1024,24 @@ Root chats in a project share durable memory; other chats have none. The agent s
 
 <!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
 
+A moved root chat uses the instructions and memory of its new project from its next turn. The index it saw stays in its history, so that turn starts with an index update from the old index to the new project's. A chat that leaves its project, or whose project is deleted, has an empty index, and the update removes every memory it saw.
+
 Project instructions are loaded on every turn, so edits show up in existing chats on their next turn. They're loaded alongside the rest of the turn setup, sanitized again, and added to the system prompt by `buildSystemPrompt` as a `<project-instructions>` block, after the memory guidance and before the user prompt. Subagents get them from their root chat.
+
+###### Project sharing
+
+Owners share a project with users, groups, or the Everyone group (ID = organization ID). Chats in a shared project stay private to their owners.
+
+| Role    | Project and instructions | Memories   | ACL  | Delete |
+|---------|--------------------------|------------|------|--------|
+| `use`   | read                     | read/write | read | no     |
+| `admin` | read/write               | read/write | edit | no     |
+
+Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
+
+Memory tools and instruction loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` and `resolveProjectInstructions` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
 ##### Reasoning effort
 
