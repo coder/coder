@@ -391,20 +391,27 @@ WHERE datname = current_database()
 		t.Parallel()
 
 		// The site owner can read every project and update every chat, so
-		// only the owner check keeps a member's chat out of the site
-		// owner's project and its memory.
+		// only the access check keeps a member's chat out of the site
+		// owner's project and its memory until the project is shared with
+		// the member.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, api := newChatProjectClientWithAPI(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 		project := createChatProject(t, client, firstUser.OrganizationID, "Owner Project")
-		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		member := codersdk.NewExperimentalClient(memberRaw)
+		member, memberUser := newChatProjectMember(t, client, firstUser.OrganizationID)
 		chat := createIdleChat(ctx, t, member, api, firstUser.OrganizationID)
 
 		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
 		requireChatProjectNotFound(t, err)
 		requireChatProjectID(ctx, t, member, chat.ID, nil)
+
+		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+		require.NoError(t, err)
+		require.NoError(t, member.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID}))
+		requireChatProjectID(ctx, t, member, chat.ID, &project.ID)
 	})
 
 	t.Run("AnotherOrganization", func(t *testing.T) {

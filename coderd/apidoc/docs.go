@@ -32436,7 +32436,7 @@ const docTemplate = `{
                     ]
                 },
                 "project_id": {
-                    "description": "ProjectID moves a root chat, and with it its subagent chats.\n- nil: no change.\n- uuid.Nil: remove the chat from its project.\n- other: move the chat into that project. The project must belong\n  to the chat's owner and organization.\nThe server returns 409 while the chat or a subagent chat is not idle.",
+                    "description": "ProjectID moves a root chat, and with it its subagent chats.\n- nil: no change.\n- uuid.Nil: remove the chat from its project.\n- other: move the chat into that project. The chat's owner must own\n  the project or have it shared with them, and the project must be\n  in the chat's organization.\nThe server returns 409 while the chat or a subagent chat is not idle.",
                     "type": "string",
                     "format": "uuid"
                 },

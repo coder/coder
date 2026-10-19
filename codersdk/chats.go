@@ -899,8 +899,9 @@ type UpdateChatRequest struct {
 	// ProjectID moves a root chat, and with it its subagent chats.
 	// - nil: no change.
 	// - uuid.Nil: remove the chat from its project.
-	// - other: move the chat into that project. The project must belong
-	//   to the chat's owner and organization.
+	// - other: move the chat into that project. The chat's owner must own
+	//   the project or have it shared with them, and the project must be
+	//   in the chat's organization.
 	// The server returns 409 while the chat or a subagent chat is not idle.
 	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
