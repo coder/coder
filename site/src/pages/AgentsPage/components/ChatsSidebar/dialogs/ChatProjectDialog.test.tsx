@@ -481,21 +481,21 @@ describe("ChatProjectDialog", () => {
 	});
 });
 
-const firstTemplate: Template = {
+const mockFirstTemplate: Template = {
 	...MockTemplate,
 	id: "template-1",
 	name: "docker",
 	display_name: "Docker",
 	active_version_id: "version-1",
 };
-const secondTemplate: Template = {
+const mockSecondTemplate: Template = {
 	...MockTemplate,
 	id: "template-2",
 	name: "kubernetes",
 	display_name: "Kubernetes",
 	active_version_id: "version-2",
 };
-const preset: Preset = {
+const mockPreset: Preset = {
 	ID: "preset-1",
 	Name: "Small",
 	Parameters: [],
@@ -508,10 +508,10 @@ describe("ChatProjectDialog templates", () => {
 	const useTemplateHandlers = () => {
 		server.use(
 			http.get("/api/v2/templates", () =>
-				HttpResponse.json([firstTemplate, secondTemplate]),
+				HttpResponse.json([mockFirstTemplate, mockSecondTemplate]),
 			),
 			http.get("/api/v2/templateversions/:versionId/presets", () =>
-				HttpResponse.json([preset]),
+				HttpResponse.json([mockPreset]),
 			),
 			http.get("/api/v2/templateversions/:versionId/rich-parameters", () =>
 				HttpResponse.json([MockTemplateVersionParameter1]),
@@ -550,7 +550,9 @@ describe("ChatProjectDialog templates", () => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					organizationId: MockDefaultOrganization.id,
-					templates: { template_ids: [firstTemplate.id, secondTemplate.id] },
+					templates: {
+						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+					},
 				}),
 			);
 		});
@@ -573,13 +575,32 @@ describe("ChatProjectDialog templates", () => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					templates: {
-						template_ids: [firstTemplate.id, secondTemplate.id],
-						default_template_id: secondTemplate.id,
-						default_preset_id: preset.ID,
+						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+						default_template_id: mockSecondTemplate.id,
+						default_preset_id: mockPreset.ID,
 					},
 				}),
 			);
 		});
+	});
+
+	it("shows that a default template has no presets", async () => {
+		useTemplateHandlers();
+		// The server returns null, not [], for a version without presets.
+		server.use(
+			http.get("/api/v2/templateversions/:versionId/presets", () =>
+				HttpResponse.json(null),
+			),
+		);
+		const user = userEvent.setup();
+		renderDialog();
+
+		await startCreate(user);
+		await pickDefaultTemplate(user, "Docker");
+
+		expect(
+			await screen.findByText("This template has no presets."),
+		).toBeInTheDocument();
 	});
 
 	it("submits default parameter values instead of a preset", async () => {
@@ -602,8 +623,8 @@ describe("ChatProjectDialog templates", () => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					templates: {
-						template_ids: [firstTemplate.id, secondTemplate.id],
-						default_template_id: firstTemplate.id,
+						template_ids: [mockFirstTemplate.id, mockSecondTemplate.id],
+						default_template_id: mockFirstTemplate.id,
 						default_parameters: {
 							[MockTemplateVersionParameter1.name]: "custom",
 						},
@@ -627,7 +648,7 @@ describe("ChatProjectDialog templates", () => {
 		await waitFor(() => {
 			expect(props.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
-					templates: { template_ids: [firstTemplate.id] },
+					templates: { template_ids: [mockFirstTemplate.id] },
 				}),
 			);
 		});

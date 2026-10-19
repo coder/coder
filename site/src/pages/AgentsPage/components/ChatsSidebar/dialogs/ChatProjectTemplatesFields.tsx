@@ -20,10 +20,15 @@ import {
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
+/** Form state for a project's templates and the defaults its chats use. */
 export type ChatProjectTemplatesValues = {
 	templateIds: readonly string[];
 	/** Empty when the project has no default template. */
 	defaultTemplateId: string;
+	/**
+	 * Picks which of `defaultPresetId` or `defaultParameters` is saved; the
+	 * other is ignored.
+	 */
 	defaultsKind: "preset" | "parameters";
 	defaultPresetId: string;
 	defaultParameters: Readonly<Record<string, string>>;
@@ -31,6 +36,7 @@ export type ChatProjectTemplatesValues = {
 
 const noDefaultTemplate = "none";
 
+/** Returns the form state for saved templates, or an empty form when none. */
 export const chatProjectTemplatesValues = (
 	templates: ChatProjectTemplates | undefined,
 ): ChatProjectTemplatesValues => ({
@@ -100,6 +106,10 @@ type ChatProjectTemplatesFieldsProps = {
 	readonly disabled: boolean;
 };
 
+/**
+ * Fields that pick a project's templates, an optional default template, and
+ * that template's default preset or parameter values.
+ */
 export const ChatProjectTemplatesFields: React.FC<
 	ChatProjectTemplatesFieldsProps
 > = ({ templates, templatesError, saveError, value, onChange, disabled }) => {
@@ -249,6 +259,9 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 		...richParameters(template.active_version_id),
 		enabled: value.defaultsKind === "parameters",
 	});
+	// The server returns null rather than [] for a version without presets.
+	const presets =
+		presetsQuery.data === undefined ? undefined : (presetsQuery.data ?? []);
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -280,8 +293,8 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 				</div>
 			</RadioGroup>
 			{value.defaultsKind === "preset" ? (
-				presetsQuery.data ? (
-					presetsQuery.data.length === 0 ? (
+				presets ? (
+					presets.length === 0 ? (
 						<p className="m-0 text-sm text-content-secondary">
 							This template has no presets.
 						</p>
@@ -299,7 +312,7 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 									<SelectValue placeholder="Select a preset" />
 								</SelectTrigger>
 								<SelectContent>
-									{presetsQuery.data.map((preset) => (
+									{presets.map((preset) => (
 										<SelectItem key={preset.ID} value={preset.ID}>
 											{preset.Name}
 										</SelectItem>

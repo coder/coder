@@ -2039,6 +2039,100 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
+func TestChatProjectUserACLDroppedOnOrgMemberDelete(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	stays := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, sharee, stays} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	for _, user := range []database.User{owner, sharee} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	}
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
+	admin := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}}
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin, stays.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       otherProject.ID,
+		UserACL:  database.ChatACL{sharee.ID.String(): admin},
+		GroupACL: database.ChatACL{},
+	}))
+
+	// The trigger only drops grants in the organization the user left.
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: otherOrg.ID, UserID: sharee.ID}))
+	gotOther, err := db.GetChatProjectByID(ctx, otherProject.ID)
+	require.NoError(t, err)
+	require.NotContains(t, gotOther.UserACL, sharee.ID.String())
+	got, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Contains(t, got.UserACL, sharee.ID.String())
+	usable, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.True(t, usable)
+
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: org.ID, UserID: sharee.ID}))
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: sharee.ID, OrganizationID: org.ID})
+
+	got, err = db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatACL{stays.ID.String(): admin}, got.UserACL, "rejoining does not restore the grant")
+	usable, err = db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: project.ID, UserID: sharee.ID})
+	require.NoError(t, err)
+	require.False(t, usable)
+}
+
+// A PATCH that omits templates must not write back the project snapshot it
+// loaded, or it would undo a concurrent template change.
+func TestUpdateChatProjectByIDKeepsOmittedTemplates(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+
+	// Another request sets templates after this one loaded the project.
+	_, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:                project.ID,
+		Name:              project.Name,
+		UpdateTemplates:   true,
+		TemplateIDs:       []uuid.UUID{tpl.ID},
+		DefaultTemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		DefaultParameters: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"region":"us"}`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	renamed, err := db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+		ID:   project.ID,
+		Name: "renamed",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "renamed", renamed.Name)
+	require.Equal(t, []uuid.UUID{tpl.ID}, renamed.TemplateIDs)
+	require.Equal(t, uuid.NullUUID{UUID: tpl.ID, Valid: true}, renamed.DefaultTemplateID)
+	require.JSONEq(t, `{"region":"us"}`, string(renamed.DefaultParameters))
+}
+
 func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2128,7 +2222,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
 
 		for _, projectID := range all {
-			accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{
+			accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{
 				ProjectID: projectID,
 				UserID:    tc.user.ID,
 			})
@@ -2141,7 +2235,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, all, ids(projects))
 	for _, projectID := range all {
-		accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		accessible, err := db.IsChatProjectUsableByUserID(ctx, database.IsChatProjectUsableByUserIDParams{ProjectID: projectID, UserID: owner.ID})
 		require.NoError(t, err)
 		require.True(t, accessible)
 	}

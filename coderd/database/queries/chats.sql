@@ -1217,6 +1217,17 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
+-- name: UpdateChatProjectIDByID :exec
+-- Sets the project of one chat. A NULL project_id removes the chat from
+-- its project.
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    project_id = sqlc.narg('project_id')::uuid
+WHERE
+    id = @id::uuid;
+
 -- name: UpdateChatLastModelConfigByID :one
 WITH updated_chat AS (
 UPDATE
