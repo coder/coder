@@ -8158,24 +8158,28 @@ SET
     name = $1::text,
     description = $2::text,
     icon = $3::text,
-    template_ids = $4::uuid[],
-    default_template_id = $5::uuid,
-    default_template_version_preset_id = $6::uuid,
-    default_parameters = $7::jsonb,
+    -- The template columns change together, and only when the request sets
+    -- templates, so a concurrent update that omits them cannot restore a
+    -- stale snapshot.
+    template_ids = CASE WHEN $4::boolean THEN $5::uuid[] ELSE template_ids END,
+    default_template_id = CASE WHEN $4::boolean THEN $6::uuid ELSE default_template_id END,
+    default_template_version_preset_id = CASE WHEN $4::boolean THEN $7::uuid ELSE default_template_version_preset_id END,
+    default_parameters = CASE WHEN $4::boolean THEN COALESCE($8::jsonb, '{}'::jsonb) ELSE default_parameters END,
     updated_at = now()
-WHERE id = $8::uuid
+WHERE id = $9::uuid
 RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, template_ids, default_template_id, default_template_version_preset_id, default_parameters
 `
 
 type UpdateChatProjectByIDParams struct {
-	Name                           string          `db:"name" json:"name"`
-	Description                    string          `db:"description" json:"description"`
-	Icon                           string          `db:"icon" json:"icon"`
-	TemplateIDs                    []uuid.UUID     `db:"template_ids" json:"template_ids"`
-	DefaultTemplateID              uuid.NullUUID   `db:"default_template_id" json:"default_template_id"`
-	DefaultTemplateVersionPresetID uuid.NullUUID   `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
-	DefaultParameters              json.RawMessage `db:"default_parameters" json:"default_parameters"`
-	ID                             uuid.UUID       `db:"id" json:"id"`
+	Name                           string                `db:"name" json:"name"`
+	Description                    string                `db:"description" json:"description"`
+	Icon                           string                `db:"icon" json:"icon"`
+	UpdateTemplates                bool                  `db:"update_templates" json:"update_templates"`
+	TemplateIDs                    []uuid.UUID           `db:"template_ids" json:"template_ids"`
+	DefaultTemplateID              uuid.NullUUID         `db:"default_template_id" json:"default_template_id"`
+	DefaultTemplateVersionPresetID uuid.NullUUID         `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	DefaultParameters              pqtype.NullRawMessage `db:"default_parameters" json:"default_parameters"`
+	ID                             uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
@@ -8183,6 +8187,7 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		arg.Name,
 		arg.Description,
 		arg.Icon,
+		arg.UpdateTemplates,
 		pq.Array(arg.TemplateIDs),
 		arg.DefaultTemplateID,
 		arg.DefaultTemplateVersionPresetID,

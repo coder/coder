@@ -226,7 +226,9 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !validateChatProjectFields(ctx, rw, name, description, icon) {
 		return
 	}
-	templates := storedChatProjectTemplateFields(project)
+	// Omitted templates are left to the query, which keeps the current
+	// columns instead of writing back this request's snapshot.
+	var templates chatProjectTemplateFields
 	if req.Templates != nil {
 		var ok bool
 		templates, ok = api.chatProjectTemplateFieldsOrWriteError(ctx, rw, project.OrganizationID, req.Templates)
@@ -241,10 +243,11 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		Description: description,
 		Icon:        icon,
 
+		UpdateTemplates:                req.Templates != nil,
 		TemplateIDs:                    templates.templateIDs,
 		DefaultTemplateID:              templates.defaultTemplateID,
 		DefaultTemplateVersionPresetID: templates.defaultPresetID,
-		DefaultParameters:              templates.defaultParameters,
+		DefaultParameters:              pqtype.NullRawMessage{RawMessage: templates.defaultParameters, Valid: req.Templates != nil},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -395,17 +398,6 @@ type chatProjectTemplateFields struct {
 	defaultTemplateID uuid.NullUUID
 	defaultPresetID   uuid.NullUUID
 	defaultParameters json.RawMessage
-}
-
-// storedChatProjectTemplateFields returns a project's current template
-// fields so an update that omits templates keeps them.
-func storedChatProjectTemplateFields(project database.ChatProject) chatProjectTemplateFields {
-	return chatProjectTemplateFields{
-		templateIDs:       project.TemplateIDs,
-		defaultTemplateID: project.DefaultTemplateID,
-		defaultPresetID:   project.DefaultTemplateVersionPresetID,
-		defaultParameters: project.DefaultParameters,
-	}
 }
 
 // validateChatProjectTemplates checks a project's requested templates and
