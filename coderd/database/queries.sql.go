@@ -2818,10 +2818,13 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 }
 
 const deleteOrganizationAIProviderModelPrice = `-- name: DeleteOrganizationAIProviderModelPrice :execrows
-DELETE FROM ai_model_configs
+UPDATE ai_model_configs
+SET deleted = TRUE,
+	updated_at = NOW()
 WHERE organization_id = $1
 	AND provider_id = $2
 	AND model = $3
+	AND deleted = FALSE
 `
 
 type DeleteOrganizationAIProviderModelPriceParams struct {
@@ -2830,6 +2833,8 @@ type DeleteOrganizationAIProviderModelPriceParams struct {
 	Model          string    `db:"model" json:"model"`
 }
 
+// Soft deletes the organization's live price for one model on one configured
+// provider. Returns zero rows when there is no live price.
 func (q *sqlQuerier) DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg DeleteOrganizationAIProviderModelPriceParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOrganizationAIProviderModelPrice, arg.OrganizationID, arg.ProviderID, arg.Model)
 	if err != nil {
@@ -3308,11 +3313,12 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 }
 
 const getOrganizationAIProviderModelPrice = `-- name: GetOrganizationAIProviderModelPrice :one
-SELECT organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT id, organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, deleted
 FROM ai_model_configs
 WHERE organization_id = $1
 	AND provider_id = $2
 	AND model = $3
+	AND deleted = FALSE
 `
 
 type GetOrganizationAIProviderModelPriceParams struct {
@@ -3321,11 +3327,13 @@ type GetOrganizationAIProviderModelPriceParams struct {
 	Model          string    `db:"model" json:"model"`
 }
 
-// Returns the organization's price for one model on one configured provider.
+// Returns the organization's live price for one model on one configured
+// provider. Soft-deleted rows are ignored.
 func (q *sqlQuerier) GetOrganizationAIProviderModelPrice(ctx context.Context, arg GetOrganizationAIProviderModelPriceParams) (AIModelConfig, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationAIProviderModelPrice, arg.OrganizationID, arg.ProviderID, arg.Model)
 	var i AIModelConfig
 	err := row.Scan(
+		&i.ID,
 		&i.OrganizationID,
 		&i.ProviderID,
 		&i.Model,
@@ -3335,6 +3343,7 @@ func (q *sqlQuerier) GetOrganizationAIProviderModelPrice(ctx context.Context, ar
 		&i.CacheWritePrice,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Deleted,
 	)
 	return i, err
 }
@@ -3966,7 +3975,7 @@ INSERT INTO ai_model_configs (
 ) VALUES (
 	$1, $2, $3, $4, $5, $6, $7
 )
-ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
+ON CONFLICT (organization_id, provider_id, model) WHERE deleted = FALSE DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -3996,8 +4005,9 @@ type UpsertOrganizationAIProviderModelPriceParams struct {
 }
 
 // Sets the organization's price for one model on one configured provider. A
-// NULL price is unknown. An existing row is only rewritten when a price
-// differs, so updated_at records when a price last changed.
+// NULL price is unknown. An existing live row is only rewritten when a price
+// differs, so updated_at records when a price last changed. Soft-deleted rows
+// are left untouched, and a new live row is inserted beside them.
 func (q *sqlQuerier) UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg UpsertOrganizationAIProviderModelPriceParams) error {
 	_, err := q.db.ExecContext(ctx, upsertOrganizationAIProviderModelPrice,
 		arg.OrganizationID,

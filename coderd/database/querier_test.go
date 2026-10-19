@@ -19318,13 +19318,17 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
 
 	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
 	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	deletedRow, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
 
 	del := func(orgID uuid.UUID, model string) int64 {
 		t.Helper()
@@ -19336,7 +19340,7 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	}
 
 	require.EqualValues(t, 1, del(org.ID, "model-a"))
-	_, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+	_, err = db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
 		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
@@ -19347,8 +19351,35 @@ func TestDeleteOrganizationAIProviderModelPrice(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Deleting a price that does not exist matches nothing.
+	// Deleting a price that is already soft deleted matches nothing.
 	require.Zero(t, del(org.ID, "model-a"))
+
+	// readRow reads a row by ID, including soft-deleted rows, which the
+	// queries under test cannot see.
+	readRow := func(id uuid.UUID) (deleted bool, inputPrice int64) {
+		t.Helper()
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT deleted, input_price FROM ai_model_configs WHERE id = $1`, id,
+		).Scan(&deleted, &inputPrice))
+		return deleted, inputPrice
+	}
+	deleted, inputPrice := readRow(deletedRow.ID)
+	require.True(t, deleted, "the row must be kept and flagged as deleted")
+	require.EqualValues(t, 1, inputPrice)
+
+	// Setting the price again inserts a new live row and leaves the
+	// soft-deleted row untouched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 5)
+	live, err := db.GetOrganizationAIProviderModelPrice(ctx, database.GetOrganizationAIProviderModelPriceParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, deletedRow.ID, live.ID)
+	require.False(t, live.Deleted)
+	require.EqualValues(t, 5, live.InputPrice.Int64)
+	deleted, inputPrice = readRow(deletedRow.ID)
+	require.True(t, deleted)
+	require.EqualValues(t, 1, inputPrice)
 }
 
 func TestGetChatSiteConfigValue(t *testing.T) {

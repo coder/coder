@@ -247,6 +247,8 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
+	// Soft deletes the organization's live price for one model on one configured
+	// provider. Returns zero rows when there is no live price.
 	DeleteOrganizationAIProviderModelPrice(ctx context.Context, arg DeleteOrganizationAIProviderModelPriceParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
@@ -783,7 +785,8 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
-	// Returns the organization's price for one model on one configured provider.
+	// Returns the organization's live price for one model on one configured
+	// provider. Soft-deleted rows are ignored.
 	GetOrganizationAIProviderModelPrice(ctx context.Context, arg GetOrganizationAIProviderModelPriceParams) (AIModelConfig, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
@@ -1829,8 +1832,9 @@ type sqlcQuerier interface {
 	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
 	// Sets the organization's price for one model on one configured provider. A
-	// NULL price is unknown. An existing row is only rewritten when a price
-	// differs, so updated_at records when a price last changed.
+	// NULL price is unknown. An existing live row is only rewritten when a price
+	// differs, so updated_at records when a price last changed. Soft-deleted rows
+	// are left untouched, and a new live row is inserted beside them.
 	UpsertOrganizationAIProviderModelPrice(ctx context.Context, arg UpsertOrganizationAIProviderModelPriceParams) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)

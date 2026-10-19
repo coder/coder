@@ -53,23 +53,26 @@ ORDER BY
 LIMIT 1;
 
 -- name: GetOrganizationAIProviderModelPrice :one
--- Returns the organization's price for one model on one configured provider.
+-- Returns the organization's live price for one model on one configured
+-- provider. Soft-deleted rows are ignored.
 SELECT *
 FROM ai_model_configs
 WHERE organization_id = @organization_id
 	AND provider_id = @provider_id
-	AND model = @model;
+	AND model = @model
+	AND deleted = FALSE;
 
 -- name: UpsertOrganizationAIProviderModelPrice :exec
 -- Sets the organization's price for one model on one configured provider. A
--- NULL price is unknown. An existing row is only rewritten when a price
--- differs, so updated_at records when a price last changed.
+-- NULL price is unknown. An existing live row is only rewritten when a price
+-- differs, so updated_at records when a price last changed. Soft-deleted rows
+-- are left untouched, and a new live row is inserted beside them.
 INSERT INTO ai_model_configs (
 	organization_id, provider_id, model, input_price, output_price, cache_read_price, cache_write_price
 ) VALUES (
 	@organization_id, @provider_id, @model, @input_price, @output_price, @cache_read_price, @cache_write_price
 )
-ON CONFLICT (organization_id, provider_id, model) DO UPDATE SET
+ON CONFLICT (organization_id, provider_id, model) WHERE deleted = FALSE DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -88,10 +91,15 @@ WHERE (
 );
 
 -- name: DeleteOrganizationAIProviderModelPrice :execrows
-DELETE FROM ai_model_configs
+-- Soft deletes the organization's live price for one model on one configured
+-- provider. Returns zero rows when there is no live price.
+UPDATE ai_model_configs
+SET deleted = TRUE,
+	updated_at = NOW()
 WHERE organization_id = @organization_id
 	AND provider_id = @provider_id
-	AND model = @model;
+	AND model = @model
+	AND deleted = FALSE;
 
 -- name: GetAIModelPrices :many
 -- Returns the price in effect for each model, preferring a custom price over
