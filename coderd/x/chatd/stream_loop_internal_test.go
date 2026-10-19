@@ -442,11 +442,14 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 	t.Parallel()
 
 	// Each case starts a new loop whose client holds messages up to afterID.
-	// Tombstones are soft-deleted rows returned by the revision query.
+	// messages are the rows of every chat. The mock answers the cursor lookup
+	// and the revision query from them, and tombstones are soft-deleted rows.
 	const afterID int64 = 3
 	for _, tt := range []struct {
 		name     string
 		messages func(chatID uuid.UUID) []database.ChatMessage
+		// wantAfterRevision is the bound of the first revision query.
+		wantAfterRevision int64
 		// fullHistory is returned by GetChatMessagesByChatID. A nil value
 		// means the query must not run.
 		fullHistory func(messages []database.ChatMessage) []database.ChatMessage
@@ -462,6 +465,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 					streamMessage(t, chatID, 3, 3, database.ChatMessageRoleAssistant, "reply", false),
 				}
 			},
+			wantAfterRevision: 2,
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
@@ -477,6 +481,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 					streamMessage(t, chatID, 4, 4, database.ChatMessageRoleUser, "next", false),
 				}
 			},
+			wantAfterRevision: 2,
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
@@ -496,6 +501,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 					streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "after edit", false),
 				}
 			},
+			wantAfterRevision: 2,
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
@@ -512,6 +518,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 					streamMessage(t, chatID, 4, 4, database.ChatMessageRoleUser, "replacement", false),
 				}
 			},
+			wantAfterRevision: 3,
 			fullHistory: func(messages []database.ChatMessage) []database.ChatMessage {
 				return []database.ChatMessage{messages[0], messages[2]}
 			},
@@ -532,6 +539,7 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 					streamMessage(t, chatID, 2, 2, database.ChatMessageRoleUser, "deleted", true),
 				}
 			},
+			wantAfterRevision: 0,
 			fullHistory: func(messages []database.ChatMessage) []database.ChatMessage {
 				return []database.ChatMessage{messages[0]}
 			},
@@ -542,6 +550,95 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				codersdk.ChatStreamEventTypePreviewReset,
 			},
 			wantIDs: []int64{1},
+		},
+		{
+			name: "message after_id missing without tombstones",
+			messages: func(chatID uuid.UUID) []database.ChatMessage {
+				return []database.ChatMessage{
+					streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first", false),
+					streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
+					streamMessage(t, chatID, 4, 4, database.ChatMessageRoleUser, "next", false),
+				}
+			},
+			wantAfterRevision: 0,
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+			},
+			wantIDs: []int64{4},
+		},
+		{
+			name: "message committed with after_id",
+			messages: func(chatID uuid.UUID) []database.ChatMessage {
+				return []database.ChatMessage{
+					streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first", false),
+					streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
+					streamMessage(t, chatID, 3, 3, database.ChatMessageRoleUser, "second", false),
+					streamMessage(t, chatID, 4, 3, database.ChatMessageRoleAssistant, "same commit", false),
+				}
+			},
+			wantAfterRevision: 2,
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+			},
+			wantIDs: []int64{4},
+		},
+		{
+			name: "tombstones committed with after_id",
+			messages: func(chatID uuid.UUID) []database.ChatMessage {
+				return []database.ChatMessage{
+					streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first", false),
+					streamMessage(t, chatID, 2, 3, database.ChatMessageRoleUser, "before edit", true),
+					streamMessage(t, chatID, 3, 3, database.ChatMessageRoleUser, "after edit", false),
+					streamMessage(t, chatID, 4, 4, database.ChatMessageRoleAssistant, "reply", false),
+				}
+			},
+			wantAfterRevision: 2,
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+			},
+			wantIDs: []int64{4},
+		},
+		{
+			name: "message after_id in another chat",
+			messages: func(chatID uuid.UUID) []database.ChatMessage {
+				return []database.ChatMessage{
+					streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first", false),
+					streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
+					streamMessage(t, uuid.New(), 3, 9, database.ChatMessageRoleUser, "other chat", false),
+				}
+			},
+			wantAfterRevision: 0,
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+			},
+			wantIDs: []int64{1, 2},
+		},
+		{
+			name: "deleted message after_id in another chat",
+			messages: func(chatID uuid.UUID) []database.ChatMessage {
+				return []database.ChatMessage{
+					streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first", false),
+					streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
+					streamMessage(t, uuid.New(), 3, 9, database.ChatMessageRoleUser, "other chat", true),
+				}
+			},
+			wantAfterRevision: 0,
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+			},
+			wantIDs: []int64{1, 2},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -565,10 +662,20 @@ func TestStreamLoopInitialSyncTombstones(t *testing.T) {
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 			)
 			tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
+			cursorIdx := slices.IndexFunc(messages, func(msg database.ChatMessage) bool {
+				return msg.ID == afterID
+			})
+			if cursorIdx < 0 {
+				tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), afterID).Return(database.ChatMessage{}, sql.ErrNoRows)
+			} else {
+				tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), afterID).Return(messages[cursorIdx], nil)
+			}
 			tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        chatID,
-				AfterRevision: 0,
-			}).Return(messages, nil)
+				AfterRevision: tt.wantAfterRevision,
+			}).Return(slices.DeleteFunc(slices.Clone(messages), func(msg database.ChatMessage) bool {
+				return msg.ChatID != chatID || msg.Revision <= tt.wantAfterRevision
+			}), nil)
 			if tt.fullHistory != nil {
 				tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 					ChatID:  chatID,
@@ -671,7 +778,8 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 		}
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 3)
 
-		expectSync(chat, 0, history)
+		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(3)).Return(history[2], nil)
+		expectSync(chat, 2, history[2:])
 		events, _, changed, err := loop.syncDB(ctx)
 		require.NoError(t, err)
 		require.True(t, changed)
@@ -719,252 +827,6 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 			codersdk.ChatStreamEventTypePreviewReset,
 		)
 		require.Equal(t, int64(5), events[4].Message.ID)
-	})
-}
-
-func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
-	t.Parallel()
-
-	newLockedTx := func(t *testing.T, chatID uuid.UUID, chat database.Chat) (*dbmock.MockStore, *dbmock.MockStore) {
-		t.Helper()
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		tx := dbmock.NewMockStore(ctrl)
-		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-			func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
-		)
-		tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
-		tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
-		return db, tx
-	}
-
-	t.Run("CursorPresent", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 9,
-			HistoryVersion:  9,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
-
-		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleUser, "already seen", false)
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(7)).Return(cursor, nil)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 4,
-		}).Return([]database.ChatMessage{
-			cursor,
-			streamMessage(t, chatID, 8, 9, database.ChatMessageRoleAssistant, "new", false),
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(8), events[0].Message.ID)
-	})
-
-	t.Run("TruncationSharingCursorRevision", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 6,
-			HistoryVersion:  6,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 9)
-
-		cursor := streamMessage(t, chatID, 9, 5, database.ChatMessageRoleUser, "edited", false)
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(9)).Return(cursor, nil)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 4,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 7, 5, database.ChatMessageRoleUser, "original", true),
-			streamMessage(t, chatID, 8, 5, database.ChatMessageRoleAssistant, "discarded", true),
-			cursor,
-			streamMessage(t, chatID, 10, 6, database.ChatMessageRoleAssistant, "new", false),
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(10), events[0].Message.ID)
-	})
-
-	t.Run("DeletedRowAfterCursor", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 7,
-			HistoryVersion:  7,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
-
-		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleAssistant, "already seen", false)
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(7)).Return(cursor, nil)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 4,
-		}).Return([]database.ChatMessage{
-			cursor,
-			streamMessage(t, chatID, 8, 6, database.ChatMessageRoleUser, "discarded", true),
-			streamMessage(t, chatID, 9, 7, database.ChatMessageRoleUser, "edited", false),
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(9), events[0].Message.ID)
-	})
-
-	t.Run("HeldMessageDeletedAfterCursor", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 8,
-			HistoryVersion:  8,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
-
-		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleAssistant, "already seen", false)
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(7)).Return(cursor, nil)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 4,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 3, 8, database.ChatMessageRoleUser, "removed", true),
-			cursor,
-		}, nil)
-		tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
-			ChatID:  chatID,
-			AfterID: 0,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 2, 1, database.ChatMessageRoleUser, "kept", false),
-			cursor,
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeHistoryReset,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(2), events[1].Message.ID)
-		require.Equal(t, int64(7), events[2].Message.ID)
-	})
-
-	t.Run("CursorDeleted", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 9,
-			HistoryVersion:  9,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
-
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(7)).Return(
-			streamMessage(t, chatID, 7, 9, database.ChatMessageRoleUser, "deleted", true), nil)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 0,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "kept", false),
-			streamMessage(t, chatID, 7, 9, database.ChatMessageRoleUser, "deleted", true),
-		}, nil)
-		tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
-			ChatID:  chatID,
-			AfterID: 0,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "kept", false),
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeHistoryReset,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(6), events[1].Message.ID)
-	})
-
-	t.Run("CursorUnknown", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		chatID := uuid.New()
-		chat := database.Chat{
-			ID:              chatID,
-			Status:          database.ChatStatusWaiting,
-			SnapshotVersion: 9,
-			HistoryVersion:  9,
-		}
-		db, tx := newLockedTx(t, chatID, chat)
-		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
-
-		tx.EXPECT().GetChatMessageByIDForStream(gomock.Any(), int64(7)).Return(database.ChatMessage{}, sql.ErrNoRows)
-		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
-			ChatID:        chatID,
-			AfterRevision: 0,
-		}).Return([]database.ChatMessage{
-			streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "already seen", false),
-			streamMessage(t, chatID, 8, 9, database.ChatMessageRoleAssistant, "new", false),
-		}, nil)
-
-		events, _, changed, err := loop.syncDB(ctx)
-		require.NoError(t, err)
-		require.True(t, changed)
-		requireEventTypes(t, events,
-			codersdk.ChatStreamEventTypeMessage,
-			codersdk.ChatStreamEventTypeStatus,
-			codersdk.ChatStreamEventTypePreviewReset,
-		)
-		require.Equal(t, int64(8), events[0].Message.ID)
 	})
 }
 

@@ -9937,7 +9937,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 
 const getChatMessageByIDForStream = `-- name: GetChatMessageByIDForStream :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9975,6 +9975,7 @@ func (q *sqlQuerier) GetChatMessageByIDForStream(ctx context.Context, id int64) 
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+		&i.QueuedMessageID,
 	)
 	return i, err
 }

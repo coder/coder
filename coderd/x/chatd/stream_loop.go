@@ -246,8 +246,8 @@ func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 }
 
 // initialSyncCursor returns the afterMessageID row and true only when that row
-// belongs to this chat and is not deleted, so the first fetch can be bounded by
-// its revision. A cursor from another chat also clears afterMessageID.
+// belongs to this chat, so the first fetch can be bounded by its revision. A
+// cursor from another chat also clears afterMessageID.
 func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByIDForStream(ctx, l.state.afterMessageID)
 	if err != nil {
@@ -259,11 +259,6 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 	if cursor.ChatID != l.chatID {
 		// Another chat's ID says nothing about which messages the client holds.
 		l.state.afterMessageID = 0
-		return database.ChatMessage{}, false, nil
-	}
-	if cursor.Deleted {
-		// Deletion advanced its revision, so bounding the fetch by that revision
-		// would skip the reset.
 		return database.ChatMessage{}, false, nil
 	}
 	return cursor, true, nil
