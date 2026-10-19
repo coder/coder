@@ -1421,11 +1421,15 @@ func (api *API) createChat(
 				Detail:  err.Error(),
 			})
 		}
-		// Projects are private to their owner, and a chat in a project reads
-		// and writes its memory, so the chat's owner must own the project.
-		// This matches the unreadable-project response so callers creating
-		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
+		// 404, like an unreadable project, so IDs cannot be probed.
+		usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
+		if err != nil {
+			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking chat project access.",
+				Detail:  err.Error(),
+			})
+		}
+		if !usable {
 			return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 		}
 		if project.OrganizationID != req.OrganizationID {
@@ -1746,6 +1750,10 @@ func (api *API) createChatError(err error) error {
 			Message: "Invalid model config ID.",
 			Detail:  err.Error(),
 		}, err)
+	}
+	// The project can be deleted between the access check and the insert.
+	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+		return httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."}, err)
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
 		return httperror.WrapResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse, err)
