@@ -82,17 +82,12 @@ ORDER BY
 	ds.user_id ASC;
 
 -- name: GetTemplateInsights :one
--- GetTemplateInsights returns the aggregate user-produced usage of all
--- workspaces in a given timeframe. The template IDs, active users, and
--- usage_seconds all reflect any usage in the template, including apps.
+-- GetTemplateInsights aggregates workspace usage, including apps.
+-- Session apps are reported individually; excess unregistered apps fold into
+-- overflow. Registered apps and accounting rows do not count toward the limit.
 --
--- Session usage comes out per app name; callers group the names into families.
---
--- When combining data from multiple templates, we must make a guess at
--- how the user behaved for the 30 minute interval. In this case we make
--- the assumption that if the user used two workspaces for 15 minutes,
--- they did so sequentially, thus we sum the usage up to a maximum of
--- 30 minutes with LEAST(SUM(n), 30).
+-- Per-user minutes are summed across templates and capped at 30 per half hour,
+-- assuming workspaces were used sequentially rather than concurrently.
 WITH
 	base AS (
 		-- One pass over the window: per-user capped minutes and the template
@@ -195,15 +190,80 @@ WITH
 			app_usage_by_template
 		GROUP BY
 			app_name
+	),
+	folded_apps AS (
+		SELECT
+			app_name
+		FROM
+			app_usage
+		WHERE
+			NOT (app_name = ANY(COALESCE(@registered_app_names::text[], '{}'::text[])))
+			AND app_name NOT IN ('unknown', 'overflow')
+		ORDER BY
+			usage_seconds DESC, app_name COLLATE "C"
+		OFFSET GREATEST(@max_unregistered_apps::bigint, 0)
+	),
+	-- The overflow row is only rebuilt when something folds into it.
+	folded_names AS (
+		SELECT app_name FROM folded_apps
+		UNION ALL
+		SELECT 'overflow' WHERE EXISTS (SELECT 1 FROM folded_apps)
+	),
+	-- Overlap between folded apps is not stored. Cap their summed minutes at
+	-- each user's active time to bound overflow, and skip the scan if none fold.
+	folded_minutes AS (
+		SELECT
+			sessions.start_time,
+			sessions.user_id,
+			SUM(sessions.usage_mins) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			EXISTS (SELECT 1 FROM folded_apps)
+			AND sessions.start_time >= @start_time::timestamptz
+			AND sessions.start_time <= (@end_time::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND sessions.app_name IN (SELECT app_name FROM folded_names)
+		GROUP BY
+			sessions.start_time, sessions.user_id
+	),
+	response_apps AS (
+		SELECT
+			app_usage.app_name,
+			app_usage.usage_seconds,
+			app_templates.template_ids
+		FROM
+			app_usage
+		JOIN
+			app_templates USING (app_name)
+		WHERE
+			app_usage.app_name NOT IN (SELECT app_name FROM folded_names)
+		UNION ALL
+		SELECT
+			'overflow',
+			(
+				SELECT (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint
+				FROM folded_minutes AS folded
+				JOIN users
+				ON users.start_time = folded.start_time
+					AND users.user_id = folded.user_id
+			),
+			(
+				SELECT array_agg(DISTINCT template_id)
+				FROM app_usage_by_template
+				WHERE app_name IN (SELECT app_name FROM folded_names)
+			)
+		WHERE
+			EXISTS (SELECT 1 FROM folded_apps)
 	)
 
 SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	-- Keyed by app name; callers fold both into families.
-	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
-	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FILTER (WHERE usage_seconds IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FILTER (WHERE template_ids IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_template_ids,
+	(SELECT COUNT(*) FROM folded_apps)::bigint AS session_folded_app_count
 FROM
 	users;
 
@@ -314,7 +374,8 @@ WITH
 			ws.template_id,
 			app.slug,
 			app.display_name,
-			app.icon
+			app.icon,
+			app.created_at
 		FROM
 			workspaces ws
 		JOIN
@@ -350,8 +411,6 @@ WITH
 			tus.template_id,
 			tus.user_id,
 			apps.slug,
-			apps.display_name,
-			apps.icon,
 			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
@@ -373,22 +432,18 @@ WITH
 		SELECT
 			user_id,
 			slug,
-			display_name,
-			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			start_time, user_id, slug, display_name, icon
+			start_time, user_id, slug
 	),
 	-- Analyze the users unique app usage across all templates. Count
 	-- usage across consecutive intervals as continuous usage.
 	times_used AS (
-		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+		SELECT DISTINCT ON (user_id, slug, uniq)
 			slug,
-			display_name,
-			icon,
 			-- Turn start_time into a unique identifier that identifies a users
 			-- continuous app usage. The value of uniq is otherwise garbage.
 			--
@@ -398,7 +453,7 @@ WITH
 			start_time - (
 				dense_rank() OVER (
 					PARTITION BY
-						user_id, slug, display_name, icon
+						user_id, slug
 					ORDER BY
 						start_time
 				) * '30 minutes'::interval
@@ -412,21 +467,36 @@ WITH
 	templates AS (
 		SELECT
 			slug,
-			display_name,
-			icon,
 			array_agg(DISTINCT template_id)::uuid[] AS template_ids
 		FROM
 			template_usage_stats_with_apps
 		GROUP BY
-			slug, display_name, icon
+			slug
+	),
+	-- Apps merge across templates by slug, so show the newest app's
+	-- display name and icon among the templates with usage.
+	presentation AS (
+		SELECT DISTINCT ON (apps.slug)
+			apps.slug,
+			apps.display_name,
+			apps.icon
+		FROM
+			apps
+		JOIN
+			templates
+		ON
+			templates.slug = apps.slug
+			AND apps.template_id = ANY(templates.template_ids)
+		ORDER BY
+			apps.slug, apps.created_at DESC, apps.template_id
 	)
 
 SELECT
 	t.template_ids,
 	COUNT(DISTINCT ai.user_id) AS active_users,
 	ai.slug,
-	ai.display_name,
-	ai.icon,
+	p.display_name,
+	p.icon,
 	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
 	COALESCE((
 		SELECT
@@ -435,8 +505,6 @@ SELECT
 			times_used
 		WHERE
 			times_used.slug = ai.slug
-			AND times_used.display_name = ai.display_name
-			AND times_used.icon = ai.icon
 	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
@@ -444,10 +512,12 @@ JOIN
 	templates AS t
 ON
 	t.slug = ai.slug
-	AND t.display_name = ai.display_name
-	AND t.icon = ai.icon
+JOIN
+	presentation AS p
+ON
+	p.slug = ai.slug
 GROUP BY
-	t.template_ids, ai.slug, ai.display_name, ai.icon;
+	t.template_ids, ai.slug, p.display_name, p.icon;
 
 -- name: GetTemplateAppInsightsByTemplate :many
 -- GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
