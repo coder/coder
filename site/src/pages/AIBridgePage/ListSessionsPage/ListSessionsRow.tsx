@@ -38,7 +38,14 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 						<TooltipTrigger asChild>
 							<p className="truncate">{session.last_prompt}</p>
 						</TooltipTrigger>
-						<TooltipContent className="max-w-64" side="top" align="start">
+						<TooltipContent
+							className="max-w-64 max-h-80 overflow-y-auto"
+							side="top"
+							align="start"
+							// Scrolling a long prompt must not open the row: the portal
+							// still bubbles React clicks up to it.
+							onClick={(event) => event.stopPropagation()}
+						>
 							<div className="font-bold">Last prompt</div>
 							<div>{session.last_prompt}</div>
 						</TooltipContent>
