@@ -111,6 +111,7 @@ const (
 )
 
 var (
+	errChatHasNoWorkspace      = xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(

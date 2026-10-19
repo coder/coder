@@ -445,6 +445,9 @@ func (p *Server) buildTurnEnvironment(
 		// history; only metadata is mutated here.
 		agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
 		if agentErr != nil {
+			if !isNoUsableWorkspaceAgent(agentErr) {
+				return turnEnvironment{}, xerrors.Errorf("get workspace agent: %w", agentErr)
+			}
 			logger.Debug(ctx, "workspace agent lookup failed, instruction header stays undecorated", slog.Error(agentErr))
 		}
 
@@ -712,7 +715,7 @@ func (p *Server) buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -721,6 +724,9 @@ func (p *Server) buildTurnEnvironment(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+		if err != nil {
+			return turnEnvironment{}, err
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
@@ -1431,12 +1437,15 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspace
 		}
 
 		// A soft-deleted workspace keeps its agent rows, so the bound agent
 		// would otherwise be dialed and fail as merely unreachable.
 		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("load workspace: %w", errChatWorkspaceDeleted)
+		}
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
 				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
@@ -1467,10 +1476,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 				return chatSnapshot, c.agent, nil
 			}
 			if !xerrors.Is(err, sql.ErrNoRows) {
-				c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
-					slog.F("agent_id", chatSnapshot.AgentID.UUID),
-					slog.Error(err),
-				)
+				return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
 			}
 		}
 
@@ -1525,6 +1531,16 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// isNoUsableWorkspaceAgent reports whether err from ensureWorkspaceAgent means
+// the chat has no agent to use, as opposed to a failed lookup.
+func isNoUsableWorkspaceAgent(err error) bool {
+	return xerrors.Is(err, errChatHasNoWorkspace) ||
+		xerrors.Is(err, errChatWorkspaceDeleted) ||
+		xerrors.Is(err, errChatHasNoWorkspaceAgent) ||
+		xerrors.Is(err, agentselect.ErrNoEligibleAgents) ||
+		xerrors.Is(err, agentselect.ErrMultipleChatAgents)
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentID(
@@ -2378,7 +2394,7 @@ func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	onChatUpdated := func(updatedChat database.Chat) {
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
@@ -2431,9 +2447,13 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	subagentTools, err := p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	return append(tools, subagentTools...), nil
 }
 
 func appendDynamicTools(

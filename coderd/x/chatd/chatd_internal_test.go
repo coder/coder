@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -1359,7 +1360,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
 
 	gomock.InOrder(
-		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, xerrors.New("missing agent")),
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, sql.ErrNoRows),
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
 		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
@@ -1594,6 +1595,127 @@ func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
 	defer workspaceCtx.mu.Unlock()
 	require.False(t, workspaceCtx.agentLoaded)
 	require.Nil(t, workspaceCtx.conn)
+}
+
+// TestTurnWorkspaceContextEnsureWorkspaceAgentErrors pins which agent lookup
+// errors mean "no usable agent", which turn preparation tolerates, and which
+// are database failures that it returns.
+func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
+	t.Parallel()
+
+	dbErr := xerrors.New("database offline")
+	tests := []struct {
+		name         string
+		noWorkspace  bool
+		boundAgent   bool
+		setup        func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID)
+		wantErr      error
+		wantNoUsable bool
+	}{
+		{
+			name:         "NoWorkspace",
+			noWorkspace:  true,
+			setup:        func(*dbmock.MockStore, uuid.UUID, uuid.UUID) {},
+			wantErr:      errChatHasNoWorkspace,
+			wantNoUsable: true,
+		},
+		{
+			name: "WorkspaceRowMissing",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, sql.ErrNoRows)
+			},
+			wantErr:      errChatWorkspaceDeleted,
+			wantNoUsable: true,
+		},
+		{
+			name: "WorkspaceLookupFails",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, dbErr)
+			},
+			wantErr: dbErr,
+		},
+		{
+			name:       "BoundAgentLookupFails",
+			boundAgent: true,
+			setup: func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(database.WorkspaceAgent{}, dbErr)
+			},
+			wantErr: dbErr,
+		},
+		{
+			name: "NoAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return(nil, nil)
+			},
+			wantErr:      errChatHasNoWorkspaceAgent,
+			wantNoUsable: true,
+		},
+		{
+			name: "MultipleChatAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{
+					{ID: uuid.New(), Name: "a" + agentselect.Suffix},
+					{ID: uuid.New(), Name: "b" + agentselect.Suffix},
+				}, nil)
+			},
+			wantErr:      agentselect.ErrMultipleChatAgents,
+			wantNoUsable: true,
+		},
+		{
+			name: "NoEligibleAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{
+					{ID: uuid.New(), ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+				}, nil)
+			},
+			wantErr:      agentselect.ErrNoEligibleAgents,
+			wantNoUsable: true,
+		},
+		{
+			name: "BindingWriteFails",
+			setup: func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{{ID: agentID}}, nil)
+				db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: uuid.New()}, nil)
+				db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), gomock.Any()).Return(database.Chat{}, dbErr)
+			},
+			wantErr: dbErr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			workspaceID := uuid.New()
+			agentID := uuid.New()
+			tc.setup(db, workspaceID, agentID)
+
+			chat := database.Chat{
+				ID:          uuid.New(),
+				WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: !tc.noWorkspace},
+				AgentID:     uuid.NullUUID{UUID: agentID, Valid: tc.boundAgent},
+			}
+			workspaceCtx := turnWorkspaceContext{
+				server:           &Server{db: db},
+				chatStateMu:      &sync.Mutex{},
+				currentChat:      &chat,
+				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+			}
+			t.Cleanup(workspaceCtx.close)
+
+			agent, err := workspaceCtx.getWorkspaceAgent(testutil.Context(t, testutil.WaitShort))
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.wantNoUsable, isNoUsableWorkspaceAgent(err))
+			require.Equal(t, database.WorkspaceAgent{}, agent)
+		})
+	}
 }
 
 func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *testing.T) {
