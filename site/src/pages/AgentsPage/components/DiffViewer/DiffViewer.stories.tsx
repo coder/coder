@@ -384,7 +384,7 @@ export const CrossSideAdditionsToDeletions: Story = {
 
 // Rename diff with long file paths to verify that:
 // 1. The arrow between old and new names is vertically centered
-// 2. The stat-count pills remain visible (not clipped)
+// 2. The +N −N line counts remain visible (not clipped)
 // 3. File names truncate with ellipsis
 // biome-ignore format: raw diff string must preserve exact whitespace
 const renameDiff = [
@@ -716,5 +716,145 @@ export const CollapsingAnotherFileKeepsTreeSelection: Story = {
 				throw new Error(`Tree selection is ${JSON.stringify(selected)}`);
 			}
 		});
+	},
+};
+
+// Matches FILE_LIST_PADDING in DiffViewer.tsx.
+const listPadding = 8;
+const overflowLinesPerFile = 5;
+const overflowFiles = parseDiffString(
+	generateLargeDiff(30, overflowLinesPerFile),
+);
+const sortedOverflowFiles = [...overflowFiles]
+	.sort((a, b) => compareTreePaths(a.name, b.name))
+	.map((file) => file.name);
+const lastOverflowLine = `context line ${overflowLinesPerFile} in ${sortedOverflowFiles.at(-1)}`;
+
+// File heights come from itemMetrics, so they must match the rendered card,
+// code inset included. At maximum scroll the last card then ends exactly the
+// list padding above the bottom of the list.
+export const OverflowScrollsToLastCard: Story = {
+	args: {
+		parsedFiles: overflowFiles,
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(() => findScroller(canvasElement));
+		const scroller = findScroller(canvasElement);
+
+		await waitFor(() => {
+			scroller.scrollTop = scroller.scrollHeight;
+			const cards = canvasElement.querySelectorAll("diffs-container");
+			const lastCard = cards[cards.length - 1];
+			if (!lastCard?.shadowRoot?.textContent?.includes(lastOverflowLine)) {
+				throw new Error("Last file has not rendered yet");
+			}
+			const gap =
+				scroller.getBoundingClientRect().bottom -
+				lastCard.getBoundingClientRect().bottom;
+			if (Math.abs(gap - listPadding) > 0.5) {
+				throw new Error(
+					`Last card ends ${gap}px above the list bottom, want ${listPadding}px`,
+				);
+			}
+		});
+	},
+};
+
+// Headless Chromium has no classic scrollbars, so the story fakes one by
+// making the scroll root report a wider offsetWidth, then collapses a file so
+// the content resize re-runs the scrollbar check.
+export const ClassicScrollbarDropsRightPadding: Story = {
+	args: {
+		parsedFiles: overflowFiles,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const firstName = sortedOverflowFiles[0] ?? "";
+		await waitForDiffBody(canvasElement, `in ${firstName}`);
+		const scroller = findScroller(canvasElement);
+		const paddingRight = () => getComputedStyle(scroller).paddingRight;
+		if (paddingRight() !== `${listPadding}px`) {
+			throw new Error(
+				`padding-right is ${paddingRight()} without a scrollbar, want ${listPadding}px`,
+			);
+		}
+
+		Object.defineProperty(scroller, "offsetWidth", {
+			configurable: true,
+			get: () => scroller.clientWidth + 12,
+		});
+		try {
+			await userEvent.click(
+				await canvas.findByRole("button", { name: `Collapse ${firstName}` }),
+			);
+			await waitFor(() => {
+				if (paddingRight() !== "0px") {
+					throw new Error(
+						`padding-right is ${paddingRight()} with a classic scrollbar, want 0px`,
+					);
+				}
+			});
+		} finally {
+			Reflect.deleteProperty(scroller, "offsetWidth");
+		}
+	},
+};
+
+const headerRadii = (canvasElement: HTMLElement): string => {
+	const header = canvasElement
+		.querySelector("diffs-container")
+		?.shadowRoot?.querySelector<HTMLElement>("[data-diffs-header]");
+	if (!header) {
+		throw new Error("Header not rendered");
+	}
+	const style = getComputedStyle(header);
+	return [
+		style.borderTopLeftRadius,
+		style.borderTopRightRadius,
+		style.borderBottomRightRadius,
+		style.borderBottomLeftRadius,
+	].join(" ");
+};
+
+// An expanded header rounds only its top corners, above the code. A collapsed
+// file has no code block, so its header rounds every corner.
+export const CollapsedHeaderIsFullyRounded: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitForDiffBody(canvasElement, firstFileLine);
+		await waitFor(() => {
+			const radii = headerRadii(canvasElement);
+			if (radii !== "6px 6px 0px 0px") {
+				throw new Error(
+					`Expanded header radii are ${radii}, want 6px 6px 0px 0px`,
+				);
+			}
+		});
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: `Collapse ${firstFileName}` }),
+		);
+		await waitForNoDiffBody(canvasElement, firstFileLine);
+		await waitFor(() => {
+			const radii = headerRadii(canvasElement);
+			if (radii !== "6px 6px 6px 6px") {
+				throw new Error(
+					`Collapsed header radii are ${radii}, want 6px 6px 6px 6px`,
+				);
+			}
+		});
+	},
+};
+
+// Scrolls partway into a long file so its header is stuck, which renders the
+// rounded-corner mask for the visual snapshot.
+export const StickyHeaderCorners: Story = {
+	args: {
+		parsedFiles: longFiles,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiffBody(canvasElement, `in ${firstLongFile}`);
+		findScroller(canvasElement).scrollTop = 600;
+		await waitForDiffBody(canvasElement, `context line 60 in ${firstLongFile}`);
 	},
 };
